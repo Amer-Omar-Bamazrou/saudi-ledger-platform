@@ -1,8 +1,40 @@
-import { Router, type IRouter } from "express";
-import healthRouter from "./health";
+import { Router } from "express";
+import health from "./health.js";
+import transactions from "./transactions.js";
+import categories from "./categories.js";
+import categorize from "./categorize.js";
+import summary from "./summary.js";
+import customers from "./customers.js";
+import vendors from "./vendors.js";
+import products from "./products.js";
+import invoices from "./invoices.js";
+import bills from "./bills.js";
+import journalEntries from "./journalEntries.js";
+import employees from "./employees.js";
+import payroll from "./payroll.js";
+import assets from "./assets.js";
+import bankAccounts from "./bankAccounts.js";
+import budgets from "./budgets.js";
+import reports from "./reports.js";
 
-const router: IRouter = Router();
+const router = Router();
 
-router.use(healthRouter);
+router.use("/healthz", health);
+router.use("/transactions", transactions);
+router.use("/categories", categories);
+router.use("/categorize", categorize);
+router.use("/summary", summary);
+router.use("/customers", customers);
+router.use("/vendors", vendors);
+router.use("/products", products);
+router.use("/invoices", invoices);
+router.use("/bills", bills);
+router.use("/journal-entries", journalEntries);
+router.use("/employees", employees);
+router.use("/payroll", payroll);
+router.use("/assets", assets);
+router.use("/bank-accounts", bankAccounts);
+router.use("/budgets", budgets);
+router.use("/reports", reports);
 
 export default router;

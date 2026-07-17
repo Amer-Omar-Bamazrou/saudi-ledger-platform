@@ -1,15 +1,23 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Saudi Bookkeeping Engine API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: transactions
+    description: Transaction management
+  - name: categories
+    description: Category management
+  - name: categorize
+    description: Categorization engine
+  - name: summary
+    description: Financial summaries and reports
+
 paths:
   /healthz:
     get:
@@ -24,6 +32,289 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List all transactions
+      parameters:
+        - name: category_id
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: is_zakat_relevant
+          in: query
+          schema:
+            type: ["boolean", "null"]
+        - name: is_manually_overridden
+          in: query
+          schema:
+            type: ["boolean", "null"]
+        - name: type
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: [debit, credit, null]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: limit
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: offset
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionList"
+
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a single transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/upload:
+    post:
+      operationId: uploadTransactions
+      tags: [transactions]
+      summary: Upload transactions from CSV or JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpload"
+      responses:
+        "200":
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResult"
+
+  /transactions/{id}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get a transaction by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateTransaction
+      tags: [transactions]
+      summary: Update a transaction (manual override)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpdate"
+      responses:
+        "200":
+          description: Updated transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteTransaction
+      tags: [transactions]
+      summary: Delete a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a new category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryInput"
+      responses:
+        "201":
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /categorize:
+    post:
+      operationId: runCategorization
+      tags: [categorize]
+      summary: Run the categorization engine on uncategorized transactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategorizationRequest"
+      responses:
+        "200":
+          description: Categorization result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategorizationResult"
+
+  /summary:
+    get:
+      operationId: getSummary
+      tags: [summary]
+      summary: Get full financial summary
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: date_to
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Financial summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialSummary"
+
+  /summary/vat:
+    get:
+      operationId: getVatSummary
+      tags: [summary]
+      summary: Get VAT summary
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: date_to
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: VAT summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VatSummary"
+
+  /summary/zakat:
+    get:
+      operationId: getZakatSummary
+      tags: [summary]
+      summary: Get Zakat-eligible asset summary
+      responses:
+        "200":
+          description: Zakat summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZakatSummary"
+
+  /summary/by-category:
+    get:
+      operationId: getSummaryByCategory
+      tags: [summary]
+      summary: Get spending and income totals grouped by category
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: date_to
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Per-category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryBreakdown"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +325,321 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Category:
+      type: object
+      required: [id, name, nameAr, type, vatApplicable, zakatRelevant]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        nameAr:
+          type: string
+        type:
+          type: string
+          enum: [income, expense, asset, liability, equity]
+        vatApplicable:
+          type: boolean
+        zakatRelevant:
+          type: boolean
+        description:
+          type: ["string", "null"]
+
+    CategoryInput:
+      type: object
+      required: [name, nameAr, type, vatApplicable, zakatRelevant]
+      properties:
+        name:
+          type: string
+        nameAr:
+          type: string
+        type:
+          type: string
+          enum: [income, expense, asset, liability, equity]
+        vatApplicable:
+          type: boolean
+        zakatRelevant:
+          type: boolean
+        description:
+          type: ["string", "null"]
+
+    Transaction:
+      type: object
+      required:
+        - id
+        - date
+        - description
+        - amount
+        - currency
+        - type
+        - isZakatRelevant
+        - isManuallyOverridden
+        - createdAt
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        description:
+          type: string
+        descriptionAr:
+          type: ["string", "null"]
+        amount:
+          type: number
+        currency:
+          type: string
+        type:
+          type: string
+          enum: [debit, credit]
+        categoryId:
+          type: ["integer", "null"]
+        categoryName:
+          type: ["string", "null"]
+        categoryNameAr:
+          type: ["string", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        vatRate:
+          type: ["number", "null"]
+        isZakatRelevant:
+          type: boolean
+        confidenceScore:
+          type: ["number", "null"]
+        isManuallyOverridden:
+          type: boolean
+        source:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    TransactionList:
+      type: object
+      required: [transactions, total, offset, limit]
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+
+    TransactionInput:
+      type: object
+      required: [date, description, amount, currency, type]
+      properties:
+        date:
+          type: string
+        description:
+          type: string
+        descriptionAr:
+          type: ["string", "null"]
+        amount:
+          type: number
+        currency:
+          type: string
+        type:
+          type: string
+          enum: [debit, credit]
+        categoryId:
+          type: ["integer", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        vatRate:
+          type: ["number", "null"]
+        isZakatRelevant:
+          type: boolean
+        notes:
+          type: ["string", "null"]
+        source:
+          type: ["string", "null"]
+
+    TransactionUpdate:
+      type: object
+      properties:
+        categoryId:
+          type: ["integer", "null"]
+        isZakatRelevant:
+          type: ["boolean", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        vatRate:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        descriptionAr:
+          type: ["string", "null"]
+
+    TransactionUpload:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionInput"
+        autoCategrize:
+          type: ["boolean", "null"]
+
+    UploadResult:
+      type: object
+      required: [inserted, categorized, errors]
+      properties:
+        inserted:
+          type: integer
+        categorized:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+    CategorizationRequest:
+      type: object
+      properties:
+        transactionIds:
+          type: ["array", "null"]
+          items:
+            type: integer
+        overrideExisting:
+          type: ["boolean", "null"]
+
+    CategorizationResult:
+      type: object
+      required: [processed, categorized, skipped]
+      properties:
+        processed:
+          type: integer
+        categorized:
+          type: integer
+        skipped:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategorizationResultItem"
+
+    CategorizationResultItem:
+      type: object
+      required: [transactionId, categoryId, categoryName, confidence]
+      properties:
+        transactionId:
+          type: integer
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        confidence:
+          type: number
+        matchedRule:
+          type: ["string", "null"]
+
+    FinancialSummary:
+      type: object
+      required:
+        - totalIncome
+        - totalExpenses
+        - netPosition
+        - totalVatCollected
+        - totalVatPaid
+        - netVat
+        - transactionCount
+        - uncategorizedCount
+      properties:
+        totalIncome:
+          type: number
+        totalExpenses:
+          type: number
+        netPosition:
+          type: number
+        totalVatCollected:
+          type: number
+        totalVatPaid:
+          type: number
+        netVat:
+          type: number
+        transactionCount:
+          type: integer
+        uncategorizedCount:
+          type: integer
+
+    VatSummary:
+      type: object
+      required: [vatCollected, vatPaid, netVatPosition, vatRate, transactions]
+      properties:
+        vatCollected:
+          type: number
+        vatPaid:
+          type: number
+        netVatPosition:
+          type: number
+        vatRate:
+          type: number
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VatTransaction"
+
+    VatTransaction:
+      type: object
+      required: [id, date, description, amount, vatAmount, type]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        vatAmount:
+          type: number
+        type:
+          type: string
+
+    ZakatSummary:
+      type: object
+      required: [totalZakatableAssets, nisabThresholdSAR, zakatDue, eligibleTransactions]
+      properties:
+        totalZakatableAssets:
+          type: number
+        nisabThresholdSAR:
+          type: number
+        zakatDue:
+          type: number
+        eligibleTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    CategoryBreakdown:
+      type: object
+      required: [categoryId, categoryName, categoryNameAr, type, total, count, vatTotal]
+      properties:
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        categoryNameAr:
+          type: string
+        type:
+          type: string
+        total:
+          type: number
+        count:
+          type: integer
+        vatTotal:
+          type: number

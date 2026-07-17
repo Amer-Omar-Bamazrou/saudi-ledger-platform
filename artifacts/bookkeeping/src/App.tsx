@@ -1,0 +1,89 @@
+import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { Layout } from '@/components/Layout';
+
+import Dashboard from '@/pages/Dashboard';
+import Transactions from '@/pages/Transactions';
+import Categorize from '@/pages/Categorize';
+import Upload from '@/pages/Upload';
+import VatReport from '@/pages/VatReport';
+import ZakatReport from '@/pages/ZakatReport';
+import Categories from '@/pages/Categories';
+import Customers from '@/pages/Customers';
+import Vendors from '@/pages/Vendors';
+import Invoices from '@/pages/Invoices';
+import Bills from '@/pages/Bills';
+import JournalEntries from '@/pages/JournalEntries';
+import Employees from '@/pages/Employees';
+import Payroll from '@/pages/Payroll';
+import Assets from '@/pages/Assets';
+import Products from '@/pages/Products';
+import BankAccounts from '@/pages/BankAccounts';
+import Budgets from '@/pages/Budgets';
+import TrialBalance from '@/pages/TrialBalance';
+import IncomeStatement from '@/pages/IncomeStatement';
+import BalanceSheet from '@/pages/BalanceSheet';
+import CashFlow from '@/pages/CashFlow';
+import ArAging from '@/pages/ArAging';
+import NotFound from '@/pages/not-found';
+
+const queryClient = new QueryClient();
+
+function Router() {
+  return (
+    <Layout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/transactions" component={Transactions} />
+        <Route path="/categorize" component={Categorize} />
+        <Route path="/upload" component={Upload} />
+        {/* AR */}
+        <Route path="/customers" component={Customers} />
+        <Route path="/invoices" component={Invoices} />
+        <Route path="/ar-aging" component={ArAging} />
+        {/* AP */}
+        <Route path="/vendors" component={Vendors} />
+        <Route path="/bills" component={Bills} />
+        {/* General Ledger */}
+        <Route path="/journal-entries" component={JournalEntries} />
+        <Route path="/trial-balance" component={TrialBalance} />
+        {/* Financial Reports */}
+        <Route path="/income-statement" component={IncomeStatement} />
+        <Route path="/balance-sheet" component={BalanceSheet} />
+        <Route path="/cash-flow" component={CashFlow} />
+        <Route path="/vat" component={VatReport} />
+        <Route path="/zakat" component={ZakatReport} />
+        {/* HR & Payroll */}
+        <Route path="/employees" component={Employees} />
+        <Route path="/payroll" component={Payroll} />
+        {/* Assets & Inventory */}
+        <Route path="/assets" component={Assets} />
+        <Route path="/products" component={Products} />
+        {/* Banking */}
+        <Route path="/bank-accounts" component={BankAccounts} />
+        {/* Planning */}
+        <Route path="/budgets" component={Budgets} />
+        {/* Settings */}
+        <Route path="/categories" component={Categories} />
+        <Route component={NotFound} />
+      </Switch>
+    </Layout>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
