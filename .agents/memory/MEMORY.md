@@ -1,4 +1,5 @@
 - [Session persistence](session-persistence.md) — user_sessions table must be created manually; connect-pg-simple createTableIfMissing fails silently without a TTY
+- [Replit proxy cookie fix](replit-proxy-cookie.md) — SameSite=None + res.setHeader Secure injection; proxy doesn't forward X-Forwarded-Proto so secure:true silently kills Set-Cookie
 - [Drizzle push TTY requirement](drizzle-push-tty.md) — drizzle-kit push requires interactive TTY; use raw psql ALTER TABLE for CI/non-TTY schema changes
 - [Auth & period lock error propagation](route-error-propagation.md) — errors with statusCode property need handleRouteError helper; plain catch blocks swallow 423/409 as 500
 - [React useEffect import](react-hooks-import.md) — useEffect and other hooks must be explicitly imported from 'react'; missing import crashes the entire app at runtime

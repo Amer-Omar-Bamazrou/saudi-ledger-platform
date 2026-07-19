@@ -11,9 +11,6 @@ const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
-// Trust the Replit reverse proxy so express-session sets Secure cookies correctly
-app.set("trust proxy", 1);
-
 app.use(
   pinoHttp({
     logger,
@@ -37,7 +34,30 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware — backed by PostgreSQL (auto-creates "session" table on first run)
+// ── Replit proxy cookie fix ────────────────────────────────────────────────────
+// The Replit TLS proxy does NOT forward X-Forwarded-Proto, so express-session's
+// `secure: true` would silently skip setting Set-Cookie entirely.
+// Instead we use `secure: false` (so express-session always writes the cookie),
+// then this middleware patches every outgoing Set-Cookie header to add the
+// `Secure` attribute — which Chrome requires when SameSite=None is used.
+// SameSite=None is required because the Replit preview is an iframe at
+// replit.com (different eTLD+1 from *.replit.dev), making requests cross-site.
+app.use((_req, res, next) => {
+  const origSetHeader = res.setHeader.bind(res);
+  // @ts-ignore — override to intercept Set-Cookie
+  res.setHeader = (name: string, value: unknown) => {
+    if (name.toLowerCase() === "set-cookie") {
+      const arr = (Array.isArray(value) ? value : [String(value)]) as string[];
+      value = arr.map((c) =>
+        c.toLowerCase().includes("secure") ? c : c + "; Secure"
+      );
+    }
+    return origSetHeader(name, value as any);
+  };
+  next();
+});
+
+// Session middleware — backed by PostgreSQL
 app.use(
   session({
     store: new PgSession({
@@ -50,13 +70,13 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 8 * 60 * 60 * 1000, // 8-hour session
+      maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
-      // "none" + secure required: Replit preview iframe (*.replit.dev) is
-      // embedded inside replit.com — browsers block SameSite=Lax cookies
-      // in cross-site iframe contexts (Chrome 80+).
+      // SameSite=None lets the cookie cross the replit.com → *.replit.dev
+      // iframe boundary. Secure is injected by the middleware above rather
+      // than here, so that express-session always writes the header.
       sameSite: "none",
-      secure: true,
+      secure: false,
     },
   }),
 );
