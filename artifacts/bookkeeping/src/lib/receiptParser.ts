@@ -99,18 +99,29 @@ export function parseReceiptText(raw: string): ParsedReceipt {
     .replace(/\b3\d{14}\b/g, "VATID")              // ZATCA VAT reg number
     .replace(/\b\d{10,}\b/g, "REFNO");              // any other long ID
 
-  // Look for labelled amounts — order matters (most specific first).
-  // Sanity-cap: receipt line totals should never exceed 9,999,999 SAR.
+  // Scan line-by-line: only accept a label match when the label starts
+  // within the first 6 characters of the line.  This prevents embedded
+  // words — e.g. "VAT" inside "Total (incl. VAT)  115.00" — from being
+  // mistaken for a VAT-amount label and returning the line's total as the
+  // VAT amount.
   const MAX_RECEIPT_AMOUNT = 9_999_999;
+  const linesForAmounts = textForAmounts.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
   const amountLine = (labels: string[]): number => {
-    const pat = new RegExp(
-      `(?:${labels.join("|")})[^\\d\\n]{0,30}([\\d,]+\\.?\\d{0,2})`,
-      "i"
-    );
-    const m = textForAmounts.match(pat);
-    if (!m) return 0;
-    const v = parseAmount(m[1]);
-    return v <= MAX_RECEIPT_AMOUNT ? v : 0;
+    const labelPat = new RegExp(`(?:${labels.join("|")})`, "i");
+    // Rightmost number on the line — with optional SAR / ر.س suffix
+    const amtPat = /([\d,]+\.?\d{0,2})\s*(?:SAR|sar|ر\.س|ريال)?$/i;
+
+    for (const line of linesForAmounts) {
+      const m = labelPat.exec(line);
+      // Label must be near the beginning of the line (not embedded mid-line)
+      if (!m || m.index > 5) continue;
+      const amtMatch = amtPat.exec(line);
+      if (!amtMatch) continue;
+      const v = parseAmount(amtMatch[1]);
+      if (v > 0 && v <= MAX_RECEIPT_AMOUNT) return v;
+    }
+    return 0;
   };
 
   total = amountLine(["total amount", "grand total", "amount due", "total due", "total payable", "المبلغ الإجمالي", "الإجمالي", "total"]);
