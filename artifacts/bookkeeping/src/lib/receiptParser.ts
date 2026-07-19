@@ -91,14 +91,26 @@ export function parseReceiptText(raw: string): ParsedReceipt {
   // ── 3. Amounts ────────────────────────────────────────────────────────────────
   let total = 0, vatAmount = 0, subtotal = 0;
 
-  // Look for labelled amounts — order matters (most specific first)
+  // Strip VAT registration / CR numbers BEFORE amount parsing so the
+  // 15-digit ZATCA VAT ID (e.g. 310122445500003) is never mistaken for a
+  // monetary value.  Saudi VAT numbers are exactly 15 digits starting with 3.
+  // Also strip other long digit sequences (≥10 digits) that are clearly IDs.
+  const textForAmounts = text
+    .replace(/\b3\d{14}\b/g, "VATID")              // ZATCA VAT reg number
+    .replace(/\b\d{10,}\b/g, "REFNO");              // any other long ID
+
+  // Look for labelled amounts — order matters (most specific first).
+  // Sanity-cap: receipt line totals should never exceed 9,999,999 SAR.
+  const MAX_RECEIPT_AMOUNT = 9_999_999;
   const amountLine = (labels: string[]): number => {
     const pat = new RegExp(
       `(?:${labels.join("|")})[^\\d\\n]{0,30}([\\d,]+\\.?\\d{0,2})`,
       "i"
     );
-    const m = text.match(pat);
-    return m ? parseAmount(m[1]) : 0;
+    const m = textForAmounts.match(pat);
+    if (!m) return 0;
+    const v = parseAmount(m[1]);
+    return v <= MAX_RECEIPT_AMOUNT ? v : 0;
   };
 
   total = amountLine(["total amount", "grand total", "amount due", "total due", "total payable", "المبلغ الإجمالي", "الإجمالي", "total"]);
