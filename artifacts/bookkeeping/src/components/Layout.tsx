@@ -9,7 +9,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ReceiptText, ShoppingCart, FilePlus, Store,
+  ReceiptText, ShoppingCart, FilePlus, Store, PieChart,
 } from "lucide-react";
 
 type NavItem = { href?: string; label: string; icon: React.ElementType; children?: NavItem[] };
@@ -52,13 +52,35 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Reports",
+    label: "Financial Reports",
     items: [
       { href: "/income-statement", label: "Income Statement", icon: TrendingUp },
       { href: "/balance-sheet", label: "Balance Sheet", icon: BarChart3 },
-      { href: "/cash-flow", label: "Cash Flow", icon: Waves },
+      { href: "/cash-flow", label: "Cash Flow Statement", icon: Waves },
+      { href: "/trial-balance", label: "Trial Balance", icon: Scale },
+      { href: "/gl-report", label: "General Ledger Report", icon: BookOpen },
       { href: "/vat", label: "VAT Report", icon: Receipt },
       { href: "/zakat", label: "Zakat Report", icon: Landmark },
+    ],
+  },
+  {
+    label: "Sales Reports",
+    items: [
+      { href: "/sales-summary", label: "Sales Summary", icon: ShoppingBag },
+      { href: "/ar-aging", label: "AR Aging", icon: AlertCircle },
+      { href: "/customer-statement", label: "Customer Statement", icon: Users },
+      { href: "/invoice-summary", label: "Invoice Summary", icon: FileText },
+      { href: "/quotation-report", label: "Quotation Report", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Operations Reports",
+    items: [
+      { href: "/expense-report", label: "Expense Report", icon: PieChart },
+      { href: "/ap-aging", label: "AP Aging", icon: Building2 },
+      { href: "/payroll-report", label: "Payroll Summary", icon: Banknote },
+      { href: "/budget-vs-actual", label: "Budget vs Actual", icon: Target },
+      { href: "/asset-schedule", label: "Fixed Asset Schedule", icon: Package },
     ],
   },
   {
@@ -100,7 +122,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 function NavGroup({ group, location }: { group: typeof navGroups[0]; location: string }) {
   const hasActive = group.items.some(i => i.href === location);
-  const [open, setOpen] = useState(hasActive || ["Overview", "Sales", "Purchases"].includes(group.label));
+  const [open, setOpen] = useState(hasActive || ["Overview", "Sales", "Purchases", "Financial Reports"].includes(group.label));
 
   return (
     <div>

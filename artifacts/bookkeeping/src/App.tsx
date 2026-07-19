@@ -46,6 +46,16 @@ import IncomeStatement from '@/pages/IncomeStatement';
 import BalanceSheet from '@/pages/BalanceSheet';
 import CashFlow from '@/pages/CashFlow';
 import ArAging from '@/pages/ArAging';
+import GlReport from '@/pages/GlReport';
+import SalesSummary from '@/pages/SalesSummary';
+import CustomerStatement from '@/pages/CustomerStatement';
+import InvoiceSummary from '@/pages/InvoiceSummary';
+import QuotationReport from '@/pages/QuotationReport';
+import ExpenseReport from '@/pages/ExpenseReport';
+import ApAging from '@/pages/ApAging';
+import PayrollReport from '@/pages/PayrollReport';
+import BudgetVsActual from '@/pages/BudgetVsActual';
+import AssetSchedule from '@/pages/AssetSchedule';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -102,8 +112,20 @@ function Router() {
               <Route path="/debit-notes" component={DebitNotes} />
               <Route path="/simple-bills" component={SimpleBills} />
               <Route path="/vendor-receipts" component={VendorReceipts} />
-              {/* AR Aging (kept for reports) */}
+              {/* Financial Reports */}
+              <Route path="/gl-report" component={GlReport} />
+              {/* Sales Reports */}
+              <Route path="/sales-summary" component={SalesSummary} />
               <Route path="/ar-aging" component={ArAging} />
+              <Route path="/customer-statement" component={CustomerStatement} />
+              <Route path="/invoice-summary" component={InvoiceSummary} />
+              <Route path="/quotation-report" component={QuotationReport} />
+              {/* Operations Reports */}
+              <Route path="/expense-report" component={ExpenseReport} />
+              <Route path="/ap-aging" component={ApAging} />
+              <Route path="/payroll-report" component={PayrollReport} />
+              <Route path="/budget-vs-actual" component={BudgetVsActual} />
+              <Route path="/asset-schedule" component={AssetSchedule} />
               {/* General Ledger */}
               <Route path="/journal-entries" component={JournalEntries} />
               <Route path="/trial-balance" component={TrialBalance} />
