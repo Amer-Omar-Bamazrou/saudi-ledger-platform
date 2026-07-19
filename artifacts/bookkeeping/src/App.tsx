@@ -22,9 +22,16 @@ import VatReport from '@/pages/VatReport';
 import ZakatReport from '@/pages/ZakatReport';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
-import Vendors from '@/pages/Vendors';
+import Quotations from '@/pages/Quotations';
 import Invoices from '@/pages/Invoices';
+import CreditNotes from '@/pages/CreditNotes';
+import CustomerReceipts from '@/pages/CustomerReceipts';
+import Vendors from '@/pages/Vendors';
+import PurchaseOrders from '@/pages/PurchaseOrders';
 import Bills from '@/pages/Bills';
+import DebitNotes from '@/pages/DebitNotes';
+import SimpleBills from '@/pages/SimpleBills';
+import VendorReceipts from '@/pages/VendorReceipts';
 import JournalEntries from '@/pages/JournalEntries';
 import Employees from '@/pages/Employees';
 import Payroll from '@/pages/Payroll';
@@ -82,13 +89,21 @@ function Router() {
               <Route path="/transactions" component={Transactions} />
               <Route path="/categorize" component={Categorize} />
               <Route path="/upload" component={Upload} />
-              {/* AR */}
+              {/* Sales */}
               <Route path="/customers" component={Customers} />
+              <Route path="/quotations" component={Quotations} />
               <Route path="/invoices" component={Invoices} />
-              <Route path="/ar-aging" component={ArAging} />
-              {/* AP */}
+              <Route path="/credit-notes" component={CreditNotes} />
+              <Route path="/customer-receipts" component={CustomerReceipts} />
+              {/* Purchases */}
               <Route path="/vendors" component={Vendors} />
+              <Route path="/purchase-orders" component={PurchaseOrders} />
               <Route path="/bills" component={Bills} />
+              <Route path="/debit-notes" component={DebitNotes} />
+              <Route path="/simple-bills" component={SimpleBills} />
+              <Route path="/vendor-receipts" component={VendorReceipts} />
+              {/* AR Aging (kept for reports) */}
+              <Route path="/ar-aging" component={ArAging} />
               {/* General Ledger */}
               <Route path="/journal-entries" component={JournalEntries} />
               <Route path="/trial-balance" component={TrialBalance} />

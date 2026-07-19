@@ -8,7 +8,8 @@ import {
   Receipt, Landmark, Tags, Users, Building2, FileText, FileInput,
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
-  ChevronRight, LogOut, KeyRound, UserCog,
+  ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
+  ReceiptText, ShoppingCart, FilePlus, Store,
 } from "lucide-react";
 
 type NavItem = { href?: string; label: string; icon: React.ElementType; children?: NavItem[] };
@@ -23,18 +24,24 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Receivables (AR)",
+    label: "Sales",
     items: [
       { href: "/customers", label: "Customers", icon: Users },
+      { href: "/quotations", label: "Quotations", icon: ClipboardList },
       { href: "/invoices", label: "Invoices", icon: FileText },
-      { href: "/ar-aging", label: "AR Aging", icon: AlertCircle },
+      { href: "/credit-notes", label: "Credit Notes", icon: FileMinus },
+      { href: "/customer-receipts", label: "Customer Receipts", icon: ReceiptText },
     ],
   },
   {
-    label: "Payables (AP)",
+    label: "Purchases",
     items: [
       { href: "/vendors", label: "Vendors", icon: Building2 },
+      { href: "/purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
       { href: "/bills", label: "Bills", icon: FileInput },
+      { href: "/debit-notes", label: "Debit Notes", icon: FilePlus },
+      { href: "/simple-bills", label: "Simple Bills", icon: FileText },
+      { href: "/vendor-receipts", label: "Vendor Receipts", icon: Store },
     ],
   },
   {
@@ -93,7 +100,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 function NavGroup({ group, location }: { group: typeof navGroups[0]; location: string }) {
   const hasActive = group.items.some(i => i.href === location);
-  const [open, setOpen] = useState(hasActive || ["Overview", "Receivables (AR)", "Payables (AP)"].includes(group.label));
+  const [open, setOpen] = useState(hasActive || ["Overview", "Sales", "Purchases"].includes(group.label));
 
   return (
     <div>
