@@ -11,6 +11,9 @@ const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
+// Trust the Replit reverse proxy so express-session sets Secure cookies correctly
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -49,7 +52,11 @@ app.use(
     cookie: {
       maxAge: 8 * 60 * 60 * 1000, // 8-hour session
       httpOnly: true,
-      sameSite: "lax",
+      // "none" + secure required: Replit preview iframe (*.replit.dev) is
+      // embedded inside replit.com — browsers block SameSite=Lax cookies
+      // in cross-site iframe contexts (Chrome 80+).
+      sameSite: "none",
+      secure: true,
     },
   }),
 );

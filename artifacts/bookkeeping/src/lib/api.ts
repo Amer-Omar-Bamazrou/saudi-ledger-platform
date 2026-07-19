@@ -8,9 +8,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     ...init,
   });
   if (res.status === 401) {
-    // Redirect to login — avoid circular import by using window location
+    // Navigate to login and throw so React Query gets an error state,
+    // not undefined (undefined crashes React Query with a hard error).
     window.location.href = `${import.meta.env.BASE_URL}login`;
-    return undefined as T;
+    throw new Error("Session expired. Please log in.");
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

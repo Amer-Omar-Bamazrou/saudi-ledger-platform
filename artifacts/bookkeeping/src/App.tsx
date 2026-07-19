@@ -25,6 +25,8 @@ import Assets from '@/pages/Assets';
 import Products from '@/pages/Products';
 import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
+import UserManagement from '@/pages/UserManagement';
+import ChangePassword from '@/pages/ChangePassword';
 import TrialBalance from '@/pages/TrialBalance';
 import IncomeStatement from '@/pages/IncomeStatement';
 import BalanceSheet from '@/pages/BalanceSheet';
@@ -101,6 +103,8 @@ function Router() {
               <Route path="/budgets" component={Budgets} />
               {/* Settings */}
               <Route path="/categories" component={Categories} />
+              <Route path="/users" component={UserManagement} />
+              <Route path="/change-password" component={ChangePassword} />
               <Route component={NotFound} />
             </Switch>
           </Layout>

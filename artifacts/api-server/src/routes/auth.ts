@@ -105,7 +105,7 @@ router.get("/users", requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
-/** PATCH /auth/users/:id — admin can change role/status */
+/** PATCH /auth/users/:id — admin can change role/status/name */
 router.patch("/users/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -117,6 +117,41 @@ router.patch("/users/:id", requireAuth, requireAdmin, async (req, res) => {
     const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
     if (!user) { res.status(404).json({ error: "User not found." }); return; }
     res.json(safeUser(user));
+  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+});
+
+/** POST /auth/change-password — logged-in user changes their own password */
+router.post("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: "currentPassword and newPassword are required." }); return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: "New password must be at least 8 characters." }); return;
+    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId!)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found." }); return; }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    res.json({ message: "Password changed successfully." });
+  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+});
+
+/** POST /auth/users/:id/reset-password — admin resets another user's password */
+router.post("/users/:id/reset-password", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ error: "newPassword must be at least 8 characters." }); return;
+    }
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const [user] = await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, id)).returning();
+    if (!user) { res.status(404).json({ error: "User not found." }); return; }
+    res.json({ message: `Password reset for ${user.name}.` });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
