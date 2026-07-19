@@ -81,7 +81,7 @@ router.post("/login", async (req, res) => {
     // in user_sessions → requireAuth sees no session → immediate 401.
     req.session.save((err) => {
       if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
-      res.json({ user: safeUser(user), message: "Logged in successfully." });
+      res.json({ user: safeUser(user), token: req.sessionID, message: "Logged in successfully." });
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });

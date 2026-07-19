@@ -1,15 +1,26 @@
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
+/** Key used to persist the session token in localStorage. */
+export const TOKEN_KEY = "ksa_ledger_token";
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
-    credentials: "include",   // send session cookie with every request
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...init?.headers,
+    },
     ...init,
   });
   if (res.status === 401) {
-    // Navigate to login and throw so React Query gets an error state,
-    // not undefined (undefined crashes React Query with a hard error).
+    localStorage.removeItem(TOKEN_KEY);
     window.location.href = `${import.meta.env.BASE_URL}login`;
     throw new Error("Session expired. Please log in.");
   }

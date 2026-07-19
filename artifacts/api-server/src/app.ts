@@ -34,29 +34,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Replit proxy cookie fix ────────────────────────────────────────────────────
-// The Replit TLS proxy does NOT forward X-Forwarded-Proto, so express-session's
-// `secure: true` would silently skip setting Set-Cookie entirely.
-// Instead we use `secure: false` (so express-session always writes the cookie),
-// then this middleware patches every outgoing Set-Cookie header to add the
-// `Secure` attribute — which Chrome requires when SameSite=None is used.
-// SameSite=None is required because the Replit preview is an iframe at
-// replit.com (different eTLD+1 from *.replit.dev), making requests cross-site.
-app.use((_req, res, next) => {
-  const origSetHeader = res.setHeader.bind(res);
-  // @ts-ignore — override to intercept Set-Cookie
-  res.setHeader = (name: string, value: unknown) => {
-    if (name.toLowerCase() === "set-cookie") {
-      const arr = (Array.isArray(value) ? value : [String(value)]) as string[];
-      value = arr.map((c) =>
-        c.toLowerCase().includes("secure") ? c : c + "; Secure"
-      );
-    }
-    return origSetHeader(name, value as any);
-  };
-  next();
-});
-
 // Session middleware — backed by PostgreSQL
 app.use(
   session({
@@ -72,14 +49,39 @@ app.use(
     cookie: {
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
-      // SameSite=None lets the cookie cross the replit.com → *.replit.dev
-      // iframe boundary. Secure is injected by the middleware above rather
-      // than here, so that express-session always writes the header.
-      sameSite: "none",
+      sameSite: "lax",
       secure: false,
     },
   }),
 );
+
+// ── Bearer-token session loader ───────────────────────────────────────────────
+// The Replit preview is an iframe inside replit.com. Chrome blocks third-party
+// cookies from cross-site iframes, so the session cookie never reaches the
+// browser. Instead, the login route returns req.sessionID as a plain token.
+// The client stores it in localStorage and sends it as "Authorization: Bearer
+// <sessionID>" on every request. This middleware loads the matching session row
+// from PostgreSQL and populates req.session so requireAuth works normally.
+app.use((req, _res, next) => {
+  // Cookie-based session already worked — nothing to do.
+  if (req.session?.userId) { next(); return; }
+
+  const auth = req.headers["authorization"];
+  if (!auth?.startsWith("Bearer ")) { next(); return; }
+
+  const sid = auth.slice(7).trim();
+  if (!sid) { next(); return; }
+
+  req.sessionStore.get(sid, (err, data) => {
+    if (err || !data) { next(); return; }
+    const s = data as any;
+    req.session.userId    = s.userId;
+    req.session.userRole  = s.userRole;
+    req.session.userName  = s.userName;
+    req.session.userEmail = s.userEmail;
+    next();
+  });
+});
 
 app.use("/api", router);
 
