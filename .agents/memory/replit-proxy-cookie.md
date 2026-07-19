@@ -1,6 +1,6 @@
 ---
 name: Replit proxy cookie fix
-description: How to make session cookies work in the Replit preview iframe (SameSite + Secure issue)
+description: How to make session cookies work in the Replit preview iframe (SameSite + Secure issue + session save race)
 ---
 
 ## Rule

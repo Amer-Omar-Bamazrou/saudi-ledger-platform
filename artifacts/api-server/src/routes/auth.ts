@@ -75,7 +75,14 @@ router.post("/login", async (req, res) => {
     req.session.userName = user.name;
     req.session.userEmail = user.email;
 
-    res.json({ user: safeUser(user), message: "Logged in successfully." });
+    // Save the session to PostgreSQL BEFORE sending the response.
+    // Without this, express-session flushes asynchronously after res.end(),
+    // and the very next request from the browser arrives before the row exists
+    // in user_sessions → requireAuth sees no session → immediate 401.
+    req.session.save((err) => {
+      if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
+      res.json({ user: safeUser(user), message: "Logged in successfully." });
+    });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
