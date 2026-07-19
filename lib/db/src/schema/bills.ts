@@ -19,6 +19,7 @@ export const billsTable = pgTable("bills", {
   paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
   paidAt: text("paid_at"),
   notes: text("notes"),
+  createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

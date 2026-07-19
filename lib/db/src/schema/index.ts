@@ -11,3 +11,5 @@ export * from "./payroll";
 export * from "./assets";
 export * from "./bankAccounts";
 export * from "./budgets";
+export * from "./users";
+export * from "./periodLocks";

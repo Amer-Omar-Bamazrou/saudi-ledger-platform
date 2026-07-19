@@ -1,0 +1,79 @@
+Before adding any new features, I need you to verify and harden what's already 
+built, then add Qwen as a second local LLM option. Go through this in order — 
+don't skip ahead to Qwen integration until the verification section is done 
+and you've shown me proof.
+
+## PART 1 — Verify the accounting core actually works (do this first, show me evidence)
+
+1. Trace one real example end-to-end: create a customer invoice, then show me 
+   the exact journal entry it generated (Dr/Cr lines, account codes, amounts). 
+   If invoices don't automatically post to journal_entries, fix that now — 
+   AR/AP must not be a disconnected table sitting next to the GL pretending 
+   to be part of it.
+2. Do the same for a vendor bill and for a payroll run — show me the journal 
+   entries each one generates.
+3. Pull the Trial Balance and prove the debit column equals the credit column 
+   to the cent. If it doesn't balance, find and fix the posting bug before 
+   touching anything else.
+4. Confirm whether posted journal entries can currently be edited directly. 
+   If yes, that's wrong — implement proper reversal-only editing: a posted 
+   entry can only be corrected by posting a reversing entry, never mutated 
+   in place. Add a `posted_at` / `locked` flag and enforce this at the API 
+   level, not just the UI.
+5. Tell me honestly, in plain language, what from my original scope was 
+   NOT implemented: authentication/roles, ZATCA e-invoicing (QR code, 
+   invoice hash chaining, ZATCA-format VAT return), period closing/locking, 
+   automated tests. Don't soften this — I need the real gap list.
+
+## PART 2 — Authentication & permissions (currently missing entirely)
+- Real login: password hashing (bcrypt), session or JWT-based auth
+- Roles: Admin (full access), Accountant (post entries, can't delete history), 
+  Viewer (read-only reports)
+- Every table that records financial changes needs a `created_by` / 
+  `updated_by` user reference, not just a timestamp
+- Restrict posting/deleting journal entries, invoices, and bills to 
+  Admin/Accountant roles only
+
+## PART 3 — ZATCA e-invoicing compliance
+- Research current ZATCA Phase 2 e-invoicing (Fatoora) technical requirements 
+  before implementing — confirm what's currently required, this has changed 
+  over time and I don't want you working from stale assumptions
+- Generate the QR code (TLV-encoded base64: seller name, VAT number, 
+  timestamp, invoice total, VAT total) on every simplified tax invoice
+- Implement invoice hash chaining (each invoice references the cryptographic 
+  hash of the previous one)
+- Build the VAT return report in the actual ZATCA VAT return structure 
+  (standard-rated sales/purchases, zero-rated, exempt, imports — box by box)
+
+## PART 4 — Testing (add real coverage on financial logic)
+- pytest suite covering: trial balance always nets to zero after any 
+  transaction type, invoice VAT math is correct, depreciation schedule 
+  calculates correctly for both straight-line and declining balance, 
+  GOSI calculation matches current published rates, journal entries reject 
+  unbalanced debit/credit totals
+- Run the suite and show me it passing before calling this done
+
+## PART 5 — Period locking
+- Add the ability to close a month/quarter so no new entries can post into 
+  it and no existing entries in it can be edited without an explicit, 
+  logged reversal
+
+## PART 6 — Add Qwen as a second local LLM option
+I want to use Qwen alongside the existing Ollama-based fallback in the 
+categorization engine, not replace it. Structure it as a selectable model 
+backend:
+- Add a config option (env var or settings page) to choose which local 
+  model the categorization engine's LLM fallback calls: the existing 
+  Ollama/llama3 path, or Qwen (e.g. qwen2.5, served locally via Ollama 
+  if that's the simplest path — confirm the current recommended way to 
+  run Qwen locally before implementing, since local model tooling changes)
+- Keep the same fallback contract: deterministic keyword engine runs first, 
+  the selected LLM only gets called for low-confidence transactions, and 
+  if the local model isn't reachable the system degrades to flagging for 
+  manual review — never breaks the app
+- Show me both models' output on the same 10 sample transactions so I can 
+  compare categorization quality before deciding which is default
+
+Go section by section. Do not move to Part 6 until Parts 1-5 are verified 
+and you've shown me working proof for each, not just a description of what 
+you added.

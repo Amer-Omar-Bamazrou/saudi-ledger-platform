@@ -20,6 +20,13 @@ export const invoicesTable = pgTable("invoices", {
   paidAt: text("paid_at"),
   notes: text("notes"),
   termsAndConditions: text("terms_and_conditions"),
+  createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
+  // ZATCA e-invoicing fields
+  invoiceHash: text("invoice_hash"),   // SHA-256 of this invoice's canonical fields
+  previousHash: text("previous_hash"), // Hash of the immediately preceding invoice (hash chain)
+  qrCode: text("qr_code"),            // Base64 TLV-encoded QR code per ZATCA Phase 1 spec
+  sellerName: text("seller_name"),     // Denormalized for QR (changes over time)
+  sellerVatNumber: text("seller_vat_number"), // Denormalized for QR
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

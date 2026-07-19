@@ -1,9 +1,12 @@
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { useEffect } from 'react';
+import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
+import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Categorize from '@/pages/Categorize';
@@ -31,45 +34,79 @@ import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const [, navigate] = useLocation();
+
+  // Redirect to login in an effect to avoid setState-during-render
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/login');
+    }
+  }, [loading, user, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/transactions" component={Transactions} />
-        <Route path="/categorize" component={Categorize} />
-        <Route path="/upload" component={Upload} />
-        {/* AR */}
-        <Route path="/customers" component={Customers} />
-        <Route path="/invoices" component={Invoices} />
-        <Route path="/ar-aging" component={ArAging} />
-        {/* AP */}
-        <Route path="/vendors" component={Vendors} />
-        <Route path="/bills" component={Bills} />
-        {/* General Ledger */}
-        <Route path="/journal-entries" component={JournalEntries} />
-        <Route path="/trial-balance" component={TrialBalance} />
-        {/* Financial Reports */}
-        <Route path="/income-statement" component={IncomeStatement} />
-        <Route path="/balance-sheet" component={BalanceSheet} />
-        <Route path="/cash-flow" component={CashFlow} />
-        <Route path="/vat" component={VatReport} />
-        <Route path="/zakat" component={ZakatReport} />
-        {/* HR & Payroll */}
-        <Route path="/employees" component={Employees} />
-        <Route path="/payroll" component={Payroll} />
-        {/* Assets & Inventory */}
-        <Route path="/assets" component={Assets} />
-        <Route path="/products" component={Products} />
-        {/* Banking */}
-        <Route path="/bank-accounts" component={BankAccounts} />
-        {/* Planning */}
-        <Route path="/budgets" component={Budgets} />
-        {/* Settings */}
-        <Route path="/categories" component={Categories} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      {/* Public */}
+      <Route path="/login" component={Login} />
+
+      {/* Protected — everything else */}
+      <Route>
+        <AuthGuard>
+          <Layout>
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/transactions" component={Transactions} />
+              <Route path="/categorize" component={Categorize} />
+              <Route path="/upload" component={Upload} />
+              {/* AR */}
+              <Route path="/customers" component={Customers} />
+              <Route path="/invoices" component={Invoices} />
+              <Route path="/ar-aging" component={ArAging} />
+              {/* AP */}
+              <Route path="/vendors" component={Vendors} />
+              <Route path="/bills" component={Bills} />
+              {/* General Ledger */}
+              <Route path="/journal-entries" component={JournalEntries} />
+              <Route path="/trial-balance" component={TrialBalance} />
+              {/* Financial Reports */}
+              <Route path="/income-statement" component={IncomeStatement} />
+              <Route path="/balance-sheet" component={BalanceSheet} />
+              <Route path="/cash-flow" component={CashFlow} />
+              <Route path="/vat" component={VatReport} />
+              <Route path="/zakat" component={ZakatReport} />
+              {/* HR & Payroll */}
+              <Route path="/employees" component={Employees} />
+              <Route path="/payroll" component={Payroll} />
+              {/* Assets & Inventory */}
+              <Route path="/assets" component={Assets} />
+              <Route path="/products" component={Products} />
+              {/* Banking */}
+              <Route path="/bank-accounts" component={BankAccounts} />
+              {/* Planning */}
+              <Route path="/budgets" component={Budgets} />
+              {/* Settings */}
+              <Route path="/categories" component={Categories} />
+              <Route component={NotFound} />
+            </Switch>
+          </Layout>
+        </AuthGuard>
+      </Route>
+    </Switch>
   );
 }
 
@@ -78,7 +115,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
+          <AuthProvider>
+            <Router />
+          </AuthProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

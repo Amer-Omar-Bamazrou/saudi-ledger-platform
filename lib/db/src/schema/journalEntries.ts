@@ -2,6 +2,8 @@ import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+// Forward-reference users table (avoid circular import — use integer FK directly)
+
 
 export const journalEntriesTable = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
@@ -12,6 +14,8 @@ export const journalEntriesTable = pgTable("journal_entries", {
   status: text("status").notNull().default("draft"), // draft | posted | reversed
   reversalOf: integer("reversal_of"),    // FK to self if reversal
   notes: text("notes"),
+  postedAt: timestamp("posted_at"),      // set when status transitions to posted; entry is locked after this
+  createdBy: integer("created_by"),      // FK to users.id (nullable — pre-auth entries have no owner)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
