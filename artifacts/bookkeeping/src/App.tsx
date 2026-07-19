@@ -56,6 +56,17 @@ import ApAging from '@/pages/ApAging';
 import PayrollReport from '@/pages/PayrollReport';
 import BudgetVsActual from '@/pages/BudgetVsActual';
 import AssetSchedule from '@/pages/AssetSchedule';
+// Reports Hub + new report pages
+import ReportsHub from '@/pages/ReportsHub';
+import JournalReport from '@/pages/reports/JournalReport';
+import AccountStatement from '@/pages/reports/AccountStatement';
+import AccountSummary from '@/pages/reports/AccountSummary';
+import GeneralLedger from '@/pages/reports/GeneralLedger';
+import CustomerLedger from '@/pages/reports/CustomerLedger';
+import OwnerEquity from '@/pages/reports/OwnerEquity';
+import TaxJournalEntries from '@/pages/reports/TaxJournalEntries';
+import ActivityReport from '@/pages/reports/ActivityReport';
+import AgingReports from '@/pages/reports/AgingReports';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -112,20 +123,30 @@ function Router() {
               <Route path="/debit-notes" component={DebitNotes} />
               <Route path="/simple-bills" component={SimpleBills} />
               <Route path="/vendor-receipts" component={VendorReceipts} />
-              {/* Financial Reports */}
+              {/* Legacy report pages */}
               <Route path="/gl-report" component={GlReport} />
-              {/* Sales Reports */}
               <Route path="/sales-summary" component={SalesSummary} />
               <Route path="/ar-aging" component={ArAging} />
               <Route path="/customer-statement" component={CustomerStatement} />
               <Route path="/invoice-summary" component={InvoiceSummary} />
               <Route path="/quotation-report" component={QuotationReport} />
-              {/* Operations Reports */}
               <Route path="/expense-report" component={ExpenseReport} />
               <Route path="/ap-aging" component={ApAging} />
               <Route path="/payroll-report" component={PayrollReport} />
               <Route path="/budget-vs-actual" component={BudgetVsActual} />
               <Route path="/asset-schedule" component={AssetSchedule} />
+              {/* Reports Hub */}
+              <Route path="/reports" component={ReportsHub} />
+              {/* New report pages under /reports/* */}
+              <Route path="/reports/journal-report" component={JournalReport} />
+              <Route path="/reports/account-statement" component={AccountStatement} />
+              <Route path="/reports/account-summary" component={AccountSummary} />
+              <Route path="/reports/general-ledger" component={GeneralLedger} />
+              <Route path="/reports/customer-ledger" component={CustomerLedger} />
+              <Route path="/reports/owner-equity" component={OwnerEquity} />
+              <Route path="/reports/tax-journal-entries" component={TaxJournalEntries} />
+              <Route path="/reports/activity" component={ActivityReport} />
+              <Route path="/reports/aging" component={AgingReports} />
               {/* General Ledger */}
               <Route path="/journal-entries" component={JournalEntries} />
               <Route path="/trial-balance" component={TrialBalance} />

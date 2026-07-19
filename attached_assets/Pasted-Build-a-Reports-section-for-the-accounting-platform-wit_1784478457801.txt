@@ -1,0 +1,73 @@
+Build a "Reports" section for the accounting platform with the following category 
+structure. Each category is a card/panel with an icon, title, and a list of report 
+links below it. Some reports are locked behind a premium/subscription tier (show a 
+lock icon, greyed out, non-clickable) and some are tagged "New" (small orange/amber 
+badge next to the label). Match this exact structure:
+
+FINANCIAL REPORTS (icon: dollar sign)
+- Income Statement
+- Balance Sheet
+- Journal Report
+- Trial Balance
+- Account Statement
+- Account Summary
+- Cashflow Report (locked)
+- General Ledger
+- Income Statement Actual Vs Budget (locked)
+- Customer Ledger Report (New)
+- Change in Owner Equity Statement (New)
+
+OPERATION REPORTS (icon: document)
+- Sales and Purchase Summary (locked)
+- A/R by Customer (locked)
+- A/P by Vendor (locked)
+- Aged Open Quotation (locked)
+- Aged Open Invoices (locked)
+- Aged Open Purchase Orders (locked)
+- Aged Open Bills (locked)
+- Product Locations Summary (locked)
+- Aging Reports (New)
+- Invoice Details & Margin Report (New)
+
+SALES REPORTS (icon: trending-up line chart)
+- Product Sales Trend Line (locked)
+- Product Purchases Trend Line (locked)
+- New Customers Trend Line (locked)
+- Number of Invoices Trend Line (locked)
+- Product Sales Pie Chart (locked)
+- Product Cost & Margin Report (New)
+
+TAX REPORTS (icon: pie chart)
+- Tax Return Form
+- Invoice Taxes Report (locked)
+- Bill Taxes Report (locked)
+- Credit Note Taxes Report (locked)
+- Debit Note Taxes Report (locked)
+- Tax Journal Entries (New)
+
+EMPLOYEE REPORTS (icon: two people)
+- Employees Salary Report (locked)
+- Employee Account Statement (locked)
+
+FIXED ASSET REPORTS (icon: bar chart)
+- Fixed Asset Registry Report (locked)
+
+OTHER REPORTS (icon: file/zip)
+- Activity Report
+- Analysis by dimensions Report (locked)
+- Deferral Transactions Report (New)
+
+REQUIREMENTS:
+- Layout: responsive grid, 3 category columns per row on desktop, stacking to 1 
+  column on mobile
+- Each category header: circular light-blue icon badge + bold navy title
+- Unlocked reports: clickable, dark text, navigate to /reports/[report-slug]
+- Locked reports: lock icon prefix, greyed/muted text color, not clickable, 
+  show a tooltip on hover like "Upgrade to unlock this report"
+- "New" badge: small pill, orange/amber background, orange text, positioned 
+  right after the report label
+- Use existing design system/Tailwind tokens from the rest of the app for 
+  colors, spacing, and typography — don't introduce new ones
+- Each report link should route to a placeholder page for now if the actual 
+  report logic isn't built yet, so the navigation structure is complete and 
+  ready to wire up individual reports incrementally

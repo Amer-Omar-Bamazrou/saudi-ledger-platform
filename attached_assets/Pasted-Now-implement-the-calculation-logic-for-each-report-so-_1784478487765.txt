@@ -1,0 +1,73 @@
+Now implement the calculation logic for each report so the numbers are pulled 
+correctly from the chart of accounts and general ledger — not hardcoded or 
+placeholder values. Assume the database has (or create if missing):
+
+- chart_of_accounts table: id, code, name, account_type (asset/liability/equity/
+  revenue/expense), parent_id (for sub-accounts), is_active
+- journal_entries table: id, date, reference, description, status (draft/posted)
+- journal_entry_lines table: id, journal_entry_id, account_id, debit, credit, 
+  vat_treatment (standard/zero-rated/exempt/reverse-charge/out-of-scope), 
+  entity_id (customer/vendor/employee reference where relevant)
+
+CALCULATION RULES PER REPORT:
+
+FINANCIAL REPORTS
+- Income Statement: SUM(credit - debit) for account_type = 'revenue', minus 
+  SUM(debit - credit) for account_type = 'expense', for the selected date range. 
+  Only include posted entries.
+- Balance Sheet: SUM(debit - credit) grouped by account_type for asset/liability/
+  equity as of a point-in-time (not a range). Must satisfy Assets = Liabilities + 
+  Equity — add a validation check that throws an error/warning if it doesn't 
+  balance, since that indicates a posting bug.
+- Trial Balance: list every account with its debit/credit balance as of a date; 
+  total debits must equal total credits — add the same balance-check validation.
+- General Ledger: for a selected account (or all accounts), list every journal 
+  entry line affecting it in date order with a running balance column.
+- Account Statement / Account Summary: same as General Ledger but scoped to one 
+  account_id, with opening balance + all movements + closing balance.
+- Journal Report: raw list of all journal entries in a date range, grouped by 
+  entry (showing all debit/credit lines under each entry so debits=credits per 
+  entry is visible).
+- Customer Ledger Report: same as Account Statement but filtered by entity_id 
+  = customer, joined against the customers table for name/contact.
+- Change in Owner Equity Statement: opening equity + net income (from Income 
+  Statement calc above) + capital contributions - withdrawals = closing equity.
+
+TAX REPORTS (ZATCA-specific — flag any entry with missing/ambiguous vat_treatment 
+for manual review rather than guessing)
+- Tax Return Form: sum output VAT (standard-rated sales × 15%) minus input VAT 
+  (recoverable standard-rated purchases × 15%), excluding zero-rated, exempt, 
+  and reverse-charge lines from the net calculation but listing them separately 
+  as required by the ZATCA return format.
+- Invoice/Bill/Credit Note/Debit Note Taxes Report: filter journal_entry_lines 
+  by source document type and vat_treatment, showing taxable base and VAT amount 
+  per line.
+- Tax Journal Entries: filter journal_entries to only those with at least one 
+  line touching a VAT payable/receivable account.
+
+OPERATION / SALES REPORTS
+- A/R by Customer, A/P by Vendor: outstanding balance per entity_id where 
+  account_type = 'asset' (A/R) or 'liability' (A/P), only unpaid/partially 
+  paid invoices or bills.
+- Aged Open Invoices/Bills/Quotations/POs: bucket outstanding items by 
+  days-overdue (0-30, 31-60, 61-90, 90+) based on due_date vs today.
+- Trend Line reports: group relevant transactions by week/month over the 
+  selected range for charting.
+- Product Cost & Margin Report: (sale_price - cost_price) per product line 
+  item, joined from an inventory/cost table if one exists, or flag as 
+  "requires cost data" if not yet tracked.
+
+RULES THAT APPLY ACROSS ALL REPORTS:
+- Every report must pull live from chart_of_accounts and journal_entry_lines — 
+  never hardcode account names or balances.
+- Only include journal entries with status = 'posted' in financial reports; 
+  draft entries should be excluded unless a report explicitly needs them.
+- Respect account_type and parent_id hierarchy so sub-account balances roll up 
+  correctly into parent totals (e.g., "Bank Accounts" parent showing the sum 
+  of all individual bank sub-accounts).
+- Add a date-range filter (from/to) as a standard control on every report that 
+  supports it.
+- For any report where the underlying data model doesn't exist yet (e.g., no 
+  fixed asset registry table, no employee salary table), don't fake the output — 
+  show a clear "no data source configured yet" state instead of a blank or 
+  fabricated report.
