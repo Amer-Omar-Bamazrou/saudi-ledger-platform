@@ -1,0 +1,94 @@
+I want to fix the receipt/invoice scanner's field-reading errors AND expand 
+what it captures and does. Build this as one integrated flow, not separate 
+patches — go through it in order and show me proof at each stage.
+
+## PART 1 — Fix the reading errors (do this first)
+
+The scanner currently mixes up fields — it sometimes writes the VAT 
+registration number into the VAT amount field, and totals come out wrong. 
+Fix this with actual validation logic, not just a better prompt.
+
+1. Show me the current extraction code: what model/OCR step reads the 
+   document, what raw output it returns, and how that gets mapped into 
+   structured fields.
+2. Add field-level validation rules applied after extraction, before 
+   anything is saved or shown as "confirmed":
+   - vat_number: must be exactly 15 digits, and by ZATCA convention starts 
+     and ends with '3'. If a candidate doesn't match this shape, it must 
+     never be assigned to vat_amount, even if it appeared near the word 
+     "VAT" on the document.
+   - vat_amount: must be a currency-formatted number (has a decimal, is 
+     smaller than subtotal), never a 15-digit integer.
+   - Cross-check: subtotal + vat_amount should equal total, within a small 
+     rounding tolerance (e.g. 0.02 SAR). If it doesn't reconcile, do not 
+     silently save it — flag the document for manual review and show which 
+     fields didn't match.
+   - If vat_amount is unusually high relative to subtotal (not close to 0%, 
+     5%, or 15% of subtotal — Saudi's standard/zero/exempt rates), flag it 
+     instead of trusting it.
+3. Update the extraction prompt sent to the vision/OCR model to explicitly 
+   define each field type rather than relying on it inferring from context 
+   (see the six fields in Part 2 below — give the model that exact list 
+   with types).
+
+## PART 2 — Fields to extract from every receipt/invoice
+- Supplier/vendor name (as printed on the document)
+- Supplier VAT registration number (15 digits, starts/ends with '3')
+- Subtotal (before VAT)
+- VAT amount
+- Total amount
+- Invoice/receipt date
+- Invoice number if present
+
+## PART 3 — Auto-create the supplier if it doesn't exist
+- Look up the vendor by VAT registration number first (most reliable), 
+  then fall back to fuzzy name matching if no clean VAT number was extracted.
+- If no match is found, auto-create a new vendor from the extracted name 
+  and VAT number, and flag it clearly on the review screen as "New 
+  supplier — please confirm details" so the accountant knows it wasn't 
+  an existing match.
+- If a fuzzy name match exists but VAT numbers don't match exactly, show 
+  both the extracted data and the closest existing vendor side by side 
+  and let the accountant choose: link to existing, or create new anyway. 
+  No silent auto-merging.
+
+## PART 4 — Post-extraction review screen (before anything posts)
+Build a review page showing, per scanned document:
+- All extracted fields as editable inputs (supplier name, VAT number, 
+  subtotal, VAT amount, total, date, invoice number) so the accountant 
+  can correct any OCR error before it touches the database
+- The matched or newly-created supplier, with the ability to change 
+  which supplier it's linked to
+- Validation flags from Part 1's checks (mismatched totals, invalid VAT 
+  number format, unusual VAT rate) shown clearly, not buried
+- A raw view toggle showing the original extracted text/image next to 
+  the parsed fields, so the accountant can verify against the source
+
+## PART 5 — Show debit/credit accounts before posting — full accountant control
+When the engine determines an expense category:
+- Show the proposed journal entry explicitly: debit account (e.g. "Office 
+  Supplies") and credit account (Accounts Payable or Cash), with the VAT 
+  split shown separately — VAT should hit a separate Input VAT Receivable 
+  account, not get lumped into the expense account
+- Let the accountant change the debit account via a Chart of Accounts 
+  dropdown before confirming, overriding the engine's guess the same way 
+  manual category override works elsewhere in the app
+- Nothing writes to journal_entries until the accountant confirms this 
+  screen — no auto-posting even on high engine confidence
+
+## PART 6 — Confirm one posting path, not two
+Before building Part 5, check: does a confirmed bill from this scanner 
+flow post through the exact same code as a manually-created vendor bill 
+(same journal entry structure, same accounts, same balance validation)? 
+I don't want "bill from scanner" and "bill entered manually" to be two 
+different code paths that could drift apart and produce inconsistent 
+ledger entries.
+
+## Proof required before calling this done
+Run one real receipt image through the full flow and show me:
+1. Raw extraction output vs. validated/corrected output (Part 1 fix working)
+2. The supplier match or auto-creation decision (Part 3)
+3. The editable review screen with any flags visible (Part 4)
+4. The final proposed journal entry with debit/credit accounts editable 
+   (Part 5)
+5. Confirmation it posts through the same path as a manual bill (Part 6)

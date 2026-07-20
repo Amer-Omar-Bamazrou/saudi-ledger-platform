@@ -210,6 +210,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                     <CheckCircle2 className="w-4 h-4" /> Extracted fields
                   </div>
                   <Field label="Vendor" value={result.vendorName || "—"} />
+                  <Field label="VAT Reg #" value={result.supplierVatNumber || "—"} />
                   <Field label="Ref / Invoice #" value={result.vendorReference || "—"} />
                   <Field label="Date" value={result.date || "—"} />
                   <Field label="Subtotal" value={result.subtotal > 0 ? `SAR ${result.subtotal.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />

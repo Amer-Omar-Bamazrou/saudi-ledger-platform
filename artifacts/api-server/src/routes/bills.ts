@@ -51,7 +51,9 @@ router.get("/:id", async (req, res) => {
   } catch (err) { handleRouteError(err, req, res); }
 });
 
-// POST /bills — creates bill and posts AP journal entry
+// POST /bills — creates bill as a draft. Does NOT auto-post GL.
+// Call POST /bills/:id/post to post the journal entry.
+// This is the single creation path for both scanner and manual flows.
 router.post("/", async (req, res) => {
   try {
     const { items = [], ...billData } = req.body;
@@ -62,14 +64,19 @@ router.post("/", async (req, res) => {
       subtotal += base; vatTotal += vat;
       return { ...it, quantity: String(it.quantity), unitPrice: String(it.unitPrice), vatAmount: String(vat.toFixed(2)), total: String((base + vat).toFixed(2)) };
     });
-    const total = subtotal + vatTotal;
+
+    // If no line items, trust the submitted subtotal/vatAmount/total values
+    const finalSubtotal  = items.length > 0 ? subtotal  : Number(billData.subtotal  ?? 0);
+    const finalVatAmount = items.length > 0 ? vatTotal  : Number(billData.vatAmount ?? 0);
+    const finalTotal     = items.length > 0 ? subtotal + vatTotal : Number(billData.total ?? 0);
 
     await checkPeriodOpen(billData.date ?? new Date().toISOString().split("T")[0]);
     const [bill] = await db.insert(billsTable).values({
       ...billData,
-      subtotal: String(subtotal.toFixed(2)),
-      vatAmount: String(vatTotal.toFixed(2)),
-      total: String(total.toFixed(2)),
+      subtotal:  String(finalSubtotal.toFixed(2)),
+      vatAmount: String(finalVatAmount.toFixed(2)),
+      total:     String(finalTotal.toFixed(2)),
+      status:    billData.status ?? "draft",
       createdBy: req.session?.userId ?? null,
     }).returning();
 
@@ -77,22 +84,60 @@ router.post("/", async (req, res) => {
       await db.insert(billItemsTable).values(preparedItems.map((it: any) => ({ ...it, billId: bill.id })));
     }
 
-    // ── GL: Dr Purchases/Input VAT / Cr Accounts Payable ──
-    if (total > 0) {
-      await postJournalEntry({
-        entryNumber: `BILL-${bill.billNumber}`,
-        date: bill.date,
-        description: `Vendor bill ${bill.billNumber}`,
-        reference: bill.billNumber ?? undefined,
-        lines: [
-          { accountName: "Purchases and Cost of Sales", description: `Bill ${bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
-          { accountName: "Input VAT Receivable",         description: `VAT on bill ${bill.billNumber}`, debitAmount: vatTotal, creditAmount: 0 },
-          { accountName: "Accounts Payable",             description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: total },
-        ],
-      });
+    res.status(201).json(await buildBillOut(bill, null));
+  } catch (err) { handleRouteError(err, req, res); }
+});
+
+// POST /bills/:id/post — posts the GL journal entry for an existing bill.
+// This is THE SINGLE GL posting path used by both scanner and manual flows.
+// Accountant must confirm before this is called (no auto-posting).
+router.post("/:id/post", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { debitAccount } = req.body;   // optional: override expense account
+
+    const [row] = await db.select({ bill: billsTable, vendor: vendorsTable })
+      .from(billsTable)
+      .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
+      .where(eq(billsTable.id, id)).limit(1);
+    if (!row) { res.status(404).json({ error: "Bill not found" }); return; }
+    if (row.bill.status === "paid") {
+      res.status(409).json({ error: "Bill is already paid — cannot re-post." }); return;
     }
 
-    res.status(201).json(await buildBillOut(bill, null));
+    const subtotal  = toNum(row.bill.subtotal);
+    const vatAmount = toNum(row.bill.vatAmount);
+    const total     = toNum(row.bill.total);
+
+    if (total <= 0) {
+      res.status(400).json({ error: "Bill total must be greater than zero to post." }); return;
+    }
+
+    // ── GL: Dr Purchases/Input VAT  /  Cr Accounts Payable ──────────────────
+    // debitAccount can be overridden by the accountant in the review screen.
+    const expenseAccount = (typeof debitAccount === "string" && debitAccount.trim())
+      ? debitAccount.trim()
+      : "Purchases and Cost of Sales";
+
+    await postJournalEntry({
+      entryNumber: `BILL-${row.bill.billNumber}`,
+      date: row.bill.date,
+      description: `Vendor bill ${row.bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}`,
+      reference: row.bill.billNumber ?? undefined,
+      lines: [
+        { accountName: expenseAccount,        description: `Bill ${row.bill.billNumber}`, debitAmount: subtotal,   creditAmount: 0 },
+        { accountName: "Input VAT Receivable", description: `VAT on ${row.bill.billNumber}`,  debitAmount: vatAmount, creditAmount: 0 },
+        { accountName: "Accounts Payable",    description: `Bill ${row.bill.billNumber}`, debitAmount: 0,          creditAmount: total },
+      ],
+    });
+
+    // Update status to "received" (posted but not yet paid)
+    const [updated] = await db.update(billsTable)
+      .set({ status: "received" })
+      .where(eq(billsTable.id, id))
+      .returning();
+
+    res.json(await buildBillOut(updated, row.vendor));
   } catch (err) { handleRouteError(err, req, res); }
 });
 

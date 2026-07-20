@@ -11,7 +11,8 @@
 export interface ParsedReceipt {
   vendorName: string;
   vendorReference: string;
-  date: string;       // YYYY-MM-DD or ""
+  supplierVatNumber: string; // ZATCA 15-digit VAT registration number
+  date: string;              // YYYY-MM-DD or ""
   subtotal: number;
   vatAmount: number;
   total: number;
@@ -360,11 +361,17 @@ export function parseReceiptText(raw: string): ParsedReceipt {
     if (subtotal === 0) subtotal = Math.round((total - vatAmount) * 100) / 100;
   }
 
-  // ── 8. Vendor name ─────────────────────────────────────────────────────────
+  // ── 8. Supplier VAT registration number ───────────────────────────────────
+  // Extract BEFORE cleanLines (which strips ZATCA numbers).
+  // ZATCA format: 15 digits starting with 3.
+  const vatRegMatch = text.match(/\b(3\d{14})\b/);
+  const supplierVatNumber = vatRegMatch?.[1] ?? "";
+
+  // ── 9. Vendor name ─────────────────────────────────────────────────────────
   const skipRe = /^(receipt|invoice|tax invoice|فاتورة|ضريبية|date|total|vat|page|copy)/i;
   const vendorLine = lines.find((l) => l.length > 3 && !skipRe.test(l) && !/^\d/.test(l));
   const vendorName = vendorLine ?? "";
 
   const notes = `Scanned receipt${vendorReference ? ` · Ref: ${vendorReference}` : ""}`;
-  return { vendorName, vendorReference, date, subtotal, vatAmount, total, notes, rawText: raw };
+  return { vendorName, vendorReference, supplierVatNumber, date, subtotal, vatAmount, total, notes, rawText: raw };
 }

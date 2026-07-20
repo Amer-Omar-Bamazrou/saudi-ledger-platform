@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { Plus, FileInput, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
+import { storeScanData } from "@/pages/ScanReview";
 
 interface Bill {
   id: number; billNumber: string; vendorReference: string; date: string;
@@ -42,6 +44,7 @@ const makeEmpty = () => ({
 });
 
 export default function Bills() {
+  const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -61,25 +64,42 @@ export default function Bills() {
     queryFn: () => apiFetch("/vendors"),
   });
 
+  // Manual bill creation: create draft then immediately post GL entry.
+  // Uses the same POST /bills/:id/post endpoint as the scanner review page
+  // — single code path, cannot drift apart.
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/bills", {
-      method: "POST",
-      body: JSON.stringify({
-        ...body,
-        vendorId: Number(body.vendorId),
-        subtotal: body.subtotal ? Number(body.subtotal) : undefined,
-        vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
-        total: body.total ? Number(body.total) : undefined,
-        items: [],
-      }),
-    }),
+    mutationFn: async (body: any) => {
+      const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
+        method: "POST",
+        body: JSON.stringify({
+          ...body,
+          vendorId: Number(body.vendorId),
+          subtotal: body.subtotal ? Number(body.subtotal) : undefined,
+          vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
+          total: body.total ? Number(body.total) : undefined,
+          items: [],
+        }),
+      });
+      // Post the GL journal entry through the single shared posting endpoint
+      if (Number(body.total) > 0) {
+        await apiFetch(`/bills/${bill.id}/post`, { method: "POST", body: JSON.stringify({}) });
+      }
+      return bill;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
       setOpen(false);
       setForm(makeEmpty());
-      toast({ title: "Bill created" });
+      toast({ title: "Bill created & posted" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Post an existing draft bill's GL journal entry (same endpoint as scanner review)
+  const postMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/bills/${id}/post`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bills"] }); toast({ title: "Bill posted to ledger" }); },
+    onError: (e: Error) => toast({ title: "Posting failed", description: e.message, variant: "destructive" }),
   });
 
   const payMut = useMutation({
@@ -97,24 +117,10 @@ export default function Bills() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  /** Called when the ReceiptScanner returns parsed fields */
+  /** Called when the ReceiptScanner returns parsed fields — go to review page */
   const handleScanned = (data: ParsedReceipt) => {
-    setForm(prev => ({
-      ...prev,
-      vendorReference: data.vendorReference || prev.vendorReference,
-      date: data.date || prev.date,
-      subtotal: data.subtotal > 0 ? String(data.subtotal) : prev.subtotal,
-      vatAmount: data.vatAmount > 0 ? String(data.vatAmount) : prev.vatAmount,
-      total: data.total > 0 ? String(data.total) : prev.total,
-      notes: data.notes || prev.notes,
-    }));
-    setOpen(true);
-    toast({
-      title: "Receipt scanned",
-      description: data.vendorName
-        ? `Detected vendor: ${data.vendorName}. Select them in the Vendor field.`
-        : "Fields pre-filled from the receipt. Review before saving.",
-    });
+    storeScanData(data);
+    navigate("/scan-review");
   };
 
   const totalOutstanding = bills
@@ -279,8 +285,14 @@ export default function Bills() {
                     <td className="py-3 pr-4">
                       <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{b.status}</Badge>
                     </td>
-                    <td className="py-3">
-                      {b.status !== "paid" && (
+                    <td className="py-3 flex gap-1">
+                      {b.status === "draft" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-400"
+                          onClick={() => postMut.mutate(b.id)}>
+                          Post
+                        </Button>
+                      )}
+                      {b.status !== "paid" && b.status !== "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400"
                           onClick={() => { setPayOpen(b.id); setPayAmount(String(b.total - b.paidAmount)); }}>
                           Pay

@@ -56,6 +56,8 @@ import ApAging from '@/pages/ApAging';
 import PayrollReport from '@/pages/PayrollReport';
 import BudgetVsActual from '@/pages/BudgetVsActual';
 import AssetSchedule from '@/pages/AssetSchedule';
+// Scanner review page
+import ScanReview from '@/pages/ScanReview';
 // Reports Hub + new report pages
 import ReportsHub from '@/pages/ReportsHub';
 import JournalReport from '@/pages/reports/JournalReport';
@@ -116,6 +118,8 @@ function Router() {
               <Route path="/invoices" component={Invoices} />
               <Route path="/credit-notes" component={CreditNotes} />
               <Route path="/customer-receipts" component={CustomerReceipts} />
+              {/* Scanner review */}
+              <Route path="/scan-review" component={ScanReview} />
               {/* Purchases */}
               <Route path="/vendors" component={Vendors} />
               <Route path="/purchase-orders" component={PurchaseOrders} />

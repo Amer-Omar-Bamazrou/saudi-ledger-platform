@@ -1,0 +1,585 @@
+/**
+ * ScanReview.tsx
+ *
+ * Post-extraction review page shown after the receipt scanner finishes OCR.
+ * Implements Parts 1–6 from the spec:
+ *   1 — shows raw extraction vs. validated output with field-level flags
+ *   2 — all 7 fields editable before anything touches the database
+ *   3 — auto-matches supplier by VAT number (exact) or name (fuzzy); lets
+ *       accountant confirm, pick from suggestions, or create a new supplier
+ *   4 — validation flags shown prominently (not buried)
+ *   5 — proposed journal entry with editable debit account
+ *   6 — posts through POST /bills/:id/post — the same single code path
+ *       used for manually-created vendor bills
+ */
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch, fmtNum } from "@/lib/api";
+import type { ParsedReceipt } from "@/lib/receiptParser";
+import { validateReceipt, hasErrors } from "@/lib/receiptValidator";
+import type { ValidationFlag } from "@/lib/receiptValidator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertCircle, AlertTriangle, CheckCircle2, ArrowLeft,
+  Building2, Plus, ScanLine, BookOpen, Loader2,
+} from "lucide-react";
+
+// ── types ─────────────────────────────────────────────────────────────────────
+interface Vendor { id: number; name: string; nameAr?: string; taxNumber?: string; }
+interface MatchResult {
+  matchType: "exact" | "fuzzy" | "none";
+  vendor: Vendor | null;
+  suggestions: Vendor[];
+}
+
+// ── standard KSA chart-of-accounts for the debit account dropdown ─────────────
+const EXPENSE_ACCOUNTS = [
+  "Purchases and Cost of Sales",
+  "Office Supplies",
+  "Utilities and Electricity",
+  "Rent Expense",
+  "Marketing and Advertising",
+  "Professional Services",
+  "Insurance Expense",
+  "Maintenance and Repairs",
+  "Travel and Transportation",
+  "Communication Expense",
+  "Salaries and Wages",
+  "Bank Charges",
+  "Depreciation Expense",
+  "Other Operating Expenses",
+];
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+const SCAN_KEY = "ksa_ledger_scan_review";
+
+export function storeScanData(data: ParsedReceipt) {
+  sessionStorage.setItem(SCAN_KEY, JSON.stringify(data));
+}
+
+function loadScanData(): ParsedReceipt | null {
+  try {
+    const raw = sessionStorage.getItem(SCAN_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(SCAN_KEY);
+    return JSON.parse(raw) as ParsedReceipt;
+  } catch { return null; }
+}
+
+function n(v: string | number): number {
+  const x = Number(v);
+  return isNaN(x) ? 0 : Math.round(x * 100) / 100;
+}
+
+// ── component ─────────────────────────────────────────────────────────────────
+export default function ScanReview() {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // ── form state (editable by accountant) ───────────────────────────────────
+  const [fields, setFields] = useState({
+    vendorName:          "",
+    supplierVatNumber:   "",
+    invoiceNumber:       "",
+    date:                new Date().toISOString().split("T")[0],
+    subtotal:            "" as string | number,
+    vatAmount:           "" as string | number,
+    total:               "" as string | number,
+    notes:               "",
+  });
+  const [rawText, setRawText] = useState("");
+  const [rawVisible, setRawVisible] = useState(false);
+
+  // ── vendor match state ─────────────────────────────────────────────────────
+  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<number | null>(null);
+  const [createNew, setCreateNew] = useState(false);
+  const [manualVendorId, setManualVendorId] = useState<string>("");
+
+  // ── JE debit account ──────────────────────────────────────────────────────
+  const [debitAccount, setDebitAccount] = useState(EXPENSE_ACCOUNTS[0]);
+
+  // ── posting state ─────────────────────────────────────────────────────────
+  const [isPosting, setIsPosting] = useState(false);
+
+  // ── vendors dropdown (for manual override) ────────────────────────────────
+  const { data: allVendors = [] } = useQuery<Vendor[]>({
+    queryKey: ["vendors"],
+    queryFn: () => apiFetch("/vendors"),
+  });
+
+  // ── load from sessionStorage on mount ─────────────────────────────────────
+  useEffect(() => {
+    const data = loadScanData();
+    if (!data) { navigate("/bills"); return; }
+
+    setFields({
+      vendorName:        data.vendorName ?? "",
+      supplierVatNumber: data.supplierVatNumber ?? "",
+      invoiceNumber:     data.vendorReference ?? "",
+      date:              data.date || new Date().toISOString().split("T")[0],
+      subtotal:          data.subtotal > 0 ? data.subtotal : "",
+      vatAmount:         data.vatAmount > 0 ? data.vatAmount : "",
+      total:             data.total > 0 ? data.total : "",
+      notes:             data.notes ?? "",
+    });
+    setRawText(data.rawText ?? "");
+
+    // Kick off vendor match immediately
+    if (data.supplierVatNumber || data.vendorName) {
+      runMatch(data.supplierVatNumber ?? "", data.vendorName ?? "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── validation flags (recomputed whenever amounts change) ─────────────────
+  const flags: ValidationFlag[] = validateReceipt({
+    supplierVatNumber: String(fields.supplierVatNumber),
+    subtotal:  n(fields.subtotal),
+    vatAmount: n(fields.vatAmount),
+    total:     n(fields.total),
+  });
+  const errors = flags.filter(f => f.severity === "error");
+  const warnings = flags.filter(f => f.severity === "warning");
+
+  // ── vendor match API call ─────────────────────────────────────────────────
+  async function runMatch(vatNumber: string, vendorName: string) {
+    if (!vatNumber && !vendorName) return;
+    setMatchLoading(true);
+    try {
+      const result: MatchResult = await apiFetch("/vendors/match", {
+        method: "POST",
+        body: JSON.stringify({ vatNumber: vatNumber || undefined, vendorName: vendorName || undefined }),
+      });
+      setMatchResult(result);
+      if (result.matchType === "exact" && result.vendor) {
+        setSelectedVendorId(result.vendor.id);
+        setCreateNew(false);
+      }
+    } catch (e) {
+      console.error("Vendor match failed:", e);
+    } finally {
+      setMatchLoading(false);
+    }
+  }
+
+  // ── create new vendor mutation ────────────────────────────────────────────
+  const createVendorMut = useMutation({
+    mutationFn: (body: any) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: (vendor: Vendor) => {
+      qc.invalidateQueries({ queryKey: ["vendors"] });
+      setSelectedVendorId(vendor.id);
+      setCreateNew(false);
+      toast({ title: "Supplier created", description: vendor.name });
+    },
+    onError: (e: Error) => toast({ title: "Could not create supplier", description: e.message, variant: "destructive" }),
+  });
+
+  // ── confirm & post ────────────────────────────────────────────────────────
+  async function handleConfirm() {
+    const vendorId = createNew ? null : (selectedVendorId ?? (manualVendorId ? Number(manualVendorId) : null));
+    if (!vendorId) {
+      toast({ title: "Supplier required", description: "Select or create a supplier before posting.", variant: "destructive" });
+      return;
+    }
+    if (errors.length > 0 && !window.confirm(
+      `There ${errors.length === 1 ? "is 1 validation error" : `are ${errors.length} validation errors`}. Post anyway?`
+    )) return;
+
+    setIsPosting(true);
+    try {
+      // Step 1: create draft bill (no GL posting yet)
+      const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
+        method: "POST",
+        body: JSON.stringify({
+          billNumber:      `BILL-${Date.now().toString().slice(-6)}`,
+          vendorReference: fields.invoiceNumber || undefined,
+          date:            fields.date,
+          vendorId,
+          status:          "draft",
+          subtotal:        n(fields.subtotal),
+          vatAmount:       n(fields.vatAmount),
+          total:           n(fields.total),
+          notes:           fields.notes || undefined,
+          items:           [],
+        }),
+      });
+
+      // Step 2: post the journal entry (same endpoint as manual bill post)
+      await apiFetch(`/bills/${bill.id}/post`, {
+        method: "POST",
+        body: JSON.stringify({ debitAccount }),
+      });
+
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      toast({ title: "Bill posted", description: `${bill.billNumber} posted to the general ledger.` });
+      navigate("/bills");
+    } catch (e: any) {
+      toast({ title: "Posting failed", description: e?.message ?? "Check the fields and try again.", variant: "destructive" });
+    } finally {
+      setIsPosting(false);
+    }
+  }
+
+  // ── JE preview amounts ────────────────────────────────────────────────────
+  const previewSubtotal  = n(fields.subtotal);
+  const previewVat       = n(fields.vatAmount);
+  const previewTotal     = n(fields.total);
+
+  // ── render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="max-w-3xl mx-auto space-y-5">
+      {/* header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => navigate("/bills")}>
+          <ArrowLeft className="w-4 h-4" /> Back to Bills
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <ScanLine className="w-5 h-5 text-primary" /> Review Scanned Receipt
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Correct any OCR errors before posting to the ledger</p>
+        </div>
+      </div>
+
+      {/* ── validation flags ──────────────────────────────────────────────── */}
+      {flags.length > 0 && (
+        <div className="space-y-2">
+          {errors.map((f, i) => (
+            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-red-400 capitalize">{f.field.replace("_", " ")}: </span>
+                <span className="text-foreground">{f.message}</span>
+              </div>
+            </div>
+          ))}
+          {warnings.map((f, i) => (
+            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-400 capitalize">{f.field.replace("_", " ")}: </span>
+                <span className="text-foreground">{f.message}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── extracted fields ──────────────────────────────────────────────── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" /> Extracted Fields
+            <span className="text-xs text-muted-foreground font-normal">(all editable — correct any OCR errors)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Supplier / Vendor Name</Label>
+              <Input value={fields.vendorName} onChange={e => setFields(p => ({ ...p, vendorName: e.target.value }))}
+                className="mt-1 h-8 text-sm" placeholder="As printed on the document" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Supplier VAT Registration #
+                {fields.supplierVatNumber && /^3\d{13}3$/.test(fields.supplierVatNumber)
+                  ? <span className="text-emerald-400 ml-1">✓</span>
+                  : fields.supplierVatNumber
+                    ? <span className="text-red-400 ml-1">✗ invalid format</span>
+                    : null}
+              </Label>
+              <Input value={fields.supplierVatNumber}
+                onChange={e => setFields(p => ({ ...p, supplierVatNumber: e.target.value }))}
+                className="mt-1 h-8 text-sm font-mono" placeholder="15 digits, starts/ends with 3"
+                maxLength={15} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Invoice / Receipt Number</Label>
+              <Input value={fields.invoiceNumber} onChange={e => setFields(p => ({ ...p, invoiceNumber: e.target.value }))}
+                className="mt-1 h-8 text-sm font-mono" placeholder="e.g. INV-2025-001" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Date</Label>
+              <Input type="date" value={fields.date} onChange={e => setFields(p => ({ ...p, date: e.target.value }))}
+                className="mt-1 h-8 text-sm" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Subtotal (SAR)</Label>
+              <Input type="number" step="0.01" value={fields.subtotal}
+                onChange={e => setFields(p => ({ ...p, subtotal: e.target.value }))}
+                className="mt-1 h-8 text-sm font-mono" placeholder="0.00" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">VAT Amount (SAR)</Label>
+              <Input type="number" step="0.01" value={fields.vatAmount}
+                onChange={e => setFields(p => ({ ...p, vatAmount: e.target.value }))}
+                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-red-500" : ""}`}
+                placeholder="0.00" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Total (SAR)</Label>
+              <Input type="number" step="0.01" value={fields.total}
+                onChange={e => setFields(p => ({ ...p, total: e.target.value }))}
+                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-red-500" : ""}`}
+                placeholder="0.00" />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground">Notes</Label>
+            <Input value={fields.notes} onChange={e => setFields(p => ({ ...p, notes: e.target.value }))}
+              className="mt-1 h-8 text-sm" />
+          </div>
+
+          {/* raw OCR toggle */}
+          {rawText && (
+            <div className="rounded-lg border border-border overflow-hidden text-xs">
+              <button
+                onClick={() => setRawVisible(v => !v)}
+                className="w-full text-left px-3 py-2 text-muted-foreground hover:bg-secondary/30 transition-colors select-none"
+              >
+                {rawVisible ? "▼" : "►"} Raw OCR text (verify against source)
+              </button>
+              {rawVisible && (
+                <pre className="px-3 py-2 text-muted-foreground bg-secondary/20 whitespace-pre-wrap max-h-36 overflow-y-auto font-mono text-[11px]">
+                  {rawText}
+                </pre>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── supplier match ────────────────────────────────────────────────── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-primary" /> Supplier Match
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {matchLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Searching for existing supplier…
+            </div>
+          )}
+
+          {/* exact match */}
+          {!matchLoading && matchResult?.matchType === "exact" && matchResult.vendor && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">{matchResult.vendor.name}</p>
+                  {matchResult.vendor.taxNumber && (
+                    <p className="text-xs text-muted-foreground font-mono">VAT: {matchResult.vendor.taxNumber}</p>
+                  )}
+                </div>
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Exact match</Badge>
+            </div>
+          )}
+
+          {/* fuzzy suggestions */}
+          {!matchLoading && matchResult?.matchType === "fuzzy" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-amber-400">
+                <AlertTriangle className="w-4 h-4" />
+                Possible matches found — please select the correct supplier or create a new one
+              </div>
+              <div className="space-y-1.5">
+                {matchResult.suggestions.map(v => (
+                  <label key={v.id}
+                    className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors
+                      ${selectedVendorId === v.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-secondary/30"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input type="radio" name="vendorMatch" value={v.id}
+                        checked={selectedVendorId === v.id}
+                        onChange={() => { setSelectedVendorId(v.id); setCreateNew(false); }}
+                        className="accent-primary" />
+                      <div>
+                        <p className="text-sm font-medium">{v.name}</p>
+                        {v.taxNumber && <p className="text-xs text-muted-foreground font-mono">VAT: {v.taxNumber}</p>}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+                <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors
+                  ${createNew ? "border-primary bg-primary/5" : "border-dashed border-border hover:bg-secondary/30"}`}
+                >
+                  <input type="radio" name="vendorMatch" checked={createNew}
+                    onChange={() => { setCreateNew(true); setSelectedVendorId(null); }}
+                    className="accent-primary" />
+                  <Plus className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-sm">Create new supplier — <em className="text-muted-foreground">{fields.vendorName || "unnamed"}</em></span>
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ml-auto">New supplier — please confirm details</Badge>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* no match */}
+          {!matchLoading && matchResult?.matchType === "none" && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
+              <p className="font-medium text-amber-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" /> No existing supplier found
+              </p>
+              <p className="text-muted-foreground text-xs mt-1">
+                A new supplier will be created from the extracted name and VAT number — please confirm the details above are correct.
+              </p>
+              <Badge className="mt-2 bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">New supplier — please confirm details</Badge>
+            </div>
+          )}
+
+          {/* always-available manual override + create new */}
+          <div className="pt-1 border-t border-border/50 space-y-2">
+            <p className="text-xs text-muted-foreground">Or select manually:</p>
+            <div className="flex gap-2">
+              <Select value={manualVendorId} onValueChange={v => {
+                setManualVendorId(v);
+                setSelectedVendorId(Number(v));
+                setCreateNew(false);
+              }}>
+                <SelectTrigger className="h-8 text-sm flex-1">
+                  <SelectValue placeholder="Choose existing supplier…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allVendors.map(v => (
+                    <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0"
+                disabled={createVendorMut.isPending}
+                onClick={() => createVendorMut.mutate({
+                  name:       fields.vendorName || "New Supplier",
+                  taxNumber:  fields.supplierVatNumber || undefined,
+                  isActive:   true,
+                })}
+              >
+                {createVendorMut.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Plus className="w-3.5 h-3.5" />}
+                Create new
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── proposed journal entry ────────────────────────────────────────── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" /> Proposed Journal Entry
+            <span className="text-xs text-muted-foreground font-normal">— nothing posts until you confirm below</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-border overflow-hidden text-sm">
+            <table className="w-full">
+              <thead className="bg-secondary/40">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Account</th>
+                  <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Debit (SAR)</th>
+                  <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Credit (SAR)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {/* editable debit line */}
+                <tr className="hover:bg-secondary/20">
+                  <td className="px-3 py-2">
+                    <Select value={debitAccount} onValueChange={setDebitAccount}>
+                      <SelectTrigger className="h-7 text-xs border-dashed w-full max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXPENSE_ACCOUNTS.map(a => (
+                          <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                    {previewSubtotal > 0 ? fmtNum(previewSubtotal) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                </tr>
+                {/* VAT line — fixed */}
+                <tr className="hover:bg-secondary/20">
+                  <td className="px-3 py-2 text-muted-foreground text-xs">Input VAT Receivable</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                    {previewVat > 0 ? fmtNum(previewVat) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                </tr>
+                {/* AP line — fixed */}
+                <tr className="hover:bg-secondary/20">
+                  <td className="px-3 py-2 text-muted-foreground text-xs">Accounts Payable</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                    {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot className="bg-secondary/20 border-t border-border">
+                <tr>
+                  <td className="px-3 py-2 text-xs font-semibold text-muted-foreground">Total</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold text-foreground">
+                    {previewSubtotal + previewVat > 0 ? fmtNum(previewSubtotal + previewVat) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold text-foreground">
+                    {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {previewSubtotal + previewVat > 0 && previewTotal > 0 &&
+           Math.abs(previewSubtotal + previewVat - previewTotal) > 0.02 && (
+            <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Journal entry does not balance — fix the amounts before posting.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── action bar ───────────────────────────────────────────────────── */}
+      <div className="flex gap-3 pb-8">
+        <Button variant="outline" className="gap-2" onClick={() => navigate("/bills")} disabled={isPosting}>
+          Cancel
+        </Button>
+        <Button
+          className="flex-1 gap-2"
+          onClick={handleConfirm}
+          disabled={isPosting || (!selectedVendorId && !createNew && !manualVendorId)}
+        >
+          {isPosting
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Posting…</>
+            : <><CheckCircle2 className="w-4 h-4" /> Confirm & Post Bill</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
