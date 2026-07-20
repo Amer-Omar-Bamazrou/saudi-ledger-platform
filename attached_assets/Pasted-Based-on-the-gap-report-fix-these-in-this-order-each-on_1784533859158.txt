@@ -1,0 +1,44 @@
+Based on the gap report, fix these in this order — each one is a real 
+correctness issue, not a nice-to-have:
+
+## 1. Enforce validation server-side (highest priority)
+POST /bills/:id/post currently only checks: bill exists, not already paid, 
+total > 0. Add server-side enforcement of the same rules receiptValidator.ts 
+already defines on the frontend:
+- Reject (400 error, do not post) if subtotal + vatAmount ≠ total beyond a 
+  0.02 SAR tolerance.
+- Reject if a vatNumber field is present but isn't a valid 15-digit ZATCA 
+  format.
+- This must apply to every call to /bills/:id/post, not just ones coming 
+  from ScanReview — including the manual-creation chain in Bills.tsx.
+- If you want an "override anyway" path for edge cases, make it an explicit 
+  separate parameter (e.g. force: true) that gets logged with who/when, 
+  not a silent default.
+
+## 2. Give manual bill creation the same account control as the scanner path
+Right now manual bills hardcode debitAccount to "Purchases and Cost of Sales" 
+with no override. Add the same <Select> dropdown (the 14 KSA expense 
+accounts already used in ScanReview) to the manual bill creation dialog in 
+Bills.tsx, and pass the selected value through to POST /bills/:id/post the 
+same way ScanReview does. 
+
+Also reconsider: should manual bill creation call POST /bills/:id/post 
+immediately at all, or should it show the same three-line JE preview 
+(expense debit / Input VAT Receivable debit / Accounts Payable credit) 
+before posting, matching the scanner flow? I'd rather have one consistent 
+review-before-post experience for both paths than two different UX flows 
+that happen to converge on the same endpoint.
+
+## 3. Make /vendors/match explicit about vendor creation state
+Since vendor creation is a separate POST /vendors call, have that endpoint 
+return a clear signal (e.g. created: true in the response) that ScanReview 
+uses to drive its "new supplier" flag — instead of deriving that state from 
+a local createNew boolean that isn't tied to what the server actually did.
+
+Show me each fix with a real test case: 
+1. Attempt to post a bill where subtotal+VAT≠total — confirm the server 
+   rejects it with a clear error, not just a frontend warning.
+2. Create a manual bill, select a non-default expense account, confirm 
+   the posted JE uses that account, not the hardcoded default.
+3. Create a new vendor via ScanReview and confirm the response includes 
+   an explicit created flag.

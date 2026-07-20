@@ -17,8 +17,10 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import type { ParsedReceipt } from "@/lib/receiptParser";
-import { validateReceipt, hasErrors } from "@/lib/receiptValidator";
+import { loadAndClearScanData } from "@/lib/scanReviewStore";
+import { validateReceipt } from "@/lib/receiptValidator";
 import type { ValidationFlag } from "@/lib/receiptValidator";
+import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,47 +34,16 @@ import {
 } from "lucide-react";
 
 // ── types ─────────────────────────────────────────────────────────────────────
-interface Vendor { id: number; name: string; nameAr?: string; taxNumber?: string; }
+// `created` is returned by POST /vendors so the UI knows the vendor was
+// just created server-side, rather than inferring it from local state.
+interface Vendor { id: number; name: string; nameAr?: string; taxNumber?: string; created?: boolean; }
 interface MatchResult {
   matchType: "exact" | "fuzzy" | "none";
   vendor: Vendor | null;
   suggestions: Vendor[];
 }
 
-// ── standard KSA chart-of-accounts for the debit account dropdown ─────────────
-const EXPENSE_ACCOUNTS = [
-  "Purchases and Cost of Sales",
-  "Office Supplies",
-  "Utilities and Electricity",
-  "Rent Expense",
-  "Marketing and Advertising",
-  "Professional Services",
-  "Insurance Expense",
-  "Maintenance and Repairs",
-  "Travel and Transportation",
-  "Communication Expense",
-  "Salaries and Wages",
-  "Bank Charges",
-  "Depreciation Expense",
-  "Other Operating Expenses",
-];
-
 // ── helpers ───────────────────────────────────────────────────────────────────
-const SCAN_KEY = "ksa_ledger_scan_review";
-
-export function storeScanData(data: ParsedReceipt) {
-  sessionStorage.setItem(SCAN_KEY, JSON.stringify(data));
-}
-
-function loadScanData(): ParsedReceipt | null {
-  try {
-    const raw = sessionStorage.getItem(SCAN_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(SCAN_KEY);
-    return JSON.parse(raw) as ParsedReceipt;
-  } catch { return null; }
-}
-
 function n(v: string | number): number {
   const x = Number(v);
   return isNaN(x) ? 0 : Math.round(x * 100) / 100;
@@ -106,7 +77,7 @@ export default function ScanReview() {
   const [manualVendorId, setManualVendorId] = useState<string>("");
 
   // ── JE debit account ──────────────────────────────────────────────────────
-  const [debitAccount, setDebitAccount] = useState(EXPENSE_ACCOUNTS[0]);
+  const [debitAccount, setDebitAccount] = useState<string>(DEFAULT_EXPENSE_ACCOUNT);
 
   // ── posting state ─────────────────────────────────────────────────────────
   const [isPosting, setIsPosting] = useState(false);
@@ -119,7 +90,7 @@ export default function ScanReview() {
 
   // ── load from sessionStorage on mount ─────────────────────────────────────
   useEffect(() => {
-    const data = loadScanData();
+    const data = loadAndClearScanData();
     if (!data) { navigate("/bills"); return; }
 
     setFields({
@@ -173,15 +144,22 @@ export default function ScanReview() {
   }
 
   // ── create new vendor mutation ────────────────────────────────────────────
+  // POST /vendors returns { ...vendor, created: true } — we use that server
+  // signal to drive the "new supplier" UI state instead of a local boolean.
+  const [justCreatedVendor, setJustCreatedVendor] = useState<Vendor | null>(null);
+
   const createVendorMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: any): Promise<Vendor> =>
+      apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: (vendor: Vendor) => {
       qc.invalidateQueries({ queryKey: ["vendors"] });
       setSelectedVendorId(vendor.id);
       setCreateNew(false);
+      // Use the server-returned created:true flag — not a local boolean
+      if (vendor.created) setJustCreatedVendor(vendor);
       toast({ title: "Supplier created", description: vendor.name });
     },
-    onError: (e: Error) => toast({ title: "Could not create supplier", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Could not create supplier", description: e.message, variant: "destructive" } as any),
   });
 
   // ── confirm & post ────────────────────────────────────────────────────────

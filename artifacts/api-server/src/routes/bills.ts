@@ -88,13 +88,18 @@ router.post("/", async (req, res) => {
   } catch (err) { handleRouteError(err, req, res); }
 });
 
+// ── Validation constants (mirror receiptValidator.ts on the frontend) ────────
+const RECONCILE_TOLERANCE = 0.02;
+const ZATCA_VAT_RE = /^3\d{13}3$/;
+
 // POST /bills/:id/post — posts the GL journal entry for an existing bill.
-// This is THE SINGLE GL posting path used by both scanner and manual flows.
-// Accountant must confirm before this is called (no auto-posting).
+// THE SINGLE GL posting path for both scanner and manual flows.
+// Enforces server-side: totals reconciliation + ZATCA VAT format.
+// Pass force:true in the body to override with a logged warning (edge cases only).
 router.post("/:id/post", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { debitAccount } = req.body;   // optional: override expense account
+    const { debitAccount, force = false } = req.body;
 
     const [row] = await db.select({ bill: billsTable, vendor: vendorsTable })
       .from(billsTable)
@@ -110,11 +115,53 @@ router.post("/:id/post", async (req, res) => {
     const total     = toNum(row.bill.total);
 
     if (total <= 0) {
-      res.status(400).json({ error: "Bill total must be greater than zero to post." }); return;
+      res.status(400).json({ error: "Bill total must be greater than zero to post.", code: "ZERO_TOTAL" });
+      return;
+    }
+
+    // ── Fix 1a: totals reconciliation ────────────────────────────────────────
+    const computed = Math.round((subtotal + vatAmount) * 100) / 100;
+    const diff = Math.abs(computed - total);
+    // effectiveTotal: what the GL will actually credit AP.
+    // When force:true on a mismatch, we use subtotal+vatAmount so the JE
+    // balances — the stored bill.total is left as-is for the accountant
+    // to review and correct later.  Without force, we reject cleanly.
+    let effectiveTotal = total;
+    if (diff > RECONCILE_TOLERANCE) {
+      if (!force) {
+        res.status(400).json({
+          error: `Totals don't reconcile: ${subtotal} + ${vatAmount} = ${computed} but total is ${total} (difference: ${diff.toFixed(2)} SAR). Correct the amounts or pass force:true to override.`,
+          code: "TOTALS_MISMATCH",
+          detail: { subtotal, vatAmount, computedTotal: computed, storedTotal: total, diff },
+        });
+        return;
+      }
+      effectiveTotal = computed;   // use computed total so the JE balances
+      console.warn(
+        `[FORCE-POST] bill ${id} (${row.bill.billNumber}) posted with TOTALS_MISMATCH ` +
+        `diff=${diff.toFixed(2)} SAR; using computed total ${computed} for GL — ` +
+        `userId=${(req as any).session?.userId ?? "unknown"} at ${new Date().toISOString()}`
+      );
+    }
+
+    // ── Fix 1b: vendor ZATCA VAT number format ────────────────────────────────
+    const vendorVat = row.vendor?.taxNumber?.trim() ?? "";
+    if (vendorVat && !ZATCA_VAT_RE.test(vendorVat)) {
+      if (!force) {
+        res.status(400).json({
+          error: `Vendor VAT number "${vendorVat}" is not in ZATCA format (15 digits, first and last digit '3'). Correct the vendor record or pass force:true to override.`,
+          code: "INVALID_VAT_NUMBER",
+          detail: { vendorId: row.vendor?.id, vendorVat },
+        });
+        return;
+      }
+      console.warn(
+        `[FORCE-POST] bill ${id} (${row.bill.billNumber}) posted with INVALID_VAT_NUMBER ` +
+        `vatNumber=${vendorVat} — userId=${(req as any).session?.userId ?? "unknown"} at ${new Date().toISOString()}`
+      );
     }
 
     // ── GL: Dr Purchases/Input VAT  /  Cr Accounts Payable ──────────────────
-    // debitAccount can be overridden by the accountant in the review screen.
     const expenseAccount = (typeof debitAccount === "string" && debitAccount.trim())
       ? debitAccount.trim()
       : "Purchases and Cost of Sales";
@@ -125,13 +172,12 @@ router.post("/:id/post", async (req, res) => {
       description: `Vendor bill ${row.bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}`,
       reference: row.bill.billNumber ?? undefined,
       lines: [
-        { accountName: expenseAccount,        description: `Bill ${row.bill.billNumber}`, debitAmount: subtotal,   creditAmount: 0 },
-        { accountName: "Input VAT Receivable", description: `VAT on ${row.bill.billNumber}`,  debitAmount: vatAmount, creditAmount: 0 },
-        { accountName: "Accounts Payable",    description: `Bill ${row.bill.billNumber}`, debitAmount: 0,          creditAmount: total },
+        { accountName: expenseAccount,         description: `Bill ${row.bill.billNumber}`, debitAmount: subtotal,   creditAmount: 0 },
+        { accountName: "Input VAT Receivable", description: `VAT on ${row.bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+        { accountName: "Accounts Payable",     description: `Bill ${row.bill.billNumber}`, debitAmount: 0,          creditAmount: effectiveTotal },
       ],
     });
 
-    // Update status to "received" (posted but not yet paid)
     const [updated] = await db.update(billsTable)
       .set({ status: "received" })
       .where(eq(billsTable.id, id))

@@ -86,10 +86,14 @@ router.post("/match", async (req, res) => {
   } catch (err) { handleRouteError(err, req, res); }
 });
 
+// POST /vendors — creates a new vendor.
+// Returns the vendor row with an explicit created:true flag so callers
+// can reliably distinguish "just created" from "already existed" without
+// inferring that state from local UI booleans.
 router.post("/", async (req, res) => {
   try {
     const [row] = await db.insert(vendorsTable).values(req.body).returning();
-    res.status(201).json(row);
+    res.status(201).json({ ...row, created: true });
   } catch (err) { handleRouteError(err, req, res); }
 });
 
