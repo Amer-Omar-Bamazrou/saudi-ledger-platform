@@ -1,0 +1,39 @@
+Decision: build full bilingual data storage AND full UI translation, not 
+just one or the other. Every business entity that has a display name needs 
+both an English and Arabic field, and the entire interface must be 
+translatable. Update Phase 2 as follows:
+
+## Phase 2 — Bilingual data model (revised: full bilingual, not UI-only)
+- Add name_en and name_ar fields (matching the pattern already used in 
+  categories) to every entity with a display name:
+  - vendors (name_en, name_ar)
+  - customers (name_en, name_ar)
+  - products/services (name_en, name_ar)
+  - chart of accounts (name_en, name_ar) — this matters a lot, since 
+    Trial Balance, P&L, and Balance Sheet all display account names and 
+    need to render correctly in either language
+- On every create/edit form (vendor, customer, product, account), add 
+  both fields as separate inputs — don't try to auto-translate one from 
+  the other, since business names (especially vendor/company names) often 
+  don't have a "correct" translation and need to be entered by the user 
+  in both languages, or left blank in one if not yet known
+- If only one language is filled in when a record is created (e.g. an 
+  auto-created vendor from the receipt scanner, which may only have 
+  extracted an Arabic name), the missing language field should show a 
+  placeholder like "(not yet translated)" rather than duplicating the 
+  filled field or leaving it silently blank in a way that could confuse 
+  a report — flag it as an editable "needs translation" state so an 
+  accountant can fill it in later without it looking like a bug
+- Update every report (Trial Balance, GL, P&L, Balance Sheet, invoices/bills, 
+  AR/AP aging) to pull the name matching the currently active UI language, 
+  falling back to whichever language is populated if the active one is 
+  empty
+- This means every existing table with a single `name` column needs a 
+  migration: add name_ar (or name_en, whichever is missing) as a new 
+  column, backfill existing records by setting the new column to the 
+  same "needs translation" placeholder state, don't guess translations 
+  automatically
+
+Show me the migration plan for existing tables before running it, since 
+this touches vendors, customers, products, and the chart of accounts, 
+all of which likely already have data in them.
