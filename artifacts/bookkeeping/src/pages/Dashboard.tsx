@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useGetSummary, useListTransactions } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,32 +7,33 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const { data: summary, isLoading: loadingSummary } = useGetSummary();
   const { data: txList, isLoading: loadingTx } = useListTransactions({ limit: 5 });
 
   const chartData = [
-    { name: "Income", amount: summary?.totalIncome || 0 },
-    { name: "Expenses", amount: summary?.totalExpenses || 0 },
-    { name: "Net VAT", amount: summary?.netVat || 0 },
+    { name: t("Income", "الدخل"), amount: summary?.totalIncome || 0 },
+    { name: t("Expenses", "المصروفات"), amount: summary?.totalExpenses || 0 },
+    { name: t("Net VAT", "صافي الضريبة"), amount: summary?.netVat || 0 },
   ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Financial Cockpit</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("Financial Cockpit", "لوحة التحكم المالية")}</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Net Position" amount={summary?.netPosition} loading={loadingSummary} />
-        <StatCard title="Total Income" amount={summary?.totalIncome} loading={loadingSummary} />
-        <StatCard title="Total Expenses" amount={summary?.totalExpenses} loading={loadingSummary} />
-        <StatCard title="Net VAT Position" amount={summary?.netVat} loading={loadingSummary} />
+        <StatCard title={t("Net Position", "صافي المركز المالي")} amount={summary?.netPosition} loading={loadingSummary} />
+        <StatCard title={t("Total Income", "إجمالي الدخل")} amount={summary?.totalIncome} loading={loadingSummary} />
+        <StatCard title={t("Total Expenses", "إجمالي المصروفات")} amount={summary?.totalExpenses} loading={loadingSummary} />
+        <StatCard title={t("Net VAT Position", "صافي موقف ضريبة القيمة المضافة")} amount={summary?.netVat} loading={loadingSummary} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Cash Flow Overview</CardTitle>
+            <CardTitle>{t("Cash Flow Overview", "نظرة عامة على التدفق النقدي")}</CardTitle>
           </CardHeader>
           <CardContent>
             {loadingSummary ? (
@@ -58,7 +60,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Status</CardTitle>
+            <CardTitle>{t("System Status", "حالة النظام")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingSummary ? (
@@ -66,15 +68,15 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-4 font-mono text-sm">
                 <div className="flex justify-between items-center p-3 rounded bg-secondary">
-                  <span className="text-muted-foreground">Total Transactions</span>
+                  <span className="text-muted-foreground">{t("Total Transactions", "إجمالي المعاملات")}</span>
                   <span className="text-white font-bold">{summary?.transactionCount || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded bg-secondary border border-destructive/50">
-                  <span className="text-muted-foreground">Uncategorized</span>
+                  <span className="text-muted-foreground">{t("Uncategorized", "غير مصنف")}</span>
                   <span className="text-destructive font-bold">{summary?.uncategorizedCount || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded bg-secondary">
-                  <span className="text-muted-foreground">VAT Rate</span>
+                  <span className="text-muted-foreground">{t("VAT Rate", "نسبة ضريبة القيمة المضافة")}</span>
                   <span className="text-white font-bold">15%</span>
                 </div>
               </div>
@@ -85,7 +87,7 @@ export default function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+          <CardTitle>{t("Recent Transactions", "أحدث المعاملات")}</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingTx ? (
@@ -95,10 +97,10 @@ export default function Dashboard() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
                   <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Description</th>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3 text-right">Amount</th>
+                    <th className="px-4 py-3">{t("Date", "التاريخ")}</th>
+                    <th className="px-4 py-3">{t("Description", "الوصف")}</th>
+                    <th className="px-4 py-3">{t("Category", "الفئة")}</th>
+                    <th className="px-4 py-3 text-right">{t("Amount", "المبلغ")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -116,7 +118,7 @@ export default function Dashboard() {
                           </Badge>
                         ) : (
                           <Badge variant="destructive" className="bg-destructive/20 text-destructive border-transparent">
-                            Uncategorized
+                            {t("Uncategorized", "غير مصنف")}
                           </Badge>
                         )}
                       </td>
@@ -128,7 +130,7 @@ export default function Dashboard() {
                   {txList?.transactions.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                        No transactions found.
+                        {t("No transactions found.", "لا توجد بيانات.")}
                       </td>
                     </tr>
                   )}

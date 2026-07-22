@@ -15,6 +15,7 @@ import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { storeScanData } from "@/lib/scanReviewStore";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Bill {
   id: number; billNumber: string; vendorReference: string; date: string;
@@ -49,18 +50,19 @@ const makeEmpty = () => ({
 function JePreview({ subtotal, vatAmount, total, debitAccount }: {
   subtotal: number; vatAmount: number; total: number; debitAccount: string;
 }) {
+  const { t } = useLanguage();
   const reconciled = Math.abs(subtotal + vatAmount - total) <= 0.02;
   return (
     <div className="rounded-lg border border-border overflow-hidden text-xs mt-1">
       <div className="bg-secondary/40 px-3 py-1.5 text-muted-foreground font-medium">
-        Proposed journal entry
+        {t("Proposed journal entry", "قيد اليومية المقترح")}
       </div>
       <table className="w-full">
         <thead>
           <tr className="border-b border-border/50">
-            <th className="text-left px-3 py-1.5 text-muted-foreground font-normal">Account</th>
-            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">Dr</th>
-            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">Cr</th>
+            <th className="text-left px-3 py-1.5 text-muted-foreground font-normal">{t("Account", "الحساب")}</th>
+            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">{t("Dr", "مدين")}</th>
+            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">{t("Cr", "دائن")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/30">
@@ -70,12 +72,12 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
             <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
           </tr>
           <tr>
-            <td className="px-3 py-1.5 text-muted-foreground">Input VAT Receivable</td>
+            <td className="px-3 py-1.5 text-muted-foreground">{t("Input VAT Receivable", "ضريبة القيمة المضافة المدخلة المستحقة")}</td>
             <td className="px-3 py-1.5 text-right font-mono tabular-nums">{vatAmount > 0 ? fmtNum(vatAmount) : "—"}</td>
             <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
           </tr>
           <tr>
-            <td className="px-3 py-1.5 text-muted-foreground">Accounts Payable</td>
+            <td className="px-3 py-1.5 text-muted-foreground">{t("Accounts Payable", "الذمم الدائنة")}</td>
             <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
             <td className="px-3 py-1.5 text-right font-mono tabular-nums">{total > 0 ? fmtNum(total) : "—"}</td>
           </tr>
@@ -83,7 +85,7 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
       </table>
       {subtotal > 0 && total > 0 && !reconciled && (
         <div className="px-3 py-1.5 text-red-400 bg-red-500/5 border-t border-red-500/20 text-xs">
-          ⚠ Totals don't reconcile — server will reject this unless corrected.
+          ⚠ {t("Totals don't reconcile — server will reject this unless corrected.", "الإجماليات غير متطابقة — سيرفض الخادم هذا القيد ما لم يتم تصحيحه.")}
         </div>
       )}
     </div>
@@ -102,6 +104,7 @@ export default function Bills() {
   const [payAmount, setPayAmount] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: bills = [], isLoading } = useQuery<Bill[]>({
     queryKey: ["bills", statusFilter],
@@ -142,9 +145,9 @@ export default function Bills() {
       qc.invalidateQueries({ queryKey: ["bills"] });
       setOpen(false);
       setForm(makeEmpty());
-      toast({ title: "Bill created & posted" });
+      toast({ title: t("Bill created & posted", "تم إنشاء الفاتورة وترحيلها") });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
   // Post an existing draft bill — opens a small account-selection dialog first
@@ -159,9 +162,9 @@ export default function Bills() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
       setPostReviewOpen(null);
-      toast({ title: "Bill posted to ledger" });
+      toast({ title: t("Bill posted to ledger", "تم ترحيل الفاتورة إلى دفتر الأستاذ") });
     },
-    onError: (e: Error) => toast({ title: "Posting failed", description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Posting failed", "فشل الترحيل"), description: e.message, variant: "destructive" } as any),
   });
 
   const payMut = useMutation({
@@ -174,9 +177,9 @@ export default function Bills() {
       qc.invalidateQueries({ queryKey: ["bills"] });
       setPayOpen(null);
       setPayAmount("");
-      toast({ title: "Payment recorded" });
+      toast({ title: t("Payment recorded", "تم تسجيل الدفعة") });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
   /** Called when the ReceiptScanner returns parsed fields — go to review page */
@@ -199,32 +202,32 @@ export default function Bills() {
       {/* ── header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Bills</h1>
-          <p className="text-muted-foreground text-sm mt-1">Vendor bills · Accounts Payable</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Bills", "فواتير الموردين")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Vendor bills · Accounts Payable", "فواتير الموردين · الذمم الدائنة")}</p>
         </div>
         <div className="flex gap-2">
           {/* Scan Receipt button */}
           <Button variant="outline" className="gap-2" onClick={() => setScanOpen(true)}>
-            <ScanLine className="w-4 h-4" /> Scan Receipt
+            <ScanLine className="w-4 h-4" /> {t("Scan Receipt", "مسح الإيصال")}
           </Button>
 
           {/* New Bill dialog */}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="w-4 h-4" /> New Bill</Button>
+              <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Bill", "فاتورة جديدة")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>New Bill</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{t("New Bill", "فاتورة جديدة")}</DialogTitle></DialogHeader>
               <div className="space-y-3 mt-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Bill Number</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Bill Number", "رقم الفاتورة")}</Label>
                     <Input value={form.billNumber}
                       onChange={e => setForm(p => ({ ...p, billNumber: e.target.value }))}
                       className="mt-1 h-8 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Vendor Ref / Invoice #</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Vendor Ref / Invoice #", "مرجع المورد / رقم الفاتورة")}</Label>
                     <Input value={form.vendorReference}
                       onChange={e => setForm(p => ({ ...p, vendorReference: e.target.value }))}
                       className="mt-1 h-8 text-sm" />
@@ -233,13 +236,13 @@ export default function Bills() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Date</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
                     <Input type="date" value={form.date}
                       onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
                       className="mt-1 h-8 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Due Date</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Due Date", "تاريخ الاستحقاق")}</Label>
                     <Input type="date" value={form.dueDate}
                       onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}
                       className="mt-1 h-8 text-sm" />
@@ -247,10 +250,10 @@ export default function Bills() {
                 </div>
 
                 <div>
-                  <Label className="text-xs text-muted-foreground">Vendor</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Vendor", "المورد")}</Label>
                   <Select value={form.vendorId} onValueChange={v => setForm(p => ({ ...p, vendorId: v }))}>
                     <SelectTrigger className="mt-1 h-8 text-sm">
-                      <SelectValue placeholder="Select vendor…" />
+                      <SelectValue placeholder={t("Select vendor…", "اختر المورد…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {vendors.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>)}
@@ -260,19 +263,19 @@ export default function Bills() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Subtotal (SAR)</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع قبل الضريبة (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.subtotal}
                       onChange={e => setForm(p => ({ ...p, subtotal: e.target.value }))}
                       placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">VAT (SAR)</Label>
+                    <Label className="text-xs text-muted-foreground">{t("VAT (SAR)", "ضريبة القيمة المضافة (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.vatAmount}
                       onChange={e => setForm(p => ({ ...p, vatAmount: e.target.value }))}
                       placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Total (SAR)</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.total}
                       onChange={e => setForm(p => ({ ...p, total: e.target.value }))}
                       placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
@@ -281,7 +284,7 @@ export default function Bills() {
 
                 {/* Fix 2: debit account dropdown — same 14 accounts as scanner flow */}
                 <div>
-                  <Label className="text-xs text-muted-foreground">Expense / Debit Account</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
                   <Select value={form.debitAccount}
                     onValueChange={v => setForm(p => ({ ...p, debitAccount: v }))}>
                     <SelectTrigger className="mt-1 h-8 text-sm">
@@ -296,7 +299,7 @@ export default function Bills() {
                 </div>
 
                 <div>
-                  <Label className="text-xs text-muted-foreground">Notes</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
                   <Input value={form.notes}
                     onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
                     className="mt-1 h-8 text-sm" />
@@ -318,7 +321,7 @@ export default function Bills() {
                 onClick={() => createMut.mutate(form)}
                 disabled={!form.vendorId || createMut.isPending}
               >
-                {createMut.isPending ? "Posting…" : "Post Bill"}
+                {createMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Post Bill", "ترحيل الفاتورة")}
               </Button>
             </DialogContent>
           </Dialog>
@@ -328,10 +331,10 @@ export default function Bills() {
       {/* ── KPI cards ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Bills", bills.length, "text-primary"],
-          ["Outstanding AP", fmtNum(totalOutstanding), "text-red-400"],
-          ["Paid", fmtNum(bills.filter(b => b.status === "paid").reduce((s, b) => s + b.total, 0)), "text-emerald-400"],
-          ["Overdue", bills.filter(b => b.status === "overdue").length, "text-red-400"],
+          [t("Total Bills", "إجمالي الفواتير"), bills.length, "text-primary"],
+          [t("Outstanding AP", "الذمم الدائنة المستحقة"), fmtNum(totalOutstanding), "text-red-400"],
+          [t("Paid", "مدفوع"), fmtNum(bills.filter(b => b.status === "paid").reduce((s, b) => s + b.total, 0)), "text-emerald-400"],
+          [t("Overdue", "متأخر"), bills.filter(b => b.status === "overdue").length, "text-red-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -354,18 +357,28 @@ export default function Bills() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-muted-foreground text-sm p-4">Loading…</div>
+            <div className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           ) : bills.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileInput className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No bills found.</p>
-              <p className="text-xs mt-1 opacity-60">Create one manually or scan a receipt.</p>
+              <p className="text-sm">{t("No bills found.", "لا توجد فواتير.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("Create one manually or scan a receipt.", "أنشئ فاتورة يدوياً أو امسح إيصالاً.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Bill #", "Vendor", "Date", "Due Date", "Subtotal", "VAT", "Total", "Status", ""].map(h => (
+                  {[
+                    t("Bill #", "رقم الفاتورة"),
+                    t("Vendor", "المورد"),
+                    t("Date", "التاريخ"),
+                    t("Due Date", "تاريخ الاستحقاق"),
+                    t("Subtotal", "المجموع قبل الضريبة"),
+                    t("VAT", "ضريبة القيمة المضافة"),
+                    t("Total", "الإجمالي"),
+                    t("Status", "الحالة"),
+                    "",
+                  ].map(h => (
                     <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
                   ))}
                 </tr>
@@ -387,13 +400,13 @@ export default function Bills() {
                       {b.status === "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-400"
                           onClick={() => { setPostReviewOpen(b); setPostDebitAccount(DEFAULT_EXPENSE_ACCOUNT); }}>
-                          Post
+                          {t("Post", "ترحيل")}
                         </Button>
                       )}
                       {b.status !== "paid" && b.status !== "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400"
                           onClick={() => { setPayOpen(b.id); setPayAmount(String(b.total - b.paidAmount)); }}>
-                          Pay
+                          {t("Pay", "دفع")}
                         </Button>
                       )}
                     </td>
@@ -408,15 +421,15 @@ export default function Bills() {
       {/* ── "Post draft bill" dialog — account selection + JE preview ───────── */}
       <Dialog open={postReviewOpen !== null} onOpenChange={v => !v && setPostReviewOpen(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Post Bill to Ledger</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Post Bill to Ledger", "ترحيل الفاتورة إلى دفتر الأستاذ")}</DialogTitle></DialogHeader>
           {postReviewOpen && (
             <div className="mt-2 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Bill <span className="font-mono text-foreground">{postReviewOpen.billNumber}</span>
-                {" "}· {postReviewOpen.vendorName ?? "Unknown vendor"}
+                {t("Bill", "فاتورة")} <span className="font-mono text-foreground">{postReviewOpen.billNumber}</span>
+                {" "}· {postReviewOpen.vendorName ?? t("Unknown vendor", "مورد غير معروف")}
               </p>
               <div>
-                <Label className="text-xs text-muted-foreground">Expense / Debit Account</Label>
+                <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
                 <Select value={postDebitAccount} onValueChange={setPostDebitAccount}>
                   <SelectTrigger className="mt-1 h-8 text-sm">
                     <SelectValue />
@@ -439,7 +452,7 @@ export default function Bills() {
                 disabled={postMut.isPending}
                 onClick={() => postMut.mutate({ id: postReviewOpen.id, debitAccount: postDebitAccount })}
               >
-                {postMut.isPending ? "Posting…" : "Confirm & Post"}
+                {postMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Confirm & Post", "تأكيد والترحيل")}
               </Button>
             </div>
           )}
@@ -449,9 +462,9 @@ export default function Bills() {
       {/* ── payment dialog ──────────────────────────────────────────────────── */}
       <Dialog open={payOpen !== null} onOpenChange={() => setPayOpen(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           <div className="mt-2">
-            <Label className="text-xs text-muted-foreground">Amount Paid (SAR)</Label>
+            <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
             <Input type="number" value={payAmount}
               onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" />
           </div>
@@ -460,7 +473,7 @@ export default function Bills() {
             onClick={() => payOpen && payMut.mutate({ id: payOpen, amount: Number(payAmount) })}
             disabled={!payAmount || payMut.isPending}
           >
-            {payMut.isPending ? "Recording…" : "Record Payment"}
+            {payMut.isPending ? t("Recording…", "جارٍ التسجيل…") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
         </DialogContent>
       </Dialog>

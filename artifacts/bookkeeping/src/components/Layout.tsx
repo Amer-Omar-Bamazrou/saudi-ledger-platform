@@ -13,97 +13,123 @@ import {
   ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages,
 } from "lucide-react";
 
-type NavItem = { href?: string; label: string; icon: React.ElementType; children?: NavItem[] };
+type NavItem = {
+  href?: string;
+  label: string;
+  labelAr: string;
+  icon: React.ElementType;
+  children?: NavItem[];
+};
 
-const navGroups: { label: string; items: NavItem[] }[] = [
+const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
   {
-    label: "Overview",
+    label: "Overview", labelAr: "نظرة عامة",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/transactions", label: "Transactions", icon: ListOrdered },
-      { href: "/bank-accounts", label: "Bank Accounts", icon: CreditCard },
+      { href: "/",              label: "Dashboard",     labelAr: "لوحة التحكم",  icon: LayoutDashboard },
+      { href: "/transactions",  label: "Transactions",  labelAr: "المعاملات",     icon: ListOrdered },
+      { href: "/bank-accounts", label: "Bank Accounts", labelAr: "الحسابات البنكية", icon: CreditCard },
     ],
   },
   {
-    label: "Sales",
+    label: "Sales", labelAr: "المبيعات",
     items: [
-      { href: "/customers", label: "Customers", icon: Users },
-      { href: "/quotations", label: "Quotations", icon: ClipboardList },
-      { href: "/invoices", label: "Invoices", icon: FileText },
-      { href: "/credit-notes", label: "Credit Notes", icon: FileMinus },
-      { href: "/customer-receipts", label: "Customer Receipts", icon: ReceiptText },
+      { href: "/customers",         label: "Customers",         labelAr: "العملاء",           icon: Users },
+      { href: "/quotations",        label: "Quotations",        labelAr: "عروض الأسعار",       icon: ClipboardList },
+      { href: "/invoices",          label: "Invoices",          labelAr: "الفواتير",           icon: FileText },
+      { href: "/credit-notes",      label: "Credit Notes",      labelAr: "إشعارات الدائن",     icon: FileMinus },
+      { href: "/customer-receipts", label: "Customer Receipts", labelAr: "إيصالات العملاء",   icon: ReceiptText },
     ],
   },
   {
-    label: "Purchases",
+    label: "Purchases", labelAr: "المشتريات",
     items: [
-      { href: "/vendors", label: "Vendors", icon: Building2 },
-      { href: "/purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
-      { href: "/bills", label: "Bills", icon: FileInput },
-      { href: "/debit-notes", label: "Debit Notes", icon: FilePlus },
-      { href: "/simple-bills", label: "Simple Bills", icon: FileText },
-      { href: "/vendor-receipts", label: "Vendor Receipts", icon: Store },
+      { href: "/vendors",         label: "Vendors",         labelAr: "الموردون",            icon: Building2 },
+      { href: "/purchase-orders", label: "Purchase Orders", labelAr: "أوامر الشراء",         icon: ShoppingCart },
+      { href: "/bills",           label: "Bills",           labelAr: "فواتير الموردين",      icon: FileInput },
+      { href: "/debit-notes",     label: "Debit Notes",     labelAr: "إشعارات المدين",      icon: FilePlus },
+      { href: "/simple-bills",    label: "Simple Bills",    labelAr: "الفواتير البسيطة",     icon: FileText },
+      { href: "/vendor-receipts", label: "Vendor Receipts", labelAr: "إيصالات الموردين",    icon: Store },
     ],
   },
   {
-    label: "General Ledger",
+    label: "General Ledger", labelAr: "دفتر الأستاذ",
     items: [
-      { href: "/journal-entries", label: "Journal Entries", icon: BookOpen },
-      { href: "/trial-balance", label: "Trial Balance", icon: Scale },
+      { href: "/journal-entries", label: "Journal Entries", labelAr: "قيود اليومية",       icon: BookOpen },
+      { href: "/trial-balance",   label: "Trial Balance",   labelAr: "ميزان المراجعة",      icon: Scale },
     ],
   },
   {
-    label: "Reports",
+    label: "Reports", labelAr: "التقارير",
     items: [
-      { href: "/reports", label: "Reports Hub", icon: BarChart3 },
-      { href: "/income-statement", label: "Income Statement", icon: TrendingUp },
-      { href: "/balance-sheet", label: "Balance Sheet", icon: BarChart3 },
-      { href: "/cash-flow", label: "Cash Flow", icon: Waves },
-      { href: "/trial-balance", label: "Trial Balance", icon: Scale },
-      { href: "/vat", label: "VAT Report", icon: Receipt },
-      { href: "/zakat", label: "Zakat Report", icon: Landmark },
+      { href: "/reports",           label: "Reports Hub",      labelAr: "مركز التقارير",           icon: BarChart3 },
+      { href: "/income-statement",  label: "Income Statement", labelAr: "قائمة الدخل",              icon: TrendingUp },
+      { href: "/balance-sheet",     label: "Balance Sheet",    labelAr: "الميزانية العمومية",        icon: BarChart3 },
+      { href: "/cash-flow",         label: "Cash Flow",        labelAr: "التدفق النقدي",             icon: Waves },
+      { href: "/trial-balance",     label: "Trial Balance",    labelAr: "ميزان المراجعة",            icon: Scale },
+      { href: "/vat",               label: "VAT Report",       labelAr: "تقرير ضريبة القيمة المضافة", icon: Receipt },
+      { href: "/zakat",             label: "Zakat Report",     labelAr: "تقرير الزكاة",              icon: Landmark },
     ],
   },
   {
-    label: "HR & Payroll",
+    label: "HR & Payroll", labelAr: "الموارد البشرية",
     items: [
-      { href: "/employees", label: "Employees", icon: UserCheck },
-      { href: "/payroll", label: "Payroll", icon: Banknote },
+      { href: "/employees", label: "Employees", labelAr: "الموظفون", icon: UserCheck },
+      { href: "/payroll",   label: "Payroll",   labelAr: "الرواتب",  icon: Banknote },
     ],
   },
   {
-    label: "Assets & Inventory",
+    label: "Assets & Inventory", labelAr: "الأصول والمخزون",
     items: [
-      { href: "/assets", label: "Fixed Assets", icon: Package },
-      { href: "/products", label: "Products & Services", icon: ShoppingBag },
+      { href: "/assets",   label: "Fixed Assets",        labelAr: "الأصول الثابتة",     icon: Package },
+      { href: "/products", label: "Products & Services", labelAr: "المنتجات والخدمات",  icon: ShoppingBag },
     ],
   },
   {
-    label: "AI Tools",
+    label: "AI Tools", labelAr: "أدوات الذكاء الاصطناعي",
     items: [
-      { href: "/categorize", label: "Categorization Engine", icon: BrainCog },
-      { href: "/upload", label: "Upload Data", icon: UploadCloud },
+      { href: "/categorize", label: "Categorization Engine", labelAr: "محرك التصنيف", icon: BrainCog },
+      { href: "/upload",     label: "Upload Data",            labelAr: "رفع البيانات",  icon: UploadCloud },
     ],
   },
   {
-    label: "Planning",
+    label: "Planning", labelAr: "التخطيط",
     items: [
-      { href: "/budgets", label: "Budgets", icon: Target },
+      { href: "/budgets", label: "Budgets", labelAr: "الميزانيات", icon: Target },
     ],
   },
   {
-    label: "Settings",
+    label: "Settings", labelAr: "الإعدادات",
     items: [
-      { href: "/categories", label: "Chart of Accounts", icon: Tags },
-      { href: "/users", label: "User Management", icon: UserCog },
-      { href: "/change-password", label: "Change Password", icon: KeyRound },
+      { href: "/categories",       label: "Chart of Accounts", labelAr: "دليل الحسابات",    icon: Tags },
+      { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },
+      { href: "/change-password",  label: "Change Password",   labelAr: "تغيير كلمة المرور", icon: KeyRound },
     ],
   },
 ];
 
-function NavGroup({ group, location }: { group: typeof navGroups[0]; location: string }) {
+const ROLE_COLOR: Record<string, string> = {
+  admin:      "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  accountant: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  viewer:     "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+};
+
+const ROLE_AR: Record<string, string> = {
+  admin: "مدير", accountant: "محاسب", viewer: "مشاهد",
+};
+
+function NavGroup({
+  group,
+  location,
+  lang,
+}: {
+  group: typeof navGroupsData[0];
+  location: string;
+  lang: "en" | "ar";
+}) {
   const hasActive = group.items.some(i => i.href === location);
-  const [open, setOpen] = useState(hasActive || ["Overview", "Sales", "Purchases", "Financial Reports"].includes(group.label));
+  const [open, setOpen] = useState(
+    hasActive || ["Overview", "Sales", "Purchases", "Financial Reports"].includes(group.label)
+  );
 
   return (
     <div>
@@ -111,7 +137,7 @@ function NavGroup({ group, location }: { group: typeof navGroups[0]; location: s
         onClick={() => setOpen(p => !p)}
         className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors"
       >
-        {group.label}
+        {lang === "ar" ? group.labelAr : group.label}
         {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
       </button>
       {open && (
@@ -131,7 +157,9 @@ function NavGroup({ group, location }: { group: typeof navGroups[0]; location: s
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{link.label}</span>
+                <span className="truncate">
+                  {lang === "ar" ? link.labelAr : link.label}
+                </span>
               </Link>
             );
           })}
@@ -141,16 +169,10 @@ function NavGroup({ group, location }: { group: typeof navGroups[0]; location: s
   );
 }
 
-const ROLE_COLOR: Record<string, string> = {
-  admin: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  accountant: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  viewer: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
-};
-
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -164,15 +186,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <span className="font-bold text-base text-primary tracking-tight">KSA Ledger</span>
-              <div className="text-xs text-muted-foreground -mt-0.5">ERP · Accounting</div>
+              <div className="text-xs text-muted-foreground -mt-0.5">
+                {t("ERP · Accounting", "نظام ERP · محاسبة")}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto">
-          {navGroups.map(g => (
-            <NavGroup key={g.label} group={g} location={location} />
+          {navGroupsData.map(g => (
+            <NavGroup key={g.label} group={g} location={location} lang={lang} />
           ))}
         </nav>
 
@@ -190,7 +214,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center justify-between">
               <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.role] ?? ROLE_COLOR.viewer)}>
-                {user.role.toUpperCase()}
+                {lang === "ar" ? (ROLE_AR[user.role] ?? user.role) : user.role.toUpperCase()}
               </span>
               <div className="flex items-center gap-2">
                 {/* Language toggle EN ⇌ ع */}
@@ -202,7 +226,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       ? "border-primary/50 text-primary bg-primary/10"
                       : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground"
                   )}
-                  title={lang === "en" ? "Switch to Arabic" : "Switch to English"}
+                  title={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
                 >
                   <Languages className="w-3 h-3" />
                   {lang === "en" ? "ع" : "EN"}
@@ -210,10 +234,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <button
                   onClick={logout}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors"
-                  title="Sign out"
+                  title={t("Sign out", "تسجيل الخروج")}
                 >
                   <LogOut className="w-3 h-3" />
-                  Sign out
+                  {t("Sign out", "تسجيل الخروج")}
                 </button>
               </div>
             </div>

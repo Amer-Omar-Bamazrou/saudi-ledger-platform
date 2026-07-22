@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ export default function CreditNotes() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmpty());
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers"],
@@ -57,30 +59,30 @@ export default function CreditNotes() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Credit Notes</h1>
-          <p className="text-muted-foreground text-sm mt-1">Issued to customers for returns or overbilling</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Credit Notes", "إشعارات دائن")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Issued to customers for returns or overbilling", "تُصدر للعملاء مقابل المرتجعات أو الفوترة الزائدة")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> New Credit Note</Button>
+            <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Credit Note", "إشعار دائن جديد")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>New Credit Note</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("New Credit Note", "إشعار دائن جديد")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Credit Note #</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Credit Note #", "رقم الإشعار الدائن")}</Label>
                   <Input value={form.creditNoteNumber} onChange={e => setForm(p => ({ ...p, creditNoteNumber: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Invoice Reference</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Invoice Reference", "مرجع الفاتورة")}</Label>
                   <Input value={form.invoiceReference} onChange={e => setForm(p => ({ ...p, invoiceReference: e.target.value }))} placeholder="INV-XXXXXX" className="mt-1 h-8 text-sm" />
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Customer</Label>
+                <Label className="text-xs text-muted-foreground">{t("Customer", "عميل")}</Label>
                 <Select value={form.customerId} onValueChange={v => setForm(p => ({ ...p, customerId: v }))}>
-                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer…", "اختر عميلاً…")} /></SelectTrigger>
                   <SelectContent>
                     {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                   </SelectContent>
@@ -88,11 +90,11 @@ export default function CreditNotes() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Date</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
                   <Input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
                   <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
                     <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -105,26 +107,26 @@ export default function CreditNotes() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Subtotal (SAR)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
                   <Input type="number" step="0.01" value={form.subtotal} onChange={e => setForm(p => ({ ...p, subtotal: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">VAT 15%</Label>
+                  <Label className="text-xs text-muted-foreground">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Label>
                   <Input type="number" step="0.01" value={form.vatAmount} onChange={e => setForm(p => ({ ...p, vatAmount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Total Amount</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Total Amount", "المبلغ الإجمالي")}</Label>
                   <Input type="number" step="0.01" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Reason</Label>
-                <Input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder="Return, overbilling, discount…" className="mt-1 h-8 text-sm" />
+                <Label className="text-xs text-muted-foreground">{t("Reason", "السبب")}</Label>
+                <Input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder={t("Return, overbilling, discount…", "مرتجع، فوترة زائدة، خصم…")} className="mt-1 h-8 text-sm" />
               </div>
             </div>
             <Button className="w-full mt-4" disabled={!form.customerId}
-              onClick={() => { toast({ title: "Credit note saved" }); setOpen(false); setForm(makeEmpty()); }}>
-              Save Credit Note
+              onClick={() => { toast({ title: t("Credit note saved", "تم حفظ الإشعار الدائن") }); setOpen(false); setForm(makeEmpty()); }}>
+              {t("Save Credit Note", "حفظ الإشعار الدائن")}
             </Button>
           </DialogContent>
         </Dialog>
@@ -132,10 +134,10 @@ export default function CreditNotes() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Notes", notes.length, "text-primary"],
-          ["Total Credited", fmtNum(totalIssued), "text-red-400"],
-          ["Applied", notes.filter(n => n.status === "applied").length, "text-emerald-400"],
-          ["Pending", notes.filter(n => n.status === "issued").length, "text-amber-400"],
+          [t("Total Notes", "إجمالي الإشعارات"), notes.length, "text-primary"],
+          [t("Total Credited", "إجمالي المُعاد"), fmtNum(totalIssued), "text-red-400"],
+          [t("Applied", "مطبّق"), notes.filter(n => n.status === "applied").length, "text-emerald-400"],
+          [t("Pending", "معلّق"), notes.filter(n => n.status === "issued").length, "text-amber-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -147,18 +149,18 @@ export default function CreditNotes() {
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="text-sm text-muted-foreground p-4">Loading…</div>
+            <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           ) : notes.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <FileMinus className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No credit notes yet.</p>
-              <p className="text-xs mt-1 opacity-60">Issue one when a customer needs a refund or adjustment.</p>
+              <p className="text-sm">{t("No credit notes yet.", "لا توجد إشعارات دائن بعد.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("Issue one when a customer needs a refund or adjustment.", "أصدر واحداً عند حاجة العميل إلى استرداد أو تعديل.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Credit Note #", "Customer", "Invoice Ref", "Date", "Amount", "Status"].map(h => (
+                  {[t("Credit Note #", "رقم الإشعار الدائن"), t("Customer", "العميل"), t("Invoice Ref", "مرجع الفاتورة"), t("Date", "التاريخ"), t("Amount", "المبلغ"), t("Status", "الحالة")].map(h => (
                     <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
                   ))}
                 </tr>

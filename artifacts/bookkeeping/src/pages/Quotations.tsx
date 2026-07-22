@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Quotation {
   id: number; quoteNumber: string; customerId: number; customerName: string;
@@ -42,6 +43,7 @@ export default function Quotations() {
   const [form, setForm] = useState(makeEmpty());
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers"],
@@ -61,23 +63,23 @@ export default function Quotations() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Quotations</h1>
-          <p className="text-muted-foreground text-sm mt-1">Sales quotes sent to customers</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Quotations", "عروض الأسعار")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Sales quotes sent to customers", "عروض الأسعار المرسلة للعملاء")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> New Quotation</Button>
+            <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Quotation", "عرض سعر جديد")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>New Quotation</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("New Quotation", "عرض سعر جديد")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Quote Number</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Quote Number", "رقم عرض السعر")}</Label>
                   <Input value={form.quoteNumber} onChange={e => setForm(p => ({ ...p, quoteNumber: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
                   <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
                     <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -89,9 +91,9 @@ export default function Quotations() {
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Customer</Label>
+                <Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
                 <Select value={form.customerId} onValueChange={v => setForm(p => ({ ...p, customerId: v }))}>
-                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer…", "اختر العميل…")} /></SelectTrigger>
                   <SelectContent>
                     {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                   </SelectContent>
@@ -99,36 +101,36 @@ export default function Quotations() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Date</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
                   <Input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Expiry Date</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Expiry Date", "تاريخ انتهاء الصلاحية")}</Label>
                   <Input type="date" value={form.expiryDate} onChange={e => setForm(p => ({ ...p, expiryDate: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Subtotal (SAR)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع قبل الضريبة (ر.س)")}</Label>
                   <Input type="number" step="0.01" value={form.subtotal} onChange={e => setForm(p => ({ ...p, subtotal: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">VAT 15%</Label>
+                  <Label className="text-xs text-muted-foreground">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Label>
                   <Input type="number" step="0.01" value={form.vatAmount} onChange={e => setForm(p => ({ ...p, vatAmount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Total (SAR)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
                   <Input type="number" step="0.01" value={form.total} onChange={e => setForm(p => ({ ...p, total: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Notes</Label>
+                <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
                 <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="mt-1 h-8 text-sm" />
               </div>
             </div>
             <Button className="w-full mt-4" disabled={!form.customerId}
-              onClick={() => { toast({ title: "Quotation saved (local)" }); setOpen(false); setForm(makeEmpty()); }}>
-              Save Quotation
+              onClick={() => { toast({ title: t("Quotation saved", "تم حفظ عرض السعر") }); setOpen(false); setForm(makeEmpty()); }}>
+              {t("Save Quotation", "حفظ عرض السعر")}
             </Button>
           </DialogContent>
         </Dialog>
@@ -136,10 +138,10 @@ export default function Quotations() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Quotes", quotes.length, "text-primary"],
-          ["Total Value", fmtNum(total), "text-primary"],
-          ["Accepted", accepted, "text-emerald-400"],
-          ["Pending", quotes.filter(q => q.status === "sent").length, "text-amber-400"],
+          [t("Total Quotes", "إجمالي عروض الأسعار"), quotes.length, "text-primary"],
+          [t("Total Value", "إجمالي القيمة"), fmtNum(total), "text-primary"],
+          [t("Accepted", "مقبول"), accepted, "text-emerald-400"],
+          [t("Pending", "قيد الانتظار"), quotes.filter(q => q.status === "sent").length, "text-amber-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -151,18 +153,25 @@ export default function Quotations() {
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="text-muted-foreground text-sm p-4">Loading…</div>
+            <div className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           ) : quotes.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <ClipboardList className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No quotations yet.</p>
-              <p className="text-xs mt-1 opacity-60">Create a quote to send to a customer.</p>
+              <p className="text-sm">{t("No quotations yet.", "لا توجد عروض أسعار بعد.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("Create a quote to send to a customer.", "أنشئ عرض سعر لإرساله إلى عميل.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Quote #", "Customer", "Date", "Expiry", "Total", "Status"].map(h => (
+                  {[
+                    t("Quote #", "رقم العرض"),
+                    t("Customer", "العميل"),
+                    t("Date", "التاريخ"),
+                    t("Expiry", "انتهاء الصلاحية"),
+                    t("Total", "الإجمالي"),
+                    t("Status", "الحالة"),
+                  ].map(h => (
                     <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
                   ))}
                 </tr>

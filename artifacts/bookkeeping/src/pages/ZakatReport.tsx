@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useGetZakatSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
@@ -6,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
 export default function ZakatReport() {
+  const { t } = useLanguage();
   const { data: zakatData, isLoading } = useGetZakatSummary();
 
   const isEligible = (zakatData?.totalZakatableAssets || 0) >= (zakatData?.nisabThresholdSAR || 0);
@@ -15,33 +17,33 @@ export default function ZakatReport() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
           <Landmark className="w-8 h-8 text-amber-500" />
-          Zakat Assessment
+          {t("Zakat Assessment", "تقييم الزكاة")}
         </h1>
-        <p className="text-muted-foreground mt-1">Automated 2.5% calculation based on Hijri year applicable assets.</p>
+        <p className="text-muted-foreground mt-1">{t("Automated 2.5% calculation based on Hijri year applicable assets.", "احتساب آلي بنسبة 2.5% بناءً على الأصول الخاضعة للزكاة في السنة الهجرية.")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-card">
           <CardContent className="p-6 space-y-2">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Zakatable Assets</p>
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{t("Zakatable Assets", "الأصول الخاضعة للزكاة")}</p>
             {isLoading ? <Skeleton className="h-10 w-32" /> : (
               <p className="text-3xl font-mono font-bold text-white">
                 {formatCurrency(zakatData?.totalZakatableAssets || 0)}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">Total of relevant categories</p>
+            <p className="text-xs text-muted-foreground">{t("Total of relevant categories", "إجمالي الفئات ذات الصلة")}</p>
           </CardContent>
         </Card>
 
         <Card className="bg-card">
           <CardContent className="p-6 space-y-2">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Nisab Threshold</p>
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{t("Nisab Threshold", "حد النصاب")}</p>
             {isLoading ? <Skeleton className="h-10 w-32" /> : (
               <p className="text-3xl font-mono font-bold text-white/80">
                 {formatCurrency(zakatData?.nisabThresholdSAR || 0)}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">Current Gold/Silver Standard</p>
+            <p className="text-xs text-muted-foreground">{t("Current Gold/Silver Standard", "معيار الذهب/الفضة الحالي")}</p>
           </CardContent>
         </Card>
 
@@ -51,7 +53,7 @@ export default function ZakatReport() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10" />
             )}
             <p className={`text-sm font-medium uppercase tracking-wider ${isEligible ? 'text-amber-500' : 'text-muted-foreground'}`}>
-              Calculated Zakat Due (2.5%)
+              {t("Calculated Zakat Due (2.5%)", "الزكاة المستحقة المحتسبة (2.5%)")}
             </p>
             {isLoading ? <Skeleton className="h-10 w-32" /> : (
               <p className={`text-4xl font-mono font-bold ${isEligible ? 'text-amber-400' : 'text-muted-foreground'}`}>
@@ -59,7 +61,7 @@ export default function ZakatReport() {
               </p>
             )}
             <p className="text-xs font-bold text-white/70">
-              {isEligible ? 'OBLIGATION MET' : 'BELOW NISAB THRESHOLD'}
+              {isEligible ? t("OBLIGATION MET", "الزكاة واجبة") : t("BELOW NISAB THRESHOLD", "دون حد النصاب")}
             </p>
           </CardContent>
         </Card>
@@ -69,11 +71,11 @@ export default function ZakatReport() {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Included Transactions</CardTitle>
-              <CardDescription>Line items that contribute to the Zakatable Assets total.</CardDescription>
+              <CardTitle>{t("Included Transactions", "المعاملات المشمولة")}</CardTitle>
+              <CardDescription>{t("Line items that contribute to the Zakatable Assets total.", "البنود التي تساهم في إجمالي الأصول الخاضعة للزكاة.")}</CardDescription>
             </div>
             <Badge variant="outline" className="border-amber-500/50 text-amber-500 bg-amber-500/5">
-              Zakat Relevant Only
+              {t("Zakat Relevant Only", "المعاملات الخاضعة للزكاة فقط")}
             </Badge>
           </div>
         </CardHeader>
@@ -88,10 +90,10 @@ export default function ZakatReport() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
                   <tr>
-                    <th className="px-6 py-4 font-semibold">Date</th>
-                    <th className="px-6 py-4 font-semibold">Description</th>
-                    <th className="px-6 py-4 font-semibold">Category</th>
-                    <th className="px-6 py-4 font-semibold text-right">Impact Amount</th>
+                    <th className="px-6 py-4 font-semibold">{t("Date", "التاريخ")}</th>
+                    <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
+                    <th className="px-6 py-4 font-semibold">{t("Category", "الفئة")}</th>
+                    <th className="px-6 py-4 font-semibold text-right">{t("Impact Amount", "مبلغ التأثير")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -112,7 +114,7 @@ export default function ZakatReport() {
                   {zakatData?.eligibleTransactions?.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                        No Zakat-relevant transactions found.
+                        {t("No Zakat-relevant transactions found.", "لا توجد معاملات خاضعة للزكاة.")}
                       </td>
                     </tr>
                   )}

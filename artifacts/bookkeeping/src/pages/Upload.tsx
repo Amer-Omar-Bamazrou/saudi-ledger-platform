@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useUploadTransactions } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -92,6 +93,7 @@ type Tab = "file" | "paste" | "manual";
 export default function Upload() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("file");
   const [autoCategorize, setAutoCategorize] = useState(true);
 
@@ -112,13 +114,13 @@ export default function Upload() {
   const uploadMut = useUploadTransactions({
     mutation: {
       onSuccess: (res) => {
-        toast({ title: "Import successful", description: `${res.inserted} rows inserted · ${res.categorized} auto-categorised` });
-        if (res.errors?.length) toast({ title: `${res.errors.length} row errors`, description: res.errors[0], variant: "destructive" });
+        toast({ title: t("Import successful", "تم الاستيراد بنجاح"), description: `${res.inserted} ${t("rows inserted", "صفوف مُدرجة")} · ${res.categorized} ${t("auto-categorised", "مصنّف تلقائياً")}` });
+        if (res.errors?.length) toast({ title: `${res.errors.length} ${t("row errors", "أخطاء في الصفوف")}`, description: res.errors[0], variant: "destructive" });
         setPreview([]); setFileName(null); setCsvData("");
         setManualRows([{ date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" }]);
         qc.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
       },
-      onError: (err: any) => toast({ title: "Import failed", description: err?.message ?? "Check your data.", variant: "destructive" }),
+      onError: (err: any) => toast({ title: t("Import failed", "فشل الاستيراد"), description: err?.message ?? t("Check your data.", "تحقق من بياناتك."), variant: "destructive" }),
     },
   });
 
@@ -146,9 +148,9 @@ export default function Upload() {
       };
       reader.readAsArrayBuffer(file);
     } else {
-      toast({ title: "Unsupported file type", description: "Upload a .csv, .xls, or .xlsx file.", variant: "destructive" });
+      toast({ title: t("Unsupported file type", "نوع ملف غير مدعوم"), description: t("Upload a .csv, .xls, or .xlsx file.", "قم بتحميل ملف .csv أو .xls أو .xlsx."), variant: "destructive" });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   /* ── drag events ────────────────────────────────────────────────────── */
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragging(true); };
@@ -167,7 +169,7 @@ export default function Upload() {
   /* ── submit helpers ─────────────────────────────────────────────────── */
   const submitRows = (rows: TxRow[]) => {
     const valid = rows.filter(r => !r._error);
-    if (!valid.length) { toast({ title: "No valid rows to import", variant: "destructive" }); return; }
+    if (!valid.length) { toast({ title: t("No valid rows to import", "لا توجد صفوف صالحة للاستيراد"), variant: "destructive" }); return; }
     uploadMut.mutate({ data: { rows: valid.map(({ _error, ...r }) => r), autoCategrize: autoCategorize } });
   };
 
@@ -203,17 +205,17 @@ export default function Upload() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <UploadCloud className="w-6 h-6 text-primary" /> Data Import
+            <UploadCloud className="w-6 h-6 text-primary" /> {t("Data Import", "استيراد البيانات")}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Upload CSV or Excel, paste data, or enter rows manually.</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Upload CSV or Excel, paste data, or enter rows manually.", "ارفع ملف CSV أو Excel، أو الصق البيانات، أو أدخل الصفوف يدوياً.")}</p>
         </div>
         {/* template downloads */}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={downloadCsvTemplate}>
-            <Download className="w-3.5 h-3.5" /> CSV Template
+            <Download className="w-3.5 h-3.5" /> {t("CSV Template", "قالب CSV")}
           </Button>
           <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={downloadXlsxTemplate}>
-            <Download className="w-3.5 h-3.5" /><FileSpreadsheet className="w-3.5 h-3.5" /> Excel Template
+            <Download className="w-3.5 h-3.5" /><FileSpreadsheet className="w-3.5 h-3.5" /> {t("Excel Template", "قالب Excel")}
           </Button>
         </div>
       </div>
@@ -221,8 +223,8 @@ export default function Upload() {
       {/* auto-categorize toggle */}
       <div className="flex items-center justify-between p-4 rounded-lg bg-card border">
         <div>
-          <Label className="font-medium">Auto-categorise on import</Label>
-          <p className="text-xs text-muted-foreground mt-0.5">Runs the categorisation engine immediately after upload.</p>
+          <Label className="font-medium">{t("Auto-categorise on import", "تصنيف تلقائي عند الاستيراد")}</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("Runs the categorisation engine immediately after upload.", "يُشغّل محرك التصنيف فور الرفع.")}</p>
         </div>
         <Switch checked={autoCategorize} onCheckedChange={setAutoCategorize} />
       </div>
@@ -231,12 +233,12 @@ export default function Upload() {
       <Card>
         <CardHeader className="border-b bg-secondary/20 pb-0 pt-4 px-6">
           <div className="flex gap-6">
-            {(["file", "paste", "manual"] as Tab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)}
+            {(["file", "paste", "manual"] as Tab[]).map(tabKey => (
+              <button key={tabKey} onClick={() => setTab(tabKey)}
                 className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors capitalize ${
-                  tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                  tab === tabKey ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}>
-                {t === "file" ? "File Upload" : t === "paste" ? "Paste CSV" : "Manual Entry"}
+                {tabKey === "file" ? t("File Upload", "رفع ملف") : tabKey === "paste" ? t("Paste CSV", "لصق CSV") : t("Manual Entry", "إدخال يدوي")}
               </button>
             ))}
           </div>
@@ -263,9 +265,9 @@ export default function Upload() {
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground">
-                      {dragging ? "Drop to import" : "Drag & drop your file here"}
+                      {dragging ? t("Drop to import", "أسقط للاستيراد") : t("Drag & drop your file here", "اسحب وأسقط ملفك هنا")}
                     </p>
-                    <p className="text-sm text-muted-foreground mt-1">or click to browse — CSV, XLS, XLSX supported</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t("or click to browse — CSV, XLS, XLSX supported", "أو انقر للتصفح — يدعم CSV وXLS وXLSX")}</p>
                   </div>
                   <div className="flex gap-2">
                     {[".csv", ".xlsx", ".xls"].map(ext => (
@@ -283,11 +285,11 @@ export default function Upload() {
                     <div className="flex items-center gap-3">
                       <File className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-foreground">{fileName}</span>
-                      <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30">{validCount} valid</Badge>
-                      {errorCount > 0 && <Badge variant="outline" className="text-xs text-red-400 border-red-400/30">{errorCount} errors</Badge>}
+                      <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30">{validCount} {t("valid", "صالح")}</Badge>
+                      {errorCount > 0 && <Badge variant="outline" className="text-xs text-red-400 border-red-400/30">{errorCount} {t("errors", "أخطاء")}</Badge>}
                     </div>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground" onClick={() => { setPreview([]); setFileName(null); }}>
-                      <X className="w-3.5 h-3.5" /> Clear
+                      <X className="w-3.5 h-3.5" /> {t("Clear", "مسح")}
                     </Button>
                   </div>
 
@@ -297,7 +299,7 @@ export default function Upload() {
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-secondary border-b border-border">
                           <tr>
-                            {["Status", "Date", "Description", "Amount", "Type", "Currency"].map(h => (
+                            {[t("Status", "الحالة"), t("Date", "التاريخ"), t("Description", "الوصف"), t("Amount", "المبلغ"), t("Type", "النوع"), t("Currency", "العملة")].map(h => (
                               <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
                             ))}
                           </tr>
@@ -311,7 +313,7 @@ export default function Upload() {
                                   : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                               </td>
                               <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>
-                              <td className="px-3 py-2 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">empty</span>}</td>
+                              <td className="px-3 py-2 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">{t("empty", "فارغ")}</span>}</td>
                               <td className="px-3 py-2 font-mono text-right tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
                               <td className="px-3 py-2">
                                 <span className={`text-xs font-medium ${row.type === "credit" ? "text-emerald-400" : "text-red-400"}`}>
@@ -328,18 +330,18 @@ export default function Upload() {
 
                   {errorCount > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      <span className="text-red-400 font-medium">{errorCount} rows</span> have errors and will be skipped. Fix your file and re-upload to import them.
+                      <span className="text-red-400 font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("have errors and will be skipped. Fix your file and re-upload to import them.", "تحتوي على أخطاء وسيتم تخطيها. صحّح ملفك وأعد رفعه لاستيرادها.")}
                     </p>
                   )}
 
                   <div className="flex items-center justify-between pt-1">
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()}>
-                      <UploadCloud className="w-4 h-4" /> Replace file
+                      <UploadCloud className="w-4 h-4" /> {t("Replace file", "استبدال الملف")}
                       <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.txt" className="hidden" onChange={onFileChange} />
                     </Button>
                     <Button onClick={() => submitRows(preview)} disabled={uploadMut.isPending || validCount === 0} className="gap-2">
                       {uploadMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-                      Import {validCount} row{validCount !== 1 ? "s" : ""}
+                      {t("Import", "استيراد")} {validCount} {validCount !== 1 ? t("rows", "صفوف") : t("row", "صف")}
                     </Button>
                   </div>
                 </div>
@@ -353,9 +355,9 @@ export default function Upload() {
               <div className="bg-secondary/40 p-4 rounded-lg border border-border text-sm font-mono text-muted-foreground flex gap-3 items-start">
                 <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-foreground mb-2 font-sans font-semibold text-sm">Accepted formats</p>
-                  <p className="text-xs">With header:&nbsp;&nbsp; <span className="text-foreground">date, description, amount, type, currency</span></p>
-                  <p className="text-xs mt-1">Without header: <span className="text-foreground">2026-01-01, Office Supplies, 1500.50, debit, SAR</span></p>
+                  <p className="text-foreground mb-2 font-sans font-semibold text-sm">{t("Accepted formats", "الصيغ المقبولة")}</p>
+                  <p className="text-xs">{t("With header:", "مع رأس:")}&nbsp;&nbsp; <span className="text-foreground">date, description, amount, type, currency</span></p>
+                  <p className="text-xs mt-1">{t("Without header:", "بدون رأس:")} <span className="text-foreground">2026-01-01, Office Supplies, 1500.50, debit, SAR</span></p>
                 </div>
               </div>
               <Textarea
@@ -367,7 +369,7 @@ export default function Upload() {
               <div className="flex justify-end">
                 <Button onClick={submitPaste} disabled={!csvData.trim() || uploadMut.isPending} className="gap-2">
                   {uploadMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Process import
+                  {t("Process import", "معالجة الاستيراد")}
                 </Button>
               </div>
             </div>
@@ -385,19 +387,19 @@ export default function Upload() {
                           onChange={e => { const r = [...manualRows]; r[idx].date = e.target.value; setManualRows(r); }} />
                       </div>
                       <div className="col-span-5">
-                        <Input placeholder="Description" value={row.description} className="h-8 text-sm"
+                        <Input placeholder={t("Description", "الوصف")} value={row.description} className="h-8 text-sm"
                           onChange={e => { const r = [...manualRows]; r[idx].description = e.target.value; setManualRows(r); }} />
                       </div>
                       <div className="col-span-3">
-                        <Input type="number" step="0.01" placeholder="Amount" value={row.amount} className="h-8 text-sm font-mono"
+                        <Input type="number" step="0.01" placeholder={t("Amount", "المبلغ")} value={row.amount} className="h-8 text-sm font-mono"
                           onChange={e => { const r = [...manualRows]; r[idx].amount = e.target.value; setManualRows(r); }} />
                       </div>
                       <div className="col-span-2">
                         <Select value={row.type} onValueChange={(v: "debit" | "credit") => { const r = [...manualRows]; r[idx].type = v; setManualRows(r); }}>
                           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="debit">Debit</SelectItem>
-                            <SelectItem value="credit">Credit</SelectItem>
+                            <SelectItem value="debit">{t("Debit", "مدين")}</SelectItem>
+                            <SelectItem value="credit">{t("Credit", "دائن")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -414,11 +416,11 @@ export default function Upload() {
               <div className="flex items-center justify-between pt-2">
                 <Button variant="outline" size="sm" className="gap-2"
                   onClick={() => setManualRows([...manualRows, { date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" }])}>
-                  <Plus className="w-4 h-4" /> Add row
+                  <Plus className="w-4 h-4" /> {t("Add row", "إضافة صف")}
                 </Button>
                 <Button onClick={submitManual} disabled={uploadMut.isPending || manualRows.every(r => !r.description)} className="gap-2">
                   {uploadMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Submit {manualRows.filter(r => r.description && r.amount).length || ""} entries
+                  {t("Submit", "إرسال")} {manualRows.filter(r => r.description && r.amount).length || ""} {t("entries", "إدخالات")}
                 </Button>
               </div>
             </div>
@@ -429,16 +431,16 @@ export default function Upload() {
       {/* format reference card */}
       <Card className="border-border bg-card/50">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-muted-foreground font-medium">Column Reference</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground font-medium">{t("Column Reference", "مرجع الأعمدة")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { col: "date", format: "YYYY-MM-DD", req: true },
-              { col: "description", format: "Free text", req: true },
-              { col: "amount", format: "Positive number", req: true },
-              { col: "type", format: "debit or credit", req: true },
-              { col: "currency", format: "SAR (default)", req: false },
+              { col: "date", format: t("YYYY-MM-DD", "YYYY-MM-DD"), req: true },
+              { col: "description", format: t("Free text", "نص حر"), req: true },
+              { col: "amount", format: t("Positive number", "رقم موجب"), req: true },
+              { col: "type", format: t("debit or credit", "مدين أو دائن"), req: true },
+              { col: "currency", format: t("SAR (default)", "ر.س (افتراضي)"), req: false },
             ].map(({ col, format, req }) => (
               <div key={col} className="space-y-1">
                 <div className="flex items-center gap-1.5">

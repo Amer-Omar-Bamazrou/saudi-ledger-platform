@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
 interface Customer { id: number; name: string; }
@@ -40,6 +41,7 @@ export default function Invoices() {
   const [payAmount, setPayAmount] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", statusFilter],
@@ -50,14 +52,14 @@ export default function Invoices() {
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/invoices", { method: "POST", body: JSON.stringify({ ...body, customerId: Number(body.customerId), items: [] }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); toast({ title: "Invoice created" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const payMut = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: JSON.stringify({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: "Payment recorded" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const totalOutstanding = invoices.filter(i => i.status !== "paid" && i.status !== "cancelled").reduce((s, i) => s + (i.total - i.paidAmount), 0);
@@ -67,38 +69,43 @@ export default function Invoices() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
-          <p className="text-muted-foreground text-sm mt-1">Customer invoices · Accounts Receivable</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Invoices", "الفواتير")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Customer invoices · Accounts Receivable", "فواتير العملاء · الذمم المدينة")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> New Invoice</Button></DialogTrigger>
+          <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Invoice", "فاتورة جديدة")}</Button></DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>New Invoice</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs text-muted-foreground">Invoice Number</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
-                <div><Label className="text-xs text-muted-foreground">Date</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs text-muted-foreground">Due Date</Label><Input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
-                <div><Label className="text-xs text-muted-foreground">Status</Label>
+                <div><Label className="text-xs text-muted-foreground">{t("Due Date", "تاريخ الاستحقاق")}</Label><Input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
                   <Select value={form.status} onValueChange={v=>setForm(p=>({...p,status:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["draft","sent","paid"].map(s=><SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>
                 </div>
               </div>
-              <div><Label className="text-xs text-muted-foreground">Customer</Label>
-                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
+              <div><Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
+                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
               </div>
-              <div><Label className="text-xs text-muted-foreground">Notes</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="Optional notes..." /></div>
+              <div><Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("Optional notes...", "ملاحظات اختيارية...")} /></div>
             </div>
             <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.customerId || createMut.isPending}>
-              {createMut.isPending ? "Creating..." : "Create Invoice"}
+              {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Invoice", "إنشاء فاتورة")}
             </Button>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[["Total Invoices", invoices.length, "text-primary", ""],["Outstanding", fmtNum(totalOutstanding), "text-amber-400", ""],["Collected", fmtNum(totalPaid), "text-emerald-400", ""],["Overdue", invoices.filter(i=>i.status==="overdue").length, "text-red-400", ""]].map(([l,v,c])=>(
+        {[
+          [t("Total Invoices", "إجمالي الفواتير"), invoices.length, "text-primary"],
+          [t("Outstanding", "المستحق"), fmtNum(totalOutstanding), "text-amber-400"],
+          [t("Collected", "المحصّل"), fmtNum(totalPaid), "text-emerald-400"],
+          [t("Overdue", "متأخر"), invoices.filter(i=>i.status==="overdue").length, "text-red-400"],
+        ].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -112,11 +119,21 @@ export default function Invoices() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">Loading...</div> : invoices.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>No invoices found.</p></div>
+          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : invoices.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No invoices found.", "لا توجد فواتير.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{["Invoice #","Customer","Date","Due Date","Amount","VAT","Total","Status",""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
+                t("Invoice #", "رقم الفاتورة"),
+                t("Customer", "العميل"),
+                t("Date", "التاريخ"),
+                t("Due Date", "تاريخ الاستحقاق"),
+                t("Amount", "المبلغ"),
+                t("VAT", "ضريبة القيمة المضافة"),
+                t("Total", "الإجمالي"),
+                t("Status", "الحالة"),
+                "",
+              ].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pr-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
@@ -129,7 +146,7 @@ export default function Invoices() {
                   <td className="py-3 pr-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
                   <td className="py-3">
                     {inv.status !== "paid" && inv.status !== "cancelled" && (
-                      <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>Mark Paid</Button>
+                      <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                     )}
                   </td>
                 </tr>
@@ -141,12 +158,12 @@ export default function Invoices() {
 
       <Dialog open={payOpen !== null} onOpenChange={()=>setPayOpen(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
-            <div><Label className="text-xs text-muted-foreground">Amount Received (SAR)</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
           </div>
           <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>payOpen&&payMut.mutate({id:payOpen,amount:Number(payAmount)})} disabled={!payAmount||payMut.isPending}>
-            {payMut.isPending ? "Recording..." : "Record Payment"}
+            {payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
         </DialogContent>
       </Dialog>

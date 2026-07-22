@@ -22,12 +22,12 @@ const BUCKET_LABELS = [
 
 function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
   const items = data.items as any[];
-  const { n } = useLanguage();
+  const { n, t } = useLanguage();
   const nameKey   = type === "ar" ? "customerName" : "vendorName";
   const nameArKey = type === "ar" ? "customerNameAr" : "vendorNameAr";
   const numKey    = type === "ar" ? "invoiceNumber" : "billNumber";
-  const numLabel  = type === "ar" ? "Invoice #" : "Bill #";
-  const partyLabel = type === "ar" ? "Customer" : "Vendor";
+  const numLabel  = type === "ar" ? t("Invoice #", "رقم الفاتورة") : t("Bill #", "رقم فاتورة المورد");
+  const partyLabel = type === "ar" ? t("Customer", "العميل") : t("Vendor", "المورد");
 
   return (
     <div className="space-y-4">
@@ -45,13 +45,13 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
       {items.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           {type === "ar" ? <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" /> : <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />}
-          <p className="text-sm">No outstanding {type === "ar" ? "receivables" : "payables"}.</p>
+          <p className="text-sm">{type === "ar" ? t("No outstanding receivables.", "لا توجد ذمم مدينة معلقة.") : t("No outstanding payables.", "لا توجد ذمم دائنة معلقة.")}</p>
         </div>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-              {[numLabel, partyLabel, "Due Date", "Outstanding", "Days Overdue"].map(h => (
+              {[numLabel, partyLabel, t("Due Date", "تاريخ الاستحقاق"), t("Outstanding", "المبلغ المستحق"), t("Days Overdue", "أيام التأخر")].map(h => (
                 <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
               ))}
             </tr>
@@ -66,14 +66,14 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
                   <td className="py-2.5 pr-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
                   <td className="py-2.5 pr-4 text-xs text-muted-foreground">{item.dueDate ? fmtDate(item.dueDate) : "—"}</td>
                   <td className="py-2.5 pr-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
-                  <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} days` : "Current"}</td>
+                  <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border font-bold">
-              <td colSpan={3} className="pt-3 text-xs text-muted-foreground">Total Outstanding</td>
+              <td colSpan={3} className="pt-3 text-xs text-muted-foreground">{t("Total Outstanding", "إجمالي المستحق")}</td>
               <td className="pt-3 font-mono text-sm">{fmtNum(data.total)}</td>
               <td />
             </tr>
@@ -85,6 +85,7 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
 }
 
 export default function AgingReports() {
+  const { t } = useLanguage();
   const { data: arData, isLoading: arLoading } = useQuery<AgingData>({
     queryKey: ["ar-aging"],
     queryFn: () => apiFetch("/reports/ar-aging"),
@@ -99,22 +100,22 @@ export default function AgingReports() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Aging Reports
-            <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span>
+            {t("Aging Reports", "تقارير الأعمار")}
+            <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">{t("New", "جديد")}</span>
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Accounts Receivable and Accounts Payable aged by overdue days</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
+        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> {t("Export", "تصدير")}</Button>
       </div>
 
       {/* AR */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <AlertCircle className="w-4 h-4 text-blue-400" />
-          <h2 className="font-semibold text-base text-foreground">Accounts Receivable Aging</h2>
-          {arData && <span className="text-xs text-muted-foreground ml-auto">Total: <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
+          <h2 className="font-semibold text-base text-foreground">{t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}</h2>
+          {arData && <span className="text-xs text-muted-foreground ml-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
         </div>
-        {arLoading ? <div className="text-sm text-muted-foreground">Loading AR…</div> : arData ? <AgingTable data={arData} type="ar" /> : null}
+        {arLoading ? <div className="text-sm text-muted-foreground">{t("Loading AR…", "جارٍ تحميل الذمم المدينة…")}</div> : arData ? <AgingTable data={arData} type="ar" /> : null}
       </div>
 
       <div className="h-px bg-border" />
@@ -123,10 +124,10 @@ export default function AgingReports() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="w-4 h-4 text-amber-400" />
-          <h2 className="font-semibold text-base text-foreground">Accounts Payable Aging</h2>
-          {apData && <span className="text-xs text-muted-foreground ml-auto">Total: <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
+          <h2 className="font-semibold text-base text-foreground">{t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}</h2>
+          {apData && <span className="text-xs text-muted-foreground ml-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
         </div>
-        {apLoading ? <div className="text-sm text-muted-foreground">Loading AP…</div> : apData ? <AgingTable data={apData} type="ap" /> : null}
+        {apLoading ? <div className="text-sm text-muted-foreground">{t("Loading AP…", "جارٍ تحميل الذمم الدائنة…")}</div> : apData ? <AgingTable data={apData} type="ap" /> : null}
       </div>
     </div>
   );

@@ -27,10 +27,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Transactions() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -59,12 +61,12 @@ export default function Transactions() {
   const updateMutation = useUpdateTransaction({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Transaction updated", description: "The manual override was saved." });
+        toast({ title: t("Transaction updated", "تم تحديث المعاملة"), description: t("The manual override was saved.", "تم حفظ التعديل اليدوي.") });
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
         setEditTx(null);
       },
       onError: () => {
-        toast({ title: "Error", description: "Failed to update transaction", variant: "destructive" });
+        toast({ title: t("Error", "خطأ"), description: t("Failed to update transaction", "فشل تحديث المعاملة"), variant: "destructive" });
       }
     }
   });
@@ -88,7 +90,7 @@ export default function Transactions() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Ledger Entries</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("Ledger Entries", "قيود دفتر الأستاذ")}</h1>
         <div className="flex gap-2">
           {/* Action buttons could go here */}
         </div>
@@ -98,7 +100,7 @@ export default function Transactions() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search descriptions..." 
+            placeholder={t("Search descriptions...", "بحث في الأوصاف...")}
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -108,21 +110,21 @@ export default function Transactions() {
         <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
           <SelectTrigger className="w-[140px]">
             <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="Type" />
+            <SelectValue placeholder={t("Type", "النوع")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="debit">Debit (-)</SelectItem>
-            <SelectItem value="credit">Credit (+)</SelectItem>
+            <SelectItem value="all">{t("All Types", "جميع الأنواع")}</SelectItem>
+            <SelectItem value="debit">{t("Debit (-)", "مدين (-)")}</SelectItem>
+            <SelectItem value="credit">{t("Credit (+)", "دائن (+)")}</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Category" />
+            <SelectValue placeholder={t("Category", "الفئة")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
+            <SelectItem value="all">{t("All Categories", "جميع الفئات")}</SelectItem>
             {categories?.map(c => (
               <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
             ))}
@@ -131,12 +133,12 @@ export default function Transactions() {
 
         <Select value={zakatFilter} onValueChange={(v: any) => setZakatFilter(v)}>
           <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Zakat" />
+            <SelectValue placeholder={t("Zakat", "زكاة")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Zakat: All</SelectItem>
-            <SelectItem value="true">Zakat: Yes</SelectItem>
-            <SelectItem value="false">Zakat: No</SelectItem>
+            <SelectItem value="all">{t("Zakat: All", "زكاة: الكل")}</SelectItem>
+            <SelectItem value="true">{t("Zakat: Yes", "زكاة: نعم")}</SelectItem>
+            <SelectItem value="false">{t("Zakat: No", "زكاة: لا")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -153,12 +155,12 @@ export default function Transactions() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Date</th>
-                  <th className="px-6 py-4 font-semibold">Description</th>
-                  <th className="px-6 py-4 font-semibold text-right">Amount (SAR)</th>
-                  <th className="px-6 py-4 font-semibold">Category</th>
-                  <th className="px-6 py-4 font-semibold">Tags</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 font-semibold">{t("Date", "التاريخ")}</th>
+                  <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
+                  <th className="px-6 py-4 font-semibold text-right">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
+                  <th className="px-6 py-4 font-semibold">{t("Category", "الفئة")}</th>
+                  <th className="px-6 py-4 font-semibold">{t("Tags", "التصنيفات")}</th>
+                  <th className="px-6 py-4 text-right">{t("Actions", "إجراءات")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -188,20 +190,20 @@ export default function Transactions() {
                         </div>
                       ) : (
                         <Badge variant="destructive" className="bg-destructive/20 text-destructive border-transparent">
-                          Uncategorized
+                          {t("Uncategorized", "غير مصنّف")}
                         </Badge>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         {tx.isManuallyOverridden && (
-                          <Badge variant="secondary" className="text-[10px] uppercase">Manual</Badge>
+                          <Badge variant="secondary" className="text-[10px] uppercase">{t("Manual", "يدوي")}</Badge>
                         )}
                         {tx.isZakatRelevant && (
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase">Zakat</Badge>
+                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase">{t("Zakat", "زكاة")}</Badge>
                         )}
                         {(tx.vatAmount || 0) > 0 && (
-                          <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 text-[10px] uppercase">VAT</Badge>
+                          <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 text-[10px] uppercase">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
                         )}
                       </div>
                     </td>
@@ -222,7 +224,7 @@ export default function Transactions() {
                     <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <Filter className="w-8 h-8 mb-2 opacity-20" />
-                        <p>No transactions match your criteria.</p>
+                        <p>{t("No transactions match your criteria.", "لا توجد معاملات تطابق معايير البحث.")}</p>
                       </div>
                     </td>
                   </tr>
@@ -236,7 +238,7 @@ export default function Transactions() {
       <Dialog open={!!editTx} onOpenChange={(open) => !open && setEditTx(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Transaction</DialogTitle>
+            <DialogTitle>{t("Edit Transaction", "تعديل المعاملة")}</DialogTitle>
           </DialogHeader>
           {editTx && (
             <form onSubmit={handleUpdate} className="space-y-6 pt-4">
@@ -246,10 +248,10 @@ export default function Transactions() {
               </div>
 
               <div className="space-y-3">
-                <Label>Category Override</Label>
+                <Label>{t("Category Override", "تجاوز الفئة")}</Label>
                 <Select name="category_id" defaultValue={editTx.categoryId ? String(editTx.categoryId) : undefined}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder={t("Select a category", "اختر فئة")} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories?.map(c => (
@@ -257,22 +259,22 @@ export default function Transactions() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">This will mark the transaction as manually overridden.</p>
+                <p className="text-xs text-muted-foreground">{t("This will mark the transaction as manually overridden.", "سيتم تحديد المعاملة كمعدّلة يدوياً.")}</p>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-md border border-border bg-secondary/30">
                 <div className="space-y-0.5">
-                  <Label>Zakat Relevant</Label>
-                  <p className="text-xs text-muted-foreground">Mark if this transaction impacts Zakat calculation.</p>
+                  <Label>{t("Zakat Relevant", "متعلق بالزكاة")}</Label>
+                  <p className="text-xs text-muted-foreground">{t("Mark if this transaction impacts Zakat calculation.", "حدّد إذا كانت هذه المعاملة تؤثر على حساب الزكاة.")}</p>
                 </div>
                 <Switch name="is_zakat" defaultChecked={editTx.isZakatRelevant} />
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEditTx(null)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => setEditTx(null)}>{t("Cancel", "إلغاء")}</Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Save Override
+                  {t("Save Override", "حفظ التعديل")}
                 </Button>
               </DialogFooter>
             </form>

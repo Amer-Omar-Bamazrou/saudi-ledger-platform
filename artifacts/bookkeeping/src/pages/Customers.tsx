@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, TrendingUp, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Customer { id: number; name: string; nameAr: string; taxNumber: string; crNumber: string; phone: string; email: string; city: string; isActive: boolean; creditLimit: number | null; paymentTermsDays: string; totalBilled?: number; totalPaid?: number; balance?: number; }
 
@@ -21,6 +22,7 @@ export default function Customers() {
   const [form, setForm] = useState(emptyForm);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ["customers", search],
@@ -29,8 +31,8 @@ export default function Customers() {
 
   const createMut = useMutation({
     mutationFn: (body: typeof emptyForm) => apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); setOpen(false); setForm(emptyForm); toast({ title: "Customer created" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Customer created", "تم إنشاء العميل") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const totalAR = customers.reduce((s, c) => s + (c.balance ?? 0), 0);
@@ -40,17 +42,17 @@ export default function Customers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Customers</h1>
-          <p className="text-muted-foreground text-sm mt-1">Accounts Receivable — {customers.length} active customers</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Customers", "العملاء")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {customers.length} {t("active customers", "عميل نشط")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> New Customer</Button>
+            <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Customer", "عميل جديد")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>New Customer</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("New Customer", "عميل جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2">
-              {[["name","Company Name *"],["nameAr","اسم الشركة"],["taxNumber","VAT Number"],["crNumber","CR Number"],["phone","Phone"],["email","Email"],["address","Address"],["city","City"],["paymentTermsDays","Payment Terms (days)"],["creditLimit","Credit Limit (SAR)"]].map(([k,l])=>(
+              {[["name",t("Company Name *","اسم الشركة *")],["nameAr","اسم الشركة"],["taxNumber",t("VAT Number","رقم ضريبة القيمة المضافة")],["crNumber",t("CR Number","رقم السجل التجاري")],["phone",t("Phone","الهاتف")],["email","Email"],["address",t("Address","العنوان")],["city",t("City","المدينة")],["paymentTermsDays",t("Payment Terms (days)","شروط الدفع (أيام)")],["creditLimit",t("Credit Limit (SAR)","حد الائتمان (ر.س)")]].map(([k,l])=>(
                 <div key={k} className={k==="address"?"col-span-2":""}>
                   <Label className="text-xs text-muted-foreground">{l}</Label>
                   <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
@@ -58,16 +60,16 @@ export default function Customers() {
               ))}
             </div>
             <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name || createMut.isPending}>
-              {createMut.isPending ? "Creating..." : "Create Customer"}
+              {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Customer", "إنشاء عميل")}
             </Button>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Customers</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{customers.length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Billed</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Outstanding AR</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAR > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmtNum(totalAR)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Customers", "إجمالي العملاء")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{customers.length}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AR", "الحسابات المدينة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAR > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmtNum(totalAR)}</div></CardContent></Card>
       </div>
 
       <Card className="border-border bg-card">
@@ -75,16 +77,16 @@ export default function Customers() {
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search customers..." className="pl-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
+              <Input placeholder={t("Search customers...", "بحث عن العملاء...")} className="pl-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">Loading...</div> : customers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>No customers yet. Add your first customer.</p></div>
+          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : customers.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{["Customer","City","VAT Number","Payment Terms","Billed","Outstanding",""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{customers.map(c=>(
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pr-4">
@@ -92,15 +94,15 @@ export default function Customers() {
                     {arabicFieldStatus(c.nameAr) === "ok"
                       ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div>
                       : arabicFieldStatus(c.nameAr) === "wrong-script"
-                      ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ not Arabic script — please correct</div>
-                      : <div className="text-[10px] text-amber-500/60 italic mt-0.5">needs Arabic translation</div>}
+                      ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
+                      : <div className="text-[10px] text-amber-500/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
                   <td className="py-3 pr-4 text-muted-foreground">{c.city||"—"}</td>
                   <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
                   <td className="py-3 pr-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays}d</Badge></td>
                   <td className="py-3 pr-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
                   <td className="py-3 pr-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-amber-400":"text-emerald-400"}`}>{fmtNum(c.balance??0)}</span></td>
-                  <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">View</Button></td>
+                  <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></td>
                 </tr>
               ))}</tbody>
             </table>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ export default function CustomerReceipts() {
   const [scanOpen, setScanOpen] = useState(false);
   const [form, setForm] = useState(makeEmpty());
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers"],
@@ -61,7 +63,7 @@ export default function CustomerReceipts() {
       notes: data.notes || prev.notes,
     }));
     setOpen(true);
-    toast({ title: "Receipt scanned", description: "Fields pre-filled. Select the customer and save." });
+    toast({ title: t("Receipt scanned", "تم مسح الإيصال"), description: t("Fields pre-filled. Select the customer and save.", "تم ملء الحقول مسبقاً. اختر العميل واحفظ.") });
   };
 
   const totalReceived = receipts.reduce((s, r) => s + r.amount, 0);
@@ -70,34 +72,34 @@ export default function CustomerReceipts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Customer Receipts</h1>
-          <p className="text-muted-foreground text-sm mt-1">Payments received from customers</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Customer Receipts", "إيصالات العملاء")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Payments received from customers", "المدفوعات الواردة من العملاء")}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={() => setScanOpen(true)}>
-            <ScanLine className="w-4 h-4" /> Scan Receipt
+            <ScanLine className="w-4 h-4" /> {t("Scan Receipt", "مسح الإيصال")}
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="w-4 h-4" /> New Receipt</Button>
+              <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Receipt", "إيصال جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>New Customer Receipt</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{t("New Customer Receipt", "إيصال عميل جديد")}</DialogTitle></DialogHeader>
               <div className="space-y-3 mt-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Receipt Number</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Receipt Number", "رقم الإيصال")}</Label>
                     <Input value={form.receiptNumber} onChange={e => setForm(p => ({ ...p, receiptNumber: e.target.value }))} className="mt-1 h-8 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Invoice Reference</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Invoice Reference", "مرجع الفاتورة")}</Label>
                     <Input value={form.invoiceReference} onChange={e => setForm(p => ({ ...p, invoiceReference: e.target.value }))} placeholder="INV-XXXXXX" className="mt-1 h-8 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Customer</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Customer", "عميل")}</Label>
                   <Select value={form.customerId} onValueChange={v => setForm(p => ({ ...p, customerId: v }))}>
-                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer…", "اختر عميلاً…")} /></SelectTrigger>
                     <SelectContent>
                       {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                     </SelectContent>
@@ -105,15 +107,20 @@ export default function CustomerReceipts() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Date</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
                     <Input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="mt-1 h-8 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Payment Method</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Payment Method", "طريقة الدفع")}</Label>
                     <Select value={form.method} onValueChange={v => setForm(p => ({ ...p, method: v }))}>
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {[["cash", "Cash"], ["bank_transfer", "Bank Transfer"], ["cheque", "Cheque"], ["card", "Card"]].map(([v, l]) => (
+                        {[
+                          ["cash", t("Cash", "نقدي")],
+                          ["bank_transfer", t("Bank Transfer", "تحويل بنكي")],
+                          ["cheque", t("Cheque", "شيك")],
+                          ["card", t("Card", "بطاقة")],
+                        ].map(([v, l]) => (
                           <SelectItem key={v} value={v}>{l}</SelectItem>
                         ))}
                       </SelectContent>
@@ -121,17 +128,17 @@ export default function CustomerReceipts() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Amount Received (SAR)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label>
                   <Input type="number" step="0.01" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Notes</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
                   <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="mt-1 h-8 text-sm" />
                 </div>
               </div>
               <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" disabled={!form.customerId || !form.amount}
-                onClick={() => { toast({ title: "Receipt recorded" }); setOpen(false); setForm(makeEmpty()); }}>
-                Record Receipt
+                onClick={() => { toast({ title: t("Receipt recorded", "تم تسجيل الإيصال") }); setOpen(false); setForm(makeEmpty()); }}>
+                {t("Record Receipt", "تسجيل الإيصال")}
               </Button>
             </DialogContent>
           </Dialog>
@@ -140,10 +147,10 @@ export default function CustomerReceipts() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Receipts", receipts.length, "text-primary"],
-          ["Total Received", fmtNum(totalReceived), "text-emerald-400"],
-          ["Cash", fmtNum(receipts.filter(r => r.method === "cash").reduce((s, r) => s + r.amount, 0)), "text-emerald-400"],
-          ["Bank Transfer", fmtNum(receipts.filter(r => r.method === "bank_transfer").reduce((s, r) => s + r.amount, 0)), "text-blue-400"],
+          [t("Total Receipts", "إجمالي الإيصالات"), receipts.length, "text-primary"],
+          [t("Total Received", "إجمالي المستلم"), fmtNum(totalReceived), "text-emerald-400"],
+          [t("Cash", "نقدي"), fmtNum(receipts.filter(r => r.method === "cash").reduce((s, r) => s + r.amount, 0)), "text-emerald-400"],
+          [t("Bank Transfer", "تحويل بنكي"), fmtNum(receipts.filter(r => r.method === "bank_transfer").reduce((s, r) => s + r.amount, 0)), "text-blue-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -155,18 +162,18 @@ export default function CustomerReceipts() {
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="text-sm text-muted-foreground p-4">Loading…</div>
+            <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           ) : receipts.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <ReceiptText className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No customer receipts yet.</p>
-              <p className="text-xs mt-1 opacity-60">Record a payment received from a customer.</p>
+              <p className="text-sm">{t("No customer receipts yet.", "لا توجد إيصالات عملاء بعد.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("Record a payment received from a customer.", "سجّل دفعة واردة من أحد العملاء.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Receipt #", "Customer", "Invoice Ref", "Date", "Method", "Amount"].map(h => (
+                  {[t("Receipt #", "رقم الإيصال"), t("Customer", "العميل"), t("Invoice Ref", "مرجع الفاتورة"), t("Date", "التاريخ"), t("Method", "الطريقة"), t("Amount", "المبلغ")].map(h => (
                     <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
                   ))}
                 </tr>
