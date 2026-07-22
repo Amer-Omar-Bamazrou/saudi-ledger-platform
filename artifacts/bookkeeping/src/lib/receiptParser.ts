@@ -9,7 +9,8 @@
  */
 
 export interface ParsedReceipt {
-  vendorName: string;
+  vendorName: string;        // English name (or transliteration)
+  vendorNameAr?: string;     // Arabic name — populated when OCR detects Arabic script in vendor line
   vendorReference: string;
   supplierVatNumber: string; // ZATCA 15-digit VAT registration number
   date: string;              // YYYY-MM-DD or ""
@@ -368,10 +369,50 @@ export function parseReceiptText(raw: string): ParsedReceipt {
   const supplierVatNumber = vatRegMatch?.[1] ?? "";
 
   // ── 9. Vendor name ─────────────────────────────────────────────────────────
+  //
+  // Script detection: a line is "Arabic" when ≥30 % of its non-space
+  // characters fall inside the Arabic Unicode block (U+0600–U+06FF).
+  // This threshold catches fully Arabic names and bilingual Arabic-first
+  // lines while ignoring isolated Arabic currency markers (ريال / ر.س)
+  // that can appear on otherwise-English lines.
+  function arabicRatio(s: string): number {
+    const chars = s.replace(/\s/g, "");
+    if (!chars.length) return 0;
+    const ar = (chars.match(/[\u0600-\u06FF]/g) ?? []).length;
+    return ar / chars.length;
+  }
+
   const skipRe = /^(receipt|invoice|tax invoice|فاتورة|ضريبية|date|total|vat|page|copy)/i;
   const vendorLine = lines.find((l) => l.length > 3 && !skipRe.test(l) && !/^\d/.test(l));
-  const vendorName = vendorLine ?? "";
+
+  let vendorName = "";
+  let vendorNameAr: string | undefined;
+
+  if (vendorLine) {
+    const ratio = arabicRatio(vendorLine);
+
+    if (ratio >= 0.7) {
+      // Predominantly Arabic — the whole line is the Arabic name
+      vendorNameAr = vendorLine;
+      // Look for an English name on a nearby line
+      const enLine = lines.find(
+        (l) => l !== vendorLine && l.length > 3 && !skipRe.test(l) &&
+               !/^\d/.test(l) && arabicRatio(l) < 0.1
+      );
+      vendorName = enLine ?? "";
+    } else if (ratio >= 0.1) {
+      // Mixed bilingual line — split on the boundary between scripts.
+      // Example: "ACME Corp  شركة أكمي" → English left, Arabic right.
+      const arMatch = vendorLine.match(/[\u0600-\u06FF][\u0600-\u06FF\s\u064B-\u065F]*/);
+      const enPart  = vendorLine.replace(/[\u0600-\u06FF\s\u064B-\u065F]+/g, " ").trim();
+      vendorName   = enPart.length > 2 ? enPart : "";
+      vendorNameAr = arMatch?.[0].trim();
+    } else {
+      // Purely English / transliterated — leave vendorNameAr undefined
+      vendorName = vendorLine;
+    }
+  }
 
   const notes = `Scanned receipt${vendorReference ? ` · Ref: ${vendorReference}` : ""}`;
-  return { vendorName, vendorReference, supplierVatNumber, date, subtotal, vatAmount, total, notes, rawText: raw };
+  return { vendorName, vendorNameAr, vendorReference, supplierVatNumber, date, subtotal, vatAmount, total, notes, rawText: raw };
 }

@@ -42,12 +42,12 @@ router.get("/trial-balance", async (req, res) => {
     const cats = await db.select().from(categoriesTable);
     const catMap = new Map(cats.map(c => [c.id, c]));
 
-    const accounts = new Map<string, { name: string; accountId: number | null; type: string; debit: number; credit: number }>();
+    const accounts = new Map<string, { name: string; nameAr: string; accountId: number | null; type: string; debit: number; credit: number }>();
     for (const l of lines) {
       const key = l.accountId != null ? String(l.accountId) : l.accountName;
       if (!accounts.has(key)) {
         const cat = l.accountId ? catMap.get(l.accountId) : undefined;
-        accounts.set(key, { name: l.accountName, accountId: l.accountId, type: cat?.type ?? "other", debit: 0, credit: 0 });
+        accounts.set(key, { name: l.accountName, nameAr: cat?.nameAr ?? "", accountId: l.accountId, type: cat?.type ?? "other", debit: 0, credit: 0 });
       }
       const acc = accounts.get(key)!;
       acc.debit  += toNum(l.debit);
@@ -55,7 +55,7 @@ router.get("/trial-balance", async (req, res) => {
     }
 
     const rows = Array.from(accounts.values())
-      .map(a => ({ name: a.name, accountId: a.accountId, type: a.type, debit: fmt2(a.debit), credit: fmt2(a.credit), balance: fmt2(a.debit - a.credit) }))
+      .map(a => ({ name: a.name, nameAr: a.nameAr, accountId: a.accountId, type: a.type, debit: fmt2(a.debit), credit: fmt2(a.credit), balance: fmt2(a.debit - a.credit) }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const totalDebit  = fmt2(rows.reduce((s, r) => s + r.debit,  0));
@@ -372,17 +372,26 @@ router.get("/general-ledger", async (req, res) => {
       };
     });
 
+    // Enrich movements with nameAr from categories (looked up via accountId)
     const cats = await db.select().from(categoriesTable);
+    const catMap = new Map(cats.map(c => [c.id, c]));
+    const enrichedMovements = movements.map(m => ({
+      ...m,
+      accountNameAr: (m.accountId ? catMap.get(m.accountId)?.nameAr : undefined) ?? "",
+    }));
+
     const accountsList = Array.from(new Set(rows.map(r => r.accountName)));
+    const firstCat = rows[0]?.accountId ? catMap.get(rows[0].accountId) : undefined;
 
     res.json({
       accountId: account_id ? Number(account_id) : null,
-      accountName: account_name ?? rows[0]?.accountName ?? "All Accounts",
+      accountName:   account_name ?? rows[0]?.accountName ?? "All Accounts",
+      accountNameAr: firstCat?.nameAr ?? "",
       openingBalance,
-      movements,
+      movements: enrichedMovements,
       closingBalance: fmt2(running),
-      totalDebit:  fmt2(movements.reduce((s, m) => s + m.debit,  0)),
-      totalCredit: fmt2(movements.reduce((s, m) => s + m.credit, 0)),
+      totalDebit:  fmt2(enrichedMovements.reduce((s, m) => s + m.debit,  0)),
+      totalCredit: fmt2(enrichedMovements.reduce((s, m) => s + m.credit, 0)),
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: String(err) }); }
 });
@@ -652,7 +661,7 @@ router.get("/ar-aging", async (req, res) => {
       if (outstanding < 0.01 || inv.status === "paid") continue;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
+      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
       if (daysPast <= 0)       buckets.current     += outstanding;
       else if (daysPast <= 30) buckets.days_1_30   += outstanding;
       else if (daysPast <= 60) buckets.days_31_60  += outstanding;
@@ -681,7 +690,7 @@ router.get("/ap-aging", async (req, res) => {
       if (outstanding < 0.01 || bill.status === "paid") continue;
       const due = bill.dueDate ? new Date(bill.dueDate) : new Date(bill.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      items.push({ id: bill.id, billNumber: bill.billNumber, vendorName: vendor?.name ?? "Unknown", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
+      items.push({ id: bill.id, billNumber: bill.billNumber, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
       if (daysPast <= 0)       buckets.current    += outstanding;
       else if (daysPast <= 30) buckets.days_1_30  += outstanding;
       else if (daysPast <= 60) buckets.days_31_60 += outstanding;

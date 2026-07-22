@@ -7,7 +7,7 @@ export const productsTable = pgTable("products", {
   id: serial("id").primaryKey(),
   code: text("code"),                    // SKU / product code
   name: text("name").notNull(),
-  nameAr: text("name_ar"),
+  nameAr: text("name_ar").notNull().default("(not yet translated)"),
   type: text("type").notNull().default("service"), // product | service
   unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull().default("0"),
   unitCost: numeric("unit_cost", { precision: 15, scale: 2 }),

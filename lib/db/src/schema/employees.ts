@@ -6,11 +6,11 @@ export const employeesTable = pgTable("employees", {
   id: serial("id").primaryKey(),
   employeeNumber: text("employee_number").notNull(),
   name: text("name").notNull(),
-  nameAr: text("name_ar"),
+  nameAr: text("name_ar").notNull().default("(not yet translated)"),
   nationalId: text("national_id"),        // Saudi ID / Iqama number
   nationality: text("nationality").default("SA"),
   jobTitle: text("job_title"),
-  jobTitleAr: text("job_title_ar"),
+  jobTitleAr: text("job_title_ar").notNull().default("(not yet translated)"),
   department: text("department"),
   basicSalary: numeric("basic_salary", { precision: 15, scale: 2 }).notNull(),
   housingAllowance: numeric("housing_allowance", { precision: 15, scale: 2 }).default("0"),

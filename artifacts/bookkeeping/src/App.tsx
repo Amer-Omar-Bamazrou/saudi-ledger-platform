@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { TOKEN_KEY } from '@/lib/api';
 
@@ -188,9 +189,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AuthProvider>
-            <Router />
-          </AuthProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <Router />
+            </AuthProvider>
+          </LanguageProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

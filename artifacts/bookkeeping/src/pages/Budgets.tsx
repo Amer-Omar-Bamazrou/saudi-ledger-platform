@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface Budget { id: number; name: string; period: string; categoryId?: number; categoryName?: string; categoryType?: string; budgetedAmount: number; actualAmount: number; variance: number; variancePct: number; }
+interface Budget { id: number; name: string; nameAr?: string; period: string; categoryId?: number; categoryName?: string; categoryNameAr?: string; categoryType?: string; budgetedAmount: number; actualAmount: number; variance: number; variancePct: number; }
 interface Category { id: number; name: string; type: string; }
 
-const emptyForm = { name: "", period: String(new Date().getFullYear()), categoryId: "", budgetedAmount: "", notes: "" };
+const NEEDS_AR = "(not yet translated)";
+const emptyForm = { name: "", nameAr: "", period: String(new Date().getFullYear()), categoryId: "", budgetedAmount: "", notes: "" };
 
 export default function Budgets() {
   const [period, setPeriod] = useState(String(new Date().getFullYear()));
@@ -63,7 +64,8 @@ export default function Budgets() {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Add Budget Line</DialogTitle></DialogHeader>
               <div className="space-y-3 mt-2">
-                <div><Label className="text-xs text-muted-foreground">Budget Name</Label><Input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="e.g., Marketing Budget 2025" /></div>
+                <div><Label className="text-xs text-muted-foreground">Budget Name (English)</Label><Input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="e.g., Marketing Budget 2025" /></div>
+                <div><Label className="text-xs text-muted-foreground">اسم الميزانية (عربي)</Label><Input dir="rtl" value={form.nameAr} onChange={e=>setForm(p=>({...p,nameAr:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="مثال: ميزانية التسويق ٢٠٢٥" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label className="text-xs text-muted-foreground">Period (Year)</Label><Input value={form.period} onChange={e=>setForm(p=>({...p,period:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
                   <div><Label className="text-xs text-muted-foreground">Budgeted Amount (SAR)</Label><Input type="number" value={form.budgetedAmount} onChange={e=>setForm(p=>({...p,budgetedAmount:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>
@@ -97,7 +99,12 @@ export default function Budgets() {
                 const over = b.variance < 0;
                 return (
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pr-4 font-medium">{b.name}</td>
+                    <td className="py-3 pr-4">
+                        <p className="font-medium">{b.name}</p>
+                        {b.nameAr && b.nameAr !== NEEDS_AR
+                          ? <p className="text-xs text-muted-foreground" dir="rtl">{b.nameAr}</p>
+                          : <p className="text-[10px] text-amber-500/70 italic">needs Arabic translation</p>}
+                      </td>
                     <td className="py-3 pr-4 text-muted-foreground text-xs">{b.categoryName || "—"}</td>
                     <td className="py-3 pr-4 font-mono">{fmtNum(b.budgetedAmount)}</td>
                     <td className="py-3 pr-4 font-mono">{fmtNum(b.actualAmount)}</td>

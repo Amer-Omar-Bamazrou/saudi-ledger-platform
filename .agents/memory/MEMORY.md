@@ -1,3 +1,4 @@
+- [Bilingual data model](bilingual-data-model.md) — full EN/AR migration, LanguageContext, arabicUtils, report wiring, Arabic OCR detection decisions
 - [Session persistence](session-persistence.md) — user_sessions table must be created manually; connect-pg-simple createTableIfMissing fails silently without a TTY
 - [Replit proxy cookie fix](replit-proxy-cookie.md) — SameSite=None + res.setHeader Secure injection; proxy doesn't forward X-Forwarded-Proto so secure:true silently kills Set-Cookie
 - [Drizzle push TTY requirement](drizzle-push-tty.md) — drizzle-kit push requires interactive TTY; use raw psql ALTER TABLE for CI/non-TTY schema changes

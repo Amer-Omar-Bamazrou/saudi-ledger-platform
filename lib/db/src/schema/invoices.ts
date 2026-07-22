@@ -35,7 +35,7 @@ export const invoiceItemsTable = pgTable("invoice_items", {
   invoiceId: integer("invoice_id").notNull().references(() => invoicesTable.id, { onDelete: "cascade" }),
   productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
   description: text("description").notNull(),
-  descriptionAr: text("description_ar"),
+  descriptionAr: text("description_ar").notNull().default("(not yet translated)"),
   quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),
   unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
   vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default("15"),

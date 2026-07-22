@@ -58,6 +58,7 @@ export default function ScanReview() {
   // ── form state (editable by accountant) ───────────────────────────────────
   const [fields, setFields] = useState({
     vendorName:          "",
+    vendorNameAr:        "",   // populated when OCR detects Arabic vendor name
     supplierVatNumber:   "",
     invoiceNumber:       "",
     date:                new Date().toISOString().split("T")[0],
@@ -95,6 +96,7 @@ export default function ScanReview() {
 
     setFields({
       vendorName:        data.vendorName ?? "",
+      vendorNameAr:      data.vendorNameAr ?? "",
       supplierVatNumber: data.supplierVatNumber ?? "",
       invoiceNumber:     data.vendorReference ?? "",
       date:              data.date || new Date().toISOString().split("T")[0],
@@ -451,6 +453,7 @@ export default function ScanReview() {
                 disabled={createVendorMut.isPending}
                 onClick={() => createVendorMut.mutate({
                   name:       fields.vendorName || "New Supplier",
+                  nameAr:     fields.vendorNameAr || undefined,
                   taxNumber:  fields.supplierVatNumber || undefined,
                   isActive:   true,
                 })}

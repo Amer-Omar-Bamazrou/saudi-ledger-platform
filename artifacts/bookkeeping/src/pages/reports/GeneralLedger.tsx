@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +12,10 @@ import { cn } from "@/lib/utils";
 
 interface Category { id: number; name: string; type: string; }
 interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
-interface GLData { accountId: number | null; accountName: string; openingBalance: number; movements: Movement[]; closingBalance: number; totalDebit: number; totalCredit: number; }
+interface GLData { accountId: number | null; accountName: string; accountNameAr?: string; openingBalance: number; movements: Movement[]; closingBalance: number; totalDebit: number; totalCredit: number; }
 
 export default function GeneralLedger() {
+  const { n } = useLanguage();
   const thisYear = new Date().getFullYear();
   const [accountId, setAccountId] = useState("all");
   const [dateFrom,  setDateFrom]  = useState(`${thisYear}-01-01`);
@@ -69,7 +71,7 @@ export default function GeneralLedger() {
       {data && (
         <div className="grid grid-cols-4 gap-4">
           {[
-            ["Account", data.accountName, "text-primary"],
+            ["Account", n(data.accountName, data.accountNameAr), "text-primary"],
             ["Opening Balance", fmtNum(data.openingBalance), "text-primary"],
             ["Total Debits", fmtNum(data.totalDebit), "text-blue-400"],
             ["Total Credits", fmtNum(data.totalCredit), "text-emerald-400"],

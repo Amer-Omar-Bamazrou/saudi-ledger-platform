@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,21 +8,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle } from "lucide-react";
 
+interface BSItem { name: string; nameAr?: string; amount: number; }
 interface BSData {
-  assets: { items: { name: string; amount: number }[]; accountsReceivable: number; total: number };
-  liabilities: { items: { name: string; amount: number }[]; accountsPayable: number; total: number };
+  assets: { items: BSItem[]; accountsReceivable: number; total: number };
+  liabilities: { items: BSItem[]; accountsPayable: number; total: number };
   equity: { retainedEarnings: number; total: number };
   totalLiabilitiesAndEquity: number;
   asOf: string;
 }
 
-function Section({ title, color, rows, extra, total }: { title: string; color: string; rows: { name: string; amount: number }[]; extra?: { label: string; amount: number }[]; total: number }) {
+function Section({ title, color, rows, extra, total }: { title: string; color: string; rows: BSItem[]; extra?: { label: string; amount: number }[]; total: number }) {
+  const { n } = useLanguage();
   return (
     <div className="space-y-1">
       <div className={`text-xs font-bold uppercase tracking-widest py-2 px-2 rounded ${color}`}>{title}</div>
       {rows.map((r, i) => (
         <div key={i} className="flex justify-between py-1.5 px-2 hover:bg-secondary/10 rounded text-sm">
-          <span className="text-foreground">{r.name}</span>
+          <span className="text-foreground">{n(r.name, r.nameAr)}</span>
           <span className="font-mono">{fmtNum(r.amount)}</span>
         </div>
       ))}

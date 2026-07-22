@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 export const customersTable = pgTable("customers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  nameAr: text("name_ar"),
+  nameAr: text("name_ar").notNull().default("(not yet translated)"),
   taxNumber: text("tax_number"),       // VAT registration / ZATCA number
   crNumber: text("cr_number"),          // Commercial Registration
   phone: text("phone"),

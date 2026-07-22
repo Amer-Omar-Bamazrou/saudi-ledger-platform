@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Building2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AgingItem { id: number; date: string; dueDate: string; outstanding: number; daysPastDue: number; }
-interface ArItem extends AgingItem { invoiceNumber: string; customerName: string; }
-interface ApItem extends AgingItem { billNumber: string; vendorName: string; }
+interface ArItem extends AgingItem { invoiceNumber: string; customerName: string; customerNameAr?: string; }
+interface ApItem extends AgingItem { billNumber: string; vendorName: string; vendorNameAr?: string; }
 interface Buckets { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number; }
 interface AgingData { buckets: Buckets; total: number; items: (ArItem | ApItem)[]; }
 
@@ -21,7 +22,9 @@ const BUCKET_LABELS = [
 
 function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
   const items = data.items as any[];
+  const { n } = useLanguage();
   const nameKey   = type === "ar" ? "customerName" : "vendorName";
+  const nameArKey = type === "ar" ? "customerNameAr" : "vendorNameAr";
   const numKey    = type === "ar" ? "invoiceNumber" : "billNumber";
   const numLabel  = type === "ar" ? "Invoice #" : "Bill #";
   const partyLabel = type === "ar" ? "Customer" : "Vendor";
@@ -60,7 +63,7 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
               return (
                 <tr key={item.id} className="border-b border-border/30 hover:bg-secondary/10">
                   <td className="py-2.5 pr-4 font-mono text-xs text-primary">{item[numKey]}</td>
-                  <td className="py-2.5 pr-4 font-medium text-sm">{item[nameKey]}</td>
+                  <td className="py-2.5 pr-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
                   <td className="py-2.5 pr-4 text-xs text-muted-foreground">{item.dueDate ? fmtDate(item.dueDate) : "—"}</td>
                   <td className="py-2.5 pr-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
                   <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} days` : "Current"}</td>

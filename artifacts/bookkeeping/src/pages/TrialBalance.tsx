@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; to
 const TYPE_STYLES: Record<string, string> = { income: "text-emerald-400", expense: "text-red-400", asset: "text-blue-400", liability: "text-amber-400", equity: "text-purple-400" };
 
 export default function TrialBalance() {
+  const { n, lang } = useLanguage();
   const thisYear = new Date().getFullYear();
   const [dateFrom, setDateFrom] = useState(`${thisYear}-01-01`);
   const [dateTo, setDateTo] = useState(`${thisYear}-12-31`);
@@ -84,8 +86,8 @@ export default function TrialBalance() {
                     {byType[type].map(row => (
                       <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
                         <td className="py-2.5 pr-4 pl-2">
-                          <span className="text-foreground">{row.name}</span>
-                          {row.nameAr && <span className="text-muted-foreground text-xs ml-2" dir="rtl">{row.nameAr}</span>}
+                          <span className="text-foreground">{n(row.name, row.nameAr)}</span>
+                          {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ml-2" dir="rtl">{row.nameAr}</span>}
                         </td>
                         <td className="py-2.5 pr-4"><Badge variant="outline" className={`text-xs capitalize border-0 px-0 ${TYPE_STYLES[row.type]??""}`}>{row.type}</Badge></td>
                         <td className="py-2.5 pr-4 text-right font-mono text-sm">{row.debit > 0 ? fmtNum(row.debit) : <span className="text-muted-foreground">—</span>}</td>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ interface ISData {
 }
 
 export default function IncomeStatement() {
+  const { n } = useLanguage();
   const thisYear = new Date().getFullYear();
   const [dateFrom, setDateFrom] = useState(`${thisYear}-01-01`);
   const [dateTo, setDateTo] = useState(`${thisYear}-12-31`);
@@ -79,7 +81,7 @@ export default function IncomeStatement() {
                 <tbody>
                   {data.revenue.map((r, i) => (
                     <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                      <td className="py-2.5 text-foreground">{r.name}</td>
+                      <td className="py-2.5 text-foreground">{n(r.name, r.nameAr)}</td>
                       <td className="py-2.5 text-right font-mono text-emerald-400">{fmtNum(r.amount)}</td>
                     </tr>
                   ))}
@@ -108,7 +110,7 @@ export default function IncomeStatement() {
                 <tbody>
                   {data.expenses.map((e, i) => (
                     <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                      <td className="py-2.5 text-foreground">{e.name}</td>
+                      <td className="py-2.5 text-foreground">{n(e.name, e.nameAr)}</td>
                       <td className="py-2.5 text-right font-mono text-red-400">{fmtNum(e.amount)}</td>
                     </tr>
                   ))}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard, ListOrdered, BrainCog, UploadCloud,
@@ -9,7 +10,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ReceiptText, ShoppingCart, FilePlus, Store, PieChart,
+  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages,
 } from "lucide-react";
 
 type NavItem = { href?: string; label: string; icon: React.ElementType; children?: NavItem[] };
@@ -149,6 +150,7 @@ const ROLE_COLOR: Record<string, string> = {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { lang, setLang } = useLanguage();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -190,14 +192,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.role] ?? ROLE_COLOR.viewer)}>
                 {user.role.toUpperCase()}
               </span>
-              <button
-                onClick={logout}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors"
-                title="Sign out"
-              >
-                <LogOut className="w-3 h-3" />
-                Sign out
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Language toggle EN ⇌ ع */}
+                <button
+                  onClick={() => setLang(lang === "en" ? "ar" : "en")}
+                  className={cn(
+                    "flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors",
+                    lang === "ar"
+                      ? "border-primary/50 text-primary bg-primary/10"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+                  )}
+                  title={lang === "en" ? "Switch to Arabic" : "Switch to English"}
+                >
+                  <Languages className="w-3 h-3" />
+                  {lang === "en" ? "ع" : "EN"}
+                </button>
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3 h-3" />
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         )}

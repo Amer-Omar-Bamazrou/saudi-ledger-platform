@@ -6,6 +6,7 @@ import { categoriesTable } from "./categories";
 export const budgetsTable = pgTable("budgets", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  nameAr: text("name_ar").notNull().default("(not yet translated)"),
   period: text("period").notNull(),       // YYYY
   categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "cascade" }),
   budgetedAmount: numeric("budgeted_amount", { precision: 15, scale: 2 }).notNull(),

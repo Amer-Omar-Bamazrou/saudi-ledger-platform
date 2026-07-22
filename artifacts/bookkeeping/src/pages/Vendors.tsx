@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { arabicFieldStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,7 +82,14 @@ export default function Vendors() {
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{["Vendor","City","VAT Number","IBAN","Total Bills","Outstanding",""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{vendors.map(v=>(
                 <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-4"><div className="font-medium text-foreground">{v.name}</div>{v.nameAr&&<div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>}</td>
+                  <td className="py-3 pr-4">
+                    <div className="font-medium text-foreground">{v.name}</div>
+                    {arabicFieldStatus(v.nameAr) === "ok"
+                      ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>
+                      : arabicFieldStatus(v.nameAr) === "wrong-script"
+                      ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ not Arabic script</div>
+                      : <div className="text-[10px] text-amber-500/60 italic mt-0.5">needs Arabic translation</div>}
+                  </td>
                   <td className="py-3 pr-4 text-muted-foreground">{v.city||"—"}</td>
                   <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
                   <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
