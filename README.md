@@ -212,3 +212,5 @@ Auth	Session-based (bcryptjs + connect-pg-simple)
 Monorepo	pnpm workspaces
 i18n	Custom LanguageContext (Arabic / English)
 For questions or issues, open a GitHub Issue at https://github.com/fahoody236/Saudi-Ledger-Engine/issues
+# Saudi-Ledger-Engine
+Repository for https://replit.com/@fahoody236/Saudi-Ledger-Engine
