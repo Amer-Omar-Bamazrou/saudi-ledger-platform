@@ -33,7 +33,7 @@ afterthought. See `docs/phase-0-implementation-plan.md`.
 
 | Layer            | Technology                                                    |
 | ---------------- | ------------------------------------------------------------- |
-| Monorepo         | pnpm workspaces (`artifacts/*`, `lib/*`, `scripts`)           |
+| Monorepo         | pnpm workspaces (`apps/*`, `packages/*`, `scripts`)           |
 | Backend          | Express 5, TypeScript, Node.js (ESM), esbuild bundle          |
 | Frontend         | React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui        |
 | Routing (FE)     | Wouter                                                        |
@@ -42,7 +42,7 @@ afterthought. See `docs/phase-0-implementation-plan.md`.
 | Database         | PostgreSQL (via Supabase)                                     |
 | Cache / queue    | Redis                                                         |
 | Auth             | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
-| API contract     | OpenAPI-first (`lib/api-spec/openapi.yaml`) with orval codegen |
+| API contract     | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen |
 | Validation       | Zod (generated into `@workspace/api-zod`)                     |
 | i18n             | Custom `LanguageContext` (Arabic / English, RTL-aware)        |
 | Logging          | pino / pino-http                                              |
@@ -50,31 +50,37 @@ afterthought. See `docs/phase-0-implementation-plan.md`.
 ## 4. Repository Layout
 
 ```
-artifacts/
-  api-server/        @workspace/api-server — Express 5 backend
+apps/
+  api/               @workspace/api-server — Express 5 backend
     src/
       routes/        one file per entity (transactions, invoices, bills, …)
       lib/           accounting + infra: glPosting, periodLock, zatca,
                      categorizer, auth, logger
       app.ts         Express app wiring (session, middleware, router)
       index.ts       server entrypoint
-  bookkeeping/       @workspace/bookkeeping — React 19 + Vite frontend
-  mockup-sandbox/    UI mockup scratch space
-lib/
+  web/               @workspace/bookkeeping — React 19 + Vite frontend
+packages/
   db/                @workspace/db — Drizzle schema + pg pool (source of truth)
     src/schema/      one file per table
   api-spec/          @workspace/api-spec — OpenAPI spec + orval config (codegen)
   api-zod/           @workspace/api-zod — generated Zod schemas/types
   api-client-react/  @workspace/api-client-react — generated React Query client
+  auth/              @workspace/auth — scaffold (auth/RBAC; populated later)
+  config/            @workspace/config — scaffold (shared config/env; populated later)
 scripts/
 docs/                architecture-blueprint.md, phase-0-implementation-plan.md
 ```
 
+> **Note:** workspace **package names are unchanged** (`@workspace/api-server`,
+> `@workspace/bookkeeping`, etc.) — only their directories moved. `pnpm --filter`
+> commands still use the package names, not the folder paths.
+
 ## 5. Key Architectural Principles
 
 1. **Preserve existing accounting business logic — it is correct.**
-   GL posting (`lib/glPosting.ts`), period locks (`lib/periodLock.ts`), and
-   VAT/Zakat/ZATCA (`lib/zatca.ts`) are the source of truth for how the ledger
+   GL posting (`apps/api/src/lib/glPosting.ts`), period locks
+   (`apps/api/src/lib/periodLock.ts`), and VAT/Zakat/ZATCA
+   (`apps/api/src/lib/zatca.ts`) are the source of truth for how the ledger
    behaves. Balanced double-entry, closed-period enforcement, and tax rules are
    already implemented correctly. Extend and wrap them; do not reinvent them.
 
@@ -89,7 +95,7 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
    Write new code in this layered style.
 
 4. **OpenAPI-first with codegen.**
-   `lib/api-spec/openapi.yaml` is the contract. `pnpm --filter @workspace/api-spec run codegen`
+   `packages/api-spec/openapi.yaml` is the contract. `pnpm --filter @workspace/api-spec run codegen`
    regenerates the Zod schemas (`@workspace/api-zod`) and the React Query client
    (`@workspace/api-client-react`). Change the spec first, regenerate, then
    implement. Keep this pipeline — do not hand-write client types or hand-edit
@@ -112,7 +118,7 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
 - **Do not** put business logic directly in route handlers. Push it into
   services/repositories following the layering above.
 - **Do not** bypass the OpenAPI → codegen flow or hand-edit generated files under
-  `lib/api-zod/src/generated` or `lib/api-client-react/src/generated`.
+  `packages/api-zod/src/generated` or `packages/api-client-react/src/generated`.
 - **Do not** let AI features write to the ledger directly.
 
 ## 7. Reference Docs
@@ -130,7 +136,7 @@ before starting non-trivial work; keep them in sync as decisions land.
 - **Explain before implementing.** For any non-trivial change, describe the plan
   and the reasoning first, then implement once it's agreed.
 - **Test everything.** Preserve and extend existing tests
-  (`artifacts/api-server/src/tests`, Vitest). Add tests for new logic —
+  (`apps/api/src/tests`, Vitest). Add tests for new logic —
   especially anything touching money, the GL, tax, or tenant isolation.
 - **pnpm only.** A preinstall guard rejects npm/yarn. Use
   `pnpm --filter <workspace> run <script>`.

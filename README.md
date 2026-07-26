@@ -32,22 +32,27 @@ in time, the wider GCC.
 | Database      | PostgreSQL (via Supabase)                                        |
 | Cache / queue | Redis                                                            |
 | Auth          | Express session auth (`express-session` + `connect-pg-simple`)   |
-| API contract  | OpenAPI-first (`lib/api-spec/openapi.yaml`) with orval codegen   |
+| API contract  | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen |
 | i18n          | Custom `LanguageContext` (Arabic / English, RTL-aware)          |
 
 ## Repository Layout
 
 ```
-artifacts/
-  api-server/     Express 5 + TypeScript backend  (@workspace/api-server)
-  bookkeeping/    React 19 + Vite frontend        (@workspace/bookkeeping)
-lib/
+apps/
+  api/            Express 5 + TypeScript backend  (@workspace/api-server)
+  web/            React 19 + Vite frontend        (@workspace/bookkeeping)
+packages/
   db/             Drizzle schema + pg pool         (@workspace/db)
   api-spec/       OpenAPI spec + orval config      (@workspace/api-spec)
   api-zod/        Generated Zod schemas/types      (@workspace/api-zod)
   api-client-react/ Generated React Query client   (@workspace/api-client-react)
+  auth/           Auth/RBAC scaffold (populated later) (@workspace/auth)
+  config/         Shared config scaffold (populated later) (@workspace/config)
 docs/             Architecture blueprint & Phase 0 plan
 ```
+
+Workspace **package names are unchanged** — only directories moved. `pnpm --filter`
+commands use the package name (e.g. `@workspace/api-server`), not the folder path.
 
 ## Getting Started
 
@@ -66,7 +71,7 @@ pnpm install
 
 ### 2. Configure environment
 
-Create `artifacts/api-server/.env`:
+Create `apps/api/.env`:
 
 ```env
 DATABASE_URL=postgresql://user:password@host:5432/dbname
@@ -75,7 +80,7 @@ PORT=8080
 SESSION_SECRET=replace_with_a_long_random_string_at_least_32_chars
 ```
 
-Create `artifacts/bookkeeping/.env`:
+Create `apps/web/.env`:
 
 ```env
 PORT=5173
@@ -91,7 +96,7 @@ Neither `.env` is committed. Never commit real credentials.
 pnpm --filter @workspace/db run push
 ```
 
-This reads `lib/db/src/schema/` and creates the tables. Run it again only when
+This reads `packages/db/src/schema/` and creates the tables. Run it again only when
 the schema changes.
 
 ### 4. Run
