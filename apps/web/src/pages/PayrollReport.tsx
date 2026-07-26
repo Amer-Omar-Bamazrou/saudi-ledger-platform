@@ -26,7 +26,7 @@ export default function PayrollReport() {
 
   const { data: rows = [], isLoading } = useQuery<PayrollRow[]>({
     queryKey: ["payroll-report", from, to],
-    queryFn: () => apiFetch("/payroll").catch(() => []),
+    queryFn: () => apiFetch<PayrollRow[]>("/payroll").catch(() => [] as PayrollRow[]),
   });
 
   const filtered = rows.filter(r => r.month >= from.slice(0, 7) && r.month <= to.slice(0, 7));

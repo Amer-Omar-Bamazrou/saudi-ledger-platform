@@ -28,7 +28,7 @@ export default function QuotationReport() {
 
   const { data: quotes = [], isLoading } = useQuery<QuoteRow[]>({
     queryKey: ["quotation-report", from, to],
-    queryFn: () => apiFetch("/quotations").catch(() => []),
+    queryFn: () => apiFetch<QuoteRow[]>("/quotations").catch(() => [] as QuoteRow[]),
   });
 
   const filtered = quotes.filter(q => q.date >= from && q.date <= to);

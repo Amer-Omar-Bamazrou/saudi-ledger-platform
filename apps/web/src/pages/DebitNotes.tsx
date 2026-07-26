@@ -50,7 +50,7 @@ export default function DebitNotes() {
 
   const { data: notes = [], isLoading } = useQuery<DebitNote[]>({
     queryKey: ["debit-notes"],
-    queryFn: () => apiFetch("/debit-notes").catch(() => []),
+    queryFn: () => apiFetch<DebitNote[]>("/debit-notes").catch(() => [] as DebitNote[]),
   });
 
   const totalIssued = notes.reduce((s, n) => s + n.amount, 0);

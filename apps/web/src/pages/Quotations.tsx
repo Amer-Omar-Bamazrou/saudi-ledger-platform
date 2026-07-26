@@ -53,7 +53,7 @@ export default function Quotations() {
   // Quotations endpoint — gracefully empty until backend is wired
   const { data: quotes = [], isLoading } = useQuery<Quotation[]>({
     queryKey: ["quotations"],
-    queryFn: () => apiFetch("/quotations").catch(() => []),
+    queryFn: () => apiFetch<Quotation[]>("/quotations").catch(() => [] as Quotation[]),
   });
 
   const total = quotes.reduce((s, q) => s + q.total, 0);

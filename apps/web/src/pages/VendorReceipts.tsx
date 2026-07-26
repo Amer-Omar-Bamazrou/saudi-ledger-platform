@@ -51,7 +51,7 @@ export default function VendorReceipts() {
 
   const { data: receipts = [], isLoading } = useQuery<VendorReceipt[]>({
     queryKey: ["vendor-receipts"],
-    queryFn: () => apiFetch("/vendor-receipts").catch(() => []),
+    queryFn: () => apiFetch<VendorReceipt[]>("/vendor-receipts").catch(() => [] as VendorReceipt[]),
   });
 
   const handleScanned = (data: ParsedReceipt) => {

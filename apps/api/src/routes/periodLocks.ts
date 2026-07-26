@@ -40,7 +40,7 @@ router.post("/", requireAdmin, async (req, res) => {
 
 router.delete("/:period", requireAdmin, async (req, res) => {
   try {
-    const period = req.params.period;
+    const period = String(req.params.period);
     await db.delete(periodLocksTable).where(eq(periodLocksTable.period, period));
     res.status(204).send();
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }

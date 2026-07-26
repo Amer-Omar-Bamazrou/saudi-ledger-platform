@@ -18,7 +18,7 @@ export default function ExpenseReport() {
 
   const { data: rows = [], isLoading } = useQuery<ExpenseRow[]>({
     queryKey: ["expense-report", from, to],
-    queryFn: () => apiFetch(`/reports/expenses?from=${from}&to=${to}`).catch(() => []),
+    queryFn: () => apiFetch<ExpenseRow[]>(`/reports/expenses?from=${from}&to=${to}`).catch(() => [] as ExpenseRow[]),
   });
 
   const totalExpenses = rows.reduce((s, r) => s + r.subtotal, 0);

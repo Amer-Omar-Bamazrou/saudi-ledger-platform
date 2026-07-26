@@ -309,7 +309,7 @@ export default function Upload() {
                             <tr key={i} className={`transition-colors ${row._error ? "bg-red-500/5" : "hover:bg-secondary/30"}`}>
                               <td className="px-3 py-2">
                                 {row._error
-                                  ? <XCircle className="w-4 h-4 text-red-400" title={row._error} />
+                                  ? <span title={row._error}><XCircle className="w-4 h-4 text-red-400" /></span>
                                   : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                               </td>
                               <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>

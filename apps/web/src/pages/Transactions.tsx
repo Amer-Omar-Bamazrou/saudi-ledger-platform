@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useListTransactions, 
@@ -43,7 +43,7 @@ export default function Transactions() {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
   // Simple debounce
-  useState(() => {
+  useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(handler);
   }, [search]);
@@ -107,7 +107,7 @@ export default function Transactions() {
           />
         </div>
         
-        <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
+        <Select value={typeFilter ?? undefined} onValueChange={(v: any) => setTypeFilter(v)}>
           <SelectTrigger className="w-[140px]">
             <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder={t("Type", "النوع")} />
@@ -182,7 +182,7 @@ export default function Transactions() {
                           <Badge variant="outline" className="border-primary/30 text-primary/90 bg-primary/5">
                             {tx.categoryName}
                           </Badge>
-                          {tx.confidenceScore !== null && !tx.isManuallyOverridden && (
+                          {tx.confidenceScore != null && !tx.isManuallyOverridden && (
                             <span className="text-[10px] text-muted-foreground font-mono">
                               AI: {Math.round(tx.confidenceScore * 100)}%
                             </span>

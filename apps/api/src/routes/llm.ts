@@ -156,7 +156,7 @@ router.get("/demo", async (_req, res) => {
       transactions: results,
     });
   } catch (err) {
-    req.log.error({ err });
+    _req.log.error({ err });
     res.status(500).json({ error: "Internal server error" });
   }
 });

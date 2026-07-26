@@ -20,7 +20,7 @@ export default function GlReport() {
 
   const { data: entries = [], isLoading } = useQuery<GlEntry[]>({
     queryKey: ["gl-report", from, to],
-    queryFn: () => apiFetch(`/reports/gl?from=${from}&to=${to}`).catch(() => []),
+    queryFn: () => apiFetch<GlEntry[]>(`/reports/gl?from=${from}&to=${to}`).catch(() => [] as GlEntry[]),
   });
 
   const totalDebit = entries.reduce((s, e) => s + e.debit, 0);

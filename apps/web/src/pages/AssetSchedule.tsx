@@ -19,7 +19,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default function AssetSchedule() {
   const { data: assets = [], isLoading } = useQuery<AssetRow[]>({
     queryKey: ["asset-schedule"],
-    queryFn: () => apiFetch("/assets").catch(() => []),
+    queryFn: () => apiFetch<AssetRow[]>("/assets").catch(() => [] as AssetRow[]),
   });
 
   const totalCost = assets.reduce((s, a) => s + a.cost, 0);

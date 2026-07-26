@@ -6,6 +6,7 @@ export interface ToasterToast {
   title?: React.ReactNode
   description?: React.ReactNode
   action?: React.ReactNode
+  variant?: "default" | "destructive"
 }
 
 let memoryState: ToasterToast[] = []

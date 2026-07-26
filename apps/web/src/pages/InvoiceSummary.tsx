@@ -28,7 +28,7 @@ export default function InvoiceSummary() {
 
   const { data: invoices = [], isLoading } = useQuery<InvoiceSummaryRow[]>({
     queryKey: ["invoice-summary", from, to],
-    queryFn: () => apiFetch(`/invoices?from=${from}&to=${to}`).catch(() => apiFetch("/invoices").catch(() => [])),
+    queryFn: () => apiFetch<InvoiceSummaryRow[]>(`/invoices?from=${from}&to=${to}`).catch(() => apiFetch<InvoiceSummaryRow[]>("/invoices").catch(() => [] as InvoiceSummaryRow[])),
   });
 
   const filtered = invoices.filter(i => i.date >= from && i.date <= to);

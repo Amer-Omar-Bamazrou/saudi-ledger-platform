@@ -51,7 +51,7 @@ export default function CustomerReceipts() {
 
   const { data: receipts = [], isLoading } = useQuery<CustomerReceipt[]>({
     queryKey: ["customer-receipts"],
-    queryFn: () => apiFetch("/customer-receipts").catch(() => []),
+    queryFn: () => apiFetch<CustomerReceipt[]>("/customer-receipts").catch(() => [] as CustomerReceipt[]),
   });
 
   const handleScanned = (data: ParsedReceipt) => {

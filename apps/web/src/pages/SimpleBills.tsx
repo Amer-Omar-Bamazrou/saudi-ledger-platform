@@ -55,7 +55,7 @@ export default function SimpleBills() {
 
   const { data: bills = [], isLoading } = useQuery<SimpleBill[]>({
     queryKey: ["simple-bills"],
-    queryFn: () => apiFetch("/simple-bills").catch(() => []),
+    queryFn: () => apiFetch<SimpleBill[]>("/simple-bills").catch(() => [] as SimpleBill[]),
   });
 
   const handleScanned = (data: ParsedReceipt) => {

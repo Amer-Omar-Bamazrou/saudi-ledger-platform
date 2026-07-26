@@ -50,7 +50,7 @@ export default function CreditNotes() {
 
   const { data: notes = [], isLoading } = useQuery<CreditNote[]>({
     queryKey: ["credit-notes"],
-    queryFn: () => apiFetch("/credit-notes").catch(() => []),
+    queryFn: () => apiFetch<CreditNote[]>("/credit-notes").catch(() => [] as CreditNote[]),
   });
 
   const totalIssued = notes.reduce((s, n) => s + n.amount, 0);

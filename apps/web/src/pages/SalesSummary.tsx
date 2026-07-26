@@ -18,7 +18,7 @@ export default function SalesSummary() {
 
   const { data: rows = [], isLoading } = useQuery<SalesSummaryRow[]>({
     queryKey: ["sales-summary", from, to],
-    queryFn: () => apiFetch(`/reports/sales-summary?from=${from}&to=${to}`).catch(() => []),
+    queryFn: () => apiFetch<SalesSummaryRow[]>(`/reports/sales-summary?from=${from}&to=${to}`).catch(() => [] as SalesSummaryRow[]),
   });
 
   const totals = rows.reduce(

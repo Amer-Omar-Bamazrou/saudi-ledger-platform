@@ -36,8 +36,8 @@ export default function CustomerStatement() {
   const { data: rows = [], isLoading } = useQuery<StatementRow[]>({
     queryKey: ["customer-statement", customerId, from, to],
     queryFn: () => customerId
-      ? apiFetch(`/reports/customer-statement?customerId=${customerId}&from=${from}&to=${to}`).catch(() => [])
-      : Promise.resolve([]),
+      ? apiFetch<StatementRow[]>(`/reports/customer-statement?customerId=${customerId}&from=${from}&to=${to}`).catch(() => [] as StatementRow[])
+      : Promise.resolve([] as StatementRow[]),
     enabled: !!customerId,
   });
 

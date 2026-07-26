@@ -18,7 +18,7 @@ export default function BudgetVsActual() {
 
   const { data: rows = [], isLoading } = useQuery<BvaRow[]>({
     queryKey: ["budget-vs-actual", period],
-    queryFn: () => apiFetch(`/reports/budget-vs-actual?period=${period}`).catch(() => []),
+    queryFn: () => apiFetch<BvaRow[]>(`/reports/budget-vs-actual?period=${period}`).catch(() => [] as BvaRow[]),
   });
 
   const totalBudget = rows.reduce((s, r) => s + r.budgeted, 0);

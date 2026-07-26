@@ -51,7 +51,7 @@ export default function PurchaseOrders() {
 
   const { data: orders = [], isLoading } = useQuery<PurchaseOrder[]>({
     queryKey: ["purchase-orders"],
-    queryFn: () => apiFetch("/purchase-orders").catch(() => []),
+    queryFn: () => apiFetch<PurchaseOrder[]>("/purchase-orders").catch(() => [] as PurchaseOrder[]),
   });
 
   const totalValue = orders.reduce((s, o) => s + o.total, 0);

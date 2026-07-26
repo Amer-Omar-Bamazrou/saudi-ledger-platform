@@ -12,7 +12,7 @@ interface ApAgingRow {
 export default function ApAging() {
   const { data: rows = [], isLoading } = useQuery<ApAgingRow[]>({
     queryKey: ["ap-aging"],
-    queryFn: () => apiFetch("/reports/ap-aging").catch(() => []),
+    queryFn: () => apiFetch<ApAgingRow[]>("/reports/ap-aging").catch(() => [] as ApAgingRow[]),
   });
 
   const totals = rows.reduce(
