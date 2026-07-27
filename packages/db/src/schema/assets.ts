@@ -1,10 +1,15 @@
-import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const fixedAssetsTable = pgTable("fixed_assets", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   assetNumber: text("asset_number").notNull(),
   name: text("name").notNull(),
   nameAr: text("name_ar").notNull().default("(not yet translated)"),
@@ -27,6 +32,9 @@ export const fixedAssetsTable = pgTable("fixed_assets", {
 
 export const depreciationEntriesTable = pgTable("depreciation_entries", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   assetId: integer("asset_id").notNull().references(() => fixedAssetsTable.id, { onDelete: "cascade" }),
   period: text("period").notNull(),       // YYYY-MM
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),

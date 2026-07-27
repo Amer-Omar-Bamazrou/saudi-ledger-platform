@@ -1,10 +1,15 @@
-import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const payrollRunsTable = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   period: text("period").notNull(),       // YYYY-MM
   status: text("status").notNull().default("draft"), // draft | approved | paid
   totalBasicSalary: numeric("total_basic_salary", { precision: 15, scale: 2 }).default("0"),
@@ -21,6 +26,9 @@ export const payrollRunsTable = pgTable("payroll_runs", {
 
 export const payrollItemsTable = pgTable("payroll_items", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRunsTable.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employeesTable.id, { onDelete: "restrict" }),
   basicSalary: numeric("basic_salary", { precision: 15, scale: 2 }).notNull(),

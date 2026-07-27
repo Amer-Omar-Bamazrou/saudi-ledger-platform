@@ -1,9 +1,14 @@
-import { pgTable, serial, text, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const employeesTable = pgTable("employees", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   employeeNumber: text("employee_number").notNull(),
   name: text("name").notNull(),
   nameAr: text("name_ar").notNull().default("(not yet translated)"),

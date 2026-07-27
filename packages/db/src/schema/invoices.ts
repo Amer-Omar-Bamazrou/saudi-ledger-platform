@@ -1,11 +1,16 @@
-import { pgTable, serial, text, boolean, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
 import { productsTable } from "./products";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const invoicesTable = pgTable("invoices", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   invoiceNumber: text("invoice_number").notNull(),
   date: text("date").notNull(),
   dueDate: text("due_date"),
@@ -32,6 +37,9 @@ export const invoicesTable = pgTable("invoices", {
 
 export const invoiceItemsTable = pgTable("invoice_items", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   invoiceId: integer("invoice_id").notNull().references(() => invoicesTable.id, { onDelete: "cascade" }),
   productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
   description: text("description").notNull(),

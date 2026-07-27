@@ -6,13 +6,19 @@ import {
   timestamp,
   numeric,
   integer,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   date: text("date").notNull(), // stored as YYYY-MM-DD string
   description: text("description").notNull(),
   descriptionAr: text("description_ar"),

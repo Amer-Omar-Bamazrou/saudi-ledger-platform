@@ -11,7 +11,7 @@ It began life as a single-tenant bookkeeping app (the "Saudi Ledger Engine") and
 is **currently being refactored into a scalable, multi-tenant SaaS platform**.
 The accounting core is real and correct — invoices, bills, journal entries, GL
 posting, period locks, VAT, and Zakat all work today. The refactoring effort is
-about the *platform* around that core: multi-tenancy, clean layering, security,
+about the _platform_ around that core: multi-tenancy, clean layering, security,
 and a foundation for future AI features.
 
 When in doubt, favor evolving the existing system over replacing it.
@@ -25,27 +25,33 @@ We are in **Phase 0 (Platform Foundation)**, working through small milestones to
 - Fix security gaps (e.g. session secrets, per-tenant isolation, access control)
 - Prepare the groundwork for future AI features
 
-Multi-tenancy does **not** exist yet — no business table currently has an
-`organization_id`. Adding it correctly and safely is a core Phase 0 goal, not an
-afterthought. See `docs/phase-0-implementation-plan.md`.
+Multi-tenancy is being introduced additively. As of **Milestone 2**, the tenancy
+schema **exists but is not yet enforced**: the platform tables (`organizations`,
+`companies`, `branches`, `departments`, `organization_memberships`, `audit_logs`,
+`permissions`, `feature_flags`) are defined, and every business table has a
+**nullable** `organization_id` (plus `company_id` on ledger/operational tables).
+Nothing reads or requires these columns yet — no query is tenant-filtered, there
+are no NOT NULL constraints, no indexes, and no RLS. Backfill and enforcement land
+in **Milestone 3**. Adding tenancy correctly and safely is a core Phase 0 goal,
+not an afterthought. See `docs/phase-0-implementation-plan.md`.
 
 ## 3. Tech Stack
 
-| Layer            | Technology                                                    |
-| ---------------- | ------------------------------------------------------------- |
-| Monorepo         | pnpm workspaces (`apps/*`, `packages/*`, `scripts`)           |
-| Backend          | Express 5, TypeScript, Node.js (ESM), esbuild bundle          |
-| Frontend         | React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui        |
-| Routing (FE)     | Wouter                                                        |
-| Data fetching    | TanStack Query (React Query v5)                               |
-| ORM              | Drizzle ORM                                                   |
-| Database         | PostgreSQL (via Supabase)                                     |
-| Cache / queue    | Redis                                                         |
-| Auth             | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
-| API contract     | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen |
-| Validation       | Zod (generated into `@workspace/api-zod`)                     |
-| i18n             | Custom `LanguageContext` (Arabic / English, RTL-aware)        |
-| Logging          | pino / pino-http                                              |
+| Layer         | Technology                                                               |
+| ------------- | ------------------------------------------------------------------------ |
+| Monorepo      | pnpm workspaces (`apps/*`, `packages/*`, `scripts`)                      |
+| Backend       | Express 5, TypeScript, Node.js (ESM), esbuild bundle                     |
+| Frontend      | React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui                   |
+| Routing (FE)  | Wouter                                                                   |
+| Data fetching | TanStack Query (React Query v5)                                          |
+| ORM           | Drizzle ORM                                                              |
+| Database      | PostgreSQL (via Supabase)                                                |
+| Cache / queue | Redis                                                                    |
+| Auth          | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
+| API contract  | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen      |
+| Validation    | Zod (generated into `@workspace/api-zod`)                                |
+| i18n          | Custom `LanguageContext` (Arabic / English, RTL-aware)                   |
+| Logging       | pino / pino-http                                                         |
 
 ## 4. Repository Layout
 
@@ -61,7 +67,8 @@ apps/
   web/               @workspace/bookkeeping — React 19 + Vite frontend
 packages/
   db/                @workspace/db — Drizzle schema + pg pool (source of truth)
-    src/schema/      one file per table
+    src/schema/      one file per table (business + tenancy/platform tables)
+    migrations/      versioned SQL migrations (drizzle-kit generate)
   api-spec/          @workspace/api-spec — OpenAPI spec + orval config (codegen)
   api-zod/           @workspace/api-zod — generated Zod schemas/types
   api-client-react/  @workspace/api-client-react — generated React Query client
@@ -102,7 +109,7 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
    generated files.
 
 5. **AI proposes; it never posts.**
-   AI features must never write directly to the ledger. They *propose* entries,
+   AI features must never write directly to the ledger. They _propose_ entries,
    categorizations, or actions; a human — or the existing, trusted accounting
    logic — approves and commits them. The GL is only ever written through the
    established posting path.
@@ -148,7 +155,9 @@ before starting non-trivial work; keep them in sync as decisions land.
 pnpm install                                         # install all workspaces
 pnpm --filter @workspace/api-server run dev          # run the API server
 pnpm --filter @workspace/bookkeeping run dev         # run the frontend
-pnpm --filter @workspace/db run push                 # push Drizzle schema to Postgres
+pnpm --filter @workspace/db run generate             # generate a versioned SQL migration (preferred)
+pnpm --filter @workspace/db run migrate              # apply pending migrations
+pnpm --filter @workspace/db run push                 # (legacy) push schema directly — avoid for tenant data
 pnpm --filter @workspace/api-spec run codegen        # regenerate API client + Zod
 pnpm --filter @workspace/api-server run test         # backend tests (Vitest)
 pnpm run typecheck                                   # typecheck the whole repo

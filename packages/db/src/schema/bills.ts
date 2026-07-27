@@ -1,11 +1,16 @@
-import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { vendorsTable } from "./vendors";
 import { productsTable } from "./products";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
 
 export const billsTable = pgTable("bills", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   billNumber: text("bill_number").notNull(),
   vendorReference: text("vendor_reference"),
   date: text("date").notNull(),
@@ -25,6 +30,9 @@ export const billsTable = pgTable("bills", {
 
 export const billItemsTable = pgTable("bill_items", {
   id: serial("id").primaryKey(),
+  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
+  organizationId: uuid("organization_id").references(() => organizationsTable.id),
+  companyId: uuid("company_id").references(() => companiesTable.id),
   billId: integer("bill_id").notNull().references(() => billsTable.id, { onDelete: "cascade" }),
   productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
   description: text("description").notNull(),
