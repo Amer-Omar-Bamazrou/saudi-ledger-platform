@@ -8,6 +8,27 @@
       "when": 1785182825736,
       "tag": "0000_brown_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785187813559,
+      "tag": "0001_backfill_tenancy",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785189123859,
+      "tag": "0002_enforce_tenancy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785189151331,
+      "tag": "0003_rls_policies",
+      "breakpoints": true
     }
   ]
 }

@@ -1,30 +1,38 @@
-import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
 
-export const productsTable = pgTable("products", {
-  id: serial("id").primaryKey(),
-  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
-  // Catalog scoped to the organization; company_id omitted for now.
-  organizationId: uuid("organization_id").references(() => organizationsTable.id),
-  code: text("code"),                    // SKU / product code
-  name: text("name").notNull(),
-  nameAr: text("name_ar").notNull().default("(not yet translated)"),
-  type: text("type").notNull().default("service"), // product | service
-  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull().default("0"),
-  unitCost: numeric("unit_cost", { precision: 15, scale: 2 }),
-  currency: text("currency").default("SAR"),
-  unit: text("unit").default("unit"),    // unit, hour, kg, etc.
-  categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "set null" }),
-  vatApplicable: boolean("vat_applicable").notNull().default(true),
-  stockQty: numeric("stock_qty", { precision: 15, scale: 3 }).default("0"),
-  reorderPoint: numeric("reorder_point", { precision: 15, scale: 3 }),
-  description: text("description"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const productsTable = pgTable(
+  "products",
+  {
+    id: serial("id").primaryKey(),
+    // Multi-tenancy — enforced NOT NULL in M3 (migrations/0002).
+    // Catalog scoped to the organization; company_id omitted for now.
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`app_default_org_id()`)
+      .references(() => organizationsTable.id),
+    code: text("code"),                    // SKU / product code
+    name: text("name").notNull(),
+    nameAr: text("name_ar").notNull().default("(not yet translated)"),
+    type: text("type").notNull().default("service"), // product | service
+    unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull().default("0"),
+    unitCost: numeric("unit_cost", { precision: 15, scale: 2 }),
+    currency: text("currency").default("SAR"),
+    unit: text("unit").default("unit"),    // unit, hour, kg, etc.
+    categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "set null" }),
+    vatApplicable: boolean("vat_applicable").notNull().default(true),
+    stockQty: numeric("stock_qty", { precision: 15, scale: 3 }).default("0"),
+    reorderPoint: numeric("reorder_point", { precision: 15, scale: 3 }),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("products_org_idx").on(t.organizationId)],
+);
 
 export const insertProductSchema = createInsertSchema(productsTable)
   .omit({ id: true, createdAt: true })

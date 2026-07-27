@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, integer, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
@@ -23,8 +23,10 @@ export const auditLogsTable = pgTable("audit_logs", {
   beforeState: jsonb("before_state"),
   afterState: jsonb("after_state"),
   ipAddress: varchar("ip_address", { length: 45 }), // holds IPv4 or IPv6
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("audit_logs_org_idx").on(t.organizationId)],
+);
 
 export const insertAuditLogSchema = createInsertSchema(auditLogsTable).omit({
   id: true,

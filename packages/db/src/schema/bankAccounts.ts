@@ -1,26 +1,37 @@
-import { pgTable, serial, text, boolean, timestamp, numeric, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 
-export const bankAccountsTable = pgTable("bank_accounts", {
-  id: serial("id").primaryKey(),
-  // Multi-tenancy (M2, additive) — nullable until M3 backfill + enforcement.
-  organizationId: uuid("organization_id").references(() => organizationsTable.id),
-  companyId: uuid("company_id").references(() => companiesTable.id),
-  name: text("name").notNull(),
-  bankName: text("bank_name").notNull(),
-  accountNumber: text("account_number"),
-  iban: text("iban"),
-  currency: text("currency").default("SAR"),
-  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
-  openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).default("0"),
-  isDefault: boolean("is_default").notNull().default(false),
-  isActive: boolean("is_active").notNull().default(true),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const bankAccountsTable = pgTable(
+  "bank_accounts",
+  {
+    id: serial("id").primaryKey(),
+    // Multi-tenancy — enforced NOT NULL in M3 (migrations/0002).
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`app_default_org_id()`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`app_default_company_id()`)
+      .references(() => companiesTable.id),
+    name: text("name").notNull(),
+    bankName: text("bank_name").notNull(),
+    accountNumber: text("account_number"),
+    iban: text("iban"),
+    currency: text("currency").default("SAR"),
+    balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+    openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).default("0"),
+    isDefault: boolean("is_default").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("bank_accounts_org_idx").on(t.organizationId)],
+);
 
 export const insertBankAccountSchema = createInsertSchema(bankAccountsTable)
   .omit({ id: true, createdAt: true })

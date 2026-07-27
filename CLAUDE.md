@@ -25,15 +25,33 @@ We are in **Phase 0 (Platform Foundation)**, working through small milestones to
 - Fix security gaps (e.g. session secrets, per-tenant isolation, access control)
 - Prepare the groundwork for future AI features
 
-Multi-tenancy is being introduced additively. As of **Milestone 2**, the tenancy
-schema **exists but is not yet enforced**: the platform tables (`organizations`,
-`companies`, `branches`, `departments`, `organization_memberships`, `audit_logs`,
-`permissions`, `feature_flags`) are defined, and every business table has a
-**nullable** `organization_id` (plus `company_id` on ledger/operational tables).
-Nothing reads or requires these columns yet — no query is tenant-filtered, there
-are no NOT NULL constraints, no indexes, and no RLS. Backfill and enforcement land
-in **Milestone 3**. Adding tenancy correctly and safely is a core Phase 0 goal,
-not an afterthought. See `docs/phase-0-implementation-plan.md`.
+Multi-tenancy is now **enforced at the database layer** (Milestone 3). The
+platform tables (`organizations`, `companies`, `branches`, `departments`,
+`organization_memberships`, `audit_logs`, `permissions`, `feature_flags`) exist;
+a bootstrap tenant (`organizations.slug = 'default'` + a "Default Company") is
+seeded; and every existing business row was backfilled to it. On all business
+tables `organization_id` (and `company_id` on ledger/operational tables) is now
+**NOT NULL** with FKs to `organizations` / `companies`, backed by composite
+indexes leading with `organization_id`. `period_locks` uniqueness is tenant-scoped
+(`unique(organization_id, company_id, period)`). **RLS is enabled** on every
+business table (+ `audit_logs`, `companies`, `branches`, `departments`) with a
+`tenant_isolation` policy keyed off the `app.current_org_id` session GUC; a
+cross-tenant isolation test suite (`packages/db/src/__tests__`) proves org A
+cannot read or mutate org B's rows.
+
+Two things are **not yet wired (Milestone 4)** and matter when working here:
+
+- **No request-scoped tenant context yet.** There is no `resolveTenant`
+  middleware and the API still connects as the table **owner** (which bypasses
+  RLS), so RLS is a dormant backstop until M4 makes the app connect as a
+  non-owner role and set `app.current_org_id` (`SET LOCAL`) per request.
+- **New rows default to the bootstrap tenant.** So that pre-M4 write paths keep
+  working without supplying a tenant, `organization_id` / `company_id` have DB
+  DEFAULTs (`app_default_org_id()` / `app_default_company_id()`). These defaults
+  are a temporary bridge and are **removed in M4** once every write supplies the
+  tenant explicitly. Do not rely on them in new code — pass the tenant.
+
+See `docs/phase-0-implementation-plan.md`.
 
 ## 3. Tech Stack
 
@@ -157,6 +175,8 @@ pnpm --filter @workspace/api-server run dev          # run the API server
 pnpm --filter @workspace/bookkeeping run dev         # run the frontend
 pnpm --filter @workspace/db run generate             # generate a versioned SQL migration (preferred)
 pnpm --filter @workspace/db run migrate              # apply pending migrations
+pnpm --filter @workspace/db run seed                 # idempotently seed the default org + company
+pnpm --filter @workspace/db run test                 # DB tests incl. cross-tenant RLS isolation (needs DATABASE_URL)
 pnpm --filter @workspace/db run push                 # (legacy) push schema directly — avoid for tenant data
 pnpm --filter @workspace/api-spec run codegen        # regenerate API client + Zod
 pnpm --filter @workspace/api-server run test         # backend tests (Vitest)
