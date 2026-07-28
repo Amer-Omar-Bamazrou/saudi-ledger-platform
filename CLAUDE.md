@@ -107,9 +107,30 @@ permission-based (still the 3-role model, enforcement consolidated):**
   `users` resource is seeded into the matrix for completeness and the future
   per-org membership-management phase, but is not yet wired to `requirePermission`.
 
-Still deferred by design: the Route→Controller→Service→Repository layering (M6).
-Write new code tenant-aware; pass/receive the `TenantContext` rather than relying
-on any implicit default, and gate business routes with `requirePermission`.
+**Milestone 6 (Backend Layering Refactor) is done — the API is now layered:**
+
+- **Route → Controller → Service → Repository** across all 18 business domains.
+  `routes/` are thin (validate → call controller); `controllers/` orchestrate and
+  shape responses (no DB); `services/` own business logic; `repositories/` own
+  **all** Drizzle access, tenant-scoped via RLS. No business route touches the DB
+  directly (only `auth`/`orgs` remain thin infra routes with their own access).
+- **Accounting core moved UNCHANGED** to `services/accounting/` (glPosting,
+  periodLock, zatca) and `services/categorization/` (categorizer, llmCategorizer).
+  These are the sanctioned exception that keep direct `db` access — services call
+  them; they are not rewritten.
+- **Centralized error handling** (`middleware/errorHandler.ts` + typed `AppError`
+  in `lib/errors.ts`). Controllers/services `throw`; the middleware maps to HTTP
+  (identical bodies/status to before, incl. structured bills-post 400s via
+  `BusinessRuleError.payload` and the reports `{error:String(err)}` 500s).
+- **`reports.ts` (860 lines) split** into `routes/reports/<report>.ts` (one module
+  per report type) over a shared `reports.service` + `reports.repository`; the
+  deferred `sql.raw` id-lists are now parameterized `inArray(...)`.
+- No API behavior or permission change — a structural refactor, verified live per
+  domain group. The draft/approval workflow is NOT built here (post-M6 milestone),
+  but the service layer is where it will slot in.
+
+Write new code in this layered shape: HTTP in the route/controller, logic in a
+service, and every query in a repository (tenant-scoped).
 
 See `docs/phase-0-implementation-plan.md`.
 
@@ -118,21 +139,21 @@ See `docs/phase-0-implementation-plan.md`.
 These were identified in the post-M4 security review and **intentionally deferred**
 (not bugs to fix ad hoc — address them in the milestone noted):
 
-- **[HIGH] Per-request transaction held open for DB-less routes → pool starvation.**
-  `resolveTenant` checks out a pooled client and opens a transaction for *every*
-  authenticated request, held until the response finishes — even for routes that
-  make no DB calls (e.g. `/llm/*`, which call out to Ollama for seconds). The pool
-  (default `max: 10`) is shared with the `connect-pg-simple` session store, so a
-  few slow requests can starve session/login queries. **Fix (M6):** acquire the
-  tenant-scoped client lazily on first `db` access instead of eagerly in
-  `resolveTenant`; give the session store its own pool and add
-  `statement_timeout` / `idle_in_transaction_session_timeout`.
-- **[MEDIUM] Whole-request transaction changes multi-write error semantics.**
-  All queries in a request now share one transaction, so a mid-request failure
-  aborts it and subsequent queries return "transaction aborted" until rollback.
-  No broken path found today, but money/GL routes need coverage. **Fix (M6/M7):**
-  add integration tests that trigger a mid-request DB error (duplicate period
-  lock, GL imbalance) and assert a clean full rollback, not a secondary error.
+- **[HIGH — RESOLVED in M6] Per-request transaction held open for DB-less routes.**
+  The tenant DB client is now acquired **lazily** on first query (`LazyTenantClient`
+  in `packages/db/src/index.ts`), so DB-less routes (e.g. `/llm/*`) never check out
+  a pooled connection. The session store runs on its own `sessionPool`, and each
+  tenant transaction sets `idle_in_transaction_session_timeout='15s'`. Leak-safety
+  preserved (SET LOCAL role + GUCs stay transaction-local).
+- **[MEDIUM — RESOLVED in M6] Whole-request transaction rollback semantics.**
+  Integration tests (`packages/db/src/__tests__/tx-rollback.test.ts`) prove a
+  mid-request DB error (duplicate period lock) rolls the whole request back, the
+  earlier write does not persist, the original constraint error surfaces (not a
+  secondary "transaction aborted"), and the pooled connection is reusable.
+- **[RESOLVED in M6] `sql.raw` id-lists + session-table bootstrap.** The reports
+  `sql.raw(ids.join(","))` id-lists are now `inArray(...)`; the `user_sessions`
+  table is provisioned by migration `0005` (`createTableIfMissing:false`), fixing
+  the esbuild-bundle login-500 gap.
 - **[MEDIUM] `audit_logs` grants UPDATE/DELETE to the app role.**
   `0004_m4_rls_enforcement.sql` grants full DML on `audit_logs` to the
   application role; audit trails should be append-only. Latent (no route writes
