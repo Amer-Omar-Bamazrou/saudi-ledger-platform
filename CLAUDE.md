@@ -61,10 +61,9 @@ cannot read or mutate org B's rows.
   the request's scoped client with **no route changes**; the transaction commits
   on a successful response and rolls back on error/abort, so tenant context never
   leaks across pooled connections.
-- **Tenant role is sourced from `organization_memberships`** (the business-route
-  method guard and `requireTenantRole` read `req.tenant.role`). Global user
-  management still uses the session role until RBAC (M5). The 3-role model
-  (`admin | accountant | viewer`) is unchanged.
+- **Tenant role is sourced from `organization_memberships`** (`req.tenant.role`).
+  Global user management uses the session role (see M5 boundary note). The 3-role
+  model (`admin | accountant | viewer`) is unchanged.
 - **M3 bootstrap-tenant DB DEFAULTs are removed.** `app_default_org_id()` /
   `app_default_company_id()` are dropped; `organization_id` / `company_id` now
   default to the **request tenant** via `current_setting('app.current_org_id')` /
@@ -81,9 +80,36 @@ cannot read or mutate org B's rows.
   (set `session.activeOrgId`), mounted **before** `resolveTenant` (cross-org);
   minimal unstyled selector in the web sidebar.
 
-Still deferred by design: the Route→Controller→Service→Repository layering (M6)
-and permission-based RBAC (M5). Write new code tenant-aware; pass/receive the
-`TenantContext` rather than relying on any implicit default.
+**Milestone 5 (RBAC Foundation) is done — authorization is centralized and
+permission-based (still the 3-role model, enforcement consolidated):**
+
+- **One authorization seam: `requirePermission(resource)`** (`apps/api/src/lib/rbac.ts`).
+  It reads the active-org role from `req.tenant.role` (never global `users.role`),
+  infers the action from the HTTP method (`GET`→read, `POST`→create,
+  `PUT/PATCH`→update, `DELETE`→delete), and checks it against the seeded
+  role→resource→action mapping. **Fail-closed**: no matching grant ⇒ 403. This
+  **replaced** the old blanket method guard in `routes/index.ts` and the ad-hoc
+  `requireTenantRole` guards on `period_locks`/`categorize`; every business route
+  now mounts as `router.use("/x", requirePermission("x"), x)`.
+- **Policy lives in data, not code.** The mapping is the `permissions` table,
+  seeded idempotently from `PERMISSION_MATRIX` in `packages/db/src/permissions.ts`
+  (via `seedPermissions()`, run by `pnpm --filter @workspace/db run seed`). The API
+  loads it once into an in-memory cache (restart to pick up re-seeds). A future
+  phase changes access by editing/seeding rows — no route changes.
+- **The matrix codifies pre-M5 behavior exactly** (no policy change): read=all;
+  create/update=admin+accountant; delete=admin; with `period_locks` create+delete
+  admin-only, and `categorize` create=admin+accountant. Accountants retain
+  post-to-GL / reverse / pay / approve (industry-standard default).
+- **Boundary — user management:** the `/auth` user-admin endpoints (`register`,
+  `GET/PATCH /users`, `reset-password`) remain guarded by the **session-role**
+  `requireAdmin`. They run *before* `resolveTenant` and manage the **global**
+  identity directory (no active org), so they can't read `req.tenant.role`. A
+  `users` resource is seeded into the matrix for completeness and the future
+  per-org membership-management phase, but is not yet wired to `requirePermission`.
+
+Still deferred by design: the Route→Controller→Service→Repository layering (M6).
+Write new code tenant-aware; pass/receive the `TenantContext` rather than relying
+on any implicit default, and gate business routes with `requirePermission`.
 
 See `docs/phase-0-implementation-plan.md`.
 
@@ -118,6 +144,17 @@ These were identified in the post-M4 security review and **intentionally deferre
   cross-company visibility within the tenant (not a cross-tenant breach).
   **Fix:** scope period-lock queries by `company_id` when multi-company support
   is built out.
+- **[FEATURE] Fine-grained, action-level permissions for separation-of-duties.**
+  M5 authorization is method-based (one action per HTTP verb per resource), so it
+  cannot distinguish sensitive state transitions from ordinary writes — e.g.
+  posting a journal entry to the GL (`POST /journal-entries/:id/post`), reversing
+  an entry, approving payroll (`POST /payroll/:id/approve`), and paying a bill
+  (`POST /bills/:id/pay`) all resolve to `create` and are allowed to accountants
+  (the industry-standard default). A later **advanced-tier** phase should add
+  optional separation-of-duties controls: make post-to-GL, payroll approval, and
+  bill payment **individually gateable to admin**, and support a "clerk enters /
+  approver pays" split for AP. This needs **action-level** (per-endpoint)
+  permissions rather than method-level, and is out of the M5 3-role scope.
 
 ## 3. Tech Stack
 

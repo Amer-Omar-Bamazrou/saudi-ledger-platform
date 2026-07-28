@@ -2,6 +2,7 @@ import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, pool } from "./index";
 import { organizationsTable, companiesTable, usersTable } from "./schema";
+import { seedPermissions } from "./permissions";
 
 /**
  * Idempotent seed for the bootstrap tenant.
@@ -139,6 +140,10 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
         // eslint-disable-next-line no-console
         console.log(`[seed] admin user skipped: ${admin.skipped}`);
       }
+
+      const perms = await seedPermissions();
+      // eslint-disable-next-line no-console
+      console.log(`[seed] permissions: ${perms.inserted} inserted, ${perms.total} total`);
     })
     .catch((err) => {
       // eslint-disable-next-line no-console

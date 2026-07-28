@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { requireAuth, requireTenantRole } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
+import { requirePermission } from "../lib/rbac";
 
 // Route modules
 import health from "./health.js";
@@ -42,43 +43,29 @@ router.use("/orgs", orgs);
 // ── Tenant context + RLS-scoped transaction for every business request ────────
 router.use(resolveTenant);
 
-// ── Method-level role guard (role sourced from the active membership) ─────────
-// DELETE → Admin only
-// POST / PATCH / PUT → Accountant or Admin
-// GET → any authenticated role (viewer, accountant, admin)
-router.use((req, res, next) => {
-  const role = req.tenant?.role;
-  if (req.method === "DELETE" && role !== "admin") {
-    res.status(403).json({ error: "Only admins can delete records." }); return;
-  }
-  if (["POST", "PATCH", "PUT"].includes(req.method) && role === "viewer") {
-    res.status(403).json({ error: "Viewers have read-only access." }); return;
-  }
-  next();
-});
-
-// ── Read routes — any authenticated role (viewer, accountant, admin) ─────────
-router.use("/transactions", transactions);
-router.use("/categories", categories);
-router.use("/summary", summary);
-router.use("/customers", customers);
-router.use("/vendors", vendors);
-router.use("/products", products);
-router.use("/invoices", invoices);
-router.use("/bills", bills);
-router.use("/journal-entries", journalEntries);
-router.use("/employees", employees);
-router.use("/payroll", payroll);
-router.use("/assets", assets);
-router.use("/bank-accounts", bankAccounts);
-router.use("/budgets", budgets);
-router.use("/reports", reports);
-router.use("/period-locks", periodLocks);
-router.use("/llm", llm);
-
-// ── Mutation-heavy sub-routes are further guarded inside their handlers ───────
-// (Accountant/Admin guards are applied per-verb in each route file for
-//  POST/PATCH/DELETE. Viewer-only users can read but not write.)
-router.use("/categorize", requireTenantRole("admin", "accountant"), categorize);
+// ── Centralized permission-based authorization (RBAC, M5) ─────────────────────
+// Every business route is gated by requirePermission(resource): it reads the
+// active-org role from req.tenant.role, infers the action from the HTTP method
+// (GET→read, POST→create, PATCH/PUT→update, DELETE→delete), and checks it
+// against the seeded role→resource→action mapping. Fail-closed. This replaces
+// the old blanket method guard and the ad-hoc requireTenantRole guards.
+router.use("/transactions", requirePermission("transactions"), transactions);
+router.use("/categories", requirePermission("categories"), categories);
+router.use("/summary", requirePermission("summary"), summary);
+router.use("/customers", requirePermission("customers"), customers);
+router.use("/vendors", requirePermission("vendors"), vendors);
+router.use("/products", requirePermission("products"), products);
+router.use("/invoices", requirePermission("invoices"), invoices);
+router.use("/bills", requirePermission("bills"), bills);
+router.use("/journal-entries", requirePermission("journal_entries"), journalEntries);
+router.use("/employees", requirePermission("employees"), employees);
+router.use("/payroll", requirePermission("payroll"), payroll);
+router.use("/assets", requirePermission("assets"), assets);
+router.use("/bank-accounts", requirePermission("bank_accounts"), bankAccounts);
+router.use("/budgets", requirePermission("budgets"), budgets);
+router.use("/reports", requirePermission("reports"), reports);
+router.use("/period-locks", requirePermission("period_locks"), periodLocks);
+router.use("/llm", requirePermission("llm"), llm);
+router.use("/categorize", requirePermission("categorize"), categorize);
 
 export default router;
