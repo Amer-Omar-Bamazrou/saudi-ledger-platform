@@ -55,7 +55,9 @@ app.use(
     store: new PgSession({
       pool: sessionPool,
       tableName: "user_sessions",
-      createTableIfMissing: true,
+      // The table is provisioned by migration 0005 (createTableIfMissing's
+      // runtime path is unreliable in the esbuild bundle — see 0005).
+      createTableIfMissing: false,
     }),
     name: "ksa_ledger_sid",
     secret: env.SESSION_SECRET,

@@ -36,6 +36,13 @@
       "when": 1785267986835,
       "tag": "0004_m4_rls_enforcement",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785275787645,
+      "tag": "0005_session_table",
+      "breakpoints": true
     }
   ]
 }
