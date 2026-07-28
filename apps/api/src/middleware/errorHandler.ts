@@ -25,6 +25,12 @@ export function errorHandler(
 
   const code = (err as { statusCode?: unknown })?.statusCode;
   if (typeof code === "number" && code >= 400 && code < 600) {
+    // Preserve rich, structured error bodies (e.g. { error, code, detail }).
+    const payload = (err as { payload?: unknown }).payload;
+    if (payload && typeof payload === "object") {
+      res.status(code).json(payload);
+      return;
+    }
     res.status(code).json({ error: (err as Error).message });
     return;
   }

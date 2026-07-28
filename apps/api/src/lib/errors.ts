@@ -9,13 +9,31 @@
  */
 export class AppError extends Error {
   readonly statusCode: number;
+  /**
+   * Optional structured response body. When set, the errorHandler sends this
+   * object verbatim instead of `{ error: message }` — used to preserve rich
+   * error responses that carry extra fields (e.g. `code`, `detail`).
+   */
+  readonly payload?: Record<string, unknown>;
 
-  constructor(statusCode: number, message: string) {
+  constructor(statusCode: number, message: string, payload?: Record<string, unknown>) {
     super(message);
     this.name = new.target.name;
     this.statusCode = statusCode;
+    this.payload = payload;
     // Restore prototype chain for instanceof across transpilation targets.
     Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+/**
+ * A business-rule rejection that carries the full structured response body
+ * (e.g. `{ error, code, detail }`). Preserves pre-M6 responses that returned
+ * more than a plain `{ error }`.
+ */
+export class BusinessRuleError extends AppError {
+  constructor(statusCode: number, payload: Record<string, unknown>) {
+    super(statusCode, String(payload.error ?? "Request rejected"), payload);
   }
 }
 
