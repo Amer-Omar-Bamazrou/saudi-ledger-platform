@@ -13,6 +13,13 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+/**
+ * Dedicated pool for the session store (connect-pg-simple), isolated from the
+ * request-transaction `pool`. This prevents slow requests that hold a tenant
+ * transaction open from starving login/session queries (M6 / HIGH-1).
+ */
+export const sessionPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+
 type DB = NodePgDatabase<typeof schema>;
 
 /**
@@ -74,45 +81,92 @@ export interface TenantConnection {
 // parameterized, so the role name must be a validated identifier.
 const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+// Bounds a stuck-open tenant transaction (set transaction-locally per request).
+const IDLE_IN_TX_TIMEOUT = "15s";
+
 /**
- * Check out a dedicated pooled client, open a transaction, drop to the non-owner
- * `scope.role`, and set the tenant GUCs — all transaction-locally (`SET LOCAL` /
- * `set_config(..., true)`), so nothing leaks to the next request that reuses the
- * connection. Business queries issued through {@link db} inside `run(...)` then
- * execute on this client under RLS. The caller must `commit()` or `rollback()`.
+ * A pg-compatible client that LAZILY checks out a real pooled connection on the
+ * first query. On acquisition it opens the request transaction, drops to the
+ * non-owner `scope.role`, and sets the tenant GUCs — all transaction-locally
+ * (`SET LOCAL` / `set_config(..., true)`), so nothing leaks across pooled
+ * connections. A request that issues NO query never acquires a connection
+ * (HIGH-1: DB-less routes like /llm no longer hold the pool). drizzle-orm calls
+ * only `.query(...)`, verified against drizzle before adoption.
+ */
+class LazyTenantClient {
+  private client: pg.PoolClient | null = null;
+  private opening: Promise<pg.PoolClient> | null = null;
+
+  constructor(private readonly scope: TenantScope) {}
+
+  private acquire(): Promise<pg.PoolClient> {
+    if (this.client) return Promise.resolve(this.client);
+    if (!this.opening) {
+      this.opening = (async () => {
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN");
+          await client.query(`SET LOCAL ROLE "${this.scope.role}"`);
+          await client.query(`SET LOCAL idle_in_transaction_session_timeout = '${IDLE_IN_TX_TIMEOUT}'`);
+          await client.query("SELECT set_config('app.current_org_id', $1, true)", [this.scope.organizationId]);
+          await client.query("SELECT set_config('app.current_company_id', $1, true)", [this.scope.companyId ?? ""]);
+        } catch (err) {
+          this.opening = null;
+          client.release();
+          throw err;
+        }
+        this.client = client;
+        return client;
+      })();
+    }
+    return this.opening;
+  }
+
+  /** drizzle-orm/node-postgres invokes this for every query. */
+  query(...args: unknown[]): unknown {
+    return this.acquire().then((client) => (client.query as (...a: unknown[]) => unknown)(...args));
+  }
+
+  /** Commit/rollback + release ONLY if a connection was actually acquired. */
+  async finish(action: "COMMIT" | "ROLLBACK"): Promise<void> {
+    if (!this.client && this.opening) {
+      // An acquisition is in flight — wait for it so we don't leak the client.
+      try {
+        await this.opening;
+      } catch {
+        return; // acquisition failed; nothing to release
+      }
+    }
+    const client = this.client;
+    if (!client) return; // never acquired → nothing to do (the HIGH-1 win)
+    this.client = null;
+    try {
+      await client.query(action);
+    } finally {
+      client.release();
+    }
+  }
+}
+
+/**
+ * Build a per-request tenant connection. No I/O happens here — the underlying
+ * pooled client and its `BEGIN`/`SET LOCAL ROLE`/GUCs are established lazily on
+ * the first query issued through {@link db} inside `run(...)`. The caller must
+ * `commit()` (on success) or `rollback()` (on error/abort).
  */
 export async function beginTenantConnection(scope: TenantScope): Promise<TenantConnection> {
   if (!SAFE_IDENTIFIER.test(scope.role)) {
     throw new Error(`Unsafe DB role identifier: ${JSON.stringify(scope.role)}`);
   }
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(`SET LOCAL ROLE "${scope.role}"`);
-    await client.query("SELECT set_config('app.current_org_id', $1, true)", [scope.organizationId]);
-    await client.query("SELECT set_config('app.current_company_id', $1, true)", [scope.companyId ?? ""]);
-  } catch (err) {
-    // Failed while establishing scope — undo and release before propagating.
-    try {
-      await client.query("ROLLBACK");
-    } finally {
-      client.release();
-    }
-    throw err;
-  }
-
-  const scopedDb = drizzle(client, { schema });
+  const lazy = new LazyTenantClient(scope);
+  const scopedDb = drizzle(lazy as unknown as pg.PoolClient, { schema });
   let settled = false;
 
   const finish = async (action: "COMMIT" | "ROLLBACK"): Promise<void> => {
     if (settled) return;
     settled = true;
-    try {
-      await client.query(action);
-    } finally {
-      client.release();
-    }
+    await lazy.finish(action);
   };
 
   return {
