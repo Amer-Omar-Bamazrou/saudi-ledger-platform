@@ -132,6 +132,16 @@ permission-based (still the 3-role model, enforcement consolidated):**
 Write new code in this layered shape: HTTP in the route/controller, logic in a
 service, and every query in a repository (tenant-scoped).
 
+**Milestone 8 (CI/CD) is done — automated checks on every PR + push to main.**
+`.github/workflows/ci.yml` runs three jobs: **typecheck** (`pnpm run typecheck`),
+**test** (spins up a `postgres:16` service, bootstraps the non-owner
+`authenticated` role, applies migrations, then runs the DB-free API tests **and**
+the DB-backed RLS-isolation + rollback tests), and **build** (`pnpm run build`).
+Node is pinned via `.nvmrc` (24) and pnpm via the root `packageManager` field.
+These three checks should be **required** for merging to `main` (branch
+protection). Not yet included (in the plan, future add): OpenAPI codegen drift and
+migration-schema drift checks, and a lint job (no ESLint config exists yet).
+
 See `docs/phase-0-implementation-plan.md`.
 
 ### Known Issues / Deferred (from the M4 security re-audit)

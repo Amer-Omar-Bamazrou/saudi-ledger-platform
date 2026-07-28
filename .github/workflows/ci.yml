@@ -1,0 +1,96 @@
+name: CI
+
+# Runs on every pull request and every push to main.
+# Required checks for merging into main (configure in branch protection):
+#   - typecheck
+#   - test
+#   - build
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. rapid PR pushes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Type safety across the whole monorepo ──────────────────────────────────
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # pnpm version comes from package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  # ── Tests: DB-free API tests + DB-backed isolation/rollback tests ──────────
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The RLS isolation/rollback tests drop to the non-owner `authenticated`
+      # role (a Supabase built-in) via SET LOCAL ROLE, and migration 0004 grants
+      # privileges to it. A vanilla postgres:16 container has no such role, so
+      # create it and make `postgres` a member before applying migrations. The
+      # service container is fresh per run, so no idempotency guard is needed.
+      - name: Bootstrap non-owner role (authenticated)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE authenticated NOLOGIN; GRANT authenticated TO postgres;"
+
+      - name: Apply migrations
+        run: pnpm --filter @workspace/db run migrate
+
+      - name: API tests (DB-free)
+        run: pnpm --filter @workspace/api-server run test
+
+      - name: DB tests (cross-tenant RLS isolation + transaction rollback)
+        run: pnpm --filter @workspace/db run test
+
+  # ── Production build of every app/package ──────────────────────────────────
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    # The web build (vite.config.ts) requires PORT + BASE_PATH at config load.
+    env:
+      NODE_ENV: production
+      PORT: "3000"
+      BASE_PATH: /
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
