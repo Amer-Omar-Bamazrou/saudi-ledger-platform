@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { transactionsTable, categoriesTable } from "@workspace/db";
 import { eq, isNull, inArray } from "drizzle-orm";
 import { RunCategorizationBody, RunCategorizationResponse } from "@workspace/api-zod";
-import { categorizeTransaction } from "../lib/categorizer.js";
+import { categorizeTransaction } from "../services/categorization/categorizer.js";
 
 const router = Router();
 

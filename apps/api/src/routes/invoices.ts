@@ -2,9 +2,9 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { invoicesTable, invoiceItemsTable, customersTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { postJournalEntry } from "../lib/glPosting";
-import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "../lib/zatca";
-import { checkPeriodOpen } from "../lib/periodLock";
+import { postJournalEntry } from "../services/accounting/glPosting";
+import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "../services/accounting/zatca";
+import { checkPeriodOpen } from "../services/accounting/periodLock";
 import { handleRouteError } from "../lib/routeError";
 
 const router = Router();

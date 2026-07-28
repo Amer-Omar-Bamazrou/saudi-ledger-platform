@@ -16,7 +16,7 @@ import {
   UploadTransactionsBody,
   UploadTransactionsResponse,
 } from "@workspace/api-zod";
-import { categorizeTransaction } from "../lib/categorizer.js";
+import { categorizeTransaction } from "../services/categorization/categorizer.js";
 
 const router = Router();
 

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { payrollRunsTable, payrollItemsTable, employeesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { postJournalEntry } from "../lib/glPosting";
+import { postJournalEntry } from "../services/accounting/glPosting";
 import { handleRouteError } from "../lib/routeError";
 
 const router = Router();

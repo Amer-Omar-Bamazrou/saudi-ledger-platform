@@ -11,8 +11,8 @@ import {
   LLM_MODEL,
   checkOllamaReachable,
   categorizeWithLlm,
-} from "../lib/llmCategorizer.js";
-import { categorizeTransaction } from "../lib/categorizer.js";
+} from "../services/categorization/llmCategorizer.js";
+import { categorizeTransaction } from "../services/categorization/categorizer.js";
 
 const router = Router();
 

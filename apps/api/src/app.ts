@@ -6,6 +6,7 @@ import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
 import router from "./routes";
+import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./lib/logger";
 
 const env = loadEnv();
@@ -71,5 +72,8 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Centralized error handler — must be registered last, after the router.
+app.use(errorHandler);
 
 export default app;

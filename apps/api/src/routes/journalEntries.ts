@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { checkPeriodOpen } from "../lib/periodLock";
+import { checkPeriodOpen } from "../services/accounting/periodLock";
 import { handleRouteError } from "../lib/routeError";
 
 const router = Router();
