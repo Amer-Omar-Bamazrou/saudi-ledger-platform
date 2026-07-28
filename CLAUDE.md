@@ -155,6 +155,16 @@ These were identified in the post-M4 security review and **intentionally deferre
   bill payment **individually gateable to admin**, and support a "clerk enters /
   approver pays" split for AP. This needs **action-level** (per-endpoint)
   permissions rather than method-level, and is out of the M5 3-role scope.
+- **[FEATURE] Draft/approval workflow + 4-role model — `do not implement before M6`.**
+  Approved-but-deferred feature: a universal draft/approval workflow across all
+  financial records (journal entries, invoices, bills, payments, payroll), backed
+  by a 4-role model that adds a **Bookkeeper** (creates drafts only, cannot
+  approve). Every financial record is created as a draft that does **not** affect
+  the accounts (GL, balances, reports, VAT/Zakat) until approved; reports/GL must
+  filter to APPROVED only. Generalizes the existing journal-entry draft→posted
+  pattern. Must be built in the **M6 service layer**, not current route handlers —
+  so it is gated on M6 and targets a **new milestone after M6**. Full design:
+  [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-draft-approval-workflow.md).
 
 ## 3. Tech Stack
 
