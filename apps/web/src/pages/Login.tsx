@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Languages, Info } from "lucide-react";
 
-type Tab = "login" | "register" | "forgot";
+type Tab = "login" | "forgot";
 
 export default function Login() {
   const { login } = useAuth();
@@ -23,17 +23,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Register state
-  const [regName, setRegName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regConfirm, setRegConfirm] = useState("");
-  const [regError, setRegError] = useState("");
-  const [regLoading, setRegLoading] = useState(false);
-
-  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const API = `${BASE}/api`;
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -45,30 +34,6 @@ export default function Login() {
       setError(err.message ?? "Login failed");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRegError("");
-    if (regPassword !== regConfirm) { setRegError(t("Passwords do not match.", "كلمتا المرور غير متطابقتين.")); return; }
-    if (regPassword.length < 8) { setRegError(t("Password must be at least 8 characters.", "يجب أن تكون كلمة المرور 8 أحرف على الأقل.")); return; }
-    setRegLoading(true);
-    try {
-      const res = await fetch(`${API}/auth/register`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail, name: regName, password: regPassword, role: "admin" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? t("Registration failed", "فشل التسجيل"));
-      await login(regEmail, regPassword);
-      navigate("/");
-    } catch (err: any) {
-      setRegError(err.message ?? t("Registration failed", "فشل التسجيل"));
-    } finally {
-      setRegLoading(false);
     }
   };
 
@@ -135,77 +100,6 @@ export default function Login() {
                   {loading ? t("Signing in…", "جارٍ تسجيل الدخول…") : t("Sign in", "تسجيل الدخول")}
                 </Button>
               </form>
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                {t("No account yet?", "ليس لديك حساب؟")}{" "}
-                <button onClick={() => setTab("register")} className="text-primary hover:underline">
-                  {t("Create account", "إنشاء حساب")}
-                </button>
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Create Account ── */}
-        {tab === "register" && (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle>{t("Create account", "إنشاء حساب")}</CardTitle>
-              <CardDescription>
-                {t(
-                  "The first account created becomes the system admin. Additional accounts must be created by an admin from User Management.",
-                  "يصبح أول حساب يُنشأ هو مسؤول النظام. يجب إنشاء الحسابات الإضافية بواسطة مسؤول من إدارة المستخدمين."
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRegister} className="space-y-4">
-                {regError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{regError}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-name">{t("Full name", "الاسم الكامل")}</Label>
-                  <Input
-                    id="reg-name" autoComplete="name"
-                    value={regName} onChange={e => setRegName(e.target.value)}
-                    required placeholder="Ahmed Al-Rashidi"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-email">{t("Email", "البريد الإلكتروني")}</Label>
-                  <Input
-                    id="reg-email" type="email" autoComplete="email"
-                    value={regEmail} onChange={e => setRegEmail(e.target.value)}
-                    required placeholder="admin@company.sa"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-password">{t("Password", "كلمة المرور")}</Label>
-                  <Input
-                    id="reg-password" type="password" autoComplete="new-password"
-                    value={regPassword} onChange={e => setRegPassword(e.target.value)}
-                    required placeholder={t("Min 8 characters", "8 أحرف على الأقل")} minLength={8}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reg-confirm">{t("Confirm password", "تأكيد كلمة المرور")}</Label>
-                  <Input
-                    id="reg-confirm" type="password" autoComplete="new-password"
-                    value={regConfirm} onChange={e => setRegConfirm(e.target.value)}
-                    required placeholder={t("Repeat password", "أعد كلمة المرور")}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={regLoading}>
-                  {regLoading ? t("Creating…", "جارٍ الإنشاء…") : t("Create account", "إنشاء حساب")}
-                </Button>
-              </form>
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                {t("Already have an account?", "لديك حساب بالفعل؟")}{" "}
-                <button onClick={() => setTab("login")} className="text-primary hover:underline">
-                  {t("Sign in", "تسجيل الدخول")}
-                </button>
-              </p>
             </CardContent>
           </Card>
         )}

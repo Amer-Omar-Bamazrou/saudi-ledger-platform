@@ -11,16 +11,29 @@ import { requireAuth, requireAdmin } from "../lib/auth";
 const router = Router();
 const SALT_ROUNDS = 12;
 
+// Fixed decoy hash used to keep login timing constant when the email is unknown
+// or the account is inactive. Comparing the supplied password against this hash
+// costs roughly the same as comparing against a real user's hash, so an attacker
+// can't distinguish "no such user" from "wrong password" by response time.
+// The plaintext is irrelevant — it only ever needs to NOT match a real password.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("timing-attack-decoy", SALT_ROUNDS);
+
 function safeUser(u: typeof usersTable.$inferSelect) {
   return { id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive, createdAt: u.createdAt.toISOString() };
 }
 
 /**
- * POST /auth/register
- * - First user ever can register freely (bootstraps the system).
- * - Subsequent registrations require an admin session.
+ * POST /auth/register — admin only.
+ *
+ * There is intentionally NO unauthenticated bootstrap path: the previous
+ * "first user registers freely" branch was a race-to-admin (two concurrent
+ * unauthenticated requests could both observe "no users exist" and both insert
+ * as admin, and any attacker reaching the API before the real operator could
+ * self-register as admin). The initial admin is now provisioned out-of-band via
+ * the seed script (`pnpm --filter @workspace/db run seed`, gated on the
+ * SEED_ADMIN_* env vars). All HTTP registration requires an existing admin.
  */
-router.post("/register", async (req, res) => {
+router.post("/register", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { email, name, password, role = "viewer" } = req.body;
     if (!email || !name || !password) {
@@ -28,15 +41,6 @@ router.post("/register", async (req, res) => {
     }
     if (!["admin", "accountant", "viewer"].includes(role)) {
       res.status(400).json({ error: "Invalid role. Must be admin, accountant, or viewer." }); return;
-    }
-
-    // Check if any users exist
-    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).limit(1);
-    if (existing) {
-      // Not the first user — require admin session
-      if (!req.session?.userId || req.session.userRole !== "admin") {
-        res.status(403).json({ error: "Only an admin can register new users." }); return;
-      }
     }
 
     // Check duplicate email
@@ -58,30 +62,38 @@ router.post("/login", async (req, res) => {
     }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (!user || !user.isActive) {
-      res.status(401).json({ error: "Invalid credentials." }); return;
-    }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    // Always run a bcrypt comparison — against the real hash when the user
+    // exists, otherwise against a fixed decoy — so the response time is the same
+    // whether or not the email is registered. This closes the timing side channel
+    // that would otherwise let an attacker enumerate valid accounts.
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    if (!user || !user.isActive || !valid) {
       res.status(401).json({ error: "Invalid credentials." }); return;
     }
 
     // Stamp last login
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
-    req.session.userId = user.id;
-    req.session.userRole = user.role as any;
-    req.session.userName = user.name;
-    req.session.userEmail = user.email;
+    // Rotate the session ID on the anonymous → authenticated transition to
+    // defend against session fixation: any pre-login session identifier an
+    // attacker may have planted is discarded and a fresh one is issued.
+    req.session.regenerate((regenErr) => {
+      if (regenErr) { req.log.error({ err: regenErr }); res.status(500).json({ error: "Session error." }); return; }
 
-    // Save the session to PostgreSQL BEFORE sending the response.
-    // Without this, express-session flushes asynchronously after res.end(),
-    // and the very next request from the browser arrives before the row exists
-    // in user_sessions → requireAuth sees no session → immediate 401.
-    req.session.save((err) => {
-      if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
-      res.json({ user: safeUser(user), token: req.sessionID, message: "Logged in successfully." });
+      req.session.userId = user.id;
+      req.session.userRole = user.role as any;
+      req.session.userName = user.name;
+      req.session.userEmail = user.email;
+
+      // Save the session to PostgreSQL BEFORE sending the response.
+      // Without this, express-session flushes asynchronously after res.end(),
+      // and the very next request from the browser arrives before the row exists
+      // in user_sessions → requireAuth sees no session → immediate 401.
+      req.session.save((err) => {
+        if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
+        res.json({ user: safeUser(user), token: req.sessionID, message: "Logged in successfully." });
+      });
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
