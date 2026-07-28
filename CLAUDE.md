@@ -25,31 +25,65 @@ We are in **Phase 0 (Platform Foundation)**, working through small milestones to
 - Fix security gaps (e.g. session secrets, per-tenant isolation, access control)
 - Prepare the groundwork for future AI features
 
-Multi-tenancy is now **enforced at the database layer** (Milestone 3). The
-platform tables (`organizations`, `companies`, `branches`, `departments`,
-`organization_memberships`, `audit_logs`, `permissions`, `feature_flags`) exist;
-a bootstrap tenant (`organizations.slug = 'default'` + a "Default Company") is
-seeded; and every existing business row was backfilled to it. On all business
-tables `organization_id` (and `company_id` on ledger/operational tables) is now
-**NOT NULL** with FKs to `organizations` / `companies`, backed by composite
-indexes leading with `organization_id`. `period_locks` uniqueness is tenant-scoped
+Multi-tenancy is enforced at the database layer (Milestone 3) **and now actively
+at runtime (Milestone 4)**. The platform tables (`organizations`, `companies`,
+`branches`, `departments`, `organization_memberships`, `audit_logs`,
+`permissions`, `feature_flags`) exist; a bootstrap tenant
+(`organizations.slug = 'default'` + a "Default Company") is seeded; and every
+existing business row was backfilled to it. On all business tables
+`organization_id` (and `company_id` on ledger/operational tables) is **NOT NULL**
+with FKs to `organizations` / `companies`, backed by composite indexes leading
+with `organization_id`. `period_locks` uniqueness is tenant-scoped
 (`unique(organization_id, company_id, period)`). **RLS is enabled** on every
 business table (+ `audit_logs`, `companies`, `branches`, `departments`) with a
 `tenant_isolation` policy keyed off the `app.current_org_id` session GUC; a
 cross-tenant isolation test suite (`packages/db/src/__tests__`) proves org A
 cannot read or mutate org B's rows.
 
-Two things are **not yet wired (Milestone 4)** and matter when working here:
+**Milestone 4 (Auth, Session & Tenant Context Hardening) is done:**
 
-- **No request-scoped tenant context yet.** There is no `resolveTenant`
-  middleware and the API still connects as the table **owner** (which bypasses
-  RLS), so RLS is a dormant backstop until M4 makes the app connect as a
-  non-owner role and set `app.current_org_id` (`SET LOCAL`) per request.
-- **New rows default to the bootstrap tenant.** So that pre-M4 write paths keep
-  working without supplying a tenant, `organization_id` / `company_id` have DB
-  DEFAULTs (`app_default_org_id()` / `app_default_company_id()`). These defaults
-  are a temporary bridge and are **removed in M4** once every write supplies the
-  tenant explicitly. Do not rely on them in new code — pass the tenant.
+- **RLS is now actively enforced, not dormant.** Each authenticated request runs
+  inside a per-request transaction that drops to a **non-owner, non-BYPASSRLS**
+  Postgres role via `SET LOCAL ROLE` (config `DB_APP_ROLE`, default Supabase
+  `authenticated`) and sets `app.current_org_id` / `app.current_company_id`
+  transaction-locally. The pool still logs in as the owner (`postgres`) — used
+  only for migrations, seeding, login, the session store, and tenant resolution.
+  RLS is granted to the app role via **explicit per-object** GRANTs in
+  `0004_m4_rls_enforcement.sql` (never `ON ALL TABLES` — see
+  [supabase-local-rls-testing memory / §landmine]). We deliberately do **not**
+  `FORCE ROW LEVEL SECURITY` (the owner has BYPASSRLS, so FORCE is moot for it).
+- **`resolveTenant` middleware** (`apps/api/src/lib/tenant.ts`) runs after
+  `requireAuth`, resolves the active organization from the session +
+  `organization_memberships` (defaulting to the primary membership), attaches a
+  `TenantContext { userId, organizationId, companyId, role }` to `req`, and opens
+  the RLS-scoped transaction. Connection handling: an `AsyncLocalStorage` +
+  `db` **Proxy** in `packages/db` routes existing `import { db }` call sites onto
+  the request's scoped client with **no route changes**; the transaction commits
+  on a successful response and rolls back on error/abort, so tenant context never
+  leaks across pooled connections.
+- **Tenant role is sourced from `organization_memberships`** (the business-route
+  method guard and `requireTenantRole` read `req.tenant.role`). Global user
+  management still uses the session role until RBAC (M5). The 3-role model
+  (`admin | accountant | viewer`) is unchanged.
+- **M3 bootstrap-tenant DB DEFAULTs are removed.** `app_default_org_id()` /
+  `app_default_company_id()` are dropped; `organization_id` / `company_id` now
+  default to the **request tenant** via `current_setting('app.current_org_id')` /
+  `current_setting('app.current_company_id')`. No tenant context ⇒ default NULL ⇒
+  NOT NULL rejects the write (fail-safe), and RLS `WITH CHECK` independently
+  guarantees correctness.
+- **Security hardening:** validated env config in `@workspace/config` (fail-fast
+  at boot, no `SESSION_SECRET` fallback); explicit CORS allow-list
+  (`CORS_ALLOWED_ORIGINS`); cookies `httpOnly` + `sameSite=lax` + `secure` in
+  production; the localStorage bearer-token workaround is **fully removed** (auth
+  is the httpOnly session cookie only); rate limiting on `/auth/login`,
+  `/auth/register`, `/auth/change-password`.
+- **Org switcher:** `GET /api/orgs` (list memberships) + `POST /api/orgs/switch`
+  (set `session.activeOrgId`), mounted **before** `resolveTenant` (cross-org);
+  minimal unstyled selector in the web sidebar.
+
+Still deferred by design: the Route→Controller→Service→Repository layering (M6)
+and permission-based RBAC (M5). Write new code tenant-aware; pass/receive the
+`TenantContext` rather than relying on any implicit default.
 
 See `docs/phase-0-implementation-plan.md`.
 

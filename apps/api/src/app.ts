@@ -4,12 +4,22 @@ import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
+import { loadEnv } from "@workspace/config";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+const env = loadEnv();
+const isProduction = env.NODE_ENV === "production";
 
 const PgSession = connectPgSimple(session);
 
 const app: Express = express();
+
+// Behind a TLS-terminating reverse proxy in production: trust the first proxy so
+// `secure` cookies are honored and express-rate-limit keys on the real client IP.
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
 
 app.use(
   pinoHttp({
@@ -25,16 +35,20 @@ app.use(
   }),
 );
 
+// Explicit CORS allow-list from config (replaces the old reflect-any
+// `origin: true`, which combined with credentials let any site call the API).
 app.use(
   cors({
-    origin: true,
+    origin: env.CORS_ALLOWED_ORIGINS,
     credentials: true,
   }),
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware — backed by PostgreSQL
+// Session middleware — backed by PostgreSQL. Auth is the httpOnly session cookie
+// only: the previous localStorage bearer-token workaround (a Replit cross-site
+// iframe hack that exposed the raw session id to JS) has been removed entirely.
 app.use(
   session({
     store: new PgSession({
@@ -43,45 +57,18 @@ app.use(
       createTableIfMissing: true,
     }),
     name: "ksa_ledger_sid",
-    secret: process.env["SESSION_SECRET"] ?? "change-me-in-production",
+    secret: env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // refresh the cookie's max-age on activity
     cookie: {
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: isProduction, // require HTTPS for the cookie in production
     },
   }),
 );
-
-// ── Bearer-token session loader ───────────────────────────────────────────────
-// The Replit preview is an iframe inside replit.com. Chrome blocks third-party
-// cookies from cross-site iframes, so the session cookie never reaches the
-// browser. Instead, the login route returns req.sessionID as a plain token.
-// The client stores it in localStorage and sends it as "Authorization: Bearer
-// <sessionID>" on every request. This middleware loads the matching session row
-// from PostgreSQL and populates req.session so requireAuth works normally.
-app.use((req, _res, next) => {
-  // Cookie-based session already worked — nothing to do.
-  if (req.session?.userId) { next(); return; }
-
-  const auth = req.headers["authorization"];
-  if (!auth?.startsWith("Bearer ")) { next(); return; }
-
-  const sid = auth.slice(7).trim();
-  if (!sid) { next(); return; }
-
-  req.sessionStore.get(sid, (err, data) => {
-    if (err || !data) { next(); return; }
-    const s = data as any;
-    req.session.userId    = s.userId;
-    req.session.userRole  = s.userRole;
-    req.session.userName  = s.userName;
-    req.session.userEmail = s.userEmail;
-    next();
-  });
-});
 
 app.use("/api", router);
 

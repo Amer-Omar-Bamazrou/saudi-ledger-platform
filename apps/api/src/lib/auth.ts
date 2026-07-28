@@ -12,6 +12,8 @@ declare module "express-session" {
     userRole: UserRole;
     userName: string;
     userEmail: string;
+    /** The organization the user is currently acting in (set by the org switcher). */
+    activeOrgId: string;
   }
 }
 
@@ -41,3 +43,22 @@ export function requireRole(...roles: UserRole[]) {
 /** Shorthand guards */
 export const requireAdmin = requireRole("admin");
 export const requireAccountantOrAbove = requireRole("admin", "accountant");
+
+/**
+ * Like {@link requireRole} but reads the role from the resolved tenant context
+ * (the active organization membership) rather than the session. Must run after
+ * `resolveTenant`. This is the tenant-scoped authorization seam for business
+ * routes; global user-management still uses the session-based guards above.
+ */
+export function requireTenantRole(...roles: UserRole[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const role = req.tenant?.role;
+    if (!role || !roles.includes(role)) {
+      res.status(403).json({
+        error: `Access denied. Required role: ${roles.join(" or ")}. Your role: ${role ?? "none"}.`,
+      });
+      return;
+    }
+    next();
+  };
+}

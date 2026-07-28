@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
 import {
   LayoutDashboard, ListOrdered, BrainCog, UploadCloud,
   Receipt, Landmark, Tags, Users, Building2, FileText, FileInput,
@@ -212,6 +213,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
             </div>
+            <OrgSwitcher />
             <div className="flex items-center justify-between">
               <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.role] ?? ROLE_COLOR.viewer)}>
                 {lang === "ar" ? (ROLE_AR[user.role] ?? user.role) : user.role.toUpperCase()}

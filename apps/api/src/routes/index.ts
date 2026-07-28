@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { requireAuth, requireAccountantOrAbove, requireAdmin } from "../lib/auth";
+import { requireAuth, requireTenantRole } from "../lib/auth";
+import { resolveTenant } from "../lib/tenant";
 
 // Route modules
 import health from "./health.js";
 import auth from "./auth.js";
+import orgs from "./orgs.js";
 import transactions from "./transactions.js";
 import categories from "./categories.js";
 import categorize from "./categorize.js";
@@ -32,12 +34,20 @@ router.use("/auth", auth);
 // ── All remaining routes require a valid session ─────────────────────────────
 router.use(requireAuth);
 
-// ── Method-level role guard (applied after auth) ──────────────────────────────
+// ── Cross-organization endpoints (NOT tenant-scoped) ──────────────────────────
+// Listing/switching organizations is inherently cross-org, so these run on the
+// base connection BEFORE resolveTenant narrows the request to a single tenant.
+router.use("/orgs", orgs);
+
+// ── Tenant context + RLS-scoped transaction for every business request ────────
+router.use(resolveTenant);
+
+// ── Method-level role guard (role sourced from the active membership) ─────────
 // DELETE → Admin only
 // POST / PATCH / PUT → Accountant or Admin
 // GET → any authenticated role (viewer, accountant, admin)
 router.use((req, res, next) => {
-  const role = req.session?.userRole;
+  const role = req.tenant?.role;
   if (req.method === "DELETE" && role !== "admin") {
     res.status(403).json({ error: "Only admins can delete records." }); return;
   }
@@ -69,6 +79,6 @@ router.use("/llm", llm);
 // ── Mutation-heavy sub-routes are further guarded inside their handlers ───────
 // (Accountant/Admin guards are applied per-verb in each route file for
 //  POST/PATCH/DELETE. Viewer-only users can read but not write.)
-router.use("/categorize", requireAccountantOrAbove, categorize);
+router.use("/categorize", requireTenantRole("admin", "accountant"), categorize);
 
 export default router;

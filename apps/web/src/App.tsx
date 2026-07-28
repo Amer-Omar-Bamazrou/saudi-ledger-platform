@@ -6,13 +6,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
-import { setAuthTokenGetter } from '@workspace/api-client-react';
-import { TOKEN_KEY } from '@/lib/api';
-
-// Wire the generated API client to use the same Bearer token as apiFetch.
-// This makes useGetVatSummary / useGetZakatSummary work inside the iframe
-// where session cookies are blocked by Chrome's third-party cookie policy.
-setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
 
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';

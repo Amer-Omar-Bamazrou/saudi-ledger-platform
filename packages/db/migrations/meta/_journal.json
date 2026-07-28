@@ -29,6 +29,13 @@
       "when": 1785189151331,
       "tag": "0003_rls_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785267986835,
+      "tag": "0004_m4_rls_enforcement",
+      "breakpoints": true
     }
   ]
 }

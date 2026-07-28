@@ -3,6 +3,7 @@
  */
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -10,6 +11,19 @@ import { requireAuth, requireAdmin } from "../lib/auth";
 
 const router = Router();
 const SALT_ROUNDS = 12;
+
+/**
+ * Brute-force protection for credential endpoints. In-memory store (fine for a
+ * single instance; move to a Redis store when the API scales horizontally).
+ * Keys on client IP; 10 attempts per 15 minutes.
+ */
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in a few minutes." },
+});
 
 // Fixed decoy hash used to keep login timing constant when the email is unknown
 // or the account is inactive. Comparing the supplied password against this hash
@@ -33,7 +47,7 @@ function safeUser(u: typeof usersTable.$inferSelect) {
  * the seed script (`pnpm --filter @workspace/db run seed`, gated on the
  * SEED_ADMIN_* env vars). All HTTP registration requires an existing admin.
  */
-router.post("/register", requireAuth, requireAdmin, async (req, res) => {
+router.post("/register", authRateLimiter, requireAuth, requireAdmin, async (req, res) => {
   try {
     const { email, name, password, role = "viewer" } = req.body;
     if (!email || !name || !password) {
@@ -54,7 +68,7 @@ router.post("/register", requireAuth, requireAdmin, async (req, res) => {
 });
 
 /** POST /auth/login */
-router.post("/login", async (req, res) => {
+router.post("/login", authRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -92,7 +106,7 @@ router.post("/login", async (req, res) => {
       // in user_sessions → requireAuth sees no session → immediate 401.
       req.session.save((err) => {
         if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
-        res.json({ user: safeUser(user), token: req.sessionID, message: "Logged in successfully." });
+        res.json({ user: safeUser(user), message: "Logged in successfully." });
       });
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
@@ -140,7 +154,7 @@ router.patch("/users/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 /** POST /auth/change-password — logged-in user changes their own password */
-router.post("/change-password", requireAuth, async (req, res) => {
+router.post("/change-password", authRateLimiter, requireAuth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {

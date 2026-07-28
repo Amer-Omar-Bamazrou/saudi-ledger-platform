@@ -10,6 +10,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../../packages/config"
+    },
+    {
       "path": "../../packages/db"
     },
     {

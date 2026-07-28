@@ -1,26 +1,17 @@
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-/** Key used to persist the session token in localStorage. */
-export const TOKEN_KEY = "ksa_ledger_token";
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // Auth is carried by the httpOnly session cookie only (credentials: "include").
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(),
       ...init?.headers,
     },
     ...init,
   });
   if (res.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
     window.location.href = `${import.meta.env.BASE_URL}login`;
     throw new Error("Session expired. Please log in.");
   }
