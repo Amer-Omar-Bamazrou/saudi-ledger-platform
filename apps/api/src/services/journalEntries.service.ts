@@ -6,6 +6,7 @@
 import { ConflictError, NotFoundError } from "../lib/errors";
 import { BadRequestError } from "../lib/errors";
 import { checkPeriodOpen } from "./accounting/periodLock";
+import { auditService } from "./audit.service";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import type { journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 
@@ -76,7 +77,9 @@ export const journalEntriesService = {
             })),
           )
         : [];
-    return buildJEOut(je, savedLines);
+    const out = buildJEOut(je, savedLines);
+    await auditService.created("journal_entry", je.id, out);
+    return out;
   },
 
   async post(id: number) {
@@ -88,7 +91,9 @@ export const journalEntriesService = {
     }
     const [je] = await journalEntriesRepository.updateEntry(id, { status: "posted", postedAt: new Date() });
     const lines = await journalEntriesRepository.linesByEntry(id);
-    return buildJEOut(je, lines);
+    const out = buildJEOut(je, lines);
+    await auditService.updated("journal_entry", id, existing, out);
+    return out;
   },
 
   async reverse(id: number) {
@@ -121,7 +126,11 @@ export const journalEntriesService = {
     );
     await journalEntriesRepository.updateEntry(id, { status: "reversed" });
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
-    return { message: "Reversed", reversalId: reversal.id, reversal: buildJEOut(reversal, reversalLines) };
+    const reversalOut = buildJEOut(reversal, reversalLines);
+    // Two things happened: a new reversal entry was posted, and the original was reversed.
+    await auditService.created("journal_entry", reversal.id, reversalOut);
+    await auditService.updated("journal_entry", id, original, { ...original, status: "reversed", reversalId: reversal.id });
+    return { message: "Reversed", reversalId: reversal.id, reversal: reversalOut };
   },
 
   async remove(id: number) {
@@ -131,5 +140,6 @@ export const journalEntriesService = {
       throw new ConflictError(`Cannot delete a ${existing.status} journal entry. Post a reversing entry instead.`);
     }
     await journalEntriesRepository.remove(id);
+    await auditService.deleted("journal_entry", id, existing);
   },
 };

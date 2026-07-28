@@ -3,6 +3,7 @@
  * Behavior preserved exactly from the pre-M6 route handler.
  */
 import { NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { customersRepository, type CustomerListFilter } from "../repositories/customers.repository";
 import type { customersTable } from "@workspace/db";
 
@@ -39,16 +40,21 @@ export const customersService = {
   // POST/PATCH preserve the pre-M6 behavior of returning the raw row (no view mapping).
   async create(data: typeof customersTable.$inferInsert) {
     const [row] = await customersRepository.insert(data);
+    await auditService.created("customer", row.id, row);
     return row;
   },
 
   async update(id: number, data: Partial<typeof customersTable.$inferInsert>) {
+    const [before] = await customersRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const [row] = await customersRepository.update(id, data);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("customer", id, before, row);
     return row;
   },
 
   async remove(id: number) {
+    const [before] = await customersRepository.findById(id);
     await customersRepository.remove(id);
+    if (before) await auditService.deleted("customer", id, before);
   },
 };

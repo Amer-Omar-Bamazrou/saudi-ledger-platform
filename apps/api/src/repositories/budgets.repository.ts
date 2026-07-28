@@ -25,6 +25,10 @@ export const budgetsRepository = {
       );
   },
 
+  findById(id: number) {
+    return db.select().from(budgetsTable).where(eq(budgetsTable.id, id)).limit(1);
+  },
+
   insert(values: typeof budgetsTable.$inferInsert) {
     return db.insert(budgetsTable).values(values).returning();
   },

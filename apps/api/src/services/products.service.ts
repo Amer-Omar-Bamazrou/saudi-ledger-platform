@@ -1,5 +1,6 @@
 /** Products service — numeric (de)serialization + view. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { productsRepository, type ProductListFilter } from "../repositories/products.repository";
 import type { productsTable } from "@workspace/db";
 
@@ -32,19 +33,24 @@ export const productsService = {
       unitCost: data.unitCost != null ? String(data.unitCost) : null,
     } as typeof productsTable.$inferInsert;
     const [row] = await productsRepository.insert(values);
+    await auditService.created("product", row.id, row);
     return toView(row);
   },
 
   async update(id: number, data: Record<string, unknown>) {
+    const [before] = await productsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const updates = { ...data } as Record<string, unknown>;
     if (updates.unitPrice != null) updates.unitPrice = String(updates.unitPrice);
     if (updates.unitCost != null) updates.unitCost = String(updates.unitCost);
     const [row] = await productsRepository.update(id, updates as Partial<typeof productsTable.$inferInsert>);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("product", id, before, row);
     return toView(row);
   },
 
   async remove(id: number) {
+    const [before] = await productsRepository.findById(id);
     await productsRepository.remove(id);
+    if (before) await auditService.deleted("product", id, before);
   },
 };

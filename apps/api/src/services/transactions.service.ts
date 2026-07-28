@@ -14,6 +14,7 @@ import {
   UploadTransactionsResponse,
 } from "@workspace/api-zod";
 import { AppError, NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { categorizeTransaction } from "./categorization/categorizer.js";
 import { transactionsRepository, type TransactionFilter } from "../repositories/transactions.repository";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
@@ -121,6 +122,15 @@ export const transactionsService = {
       }
     }
 
+    if (inserted > 0) {
+      // Bulk import → one summary audit record (not one per row).
+      await auditService.record({
+        action: "create",
+        entityType: "transaction",
+        entityId: "bulk",
+        after: { inserted, categorized },
+      });
+    }
     return UploadTransactionsResponse.parse({ inserted, categorized, errors });
   },
 
@@ -141,6 +151,7 @@ export const transactionsService = {
       source: d.source ?? "manual",
       notes: d.notes ?? null,
     });
+    await auditService.created("transaction", tx.id, tx);
 
     const [row] = await transactionsRepository.findWithCategory(tx.id);
     if (!row) throw new AppError(500, "Insert failed");
@@ -169,10 +180,13 @@ export const transactionsService = {
 
     const [row] = await transactionsRepository.findWithCategory(id);
     if (!row) throw new AppError(500, "Update failed");
+    await auditService.updated("transaction", id, existing.tx, row.tx);
     return UpdateTransactionResponse.parse(buildTransactionRow(row.tx, row.cat));
   },
 
   async remove(id: number) {
+    const [existing] = await transactionsRepository.findWithCategory(id);
     await transactionsRepository.remove(id);
+    if (existing) await auditService.deleted("transaction", id, existing.tx);
   },
 };

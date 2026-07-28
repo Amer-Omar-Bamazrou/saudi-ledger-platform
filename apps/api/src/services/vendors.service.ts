@@ -1,5 +1,6 @@
 /** Vendors service — AP summary + supplier matching. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";
 import type { vendorsTable } from "@workspace/db";
 
@@ -53,17 +54,22 @@ export const vendorsService = {
 
   async create(data: typeof vendorsTable.$inferInsert) {
     const [row] = await vendorsRepository.insert(data);
+    await auditService.created("vendor", row.id, row);
     // Explicit created:true so callers can distinguish "created" from "existed".
     return { ...row, created: true as const };
   },
 
   async update(id: number, data: Partial<typeof vendorsTable.$inferInsert>) {
+    const [before] = await vendorsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const [row] = await vendorsRepository.update(id, data);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("vendor", id, before, row);
     return row;
   },
 
   async remove(id: number) {
+    const [before] = await vendorsRepository.findById(id);
     await vendorsRepository.remove(id);
+    if (before) await auditService.deleted("vendor", id, before);
   },
 };

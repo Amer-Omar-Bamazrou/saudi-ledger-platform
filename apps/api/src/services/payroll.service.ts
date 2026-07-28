@@ -4,6 +4,7 @@
  * GOSI rates + all arithmetic preserved exactly from the pre-M6 route.
  */
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { payrollRepository } from "../repositories/payroll.repository";
 import type { payrollRunsTable, payrollItemsTable } from "@workspace/db";
@@ -109,6 +110,7 @@ export const payrollService = {
       createdBy: userId ?? null,
     } as Parameters<typeof payrollRepository.insertRun>[0]);
     await payrollRepository.insertItems(items.map((i) => ({ ...i, payrollRunId: run.id })));
+    await auditService.created("payroll_run", run.id, run);
     return runToOut(run);
   },
 
@@ -138,6 +140,7 @@ export const payrollService = {
     });
 
     const [approved] = await payrollRepository.updateRun(id, { status: "approved", processedAt: new Date() });
+    await auditService.updated("payroll_run", id, run, approved);
     return runToOut(approved);
   },
 };

@@ -75,6 +75,10 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
 
   // Global user administration (documentation/future use — see header note).
   users: { read: ADMIN_ONLY, create: ADMIN_ONLY, update: ADMIN_ONLY },
+
+  // Audit trail — admin-only read (M7). Writes are done by the audit service on
+  // every mutation, not via a route, so only `read` is enforced here.
+  audit_logs: { read: ADMIN_ONLY },
 };
 
 /** The flattened matrix: one row per (role, resource, action) grant. */

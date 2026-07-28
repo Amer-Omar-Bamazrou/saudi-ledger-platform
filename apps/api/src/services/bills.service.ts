@@ -6,6 +6,7 @@
  * preserved exactly from the pre-M6 route.
  */
 import { BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { billsRepository, type BillListFilter } from "../repositories/bills.repository";
@@ -104,6 +105,7 @@ export const billsService = {
       await billsRepository.insertItems(preparedItems.map((it: any) => ({ ...it, billId: bill.id })));
     }
 
+    await auditService.created("bill", bill.id, bill);
     return buildBillOut(bill, null);
   },
 
@@ -175,6 +177,7 @@ export const billsService = {
     });
 
     const [updated] = await billsRepository.update(id, { status: "received" });
+    await auditService.updated("bill", id, row.bill, updated);
     return buildBillOut(updated, row.vendor);
   },
 
@@ -183,6 +186,7 @@ export const billsService = {
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be edited.");
     const [bill] = await billsRepository.update(id, data);
+    await auditService.updated("bill", id, existing, bill);
     return buildBillOut(bill, null);
   },
 
@@ -190,6 +194,7 @@ export const billsService = {
     const { amount, paidAt } = body;
     const payDate = paidAt ?? new Date().toISOString().split("T")[0];
 
+    const [before] = await billsRepository.findById(id);
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(amount),
       paidAt: payDate,
@@ -212,6 +217,7 @@ export const billsService = {
       });
     }
 
+    await auditService.updated("bill", id, before ?? null, bill);
     return buildBillOut(bill, null);
   },
 
@@ -220,5 +226,6 @@ export const billsService = {
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be deleted.");
     await billsRepository.remove(id);
+    await auditService.deleted("bill", id, existing);
   },
 };

@@ -4,6 +4,7 @@ import {
   CreateCategoryBody,
   CreateCategoryResponse,
 } from "@workspace/api-zod";
+import { auditService } from "./audit.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 
 type CreateCategoryInput = ReturnType<(typeof CreateCategoryBody)["parse"]>;
@@ -33,6 +34,7 @@ export const categoriesService = {
       zakatRelevant: data.zakatRelevant,
       description: data.description ?? null,
     });
+    await auditService.created("category", inserted.id, inserted);
     return CreateCategoryResponse.parse({
       id: inserted.id,
       name: inserted.name,

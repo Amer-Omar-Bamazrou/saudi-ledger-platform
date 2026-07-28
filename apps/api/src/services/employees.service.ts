@@ -4,6 +4,7 @@
  * expats 0% / 2%. Behavior unchanged from pre-M6.
  */
 import { NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { employeesRepository, type EmployeeListFilter } from "../repositories/employees.repository";
 import type { employeesTable } from "@workspace/db";
 
@@ -43,20 +44,25 @@ export const employeesService = {
       otherAllowances: String(data.otherAllowances ?? 0),
     } as typeof employeesTable.$inferInsert;
     const [row] = await employeesRepository.insert(values);
+    await auditService.created("employee", row.id, row);
     return toView(row);
   },
 
   async update(id: number, data: Record<string, unknown>) {
+    const [before] = await employeesRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const updates = { ...data } as Record<string, unknown>;
     if (updates.basicSalary != null) updates.basicSalary = String(updates.basicSalary);
     if (updates.housingAllowance != null) updates.housingAllowance = String(updates.housingAllowance);
     if (updates.transportAllowance != null) updates.transportAllowance = String(updates.transportAllowance);
     const [row] = await employeesRepository.update(id, updates as Partial<typeof employeesTable.$inferInsert>);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("employee", id, before, row);
     return toView(row);
   },
 
   async remove(id: number) {
+    const [before] = await employeesRepository.findById(id);
     await employeesRepository.remove(id);
+    if (before) await auditService.deleted("employee", id, before);
   },
 };

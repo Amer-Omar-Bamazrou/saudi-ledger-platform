@@ -3,6 +3,7 @@
  * All arithmetic and guards preserved byte-for-byte from the pre-M6 route.
  */
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { assetsRepository } from "../repositories/assets.repository";
 import type { fixedAssetsTable, depreciationEntriesTable } from "@workspace/db";
 
@@ -47,15 +48,18 @@ export const assetsService = {
       accumulatedDepreciation: "0",
     } as typeof fixedAssetsTable.$inferInsert;
     const [row] = await assetsRepository.insert(values);
+    await auditService.created("asset", row.id, row);
     return toView(row);
   },
 
   async update(id: number, data: Record<string, unknown>) {
+    const [before] = await assetsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const updates = { ...data } as Record<string, unknown>;
     if (updates.purchaseCost != null) updates.purchaseCost = String(updates.purchaseCost);
     if (updates.currentBookValue != null) updates.currentBookValue = String(updates.currentBookValue);
     const [row] = await assetsRepository.update(id, updates as Partial<typeof fixedAssetsTable.$inferInsert>);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("asset", id, before, row);
     return toView(row);
   },
 
@@ -74,7 +78,7 @@ export const assetsService = {
     const newBookValue = bookValue - amount;
     const newAccumulated = toNum(asset.accumulatedDepreciation) + amount;
 
-    await assetsRepository.update(id, {
+    const [updated] = await assetsRepository.update(id, {
       currentBookValue: String(newBookValue.toFixed(2)),
       accumulatedDepreciation: String(newAccumulated.toFixed(2)),
       status: newBookValue <= salvage ? "fully-depreciated" : "active",
@@ -86,10 +90,14 @@ export const assetsService = {
       amount: String(amount.toFixed(2)),
       bookValueAfter: String(newBookValue.toFixed(2)),
     });
+    // A depreciation run mutates the asset's book value — record it as an update.
+    await auditService.updated("asset", id, asset, { ...updated, depreciationEntry: entry });
     return toEntryView(entry);
   },
 
   async remove(id: number) {
+    const [before] = await assetsRepository.findById(id);
     await assetsRepository.remove(id);
+    if (before) await auditService.deleted("asset", id, before);
   },
 };

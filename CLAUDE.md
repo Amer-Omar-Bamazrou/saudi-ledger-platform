@@ -142,6 +142,21 @@ These three checks should be **required** for merging to `main` (branch
 protection). Not yet included (in the plan, future add): OpenAPI codegen drift and
 migration-schema drift checks, and a lint job (no ESLint config exists yet).
 
+**Milestone 7 (Audit Logging) is done — every business mutation is recorded,
+append-only and tenant-scoped.** A single `auditService` (`services/audit.service.ts`)
+writes one `audit_logs` row per logical mutation, called from the **service layer**
+inside the request's tenant transaction — so an audit row commits **atomically with
+the mutation** (a rolled-back request records nothing; we only log what committed).
+Actor/org/IP come from an `auditContext` AsyncLocalStorage set once by
+`resolveTenant`, so services only describe *what* changed. `action` is a free string
+(create | update | delete + mapped state transitions like post/pay/approve/reverse/
+depreciate today; the future draft/approval workflow emits `submit`/`approve`/`reject`
+through the same service). Bulk operations (transaction upload, auto-categorize)
+record **one summary** record, not one per row. Append-only is enforced in the DB:
+migration `0006` **revokes UPDATE/DELETE** on `audit_logs` from the app role (INSERT +
+SELECT only). Read via `GET /api/audit-logs` (tenant-scoped, **admin-only** through
+`requirePermission("audit_logs")`).
+
 See `docs/phase-0-implementation-plan.md`.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
@@ -164,11 +179,18 @@ These were identified in the post-M4 security review and **intentionally deferre
   `sql.raw(ids.join(","))` id-lists are now `inArray(...)`; the `user_sessions`
   table is provisioned by migration `0005` (`createTableIfMissing:false`), fixing
   the esbuild-bundle login-500 gap.
-- **[MEDIUM] `audit_logs` grants UPDATE/DELETE to the app role.**
-  `0004_m4_rls_enforcement.sql` grants full DML on `audit_logs` to the
-  application role; audit trails should be append-only. Latent (no route writes
-  audit logs yet). **Fix (M7):** when audit writing lands, grant only
-  `SELECT, INSERT` on `audit_logs` to the app role.
+- **[MEDIUM — RESOLVED in M7] `audit_logs` grants UPDATE/DELETE to the app role.**
+  Migration `0006_audit_append_only.sql` **revokes UPDATE/DELETE** on `audit_logs`
+  from the `authenticated` role (INSERT + SELECT only), making the audit trail
+  tamper-resistant. Proven by `packages/db/src/__tests__/audit-logs.test.ts`
+  (the app role's UPDATE/DELETE are denied; INSERT/SELECT still work).
+- **[DEFERRED] Separate security-audit log for identity/session events.** The M7
+  business-audit trail is tenant-scoped (`audit_logs.organization_id` is NOT NULL),
+  so **global identity/session events are intentionally NOT captured**: user
+  register / password reset / role & membership change (`/auth/*`) and org switch
+  (`/orgs`). These security events need a **separate security-audit log** (not
+  org-scoped, actor-centric) in a later phase — do not shoehorn them into
+  `audit_logs`.
 - **[LOW] `period_locks` routes scope by `period` alone, not `company_id`.**
   RLS confines results to the active organization, but the uniqueness key is
   `(organization_id, company_id, period)`, so a multi-company org has

@@ -43,6 +43,13 @@
       "when": 1785275787645,
       "tag": "0005_session_table",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785278594997,
+      "tag": "0006_audit_append_only",
+      "breakpoints": true
     }
   ]
 }

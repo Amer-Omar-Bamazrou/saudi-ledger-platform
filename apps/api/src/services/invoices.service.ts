@@ -6,6 +6,7 @@
  */
 import { db, invoicesTable } from "@workspace/db";
 import { ConflictError, NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "./accounting/zatca";
@@ -141,6 +142,7 @@ export const invoicesService = {
       });
     }
 
+    await auditService.created("invoice", inv.id, inv);
     const out = buildInvoiceOut(inv, null);
     return { ...out, qrCode: inv.qrCode, invoiceHash: inv.invoiceHash, previousHash: inv.previousHash };
   },
@@ -152,6 +154,7 @@ export const invoicesService = {
       throw new ConflictError("Only draft invoices can be edited. Use a credit note to correct a posted invoice.");
     }
     const [inv] = await invoicesRepository.update(id, data);
+    await auditService.updated("invoice", id, existing, inv);
     return buildInvoiceOut(inv, null);
   },
 
@@ -159,6 +162,7 @@ export const invoicesService = {
     const { amount, paidAt } = body;
     const payDate = paidAt ?? new Date().toISOString().split("T")[0];
 
+    const [before] = await invoicesRepository.findById(id);
     const [inv] = await invoicesRepository.update(id, {
       paidAmount: String(amount),
       paidAt: payDate,
@@ -181,6 +185,7 @@ export const invoicesService = {
       });
     }
 
+    await auditService.updated("invoice", id, before ?? null, inv);
     return buildInvoiceOut(inv, null);
   },
 
@@ -191,5 +196,6 @@ export const invoicesService = {
       throw new ConflictError("Only draft invoices can be deleted. Posted invoices must be reversed.");
     }
     await invoicesRepository.remove(id);
+    await auditService.deleted("invoice", id, existing);
   },
 };

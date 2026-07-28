@@ -1,5 +1,6 @@
 /** Budgets service — budget-vs-actual computation. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { budgetsRepository } from "../repositories/budgets.repository";
 import type { budgetsTable } from "@workspace/db";
 
@@ -35,18 +36,23 @@ export const budgetsService = {
   async create(data: Record<string, unknown>) {
     const values = { ...data, budgetedAmount: String(data.budgetedAmount) } as typeof budgetsTable.$inferInsert;
     const [row] = await budgetsRepository.insert(values);
+    await auditService.created("budget", row.id, row);
     return { ...row, budgetedAmount: toNum(row.budgetedAmount) };
   },
 
   async update(id: number, data: Record<string, unknown>) {
+    const [before] = await budgetsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
     const updates = { ...data } as Record<string, unknown>;
     if (updates.budgetedAmount != null) updates.budgetedAmount = String(updates.budgetedAmount);
     const [row] = await budgetsRepository.update(id, updates as Partial<typeof budgetsTable.$inferInsert>);
-    if (!row) throw new NotFoundError("Not found");
+    await auditService.updated("budget", id, before, row);
     return { ...row, budgetedAmount: toNum(row.budgetedAmount) };
   },
 
   async remove(id: number) {
+    const [before] = await budgetsRepository.findById(id);
     await budgetsRepository.remove(id);
+    if (before) await auditService.deleted("budget", id, before);
   },
 };

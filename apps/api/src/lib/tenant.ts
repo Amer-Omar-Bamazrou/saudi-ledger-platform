@@ -24,6 +24,7 @@ import {
   companiesTable,
 } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
+import { auditContext } from "./auditContext";
 import type { UserRole } from "./auth";
 
 export interface TenantContext {
@@ -121,8 +122,14 @@ export async function resolveTenant(
     res.on("finish", () => finalize(res.statusCode < 400));
     res.on("close", () => finalize(false));
 
-    // (5) Run the remaining handlers with the tenant-scoped db bound.
-    conn.run(() => next());
+    // (5) Run the remaining handlers with the tenant-scoped db AND the audit
+    //     context (actor/org/IP) bound for the rest of the request.
+    conn.run(() =>
+      auditContext.run(
+        { userId: tenant.userId, organizationId: tenant.organizationId, ipAddress: req.ip ?? null },
+        () => next(),
+      ),
+    );
   } catch (err) {
     req.log.error({ err }, "resolveTenant failed");
     res.status(500).json({ error: "Failed to resolve tenant context." });

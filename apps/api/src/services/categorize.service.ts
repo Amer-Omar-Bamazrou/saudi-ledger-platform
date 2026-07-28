@@ -4,6 +4,7 @@
  * (never the LLM directly to the ledger). Behavior preserved exactly from pre-M6.
  */
 import { RunCategorizationBody, RunCategorizationResponse } from "@workspace/api-zod";
+import { auditService } from "./audit.service";
 import { categorizeTransaction } from "./categorization/categorizer.js";
 import { categorizeRepository } from "../repositories/categorize.repository";
 
@@ -74,6 +75,15 @@ export const categorizeService = {
       categorized++;
     }
 
+    if (categorized > 0) {
+      // Bulk auto-categorization → one summary audit record (not one per row).
+      await auditService.record({
+        action: "update",
+        entityType: "transaction",
+        entityId: "bulk",
+        after: { processed: rows.length, categorized, skipped },
+      });
+    }
     return RunCategorizationResponse.parse({ processed: rows.length, categorized, skipped, results });
   },
 };

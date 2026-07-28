@@ -1,5 +1,6 @@
 /** Period locks service — lock/unlock accounting periods. Behavior preserved from pre-M6. */
 import { BadRequestError, ConflictError } from "../lib/errors";
+import { auditService } from "./audit.service";
 import { periodLocksRepository } from "../repositories/periodLocks.repository";
 
 export const periodLocksService = {
@@ -21,10 +22,13 @@ export const periodLocksService = {
       lockedBy: userId ?? null,
       notes: notes ?? null,
     });
+    await auditService.created("period_lock", lock.id, lock);
     return { ...lock, lockedAt: lock.lockedAt.toISOString() };
   },
 
   async unlock(period: string) {
+    const [before] = await periodLocksRepository.findByPeriod(period);
     await periodLocksRepository.removeByPeriod(period);
+    if (before) await auditService.deleted("period_lock", before.id, before);
   },
 };
