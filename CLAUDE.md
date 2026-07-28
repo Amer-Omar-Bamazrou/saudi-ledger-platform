@@ -87,6 +87,38 @@ and permission-based RBAC (M5). Write new code tenant-aware; pass/receive the
 
 See `docs/phase-0-implementation-plan.md`.
 
+### Known Issues / Deferred (from the M4 security re-audit)
+
+These were identified in the post-M4 security review and **intentionally deferred**
+(not bugs to fix ad hoc — address them in the milestone noted):
+
+- **[HIGH] Per-request transaction held open for DB-less routes → pool starvation.**
+  `resolveTenant` checks out a pooled client and opens a transaction for *every*
+  authenticated request, held until the response finishes — even for routes that
+  make no DB calls (e.g. `/llm/*`, which call out to Ollama for seconds). The pool
+  (default `max: 10`) is shared with the `connect-pg-simple` session store, so a
+  few slow requests can starve session/login queries. **Fix (M6):** acquire the
+  tenant-scoped client lazily on first `db` access instead of eagerly in
+  `resolveTenant`; give the session store its own pool and add
+  `statement_timeout` / `idle_in_transaction_session_timeout`.
+- **[MEDIUM] Whole-request transaction changes multi-write error semantics.**
+  All queries in a request now share one transaction, so a mid-request failure
+  aborts it and subsequent queries return "transaction aborted" until rollback.
+  No broken path found today, but money/GL routes need coverage. **Fix (M6/M7):**
+  add integration tests that trigger a mid-request DB error (duplicate period
+  lock, GL imbalance) and assert a clean full rollback, not a secondary error.
+- **[MEDIUM] `audit_logs` grants UPDATE/DELETE to the app role.**
+  `0004_m4_rls_enforcement.sql` grants full DML on `audit_logs` to the
+  application role; audit trails should be append-only. Latent (no route writes
+  audit logs yet). **Fix (M7):** when audit writing lands, grant only
+  `SELECT, INSERT` on `audit_logs` to the app role.
+- **[LOW] `period_locks` routes scope by `period` alone, not `company_id`.**
+  RLS confines results to the active organization, but the uniqueness key is
+  `(organization_id, company_id, period)`, so a multi-company org has
+  cross-company visibility within the tenant (not a cross-tenant breach).
+  **Fix:** scope period-lock queries by `company_id` when multi-company support
+  is built out.
+
 ## 3. Tech Stack
 
 | Layer         | Technology                                                               |

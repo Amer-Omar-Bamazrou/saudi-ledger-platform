@@ -8,7 +8,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { periodLocksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAdmin } from "../lib/auth";
+import { requireTenantRole } from "../lib/auth";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/", async (req, res) => {
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
-router.post("/", requireAdmin, async (req, res) => {
+router.post("/", requireTenantRole("admin"), async (req, res) => {
   try {
     const { period, notes } = req.body;
     if (!period || !/^\d{4}-\d{2}$/.test(period)) {
@@ -38,7 +38,7 @@ router.post("/", requireAdmin, async (req, res) => {
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
-router.delete("/:period", requireAdmin, async (req, res) => {
+router.delete("/:period", requireTenantRole("admin"), async (req, res) => {
   try {
     const period = String(req.params.period);
     await db.delete(periodLocksTable).where(eq(periodLocksTable.period, period));
