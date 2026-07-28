@@ -1,0 +1,529 @@
+/**
+ * Reports service — financial-statement and ledger computations. Every rollup,
+ * balance rule, aging bucket, and VAT-return box is copied VERBATIM from the
+ * pre-M6 route handlers; only the DB access now goes through reportsRepository.
+ */
+import { BadRequestError } from "../lib/errors";
+import { reportsRepository } from "../repositories/reports.repository";
+
+const toNum = (v: unknown) => (v != null ? Number(v) : 0);
+const fmt2 = (n: number) => parseFloat(n.toFixed(2));
+
+export const reportsService = {
+  async trialBalance(date_from?: string, date_to?: string) {
+    const lines = await reportsRepository.jeLines(date_from, date_to);
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+
+    const accounts = new Map<string, { name: string; nameAr: string; accountId: number | null; type: string; debit: number; credit: number }>();
+    for (const l of lines) {
+      const key = l.accountId != null ? String(l.accountId) : l.accountName;
+      if (!accounts.has(key)) {
+        const cat = l.accountId ? catMap.get(l.accountId) : undefined;
+        accounts.set(key, { name: l.accountName, nameAr: cat?.nameAr ?? "", accountId: l.accountId, type: cat?.type ?? "other", debit: 0, credit: 0 });
+      }
+      const acc = accounts.get(key)!;
+      acc.debit += toNum(l.debit);
+      acc.credit += toNum(l.credit);
+    }
+
+    const rows = Array.from(accounts.values())
+      .map((a) => ({ name: a.name, nameAr: a.nameAr, accountId: a.accountId, type: a.type, debit: fmt2(a.debit), credit: fmt2(a.credit), balance: fmt2(a.debit - a.credit) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const totalDebit = fmt2(rows.reduce((s, r) => s + r.debit, 0));
+    const totalCredit = fmt2(rows.reduce((s, r) => s + r.credit, 0));
+    return { accounts: rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.01 };
+  },
+
+  async incomeStatement(date_from?: string, date_to?: string) {
+    const lines = await reportsRepository.jeLines(date_from, date_to);
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+
+    const revenue: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    const expenses: Record<string, { name: string; nameAr: string; amount: number }> = {};
+
+    for (const l of lines) {
+      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
+      const type = cat?.type ?? "expense";
+      const name = l.accountName;
+      const nameAr = cat?.nameAr ?? "";
+      const key = l.accountId != null ? String(l.accountId) : name;
+      if (type === "income" || type === "revenue") {
+        if (!revenue[key]) revenue[key] = { name, nameAr, amount: 0 };
+        revenue[key].amount += toNum(l.credit) - toNum(l.debit);
+      } else if (type === "expense") {
+        if (!expenses[key]) expenses[key] = { name, nameAr, amount: 0 };
+        expenses[key].amount += toNum(l.debit) - toNum(l.credit);
+      }
+    }
+
+    if (lines.length === 0) {
+      const txs = await reportsRepository.txWithCategory(date_from, date_to);
+      for (const { tx, cat } of txs) {
+        const amount = toNum(tx.amount);
+        const catType = cat?.type ?? "expense";
+        const key = String(tx.categoryId ?? "uncategorized");
+        const name = cat?.name ?? "Uncategorized";
+        const nameAr = cat?.nameAr ?? "غير مصنف";
+        if (tx.type === "credit" || catType === "income") {
+          if (!revenue[key]) revenue[key] = { name, nameAr, amount: 0 };
+          revenue[key].amount += amount;
+        } else {
+          if (!expenses[key]) expenses[key] = { name, nameAr, amount: 0 };
+          expenses[key].amount += amount;
+        }
+      }
+    }
+
+    const revenueItems = Object.values(revenue).map((r) => ({ ...r, amount: fmt2(r.amount) })).sort((a, b) => b.amount - a.amount);
+    const expenseItems = Object.values(expenses).map((e) => ({ ...e, amount: fmt2(e.amount) })).sort((a, b) => b.amount - a.amount);
+    const totalRevenue = fmt2(revenueItems.reduce((s, r) => s + r.amount, 0));
+    const totalExpenses = fmt2(expenseItems.reduce((s, e) => s + e.amount, 0));
+    const netIncome = fmt2(totalRevenue - totalExpenses);
+
+    return {
+      revenue: revenueItems,
+      expenses: expenseItems,
+      totalRevenue,
+      totalExpenses,
+      grossProfit: totalRevenue,
+      netIncome,
+      netIncomeMargin: totalRevenue > 0 ? fmt2((netIncome / totalRevenue) * 100) : 0,
+      source: lines.length > 0 ? "journal_entries" : "transactions",
+    };
+  },
+
+  async balanceSheet(as_of?: string) {
+    const lines = await reportsRepository.bsLines(as_of);
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+
+    const assets: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    const liabilities: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    const equityAccounts: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    let retainedEarnings = 0;
+
+    for (const l of lines) {
+      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
+      const type = cat?.type ?? "";
+      const key = l.accountId != null ? String(l.accountId) : l.accountName;
+      const name = l.accountName;
+      const nameAr = cat?.nameAr ?? "";
+      const net = toNum(l.debit) - toNum(l.credit);
+      if (type === "asset") {
+        if (!assets[key]) assets[key] = { name, nameAr, amount: 0 };
+        assets[key].amount += net;
+      } else if (type === "liability") {
+        if (!liabilities[key]) liabilities[key] = { name, nameAr, amount: 0 };
+        liabilities[key].amount += -net;
+      } else if (type === "equity") {
+        if (!equityAccounts[key]) equityAccounts[key] = { name, nameAr, amount: 0 };
+        equityAccounts[key].amount += -net;
+      } else if (type === "income" || type === "revenue") {
+        retainedEarnings += toNum(l.credit) - toNum(l.debit);
+      } else if (type === "expense") {
+        retainedEarnings -= toNum(l.debit) - toNum(l.credit);
+      }
+    }
+
+    const invRows = await reportsRepository.allInvoices();
+    const arBalance = fmt2(invRows.reduce((s, i) => s + toNum(i.total) - toNum(i.paidAmount), 0));
+    const billRows = await reportsRepository.allBills();
+    const apBalance = fmt2(billRows.reduce((s, b) => s + toNum(b.total) - toNum(b.paidAmount), 0));
+
+    const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
+    const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
+    const eqItems = Object.values(equityAccounts).map((e) => ({ ...e, amount: fmt2(e.amount) }));
+
+    const totalAssets = fmt2(assetItems.reduce((s, a) => s + a.amount, 0) + arBalance);
+    const totalLiab = fmt2(liabItems.reduce((s, l) => s + l.amount, 0) + apBalance);
+    const totalEquity = fmt2(eqItems.reduce((s, e) => s + e.amount, 0) + retainedEarnings);
+    const totalLiabAndEquity = fmt2(totalLiab + totalEquity);
+    const balanced = Math.abs(totalAssets - totalLiabAndEquity) < 0.05;
+
+    return {
+      asOf: as_of ?? new Date().toISOString().split("T")[0],
+      assets: { items: assetItems.sort((a, b) => b.amount - a.amount), accountsReceivable: arBalance, total: totalAssets },
+      liabilities: { items: liabItems, accountsPayable: apBalance, total: totalLiab },
+      equity: { items: eqItems, retainedEarnings: fmt2(retainedEarnings), total: totalEquity },
+      totalLiabilitiesAndEquity: totalLiabAndEquity,
+      balanced,
+      warning: balanced ? null : `Assets (${totalAssets}) ≠ Liabilities + Equity (${totalLiabAndEquity}). Check for unposted entries.`,
+    };
+  },
+
+  async cashFlow(date_from?: string, date_to?: string) {
+    const txs = await reportsRepository.txWithCategory(date_from, date_to);
+    let operating = 0, investing = 0, financing = 0;
+    const operatingItems: any[] = [], investingItems: any[] = [], financingItems: any[] = [];
+    for (const { tx, cat } of txs) {
+      const amount = tx.type === "credit" ? toNum(tx.amount) : -toNum(tx.amount);
+      const catName = cat?.name ?? "Uncategorized";
+      const catType = cat?.type ?? "expense";
+      if (catType === "asset" && (cat?.name ?? "").toLowerCase().includes("fixed")) {
+        investing += amount;
+        investingItems.push({ name: catName, amount });
+      } else if (catType === "liability") {
+        financing += amount;
+        financingItems.push({ name: catName, amount });
+      } else {
+        operating += amount;
+        operatingItems.push({ name: catName, amount });
+      }
+    }
+    return {
+      operating: { total: fmt2(operating), items: operatingItems },
+      investing: { total: fmt2(investing), items: investingItems },
+      financing: { total: fmt2(financing), items: financingItems },
+      netChange: fmt2(operating + investing + financing),
+    };
+  },
+
+  async journalReport(date_from?: string, date_to?: string) {
+    const entries = await reportsRepository.postedEntries(date_from, date_to);
+    const lines = entries.length > 0 ? await reportsRepository.jeLinesByEntryIds(entries.map((e) => e.id)) : [];
+
+    const linesByEntry = new Map<number, typeof lines>();
+    for (const l of lines) {
+      if (!linesByEntry.has(l.journalEntryId)) linesByEntry.set(l.journalEntryId, []);
+      linesByEntry.get(l.journalEntryId)!.push(l);
+    }
+
+    const result = entries.map((e) => {
+      const entryLines = linesByEntry.get(e.id) ?? [];
+      const totalDebit = fmt2(entryLines.reduce((s, l) => s + toNum(l.debitAmount), 0));
+      const totalCredit = fmt2(entryLines.reduce((s, l) => s + toNum(l.creditAmount), 0));
+      return {
+        id: e.id,
+        entryNumber: e.entryNumber,
+        date: e.date,
+        description: e.description,
+        reference: e.reference,
+        status: e.status,
+        lines: entryLines.map((l) => ({ id: l.id, accountName: l.accountName, accountId: l.accountId, description: l.description, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)) })),
+        totalDebit,
+        totalCredit,
+        balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      };
+    });
+
+    const grandDebit = fmt2(result.reduce((s, e) => s + e.totalDebit, 0));
+    const grandCredit = fmt2(result.reduce((s, e) => s + e.totalCredit, 0));
+    return { entries: result, count: result.length, grandDebit, grandCredit, balanced: Math.abs(grandDebit - grandCredit) < 0.01 };
+  },
+
+  async generalLedger(account_id?: string, account_name?: string, date_from?: string, date_to?: string) {
+    let openingBalance = 0;
+    if (date_from && (account_id || account_name)) {
+      const preLines = await reportsRepository.glPreLines(date_from, account_id, account_name);
+      openingBalance = fmt2(preLines.reduce((s, l) => s + toNum(l.debit) - toNum(l.credit), 0));
+    }
+
+    const rows = await reportsRepository.glRows(date_from, date_to, account_id, account_name);
+
+    let running = openingBalance;
+    const movements = rows.map((r) => {
+      const d = toNum(r.debit), c = toNum(r.credit);
+      running = fmt2(running + d - c);
+      return { date: r.date, entryNumber: r.entryNumber, jeId: r.jeId, description: r.lineDesc ?? r.description, reference: r.reference, accountName: r.accountName, accountId: r.accountId, debit: fmt2(d), credit: fmt2(c), balance: running };
+    });
+
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+    const enrichedMovements = movements.map((m) => ({ ...m, accountNameAr: (m.accountId ? catMap.get(m.accountId)?.nameAr : undefined) ?? "" }));
+
+    const firstCat = rows[0]?.accountId ? catMap.get(rows[0].accountId) : undefined;
+    return {
+      accountId: account_id ? Number(account_id) : null,
+      accountName: account_name ?? rows[0]?.accountName ?? "All Accounts",
+      accountNameAr: firstCat?.nameAr ?? "",
+      openingBalance,
+      movements: enrichedMovements,
+      closingBalance: fmt2(running),
+      totalDebit: fmt2(enrichedMovements.reduce((s, m) => s + m.debit, 0)),
+      totalCredit: fmt2(enrichedMovements.reduce((s, m) => s + m.credit, 0)),
+    };
+  },
+
+  async accountStatement(account_id?: string, account_name?: string, date_from?: string, date_to?: string) {
+    if (!account_id && !account_name) throw new BadRequestError("account_id or account_name is required");
+
+    let openingBalance = 0;
+    if (date_from) {
+      const pre = await reportsRepository.acctStmtPre(date_from, account_id, account_name);
+      openingBalance = fmt2(pre.reduce((s, l) => s + toNum(l.d) - toNum(l.c), 0));
+    }
+
+    const rows = await reportsRepository.acctStmtRows(date_from, date_to, account_id, account_name);
+    let running = openingBalance;
+    const movements = rows.map((r) => {
+      const d = toNum(r.debit), c = toNum(r.credit);
+      running = fmt2(running + d - c);
+      return { date: r.date, entryNumber: r.entryNumber, reference: r.reference, description: r.lineDesc ?? r.description, debit: fmt2(d), credit: fmt2(c), balance: running };
+    });
+
+    const cat = account_id ? await reportsRepository.categoryById(Number(account_id)) : [];
+    return {
+      account: cat[0] ?? { name: account_name ?? "Unknown", type: "other" },
+      openingBalance,
+      movements,
+      closingBalance: running,
+      totalDebit: fmt2(movements.reduce((s, m) => s + m.debit, 0)),
+      totalCredit: fmt2(movements.reduce((s, m) => s + m.credit, 0)),
+    };
+  },
+
+  async accountSummary(date_from?: string, date_to?: string) {
+    const openMap = new Map<string, number>();
+    if (date_from) {
+      const pre = await reportsRepository.acctSummaryPre(date_from);
+      for (const l of pre) {
+        const k = l.accountId != null ? String(l.accountId) : l.accountName;
+        openMap.set(k, (openMap.get(k) ?? 0) + toNum(l.debit) - toNum(l.credit));
+      }
+    }
+
+    const period = await reportsRepository.acctSummaryPeriod(date_from, date_to);
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+
+    const accs = new Map<string, { name: string; type: string; opening: number; debit: number; credit: number }>();
+    const allKeys = new Set([...openMap.keys(), ...period.map((l) => (l.accountId != null ? String(l.accountId) : l.accountName))]);
+    for (const k of allKeys) {
+      const sampleLine = period.find((l) => (l.accountId != null ? String(l.accountId) : l.accountName) === k);
+      const cat = sampleLine?.accountId ? catMap.get(sampleLine.accountId) : undefined;
+      accs.set(k, { name: sampleLine?.accountName ?? k, type: cat?.type ?? "other", opening: openMap.get(k) ?? 0, debit: 0, credit: 0 });
+    }
+    for (const l of period) {
+      const k = l.accountId != null ? String(l.accountId) : l.accountName;
+      if (!accs.has(k)) accs.set(k, { name: l.accountName, type: "other", opening: 0, debit: 0, credit: 0 });
+      const a = accs.get(k)!;
+      a.debit += toNum(l.debit);
+      a.credit += toNum(l.credit);
+    }
+
+    const rows = Array.from(accs.entries()).map(([, a]) => ({
+      name: a.name,
+      type: a.type,
+      openingBalance: fmt2(a.opening),
+      periodDebit: fmt2(a.debit),
+      periodCredit: fmt2(a.credit),
+      closingBalance: fmt2(a.opening + a.debit - a.credit),
+    })).sort((a, b) => a.name.localeCompare(b.name));
+
+    return { accounts: rows, count: rows.length };
+  },
+
+  async customerLedger(customer_id?: string, date_from?: string, date_to?: string) {
+    const rows = await reportsRepository.customerInvoices(customer_id, date_from, date_to);
+    const custMap = new Map<number, { customer: any; invoices: any[] }>();
+    for (const { inv, cust } of rows) {
+      const cid = inv.customerId ?? 0;
+      if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
+      custMap.get(cid)!.invoices.push({
+        id: inv.id, invoiceNumber: inv.invoiceNumber, date: inv.date, dueDate: inv.dueDate,
+        status: inv.status, total: fmt2(toNum(inv.total)), paidAmount: fmt2(toNum(inv.paidAmount)),
+        outstanding: fmt2(toNum(inv.total) - toNum(inv.paidAmount)),
+        vatAmount: fmt2(toNum(inv.vatAmount)), subtotal: fmt2(toNum(inv.subtotal)),
+      });
+    }
+    const customers = Array.from(custMap.values()).map(({ customer, invoices }) => ({
+      customerId: customer?.id, customerName: customer?.name ?? "Unknown", taxNumber: customer?.taxNumber,
+      invoices,
+      totalInvoiced: fmt2(invoices.reduce((s, i) => s + i.total, 0)),
+      totalPaid: fmt2(invoices.reduce((s, i) => s + i.paidAmount, 0)),
+      balance: fmt2(invoices.reduce((s, i) => s + i.outstanding, 0)),
+    }));
+    return { customers, totalBalance: fmt2(customers.reduce((s, c) => s + c.balance, 0)) };
+  },
+
+  async ownerEquity(date_from?: string, date_to?: string) {
+    let openingEquity = 0;
+    if (date_from) {
+      const cats = await reportsRepository.categoriesByType("equity");
+      if (cats.length > 0) {
+        const catIds = cats.map((c) => c.id);
+        const pre = await reportsRepository.ownerEquityPre(date_from);
+        openingEquity = fmt2(pre.filter((l) => l.accountId && catIds.includes(l.accountId)).reduce((s, l) => s + toNum(l.c) - toNum(l.d), 0));
+      }
+    }
+
+    const lines = await reportsRepository.ownerEquityIncomeLines(date_from, date_to);
+    const allCats = await reportsRepository.allCategories();
+    const catMap = new Map(allCats.map((c) => [c.id, c]));
+
+    let revenue = 0, expenses = 0, contributions = 0, withdrawals = 0;
+    for (const l of lines) {
+      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
+      if (!cat) continue;
+      if (cat.type === "income" || cat.type === "revenue") revenue += toNum(l.credit) - toNum(l.debit);
+      if (cat.type === "expense") expenses += toNum(l.debit) - toNum(l.credit);
+      if (cat.type === "equity") {
+        const net = toNum(l.credit) - toNum(l.debit);
+        if (net > 0) contributions += net;
+        else withdrawals += -net;
+      }
+    }
+
+    const netIncome = fmt2(revenue - expenses);
+    const closingEquity = fmt2(openingEquity + netIncome + contributions - withdrawals);
+    return {
+      period: { from: date_from ?? "all", to: date_to ?? "all" },
+      openingEquity, netIncome, contributions: fmt2(contributions), withdrawals: fmt2(withdrawals), closingEquity,
+      breakdown: [
+        { label: "Opening Equity", amount: openingEquity },
+        { label: "Net Income / (Loss)", amount: netIncome },
+        { label: "Capital Contributions", amount: contributions },
+        { label: "Withdrawals / Drawings", amount: -withdrawals },
+        { label: "Closing Equity", amount: closingEquity },
+      ],
+    };
+  },
+
+  async arAging() {
+    const today = new Date();
+    const rows = await reportsRepository.invoicesWithCustomer();
+    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
+    const items: any[] = [];
+    for (const { inv, cust } of rows) {
+      const outstanding = toNum(inv.total) - toNum(inv.paidAmount);
+      if (outstanding < 0.01 || inv.status === "paid") continue;
+      const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
+      const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
+      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
+      if (daysPast <= 0) buckets.current += outstanding;
+      else if (daysPast <= 30) buckets.days_1_30 += outstanding;
+      else if (daysPast <= 60) buckets.days_31_60 += outstanding;
+      else if (daysPast <= 90) buckets.days_61_90 += outstanding;
+      else buckets.over_90 += outstanding;
+    }
+    const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
+    return { buckets: fmtBuckets, total: fmt2(Object.values(buckets).reduce((s, v) => s + v, 0)), items: items.sort((a, b) => b.daysPastDue - a.daysPastDue) };
+  },
+
+  async apAging() {
+    const today = new Date();
+    const rows = await reportsRepository.billsWithVendor();
+    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
+    const items: any[] = [];
+    for (const { bill, vendor } of rows) {
+      const outstanding = toNum(bill.total) - toNum(bill.paidAmount);
+      if (outstanding < 0.01 || bill.status === "paid") continue;
+      const due = bill.dueDate ? new Date(bill.dueDate) : new Date(bill.date);
+      const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
+      items.push({ id: bill.id, billNumber: bill.billNumber, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
+      if (daysPast <= 0) buckets.current += outstanding;
+      else if (daysPast <= 30) buckets.days_1_30 += outstanding;
+      else if (daysPast <= 60) buckets.days_31_60 += outstanding;
+      else if (daysPast <= 90) buckets.days_61_90 += outstanding;
+      else buckets.over_90 += outstanding;
+    }
+    const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
+    return { buckets: fmtBuckets, total: fmt2(Object.values(buckets).reduce((s, v) => s + v, 0)), items: items.sort((a, b) => b.daysPastDue - a.daysPastDue) };
+  },
+
+  async taxJournalEntries(date_from?: string, date_to?: string) {
+    const taxLines = await reportsRepository.taxLineEntryIds(date_from, date_to);
+    const taxJeIds = [...new Set(taxLines.map((l) => l.journalEntryId))];
+    if (taxJeIds.length === 0) return { entries: [], count: 0 };
+
+    const entries = await reportsRepository.entriesByIds(taxJeIds);
+    const lines = await reportsRepository.jeLinesByEntryIds(taxJeIds);
+
+    const linesByEntry = new Map<number, typeof lines>();
+    for (const l of lines) {
+      if (!linesByEntry.has(l.journalEntryId)) linesByEntry.set(l.journalEntryId, []);
+      linesByEntry.get(l.journalEntryId)!.push(l);
+    }
+
+    const result = entries.map((e) => {
+      const entryLines = linesByEntry.get(e.id) ?? [];
+      return {
+        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, reference: e.reference,
+        lines: entryLines.map((l) => ({ accountName: l.accountName, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)), isTaxLine: /vat|tax|ضريبة|زكاة/i.test(l.accountName) })),
+        totalVatDebit: fmt2(entryLines.filter((l) => /vat|tax|ضريبة/i.test(l.accountName)).reduce((s, l) => s + toNum(l.debitAmount), 0)),
+        totalVatCredit: fmt2(entryLines.filter((l) => /vat|tax|ضريبة/i.test(l.accountName)).reduce((s, l) => s + toNum(l.creditAmount), 0)),
+      };
+    });
+
+    return { entries: result, count: result.length };
+  },
+
+  async activity(date_from?: string, date_to?: string) {
+    const entries = await reportsRepository.activityEntries(date_from, date_to);
+    const lines = entries.length > 0 ? await reportsRepository.jeLinesByEntryIds(entries.map((e) => e.id)) : [];
+
+    const linesByEntry = new Map<number, typeof lines>();
+    for (const l of lines) {
+      if (!linesByEntry.has(l.journalEntryId)) linesByEntry.set(l.journalEntryId, []);
+      linesByEntry.get(l.journalEntryId)!.push(l);
+    }
+
+    const result = entries.map((e) => {
+      const el = linesByEntry.get(e.id) ?? [];
+      return {
+        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, reference: e.reference, status: e.status,
+        lineCount: el.length,
+        totalDebit: fmt2(el.reduce((s, l) => s + toNum(l.debitAmount), 0)),
+        accounts: [...new Set(el.map((l) => l.accountName))].slice(0, 3),
+      };
+    });
+
+    return { activities: result, count: result.length, hasPosted: result.filter((r) => r.status === "posted").length, hasDraft: result.filter((r) => r.status === "draft").length };
+  },
+
+  async vatReturn(period_from?: string, period_to?: string) {
+    const dateFrom = period_from ? `${period_from}-01` : "1900-01-01";
+    const dateTo = period_to ? `${period_to}-31` : "2099-12-31";
+
+    const [invoiceRows, billRows] = await Promise.all([
+      reportsRepository.invoicesInRange(dateFrom, dateTo),
+      reportsRepository.billsInRange(dateFrom, dateTo),
+    ]);
+
+    let standardRatedSales = 0, outputVat = 0, zeroRatedSales = 0;
+    for (const inv of invoiceRows) {
+      const vatRate = toNum(inv.vatAmount) > 0 ? (toNum(inv.vatAmount) / toNum(inv.subtotal)) * 100 : 0;
+      if (vatRate >= 14.9) { standardRatedSales += toNum(inv.subtotal); outputVat += toNum(inv.vatAmount); }
+      else if (vatRate === 0) zeroRatedSales += toNum(inv.subtotal);
+    }
+
+    let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
+    for (const bill of billRows) {
+      const vatRate = toNum(bill.vatAmount) > 0 ? (toNum(bill.vatAmount) / toNum(bill.subtotal)) * 100 : 0;
+      if (vatRate >= 14.9) { standardRatedPurchases += toNum(bill.subtotal); inputVat += toNum(bill.vatAmount); }
+      else if (vatRate === 0) zeroRatedPurchases += toNum(bill.subtotal);
+    }
+
+    const netVatDue = outputVat - inputVat;
+    return {
+      period: { from: dateFrom, to: dateTo },
+      salesSection: {
+        box1_standardRatedDomesticSales: fmt2(standardRatedSales),
+        box2_zeroRatedDomesticSales: fmt2(zeroRatedSales),
+        box3_exemptSales: 0,
+        box4_exportSales: 0,
+        box5_totalSales: fmt2(standardRatedSales + zeroRatedSales),
+        box6_vatOnStandardRatedSales: fmt2(outputVat),
+        box7_vatAdjustments: 0,
+        box8_totalOutputVat: fmt2(outputVat),
+      },
+      purchasesSection: {
+        box9_standardRatedPurchases: fmt2(standardRatedPurchases),
+        box10_zeroRatedPurchases: fmt2(zeroRatedPurchases),
+        box11_exemptPurchases: 0,
+        box12_totalPurchases: fmt2(standardRatedPurchases + zeroRatedPurchases),
+        box13_recoverableInputVat: fmt2(inputVat),
+        box14_inputVatAdjustments: 0,
+        box15_totalInputVat: fmt2(inputVat),
+      },
+      netVatDue: fmt2(netVatDue),
+      vatPayable: netVatDue > 0 ? fmt2(netVatDue) : 0,
+      vatRefund: netVatDue < 0 ? fmt2(-netVatDue) : 0,
+      invoiceCount: invoiceRows.length,
+      billCount: billRows.length,
+    };
+  },
+};

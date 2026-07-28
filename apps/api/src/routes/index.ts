@@ -22,7 +22,7 @@ import payroll from "./payroll.js";
 import assets from "./assets.js";
 import bankAccounts from "./bankAccounts.js";
 import budgets from "./budgets.js";
-import reports from "./reports.js";
+import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
 import llm from "./llm.js";
 
