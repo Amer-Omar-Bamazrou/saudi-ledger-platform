@@ -1,41 +1,22 @@
 /**
- * Payroll service — run generation (GOSI computed per employee) and approval,
- * which posts the payroll GL entry via services/accounting/glPosting (UNCHANGED).
+ * Payroll service — run generation (GOSI computed per employee) and the
+ * draft/approval workflow (M10.5).
+ *
+ * The draft→submitted→approved transitions are delegated to the generic
+ * {@link approvalService} via the {@link payrollApprovable} adapter — the same
+ * engine journal entries, bills, and invoices use. Approval fires the run's
+ * existing GL posting (via services/accounting/glPosting), unchanged. Payroll
+ * has always been a two-step create→approve flow, so there is no
+ * self-approve-on-create: `create` yields a draft for everyone.
+ *
  * GOSI rates + all arithmetic preserved exactly from the pre-M6 route.
  */
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
-import { postJournalEntry } from "./accounting/glPosting";
+import { approvalService } from "./approval";
+import { payrollApprovable } from "./payroll.approvable";
+import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
-import type { payrollRunsTable, payrollItemsTable } from "@workspace/db";
-
-type PayrollRun = typeof payrollRunsTable.$inferSelect;
-type PayrollItem = typeof payrollItemsTable.$inferSelect;
-const toNum = (v: unknown) => (v != null ? Number(v) : 0);
-
-const runToOut = (r: PayrollRun) => ({
-  ...r,
-  totalBasicSalary: toNum(r.totalBasicSalary),
-  totalAllowances: toNum(r.totalAllowances),
-  totalGosiEmployee: toNum(r.totalGosiEmployee),
-  totalGosiEmployer: toNum(r.totalGosiEmployer),
-  totalDeductions: toNum(r.totalDeductions),
-  totalNetPay: toNum(r.totalNetPay),
-});
-
-const itemToOut = (i: PayrollItem) => ({
-  ...i,
-  basicSalary: toNum(i.basicSalary),
-  housingAllowance: toNum(i.housingAllowance),
-  transportAllowance: toNum(i.transportAllowance),
-  otherAllowances: toNum(i.otherAllowances),
-  grossSalary: toNum(i.grossSalary),
-  gosiEmployee: toNum(i.gosiEmployee),
-  gosiEmployer: toNum(i.gosiEmployer),
-  additions: toNum(i.additions),
-  deductions: toNum(i.deductions),
-  netPay: toNum(i.netPay),
-});
 
 export const payrollService = {
   async list() {
@@ -114,33 +95,23 @@ export const payrollService = {
     return runToOut(run);
   },
 
-  async approve(id: number) {
-    const [run] = await payrollRepository.findRun(id);
-    if (!run) throw new NotFoundError("Not found");
-    if (run.status === "approved") throw new ConflictError("Payroll run is already approved.");
+  /** Submit a draft run into the approval queue (bookkeeper action). */
+  submit(id: number, userId: number | null) {
+    return approvalService.submit(payrollApprovable(), id, { userId: userId ?? null });
+  },
 
-    const gross = toNum(run.totalBasicSalary) + toNum(run.totalAllowances);
-    const gosiEmp = toNum(run.totalGosiEmployee);
-    const gosiEr = toNum(run.totalGosiEmployer);
-    const netPay = toNum(run.totalNetPay);
-    const approveDate = new Date().toISOString().split("T")[0];
+  /** Send a submitted run back to the enterer for correction (approver action). */
+  sendBack(id: number, note: string | undefined, userId: number | null) {
+    return approvalService.sendBack(payrollApprovable(), id, { userId: userId ?? null }, note);
+  },
 
-    // ── GL: Payroll expense entry ──
-    await postJournalEntry({
-      entryNumber: `PAY-${run.period}`,
-      date: approveDate,
-      description: `Payroll run for period ${run.period}`,
-      reference: `Payroll-${run.id}`,
-      lines: [
-        { accountName: "Salaries and Wages Expense", description: `Gross salaries ${run.period}`, debitAmount: gross, creditAmount: 0 },
-        { accountName: "GOSI Expense - Employer", description: `Employer GOSI ${run.period}`, debitAmount: gosiEr, creditAmount: 0 },
-        { accountName: "Salaries Payable", description: `Net pay payable ${run.period}`, debitAmount: 0, creditAmount: netPay },
-        { accountName: "GOSI Payable", description: `GOSI payable ${run.period}`, debitAmount: 0, creditAmount: gosiEmp + gosiEr },
-      ],
-    });
+  /** Reject (hard-delete) a non-approved run (approver action). */
+  reject(id: number, userId: number | null) {
+    return approvalService.reject(payrollApprovable(), id, { userId: userId ?? null });
+  },
 
-    const [approved] = await payrollRepository.updateRun(id, { status: "approved", processedAt: new Date() });
-    await auditService.updated("payroll_run", id, run, approved);
-    return runToOut(approved);
+  /** Approve a run — posts the payroll GL entry (Dr Salaries+GOSI / Cr Net+GOSI Payable). */
+  approve(id: number, userId: number | null) {
+    return approvalService.approve(payrollApprovable(), id, { userId: userId ?? null });
   },
 };

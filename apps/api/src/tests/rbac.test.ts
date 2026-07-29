@@ -116,6 +116,8 @@ describe("requirePermission — activation routes require `approve` (not create)
     ["invoices", "/5/reject"],
     ["invoices", "/5/send-back"],
     ["payroll", "/5/approve"],
+    ["payroll", "/5/reject"],
+    ["payroll", "/5/send-back"],
   ];
 
   for (const [resource, path] of ACTIVATION) {
@@ -154,6 +156,14 @@ describe("requirePermission — activation routes require `approve` (not create)
     expect((await run("bookkeeper", "POST", "invoices", "/")).nextCalled).toBe(true);
     expect((await run("bookkeeper", "POST", "invoices", "/5/submit")).nextCalled).toBe(true);
     const approve = await run("bookkeeper", "POST", "invoices", "/5/approve");
+    expect(approve.nextCalled).toBe(false);
+    expect(approve.statusCode).toBe(403);
+  });
+
+  it("payroll: a bookkeeper CAN create + submit a run but cannot approve it", async () => {
+    expect((await run("bookkeeper", "POST", "payroll", "/")).nextCalled).toBe(true);
+    expect((await run("bookkeeper", "POST", "payroll", "/5/submit")).nextCalled).toBe(true);
+    const approve = await run("bookkeeper", "POST", "payroll", "/5/approve");
     expect(approve.nextCalled).toBe(false);
     expect(approve.statusCode).toBe(403);
   });

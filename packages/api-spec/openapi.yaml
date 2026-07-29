@@ -23,6 +23,8 @@ tags:
     description: Vendor bills (AP) and the draft/approval workflow
   - name: invoices
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
+  - name: payroll
+    description: Payroll runs and the draft/approval workflow
 
 paths:
   /healthz:
@@ -709,6 +711,152 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /payroll/{id}/submit:
+    post:
+      operationId: submitPayrollRun
+      tags: [payroll]
+      summary: Submit a draft payroll run into the approval queue
+      description: >
+        Draft/approval workflow (M10.5). Moves a draft run to `submitted`
+        (awaiting approval). Bookkeeper (create-level) action.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The submitted payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a draft run can be submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payroll/{id}/send-back:
+    post:
+      operationId: sendBackPayrollRun
+      tags: [payroll]
+      summary: Send a submitted payroll run back to the enterer for correction
+      description: >
+        Draft/approval workflow (M10.5). Returns a `submitted` run to `draft` with
+        an optional reviewer note. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBackInput"
+      responses:
+        "200":
+          description: The payroll run, returned to draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a submitted run can be sent back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payroll/{id}/approve:
+    post:
+      operationId: approvePayrollRun
+      tags: [payroll]
+      summary: Approve a payroll run (posts the payroll GL entry)
+      description: >
+        Draft/approval workflow (M10.5). Approving a run posts its GL entry (Dr
+        Salaries + Employer GOSI / Cr Net Pay + GOSI Payable) — the only ledger
+        effect a run has. May be approved from draft or from the queue.
+        Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The approved (posted) payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The payroll run is already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The accounting period is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payroll/{id}/reject:
+    post:
+      operationId: rejectPayrollRun
+      tags: [payroll]
+      summary: Reject a non-approved payroll run (hard-deletes it)
+      description: >
+        Draft/approval workflow (M10.5). Hard-deletes a draft or submitted run —
+        no archive. An approved run cannot be rejected. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: The payroll run was rejected and removed
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An approved run cannot be rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -1285,3 +1433,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/InvoiceItem"
+
+    PayrollRun:
+      type: object
+      required:
+        - id
+        - period
+        - status
+        - totalNetPay
+        - createdAt
+      properties:
+        id:
+          type: integer
+        period:
+          type: string
+        status:
+          type: string
+          enum: [draft, submitted, approved, paid]
+        totalBasicSalary:
+          type: number
+        totalAllowances:
+          type: number
+        totalGosiEmployee:
+          type: number
+        totalGosiEmployer:
+          type: number
+        totalDeductions:
+          type: number
+        totalNetPay:
+          type: number
+        processedAt:
+          type: ["string", "null"]
+        reviewNote:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string

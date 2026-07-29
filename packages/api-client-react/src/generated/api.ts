@@ -36,6 +36,7 @@ import type {
   Invoice,
   JournalEntry,
   ListTransactionsParams,
+  PayrollRun,
   SendBackInput,
   Transaction,
   TransactionInput,
@@ -1867,5 +1868,294 @@ export const useRejectInvoice = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRejectInvoiceMutationOptions(options));
+    }
+
+export const getSubmitPayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}/submit`
+}
+
+/**
+ * Draft/approval workflow (M10.5). Moves a draft run to `submitted` (awaiting approval). Bookkeeper (create-level) action.
+ * @summary Submit a draft payroll run into the approval queue
+ */
+export const submitPayrollRun = async (id: number, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getSubmitPayrollRunUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitPayrollRunMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitPayrollRun>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitPayrollRun>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitPayrollRun(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitPayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof submitPayrollRun>>>
+
+    export type SubmitPayrollRunMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit a draft payroll run into the approval queue
+ */
+export const useSubmitPayrollRun = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitPayrollRun>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitPayrollRunMutationOptions(options));
+    }
+
+export const getSendBackPayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}/send-back`
+}
+
+/**
+ * Draft/approval workflow (M10.5). Returns a `submitted` run to `draft` with an optional reviewer note. Approver-only.
+ * @summary Send a submitted payroll run back to the enterer for correction
+ */
+export const sendBackPayrollRun = async (id: number,
+    sendBackInput?: SendBackInput, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getSendBackPayrollRunUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendBackInput)
+  }
+);}
+
+
+
+
+
+export const getSendBackPayrollRunMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackPayrollRun>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendBackPayrollRun>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext> => {
+
+const mutationKey = ['sendBackPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendBackPayrollRun>>, {id: number;data?: BodyType<SendBackInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendBackPayrollRun(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendBackPayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof sendBackPayrollRun>>>
+    export type SendBackPayrollRunMutationBody = BodyType<SendBackInput> | undefined
+    export type SendBackPayrollRunMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Send a submitted payroll run back to the enterer for correction
+ */
+export const useSendBackPayrollRun = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackPayrollRun>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendBackPayrollRun>>,
+        TError,
+        {id: number;data?: BodyType<SendBackInput>},
+        TContext
+      > => {
+      return useMutation(getSendBackPayrollRunMutationOptions(options));
+    }
+
+export const getApprovePayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}/approve`
+}
+
+/**
+ * Draft/approval workflow (M10.5). Approving a run posts its GL entry (Dr Salaries + Employer GOSI / Cr Net Pay + GOSI Payable) — the only ledger effect a run has. May be approved from draft or from the queue. Approver-only.
+ * @summary Approve a payroll run (posts the payroll GL entry)
+ */
+export const approvePayrollRun = async (id: number, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getApprovePayrollRunUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovePayrollRunMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approvePayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePayrollRun>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approvePayrollRun(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof approvePayrollRun>>>
+
+    export type ApprovePayrollRunMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a payroll run (posts the payroll GL entry)
+ */
+export const useApprovePayrollRun = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvePayrollRun>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApprovePayrollRunMutationOptions(options));
+    }
+
+export const getRejectPayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}/reject`
+}
+
+/**
+ * Draft/approval workflow (M10.5). Hard-deletes a draft or submitted run — no archive. An approved run cannot be rejected. Approver-only.
+ * @summary Reject a non-approved payroll run (hard-deletes it)
+ */
+export const rejectPayrollRun = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectPayrollRunUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectPayrollRunMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectPayrollRun>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectPayrollRun>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectPayrollRun(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectPayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof rejectPayrollRun>>>
+
+    export type RejectPayrollRunMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a non-approved payroll run (hard-deletes it)
+ */
+export const useRejectPayrollRun = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPayrollRun>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectPayrollRun>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectPayrollRunMutationOptions(options));
     }
 

@@ -414,6 +414,35 @@ export interface Invoice {
   items: InvoiceItem[];
 }
 
+export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunStatus];
+
+
+export const PayrollRunStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+  paid: 'paid',
+} as const;
+
+export interface PayrollRun {
+  id: number;
+  period: string;
+  status: PayrollRunStatus;
+  totalBasicSalary?: number;
+  totalAllowances?: number;
+  totalGosiEmployee?: number;
+  totalGosiEmployer?: number;
+  totalDeductions?: number;
+  totalNetPay: number;
+  /** @nullable */
+  processedAt?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable

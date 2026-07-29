@@ -693,3 +693,93 @@ export const RejectInvoiceParams = zod.object({
 export const RejectInvoiceResponse = zod.void()
 
 
+/**
+ * Draft/approval workflow (M10.5). Moves a draft run to `submitted` (awaiting approval). Bookkeeper (create-level) action.
+ * @summary Submit a draft payroll run into the approval queue
+ */
+export const SubmitPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number().optional(),
+  "totalAllowances": zod.number().optional(),
+  "totalGosiEmployee": zod.number().optional(),
+  "totalGosiEmployer": zod.number().optional(),
+  "totalDeductions": zod.number().optional(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * Draft/approval workflow (M10.5). Returns a `submitted` run to `draft` with an optional reviewer note. Approver-only.
+ * @summary Send a submitted payroll run back to the enterer for correction
+ */
+export const SendBackPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendBackPayrollRunBody = zod.object({
+  "note": zod.string().nullish()
+}).describe('Optional reviewer note when sending a submitted record back.')
+
+export const SendBackPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number().optional(),
+  "totalAllowances": zod.number().optional(),
+  "totalGosiEmployee": zod.number().optional(),
+  "totalGosiEmployer": zod.number().optional(),
+  "totalDeductions": zod.number().optional(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * Draft/approval workflow (M10.5). Approving a run posts its GL entry (Dr Salaries + Employer GOSI / Cr Net Pay + GOSI Payable) — the only ledger effect a run has. May be approved from draft or from the queue. Approver-only.
+ * @summary Approve a payroll run (posts the payroll GL entry)
+ */
+export const ApprovePayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number().optional(),
+  "totalAllowances": zod.number().optional(),
+  "totalGosiEmployee": zod.number().optional(),
+  "totalGosiEmployer": zod.number().optional(),
+  "totalDeductions": zod.number().optional(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * Draft/approval workflow (M10.5). Hard-deletes a draft or submitted run — no archive. An approved run cannot be rejected. Approver-only.
+ * @summary Reject a non-approved payroll run (hard-deletes it)
+ */
+export const RejectPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectPayrollRunResponse = zod.void()
+
+

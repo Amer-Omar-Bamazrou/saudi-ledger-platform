@@ -28,4 +28,8 @@ export const payrollRepository = {
   updateRun(id: number, values: Partial<typeof payrollRunsTable.$inferInsert>) {
     return db.update(payrollRunsTable).set(values).where(eq(payrollRunsTable.id, id)).returning();
   },
+  // Reject (hard-delete) a non-approved run; payroll_items cascade on the FK.
+  deleteRun(id: number) {
+    return db.delete(payrollRunsTable).where(eq(payrollRunsTable.id, id));
+  },
 };

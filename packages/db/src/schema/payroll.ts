@@ -20,7 +20,12 @@ export const payrollRunsTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     period: text("period").notNull(),       // YYYY-MM
-    status: text("status").notNull().default("draft"), // draft | approved | paid
+    // Draft/approval workflow (M10.5): draft = editable, not posted; submitted =
+    // awaiting approval (locked); approved = posted to the GL (payroll expense).
+    status: text("status").notNull().default("draft"), // draft | submitted | approved | paid
+    // Correction note an approver leaves when sending a submitted run back to the
+    // enterer; cleared on resubmit/approve (M10.5).
+    reviewNote: text("review_note"),
     totalBasicSalary: numeric("total_basic_salary", { precision: 15, scale: 2 }).default("0"),
     totalAllowances: numeric("total_allowances", { precision: 15, scale: 2 }).default("0"),
     totalGosiEmployee: numeric("total_gosi_employee", { precision: 15, scale: 2 }).default("0"),

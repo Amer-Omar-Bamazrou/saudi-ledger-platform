@@ -32,6 +32,8 @@ export * from './journalEntryLine';
 export * from './journalEntryStatus';
 export * from './listTransactionsParams';
 export * from './listTransactionsType';
+export * from './payrollRun';
+export * from './payrollRunStatus';
 export * from './sendBackInput';
 export * from './transaction';
 export * from './transactionInput';

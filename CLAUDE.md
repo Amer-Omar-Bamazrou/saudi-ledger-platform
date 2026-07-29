@@ -321,6 +321,33 @@ Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-
     draft AND submitted move zero in AR aging / balance-sheet AR / VAT output;
     approval issues it (AR + hash/QR); submitted edit-locked; draft not payable;
     self-approve-on-create issues immediately; all transitions audited.
+- **M10.5 (done): Payroll runs — engine reused, adapter only.**
+  - **Payroll's only ledger effect is the GL entry posted at approval** — no
+    report reads `payroll_runs` directly, so a draft/submitted run posts nothing
+    (zero movement) and needs no approved-only report filter. The adapter
+    (`services/payroll.approvable.ts`) `onApprove` runs the **existing** payroll
+    GL posting unchanged (Dr Salaries + Employer GOSI / Cr Net Pay + GOSI
+    Payable); `onSubmit`/`onSendBack` manage the queue + review note; GOSI
+    arithmetic untouched. `runToOut`/`itemToOut` → `payroll.presenter.ts`.
+  - **No self-approve-on-create:** payroll has always been a two-step
+    create→approve flow (unlike invoices), so `create` yields a `draft` for
+    everyone; an approver approves as a second step, exactly as before.
+  - **State model:** `draft → submitted → approved` (+ post-approval `paid`).
+    Migration `0009_m10_5_payroll_review_note` adds `payroll_runs.review_note`.
+    `submit` is a bookkeeper action; `approve`/`send-back`/`reject` are
+    approver-only. `reject` hard-deletes (payroll_items cascade). New repo
+    `deleteRun`.
+  - **Endpoints (OpenAPI-first):** `POST /payroll/:id/{submit,send-back,reject}`
+    added; `/:id/approve` now flows through the engine. `PayrollRun` schema added;
+    client regenerated.
+  - **Zero-movement test** (`tests/payroll-approval-zero-movement.test.ts`):
+    draft AND submitted post nothing (trial balance + salaries-expense GL are
+    zero); submit→send-back→resubmit→approve posts the payroll GL (trial balance
+    balances at the expected total); reject hard-deletes; all transitions audited.
+  - **Payments NOT a separate approvable entity (decided):** customer receipts /
+    vendor payments remain the approver-authority `pay` action on invoices/bills
+    (already gated + hardened in M10.3/M10.4), per the M10 plan — a draftable
+    payment entity is a deferred future feature, not built in M10.
 
 See `docs/phase-0-implementation-plan.md`.
 
