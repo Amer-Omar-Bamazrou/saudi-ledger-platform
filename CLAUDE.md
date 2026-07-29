@@ -157,6 +157,30 @@ migration `0006` **revokes UPDATE/DELETE** on `audit_logs` from the app role (IN
 SELECT only). Read via `GET /api/audit-logs` (tenant-scoped, **admin-only** through
 `requirePermission("audit_logs")`).
 
+**Milestone 9 (Repository Finalization) is done — Phase 0 is complete.** The repo
+is documented so a new engineer can clone it and become productive from the docs
+alone: a rewritten `README.md`, `CONTRIBUTING.md` + `.github/PULL_REQUEST_TEMPLATE.md`,
+`docs/local-setup.md` (end-to-end local run), and `docs/development-guide.md`
+(layering, tenancy/RLS, RBAC, audit, and an "add a new domain" cookbook). Two
+small **real-blocker fixes** landed with it (not just docs):
+
+- **Seed now produces a working admin.** `seedAdminUser` (`packages/db/src/seed.ts`)
+  additionally creates an **active `admin` membership** in `organization_memberships`
+  linking the seeded admin to the default org — idempotent on the unique
+  `(user_id, organization_id)` constraint. Without it a freshly seeded admin could
+  log in but got 403 on every business route (no membership ⇒ `resolveTenant`
+  denies). Verified: fresh `migrate` + `seed` → admin logs in and hits business
+  routes (200, not 403).
+- **Local two-port dev now connects.** `apps/web/vite.config.ts` adds a **dev-only**
+  `server.proxy` forwarding `/api` → `http://localhost:3000` (override via
+  `API_PROXY_TARGET`). The frontend still calls the API same-origin at `/api`
+  (unchanged); the proxy only makes local dev mirror single-origin production and
+  has **no effect on the production build**.
+
+Licensing: the project is **proprietary / all rights reserved** (private,
+commercial); `package.json` is `"UNLICENSED"` and **no `LICENSE` file** is
+included by design.
+
 See `docs/phase-0-implementation-plan.md`.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
@@ -314,8 +338,14 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
 
 ## 7. Reference Docs
 
+- `README.md` — project overview, status, tech stack, and quick start.
+- `docs/local-setup.md` — run the platform locally (Supabase, migrate, seed, API + web).
+- `docs/development-guide.md` — layering, tenancy/RLS, RBAC, audit, and the
+  "add a new domain" cookbook. Read before writing backend code.
+- `CONTRIBUTING.md` — branch strategy, commit conventions, PR checklist, CI gates.
 - `docs/architecture-blueprint.md` — target technical architecture.
 - `docs/phase-0-implementation-plan.md` — Phase 0 milestone plan.
+- `docs/feature-spec-draft-approval-workflow.md` — approved, deferred feature spec.
 
 These are the source of truth for architecture and sequencing. Consult them
 before starting non-trivial work; keep them in sync as decisions land.
