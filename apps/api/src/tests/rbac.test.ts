@@ -102,6 +102,8 @@ describe("requirePermission — activation routes require `approve` (not create)
   // Every activation sub-route is admin+accountant only; bookkeeper & viewer denied.
   const APPROVERS: Role[] = ["admin", "accountant"];
   const ACTIVATION: Array<[string, string]> = [
+    ["journal_entries", "/5/approve"],
+    ["journal_entries", "/5/reject"],
     ["journal_entries", "/5/post"],
     ["journal_entries", "/5/reverse"],
     ["bills", "/5/post"],

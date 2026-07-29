@@ -356,3 +356,47 @@ export const GetSummaryByCategoryResponseItem = zod.object({
 export const GetSummaryByCategoryResponse = zod.array(GetSummaryByCategoryResponseItem)
 
 
+/**
+ * Draft/approval workflow (M10.2). Approving a draft (pending) journal entry fires its activation path — the period-lock check and the post-to-GL transition — so it becomes active in the ledger. Only an approver (admin/accountant) may call this; a bookkeeper is denied.
+ * @summary Approve a draft journal entry (posts it to the general ledger)
+ */
+export const ApproveJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.2). Rejecting a pending draft hard-deletes it — there is no archive of rejected drafts. Only a pending draft can be rejected; a posted/reversed entry must be reversed instead. Approver-only.
+ * @summary Reject a pending draft journal entry (hard-deletes it)
+ */
+export const RejectJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectJournalEntryResponse = zod.void()
+
+

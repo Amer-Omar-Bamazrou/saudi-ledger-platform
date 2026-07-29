@@ -206,6 +206,43 @@ Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-
   the method-inferred `create` — so a bookkeeper who can enter a draft (`POST /`)
   is fail-closed out of activating it. Re-seed permissions + restart to apply. No
   record lifecycle change yet (that starts M10.2).
+- **M10.2 (done): generic approval engine + Journal Entries proven end-to-end.**
+  The reusable seam every later entity plugs into:
+  - **`Approvable<E,S>` contract** (`services/approval/approvable.ts`) +
+    **`approvalService`** (`services/approval/approval.service.ts`). The service
+    is entity-agnostic: it owns the state machine (`approve`: pending→approved
+    fires the entity's on-approve action; `reject`: hard-deletes a pending draft,
+    no archive per spec §4) and writes the audit entry (`approve`/`reject`) inside
+    the request tenant tx — so the audit row commits atomically with the effect.
+    M10.3–M10.5 add an entity by writing an adapter, **never** by editing the
+    engine. Guards are fail-closed (re-approve → 409; reject non-pending → 409;
+    missing → 404).
+  - **JE adapter** (`services/journalEntries.approvable.ts`): maps the JE's native
+    `draft|posted|reversed` onto the abstract `pending|approved`
+    (`draft→pending`, `posted`/`reversed`→`approved`); `onApprove` runs the
+    **existing** post-to-GL path **unchanged** — period-lock check **at approval
+    time** (spec Q#5), then `status→posted` + `postedAt`. **No accounting-core
+    change and no schema/migration**: reports already gate on `status='posted'`,
+    and approver identity is captured in `audit_logs` (JE keeps `postedAt`; no new
+    `approved_by` column). `buildJEOut` extracted to `journalEntries.presenter.ts`
+    to break the service↔adapter import cycle.
+  - **Endpoints (OpenAPI-first):** added `POST /journal-entries/:id/approve` and
+    `/:id/reject` to the spec (+ `JournalEntry`/`JournalEntryLine` schemas) and
+    regenerated the zod + react-query client. Both resolve to the `approve` action
+    via the existing suffix override (bookkeeper 403). `/:id/post` is kept as the
+    JE-native alias for `approve` (the web app calls it) and now flows through the
+    same seam; `/:id/reverse` is unchanged (a post-approval action, not part of
+    the workflow).
+  - **The non-negotiable test — the M10 template:**
+    `tests/je-approval-zero-movement.test.ts` proves through the **real report
+    services** that a PENDING draft moves **zero** in trial balance, income
+    statement, general ledger, journal report, and balance sheet — and that
+    **approval** is what posts it (movement then appears) — plus that create +
+    approve are audited. It also asserts the draft **is** visible in the
+    operational `activity` worklist (spec §7/§8: listed operationally, excluded
+    from financial aggregates). M10.3–M10.5 each replicate this shape per entity.
+    A DB-free unit test (`tests/approval.test.ts`) drives the engine through a
+    fake adapter to prove it is entity-agnostic.
 
 See `docs/phase-0-implementation-plan.md`.
 

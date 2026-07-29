@@ -1,44 +1,25 @@
 /**
- * Journal entries service — draft creation (balanced), posting, reversal, delete.
- * Balancing, period-lock enforcement, and immutability guards preserved exactly
- * from the pre-M6 route. Posting/reversal go through the ledger's status model.
+ * Journal entries service — draft creation (balanced), approval (post to GL),
+ * rejection, reversal, and delete.
+ *
+ * M10.2: the draft→approval transitions (`approve` / `reject`) are delegated to
+ * the generic {@link approvalService} via the {@link journalEntryApprovable}
+ * adapter — the SAME seam every financial entity will reuse. Approval fires the
+ * JE's existing post-to-GL activation (period-lock check → `status: posted`,
+ * `postedAt` stamped); nothing about the accounting core changed. `post` is kept
+ * as the JE-native alias for `approve` (the frontend and existing API call it).
+ *
+ * Balancing, immutability guards, and reversal are preserved exactly.
  */
 import { ConflictError, NotFoundError } from "../lib/errors";
 import { BadRequestError } from "../lib/errors";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { auditService } from "./audit.service";
+import { approvalService } from "./approval";
+import { journalEntryApprovable } from "./journalEntries.approvable";
+import { buildJEOut } from "./journalEntries.presenter";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
-import type { journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
-
-type JournalEntry = typeof journalEntriesTable.$inferSelect;
-type JournalEntryLine = typeof journalEntryLinesTable.$inferSelect;
-const toNum = (v: unknown) => (v != null ? Number(v) : 0);
-
-function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
-  return {
-    id: je.id,
-    entryNumber: je.entryNumber,
-    date: je.date,
-    description: je.description,
-    reference: je.reference,
-    status: je.status,
-    reversalOf: je.reversalOf,
-    notes: je.notes,
-    postedAt: je.postedAt?.toISOString() ?? null,
-    createdAt: je.createdAt.toISOString(),
-    totalDebit: (lines ?? []).reduce((s, l) => s + toNum(l.debitAmount), 0),
-    totalCredit: (lines ?? []).reduce((s, l) => s + toNum(l.creditAmount), 0),
-    lines: (lines ?? []).map((l) => ({
-      id: l.id,
-      journalEntryId: l.journalEntryId,
-      accountId: l.accountId,
-      accountName: l.accountName,
-      description: l.description,
-      debitAmount: toNum(l.debitAmount),
-      creditAmount: toNum(l.creditAmount),
-    })),
-  };
-}
+import type { journalEntriesTable } from "@workspace/db";
 
 export const journalEntriesService = {
   async list(status?: string) {
@@ -82,18 +63,26 @@ export const journalEntriesService = {
     return out;
   },
 
-  async post(id: number) {
-    const [existing] = await journalEntriesRepository.findById(id);
-    if (!existing) throw new NotFoundError("Not found");
-    if (existing.status === "posted") throw new ConflictError("Entry is already posted.");
-    if (existing.status === "reversed") {
-      throw new ConflictError("Entry has already been reversed and cannot be re-posted.");
-    }
-    const [je] = await journalEntriesRepository.updateEntry(id, { status: "posted", postedAt: new Date() });
-    const lines = await journalEntriesRepository.linesByEntry(id);
-    const out = buildJEOut(je, lines);
-    await auditService.updated("journal_entry", id, existing, out);
-    return out;
+  /**
+   * Approve a draft journal entry — the workflow transition that posts it to the
+   * GL. Runs through the generic approval seam; the JE adapter performs the
+   * period-lock check and status flip. `post` is the JE-native alias.
+   */
+  approve(id: number, userId: number | null) {
+    return approvalService.approve(journalEntryApprovable, id, { userId: userId ?? null });
+  },
+
+  /** JE-native alias for {@link approve} (POST /:id/post). */
+  post(id: number, userId: number | null) {
+    return this.approve(id, userId);
+  },
+
+  /**
+   * Reject a pending draft — hard-deletes it (no archive, spec §4). Only a draft
+   * can be rejected; a posted/reversed entry must be reversed, not rejected.
+   */
+  reject(id: number, userId: number | null) {
+    return approvalService.reject(journalEntryApprovable, id, { userId: userId ?? null });
   },
 
   async reverse(id: number) {

@@ -13,8 +13,15 @@ export const journalEntriesController = {
     const out = await journalEntriesService.create(req.body, req.session?.userId ?? null);
     res.status(201).json(out);
   },
+  async approve(req: Request, res: Response) {
+    res.json(await journalEntriesService.approve(Number(req.params.id), req.session?.userId ?? null));
+  },
   async post(req: Request, res: Response) {
-    res.json(await journalEntriesService.post(Number(req.params.id)));
+    res.json(await journalEntriesService.post(Number(req.params.id), req.session?.userId ?? null));
+  },
+  async reject(req: Request, res: Response) {
+    await journalEntriesService.reject(Number(req.params.id), req.session?.userId ?? null);
+    res.status(204).send();
   },
   async reverse(req: Request, res: Response) {
     res.json(await journalEntriesService.reverse(Number(req.params.id)));

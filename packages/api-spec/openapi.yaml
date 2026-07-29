@@ -17,6 +17,8 @@ tags:
     description: Categorization engine
   - name: summary
     description: Financial summaries and reports
+  - name: journal_entries
+    description: Journal entries and the draft/approval workflow
 
 paths:
   /healthz:
@@ -314,6 +316,79 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CategoryBreakdown"
+
+  /journal-entries/{id}/approve:
+    post:
+      operationId: approveJournalEntry
+      tags: [journal_entries]
+      summary: Approve a draft journal entry (posts it to the general ledger)
+      description: >
+        Draft/approval workflow (M10.2). Approving a draft (pending) journal
+        entry fires its activation path — the period-lock check and the
+        post-to-GL transition — so it becomes active in the ledger. Only an
+        approver (admin/accountant) may call this; a bookkeeper is denied.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The approved (posted) journal entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+        "404":
+          description: Journal entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The journal entry is already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The accounting period is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /journal-entries/{id}/reject:
+    post:
+      operationId: rejectJournalEntry
+      tags: [journal_entries]
+      summary: Reject a pending draft journal entry (hard-deletes it)
+      description: >
+        Draft/approval workflow (M10.2). Rejecting a pending draft hard-deletes
+        it — there is no archive of rejected drafts. Only a pending draft can be
+        rejected; a posted/reversed entry must be reversed instead. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: The draft was rejected and removed
+        "404":
+          description: Journal entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a pending draft can be rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -643,3 +718,65 @@ components:
           type: integer
         vatTotal:
           type: number
+
+    JournalEntryLine:
+      type: object
+      required: [id, journalEntryId, accountName, debitAmount, creditAmount]
+      properties:
+        id:
+          type: integer
+        journalEntryId:
+          type: integer
+        accountId:
+          type: ["integer", "null"]
+        accountName:
+          type: string
+        description:
+          type: ["string", "null"]
+        debitAmount:
+          type: number
+        creditAmount:
+          type: number
+
+    JournalEntry:
+      type: object
+      required:
+        - id
+        - entryNumber
+        - date
+        - description
+        - status
+        - createdAt
+        - totalDebit
+        - totalCredit
+        - lines
+      properties:
+        id:
+          type: integer
+        entryNumber:
+          type: string
+        date:
+          type: string
+        description:
+          type: string
+        reference:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, posted, reversed]
+        reversalOf:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        postedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        totalDebit:
+          type: number
+        totalCredit:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/JournalEntryLine"

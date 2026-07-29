@@ -31,6 +31,7 @@ import type {
   GetSummaryParams,
   GetVatSummaryParams,
   HealthStatus,
+  JournalEntry,
   ListTransactionsParams,
   Transaction,
   TransactionInput,
@@ -1140,4 +1141,148 @@ export function useGetSummaryByCategory<TData = Awaited<ReturnType<typeof getSum
 
 
 
+
+export const getApproveJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}/approve`
+}
+
+/**
+ * Draft/approval workflow (M10.2). Approving a draft (pending) journal entry fires its activation path — the period-lock check and the post-to-GL transition — so it becomes active in the ledger. Only an approver (admin/accountant) may call this; a bookkeeper is denied.
+ * @summary Approve a draft journal entry (posts it to the general ledger)
+ */
+export const approveJournalEntry = async (id: number, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getApproveJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveJournalEntryMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveJournalEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveJournalEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveJournalEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof approveJournalEntry>>>
+
+    export type ApproveJournalEntryMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a draft journal entry (posts it to the general ledger)
+ */
+export const useApproveJournalEntry = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveJournalEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveJournalEntryMutationOptions(options));
+    }
+
+export const getRejectJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}/reject`
+}
+
+/**
+ * Draft/approval workflow (M10.2). Rejecting a pending draft hard-deletes it — there is no archive of rejected drafts. Only a pending draft can be rejected; a posted/reversed entry must be reversed instead. Approver-only.
+ * @summary Reject a pending draft journal entry (hard-deletes it)
+ */
+export const rejectJournalEntry = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectJournalEntryMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectJournalEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectJournalEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectJournalEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof rejectJournalEntry>>>
+
+    export type RejectJournalEntryMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a pending draft journal entry (hard-deletes it)
+ */
+export const useRejectJournalEntry = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectJournalEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectJournalEntryMutationOptions(options));
+    }
 

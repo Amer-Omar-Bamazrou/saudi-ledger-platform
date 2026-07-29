@@ -225,6 +225,47 @@ export interface CategoryBreakdown {
   vatTotal: number;
 }
 
+export interface JournalEntryLine {
+  id: number;
+  journalEntryId: number;
+  /** @nullable */
+  accountId?: number | null;
+  accountName: string;
+  /** @nullable */
+  description?: string | null;
+  debitAmount: number;
+  creditAmount: number;
+}
+
+export type JournalEntryStatus = typeof JournalEntryStatus[keyof typeof JournalEntryStatus];
+
+
+export const JournalEntryStatus = {
+  draft: 'draft',
+  posted: 'posted',
+  reversed: 'reversed',
+} as const;
+
+export interface JournalEntry {
+  id: number;
+  entryNumber: string;
+  date: string;
+  description: string;
+  /** @nullable */
+  reference?: string | null;
+  status: JournalEntryStatus;
+  /** @nullable */
+  reversalOf?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  postedAt?: string | null;
+  createdAt: string;
+  totalDebit: number;
+  totalCredit: number;
+  lines: JournalEntryLine[];
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable
