@@ -32,6 +32,14 @@ function jeConditions(date_from?: string, date_to?: string, statusFilter = true)
 const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
 const approvedBillsOnly = () => notInArray(billsTable.status, BILL_NOT_IN_BOOKS);
 
+// Draft/approval workflow (M10.4): an invoice affects AR/revenue/VAT only once
+// APPROVED (issued). Draft and submitted invoices are NOT in the books — and are
+// not even in the ZATCA hash chain — so every money report that reads invoices
+// must exclude them. Shared so the AR-aging, balance-sheet-AR, VAT-sales, and
+// customer-ledger queries stay in lockstep.
+const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
+const approvedInvoicesOnly = () => notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS);
+
 const lineJoin = () =>
   db
     .select({
@@ -77,8 +85,9 @@ export const reportsRepository = {
     if (as_of) conds.push(lte(journalEntriesTable.date, as_of));
     return lineJoin().where(and(...conds));
   },
+  // balance-sheet AR — approved invoices only (drafts/submitted are not in the books).
   allInvoices() {
-    return db.select().from(invoicesTable);
+    return db.select().from(invoicesTable).where(approvedInvoicesOnly());
   },
   // balance-sheet AP — approved bills only (drafts/submitted are not in the books).
   allBills() {
@@ -174,9 +183,9 @@ export const reportsRepository = {
     return lineJoin().where(and(...jeConditions(date_from, date_to)));
   },
 
-  // customer-ledger
+  // customer-ledger — approved invoices only (a draft is not a receivable yet).
   customerInvoices(customer_id?: string, date_from?: string, date_to?: string) {
-    const conds: any[] = [];
+    const conds: any[] = [approvedInvoicesOnly()];
     if (customer_id) conds.push(eq(invoicesTable.customerId, Number(customer_id)));
     if (date_from) conds.push(gte(invoicesTable.date, date_from));
     if (date_to) conds.push(lte(invoicesTable.date, date_to));
@@ -213,12 +222,13 @@ export const reportsRepository = {
       .where(and(...jeConditions(date_from, date_to)));
   },
 
-  // ar-aging / ap-aging
+  // ar-aging — approved invoices only (drafts/submitted are not receivables yet).
   invoicesWithCustomer() {
     return db
       .select({ inv: invoicesTable, cust: customersTable })
       .from(invoicesTable)
-      .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id));
+      .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
+      .where(approvedInvoicesOnly());
   },
   // ap-aging — approved bills only (drafts/submitted are not payable AP yet).
   billsWithVendor() {
@@ -268,9 +278,12 @@ export const reportsRepository = {
       .limit(500);
   },
 
-  // vat-return
+  // vat-return (sales/output-VAT side) — approved invoices only.
   invoicesInRange(dateFrom: string, dateTo: string) {
-    return db.select().from(invoicesTable).where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo)));
+    return db
+      .select()
+      .from(invoicesTable)
+      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly()));
   },
   // vat-return (bill/input-VAT side) — approved bills only.
   billsInRange(dateFrom: string, dateTo: string) {

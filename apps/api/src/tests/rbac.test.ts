@@ -112,6 +112,9 @@ describe("requirePermission — activation routes require `approve` (not create)
     ["bills", "/5/reject"],
     ["bills", "/5/send-back"],
     ["invoices", "/5/pay"],
+    ["invoices", "/5/approve"],
+    ["invoices", "/5/reject"],
+    ["invoices", "/5/send-back"],
     ["payroll", "/5/approve"],
   ];
 
@@ -145,6 +148,14 @@ describe("requirePermission — activation routes require `approve` (not create)
     const sendBack = await run("bookkeeper", "POST", "bills", "/5/send-back");
     expect(sendBack.nextCalled).toBe(false);
     expect(sendBack.statusCode).toBe(403);
+  });
+
+  it("invoices: a bookkeeper CAN create + submit a draft but cannot approve it", async () => {
+    expect((await run("bookkeeper", "POST", "invoices", "/")).nextCalled).toBe(true);
+    expect((await run("bookkeeper", "POST", "invoices", "/5/submit")).nextCalled).toBe(true);
+    const approve = await run("bookkeeper", "POST", "invoices", "/5/approve");
+    expect(approve.nextCalled).toBe(false);
+    expect(approve.statusCode).toBe(403);
   });
 });
 

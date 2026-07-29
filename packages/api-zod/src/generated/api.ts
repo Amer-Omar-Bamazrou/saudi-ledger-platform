@@ -543,3 +543,153 @@ export const RejectBillParams = zod.object({
 export const RejectBillResponse = zod.void()
 
 
+/**
+ * Draft/approval workflow (M10.4). Moves an editable draft invoice to `submitted` (awaiting approval); locked to the enterer until approved or sent back. Bookkeeper (create-level) action.
+ * @summary Submit a draft invoice into the approval queue
+ */
+export const SubmitInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.4). Returns a `submitted` invoice to `draft` with an optional reviewer note. Approver-only.
+ * @summary Send a submitted invoice back to the enterer for correction
+ */
+export const SendBackInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendBackInvoiceBody = zod.object({
+  "note": zod.string().nullish()
+}).describe('Optional reviewer note when sending a submitted record back.')
+
+export const SendBackInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.4). Approving an invoice issues it: it is recognized in AR/revenue/VAT, and its ZATCA hash-chain link + QR are minted HERE (not at create), so a rejected/deleted draft never consumes a sequence number. May be approved straight from draft (self-approve on create, done automatically for approvers) or from the queue. Approver-only.
+ * @summary Approve (issue) an invoice — builds the ZATCA hash chain and posts AR
+ */
+export const ApproveInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.4). Hard-deletes a draft or submitted invoice — no archive. Because a draft carries no hash-chain link, deleting it leaves no gap in the sequence. An issued invoice cannot be rejected (it must be reversed with a credit note). Approver-only.
+ * @summary Reject a non-approved invoice (hard-deletes it)
+ */
+export const RejectInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectInvoiceResponse = zod.void()
+
+

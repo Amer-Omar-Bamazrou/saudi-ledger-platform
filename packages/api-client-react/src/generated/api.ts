@@ -33,6 +33,7 @@ import type {
   GetSummaryParams,
   GetVatSummaryParams,
   HealthStatus,
+  Invoice,
   JournalEntry,
   ListTransactionsParams,
   SendBackInput,
@@ -1577,5 +1578,294 @@ export const useRejectBill = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRejectBillMutationOptions(options));
+    }
+
+export const getSubmitInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/submit`
+}
+
+/**
+ * Draft/approval workflow (M10.4). Moves an editable draft invoice to `submitted` (awaiting approval); locked to the enterer until approved or sent back. Bookkeeper (create-level) action.
+ * @summary Submit a draft invoice into the approval queue
+ */
+export const submitInvoice = async (id: number, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getSubmitInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof submitInvoice>>>
+
+    export type SubmitInvoiceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit a draft invoice into the approval queue
+ */
+export const useSubmitInvoice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitInvoiceMutationOptions(options));
+    }
+
+export const getSendBackInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/send-back`
+}
+
+/**
+ * Draft/approval workflow (M10.4). Returns a `submitted` invoice to `draft` with an optional reviewer note. Approver-only.
+ * @summary Send a submitted invoice back to the enterer for correction
+ */
+export const sendBackInvoice = async (id: number,
+    sendBackInput?: SendBackInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getSendBackInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendBackInput)
+  }
+);}
+
+
+
+
+
+export const getSendBackInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackInvoice>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendBackInvoice>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext> => {
+
+const mutationKey = ['sendBackInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendBackInvoice>>, {id: number;data?: BodyType<SendBackInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendBackInvoice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendBackInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof sendBackInvoice>>>
+    export type SendBackInvoiceMutationBody = BodyType<SendBackInput> | undefined
+    export type SendBackInvoiceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Send a submitted invoice back to the enterer for correction
+ */
+export const useSendBackInvoice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackInvoice>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendBackInvoice>>,
+        TError,
+        {id: number;data?: BodyType<SendBackInput>},
+        TContext
+      > => {
+      return useMutation(getSendBackInvoiceMutationOptions(options));
+    }
+
+export const getApproveInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/approve`
+}
+
+/**
+ * Draft/approval workflow (M10.4). Approving an invoice issues it: it is recognized in AR/revenue/VAT, and its ZATCA hash-chain link + QR are minted HERE (not at create), so a rejected/deleted draft never consumes a sequence number. May be approved straight from draft (self-approve on create, done automatically for approvers) or from the queue. Approver-only.
+ * @summary Approve (issue) an invoice — builds the ZATCA hash chain and posts AR
+ */
+export const approveInvoice = async (id: number, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getApproveInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof approveInvoice>>>
+
+    export type ApproveInvoiceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve (issue) an invoice — builds the ZATCA hash chain and posts AR
+ */
+export const useApproveInvoice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveInvoiceMutationOptions(options));
+    }
+
+export const getRejectInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/reject`
+}
+
+/**
+ * Draft/approval workflow (M10.4). Hard-deletes a draft or submitted invoice — no archive. Because a draft carries no hash-chain link, deleting it leaves no gap in the sequence. An issued invoice cannot be rejected (it must be reversed with a credit note). Approver-only.
+ * @summary Reject a non-approved invoice (hard-deletes it)
+ */
+export const rejectInvoice = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof rejectInvoice>>>
+
+    export type RejectInvoiceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a non-approved invoice (hard-deletes it)
+ */
+export const useRejectInvoice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectInvoiceMutationOptions(options));
     }
 

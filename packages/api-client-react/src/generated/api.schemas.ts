@@ -346,6 +346,74 @@ export interface SendBackInput {
   note?: string | null;
 }
 
+export interface InvoiceItem {
+  id: number;
+  invoiceId: number;
+  /** @nullable */
+  productId?: number | null;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+}
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+
+export const InvoiceStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  sent: 'sent',
+  paid: 'paid',
+  overdue: 'overdue',
+  cancelled: 'cancelled',
+} as const;
+
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  customerName?: string | null;
+  status: InvoiceStatus;
+  subtotal: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+  /** @nullable */
+  currency?: string | null;
+  paidAmount: number;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * ZATCA hash-chain link; null until the invoice is approved.
+     * @nullable
+     */
+  invoiceHash?: string | null;
+  /** @nullable */
+  previousHash?: string | null;
+  /**
+     * ZATCA Phase-1 QR (base64 TLV); null until approved.
+     * @nullable
+     */
+  qrCode?: string | null;
+  createdAt: string;
+  items: InvoiceItem[];
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable

@@ -85,6 +85,17 @@ async function getPermissions(): Promise<Set<string>> {
   return loading;
 }
 
+/**
+ * Ask whether a role holds a (resource, action) grant — the same matrix
+ * `requirePermission` enforces, exposed for in-handler decisions (e.g. an
+ * approver self-approving on create). Reads the shared in-memory cache, so it
+ * duplicates no policy.
+ */
+export async function can(role: string, resource: string, action: PermissionAction): Promise<boolean> {
+  const permissions = await getPermissions();
+  return permissions.has(permKey(role, resource, action));
+}
+
 /** Test/ops hook: seed the cache directly (bypasses the DB). */
 export function primePermissionCache(
   rows: ReadonlyArray<{ role: string; resource: string; action: string }>,

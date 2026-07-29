@@ -57,6 +57,13 @@
       "when": 1785356926410,
       "tag": "0007_m10_3_bill_review_note",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785358435001,
+      "tag": "0008_m10_4_invoice_review_note",
+      "breakpoints": true
     }
   ]
 }

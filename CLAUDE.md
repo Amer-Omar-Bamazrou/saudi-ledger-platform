@@ -286,6 +286,41 @@ Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-
     balance-sheet AP / VAT input; submit→send-back→resubmit→approve posts it;
     submitted is edit-locked; draft is not payable; pay-500 is now 400; every
     transition audited.
+- **M10.4 (done): Invoices — ZATCA hash chain + AR posting deferred to approval.**
+  The highest-risk sub-milestone; engine reused unchanged.
+  - **Hash chain built ONLY at approval (the single most important M10 property).**
+    Pre-M10, invoice `create` eagerly minted the ZATCA hash-chain link + QR **and**
+    posted AR. Now `create` persists a **draft** with `invoice_hash = NULL` and no
+    GL; the chain link, QR, and Dr AR / Cr Sales+VAT posting are all minted in the
+    invoice adapter's `onApprove` (`services/invoices.approvable.ts`), atomically
+    within the request tenant tx. Because `getPreviousInvoiceHash` only reads
+    non-null-hash (approved) invoices, a draft is invisible to the chain and
+    **consumes no sequence number** — a rejected/deleted draft never leaves a gap
+    in the legally-required sequence. Proven by
+    `tests/invoices-hash-chain-continuity.test.ts` (drafts carry no hash; an
+    approval created after an intervening draft chains to the last *approved*
+    invoice; a deleted draft leaves no gap; exactly one GENESIS root; every link
+    points at a real prior hash).
+  - **Self-approve-on-create keeps approver behavior identical to pre-M10.** The
+    controller asks the RBAC matrix (`can(role,"invoices","approve")`, new export
+    in `lib/rbac.ts`) and passes `autoApprove`; an admin/accountant `create` issues
+    the invoice immediately (hash + QR + AR) in one call, while a bookkeeper's
+    `create` stays a `draft` awaiting approval.
+  - **State model** mirrors bills: `draft` (editable, unhashed, not in AR/VAT) →
+    `submitted` (locked, queued) → `sent` (approved/issued). Migration
+    `0008_m10_4_invoice_review_note` adds `invoices.review_note`. `submit` is a
+    bookkeeper action; `approve`/`send-back`/`reject`/`pay` are approver-only.
+    Invoice `pay` hardened like bills (approved-only + amount validation → 400).
+  - **Approved-only AR filters:** AR aging, balance-sheet AR, VAT-return
+    sales/output-VAT side, **and** customer ledger now exclude `draft`+`submitted`
+    (`approvedInvoicesOnly()`).
+  - **Endpoints (OpenAPI-first):** `POST /invoices/:id/{submit,send-back,approve,reject}`
+    + `Invoice`/`InvoiceItem` schemas; client regenerated. `buildInvoiceOut` →
+    `invoices.presenter.ts`.
+  - **Zero-movement test** (`tests/invoices-approval-zero-movement.test.ts`):
+    draft AND submitted move zero in AR aging / balance-sheet AR / VAT output;
+    approval issues it (AR + hash/QR); submitted edit-locked; draft not payable;
+    self-approve-on-create issues immediately; all transitions audited.
 
 See `docs/phase-0-implementation-plan.md`.
 

@@ -21,6 +21,8 @@ tags:
     description: Journal entries and the draft/approval workflow
   - name: bills
     description: Vendor bills (AP) and the draft/approval workflow
+  - name: invoices
+    description: Customer invoices (AR, ZATCA) and the draft/approval workflow
 
 paths:
   /healthz:
@@ -556,6 +558,157 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /invoices/{id}/submit:
+    post:
+      operationId: submitInvoice
+      tags: [invoices]
+      summary: Submit a draft invoice into the approval queue
+      description: >
+        Draft/approval workflow (M10.4). Moves an editable draft invoice to
+        `submitted` (awaiting approval); locked to the enterer until approved or
+        sent back. Bookkeeper (create-level) action.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The submitted invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a draft invoice can be submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invoices/{id}/send-back:
+    post:
+      operationId: sendBackInvoice
+      tags: [invoices]
+      summary: Send a submitted invoice back to the enterer for correction
+      description: >
+        Draft/approval workflow (M10.4). Returns a `submitted` invoice to `draft`
+        with an optional reviewer note. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBackInput"
+      responses:
+        "200":
+          description: The invoice, returned to draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a submitted invoice can be sent back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invoices/{id}/approve:
+    post:
+      operationId: approveInvoice
+      tags: [invoices]
+      summary: Approve (issue) an invoice — builds the ZATCA hash chain and posts AR
+      description: >
+        Draft/approval workflow (M10.4). Approving an invoice issues it: it is
+        recognized in AR/revenue/VAT, and its ZATCA hash-chain link + QR are
+        minted HERE (not at create), so a rejected/deleted draft never consumes a
+        sequence number. May be approved straight from draft (self-approve on
+        create, done automatically for approvers) or from the queue.
+        Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The approved (issued) invoice, with ZATCA hash + QR
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The invoice is already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The accounting period is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invoices/{id}/reject:
+    post:
+      operationId: rejectInvoice
+      tags: [invoices]
+      summary: Reject a non-approved invoice (hard-deletes it)
+      description: >
+        Draft/approval workflow (M10.4). Hard-deletes a draft or submitted invoice
+        — no archive. Because a draft carries no hash-chain link, deleting it
+        leaves no gap in the sequence. An issued invoice cannot be rejected (it
+        must be reversed with a credit note). Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: The invoice was rejected and removed
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An issued invoice cannot be rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -1043,3 +1196,92 @@ components:
       properties:
         note:
           type: ["string", "null"]
+
+    InvoiceItem:
+      type: object
+      required: [id, invoiceId, description, quantity, unitPrice, vatAmount, total]
+      properties:
+        id:
+          type: integer
+        invoiceId:
+          type: integer
+        productId:
+          type: ["integer", "null"]
+        description:
+          type: string
+        descriptionAr:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        vatRate:
+          type: number
+        vatAmount:
+          type: number
+        discount:
+          type: number
+        total:
+          type: number
+
+    Invoice:
+      type: object
+      required:
+        - id
+        - invoiceNumber
+        - date
+        - status
+        - subtotal
+        - vatAmount
+        - total
+        - paidAmount
+        - createdAt
+        - items
+      properties:
+        id:
+          type: integer
+        invoiceNumber:
+          type: string
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        customerId:
+          type: ["integer", "null"]
+        customerName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, submitted, sent, paid, overdue, cancelled]
+        subtotal:
+          type: number
+        vatAmount:
+          type: number
+        discount:
+          type: number
+        total:
+          type: number
+        currency:
+          type: ["string", "null"]
+        paidAmount:
+          type: number
+        paidAt:
+          type: ["string", "null"]
+        reviewNote:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        invoiceHash:
+          type: ["string", "null"]
+          description: ZATCA hash-chain link; null until the invoice is approved.
+        previousHash:
+          type: ["string", "null"]
+        qrCode:
+          type: ["string", "null"]
+          description: ZATCA Phase-1 QR (base64 TLV); null until approved.
+        createdAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"

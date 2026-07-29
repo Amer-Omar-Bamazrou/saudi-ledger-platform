@@ -1,57 +1,33 @@
 /**
- * Invoices service — totals computation, ZATCA hash-chain + QR, and AR GL posting.
- * Tax/hash/GL logic is delegated UNCHANGED to services/accounting/{zatca,glPosting,
- * periodLock}; only the surrounding orchestration + data access moved here.
- * Behavior preserved exactly from the pre-M6 route.
+ * Invoices service — the draft/approval workflow (M10.4).
+ *
+ * The single most important correctness property: **the ZATCA hash chain and
+ * the AR GL posting are deferred to approval** (`invoiceApprovable().onApprove`),
+ * NOT done at create. A draft/submitted invoice carries a null `invoice_hash`,
+ * so it consumes no sequence number and a rejected/deleted draft never leaves a
+ * gap in the legally-required chain.
+ *
+ * `create` therefore only computes totals and persists a DRAFT. An approver
+ * (admin/accountant) **self-approves on create** — the controller passes
+ * `autoApprove` (from the RBAC matrix), so their invoices post + hash + issue
+ * immediately in one call, exactly as before M10. A bookkeeper's create stays a
+ * draft awaiting approval.
+ *
+ * The draft→submitted→approved transitions and the on-approve activation are the
+ * generic {@link approvalService} + {@link invoiceApprovable} adapter — the same
+ * engine journal entries and bills use.
  */
-import { db, invoicesTable } from "@workspace/db";
-import { ConflictError, NotFoundError } from "../lib/errors";
+import { ConflictError, NotFoundError, BadRequestError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
-import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "./accounting/zatca";
+import { approvalService } from "./approval";
+import { invoiceApprovable } from "./invoices.approvable";
+import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
-import type { invoicesTable as InvoicesTable, invoiceItemsTable, customersTable } from "@workspace/db";
 
-type Invoice = typeof InvoicesTable.$inferSelect;
-type InvoiceItem = typeof invoiceItemsTable.$inferSelect;
-type Customer = typeof customersTable.$inferSelect;
-const toNum = (v: unknown) => (v != null ? Number(v) : 0);
-
-function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?: InvoiceItem[]) {
-  return {
-    id: inv.id,
-    invoiceNumber: inv.invoiceNumber,
-    date: inv.date,
-    dueDate: inv.dueDate,
-    customerId: inv.customerId,
-    customerName: customer?.name ?? null,
-    status: inv.status,
-    subtotal: toNum(inv.subtotal),
-    vatAmount: toNum(inv.vatAmount),
-    discount: toNum(inv.discount),
-    total: toNum(inv.total),
-    currency: inv.currency,
-    paidAmount: toNum(inv.paidAmount),
-    paidAt: inv.paidAt,
-    notes: inv.notes,
-    items:
-      items?.map((it) => ({
-        id: it.id,
-        invoiceId: it.invoiceId,
-        productId: it.productId,
-        description: it.description,
-        descriptionAr: it.descriptionAr,
-        quantity: toNum(it.quantity),
-        unitPrice: toNum(it.unitPrice),
-        vatRate: toNum(it.vatRate),
-        vatAmount: toNum(it.vatAmount),
-        discount: toNum(it.discount),
-        total: toNum(it.total),
-      })) ?? [],
-    createdAt: inv.createdAt.toISOString(),
-  };
-}
+const DEFAULT_SELLER_VAT = "300000000000003";
+const DEFAULT_SELLER_NAME = "KSA Ledger Company";
 
 export const invoicesService = {
   async list(filter: InvoiceListFilter) {
@@ -66,7 +42,12 @@ export const invoicesService = {
     return buildInvoiceOut(row.inv, row.cust, items);
   },
 
-  async create(body: Record<string, any>, userId: number | null) {
+  /**
+   * Create an invoice as a DRAFT (no hash, no QR, no GL). When `autoApprove` is
+   * set (caller may approve — admin/accountant), immediately approve it so it is
+   * issued in one call, preserving pre-M10 behavior for approvers.
+   */
+  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
     const { items = [], ...invData } = body;
     let subtotal = 0;
     let vatTotal = 0;
@@ -87,105 +68,107 @@ export const invoicesService = {
     });
     const total = subtotal + vatTotal - Number(invData.discount ?? 0);
 
+    // A draft dated in a closed period is harmless (no ledger effect), but keep
+    // the early guard so drafts aren't entered into closed periods.
     await checkPeriodOpen(invData.date ?? new Date().toISOString().split("T")[0]);
 
-    // ── ZATCA: hash chain + QR code ──
-    const previousHash = await getPreviousInvoiceHash(db, invoicesTable);
-    const sellerVatNumber = invData.sellerVatNumber ?? "300000000000003";
-    const sellerName = invData.sellerName ?? "KSA Ledger Company";
-    const invoiceDateTime = `${invData.date ?? new Date().toISOString().split("T")[0]}T00:00:00Z`;
-    const invoiceHash = computeInvoiceHash({
-      invoiceNumber: invData.invoiceNumber,
-      date: invData.date,
-      sellerVatNumber,
-      total: total.toFixed(2),
-      vatAmount: vatTotal.toFixed(2),
-      previousHash,
-    });
-    const qrCode = generateZatcaQr({
-      sellerName,
-      vatNumber: sellerVatNumber,
-      invoiceDateTime,
-      totalWithVat: total.toFixed(2),
-      vatAmount: vatTotal.toFixed(2),
-    });
-
+    // Persist a DRAFT — deliberately NO invoiceHash/previousHash/qrCode and NO GL
+    // posting here; those are minted only at approval. Seller identity is
+    // captured now (denormalized for the QR built at approval).
     const [inv] = await invoicesRepository.insert({
       ...invData,
       subtotal: String(subtotal.toFixed(2)),
       vatAmount: String(vatTotal.toFixed(2)),
       total: String(total.toFixed(2)),
+      status: "draft",
       createdBy: userId ?? null,
-      invoiceHash,
-      previousHash,
-      qrCode,
-      sellerName,
-      sellerVatNumber,
+      sellerName: invData.sellerName ?? DEFAULT_SELLER_NAME,
+      sellerVatNumber: invData.sellerVatNumber ?? DEFAULT_SELLER_VAT,
     } as Parameters<typeof invoicesRepository.insert>[0]);
 
     if (preparedItems.length > 0) {
       await invoicesRepository.insertItems(preparedItems.map((it: any) => ({ ...it, invoiceId: inv.id })));
     }
 
-    // ── GL: Dr Accounts Receivable / Cr Sales Revenue + VAT Payable ──
-    if (total > 0) {
-      await postJournalEntry({
-        entryNumber: `GL-${inv.invoiceNumber}`,
-        date: inv.date,
-        description: `Customer invoice ${inv.invoiceNumber}`,
-        reference: inv.invoiceNumber,
-        lines: [
-          { accountName: "Accounts Receivable", description: `Invoice ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0 },
-          { accountName: "Sales Revenue", description: `Invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
-          { accountName: "VAT Payable", description: `VAT on invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatTotal },
-        ],
-      });
-    }
-
     await auditService.created("invoice", inv.id, inv);
-    const out = buildInvoiceOut(inv, null);
-    return { ...out, qrCode: inv.qrCode, invoiceHash: inv.invoiceHash, previousHash: inv.previousHash };
+
+    // Self-approve on create for approvers → issue immediately (hash + QR + GL).
+    if (opts.autoApprove) {
+      return this.approve(inv.id, userId);
+    }
+    return buildInvoiceOut(inv, null);
+  },
+
+  /** Submit a draft invoice into the approval queue (bookkeeper action). */
+  submit(id: number, userId: number | null) {
+    return approvalService.submit(invoiceApprovable(), id, { userId: userId ?? null });
+  },
+
+  /** Send a submitted invoice back to the enterer for correction (approver action). */
+  sendBack(id: number, note: string | undefined, userId: number | null) {
+    return approvalService.sendBack(invoiceApprovable(), id, { userId: userId ?? null }, note);
+  },
+
+  /** Reject (hard-delete) a non-approved invoice (approver action). */
+  reject(id: number, userId: number | null) {
+    return approvalService.reject(invoiceApprovable(), id, { userId: userId ?? null });
+  },
+
+  /** Approve an invoice — issues it (hash chain + QR + AR GL posting). */
+  approve(id: number, userId: number | null) {
+    return approvalService.approve(invoiceApprovable(), id, { userId: userId ?? null });
   },
 
   async update(id: number, data: Record<string, unknown>) {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {
-      throw new ConflictError("Only draft invoices can be edited. Use a credit note to correct a posted invoice.");
+      throw new ConflictError("Only draft invoices can be edited. Use a credit note to correct an issued invoice.");
     }
     const [inv] = await invoicesRepository.update(id, data);
     await auditService.updated("invoice", id, existing, inv);
     return buildInvoiceOut(inv, null);
   },
 
-  async pay(id: number, body: { amount: unknown; paidAt?: string }) {
+  async pay(id: number, body: { amount: unknown; paidAt?: string }, userId: number | null) {
     const { amount, paidAt } = body;
-    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
 
-    const [before] = await invoicesRepository.findById(id);
+    const [existing] = await invoicesRepository.findById(id);
+    if (!existing) throw new NotFoundError("Not found");
+
+    // Only an issued (approved) invoice has a receivable to settle.
+    if (existing.status === "draft" || existing.status === "submitted") {
+      throw new ConflictError("Invoice must be approved before a payment can be recorded.");
+    }
+    if (existing.status === "paid") throw new ConflictError("Invoice is already paid.");
+
+    // Validate up front — a missing/non-numeric amount previously reached the
+    // numeric column and surfaced as an unhandled 500.
+    const paid = Number(amount);
+    if (!Number.isFinite(paid) || paid <= 0) {
+      throw new BadRequestError("A positive payment amount is required.");
+    }
+
+    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
     const [inv] = await invoicesRepository.update(id, {
-      paidAmount: String(amount),
+      paidAmount: String(paid),
       paidAt: payDate,
       status: "paid",
     });
-    if (!inv) throw new NotFoundError("Not found");
 
     // ── GL: Dr Cash and Bank / Cr Accounts Receivable ──
-    const paid = Number(amount);
-    if (paid > 0) {
-      await postJournalEntry({
-        entryNumber: `GL-${inv.invoiceNumber}-PAY`,
-        date: payDate,
-        description: `Payment received for invoice ${inv.invoiceNumber}`,
-        reference: inv.invoiceNumber,
-        lines: [
-          { accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
-          { accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid },
-        ],
-      });
-    }
+    await postJournalEntry({
+      entryNumber: `GL-${inv.invoiceNumber}-PAY`,
+      date: payDate,
+      description: `Payment received for invoice ${inv.invoiceNumber}`,
+      reference: inv.invoiceNumber,
+      lines: [
+        { accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
+        { accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid },
+      ],
+    });
 
-    await auditService.updated("invoice", id, before ?? null, inv);
+    await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: existing, after: inv });
     return buildInvoiceOut(inv, null);
   },
 
@@ -193,7 +176,7 @@ export const invoicesService = {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {
-      throw new ConflictError("Only draft invoices can be deleted. Posted invoices must be reversed.");
+      throw new ConflictError("Only draft invoices can be deleted. Issued invoices must be reversed with a credit note.");
     }
     await invoicesRepository.remove(id);
     await auditService.deleted("invoice", id, existing);

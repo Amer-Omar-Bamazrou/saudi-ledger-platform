@@ -24,7 +24,11 @@ export const invoicesTable = pgTable(
     date: text("date").notNull(),
     dueDate: text("due_date"),
     customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
-    status: text("status").notNull().default("draft"), // draft | sent | paid | overdue | cancelled
+    // Draft/approval workflow (M10.4): draft = editable, not in AR/VAT, and NOT
+    // yet in the ZATCA hash chain (invoice_hash is null until approved, so a
+    // rejected/deleted draft never consumes a sequence number); submitted =
+    // awaiting approval (locked); sent = approved & issued (hashed + AR posted).
+    status: text("status").notNull().default("draft"), // draft | submitted | sent | paid | overdue | cancelled
     subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull().default("0"),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     discount: numeric("discount", { precision: 15, scale: 2 }).default("0"),
@@ -32,6 +36,9 @@ export const invoicesTable = pgTable(
     currency: text("currency").default("SAR"),
     paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
     paidAt: text("paid_at"),
+    // Correction note an approver leaves when sending a submitted invoice back to
+    // the enterer; shown while editing, cleared on resubmit/approve (M10.4).
+    reviewNote: text("review_note"),
     notes: text("notes"),
     termsAndConditions: text("terms_and_conditions"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
