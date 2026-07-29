@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './bill';
+export * from './billApproveInput';
+export * from './billItem';
+export * from './billStatus';
 export * from './categorizationRequest';
 export * from './categorizationResult';
 export * from './categorizationResultItem';
@@ -25,6 +29,7 @@ export * from './journalEntryLine';
 export * from './journalEntryStatus';
 export * from './listTransactionsParams';
 export * from './listTransactionsType';
+export * from './sendBackInput';
 export * from './transaction';
 export * from './transactionInput';
 export * from './transactionInputType';

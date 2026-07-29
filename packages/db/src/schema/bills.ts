@@ -25,13 +25,19 @@ export const billsTable = pgTable(
     date: text("date").notNull(),
     dueDate: text("due_date"),
     vendorId: integer("vendor_id").references(() => vendorsTable.id, { onDelete: "restrict" }),
-    status: text("status").notNull().default("draft"), // draft | received | approved | paid | overdue
+    // Draft/approval workflow (M10.3): draft = editable, not in books nor in the
+    // approval queue; submitted = awaiting approval (locked); received = approved
+    // & posted to the GL (in AP/expense/VAT). paid/overdue are post-approval.
+    status: text("status").notNull().default("draft"), // draft | submitted | received | approved | paid | overdue
     subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull().default("0"),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     total: numeric("total", { precision: 15, scale: 2 }).notNull().default("0"),
     currency: text("currency").default("SAR"),
     paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
     paidAt: text("paid_at"),
+    // Correction note an approver leaves when sending a submitted bill back to the
+    // bookkeeper for edit; shown while editing, cleared on resubmit/approve (M10.3).
+    reviewNote: text("review_note"),
     notes: text("notes"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),

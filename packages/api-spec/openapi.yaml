@@ -19,6 +19,8 @@ tags:
     description: Financial summaries and reports
   - name: journal_entries
     description: Journal entries and the draft/approval workflow
+  - name: bills
+    description: Vendor bills (AP) and the draft/approval workflow
 
 paths:
   /healthz:
@@ -385,6 +387,170 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Only a pending draft can be rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bills/{id}/submit:
+    post:
+      operationId: submitBill
+      tags: [bills]
+      summary: Submit a draft bill into the approval queue
+      description: >
+        Draft/approval workflow (M10.3). Moves an editable draft bill to
+        `submitted` (awaiting approval); the bill is locked to the enterer until
+        approved or sent back. This is the bookkeeper's own action (create-level
+        authorization), not an approver action.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The submitted bill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "404":
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a draft bill can be submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bills/{id}/send-back:
+    post:
+      operationId: sendBackBill
+      tags: [bills]
+      summary: Send a submitted bill back to the enterer for correction
+      description: >
+        Draft/approval workflow (M10.3). Returns a `submitted` bill to `draft`
+        with an optional reviewer note (shown to the enterer while editing). The
+        enterer corrects and resubmits. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBackInput"
+      responses:
+        "200":
+          description: The bill, returned to draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "404":
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Only a submitted bill can be sent back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bills/{id}/approve:
+    post:
+      operationId: approveBill
+      tags: [bills]
+      summary: Approve a bill (posts it to the general ledger)
+      description: >
+        Draft/approval workflow (M10.3). Approving a bill fires its activation:
+        totals reconciliation, ZATCA vendor-VAT validation (both overridable with
+        `force`), the period-lock check, and the Dr Purchases/Input VAT / Cr
+        Accounts Payable posting. Only then does the bill affect AP/expense/VAT.
+        May be approved straight from draft (self-approve) or from the queue.
+        Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillApproveInput"
+      responses:
+        "200":
+          description: The approved (posted) bill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "400":
+          description: Business-rule rejection (zero total, totals mismatch, invalid VAT number)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The bill is already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The accounting period is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bills/{id}/reject:
+    post:
+      operationId: rejectBill
+      tags: [bills]
+      summary: Reject a non-approved bill (hard-deletes it)
+      description: >
+        Draft/approval workflow (M10.3). Hard-deletes a draft or submitted bill —
+        no archive of rejected records. An approved bill cannot be rejected (it
+        must be reversed). Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: The bill was rejected and removed
+        "404":
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An approved bill cannot be rejected
           content:
             application/json:
               schema:
@@ -780,3 +946,100 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/JournalEntryLine"
+
+    BillItem:
+      type: object
+      required: [id, billId, description, quantity, unitPrice, vatAmount, total]
+      properties:
+        id:
+          type: integer
+        billId:
+          type: integer
+        productId:
+          type: ["integer", "null"]
+        description:
+          type: string
+        descriptionAr:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        vatRate:
+          type: number
+        vatAmount:
+          type: number
+        total:
+          type: number
+
+    Bill:
+      type: object
+      required:
+        - id
+        - billNumber
+        - date
+        - status
+        - subtotal
+        - vatAmount
+        - total
+        - paidAmount
+        - createdAt
+        - items
+      properties:
+        id:
+          type: integer
+        billNumber:
+          type: string
+        vendorReference:
+          type: ["string", "null"]
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        vendorName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, submitted, received, approved, paid, overdue]
+        subtotal:
+          type: number
+        vatAmount:
+          type: number
+        total:
+          type: number
+        currency:
+          type: ["string", "null"]
+        paidAmount:
+          type: number
+        paidAt:
+          type: ["string", "null"]
+        reviewNote:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillItem"
+
+    BillApproveInput:
+      type: object
+      description: Optional post options when approving a bill.
+      properties:
+        debitAccount:
+          type: ["string", "null"]
+          description: Expense/debit account name for the GL entry.
+        force:
+          type: ["boolean", "null"]
+          description: Override totals-mismatch and invalid-VAT-number rejections.
+
+    SendBackInput:
+      type: object
+      description: Optional reviewer note when sending a submitted record back.
+      properties:
+        note:
+          type: ["string", "null"]

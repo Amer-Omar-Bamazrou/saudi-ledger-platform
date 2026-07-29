@@ -14,7 +14,7 @@ import {
   customersTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
 
 /** Posted-JE conditions used by most reports (status + optional date range). */
 function jeConditions(date_from?: string, date_to?: string, statusFilter = true) {
@@ -24,6 +24,13 @@ function jeConditions(date_from?: string, date_to?: string, statusFilter = true)
   if (date_to) conds.push(lte(journalEntriesTable.date, date_to));
   return conds;
 }
+
+// Draft/approval workflow (M10.3): a bill affects AP/expense/VAT only once
+// APPROVED. Draft and submitted (queued) bills are NOT in the books, so every
+// money report that reads bills must exclude them. Kept as a shared condition
+// so the AP-aging, balance-sheet-AP, and VAT-return bill queries stay in lockstep.
+const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
+const approvedBillsOnly = () => notInArray(billsTable.status, BILL_NOT_IN_BOOKS);
 
 const lineJoin = () =>
   db
@@ -73,8 +80,9 @@ export const reportsRepository = {
   allInvoices() {
     return db.select().from(invoicesTable);
   },
+  // balance-sheet AP — approved bills only (drafts/submitted are not in the books).
   allBills() {
-    return db.select().from(billsTable);
+    return db.select().from(billsTable).where(approvedBillsOnly());
   },
 
   // journal-report + activity
@@ -212,11 +220,13 @@ export const reportsRepository = {
       .from(invoicesTable)
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id));
   },
+  // ap-aging — approved bills only (drafts/submitted are not payable AP yet).
   billsWithVendor() {
     return db
       .select({ bill: billsTable, vendor: vendorsTable })
       .from(billsTable)
-      .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id));
+      .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
+      .where(approvedBillsOnly());
   },
 
   // tax-journal-entries
@@ -262,7 +272,11 @@ export const reportsRepository = {
   invoicesInRange(dateFrom: string, dateTo: string) {
     return db.select().from(invoicesTable).where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo)));
   },
+  // vat-return (bill/input-VAT side) — approved bills only.
   billsInRange(dateFrom: string, dateTo: string) {
-    return db.select().from(billsTable).where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo)));
+    return db
+      .select()
+      .from(billsTable)
+      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
   },
 };

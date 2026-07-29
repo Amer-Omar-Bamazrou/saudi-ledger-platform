@@ -243,6 +243,49 @@ Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-
     from financial aggregates). M10.3–M10.5 each replicate this shape per entity.
     A DB-free unit test (`tests/approval.test.ts`) drives the engine through a
     fake adapter to prove it is entity-agnostic.
+- **M10.3 (done): Bills + the full state machine generalized into the engine.**
+  Bills exercise the complete workflow and become the template for invoices/payroll:
+  - **Engine generalized** (`services/approval/`): abstract state is now
+    `draft | submitted | approved` (was pending|approved), and the engine gained
+    two transitions alongside `approve`/`reject`: **`submit`** (draft→submitted,
+    enter the approval queue) and **`sendBack`** (submitted→draft, with a reviewer
+    note — spec §4's return-for-edit loop). All four transitions stay
+    entity-agnostic and audited (`submit`/`send_back`/`approve`/`reject`). The JE
+    adapter maps `draft→draft` and omits `onSubmit`/`onSendBack` (JE has no
+    editable-draft stage; it is approved straight from draft) — M10.2 behavior
+    unchanged.
+  - **State model (owner decision):** `draft` = editable, not in the approver's
+    queue, not in the books; `submitted` = **locked** (edit → 409), in the queue;
+    `received`/`paid`/`overdue` → `approved`. "Whose queue is this in" is a
+    definite state, not an inferred flag. A bill's **`submit`** is a bookkeeper
+    (create-level) action; **`approve`/`send-back`/`reject`/`pay`** are
+    approver-only (`send-back` added to the `requirePermission` activation-route
+    override). One new column: `bills.review_note` (migration
+    `0007_m10_3_bill_review_note`) — the correction shown to the enterer, cleared
+    on resubmit/approve. `create` now always yields a `draft` (caller status
+    ignored).
+  - **Bill adapter** (`services/bills.approvable.ts`, a per-request factory
+    carrying `debitAccount`/`force`): `onApprove` is the **existing** bill
+    post-to-GL path moved in unchanged (totals reconcile, ZATCA vendor-VAT, Dr
+    Purchases/Input VAT / Cr AP). `buildBillOut` extracted to
+    `bills.presenter.ts`.
+  - **Approved-only report filters:** AP aging, balance-sheet Accounts Payable,
+    and the VAT-return input-VAT/bill side now exclude `draft`+`submitted`
+    (`approvedBillsOnly()` in `reports.repository.ts`) — a pre-approval bill has
+    zero AP/expense/VAT impact. (Invoice-side report filters land in M10.4.)
+  - **Pre-existing bill-pay 500 fixed:** paying with a missing/invalid `amount`
+    reached the numeric column and surfaced as an unhandled **500**; `pay` now
+    validates the amount (**400**) and requires the bill to be approved first
+    (draft/submitted → 409, already-paid → 409) before posting Dr AP / Cr Cash.
+  - **Endpoints (OpenAPI-first):** `POST /bills/:id/{submit,send-back,approve,reject}`
+    added to the spec (+ `Bill`/`BillItem`/`BillApproveInput`/`SendBackInput`
+    schemas), client regenerated. `/:id/post` kept as the approve alias; `/:id/pay`
+    unchanged surface (hardened logic).
+  - **Bill zero-movement test** (`tests/bills-approval-zero-movement.test.ts`) —
+    the JE template applied to AP: draft AND submitted move zero in AP aging /
+    balance-sheet AP / VAT input; submit→send-back→resubmit→approve posts it;
+    submitted is edit-locked; draft is not payable; pay-500 is now 400; every
+    transition audited.
 
 See `docs/phase-0-implementation-plan.md`.
 

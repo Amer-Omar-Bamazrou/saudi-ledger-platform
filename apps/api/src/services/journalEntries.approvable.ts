@@ -8,8 +8,9 @@
  * trusted activation path, unchanged. This adapter only maps the JE's native
  * status onto the abstract `pending | approved` and names the on-approve action.
  *
- * Status mapping (spec §9, §10):
- *   draft    → pending   (no effect on the books)
+ * State mapping (spec §9, §10):
+ *   draft    → draft     (no effect on the books; approved directly — JE has no
+ *                         submit/send-back stage, so it omits onSubmit/onSendBack)
  *   posted   → approved  (active in the ledger)
  *   reversed → approved  (was posted; a post-approval terminal state — cannot be
  *                         re-approved, which the service's "already approved"
@@ -22,7 +23,7 @@
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { buildJEOut, type JournalEntryOut } from "./journalEntries.presenter";
-import type { Approvable, ApprovalStatus } from "./approval";
+import type { Approvable, ApprovalState } from "./approval";
 import type { journalEntriesTable } from "@workspace/db";
 
 type JournalEntry = typeof journalEntriesTable.$inferSelect;
@@ -35,8 +36,9 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
     return je ?? null;
   },
 
-  status(je): ApprovalStatus {
-    return je.status === "draft" ? "pending" : "approved";
+  state(je): ApprovalState {
+    // JE has no editable-draft/submit stage — a draft is approved (posted) directly.
+    return je.status === "draft" ? "draft" : "approved";
   },
 
   async onApprove(je) {

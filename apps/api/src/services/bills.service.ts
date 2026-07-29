@@ -1,59 +1,26 @@
 /**
- * Bills service — AP bills, the single GL posting path (with totals reconciliation
- * + ZATCA VAT-number validation and force override), payment, and edit/delete
- * guards. GL posting + period locks delegated UNCHANGED to services/accounting.
- * Behavior — including the structured 400 error bodies and force-post warnings —
- * preserved exactly from the pre-M6 route.
+ * Bills service — AP bills and the draft/approval workflow (M10.3).
+ *
+ * The draft→submitted→approved transitions are delegated to the generic
+ * {@link approvalService} via the per-request {@link billApprovable} adapter —
+ * the SAME engine journal entries use. Approval fires the bill's existing
+ * post-to-GL activation (totals reconciliation + ZATCA validation + Dr
+ * Purchases/Input VAT / Cr AP), unchanged, now living in the adapter. `post`
+ * is kept as the alias for `approve` (the frontend and existing API call it).
+ *
+ * `pay` is a post-approval action (not part of the workflow) and is hardened
+ * here: a bill must be approved before payment, the amount must be a positive
+ * number (fixing the pre-existing 500 when it was missing/invalid), and the
+ * payment posts Dr AP / Cr Cash.
  */
-import { BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
+import { approvalService } from "./approval";
+import { billApprovable, type BillApproveOptions } from "./bills.approvable";
+import { buildBillOut } from "./bills.presenter";
 import { billsRepository, type BillListFilter } from "../repositories/bills.repository";
-import type { billsTable, billItemsTable, vendorsTable } from "@workspace/db";
-
-type Bill = typeof billsTable.$inferSelect;
-type BillItem = typeof billItemsTable.$inferSelect;
-type Vendor = typeof vendorsTable.$inferSelect;
-const toNum = (v: unknown) => (v != null ? Number(v) : 0);
-
-// Validation constants (mirror receiptValidator.ts on the frontend).
-const RECONCILE_TOLERANCE = 0.02;
-const ZATCA_VAT_RE = /^3\d{13}3$/;
-
-function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[]) {
-  return {
-    id: bill.id,
-    billNumber: bill.billNumber,
-    vendorReference: bill.vendorReference,
-    date: bill.date,
-    dueDate: bill.dueDate,
-    vendorId: bill.vendorId,
-    vendorName: vendor?.name ?? null,
-    status: bill.status,
-    subtotal: toNum(bill.subtotal),
-    vatAmount: toNum(bill.vatAmount),
-    total: toNum(bill.total),
-    currency: bill.currency,
-    paidAmount: toNum(bill.paidAmount),
-    paidAt: bill.paidAt,
-    notes: bill.notes,
-    createdAt: bill.createdAt.toISOString(),
-    items:
-      items?.map((it) => ({
-        id: it.id,
-        billId: it.billId,
-        productId: it.productId,
-        description: it.description,
-        descriptionAr: it.descriptionAr,
-        quantity: toNum(it.quantity),
-        unitPrice: toNum(it.unitPrice),
-        vatRate: toNum(it.vatRate),
-        vatAmount: toNum(it.vatAmount),
-        total: toNum(it.total),
-      })) ?? [],
-  };
-}
 
 export const billsService = {
   async list(filter: BillListFilter) {
@@ -97,7 +64,9 @@ export const billsService = {
       subtotal: String(finalSubtotal.toFixed(2)),
       vatAmount: String(finalVatAmount.toFixed(2)),
       total: String(finalTotal.toFixed(2)),
-      status: billData.status ?? "draft",
+      // Every bill enters the workflow as a draft — it affects nothing until
+      // approved. A caller-supplied status is ignored (workflow correctness).
+      status: "draft",
       createdBy: userId ?? null,
     } as Parameters<typeof billsRepository.insert>[0]);
 
@@ -109,76 +78,32 @@ export const billsService = {
     return buildBillOut(bill, null);
   },
 
-  async post(id: number, body: { debitAccount?: unknown; force?: boolean }, userId: number | null) {
-    const { debitAccount, force = false } = body;
+  /** Submit a draft bill into the approval queue (bookkeeper action). */
+  submit(id: number, userId: number | null) {
+    return approvalService.submit(billApprovable(), id, { userId: userId ?? null });
+  },
 
-    const [row] = await billsRepository.findWithVendor(id);
-    if (!row) throw new NotFoundError("Bill not found");
-    if (row.bill.status === "paid") throw new ConflictError("Bill is already paid — cannot re-post.");
+  /** Send a submitted bill back to the enterer for correction (approver action). */
+  sendBack(id: number, note: string | undefined, userId: number | null) {
+    return approvalService.sendBack(billApprovable(), id, { userId: userId ?? null }, note);
+  },
 
-    const subtotal = toNum(row.bill.subtotal);
-    const vatAmount = toNum(row.bill.vatAmount);
-    const total = toNum(row.bill.total);
+  /** Reject (hard-delete) a non-approved bill (approver action). */
+  reject(id: number, userId: number | null) {
+    return approvalService.reject(billApprovable(), id, { userId: userId ?? null });
+  },
 
-    if (total <= 0) {
-      throw new BusinessRuleError(400, { error: "Bill total must be greater than zero to post.", code: "ZERO_TOTAL" });
-    }
+  /**
+   * Approve a bill — posts it to the GL (AP/expense/input VAT). Runs the
+   * existing activation via the bill adapter, carrying the request's post
+   * options (debit account, force override). `post` is the alias.
+   */
+  approve(id: number, opts: BillApproveOptions, userId: number | null) {
+    return approvalService.approve(billApprovable(opts), id, { userId: userId ?? null });
+  },
 
-    // ── totals reconciliation ──
-    const computed = Math.round((subtotal + vatAmount) * 100) / 100;
-    const diff = Math.abs(computed - total);
-    let effectiveTotal = total;
-    if (diff > RECONCILE_TOLERANCE) {
-      if (!force) {
-        throw new BusinessRuleError(400, {
-          error: `Totals don't reconcile: ${subtotal} + ${vatAmount} = ${computed} but total is ${total} (difference: ${diff.toFixed(2)} SAR). Correct the amounts or pass force:true to override.`,
-          code: "TOTALS_MISMATCH",
-          detail: { subtotal, vatAmount, computedTotal: computed, storedTotal: total, diff },
-        });
-      }
-      effectiveTotal = computed;
-      console.warn(
-        `[FORCE-POST] bill ${id} (${row.bill.billNumber}) posted with TOTALS_MISMATCH ` +
-          `diff=${diff.toFixed(2)} SAR; using computed total ${computed} for GL — ` +
-          `userId=${userId ?? "unknown"} at ${new Date().toISOString()}`,
-      );
-    }
-
-    // ── vendor ZATCA VAT number format ──
-    const vendorVat = row.vendor?.taxNumber?.trim() ?? "";
-    if (vendorVat && !ZATCA_VAT_RE.test(vendorVat)) {
-      if (!force) {
-        throw new BusinessRuleError(400, {
-          error: `Vendor VAT number "${vendorVat}" is not in ZATCA format (15 digits, first and last digit '3'). Correct the vendor record or pass force:true to override.`,
-          code: "INVALID_VAT_NUMBER",
-          detail: { vendorId: row.vendor?.id, vendorVat },
-        });
-      }
-      console.warn(
-        `[FORCE-POST] bill ${id} (${row.bill.billNumber}) posted with INVALID_VAT_NUMBER ` +
-          `vatNumber=${vendorVat} — userId=${userId ?? "unknown"} at ${new Date().toISOString()}`,
-      );
-    }
-
-    // ── GL: Dr Purchases/Input VAT / Cr Accounts Payable ──
-    const expenseAccount =
-      typeof debitAccount === "string" && debitAccount.trim() ? debitAccount.trim() : "Purchases and Cost of Sales";
-
-    await postJournalEntry({
-      entryNumber: `BILL-${row.bill.billNumber}`,
-      date: row.bill.date,
-      description: `Vendor bill ${row.bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}`,
-      reference: row.bill.billNumber ?? undefined,
-      lines: [
-        { accountName: expenseAccount, description: `Bill ${row.bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
-        { accountName: "Input VAT Receivable", description: `VAT on ${row.bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
-        { accountName: "Accounts Payable", description: `Bill ${row.bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal },
-      ],
-    });
-
-    const [updated] = await billsRepository.update(id, { status: "received" });
-    await auditService.updated("bill", id, row.bill, updated);
-    return buildBillOut(updated, row.vendor);
+  post(id: number, opts: BillApproveOptions, userId: number | null) {
+    return this.approve(id, opts, userId);
   },
 
   async update(id: number, data: Record<string, unknown>) {
@@ -190,34 +115,46 @@ export const billsService = {
     return buildBillOut(bill, null);
   },
 
-  async pay(id: number, body: { amount: unknown; paidAt?: string }) {
+  async pay(id: number, body: { amount: unknown; paidAt?: string }, userId: number | null) {
     const { amount, paidAt } = body;
-    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
 
-    const [before] = await billsRepository.findById(id);
+    const [existing] = await billsRepository.findById(id);
+    if (!existing) throw new NotFoundError("Not found");
+
+    // A bill must be approved (posted to AP) before it can be paid — a draft or
+    // queued bill has no payable AP balance yet.
+    if (existing.status === "draft" || existing.status === "submitted") {
+      throw new ConflictError("Bill must be approved before it can be paid.");
+    }
+    if (existing.status === "paid") throw new ConflictError("Bill is already paid.");
+
+    // Validate the amount up front — a missing/non-numeric amount previously
+    // reached the numeric column and surfaced as an unhandled 500.
+    const paid = Number(amount);
+    if (!Number.isFinite(paid) || paid <= 0) {
+      throw new BadRequestError("A positive payment amount is required.");
+    }
+
+    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
     const [bill] = await billsRepository.update(id, {
-      paidAmount: String(amount),
+      paidAmount: String(paid),
       paidAt: payDate,
       status: "paid",
     });
-    if (!bill) throw new NotFoundError("Not found");
 
     // ── GL: Dr Accounts Payable / Cr Cash and Bank ──
-    const paid = Number(amount);
-    if (paid > 0) {
-      await postJournalEntry({
-        entryNumber: `BILL-${bill.billNumber}-PAY`,
-        date: payDate,
-        description: `Payment to vendor for bill ${bill.billNumber}`,
-        reference: bill.billNumber ?? undefined,
-        lines: [
-          { accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0 },
-          { accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
-        ],
-      });
-    }
+    await postJournalEntry({
+      entryNumber: `BILL-${bill.billNumber}-PAY`,
+      date: payDate,
+      description: `Payment to vendor for bill ${bill.billNumber}`,
+      reference: bill.billNumber ?? undefined,
+      lines: [
+        { accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0 },
+        { accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
+      ],
+    });
 
-    await auditService.updated("bill", id, before ?? null, bill);
+    await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
     return buildBillOut(bill, null);
   },
 

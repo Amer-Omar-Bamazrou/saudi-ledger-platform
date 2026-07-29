@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  Bill,
+  BillApproveInput,
   CategorizationRequest,
   CategorizationResult,
   Category,
@@ -33,6 +35,7 @@ import type {
   HealthStatus,
   JournalEntry,
   ListTransactionsParams,
+  SendBackInput,
   Transaction,
   TransactionInput,
   TransactionList,
@@ -1284,5 +1287,295 @@ export const useRejectJournalEntry = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRejectJournalEntryMutationOptions(options));
+    }
+
+export const getSubmitBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/submit`
+}
+
+/**
+ * Draft/approval workflow (M10.3). Moves an editable draft bill to `submitted` (awaiting approval); the bill is locked to the enterer until approved or sent back. This is the bookkeeper's own action (create-level authorization), not an approver action.
+ * @summary Submit a draft bill into the approval queue
+ */
+export const submitBill = async (id: number, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getSubmitBillUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBill>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitBill>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['submitBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitBill>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  submitBill(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitBillMutationResult = NonNullable<Awaited<ReturnType<typeof submitBill>>>
+
+    export type SubmitBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit a draft bill into the approval queue
+ */
+export const useSubmitBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBill>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitBill>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitBillMutationOptions(options));
+    }
+
+export const getSendBackBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/send-back`
+}
+
+/**
+ * Draft/approval workflow (M10.3). Returns a `submitted` bill to `draft` with an optional reviewer note (shown to the enterer while editing). The enterer corrects and resubmits. Approver-only.
+ * @summary Send a submitted bill back to the enterer for correction
+ */
+export const sendBackBill = async (id: number,
+    sendBackInput?: SendBackInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getSendBackBillUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendBackInput)
+  }
+);}
+
+
+
+
+
+export const getSendBackBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackBill>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendBackBill>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext> => {
+
+const mutationKey = ['sendBackBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendBackBill>>, {id: number;data?: BodyType<SendBackInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendBackBill(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendBackBillMutationResult = NonNullable<Awaited<ReturnType<typeof sendBackBill>>>
+    export type SendBackBillMutationBody = BodyType<SendBackInput> | undefined
+    export type SendBackBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Send a submitted bill back to the enterer for correction
+ */
+export const useSendBackBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackBill>>, TError,{id: number;data?: BodyType<SendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendBackBill>>,
+        TError,
+        {id: number;data?: BodyType<SendBackInput>},
+        TContext
+      > => {
+      return useMutation(getSendBackBillMutationOptions(options));
+    }
+
+export const getApproveBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/approve`
+}
+
+/**
+ * Draft/approval workflow (M10.3). Approving a bill fires its activation: totals reconciliation, ZATCA vendor-VAT validation (both overridable with `force`), the period-lock check, and the Dr Purchases/Input VAT / Cr Accounts Payable posting. Only then does the bill affect AP/expense/VAT. May be approved straight from draft (self-approve) or from the queue. Approver-only.
+ * @summary Approve a bill (posts it to the general ledger)
+ */
+export const approveBill = async (id: number,
+    billApproveInput?: BillApproveInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getApproveBillUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billApproveInput)
+  }
+);}
+
+
+
+
+
+export const getApproveBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBill>>, TError,{id: number;data?: BodyType<BillApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveBill>>, TError,{id: number;data?: BodyType<BillApproveInput>}, TContext> => {
+
+const mutationKey = ['approveBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveBill>>, {id: number;data?: BodyType<BillApproveInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveBill(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveBillMutationResult = NonNullable<Awaited<ReturnType<typeof approveBill>>>
+    export type ApproveBillMutationBody = BodyType<BillApproveInput> | undefined
+    export type ApproveBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a bill (posts it to the general ledger)
+ */
+export const useApproveBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBill>>, TError,{id: number;data?: BodyType<BillApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveBill>>,
+        TError,
+        {id: number;data?: BodyType<BillApproveInput>},
+        TContext
+      > => {
+      return useMutation(getApproveBillMutationOptions(options));
+    }
+
+export const getRejectBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/reject`
+}
+
+/**
+ * Draft/approval workflow (M10.3). Hard-deletes a draft or submitted bill — no archive of rejected records. An approved bill cannot be rejected (it must be reversed). Approver-only.
+ * @summary Reject a non-approved bill (hard-deletes it)
+ */
+export const rejectBill = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectBillUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectBill>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectBill>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectBill>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectBill(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectBillMutationResult = NonNullable<Awaited<ReturnType<typeof rejectBill>>>
+
+    export type RejectBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a non-approved bill (hard-deletes it)
+ */
+export const useRejectBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectBill>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectBill>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectBillMutationOptions(options));
     }
 

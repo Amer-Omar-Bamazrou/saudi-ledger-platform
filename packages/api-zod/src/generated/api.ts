@@ -400,3 +400,146 @@ export const RejectJournalEntryParams = zod.object({
 export const RejectJournalEntryResponse = zod.void()
 
 
+/**
+ * Draft/approval workflow (M10.3). Moves an editable draft bill to `submitted` (awaiting approval); the bill is locked to the enterer until approved or sent back. This is the bookkeeper's own action (create-level authorization), not an approver action.
+ * @summary Submit a draft bill into the approval queue
+ */
+export const SubmitBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.3). Returns a `submitted` bill to `draft` with an optional reviewer note (shown to the enterer while editing). The enterer corrects and resubmits. Approver-only.
+ * @summary Send a submitted bill back to the enterer for correction
+ */
+export const SendBackBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendBackBillBody = zod.object({
+  "note": zod.string().nullish()
+}).describe('Optional reviewer note when sending a submitted record back.')
+
+export const SendBackBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.3). Approving a bill fires its activation: totals reconciliation, ZATCA vendor-VAT validation (both overridable with `force`), the period-lock check, and the Dr Purchases/Input VAT / Cr Accounts Payable posting. Only then does the bill affect AP/expense/VAT. May be approved straight from draft (self-approve) or from the queue. Approver-only.
+ * @summary Approve a bill (posts it to the general ledger)
+ */
+export const ApproveBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveBillBody = zod.object({
+  "debitAccount": zod.string().nullish().describe('Expense\/debit account name for the GL entry.'),
+  "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.')
+}).describe('Optional post options when approving a bill.')
+
+export const ApproveBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * Draft/approval workflow (M10.3). Hard-deletes a draft or submitted bill — no archive of rejected records. An approved bill cannot be rejected (it must be reversed). Approver-only.
+ * @summary Reject a non-approved bill (hard-deletes it)
+ */
+export const RejectBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectBillResponse = zod.void()
+
+

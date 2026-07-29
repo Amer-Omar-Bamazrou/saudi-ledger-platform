@@ -266,6 +266,86 @@ export interface JournalEntry {
   lines: JournalEntryLine[];
 }
 
+export interface BillItem {
+  id: number;
+  billId: number;
+  /** @nullable */
+  productId?: number | null;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount: number;
+  total: number;
+}
+
+export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
+
+
+export const BillStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  received: 'received',
+  approved: 'approved',
+  paid: 'paid',
+  overdue: 'overdue',
+} as const;
+
+export interface Bill {
+  id: number;
+  billNumber: string;
+  /** @nullable */
+  vendorReference?: string | null;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  status: BillStatus;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  /** @nullable */
+  currency?: string | null;
+  paidAmount: number;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  items: BillItem[];
+}
+
+/**
+ * Optional post options when approving a bill.
+ */
+export interface BillApproveInput {
+  /**
+     * Expense/debit account name for the GL entry.
+     * @nullable
+     */
+  debitAccount?: string | null;
+  /**
+     * Override totals-mismatch and invalid-VAT-number rejections.
+     * @nullable
+     */
+  force?: boolean | null;
+}
+
+/**
+ * Optional reviewer note when sending a submitted record back.
+ */
+export interface SendBackInput {
+  /** @nullable */
+  note?: string | null;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable

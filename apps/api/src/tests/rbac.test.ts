@@ -108,6 +108,9 @@ describe("requirePermission — activation routes require `approve` (not create)
     ["journal_entries", "/5/reverse"],
     ["bills", "/5/post"],
     ["bills", "/5/pay"],
+    ["bills", "/5/approve"],
+    ["bills", "/5/reject"],
+    ["bills", "/5/send-back"],
     ["invoices", "/5/pay"],
     ["payroll", "/5/approve"],
   ];
@@ -129,6 +132,19 @@ describe("requirePermission — activation routes require `approve` (not create)
     const post = await run("bookkeeper", "POST", "journal_entries", "/5/post");
     expect(post.nextCalled).toBe(false);
     expect(post.statusCode).toBe(403);
+  });
+
+  it("submit is a bookkeeper action, approve/send-back are not: a bookkeeper CAN submit a bill but cannot approve or send it back", async () => {
+    // submit resolves to `create` (bookkeeper holds it) — enters their own draft into the queue.
+    const submit = await run("bookkeeper", "POST", "bills", "/5/submit");
+    expect(submit.nextCalled).toBe(true);
+    // approve + send-back resolve to `approve` (approver-only) — bookkeeper denied.
+    const approve = await run("bookkeeper", "POST", "bills", "/5/approve");
+    expect(approve.nextCalled).toBe(false);
+    expect(approve.statusCode).toBe(403);
+    const sendBack = await run("bookkeeper", "POST", "bills", "/5/send-back");
+    expect(sendBack.nextCalled).toBe(false);
+    expect(sendBack.statusCode).toBe(403);
   });
 });
 

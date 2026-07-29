@@ -7,11 +7,14 @@
  * `users.role`), infers the action from the HTTP method, and checks the pair
  * against the seeded `permissions` table (role → resource → action).
  *
- * ACTION-ROUTE OVERRIDE (M10): activation endpoints are POSTs
- * (`/:id/post`, `/:id/approve`, `/:id/pay`, `/:id/reject`, `/:id/reverse`) that
- * would otherwise resolve to `create` — which a bookkeeper holds. They instead
- * resolve to the distinct `approve` action, so "may enter a draft" and "may
- * activate it" are separately grantable. Plain `POST /` (create) is unaffected.
+ * ACTION-ROUTE OVERRIDE (M10): approver-only endpoints are POSTs
+ * (`/:id/post`, `/:id/approve`, `/:id/pay`, `/:id/reject`, `/:id/reverse`,
+ * `/:id/send-back`) that would otherwise resolve to `create` — which a
+ * bookkeeper holds. They instead resolve to the distinct `approve` action, so
+ * "may enter a draft" and "may activate/decide it" are separately grantable.
+ * Plain `POST /` (create) and `POST /:id/submit` (a bookkeeper submitting their
+ * own draft into the approval queue) are deliberately NOT overridden — they stay
+ * `create`, which a bookkeeper holds.
  *
  * Policy lives in DATA (the `permissions` table, seeded from `PERMISSION_MATRIX`
  * in @workspace/db), not in code — a future phase changes access by re-seeding.
@@ -33,11 +36,12 @@ const METHOD_ACTION: Record<string, PermissionAction> = {
   DELETE: "delete",
 };
 
-// Activation sub-routes: a POST whose path ends in one of these verbs is an
-// activation (post/approve/pay/reject/reverse), which requires the `approve`
-// action rather than `create`. Matched on the path SUFFIX so it is robust to
-// Express mount-path stripping (works on "/5/approve" or "/x/5/approve" alike).
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse)\/?$/i;
+// Approver-only sub-routes: a POST whose path ends in one of these verbs
+// requires the `approve` action rather than `create`. `submit` is intentionally
+// absent — it is a bookkeeper's own action (create-level). Matched on the path
+// SUFFIX so it is robust to Express mount-path stripping (works on "/5/approve"
+// or "/x/5/approve" alike). `send-back` is matched with an optional hyphen.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {
