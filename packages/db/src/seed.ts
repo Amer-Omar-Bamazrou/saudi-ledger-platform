@@ -1,7 +1,12 @@
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, pool } from "./index";
-import { organizationsTable, companiesTable, usersTable } from "./schema";
+import {
+  organizationsTable,
+  companiesTable,
+  usersTable,
+  organizationMembershipsTable,
+} from "./schema";
 import { seedPermissions } from "./permissions";
 
 /**
@@ -73,14 +78,18 @@ export async function seedDefaultTenant(): Promise<SeededTenant> {
 const SALT_ROUNDS = 12;
 
 export interface SeededAdmin {
+  /** True when a new admin user row was inserted (false if it already existed). */
   created: boolean;
-  /** Set when seeding was intentionally skipped (missing/invalid config or already present). */
+  /** True when an admin membership row was inserted this run. */
+  membershipCreated?: boolean;
+  /** Set when seeding was intentionally skipped (missing/invalid config). */
   skipped?: string;
   email?: string;
 }
 
 /**
- * Idempotently provision the initial admin user.
+ * Idempotently provision the initial admin user AND its membership in the
+ * bootstrap organization.
  *
  * This replaces the old unauthenticated "first user registers freely" HTTP
  * bootstrap (a race-to-admin vulnerability). The initial admin is now created
@@ -90,11 +99,24 @@ export interface SeededAdmin {
  *   SEED_ADMIN_PASSWORD  (required to seed; min 8 chars)
  *   SEED_ADMIN_NAME      (optional; defaults to "Administrator")
  *
+ * A user row alone is NOT a usable admin: `resolveTenant` 403s any user with no
+ * active `organization_memberships` row, so a user without a membership can log
+ * in but cannot reach a single business route. This function therefore also
+ * ensures an **active admin membership** linking the user to `organizationId`
+ * (the default org created by {@link seedDefaultTenant}), so a fresh
+ * migrate + seed produces a fully working admin.
+ *
+ * Both writes are idempotent:
+ *   - if a user with that email already exists it is left untouched (the
+ *     password is never re-hashed or overwritten), but its membership is still
+ *     ensured — this backfills admins seeded before this fix;
+ *   - the membership insert is a no-op on the unique `(user_id, organization_id)`
+ *     constraint, so re-running seed never creates duplicates.
+ *
  * If the credentials are absent the step is skipped (so the tenant seed can run
- * on its own). If a user with that email already exists it is left untouched —
- * the password is never re-hashed or overwritten.
+ * on its own).
  */
-export async function seedAdminUser(): Promise<SeededAdmin> {
+export async function seedAdminUser(organizationId: string): Promise<SeededAdmin> {
   const email = process.env["SEED_ADMIN_EMAIL"]?.trim();
   const password = process.env["SEED_ADMIN_PASSWORD"];
   const name = process.env["SEED_ADMIN_NAME"]?.trim() || "Administrator";
@@ -106,19 +128,34 @@ export async function seedAdminUser(): Promise<SeededAdmin> {
     return { created: false, skipped: "SEED_ADMIN_PASSWORD must be at least 8 characters" };
   }
 
-  const [existing] = await db
+  // (1) Ensure the admin user row exists; capture its id either way.
+  let created = false;
+  let [user] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(eq(usersTable.email, email))
     .limit(1);
 
-  if (existing) {
-    return { created: false, skipped: `user ${email} already exists`, email };
+  if (!user) {
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    [user] = await db
+      .insert(usersTable)
+      .values({ email, name, passwordHash, role: "admin", isActive: true })
+      .returning({ id: usersTable.id });
+    created = true;
   }
 
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  await db.insert(usersTable).values({ email, name, passwordHash, role: "admin", isActive: true });
-  return { created: true, email };
+  // (2) Ensure an active admin membership in the default org. Idempotent via the
+  //     unique (user_id, organization_id) constraint — re-running never dupes.
+  const inserted = await db
+    .insert(organizationMembershipsTable)
+    .values({ userId: user!.id, organizationId, role: "admin", status: "active" })
+    .onConflictDoNothing({
+      target: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId],
+    })
+    .returning({ id: organizationMembershipsTable.id });
+
+  return { created, membershipCreated: inserted.length > 0, email };
 }
 
 // Run directly: `pnpm --filter @workspace/db run seed`
@@ -132,13 +169,15 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
       // eslint-disable-next-line no-console
       console.log(`[seed] default tenant ready: ${parts.join(", ")}`);
 
-      const admin = await seedAdminUser();
-      if (admin.created) {
-        // eslint-disable-next-line no-console
-        console.log(`[seed] admin user created: ${admin.email}`);
-      } else {
+      const admin = await seedAdminUser(r.organizationId);
+      if (admin.skipped) {
         // eslint-disable-next-line no-console
         console.log(`[seed] admin user skipped: ${admin.skipped}`);
+      } else {
+        const userState = admin.created ? "created" : "existing";
+        const memState = admin.membershipCreated ? "membership created" : "membership existing";
+        // eslint-disable-next-line no-console
+        console.log(`[seed] admin user ${userState}: ${admin.email} (${memState})`);
       }
 
       const perms = await seedPermissions();

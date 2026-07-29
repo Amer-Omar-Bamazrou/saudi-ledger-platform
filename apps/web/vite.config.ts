@@ -69,6 +69,18 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    // DEV-ONLY: the frontend calls the API same-origin at `/api` (see
+    // src/lib/api.ts). In production a single origin serves both, so this just
+    // works. Locally the web dev server (this port) and the API (:3000) are
+    // separate origins, so we proxy `/api` to the API here. Vite's proxy runs
+    // only under `vite dev` — it has NO effect on the production build. Override
+    // the target with API_PROXY_TARGET if the API runs elsewhere.
+    proxy: {
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
     },
