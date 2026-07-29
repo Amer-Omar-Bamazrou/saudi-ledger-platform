@@ -181,6 +181,32 @@ Licensing: the project is **proprietary / all rights reserved** (private,
 commercial); `package.json` is `"UNLICENSED"` and **no `LICENSE` file** is
 included by design.
 
+**Milestone 10 (Draft/Approval Workflow + 4-Role Model) — IN PROGRESS.** A
+universal draft→approval workflow across the five financial records (journal
+entries, invoices, bills, payroll runs, and invoice/bill payments) backed by a
+4-role model that adds **Bookkeeper** (enters drafts, cannot approve). Every
+financial record is created as a draft that does **not** affect the books (GL,
+balances, reports, VAT/Zakat) until approved; approval fires each entity's
+existing activation path (JE post, bill/payroll GL posting, invoice AR + ZATCA
+hashing) through the unchanged accounting core. Built in sub-milestones M10.1–M10.6.
+Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-draft-approval-workflow.md).
+
+- **Known, intentional limitation (decided):** the `transactions` table is the
+  raw operational feed and is **NOT** approval-gated in M10. It has no status
+  column and feeds the dashboard summary, VAT summary, **Zakat base**, **cash
+  flow**, and budget actuals — so those still include unapproved transaction
+  data. Gating transactions is a **deferred follow-up**, not part of M10. This is
+  visible by design, not an oversight.
+- **M10.1 (done): Role + RBAC `approve` action.** Added `bookkeeper` to the role
+  model and a distinct `approve` action to the permission matrix
+  (`packages/db/permissions.ts`): create/update → admin+accountant+**bookkeeper**;
+  `approve` → admin+accountant only; delete/user-admin → admin. `requirePermission`
+  gained an **action-route override** (`lib/rbac.ts`): a POST to an activation
+  sub-route (`/:id/{post,approve,pay,reject,reverse}`) resolves to `approve`, not
+  the method-inferred `create` — so a bookkeeper who can enter a draft (`POST /`)
+  is fail-closed out of activating it. Re-seed permissions + restart to apply. No
+  record lifecycle change yet (that starts M10.2).
+
 See `docs/phase-0-implementation-plan.md`.
 
 ### Known Issues / Deferred (from the M4 security re-audit)

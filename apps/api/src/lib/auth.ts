@@ -4,7 +4,7 @@
  */
 import type { Request, Response, NextFunction } from "express";
 
-export type UserRole = "admin" | "accountant" | "viewer";
+export type UserRole = "admin" | "accountant" | "bookkeeper" | "viewer";
 
 declare module "express-session" {
   interface SessionData {

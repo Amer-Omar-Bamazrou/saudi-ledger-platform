@@ -7,9 +7,15 @@ import { requirePermission, primePermissionCache } from "../lib/rbac";
  * and is denied its forbidden ones, driving the REAL seeded permission matrix
  * (PERMISSION_MATRIX) through the actual requirePermission middleware. No DB is
  * touched: the cache is primed directly from the matrix.
+ *
+ * M10: the 4-role model (admin | accountant | bookkeeper | viewer) and the
+ * `approve` action-route override — a POST to an activation sub-route
+ * (/:id/post|approve|pay|reject|reverse) requires `approve`, not `create`, so a
+ * bookkeeper can enter drafts (POST /) but cannot activate them.
  */
 
-type Role = "admin" | "accountant" | "viewer";
+type Role = "admin" | "accountant" | "bookkeeper" | "viewer";
+const ALL_ROLES: Role[] = ["admin", "accountant", "bookkeeper", "viewer"];
 
 interface RunResult {
   statusCode: number;
@@ -21,10 +27,12 @@ async function run(
   role: Role | undefined,
   method: string,
   resource: string,
+  path = "/",
 ): Promise<RunResult> {
   const result: RunResult = { statusCode: 0, body: undefined, nextCalled: false };
   const req = {
     method,
+    path,
     tenant: role ? { role } : undefined,
     log: { error: () => {} },
   } as unknown as Parameters<ReturnType<typeof requirePermission>>[0];
@@ -49,37 +57,35 @@ beforeAll(() => {
   primePermissionCache(PERMISSION_MATRIX);
 });
 
-describe("requirePermission — allow/deny by role", () => {
-  // resource, method, allowed roles (everyone else denied)
-  const CASES: Array<[string, string, Role[]]> = [
-    // Standard business entity: read=all, create/update=write, delete=admin
-    ["transactions", "GET", ["admin", "accountant", "viewer"]],
-    ["transactions", "POST", ["admin", "accountant"]],
-    ["transactions", "PATCH", ["admin", "accountant"]],
-    ["transactions", "DELETE", ["admin"]],
+describe("requirePermission — CRUD actions by role (method-inferred)", () => {
+  // resource, method, path, allowed roles (everyone else denied)
+  const CASES: Array<[string, string, string, Role[]]> = [
+    // Standard business entity: read=all, create/update=write (now incl. bookkeeper), delete=admin
+    ["transactions", "GET", "/", ["admin", "accountant", "bookkeeper", "viewer"]],
+    ["transactions", "POST", "/", ["admin", "accountant", "bookkeeper"]],
+    ["transactions", "PATCH", "/5", ["admin", "accountant", "bookkeeper"]],
+    ["transactions", "DELETE", "/5", ["admin"]],
     // journal_entries: create=write, delete=admin, NO update route (fail-closed)
-    ["journal_entries", "GET", ["admin", "accountant", "viewer"]],
-    ["journal_entries", "POST", ["admin", "accountant"]],
-    ["journal_entries", "PATCH", []], // no update grant → nobody
-    ["journal_entries", "DELETE", ["admin"]],
+    ["journal_entries", "GET", "/", ["admin", "accountant", "bookkeeper", "viewer"]],
+    ["journal_entries", "POST", "/", ["admin", "accountant", "bookkeeper"]],
+    ["journal_entries", "PATCH", "/5", []], // no update grant → nobody
+    ["journal_entries", "DELETE", "/5", ["admin"]],
     // period_locks override: create + delete are admin-only
-    ["period_locks", "GET", ["admin", "accountant", "viewer"]],
-    ["period_locks", "POST", ["admin"]],
-    ["period_locks", "DELETE", ["admin"]],
+    ["period_locks", "GET", "/", ["admin", "accountant", "bookkeeper", "viewer"]],
+    ["period_locks", "POST", "/", ["admin"]],
+    ["period_locks", "DELETE", "/5", ["admin"]],
     // categorize: create only (write)
-    ["categorize", "POST", ["admin", "accountant"]],
+    ["categorize", "POST", "/", ["admin", "accountant", "bookkeeper"]],
     // reports: read-only — even admin cannot POST (fail-closed)
-    ["reports", "GET", ["admin", "accountant", "viewer"]],
-    ["reports", "POST", []],
+    ["reports", "GET", "/", ["admin", "accountant", "bookkeeper", "viewer"]],
+    ["reports", "POST", "/", []],
   ];
 
-  const ALL_ROLES: Role[] = ["admin", "accountant", "viewer"];
-
-  for (const [resource, method, allowed] of CASES) {
+  for (const [resource, method, path, allowed] of CASES) {
     for (const role of ALL_ROLES) {
       const shouldAllow = allowed.includes(role);
-      it(`${role} ${shouldAllow ? "CAN" : "cannot"} ${method} ${resource}`, async () => {
-        const r = await run(role, method, resource);
+      it(`${role} ${shouldAllow ? "CAN" : "cannot"} ${method} ${resource}${path}`, async () => {
+        const r = await run(role, method, resource, path);
         if (shouldAllow) {
           expect(r.nextCalled).toBe(true);
           expect(r.statusCode).toBe(0);
@@ -90,7 +96,41 @@ describe("requirePermission — allow/deny by role", () => {
       });
     }
   }
+});
 
+describe("requirePermission — activation routes require `approve` (not create)", () => {
+  // Every activation sub-route is admin+accountant only; bookkeeper & viewer denied.
+  const APPROVERS: Role[] = ["admin", "accountant"];
+  const ACTIVATION: Array<[string, string]> = [
+    ["journal_entries", "/5/post"],
+    ["journal_entries", "/5/reverse"],
+    ["bills", "/5/post"],
+    ["bills", "/5/pay"],
+    ["invoices", "/5/pay"],
+    ["payroll", "/5/approve"],
+  ];
+
+  for (const [resource, path] of ACTIVATION) {
+    for (const role of ALL_ROLES) {
+      const shouldAllow = APPROVERS.includes(role);
+      it(`${role} ${shouldAllow ? "CAN" : "cannot"} POST ${resource}${path}`, async () => {
+        const r = await run(role, "POST", resource, path);
+        expect(r.nextCalled).toBe(shouldAllow);
+        expect(r.statusCode).toBe(shouldAllow ? 0 : 403);
+      });
+    }
+  }
+
+  it("separates create from approve: a bookkeeper CAN create a JE draft but cannot post it", async () => {
+    const create = await run("bookkeeper", "POST", "journal_entries", "/");
+    expect(create.nextCalled).toBe(true);
+    const post = await run("bookkeeper", "POST", "journal_entries", "/5/post");
+    expect(post.nextCalled).toBe(false);
+    expect(post.statusCode).toBe(403);
+  });
+});
+
+describe("requirePermission — edge cases", () => {
   it("denies (403) when no tenant role is resolved", async () => {
     const r = await run(undefined, "GET", "transactions");
     expect(r.nextCalled).toBe(false);
@@ -104,36 +144,61 @@ describe("requirePermission — allow/deny by role", () => {
   });
 });
 
-describe("PERMISSION_MATRIX — codifies pre-M5 behavior", () => {
+describe("PERMISSION_MATRIX — 4-role model + approve action", () => {
   const has = (role: string, resource: string, action: string) =>
     PERMISSION_MATRIX.some((p) => p.role === role && p.resource === resource && p.action === action);
 
-  it("viewers read but never write", () => {
+  it("viewers read but never write or approve", () => {
     expect(has("viewer", "transactions", "read")).toBe(true);
     expect(has("viewer", "transactions", "create")).toBe(false);
     expect(has("viewer", "invoices", "update")).toBe(false);
+    expect(has("viewer", "invoices", "approve")).toBe(false);
     expect(has("viewer", "transactions", "delete")).toBe(false);
   });
 
-  it("accountants write but cannot delete", () => {
-    expect(has("accountant", "transactions", "create")).toBe(true);
-    expect(has("accountant", "transactions", "update")).toBe(true);
-    expect(has("accountant", "transactions", "delete")).toBe(false);
+  it("bookkeepers read + create/update but never approve or delete", () => {
+    expect(has("bookkeeper", "transactions", "read")).toBe(true);
+    expect(has("bookkeeper", "journal_entries", "create")).toBe(true);
+    expect(has("bookkeeper", "invoices", "create")).toBe(true);
+    expect(has("bookkeeper", "invoices", "update")).toBe(true);
+    // the whole point: no approval authority
+    expect(has("bookkeeper", "journal_entries", "approve")).toBe(false);
+    expect(has("bookkeeper", "bills", "approve")).toBe(false);
+    expect(has("bookkeeper", "payroll", "approve")).toBe(false);
+    expect(has("bookkeeper", "invoices", "approve")).toBe(false);
+    expect(has("bookkeeper", "transactions", "delete")).toBe(false);
   });
 
-  it("period_locks create/delete are admin-only (not accountant)", () => {
+  it("accountants write and approve but cannot delete or manage users", () => {
+    expect(has("accountant", "transactions", "create")).toBe(true);
+    expect(has("accountant", "journal_entries", "approve")).toBe(true);
+    expect(has("accountant", "bills", "approve")).toBe(true);
+    expect(has("accountant", "transactions", "delete")).toBe(false);
+    expect(has("accountant", "users", "read")).toBe(false);
+  });
+
+  it("approve grants exist for admin+accountant on all four activation resources", () => {
+    for (const resource of ["journal_entries", "bills", "payroll", "invoices"]) {
+      expect(has("admin", resource, "approve")).toBe(true);
+      expect(has("accountant", resource, "approve")).toBe(true);
+      expect(has("bookkeeper", resource, "approve")).toBe(false);
+      expect(has("viewer", resource, "approve")).toBe(false);
+    }
+  });
+
+  it("period_locks create/delete remain admin-only", () => {
     expect(has("admin", "period_locks", "create")).toBe(true);
     expect(has("admin", "period_locks", "delete")).toBe(true);
     expect(has("accountant", "period_locks", "create")).toBe(false);
-    expect(has("accountant", "period_locks", "delete")).toBe(false);
+    expect(has("bookkeeper", "period_locks", "create")).toBe(false);
     expect(has("viewer", "period_locks", "read")).toBe(true);
   });
 
   it("only admins manage users", () => {
     expect(has("admin", "users", "read")).toBe(true);
     expect(has("admin", "users", "create")).toBe(true);
-    expect(has("admin", "users", "update")).toBe(true);
     expect(has("accountant", "users", "read")).toBe(false);
+    expect(has("bookkeeper", "users", "read")).toBe(false);
     expect(has("viewer", "users", "read")).toBe(false);
   });
 });

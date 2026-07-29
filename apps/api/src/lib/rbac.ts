@@ -7,6 +7,12 @@
  * `users.role`), infers the action from the HTTP method, and checks the pair
  * against the seeded `permissions` table (role → resource → action).
  *
+ * ACTION-ROUTE OVERRIDE (M10): activation endpoints are POSTs
+ * (`/:id/post`, `/:id/approve`, `/:id/pay`, `/:id/reject`, `/:id/reverse`) that
+ * would otherwise resolve to `create` — which a bookkeeper holds. They instead
+ * resolve to the distinct `approve` action, so "may enter a draft" and "may
+ * activate it" are separately grantable. Plain `POST /` (create) is unaffected.
+ *
  * Policy lives in DATA (the `permissions` table, seeded from `PERMISSION_MATRIX`
  * in @workspace/db), not in code — a future phase changes access by re-seeding.
  * The check is FAIL-CLOSED: if no matching grant exists, access is denied.
@@ -26,6 +32,18 @@ const METHOD_ACTION: Record<string, PermissionAction> = {
   PATCH: "update",
   DELETE: "delete",
 };
+
+// Activation sub-routes: a POST whose path ends in one of these verbs is an
+// activation (post/approve/pay/reject/reverse), which requires the `approve`
+// action rather than `create`. Matched on the path SUFFIX so it is robust to
+// Express mount-path stripping (works on "/5/approve" or "/x/5/approve" alike).
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse)\/?$/i;
+
+/** Resolve the permission action for a request (method + activation-route override). */
+function resolveAction(req: Request): PermissionAction | undefined {
+  if (req.method === "POST" && APPROVE_ROUTE.test(req.path)) return "approve";
+  return METHOD_ACTION[req.method];
+}
 
 const permKey = (role: string, resource: string, action: string): string =>
   `${role}:${resource}:${action}`;
@@ -89,7 +107,7 @@ export function requirePermission(resource: string) {
       return;
     }
 
-    const action = METHOD_ACTION[req.method];
+    const action = resolveAction(req);
     if (!action) {
       res.status(405).json({ error: `Method ${req.method} is not supported here.` });
       return;

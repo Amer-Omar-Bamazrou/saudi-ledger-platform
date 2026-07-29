@@ -53,8 +53,8 @@ router.post("/register", authRateLimiter, requireAuth, requireAdmin, async (req,
     if (!email || !name || !password) {
       res.status(400).json({ error: "email, name, and password are required." }); return;
     }
-    if (!["admin", "accountant", "viewer"].includes(role)) {
-      res.status(400).json({ error: "Invalid role. Must be admin, accountant, or viewer." }); return;
+    if (!["admin", "accountant", "bookkeeper", "viewer"].includes(role)) {
+      res.status(400).json({ error: "Invalid role. Must be admin, accountant, bookkeeper, or viewer." }); return;
     }
 
     // Check duplicate email

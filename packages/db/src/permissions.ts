@@ -7,14 +7,21 @@ import { permissionsTable } from "./schema";
  * data**; a future phase can extend/adjust access by changing these rows (and
  * re-seeding) without touching route code.
  *
- * The matrix here **codifies the pre-M5 behavior exactly** (no policy change):
- *   - GET/read      → all roles (admin, accountant, viewer)
- *   - POST/create   → admin + accountant
- *   - PATCH/update  → admin + accountant
+ * Roles (4-role model, M10): admin | accountant | bookkeeper | viewer.
+ *   - GET/read      → all roles (admin, accountant, bookkeeper, viewer)
+ *   - POST/create   → admin + accountant + bookkeeper (bookkeeper enters drafts)
+ *   - PATCH/update  → admin + accountant + bookkeeper
+ *   - approve       → admin + accountant only (activation authority; a bookkeeper
+ *                     may enter work but never approve/post/pay it)
  *   - DELETE/delete → admin only
  * with two overrides that already existed:
  *   - `period_locks` create AND delete → admin only (locking/unlocking periods)
- *   - `categorize` → admin + accountant (create only)
+ *   - `categorize` → write (create only)
+ *
+ * The `approve` action gates the activation endpoints (post / approve / pay /
+ * reject / reverse) — see `requirePermission`'s action-route mapping. It is a
+ * distinct action precisely because those endpoints are POSTs that would
+ * otherwise resolve to `create`, which a bookkeeper holds.
  *
  * `users` (global user administration under `/auth`) is included for
  * completeness and future per-org membership management, but is NOT yet wired to
@@ -23,8 +30,8 @@ import { permissionsTable } from "./schema";
  * `requireAdmin` guard. See CLAUDE.md (M5 boundary note).
  */
 
-export type PermissionRole = "admin" | "accountant" | "viewer";
-export type PermissionAction = "read" | "create" | "update" | "delete";
+export type PermissionRole = "admin" | "accountant" | "bookkeeper" | "viewer";
+export type PermissionAction = "read" | "create" | "update" | "delete" | "approve";
 
 export interface PermissionRow {
   role: PermissionRole;
@@ -32,8 +39,12 @@ export interface PermissionRow {
   action: PermissionAction;
 }
 
-const READ_ALL: readonly PermissionRole[] = ["admin", "accountant", "viewer"];
-const WRITE: readonly PermissionRole[] = ["admin", "accountant"];
+const READ_ALL: readonly PermissionRole[] = ["admin", "accountant", "bookkeeper", "viewer"];
+// create/update — a bookkeeper enters records (as drafts, enforced in the service
+// layer); the coarse grant here only distinguishes "may write" from "read-only".
+const WRITE: readonly PermissionRole[] = ["admin", "accountant", "bookkeeper"];
+// activation authority — approve/post/pay/reject/reverse. Bookkeeper excluded.
+const APPROVE: readonly PermissionRole[] = ["admin", "accountant"];
 const ADMIN_ONLY: readonly PermissionRole[] = ["admin"];
 
 /**
@@ -47,19 +58,22 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   customers: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   vendors: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   products: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
-  invoices: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
-  bills: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
+  // invoices/bills carry an `approve` grant: activation endpoints (invoice pay;
+  // bill post/pay) require approver authority, not mere create.
+  invoices: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+  bills: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
   employees: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   assets: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   bank_accounts: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   budgets: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
 
-  // journal_entries: no PATCH route; delete (reversal/removal) is admin-only.
-  journal_entries: { read: READ_ALL, create: WRITE, delete: ADMIN_ONLY },
+  // journal_entries: no PATCH route; post/reverse need approve; delete admin-only.
+  journal_entries: { read: READ_ALL, create: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
 
   // Read + create only (no update/delete routes today).
   categories: { read: READ_ALL, create: WRITE },
-  payroll: { read: READ_ALL, create: WRITE },
+  // payroll: the /:id/approve activation needs approver authority.
+  payroll: { read: READ_ALL, create: WRITE, approve: APPROVE },
   llm: { read: READ_ALL, create: WRITE },
 
   // Read-only resources.
