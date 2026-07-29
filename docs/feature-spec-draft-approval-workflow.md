@@ -1,13 +1,39 @@
 # Feature Spec — Draft/Approval Workflow + 4-Role Model
 
-**Status:** Approved, **deferred**. Do **not** implement before Milestone 6.
-**Target:** a new milestone **after M6 (Backend Layering)**. This feature must be
-built in the **M6 service layer**, not in the current fat route handlers — the
-draft→approval state machine and each entity's "on approve" action belong in
-services/repositories, not in HTTP handlers.
+**Status: IMPLEMENTED (Milestone 10, sub-milestones M10.1–M10.6).** This document
+was the specification; the feature now ships. It is retained as the design record.
+See `CLAUDE.md` → Milestone 10 for the as-built summary.
 
-**Owner decision:** approved by the product owner. This document captures the
-agreed design so it isn't lost; it is a specification, not an implementation.
+**Owner decision:** approved by the product owner and built as specified.
+
+---
+
+## Implementation status (as built)
+
+- **Engine:** one generic, entity-agnostic engine in `apps/api/src/services/approval/`
+  (`Approvable` contract + `approvalService`); each of the five records plugs in
+  via an adapter (`*.approvable.ts`). State machine: `draft → submitted → approved`
+  with `submit` / `send-back` (editable-draft return with a `review_note`) /
+  `approve` / `reject` (hard-delete, no archive). All transitions are audited in
+  `audit_logs`. Reports/GL aggregate only approved records — proven by per-entity
+  "zero-movement" tests and a cross-entity sweep.
+- **Roles (4-role model):** `admin | accountant | bookkeeper | viewer`, sourced
+  from `organization_memberships`, enforced by the M5 permission matrix. `submit`
+  is a bookkeeper (create-level) action; `approve`/`send-back`/`reject`/`pay` are
+  approver-only. Accountant/Admin self-approve-on-create where it preserves prior
+  one-call behavior (invoices).
+- **NON-GOAL, intentional limitation — `transactions` is NOT approval-gated.**
+  The `transactions` table is the raw operational feed; it has no approval status
+  and is **out of scope** for this feature. Consequently the **dashboard summary,
+  VAT summary, Zakat base, cash flow, and budget actuals reflect ALL transactions
+  regardless of approval status.** This boundary is deliberate (avoiding
+  scope-creep into the highest-traffic path); gating transactions is a **deferred
+  future feature**.
+- **Provisioning / membership management (M10.6):** active-org membership role
+  assignment via `/orgs/:orgId/members` (identity/infrastructure layer, explicit
+  admin-of-org authorization). **Deferred to Phase 1:** multi-org member
+  administration, invitations, and a dedicated security-audit log for
+  identity/membership events (these are NOT written to the business `audit_logs`).
 
 ---
 
@@ -266,5 +292,8 @@ layering)** and must be built there:
 
 ---
 
-*This spec is deferred. See `CLAUDE.md` → Known Issues / Deferred. Do not
-implement before M6.*
+*This spec is IMPLEMENTED (Milestone 10). See `CLAUDE.md` → Milestone 10 for the
+as-built summary. Open questions §13 were resolved at build time: status vocab
+kept each entity's native lifecycle mapped to `draft|submitted|approved`;
+period-lock enforced at approval; send-back returns to an editable draft with a
+review note; the `transactions` gap is a documented, intentional non-goal.*

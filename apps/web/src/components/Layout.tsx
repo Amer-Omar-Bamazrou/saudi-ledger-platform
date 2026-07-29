@@ -56,6 +56,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     label: "General Ledger", labelAr: "دفتر الأستاذ",
     items: [
       { href: "/journal-entries", label: "Journal Entries", labelAr: "قيود اليومية",       icon: BookOpen },
+      { href: "/approvals",       label: "Approvals",       labelAr: "الموافقات",           icon: ClipboardList },
       { href: "/trial-balance",   label: "Trial Balance",   labelAr: "ميزان المراجعة",      icon: Scale },
     ],
   },

@@ -181,7 +181,7 @@ Licensing: the project is **proprietary / all rights reserved** (private,
 commercial); `package.json` is `"UNLICENSED"` and **no `LICENSE` file** is
 included by design.
 
-**Milestone 10 (Draft/Approval Workflow + 4-Role Model) — IN PROGRESS.** A
+**Milestone 10 (Draft/Approval Workflow + 4-Role Model) — COMPLETE.** A
 universal draft→approval workflow across the five financial records (journal
 entries, invoices, bills, payroll runs, and invoice/bill payments) backed by a
 4-role model that adds **Bookkeeper** (enters drafts, cannot approve). Every
@@ -189,14 +189,29 @@ financial record is created as a draft that does **not** affect the books (GL,
 balances, reports, VAT/Zakat) until approved; approval fires each entity's
 existing activation path (JE post, bill/payroll GL posting, invoice AR + ZATCA
 hashing) through the unchanged accounting core. Built in sub-milestones M10.1–M10.6.
-Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-draft-approval-workflow.md).
+Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-draft-approval-workflow.md)
+(now marked implemented).
 
-- **Known, intentional limitation (decided):** the `transactions` table is the
-  raw operational feed and is **NOT** approval-gated in M10. It has no status
-  column and feeds the dashboard summary, VAT summary, **Zakat base**, **cash
-  flow**, and budget actuals — so those still include unapproved transaction
-  data. Gating transactions is a **deferred follow-up**, not part of M10. This is
-  visible by design, not an oversight.
+The five entities all flow through ONE generic engine (`services/approval/`) via
+an `Approvable` adapter each — the engine was never forked. State machine:
+`draft → submitted → approved` with `submit` (bookkeeper), `send-back` (approver,
+returns to an editable draft with a `review_note`), `approve` (approver, fires
+the on-approve activation), and `reject` (hard-delete, no archive). Approvers
+self-approve-on-create where that preserves prior one-call behavior (invoices);
+JE and payroll keep their native flows (JE approves straight from draft; payroll
+stays two-step). Every transition is audited in `audit_logs`
+(`submit`/`send_back`/`approve`/`reject`/`pay`).
+
+- **Known, intentional limitation (decided, DOCUMENTED — not a bug):** the
+  `transactions` table is the **raw operational feed** and is **NOT**
+  approval-gated in M10. It has no status/approval column, and it feeds the
+  **dashboard summary, VAT summary, Zakat base, cash flow, and budget actuals** —
+  so **those figures reflect ALL transactions regardless of approval status**.
+  This boundary is deliberate: pulling the highest-traffic operational path into
+  the approval workflow was explicitly kept out of M10 to avoid scope-creep at the
+  finish line. Gating transactions is a **deferred future feature**, not part of
+  M10. Visible and intentional, not an oversight. (Also recorded in the feature
+  spec.)
 - **M10.1 (done): Role + RBAC `approve` action.** Added `bookkeeper` to the role
   model and a distinct `approve` action to the permission matrix
   (`packages/db/permissions.ts`): create/update → admin+accountant+**bookkeeper**;
@@ -348,6 +363,40 @@ Full design: [`docs/feature-spec-draft-approval-workflow.md`](docs/feature-spec-
     vendor payments remain the approver-authority `pay` action on invoices/bills
     (already gated + hardened in M10.3/M10.4), per the M10 plan — a draftable
     payment entity is a deferred future feature, not built in M10.
+- **M10.6 (done): the closer — cross-entity sweep, worklist UI, provisioning, docs.**
+  - **Cross-entity correctness sweep** (`tests/cross-entity-approval-sweep.test.ts`):
+    proves the core invariant with all five records present in ONE tenant at once
+    — an unapproved draft of a JE + bill + invoice + payroll run coexisting leaves
+    EVERY money report at zero (trial balance, income statement, balance-sheet
+    AR+AP, AR/AP aging, VAT), then approving them all makes the expected movement
+    appear; plus the full `create → submit → send-back → resubmit → approve`
+    lifecycle end-to-end per editable-draft entity.
+  - **Membership management / bookkeeper provisioning (fixes the M10.1 gap):**
+    `GET/POST/PATCH /orgs/:orgId/members` (`services/members.service.ts` +
+    `repositories/members.repository.ts`), mounted in the **identity/infrastructure
+    layer with the org switcher — base (owner) connection, BEFORE `resolveTenant`**
+    (because `organization_memberships` is global-reference data: not RLS-scoped,
+    app role SELECT-only). Authorization is **explicit**: the caller must be an
+    active `admin` of the *specific path org* (never ambient context) — an admin
+    of org A cannot touch org B (proven in `tests/members.test.ts`). Refuses to
+    orphan the last admin. **Audit:** per the M7 boundary these membership/security
+    events are **NOT** written to the business `audit_logs`; a `TODO(security-audit)`
+    marks where to record them once the dedicated security-audit log exists.
+  - **UserManagement conflation fixed:** creating a user now also assigns an
+    active-org membership (via the members endpoint), and the role editor manages
+    the **membership** role (the one that governs access), not the vestigial global
+    `users.role`; the bookkeeper role is now selectable. A created/edited user is
+    a working member, not a stranded global account.
+  - **Minimal worklist UI** (`apps/web/src/pages/Approvals.tsx`, route `/approvals`):
+    unstyled, functional pending-approvals view across all entities with
+    submit/approve/send-back/reject wired to the API — the feature is clickable
+    end-to-end for the first time. Role enforcement is server-side (a bookkeeper
+    clicking Approve gets a 403). Real worklist UX is a later design phase.
+  - **Deferred to Phase 1 (onboarding):** fuller member management — multi-org
+    administration, cross-org role editing, and invitations — plus the dedicated
+    security-audit log for identity/membership events. M10.6 scope was
+    deliberately limited to active-org role assignment (enough to provision a
+    bookkeeper and make the feature usable end-to-end).
 
 See `docs/phase-0-implementation-plan.md`.
 

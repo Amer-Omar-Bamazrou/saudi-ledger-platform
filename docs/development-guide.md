@@ -297,3 +297,55 @@ Say you're adding a `quotations` resource. Follow the existing shape end to end.
 
 Following these steps keeps the new domain tenant-isolated, permission-gated, and
 audited — consistent with everything else.
+
+## 8. Draft/approval workflow (M10)
+
+The five financial records (journal entries, bills, invoices, payments-via-pay,
+payroll runs) flow through **one generic engine** in
+`apps/api/src/services/approval/`. Nothing is created "live": a record starts as
+a **draft**, moves to **submitted** (the approver's queue), then **approved** —
+and only an approved record affects the books (GL, balances, reports, VAT/Zakat).
+
+**The engine never gets forked.** To bring an entity into the workflow you write
+one adapter (`services/<entity>.approvable.ts`) implementing the `Approvable`
+contract, and delegate the transitions from the service to `approvalService`:
+
+1. **`state(entity)`** — map the entity's native status onto `draft | submitted |
+   approved` (post-approval states like `paid`/`reversed` map to `approved`).
+2. **`onApprove(entity, actor)`** — fire the entity's EXISTING activation path
+   (JE post-to-GL; bill/payroll GL posting; invoice AR + ZATCA hash/QR). This is
+   the only place the ledger is touched. Do the period-lock check here (approval
+   time). **Never reimplement the accounting core** — call it.
+3. **`onSubmit` / `onSendBack`** (optional) — only for entities with an editable
+   draft stage; `send-back` records a `review_note`. JE omits both (it approves
+   straight from draft).
+4. **`snapshot` / `hardDelete`** — audit before-state and reject (hard-delete,
+   no archive).
+
+The service methods are thin: `submit`/`sendBack`/`reject`/`approve` just call
+`approvalService.<t>(adapter, id, { userId })`. The engine owns the state guards
+(fail-closed) and writes the audit entry (`submit`/`send_back`/`approve`/`reject`)
+inside the request tenant transaction — atomic with the effect.
+
+**Report filtering (the core invariant).** Every money read path must exclude
+pre-approval records. Bills/invoices carry a status, so the reports repository
+filters them with `approvedBillsOnly()` / `approvedInvoicesOnly()`
+(`status NOT IN ('draft','submitted')`). JE/payroll have no direct report reads —
+their only ledger effect is the JE posted at approval, so an unapproved draft
+posts nothing. Prove it with a **zero-movement test** (copy
+`tests/bills-approval-zero-movement.test.ts`): draft AND submitted move zero in
+every relevant report; approval posts it.
+
+**Authorization.** `submit` is a create-level (bookkeeper) action; `approve`,
+`send-back`, `reject`, `pay` resolve to the `approve` action via the
+`requirePermission` activation-route override (`lib/rbac.ts`) and are
+approver-only. Add the sub-route verb to `APPROVE_ROUTE` if it's a new one.
+
+**Provisioning roles.** Assign a user's role in the active org via
+`/orgs/:orgId/members` (admin-of-that-org only; identity/infrastructure layer,
+pre-`resolveTenant`). Membership role — not the vestigial global `users.role` —
+governs business access.
+
+**Out of scope (documented):** `transactions` is the raw operational feed and is
+NOT approval-gated, so cash flow / Zakat base / dashboard & VAT summaries reflect
+all transactions regardless of approval. Gating it is a deferred future feature.
