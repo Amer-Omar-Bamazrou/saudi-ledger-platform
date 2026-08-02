@@ -400,11 +400,62 @@ stays two-step). Every transition is audited in `audit_logs`
 
 See `docs/phase-0-implementation-plan.md`.
 
+## Phase 1 — Milestone 11: Onboarding & Multi-Company Foundation (IN PROGRESS)
+
+Entry point = **public self-service signup behind a verification gate** (an org
+signs up, submits CR/VAT + documents, enters `pending_review`, and gets no
+platform access until a platform operator approves). Sequenced M11.1 → M11.7;
+each sub-milestone pauses for review. Full plan in the `m11-onboarding-plan`
+project memory (design record; a `docs/` spec will follow).
+
+- **M11.1 (done): security-audit log foundation.** A dedicated
+  **`security_audit_logs`** table (migration `0010`) + **`securityAuditService`**
+  (`services/securityAudit.service.ts`) records the actor-centric identity/security
+  trail, kept **separate from the tenant-scoped business `audit_logs`** (the M7
+  boundary made concrete): `organization_id` is **NULLABLE** (global events —
+  user created, password reset — carry none; membership events set it), the table
+  has **no RLS and no app-role grants** (written/read ONLY on the base/owner
+  connection by the identity layer, which runs before `resolveTenant`; a DB
+  boundary test proves the app role can't even SELECT it), and it is
+  **append-only by construction** (the service exposes only insert + read).
+  Recording is **best-effort, non-throwing** — unlike the in-transaction
+  `auditService`, security events fire on the base connection outside the
+  mutation's autocommit, so a failed insert is logged, never thrown (it must not
+  turn an already-committed identity change into a reported error); making
+  identity mutations transactional is a documented follow-up. The three
+  `TODO(security-audit)` markers in `members.service.ts` are now wired
+  (`membership.assigned` / `role_changed` / `status_changed`), plus the `/auth`
+  routes (`user.created` / `role_changed` / `deactivated` / `reactivated` /
+  `password_reset` / `password_changed`). Org admins read their org's events via
+  `GET /orgs/:orgId/security-events` (identity layer, explicit admin-of-that-org
+  auth; global org-less events are exposed by the operator surface in a later
+  sub-milestone). Verification/invite/operator events extend the same log in
+  M11.2+.
+- **M11.2–M11.7 (planned):** verification state + fail-closed access gating (the
+  security-critical core — the gate lives in `resolveTenant`, the sole setter of
+  the tenant GUCs, so a non-`approved` org structurally cannot obtain an
+  org-stamped RLS connection; the migration backfills all existing orgs to
+  `approved`); platform-operator concept + review boundary; document upload
+  (Supabase Storage); public signup + status/resubmit UIs; **company setup +
+  ZATCA correctness (M11.6 — see the production blocker below)**; invitations +
+  multi-org member administration.
+
 ### Known Issues / Deferred (from the M4 security re-audit)
 
 These were identified in the post-M4 security review and **intentionally deferred**
 (not bugs to fix ad hoc — address them in the milestone noted):
 
+- **[🚫 PRODUCTION BLOCKER — fixed in M11.6] Invoices carry the ZATCA sandbox VAT
+  number.** Invoice issuance (`services/invoices.approvable.ts` +
+  `invoices.service.ts`) hardcodes `DEFAULT_SELLER_VAT = "300000000000003"` (the
+  ZATCA sandbox placeholder) and `DEFAULT_SELLER_NAME = "KSA Ledger Company"`,
+  denormalized onto each invoice and fed into the ZATCA QR (TLV tags 1–2) and the
+  invoice hash — the company's real `vatNumber`/`name` are **never consulted**, and
+  the constants are **duplicated across the two files**. So **every invoice issued
+  today carries a fake VAT number.** **Must NOT deploy to production or issue real
+  invoices until fixed.** Correctly sequenced at **M11.6** (wire
+  `company.vatNumber`/`name` into issuance, replace + de-duplicate the constants),
+  since nothing is deployed yet — noted here so it cannot be forgotten.
 - **[HIGH — RESOLVED in M6] Per-request transaction held open for DB-less routes.**
   The tenant DB client is now acquired **lazily** on first query (`LazyTenantClient`
   in `packages/db/src/index.ts`), so DB-less routes (e.g. `/llm/*`) never check out

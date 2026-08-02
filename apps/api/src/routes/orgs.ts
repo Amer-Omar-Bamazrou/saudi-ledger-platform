@@ -10,6 +10,12 @@ import { Router } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import { db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
 import { membersService } from "../services/members.service";
+import { securityAuditService } from "../services/securityAudit.service";
+
+/** Actor context for the security-audit trail, from the authenticated session. */
+function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
+  return { actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
+}
 
 const router = Router();
 
@@ -109,15 +115,33 @@ router.get("/:orgId/members", async (req, res) => {
 /** POST /api/orgs/:orgId/members { userId, role } — assign/re-activate a member's role. */
 router.post("/:orgId/members", async (req, res) => {
   const { userId, role } = req.body ?? {};
-  res.status(201).json(await membersService.assign(req.session.userId!, req.params.orgId, userId, role));
+  res
+    .status(201)
+    .json(await membersService.assign(req.session.userId!, req.params.orgId, userId, role, actorCtx(req)));
 });
 
 /** PATCH /api/orgs/:orgId/members/:userId { role?, status? } — change a member's role/status. */
 router.patch("/:orgId/members/:userId", async (req, res) => {
   const { role, status } = req.body ?? {};
   res.json(
-    await membersService.update(req.session.userId!, req.params.orgId, Number(req.params.userId), { role, status }),
+    await membersService.update(
+      req.session.userId!,
+      req.params.orgId,
+      Number(req.params.userId),
+      { role, status },
+      actorCtx(req),
+    ),
   );
+});
+
+/**
+ * GET /api/orgs/:orgId/security-events — the org's identity/security trail
+ * (admin of that org only). Membership changes and other org-scoped security
+ * events; global (org-less) events are surfaced by the platform-operator surface
+ * in a later milestone, not here.
+ */
+router.get("/:orgId/security-events", async (req, res) => {
+  res.json({ events: await securityAuditService.listForOrg(req.session.userId!, req.params.orgId) });
 });
 
 export default router;

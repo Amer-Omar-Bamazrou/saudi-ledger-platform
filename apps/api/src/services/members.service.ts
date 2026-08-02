@@ -10,9 +10,10 @@
  * org B.
  *
  * AUDIT: membership/role changes are identity/security events. Per the M7
- * boundary they must NOT be written to the tenant-scoped business `audit_logs`;
- * they belong in a dedicated security-audit log that does not exist yet.
- * TODO(security-audit): capture assign/update here once that log is built.
+ * boundary they are NOT written to the tenant-scoped business `audit_logs`; they
+ * go to the dedicated `security_audit_logs` via `securityAuditService` (M11.1).
+ * Recording is best-effort (see that service) so it never turns an already-
+ * committed membership change into a reported error.
  *
  * SCOPE (M10.6): assign/change a role in an org the actor administers — enough to
  * provision a bookkeeper and make the approval feature usable end to end.
@@ -20,6 +21,13 @@
  */
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { membersRepository } from "../repositories/members.repository";
+import { securityAuditService } from "./securityAudit.service";
+
+/** Actor context for the security-audit trail, threaded from the identity route. */
+export interface MemberActionContext {
+  actorEmail?: string | null;
+  ipAddress?: string | null;
+}
 
 export const VALID_MEMBERSHIP_ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 export type MembershipRole = (typeof VALID_MEMBERSHIP_ROLES)[number];
@@ -39,7 +47,13 @@ export const membersService = {
   },
 
   /** Assign (or re-activate) a role for an existing user in this org. */
-  async assign(actorUserId: number, orgId: string, userId: unknown, role: unknown) {
+  async assign(
+    actorUserId: number,
+    orgId: string,
+    userId: unknown,
+    role: unknown,
+    ctx: MemberActionContext = {},
+  ) {
     await assertOrgAdmin(actorUserId, orgId);
     if (typeof userId !== "number" || !VALID_MEMBERSHIP_ROLES.includes(role as MembershipRole)) {
       throw new BadRequestError(
@@ -49,7 +63,15 @@ export const membersService = {
     if (!(await membersRepository.userExists(userId))) throw new NotFoundError("User not found.");
 
     const [membership] = await membersRepository.upsert(userId, orgId, role as MembershipRole);
-    // TODO(security-audit): record this membership assignment once the log exists.
+    await securityAuditService.record({
+      action: "membership.assigned",
+      actorUserId,
+      actorEmail: ctx.actorEmail,
+      organizationId: orgId,
+      targetUserId: userId,
+      metadata: { role: membership.role, status: membership.status },
+      ipAddress: ctx.ipAddress,
+    });
     return { userId, organizationId: orgId, role: membership.role, status: membership.status };
   },
 
@@ -59,6 +81,7 @@ export const membersService = {
     orgId: string,
     targetUserId: number,
     changes: { role?: unknown; status?: unknown },
+    ctx: MemberActionContext = {},
   ) {
     await assertOrgAdmin(actorUserId, orgId);
 
@@ -85,7 +108,22 @@ export const membersService = {
     if (status !== undefined) updates.status = status as string;
 
     const [membership] = await membersRepository.update(targetUserId, orgId, updates);
-    // TODO(security-audit): record this membership change once the log exists.
+
+    // A role change and a (de)activation are distinct security events; pick the
+    // salient action and carry full before/after detail in metadata.
+    const roleChanged = updates.role !== undefined && updates.role !== existing.role;
+    await securityAuditService.record({
+      action: roleChanged ? "membership.role_changed" : "membership.status_changed",
+      actorUserId,
+      actorEmail: ctx.actorEmail,
+      organizationId: orgId,
+      targetUserId,
+      metadata: {
+        before: { role: existing.role, status: existing.status },
+        after: { role: membership.role, status: membership.status },
+      },
+      ipAddress: ctx.ipAddress,
+    });
     return { userId: targetUserId, organizationId: orgId, role: membership.role, status: membership.status };
   },
 };

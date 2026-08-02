@@ -26,9 +26,19 @@ describeMaybe("membersService — provisioning + explicit cross-org authorizatio
   let bookkeeper = 0;
 
   const cleanup = async () => {
-    for (const id of [adminA, adminB, bookkeeper]) {
-      if (id) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [id]);
-    }
+    // Membership changes now emit security_audit_logs rows (M11.1) whose FKs to
+    // users/orgs block the deletes below. Clear them FIRST by the stable test
+    // email/slug patterns (not captured ids, which are 0 on the beforeAll run and
+    // wouldn't catch leftovers from a prior failed run).
+    await pool.query(
+      `DELETE FROM security_audit_logs
+         WHERE organization_id IN (SELECT id FROM organizations WHERE slug IN ('members-a','members-b'))
+            OR actor_user_id  IN (SELECT id FROM users WHERE email LIKE 'members-test-%')
+            OR target_user_id IN (SELECT id FROM users WHERE email LIKE 'members-test-%')`,
+    );
+    await pool.query(
+      `DELETE FROM organization_memberships WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'members-test-%')`,
+    );
     await pool.query(`DELETE FROM users WHERE email LIKE 'members-test-%'`);
     await pool.query(`DELETE FROM organizations WHERE slug IN ('members-a','members-b')`);
   };

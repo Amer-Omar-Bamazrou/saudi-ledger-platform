@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth";
+import { securityAuditService } from "../services/securityAudit.service";
 
 const router = Router();
 const SALT_ROUNDS = 12;
@@ -63,6 +64,14 @@ router.post("/register", authRateLimiter, requireAuth, requireAdmin, async (req,
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     const [user] = await db.insert(usersTable).values({ email, name, passwordHash, role, isActive: true }).returning();
+    await securityAuditService.record({
+      action: "user.created",
+      actorUserId: req.session.userId ?? null,
+      actorEmail: req.session.userEmail ?? null,
+      targetUserId: user.id,
+      metadata: { email: user.email, role: user.role },
+      ipAddress: req.ip ?? null,
+    });
     res.status(201).json(safeUser(user));
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
@@ -147,8 +156,25 @@ router.patch("/users/:id", requireAuth, requireAdmin, async (req, res) => {
     if (role) updates.role = role;
     if (isActive !== undefined) updates.isActive = isActive;
     if (name) updates.name = name;
+
+    const [before] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    if (!before) { res.status(404).json({ error: "User not found." }); return; }
+
     const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
-    if (!user) { res.status(404).json({ error: "User not found." }); return; }
+
+    // Global-identity security events (name changes are not security-relevant).
+    const actor = { actorUserId: req.session.userId ?? null, actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
+    if (updates.role !== undefined && user.role !== before.role) {
+      await securityAuditService.record({
+        action: "user.role_changed", ...actor, targetUserId: id,
+        metadata: { before: before.role, after: user.role },
+      });
+    }
+    if (updates.isActive !== undefined && user.isActive !== before.isActive) {
+      await securityAuditService.record({
+        action: user.isActive ? "user.reactivated" : "user.deactivated", ...actor, targetUserId: id,
+      });
+    }
     res.json(safeUser(user));
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
@@ -169,6 +195,11 @@ router.post("/change-password", authRateLimiter, requireAuth, async (req, res) =
     if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    await securityAuditService.record({
+      action: "user.password_changed",
+      actorUserId: user.id, actorEmail: user.email, targetUserId: user.id,
+      ipAddress: req.ip ?? null,
+    });
     res.json({ message: "Password changed successfully." });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
@@ -184,6 +215,11 @@ router.post("/users/:id/reset-password", requireAuth, requireAdmin, async (req, 
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     const [user] = await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, id)).returning();
     if (!user) { res.status(404).json({ error: "User not found." }); return; }
+    await securityAuditService.record({
+      action: "user.password_reset",
+      actorUserId: req.session.userId ?? null, actorEmail: req.session.userEmail ?? null,
+      targetUserId: id, ipAddress: req.ip ?? null,
+    });
     res.json({ message: `Password reset for ${user.name}.` });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });

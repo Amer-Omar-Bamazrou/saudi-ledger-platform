@@ -21,5 +21,6 @@ export * from "./branches";
 export * from "./departments";
 export * from "./memberships";
 export * from "./auditLogs";
+export * from "./securityAuditLog";
 export * from "./permissions";
 export * from "./featureFlags";
