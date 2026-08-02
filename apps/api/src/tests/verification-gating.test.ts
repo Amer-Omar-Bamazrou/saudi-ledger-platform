@@ -30,8 +30,9 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
-import { pool } from "@workspace/db";
+import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { resolveTenant } from "../lib/tenant";
+import { primePermissionCache } from "../lib/rbac";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -181,6 +182,10 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
 
     beforeAll(async () => {
       const app = (await import("../app")).default;
+      // Prime the RBAC matrix in-memory (CI applies migrations but does not seed
+      // the permissions table). Without this the approved-org write would be
+      // fail-closed by requirePermission — unrelated to the verification gate.
+      primePermissionCache(PERMISSION_MATRIX);
       server = http.createServer(app);
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
       const addr = server.address();
