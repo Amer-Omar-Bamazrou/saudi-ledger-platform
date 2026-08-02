@@ -43,11 +43,20 @@ export async function seedDefaultTenant(): Promise<SeededTenant> {
       .limit(1);
 
     if (!org) {
+      // The default/bootstrap tenant is trusted — create it already `approved`
+      // (the column default is `pending_review` for real self-service signups).
       [org] = await tx
         .insert(organizationsTable)
-        .values({ name: DEFAULT_ORG_NAME, slug: DEFAULT_ORG_SLUG })
+        .values({ name: DEFAULT_ORG_NAME, slug: DEFAULT_ORG_SLUG, verificationStatus: "approved" })
         .returning();
       created.organization = true;
+    } else if (org.verificationStatus !== "approved") {
+      // Heal a default org created before this column existed / left unapproved.
+      [org] = await tx
+        .update(organizationsTable)
+        .set({ verificationStatus: "approved" })
+        .where(eq(organizationsTable.id, org.id))
+        .returning();
     }
 
     // --- Company (unique by name within the organization) ---

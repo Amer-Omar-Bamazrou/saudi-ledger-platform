@@ -21,6 +21,7 @@ import {
   db,
   beginTenantConnection,
   organizationMembershipsTable,
+  organizationsTable,
   companiesTable,
 } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
@@ -57,13 +58,20 @@ export async function resolveTenant(
       return;
     }
 
-    // (1) Active memberships — cross-org read on the base connection.
+    // (1) Active memberships — cross-org read on the base connection. Joined to
+    //     organizations so we also have each org's verification status for the gate.
     const memberships = await db
       .select({
         organizationId: organizationMembershipsTable.organizationId,
         role: organizationMembershipsTable.role,
+        verificationStatus: organizationsTable.verificationStatus,
+        verificationReason: organizationsTable.verificationReason,
       })
       .from(organizationMembershipsTable)
+      .innerJoin(
+        organizationsTable,
+        eq(organizationsTable.id, organizationMembershipsTable.organizationId),
+      )
       .where(
         and(
           eq(organizationMembershipsTable.userId, userId),
@@ -84,6 +92,26 @@ export async function resolveTenant(
       memberships.find((m) => m.organizationId === requested) ?? memberships[0]!;
     if (req.session.activeOrgId !== active.organizationId) {
       req.session.activeOrgId = active.organizationId;
+    }
+
+    // (2.5) VERIFICATION GATE — a non-`approved` org has NO platform access.
+    //   This short-circuits BEFORE beginTenantConnection, so the tenant GUCs
+    //   (app.current_org_id / app.current_company_id) are never set and no
+    //   org-stamped RLS connection is ever opened. That is the DB-level backstop:
+    //   even if a business route were somehow reached without this 403, there is
+    //   no tenant context, so RLS matches zero rows (reads) and the NOT NULL
+    //   organization_id default (NULL) rejects every write. Because every business
+    //   route is mounted AFTER resolveTenant, this gate is fail-closed by
+    //   construction for current AND future routes. The body carries {status,
+    //   reason} so the web app can route the user to the verification status page.
+    if (active.verificationStatus !== "approved") {
+      res.status(403).json({
+        error: "Your organization is pending verification and cannot use the platform yet.",
+        code: "org_not_verified",
+        status: active.verificationStatus,
+        reason: active.verificationReason ?? null,
+      });
+      return;
     }
 
     // (3) Primary company for the active org (first created), for company scoping.

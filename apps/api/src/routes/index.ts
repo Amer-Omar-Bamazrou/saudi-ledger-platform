@@ -7,6 +7,7 @@ import { requirePermission } from "../lib/rbac";
 import health from "./health.js";
 import auth from "./auth.js";
 import orgs from "./orgs.js";
+import onboarding from "./onboarding.js";
 import transactions from "./transactions.js";
 import categories from "./categories.js";
 import categorize from "./categorize.js";
@@ -41,7 +42,16 @@ router.use(requireAuth);
 // base connection BEFORE resolveTenant narrows the request to a single tenant.
 router.use("/orgs", orgs);
 
+// ── Onboarding / verification status (NOT tenant-scoped, NOT gated) ────────────
+// Mounted before resolveTenant so a not-yet-approved org can still see its
+// verification status (and later upload documents / resubmit). The verification
+// gate lives in resolveTenant, so anything mounted here is reachable while pending.
+router.use("/onboarding", onboarding);
+
 // ── Tenant context + RLS-scoped transaction for every business request ────────
+// resolveTenant also enforces the VERIFICATION GATE: a non-approved org gets a
+// 403 here (before the tenant transaction opens), so every business route below
+// is fail-closed for unverified organizations.
 router.use(resolveTenant);
 
 // ── Centralized permission-based authorization (RBAC, M5) ─────────────────────

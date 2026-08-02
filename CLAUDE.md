@@ -431,14 +431,37 @@ project memory (design record; a `docs/` spec will follow).
   auth; global org-less events are exposed by the operator surface in a later
   sub-milestone). Verification/invite/operator events extend the same log in
   M11.2+.
-- **M11.2–M11.7 (planned):** verification state + fail-closed access gating (the
-  security-critical core — the gate lives in `resolveTenant`, the sole setter of
-  the tenant GUCs, so a non-`approved` org structurally cannot obtain an
-  org-stamped RLS connection; the migration backfills all existing orgs to
-  `approved`); platform-operator concept + review boundary; document upload
-  (Supabase Storage); public signup + status/resubmit UIs; **company setup +
-  ZATCA correctness (M11.6 — see the production blocker below)**; invitations +
-  multi-org member administration.
+- **M11.2 (done): verification state + fail-closed access gating (the
+  security-critical core).** `organizations` gained `verification_status`
+  (`pending_review | needs_info | approved | rejected`, default `pending_review`)
+  + `verification_reason` / `verification_reviewed_by` / `_reviewed_at` /
+  `_submitted_at` (migration `0011`). The migration **backfills ALL existing orgs
+  to `approved`** (two-step default: add column `DEFAULT 'approved'` to grandfather
+  existing rows, then `SET DEFAULT 'pending_review'` for future signups) and the
+  **seed sets the default org `approved`** — so the seeded tenant and all
+  M3-backfilled data keep full access. **The gate lives in `resolveTenant`**: after
+  selecting the active org (its status joined into the membership query) it
+  short-circuits with **`403 {code:"org_not_verified", status, reason}`** for any
+  non-`approved` org **before** `beginTenantConnection` — so the tenant GUCs
+  (`app.current_org_id`/`company_id`) are never set and no org-stamped RLS
+  connection is opened. That is the DB-level backstop (layer 3): with no GUC, RLS
+  matches zero rows and the NOT NULL `organization_id` default (NULL) rejects
+  writes — fail-closed by construction for every current AND future business route
+  (all mounted after `resolveTenant`). A pending org's only reachable surface is
+  the identity layer mounted **before** the gate: `/auth` (incl. logout), `/orgs`,
+  and new **`/onboarding/status`** (`services/onboarding.service.ts`, returns the
+  active org's `{status, reason}` so the web app can route to the status page).
+  Proven by `tests/verification-gating.test.ts` (M3/M4 rigor): the `resolveTenant`
+  seam (approved → `next()`; pending/needs_info/rejected → 403, no tenant context;
+  the multi-org edge — one user gated purely by which org is active), and an
+  end-to-end pass over the real app (a pending org gets 403 on every business write
+  + a reports read with an **owner-connection query confirming ZERO rows written**;
+  onboarding/logout still work; after approval the same write posts).
+- **M11.3–M11.7 (planned):** platform-operator concept + review boundary
+  (approve / reject / needs_info, and the operator-only `rejected → needs_info`
+  mistake-correction path); document upload (Supabase Storage); public signup +
+  status/resubmit UIs; **company setup + ZATCA correctness (M11.6 — see the
+  production blocker below)**; invitations + multi-org member administration.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 
