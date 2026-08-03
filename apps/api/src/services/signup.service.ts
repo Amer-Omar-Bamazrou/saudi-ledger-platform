@@ -94,6 +94,9 @@ export const signupService = {
       ipAddress: ctx.ipAddress,
     });
 
-    return { ...created, email, name };
+    // `role` here is the GLOBAL (vestigial) users.role — non-privileged by
+    // design (see signup.repository). The new user's admin authority lives in
+    // their organization membership, not this value.
+    return { ...created, email, name, role: "viewer" as const };
   },
 };

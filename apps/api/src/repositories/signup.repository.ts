@@ -100,7 +100,17 @@ export const signupRepository = {
           email: input.email,
           name: input.name,
           passwordHash: input.passwordHash,
-          role: "admin",
+          // SECURITY (M11.5.1): deliberately NOT "admin".
+          //
+          // `users.role` is the vestigial GLOBAL role. Writing "admin" here from a
+          // PUBLIC endpoint made a platform-wide privilege self-grantable by any
+          // anonymous caller, which unlocked the `/auth` user-administration
+          // surface (cross-tenant identity dump + arbitrary password reset).
+          // The signup user's real authority is the `organization_memberships`
+          // row inserted below (role: "admin" IN THEIR OWN ORG) — that membership
+          // is what governs all business access. Matches `seedPlatformOperator`,
+          // which also creates a global "viewer".
+          role: "viewer",
           isActive: true,
         })
         .returning({ id: usersTable.id });

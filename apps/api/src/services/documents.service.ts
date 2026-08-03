@@ -27,6 +27,15 @@ export interface DocActionContext {
   ipAddress?: string | null;
 }
 
+/**
+ * Per-organization upload quota (M11.5.1). Uploads are reachable by unverified
+ * organizations by design, so without a cap a throwaway signup could exhaust
+ * storage/cost. Generous enough for a real applicant (CR + VAT certificate +
+ * supporting documents, re-submitted a few times), tight enough to bound abuse.
+ */
+export const MAX_DOCUMENTS_PER_ORG = 25;
+export const MAX_TOTAL_BYTES_PER_ORG = 100 * 1024 * 1024; // 100 MB
+
 export const documentsService = {
   /** Validate, store, and record a document for an organization. */
   async upload(userId: number, orgId: string, type: unknown, file: UploadedFile | undefined, ctx: DocActionContext = {}) {
@@ -38,6 +47,19 @@ export const documentsService = {
     // Trust the bytes, not the declared mime/extension.
     const mimeType = validateDocumentBytes(file.buffer);
     const fileName = sanitizeFilename(file.originalName, mimeType);
+
+    // Per-org quota — checked BEFORE any bytes are written to storage, so an
+    // over-quota upload costs nothing.
+    const existing = await documentsRepository.listByOrg(orgId);
+    if (existing.length >= MAX_DOCUMENTS_PER_ORG) {
+      throw new BadRequestError(
+        `Document limit reached (${MAX_DOCUMENTS_PER_ORG}). Please contact support if you need to upload more.`,
+      );
+    }
+    const usedBytes = existing.reduce((sum, d) => sum + (d.sizeBytes ?? 0), 0);
+    if (usedBytes + file.buffer.length > MAX_TOTAL_BYTES_PER_ORG) {
+      throw new BadRequestError("Storage limit reached for this organization.");
+    }
 
     const id = randomUUID();
     const storagePath = `${orgId}/${id}-${fileName}`;

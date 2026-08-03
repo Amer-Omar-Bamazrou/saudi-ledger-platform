@@ -7,12 +7,18 @@ import rateLimit from "express-rate-limit";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
 import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
+import { userAdminService, safeUser } from "../services/userAdmin.service";
 
 const router = Router();
 const SALT_ROUNDS = 12;
+
+/** Actor context for the security-audit trail, from the authenticated session. */
+function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
+  return { actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
+}
 
 /**
  * Brute-force protection for credential endpoints. In-memory store (fine for a
@@ -40,6 +46,20 @@ const signupRateLimiter = rateLimit({
   message: { error: "Too many signup attempts. Please try again later." },
 });
 
+/**
+ * User-administration endpoints (list/create/update/reset-password). These were
+ * previously UNTHROTTLED, which is what made the M11.5.1 CRITICAL finding a
+ * practical mass-takeover primitive (`users.id` is a serial integer, so an
+ * attacker could walk every id). Rate-limited independently of login/signup.
+ */
+const userAdminRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please try again in a few minutes." },
+});
+
 // Fixed decoy hash used to keep login timing constant when the email is unknown
 // or the account is inactive. Comparing the supplied password against this hash
 // costs roughly the same as comparing against a real user's hash, so an attacker
@@ -47,47 +67,23 @@ const signupRateLimiter = rateLimit({
 // The plaintext is irrelevant — it only ever needs to NOT match a real password.
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("timing-attack-decoy", SALT_ROUNDS);
 
-function safeUser(u: typeof usersTable.$inferSelect) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive, createdAt: u.createdAt.toISOString() };
-}
+// `safeUser` now lives in userAdmin.service (shared with the org-scoped
+// user-administration surface) and is re-used here for /me and /login.
 
 /**
- * POST /auth/register — admin only.
+ * POST /auth/register — create a user account (ORG-SCOPED, M11.5.1).
  *
- * There is intentionally NO unauthenticated bootstrap path: the previous
- * "first user registers freely" branch was a race-to-admin (two concurrent
- * unauthenticated requests could both observe "no users exist" and both insert
- * as admin, and any attacker reaching the API before the real operator could
- * self-register as admin). The initial admin is now provisioned out-of-band via
- * the seed script (`pnpm --filter @workspace/db run seed`, gated on the
- * SEED_ADMIN_* env vars). All HTTP registration requires an existing admin.
+ * There is intentionally NO unauthenticated bootstrap path (the old
+ * "first user registers freely" branch was a race-to-admin). The initial admin is
+ * provisioned out-of-band by the seed script.
+ *
+ * SECURITY (M11.5.1): authorization is no longer the ambient GLOBAL session role
+ * — the caller must ACTIVELY ADMINISTER an organization (verified against
+ * organization_memberships in userAdminService). See that service's header for
+ * the full rationale.
  */
-router.post("/register", authRateLimiter, requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { email, name, password, role = "viewer" } = req.body;
-    if (!email || !name || !password) {
-      res.status(400).json({ error: "email, name, and password are required." }); return;
-    }
-    if (!["admin", "accountant", "bookkeeper", "viewer"].includes(role)) {
-      res.status(400).json({ error: "Invalid role. Must be admin, accountant, bookkeeper, or viewer." }); return;
-    }
-
-    // Check duplicate email
-    const [dup] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (dup) { res.status(409).json({ error: "Email already registered." }); return; }
-
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const [user] = await db.insert(usersTable).values({ email, name, passwordHash, role, isActive: true }).returning();
-    await securityAuditService.record({
-      action: "user.created",
-      actorUserId: req.session.userId ?? null,
-      actorEmail: req.session.userEmail ?? null,
-      targetUserId: user.id,
-      metadata: { email: user.email, role: user.role },
-      ipAddress: req.ip ?? null,
-    });
-    res.status(201).json(safeUser(user));
-  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+router.post("/register", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.status(201).json(await userAdminService.create(req.session.userId!, req.body ?? {}, actorCtx(req)));
 });
 
 /**
@@ -113,7 +109,12 @@ router.post("/signup", signupRateLimiter, async (req, res) => {
   req.session.regenerate((regenErr) => {
     if (regenErr) { req.log.error({ err: regenErr }); res.status(500).json({ error: "Session error." }); return; }
     req.session.userId = created.userId;
-    req.session.userRole = "admin";
+    // SECURITY (M11.5.1): the session carries the GLOBAL role only. It must NOT
+    // be "admin" — a public endpoint may never self-grant a platform-wide
+    // privilege. The signup user is an admin OF THEIR OWN ORG via their
+    // organization_memberships row, which is what `resolveTenant` reads and what
+    // governs every business route.
+    req.session.userRole = created.role;
     req.session.userName = created.name;
     req.session.userEmail = created.email;
     req.session.activeOrgId = created.organizationId;
@@ -191,44 +192,23 @@ router.get("/me", requireAuth, async (req, res) => {
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
-/** GET /auth/users — admin only */
-router.get("/users", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
-    res.json(users.map(safeUser));
-  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+/**
+ * GET /auth/users — users in the caller's OWN organization(s) (M11.5.1).
+ *
+ * SECURITY: this previously returned EVERY user on the platform with no
+ * organization filter, guarded only by the ambient global session role — a
+ * cross-tenant identity dump. It is now scoped to organizations the caller
+ * actively administers.
+ */
+router.get("/users", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await userAdminService.list(req.session.userId!));
 });
 
-/** PATCH /auth/users/:id — admin can change role/status/name */
-router.patch("/users/:id", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { role, isActive, name } = req.body;
-    const updates: Partial<typeof usersTable.$inferInsert> = {};
-    if (role) updates.role = role;
-    if (isActive !== undefined) updates.isActive = isActive;
-    if (name) updates.name = name;
-
-    const [before] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
-    if (!before) { res.status(404).json({ error: "User not found." }); return; }
-
-    const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
-
-    // Global-identity security events (name changes are not security-relevant).
-    const actor = { actorUserId: req.session.userId ?? null, actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
-    if (updates.role !== undefined && user.role !== before.role) {
-      await securityAuditService.record({
-        action: "user.role_changed", ...actor, targetUserId: id,
-        metadata: { before: before.role, after: user.role },
-      });
-    }
-    if (updates.isActive !== undefined && user.isActive !== before.isActive) {
-      await securityAuditService.record({
-        action: user.isActive ? "user.reactivated" : "user.deactivated", ...actor, targetUserId: id,
-      });
-    }
-    res.json(safeUser(user));
-  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+/** PATCH /auth/users/:id — change role/status/name (org-scoped, role validated). */
+router.patch("/users/:id", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(
+    await userAdminService.update(req.session.userId!, Number(req.params.id), req.body ?? {}, actorCtx(req)),
+  );
 });
 
 /** POST /auth/change-password — logged-in user changes their own password */
@@ -256,24 +236,20 @@ router.post("/change-password", authRateLimiter, requireAuth, async (req, res) =
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
-/** POST /auth/users/:id/reset-password — admin resets another user's password */
-router.post("/users/:id/reset-password", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 8) {
-      res.status(400).json({ error: "newPassword must be at least 8 characters." }); return;
-    }
-    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    const [user] = await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, id)).returning();
-    if (!user) { res.status(404).json({ error: "User not found." }); return; }
-    await securityAuditService.record({
-      action: "user.password_reset",
-      actorUserId: req.session.userId ?? null, actorEmail: req.session.userEmail ?? null,
-      targetUserId: id, ipAddress: req.ip ?? null,
-    });
-    res.json({ message: `Password reset for ${user.name}.` });
-  } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+/**
+ * POST /auth/users/:id/reset-password — reset a user's password (ORG-SCOPED).
+ *
+ * SECURITY (M11.5.1): this accepted ANY user id with only the ambient global
+ * session role — the account-takeover primitive at the centre of the CRITICAL
+ * finding. The target must now be a member of an organization the caller
+ * actively administers.
+ */
+router.post("/users/:id/reset-password", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(
+    await userAdminService.resetPassword(
+      req.session.userId!, Number(req.params.id), req.body?.newPassword, actorCtx(req),
+    ),
+  );
 });
 
 export default router;

@@ -46,12 +46,21 @@ export default function UserManagement() {
   const [createError, setCreateError] = useState("");
   const [resetError, setResetError] = useState("");
 
-  // Active org — the org whose memberships we administer here.
-  const { data: orgsData } = useQuery<{ activeOrgId: string | null }>({
+  // Active org — the org whose memberships we administer here. We also read the
+  // caller's MEMBERSHIP role in that org: since M11.5.1 the global `users.role`
+  // is no longer a privilege (a self-signup org owner is a global "viewer" but an
+  // admin of their own org), so gating this page on the global role would lock
+  // out legitimate org admins. The server authorizes off the membership too.
+  const { data: orgsData } = useQuery<{
+    activeOrgId: string | null;
+    organizations: Array<{ organizationId: string; role: string }>;
+  }>({
     queryKey: ["orgs"],
     queryFn: () => apiFetch("/orgs"),
   });
   const activeOrgId = orgsData?.activeOrgId ?? null;
+  const isOrgAdmin =
+    (orgsData?.organizations ?? []).find((o) => o.organizationId === activeOrgId)?.role === "admin";
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -122,10 +131,13 @@ export default function UserManagement() {
     onError: (e: Error) => setResetError(e.message),
   });
 
-  if (me?.role !== "admin") {
+  // Wait for the memberships to load before deciding (avoids a flash of "denied").
+  if (orgsData && !isOrgAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground text-sm">{t("Admin access required.", "مطلوب صلاحية المسؤول.")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("Organization admin access required.", "مطلوب صلاحية مسؤول المنظمة.")}
+        </p>
       </div>
     );
   }

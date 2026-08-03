@@ -12,7 +12,7 @@ import {
   companiesTable,
   verificationReviewsTable,
 } from "@workspace/db";
-import { asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 
 export interface VerificationUpdate {
   verificationStatus: string;
@@ -75,12 +75,25 @@ export const verificationRepository = {
       .orderBy(asc(companiesTable.createdAt));
   },
 
-  /** Apply a status decision to the organization. */
-  updateVerification(orgId: string, values: VerificationUpdate) {
+  /**
+   * Apply a status decision ATOMICALLY (M11.5.1).
+   *
+   * The allowed-from guard lives IN THE UPDATE rather than in a preceding SELECT,
+   * so two concurrent operator decisions (a double-click, or two operators
+   * racing) cannot both pass a check-then-act window and clobber each other.
+   * Zero rows returned ⇒ the org was no longer in an allowed state ⇒ 409. This
+   * mirrors `onboardingRepository.resubmit`.
+   */
+  updateVerificationIfInState(orgId: string, allowedFrom: readonly string[], values: VerificationUpdate) {
     return db
       .update(organizationsTable)
       .set({ ...values, updatedAt: new Date() })
-      .where(eq(organizationsTable.id, orgId))
+      .where(
+        and(
+          eq(organizationsTable.id, orgId),
+          inArray(organizationsTable.verificationStatus, [...allowedFrom]),
+        ),
+      )
       .returning({
         organizationId: organizationsTable.id,
         status: organizationsTable.verificationStatus,

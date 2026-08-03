@@ -561,6 +561,46 @@ project memory (design record; a `docs/` spec will follow).
     document upload** → operator queue/detail → audited document download
     (attachment + nosniff) → request-info → resubmit → approve → business write
     201, with the full security-audit trail and review history correct.
+- **M11.5.1 (done): SECURITY HOTFIX — CRITICAL-1 + audit follow-ups.** A read-only
+  security audit of M11.1–M11.5 (four parallel reviews) found one CRITICAL, and it
+  was fixed before any further feature work.
+  - **CRITICAL-1 — public signup granted platform-wide admin.** Signup wrote
+    `users.role = "admin"` and stamped `session.userRole = "admin"`; `/auth/*` is
+    mounted **before** `resolveTenant` (so the verification gate never covered it)
+    and its user-administration endpoints were guarded only by that ambient global
+    role **with no organization filter**. Anyone could sign up and then
+    `GET /auth/users` (every user on the platform) and
+    `POST /auth/users/:id/reset-password` (take over **any** account — other
+    tenants' admins, or the platform operator, then self-approve). Fixed on four
+    fronts: (a) signup now creates a global **`viewer`** (authority comes from the
+    `organization_memberships` admin row, as it always should have);
+    (b) the session no longer receives a global admin role; (c) `/auth/register`
+    and `/auth/users*` moved onto a new **org-scoped** `userAdmin.service` —
+    the caller must be an active admin of an **approved** organization and may
+    only see/modify users who are members of an org **they** administer (this also
+    closes the *pre-existing* cross-tenant half: previously any admin could read
+    and reset any user platform-wide); (d) role-enum validation on
+    `PATCH /auth/users/:id` plus a dedicated rate limiter on the whole
+    user-administration surface (it was entirely unthrottled, and `users.id` is a
+    serial integer). **`requireRole`/`requireAdmin`/`requireAccountantOrAbove`
+    were DELETED** from `lib/auth.ts` so the ambient-global-role pattern cannot be
+    reintroduced. Locked in by `tests/user-admin-authz.test.ts` (13 tests, both
+    directions: a self-signup user is denied every user-admin endpoint — including
+    for its *own* org while unverified, preventing email-squatting — and a
+    legitimate admin is confined to their own organization).
+  - **HIGH-1 — document upload abuse.** Added a per-IP upload rate limiter and a
+    **per-org quota** (`MAX_DOCUMENTS_PER_ORG` = 25, `MAX_TOTAL_BYTES_PER_ORG` =
+    100 MB) checked in `documentsService.upload` **before** any bytes reach
+    storage. Uploads are reachable pre-approval by design, so this was otherwise
+    an open memory/storage-cost abuse surface.
+  - **M-2 — operator decision TOCTOU.** `operator.service._transition` now applies
+    the state change with a **conditional UPDATE**
+    (`updateVerificationIfInState(... WHERE verification_status IN allowedFrom)`);
+    zero rows ⇒ 409. Consistent with the pattern already used in
+    `onboardingService.resubmit`.
+  - **UI consequence handled:** `UserManagement` gated on the global `users.role`;
+    it now gates on the caller's **membership** role in the active org (the server
+    authorizes the same way), so a self-signup org owner isn't locked out.
 - **M11.6–M11.7 (planned):** **company setup + ZATCA correctness (M11.6 — see the
   production blocker below)**; invitations + multi-org member administration.
 
@@ -580,6 +620,59 @@ These were identified in the post-M4 security review and **intentionally deferre
   invoices until fixed.** Correctly sequenced at **M11.6** (wire
   `company.vatNumber`/`name` into issuance, replace + de-duplicate the constants),
   since nothing is deployed yet — noted here so it cannot be forgotten.
+### Open findings from the M11 security audit (M11.5.1)
+
+The CRITICAL and HIGH-1/M-2 were fixed in M11.5.1 (see above). These remain open,
+with severity and location — address in the milestone noted, not ad hoc:
+
+- **[HIGH-2 — verify at deployment] Signup/auth rate limiting may be bypassable.**
+  `app.ts:21-23` sets `trust proxy` **only in production**; if any deployment lets
+  a client-supplied `X-Forwarded-For` reach Express, the IP-keyed limiters become a
+  no-op via header rotation. The stores are also **in-memory / single-instance**
+  (`routes/auth.ts`, `routes/onboarding.ts`), so horizontal scaling silently
+  multiplies every limit. **Before deploying:** confirm exactly one trusted proxy
+  that overwrites `X-Forwarded-For`; **before scaling out:** move the limiters to
+  a Redis store.
+- **[MEDIUM M-1 — LANDMINE, read before writing business-layer queries]
+  `organizations`, `users` and `organization_memberships` are deliberately OUTSIDE
+  RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the app role
+  (`0004_m4_rls_enforcement.sql:95-98`). Unlike every business table, **RLS will
+  not save you here** — only an explicit `WHERE` clause will. Today nothing in the
+  business layer queries them, so it is not exploitable; but the next engineer who
+  joins `organizationsTable` from a business service (e.g. "show the org name on an
+  invoice PDF") creates a **silent cross-tenant leak**. Either add RLS to these
+  tables or add a CI guard failing on such imports outside the identity layer.
+- **[MEDIUM M-3] Signup email/slug check-then-insert race surfaces as a raw 500.**
+  `signup.service.ts` checks `emailExists` before the transaction; the DB unique
+  constraint correctly prevents duplicates (no half-provisioned tenant), but the
+  Postgres `23505` carries no `statusCode`, so `errorHandler` returns 500 instead
+  of the intended 409. Map `23505` → `ConflictError`.
+- **[MEDIUM M-4] `bcryptjs` (pure-JS, cost 12) blocks the event loop on public
+  endpoints** — a multi-tenant noisy-neighbour DoS vector; consider native
+  `bcrypt` (thread-pool offload). Also **no max-length validation** on
+  `name`/`organizationName`/`companyName` before `varchar(255)`, so oversized
+  input is another raw 500 instead of a 400.
+- **[MEDIUM M-5] Magic-byte sniffing is header-only** (`lib/fileValidation.ts`) —
+  a valid-header PDF carrying `/JavaScript` or `/OpenAction` passes. Browser-side
+  risk is closed (forced attachment + `nosniff`); residual risk is a human opening
+  the file locally. Closes with the AV follow-up below — `documents.service.upload`
+  is the seam.
+- **[LOW L-1] Security-audit write failures are invisible.**
+  `securityAudit.service.ts` records best-effort and, on failure, only
+  `console.error`s — not the structured `pino` logger, and with no alerting. The
+  best-effort design is correct (the mutation already committed), but an attacker
+  who can reliably fail those inserts acts untraced. Route it through `logger` and
+  alert on the pattern.
+- **[LOW L-2] Signup's 409 leaks account existence** — asymmetric with
+  `/auth/login`'s deliberate constant-time defense in the same file. Acceptable
+  (common for signup) but should be documented inline as a conscious trade-off.
+- **[LOW L-3] Non-deterministic "primary membership" tie-break** — `tenant.ts`
+  and `onboarding.service.ts` order by `createdAt` only; add a secondary key
+  (`id`) for determinism.
+- **[LOW L-4] The operator queue list is unaudited** (detail views and document
+  views ARE audited). Accepted trade-off — revisit if operator-activity forensics
+  become a requirement.
+
 - **[KNOWN CI GAP — M11.4] The storage path is NOT covered by CI.** The 9
   document tests (`apps/api/src/tests/documents.test.ts`) are gated on
   `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` and **skip in CI**, which runs a
@@ -737,7 +830,30 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
    > `setApiErrorHandler` hook the web app uses for the M11.2 verification-gate
    > redirect).
 
-5. **AI proposes; it never posts.**
+5. **A privilege that becomes self-grantable invalidates every guard that trusts it.**
+   *(Learned the hard way in M11.5.1 — do not repeat it.)*
+
+   M5 decided the `/auth` user-administration endpoints could authorize off the
+   **global** `req.session.userRole`. That was sound **only** because the value was
+   un-mintable by untrusted parties: it came from the seed or from an existing
+   admin. M11.5 then added public self-service signup which wrote
+   `users.role = "admin"` — making that same privilege **self-grantable by any
+   anonymous caller**, and instantly converting a documented, accepted boundary
+   into a remote platform-wide account-takeover (CRITICAL-1: cross-tenant identity
+   dump + arbitrary password reset, including the platform operator's account).
+   Neither milestone was wrong in isolation; the vulnerability lived entirely in
+   their *interaction*, so no per-milestone test could have caught it.
+
+   **The rule:** whenever a change makes a role, flag, claim, or capability
+   obtainable by a less-trusted party than before, you must re-audit **every**
+   guard that trusts it — not just the code you touched. Grep for the value and
+   read each consumer. Prefer authorization that is **explicit and scoped**
+   (`requirePermission` for tenant business routes; explicit admin-of-THAT-org
+   checks in the identity layer; `requirePlatformOperator` for cross-tenant
+   surfaces) over any ambient global role. `users.role` is **vestigial and must
+   never gate access** — the `organization_memberships` role is what governs.
+
+6. **AI proposes; it never posts.**
    AI features must never write directly to the ledger. They _propose_ entries,
    categorizations, or actions; a human — or the existing, trusted accounting
    logic — approves and commits them. The GL is only ever written through the

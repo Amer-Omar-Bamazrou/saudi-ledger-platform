@@ -11,15 +11,33 @@
  */
 import { Router } from "express";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { onboardingService } from "../services/onboarding.service";
 import { documentsService } from "../services/documents.service";
+import { MAX_DOCUMENT_BYTES } from "../lib/fileValidation";
 import { sendDocument, uploadSingle } from "./documentHttp";
 
 const router = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // matches MAX_DOCUMENT_BYTES; validated again in the service
+  limits: { fileSize: MAX_DOCUMENT_BYTES }, // re-validated in the service from the actual bytes
+});
+
+/**
+ * Document upload is reachable by NOT-yet-approved organizations by design (the
+ * onboarding router is mounted before the verification gate so applicants can
+ * submit evidence). That makes it an abuse surface for anyone who can sign up:
+ * multer buffers each file in PROCESS MEMORY, so unbounded concurrent uploads are
+ * a memory/storage-cost DoS. Throttle per IP; a per-org quota is additionally
+ * enforced in documentsService.upload.
+ */
+const uploadRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many document uploads. Please try again later." },
 });
 
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
@@ -32,7 +50,7 @@ router.get("/status", async (req, res) => {
 });
 
 /** POST /api/onboarding/documents (multipart: file, type) — upload a verification doc. */
-router.post("/documents", uploadSingle(upload, "file"), async (req, res) => {
+router.post("/documents", uploadRateLimiter, uploadSingle(upload, "file"), async (req, res) => {
   const orgId = await onboardingService.requireActiveOrgId(req.session.userId!, req.session.activeOrgId);
   const file = req.file ? { buffer: req.file.buffer, originalName: req.file.originalname } : undefined;
   res.status(201).json(await documentsService.upload(req.session.userId!, orgId, req.body?.type, file, actorCtx(req)));

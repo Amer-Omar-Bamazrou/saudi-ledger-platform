@@ -134,13 +134,22 @@ export const operatorService = {
       throw new ConflictError(`Cannot ${spec.verb} an application in '${org.status}' state.`);
     }
 
+    // The read above gives a precise error message; the UPDATE below re-asserts
+    // the same guard ATOMICALLY so a concurrent decision cannot slip through the
+    // check-then-act window (M11.5.1).
     const fromStatus = org.status;
-    const [updated] = await verificationRepository.updateVerification(orgId, {
+    const [updated] = await verificationRepository.updateVerificationIfInState(orgId, spec.allowedFrom, {
       verificationStatus: spec.toStatus,
       verificationReason: spec.reason,
       verificationReviewedBy: operatorUserId,
       verificationReviewedAt: new Date(),
     });
+    if (!updated) {
+      // Lost a race with another operator decision between the read and the write.
+      throw new ConflictError(
+        `Cannot ${spec.verb} this application — its status changed. Please reload and retry.`,
+      );
+    }
     await verificationRepository.insertReview({
       organizationId: orgId,
       operatorUserId,
