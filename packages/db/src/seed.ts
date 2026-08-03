@@ -6,6 +6,7 @@ import {
   companiesTable,
   usersTable,
   organizationMembershipsTable,
+  platformOperatorsTable,
 } from "./schema";
 import { seedPermissions } from "./permissions";
 
@@ -167,6 +168,72 @@ export async function seedAdminUser(organizationId: string): Promise<SeededAdmin
   return { created, membershipCreated: inserted.length > 0, email };
 }
 
+export interface SeededOperator {
+  /** True when a new user row was inserted for the operator. */
+  created: boolean;
+  /** True when the platform_operators grant row was inserted this run. */
+  operatorGranted?: boolean;
+  /** Set when seeding was intentionally skipped (missing/invalid config). */
+  skipped?: string;
+  email?: string;
+}
+
+/**
+ * Idempotently provision a PLATFORM OPERATOR — a user who may review verification
+ * applications (M11.3). This is the ONLY way operator status is ever granted: the
+ * privilege is deliberately unreachable from any HTTP route, keeping the
+ * cross-tenant review power out of the application's attack surface. Gated on:
+ *
+ *   SEED_OPERATOR_EMAIL     (required to seed)
+ *   SEED_OPERATOR_PASSWORD  (required to seed; min 8 chars)
+ *   SEED_OPERATOR_NAME      (optional; defaults to "Platform Operator")
+ *
+ * The operator is a GLOBAL identity with **no organization membership** — that is
+ * deliberate: `resolveTenant` 403s any user with no membership, so operator
+ * status grants ZERO access to any tenant's business data. Their only extra power
+ * is the `/operator` verification-review surface (guarded by
+ * `requirePlatformOperator`). Both writes are idempotent (existing user left
+ * untouched; the grant is a no-op on the unique `user_id`).
+ */
+export async function seedPlatformOperator(): Promise<SeededOperator> {
+  const email = process.env["SEED_OPERATOR_EMAIL"]?.trim();
+  const password = process.env["SEED_OPERATOR_PASSWORD"];
+  const name = process.env["SEED_OPERATOR_NAME"]?.trim() || "Platform Operator";
+
+  if (!email || !password) {
+    return { created: false, skipped: "SEED_OPERATOR_EMAIL and SEED_OPERATOR_PASSWORD not set" };
+  }
+  if (password.length < 8) {
+    return { created: false, skipped: "SEED_OPERATOR_PASSWORD must be at least 8 characters" };
+  }
+
+  // (1) Ensure the operator user exists (global identity, NO membership).
+  let created = false;
+  let [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1);
+
+  if (!user) {
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    [user] = await db
+      .insert(usersTable)
+      .values({ email, name, passwordHash, role: "viewer", isActive: true })
+      .returning({ id: usersTable.id });
+    created = true;
+  }
+
+  // (2) Grant operator status. Idempotent on the unique user_id.
+  const inserted = await db
+    .insert(platformOperatorsTable)
+    .values({ userId: user!.id })
+    .onConflictDoNothing({ target: platformOperatorsTable.userId })
+    .returning({ id: platformOperatorsTable.id });
+
+  return { created, operatorGranted: inserted.length > 0, email };
+}
+
 // Run directly: `pnpm --filter @workspace/db run seed`
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("seed.ts")) {
   seedDefaultTenant()
@@ -187,6 +254,17 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
         const memState = admin.membershipCreated ? "membership created" : "membership existing";
         // eslint-disable-next-line no-console
         console.log(`[seed] admin user ${userState}: ${admin.email} (${memState})`);
+      }
+
+      const operator = await seedPlatformOperator();
+      if (operator.skipped) {
+        // eslint-disable-next-line no-console
+        console.log(`[seed] platform operator skipped: ${operator.skipped}`);
+      } else {
+        const opState = operator.created ? "created" : "existing";
+        const grantState = operator.operatorGranted ? "operator granted" : "operator existing";
+        // eslint-disable-next-line no-console
+        console.log(`[seed] platform operator ${opState}: ${operator.email} (${grantState})`);
       }
 
       const perms = await seedPermissions();

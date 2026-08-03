@@ -457,11 +457,35 @@ project memory (design record; a `docs/` spec will follow).
   end-to-end pass over the real app (a pending org gets 403 on every business write
   + a reports read with an **owner-connection query confirming ZERO rows written**;
   onboarding/logout still work; after approval the same write posts).
-- **M11.3–M11.7 (planned):** platform-operator concept + review boundary
-  (approve / reject / needs_info, and the operator-only `rejected → needs_info`
-  mistake-correction path); document upload (Supabase Storage); public signup +
-  status/resubmit UIs; **company setup + ZATCA correctness (M11.6 — see the
-  production blocker below)**; invitations + multi-org member administration.
+- **M11.3 (done): platform-operator concept + review boundary (security-sensitive).**
+  A `platform_operators` table (owner-only) marks the few users who may review
+  verification applications; **operator status is granted ONLY via the seed/CLI**
+  (`seedPlatformOperator`, gated on `SEED_OPERATOR_EMAIL`/`_PASSWORD`) — **no HTTP
+  route ever grants it**. An operator is a **global identity with no org
+  membership**, so `resolveTenant`'s existing no-membership 403 blocks them from
+  **every** business route — operator status grants **zero** access to any
+  tenant's financial data (no BYPASSRLS, and the operator surface never returns
+  invoices/GL/reports). The **`/operator`** namespace is mounted **before**
+  `resolveTenant`, guarded by **`requirePlatformOperator`** (`lib/operator.ts`,
+  fail-closed), and exposes only verification metadata: list the review queue, get
+  an application's detail (org + the applicant company's CR/VAT + review history),
+  and the decisions **approve / reject / request-info** plus the operator-only
+  **`reopen` (`rejected → needs_info`)** mistake-correction path — `rejected` is
+  terminal-by-default (you cannot approve straight from it). Each decision updates
+  the org, appends a `verification_reviews` row (owner-only history table), and
+  writes a `security_audit_logs` event (operator id + target org); guards are
+  fail-closed (wrong state → 409, missing reason → 400, unknown org → 404).
+  Approving flips `verification_status` to `approved`, which un-gates the org on
+  its next request. Both new tables get **no RLS and no app-role grants** (DB
+  boundary test asserts the app role can't touch them). Proven by
+  `tests/operator.test.ts` (state machine + `requirePlatformOperator`/
+  `resolveTenant` boundaries + an e2e: an operator gets 403 on every business
+  route, a non-operator gets 403 on `/operator`, and an operator approves an
+  application end-to-end) and `packages/db/.../operator-tables.test.ts`.
+- **M11.4–M11.7 (planned):** document upload (Supabase Storage; operator document
+  views audited); public signup + status/resubmit UIs; **company setup + ZATCA
+  correctness (M11.6 — see the production blocker below)**; invitations + multi-org
+  member administration.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 

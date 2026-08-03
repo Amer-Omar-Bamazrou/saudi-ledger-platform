@@ -2,12 +2,14 @@ import { Router } from "express";
 import { requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
 import { requirePermission } from "../lib/rbac";
+import { requirePlatformOperator } from "../lib/operator";
 
 // Route modules
 import health from "./health.js";
 import auth from "./auth.js";
 import orgs from "./orgs.js";
 import onboarding from "./onboarding.js";
+import operator from "./operator.js";
 import transactions from "./transactions.js";
 import categories from "./categories.js";
 import categorize from "./categorize.js";
@@ -47,6 +49,13 @@ router.use("/orgs", orgs);
 // verification status (and later upload documents / resubmit). The verification
 // gate lives in resolveTenant, so anything mounted here is reachable while pending.
 router.use("/onboarding", onboarding);
+
+// ── Platform-operator verification review (cross-tenant, operator-only) ────────
+// Mounted before resolveTenant and guarded by requirePlatformOperator. Operators
+// hold NO org membership, so resolveTenant would 403 them from every business
+// route regardless; this surface returns ONLY verification metadata (never a
+// tenant's financial data). Operator status is granted solely via the seed/CLI.
+router.use("/operator", requirePlatformOperator, operator);
 
 // ── Tenant context + RLS-scoped transaction for every business request ────────
 // resolveTenant also enforces the VERIFICATION GATE: a non-approved org gets a
