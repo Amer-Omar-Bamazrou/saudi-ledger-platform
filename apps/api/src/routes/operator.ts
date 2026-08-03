@@ -9,6 +9,8 @@
  */
 import { Router } from "express";
 import { operatorService } from "../services/operator.service";
+import { documentsService } from "../services/documents.service";
+import { sendDocument } from "./documentHttp";
 
 const router = Router();
 
@@ -25,6 +27,17 @@ router.get("/applications", async (_req, res) => {
 /** GET /api/operator/applications/:orgId — one application's review detail (audited). */
 router.get("/applications/:orgId", async (req, res) => {
   res.json(await operatorService.getApplication(req.session.userId!, req.params.orgId, actorCtx(req)));
+});
+
+/** GET /api/operator/applications/:orgId/documents/:docId — download a document (audited). */
+router.get("/applications/:orgId/documents/:docId", async (req, res) => {
+  const doc = await documentsService.operatorView(
+    req.session.userId!,
+    req.params.orgId,
+    req.params.docId,
+    actorCtx(req),
+  );
+  sendDocument(res, doc);
 });
 
 /** POST /api/operator/applications/:orgId/approve — grant the org full access. */

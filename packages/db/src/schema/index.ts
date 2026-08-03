@@ -24,5 +24,6 @@ export * from "./auditLogs";
 export * from "./securityAuditLog";
 export * from "./platformOperators";
 export * from "./verificationReviews";
+export * from "./verificationDocuments";
 export * from "./permissions";
 export * from "./featureFlags";

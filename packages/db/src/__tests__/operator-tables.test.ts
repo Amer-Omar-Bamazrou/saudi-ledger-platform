@@ -22,7 +22,7 @@ if (!connectionString) {
 
 const RLS_ROLE = "authenticated";
 
-describeMaybe("platform_operators / verification_reviews — owner-only", () => {
+describeMaybe("platform_operators / verification_reviews / verification_documents — owner-only", () => {
   let client: pg.Client;
 
   async function asAppRole(sql: string): Promise<pg.QueryResult> {
@@ -44,7 +44,7 @@ describeMaybe("platform_operators / verification_reviews — owner-only", () => 
     if (client) await client.end();
   });
 
-  for (const table of ["platform_operators", "verification_reviews"]) {
+  for (const table of ["platform_operators", "verification_reviews", "verification_documents"]) {
     it(`forbids the app role from SELECT-ing ${table}`, async () => {
       await expect(asAppRole(`SELECT 1 FROM ${table} LIMIT 1`)).rejects.toThrow(/permission denied/i);
     });

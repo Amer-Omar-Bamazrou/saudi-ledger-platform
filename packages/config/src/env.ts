@@ -46,6 +46,22 @@ const EnvSchema = z.object({
     .string()
     .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "DB_APP_ROLE must be a valid SQL identifier")
     .default("authenticated"),
+
+  // ── Document storage (M11.4) — Supabase Storage, reached over its REST API ──
+  // OPTIONAL so the app boots without storage configured (document features are
+  // simply unavailable and return 503). When set, they are validated. The
+  // service-role key is a powerful secret and MUST stay server-side only — it is
+  // never sent to the browser; all document I/O is brokered through the API.
+  SUPABASE_URL: z
+    .string()
+    .url("SUPABASE_URL must be a full URL, e.g. https://<ref>.supabase.co or http://127.0.0.1:54321")
+    .optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z
+    .string()
+    .min(1, "SUPABASE_SERVICE_ROLE_KEY must not be empty when set")
+    .optional(),
+  // Private bucket that holds verification documents (org-prefixed object paths).
+  VERIFICATION_DOCS_BUCKET: z.string().min(1).default("verification-documents"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

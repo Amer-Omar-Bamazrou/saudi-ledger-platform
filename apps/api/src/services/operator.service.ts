@@ -23,6 +23,7 @@
  */
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { verificationRepository } from "../repositories/verification.repository";
+import { documentsRepository } from "../repositories/documents.repository";
 import { securityAuditService } from "./securityAudit.service";
 
 export interface OperatorActionContext {
@@ -60,9 +61,10 @@ export const operatorService = {
     const org = await verificationRepository.findOrganization(orgId);
     if (!org) throw new NotFoundError("Application not found.");
 
-    const [companies, reviews] = await Promise.all([
+    const [companies, reviews, documents] = await Promise.all([
       verificationRepository.listCompanies(orgId),
       verificationRepository.listReviews(orgId),
+      documentsRepository.listByOrg(orgId),
     ]);
 
     await securityAuditService.record({
@@ -73,7 +75,7 @@ export const operatorService = {
       ipAddress: ctx.ipAddress,
     });
 
-    return { ...org, companies, reviews };
+    return { ...org, companies, reviews, documents };
   },
 
   approve(operatorUserId: number, orgId: string, ctx: OperatorActionContext = {}) {

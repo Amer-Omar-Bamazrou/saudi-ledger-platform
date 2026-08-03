@@ -482,10 +482,35 @@ project memory (design record; a `docs/` spec will follow).
   `resolveTenant` boundaries + an e2e: an operator gets 403 on every business
   route, a non-operator gets 403 on `/operator`, and an operator approves an
   application end-to-end) and `packages/db/.../operator-tables.test.ts`.
-- **M11.4–M11.7 (planned):** document upload (Supabase Storage; operator document
-  views audited); public signup + status/resubmit UIs; **company setup + ZATCA
-  correctness (M11.6 — see the production blocker below)**; invitations + multi-org
-  member administration.
+- **M11.4 (done): document upload & storage (Supabase Storage, API-brokered).**
+  Applicants upload registration documents (CR/VAT certificates, other) and
+  operators review them; the file **bytes live in a private Supabase Storage
+  bucket**, the metadata in a new owner-only `verification_documents` table
+  (migration `0013`). **All I/O is brokered through the API** — a thin,
+  **dependency-free** client (`lib/storage.ts`) over Storage's REST API using the
+  service-role key, which **stays server-side only**; the browser never gets it.
+  Authorization is **our** model, not Storage RLS: an applicant acts only on their
+  active org's docs (membership-resolved in `onboarding.service`), and operators
+  read any org's docs through the operator surface. **Validation** (`lib/fileValidation.ts`):
+  an allow-list (PDF/JPEG/PNG) enforced by a **magic-byte sniff** (bytes, not the
+  spoofable declared mime/extension), a 10 MB cap (multer memory limit +
+  re-checked), and filename sanitization (no path traversal). **Downloads are
+  forced attachments** (`Content-Disposition: attachment` + `X-Content-Type-Options: nosniff`,
+  never inline — `routes/documentHttp.ts`). Endpoints: applicant
+  `POST/GET /onboarding/documents` + `GET /onboarding/documents/:id`; operator
+  detail now includes documents + `GET /operator/applications/:orgId/documents/:docId`.
+  **Audited:** `verification.document_uploaded` (uploader) and, for the operator
+  download, `verification.document_viewed` (cross-tenant access). Upload rolls
+  back the stored object if the metadata insert fails. New **config** (validated
+  in `@workspace/config`, all optional so the app still boots without storage —
+  document endpoints then 503): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `VERIFICATION_DOCS_BUCKET` (default `verification-documents`). Proven by
+  `tests/documents.test.ts` (validation, real bucket round-trip, org-scoping,
+  audit, multipart upload + attachment-only download — gated on Storage creds, so
+  it skips in CI) and the `verification_documents` owner-only DB boundary test.
+- **M11.5–M11.7 (planned):** public signup + status/resubmit UIs; **company setup
+  + ZATCA correctness (M11.6 — see the production blocker below)**; invitations +
+  multi-org member administration.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 
@@ -503,6 +528,25 @@ These were identified in the post-M4 security review and **intentionally deferre
   invoices until fixed.** Correctly sequenced at **M11.6** (wire
   `company.vatNumber`/`name` into issuance, replace + de-duplicate the constants),
   since nothing is deployed yet — noted here so it cannot be forgotten.
+- **[KNOWN CI GAP — M11.4] The storage path is NOT covered by CI.** The 9
+  document tests (`apps/api/src/tests/documents.test.ts`) are gated on
+  `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` and **skip in CI**, which runs a
+  Postgres service but **no Supabase Storage service**. This is unlike the
+  DB-backed tests, which DO run against CI's Postgres container. So **a green CI
+  does not prove the storage path works** — upload/download/validation is proven
+  **locally only**, and a future change breaking storage would not be caught by
+  CI. Do not assume CI covers it. **Follow-up before deployment:** add a Storage
+  service (or a stub/emulator) to `.github/workflows/ci.yml` and set those two env
+  vars so the suite runs there.
+- **[FOLLOW-UP before scaling — M11.4] No antivirus/malware scanning on uploaded
+  documents.** Verification document upload (M11.4) validates type (magic-byte
+  sniff), size, and filename, stores to a **private** bucket, and serves downloads
+  as forced attachments (never inline) — but does **not** scan file contents for
+  malware. Blast radius is bounded (only that org's members + platform operators
+  can ever download, and nothing is executed or rendered), so it is acceptable for
+  now, but **AV scanning (e.g. ClamAV or a scanning SaaS) must be added before
+  scaling** / before untrusted-tenant growth. Wire it into `documents.service`
+  upload (scan the buffer before `putObject`, reject on hit).
 - **[HIGH — RESOLVED in M6] Per-request transaction held open for DB-less routes.**
   The tenant DB client is now acquired **lazily** on first query (`LazyTenantClient`
   in `packages/db/src/index.ts`), so DB-less routes (e.g. `/llm/*`) never check out
