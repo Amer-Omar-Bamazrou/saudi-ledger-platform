@@ -108,6 +108,7 @@ export const membersService = {
     if (status !== undefined) updates.status = status as string;
 
     const [membership] = await membersRepository.update(targetUserId, orgId, updates);
+    if (!membership) throw new NotFoundError("Membership not found.");
 
     // A role change and a (de)activation are distinct security events; pick the
     // salient action and carry full before/after detail in metadata.
@@ -125,5 +126,23 @@ export const membersService = {
       ipAddress: ctx.ipAddress,
     });
     return { userId: targetUserId, organizationId: orgId, role: membership.role, status: membership.status };
+  },
+
+  /**
+   * Remove a member from the organization (M11.7) — deactivates the membership
+   * rather than deleting it, so the audit/history of who had access survives.
+   * Reuses `update`'s last-admin guard, so the org can never be orphaned.
+   */
+  async remove(actorUserId: number, orgId: string, targetUserId: number, ctx: MemberActionContext = {}) {
+    const result = await this.update(actorUserId, orgId, targetUserId, { status: "inactive" }, ctx);
+    await securityAuditService.record({
+      action: "membership.removed",
+      actorUserId,
+      actorEmail: ctx.actorEmail,
+      organizationId: orgId,
+      targetUserId,
+      ipAddress: ctx.ipAddress,
+    });
+    return result;
   },
 };

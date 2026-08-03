@@ -9,6 +9,7 @@ import health from "./health.js";
 import auth from "./auth.js";
 import orgs from "./orgs.js";
 import onboarding from "./onboarding.js";
+import invitations from "./invitations.js";
 import operator from "./operator.js";
 import companies from "./companies.js";
 import transactions from "./transactions.js";
@@ -36,6 +37,9 @@ const router = Router();
 // ── Public ──────────────────────────────────────────────────────────────────
 router.use("/healthz", health);
 router.use("/auth", auth);
+// Invitation preview/accept: PUBLIC + token-authenticated — the invitee may have
+// no account and no tenant yet. All checks live in invitationsService.
+router.use("/invitations", invitations);
 
 // ── All remaining routes require a valid session ─────────────────────────────
 router.use(requireAuth);

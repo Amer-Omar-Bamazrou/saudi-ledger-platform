@@ -10,6 +10,7 @@ import { Router } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import { db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
 import { membersService } from "../services/members.service";
+import { invitationsService } from "../services/invitations.service";
 import { securityAuditService } from "../services/securityAudit.service";
 
 /** Actor context for the security-audit trail, from the authenticated session. */
@@ -29,6 +30,9 @@ router.get("/", async (req, res) => {
         name: organizationsTable.name,
         slug: organizationsTable.slug,
         role: organizationMembershipsTable.role,
+        // Lets the client show which orgs the user ADMINISTERS and which are
+        // actually usable/invitable (M11.7) without a second round-trip.
+        verificationStatus: organizationsTable.verificationStatus,
       })
       .from(organizationMembershipsTable)
       .innerJoin(
@@ -131,6 +135,47 @@ router.patch("/:orgId/members/:userId", async (req, res) => {
       { role, status },
       actorCtx(req),
     ),
+  );
+});
+
+/** DELETE /api/orgs/:orgId/members/:userId — remove a member (last-admin safe). */
+router.delete("/:orgId/members/:userId", async (req, res) => {
+  res.json(
+    await membersService.remove(req.session.userId!, req.params.orgId, Number(req.params.userId), actorCtx(req)),
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invitations (M11.7) — same identity-layer posture: base connection, BEFORE
+// resolveTenant, authorized by an explicit admin-of-THIS-org check that ALSO
+// requires the organization to be verification-approved (an unvetted org must
+// not mint accounts for arbitrary email addresses).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /api/orgs/:orgId/invitations — list invitations (no token material). */
+router.get("/:orgId/invitations", async (req, res) => {
+  res.json(await invitationsService.list(req.session.userId!, req.params.orgId));
+});
+
+/** POST /api/orgs/:orgId/invitations { email, role } — returns the invite link. */
+router.post("/:orgId/invitations", async (req, res) => {
+  const { email, role } = req.body ?? {};
+  res.status(201).json(
+    await invitationsService.send(req.session.userId!, req.params.orgId, email, role, actorCtx(req)),
+  );
+});
+
+/** POST /api/orgs/:orgId/invitations/:id/resend — issue a new token + expiry. */
+router.post("/:orgId/invitations/:id/resend", async (req, res) => {
+  res.json(
+    await invitationsService.resend(req.session.userId!, req.params.orgId, req.params.id, actorCtx(req)),
+  );
+});
+
+/** DELETE /api/orgs/:orgId/invitations/:id — revoke a pending invitation. */
+router.delete("/:orgId/invitations/:id", async (req, res) => {
+  res.json(
+    await invitationsService.revoke(req.session.userId!, req.params.orgId, req.params.id, actorCtx(req)),
   );
 });
 

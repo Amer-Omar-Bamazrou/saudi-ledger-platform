@@ -10,6 +10,7 @@ import { LanguageProvider } from '@/contexts/LanguageContext';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import VerificationStatus from '@/pages/VerificationStatus';
+import AcceptInvite from '@/pages/AcceptInvite';
 import OperatorReview from '@/pages/OperatorReview';
 import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
@@ -102,6 +103,8 @@ function Router() {
       {/* Public */}
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
+      {/* Public + token-authenticated: the invitee may have no account yet. */}
+      <Route path="/accept-invite" component={AcceptInvite} />
 
       {/*
         Authenticated but OUTSIDE Layout: these serve users who cannot reach

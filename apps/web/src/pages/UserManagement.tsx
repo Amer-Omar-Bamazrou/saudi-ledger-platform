@@ -17,6 +17,7 @@ import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
 interface Member { userId: number; name: string; email: string; role: string; status: string; }
+interface Invitation { id: string; email: string; role: string; status: string; expiresAt: string; createdAt: string; }
 
 // The active-org membership role governs access (M10). This page manages THAT
 // role (via /orgs/:orgId/members), not the vestigial global users.role.
@@ -45,6 +46,9 @@ export default function UserManagement() {
   const [newPw, setNewPw] = useState("");
   const [createError, setCreateError] = useState("");
   const [resetError, setResetError] = useState("");
+  const [invite, setInvite] = useState({ email: "", role: "bookkeeper" });
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteError, setInviteError] = useState("");
 
   // Active org — the org whose memberships we administer here. We also read the
   // caller's MEMBERSHIP role in that org: since M11.5.1 the global `users.role`
@@ -115,6 +119,51 @@ export default function UserManagement() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       toast({ title: t("User updated", "تم تحديث المستخدم") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  // ── Invitations (M11.7) ────────────────────────────────────────────────────
+  const { data: invitesData } = useQuery<{ invitations: Invitation[] }>({
+    queryKey: ["invitations", activeOrgId],
+    queryFn: () => apiFetch(`/orgs/${activeOrgId}/invitations`),
+    enabled: !!activeOrgId,
+    retry: false,
+  });
+
+  const refreshInvites = () => qc.invalidateQueries({ queryKey: ["invitations", activeOrgId] });
+
+  const inviteMut = useMutation({
+    mutationFn: (body: { email: string; role: string }) =>
+      apiFetch<{ link: string }>(`/orgs/${activeOrgId}/invitations`, { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: (res) => {
+      setInviteLink(res.link);
+      setInvite({ email: "", role: "bookkeeper" });
+      setInviteError("");
+      refreshInvites();
+    },
+    onError: (e: Error) => setInviteError(e.message),
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: (id: string) => apiFetch(`/orgs/${activeOrgId}/invitations/${id}`, { method: "DELETE" }),
+    onSuccess: () => { refreshInvites(); toast({ title: t("Invitation revoked", "تم إلغاء الدعوة") }); },
+    onError: (e: Error) => setInviteError(e.message),
+  });
+
+  const resendMut = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ link: string }>(`/orgs/${activeOrgId}/invitations/${id}/resend`, { method: "POST" }),
+    onSuccess: (res) => { setInviteLink(res.link); refreshInvites(); },
+    onError: (e: Error) => setInviteError(e.message),
+  });
+
+  const removeMemberMut = useMutation({
+    mutationFn: (userId: number) =>
+      apiFetch(`/orgs/${activeOrgId}/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
+      toast({ title: t("Member removed", "تمت إزالة العضو") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
@@ -273,6 +322,16 @@ export default function UserManagement() {
                       <option value="admin">{t("Admin", "مسؤول")}</option>
                     </select>
 
+                    {!isMe && orgRole && (
+                      <button
+                        onClick={() => removeMemberMut.mutate(u.id)}
+                        className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:border-red-400/40 hover:text-red-400 transition-colors"
+                        title={t("Remove from this organization", "إزالة من هذه المنظمة")}
+                      >
+                        {t("Remove", "إزالة")}
+                      </button>
+                    )}
+
                     {!isMe && (
                       <button
                         onClick={() => patchMut.mutate({ id: u.id, updates: { isActive: !u.isActive } })}
@@ -296,6 +355,92 @@ export default function UserManagement() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Invitations (M11.7) ─────────────────────────────────────────── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{t("Invitations", "الدعوات")}</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "Invite a teammate by email. No email is sent yet — copy the link and share it with them.",
+              "ادعُ زميلاً عبر البريد. لا يتم إرسال بريد بعد — انسخ الرابط وشاركه معه.",
+            )}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {inviteError && <Alert variant="destructive"><AlertDescription>{inviteError}</AlertDescription></Alert>}
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[220px]">
+              <Label className="text-xs text-muted-foreground">{t("Email", "البريد الإلكتروني")}</Label>
+              <Input
+                type="email" className="mt-1 h-8 text-sm" placeholder="teammate@company.sa"
+                value={invite.email}
+                onChange={e => setInvite(p => ({ ...p, email: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">{t("Role", "الدور")}</Label>
+              <select
+                className="mt-1 h-8 text-sm rounded-md border border-input bg-background px-2 block"
+                value={invite.role}
+                onChange={e => setInvite(p => ({ ...p, role: e.target.value }))}
+              >
+                {MEMBERSHIP_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <Button
+              size="sm"
+              disabled={!invite.email || inviteMut.isPending || !activeOrgId}
+              onClick={() => inviteMut.mutate(invite)}
+            >
+              {inviteMut.isPending ? t("Inviting…", "جارٍ الدعوة…") : t("Send invitation", "إرسال دعوة")}
+            </Button>
+          </div>
+
+          {inviteLink && (
+            <Alert>
+              <AlertDescription className="space-y-2">
+                <p className="text-xs font-medium">{t("Share this link with the invitee:", "شارك هذا الرابط مع المدعو:")}</p>
+                <div className="flex gap-2">
+                  <Input readOnly value={inviteLink} className="h-8 text-xs font-mono" onFocus={e => e.currentTarget.select()} />
+                  <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(inviteLink)}>
+                    {t("Copy", "نسخ")}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="divide-y divide-border">
+            {(invitesData?.invitations ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">{t("No invitations yet.", "لا توجد دعوات بعد.")}</p>
+            ) : invitesData!.invitations.map(inv => (
+              <div key={inv.id} className="flex items-center gap-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">{inv.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {inv.role} · {t("expires", "تنتهي")} {new Date(inv.expiresAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground uppercase">
+                  {inv.status}
+                </span>
+                {inv.status === "pending" && (
+                  <>
+                    <button onClick={() => resendMut.mutate(inv.id)} className="text-xs text-muted-foreground hover:text-primary">
+                      {t("Resend", "إعادة إرسال")}
+                    </button>
+                    <button onClick={() => revokeMut.mutate(inv.id)} className="text-xs text-muted-foreground hover:text-red-400">
+                      {t("Revoke", "إلغاء")}
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Reset password dialog */}
       <Dialog open={!!resetTarget} onOpenChange={o => { if (!o) { setResetTarget(null); setNewPw(""); setResetError(""); } }}>

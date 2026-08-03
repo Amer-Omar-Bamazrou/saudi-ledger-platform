@@ -400,7 +400,7 @@ stays two-step). Every transition is audited in `audit_logs`
 
 See `docs/phase-0-implementation-plan.md`.
 
-## Phase 1 — Milestone 11: Onboarding & Multi-Company Foundation (IN PROGRESS)
+## Phase 1 — Milestone 11: Onboarding & Multi-Company Foundation (COMPLETE)
 
 Entry point = **public self-service signup behind a verification gate** (an org
 signs up, submits CR/VAT + documents, enters `pending_review`, and gets no
@@ -641,7 +641,47 @@ project memory (design record; a `docs/` spec will follow).
     a company VAT change flowing into the next issued invoice. Existing company
     fixtures across the approval suites now carry a real CR/VAT, and the invoice
     zero-movement + hash-chain suites still pass unchanged (M10 behavior intact).
-- **M11.7 (planned):** invitations + multi-org member administration.
+- **M11.7 (done): invitations + multi-org member administration — Phase 1
+  onboarding is COMPLETE.** An approved organization can now add its own team.
+  - **`organization_invitations`** (migration `0015`, owner-only identity table).
+    Only the **SHA-256 of the token** is stored — the raw 32-byte token
+    (`lib/tokens.ts`) exists solely in the invite link, so a DB leak yields no
+    usable invites. A **partial unique index** (`WHERE status='pending'`,
+    hand-written — Drizzle can't express it) allows at most one live invite per
+    (org, email) while retaining revoked/accepted rows as history. 7-day expiry
+    (`INVITATION_EXPIRY_DAYS`).
+  - **Admin surface** under `/orgs/:orgId/invitations` (send / list / resend /
+    revoke) + `DELETE /orgs/:orgId/members/:userId` — identity layer, base
+    connection, pre-`resolveTenant`, same explicit admin-of-THIS-org check. Member
+    removal deactivates (preserving history) and respects the **last-admin
+    guard**. `GET /orgs` now also returns each org's `verificationStatus`.
+  - **PUBLIC accept** (`GET /invitations/:token`, `POST /invitations/:token/accept`),
+    rate-limited, with both paths: an existing user accepts **while signed in**,
+    and a new invitee sets name + password to create the user **atomically with**
+    the membership.
+  - **SECURITY — this is a public endpoint that mints a membership**, i.e. the
+    same "self-grantable capability" shape as the M11.5.1 CRITICAL, so it was
+    threat-modelled BEFORE implementation and each invariant has a test:
+    (1) accepting writes a **non-privileged global `users.role`** — the invited
+    role goes **only** to the membership; (2) the role is validated against
+    `VALID_MEMBERSHIP_ROLES`, and since only an org admin (the highest org role)
+    can invite, **no invite can grant more than the inviter holds**;
+    (3) the org must be **`approved` to invite AND to be joined** — re-checked at
+    accept time, blocking both email-squatting by an unvetted org and joining an
+    org rejected after the invite was sent; (4) acceptance **claims the invitation
+    with a conditional UPDATE** (`status='pending' AND expires_at > now()`), so a
+    token can never be redeemed twice; (5) a signed-in acceptor's **email must
+    match** the invited email; (6) unknown/valid tokens both return the same 404
+    so guesses aren't confirmed.
+  - **Provider-agnostic email** — `lib/mailer.ts` defines the `Mailer` seam with a
+    **no-op** implementation that reports `delivered: false`; the API returns the
+    invite **link** for the admin to share out of band. Integrating SES/Resend/
+    Postmark later means implementing `send` and swapping the export — no change
+    to the invitation service.
+  - **UI:** invitations panel (invite / copy link / resend / revoke) and member
+    removal in User Management, plus the public `/accept-invite` page.
+  - **Tests:** `tests/invitations.test.ts` (20) covers the full lifecycle both
+    over HTTP and at the service layer, and asserts every invariant above.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 

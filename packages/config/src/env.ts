@@ -62,6 +62,14 @@ const EnvSchema = z.object({
     .optional(),
   // Private bucket that holds verification documents (org-prefixed object paths).
   VERIFICATION_DOCS_BUCKET: z.string().min(1).default("verification-documents"),
+
+  // ── Invitations (M11.7) ─────────────────────────────────────────────────────
+  // How long an invite link stays valid. Short enough that a leaked link ages
+  // out, long enough for a colleague to act on it.
+  INVITATION_EXPIRY_DAYS: z.coerce.number().int().positive().max(90).default(7),
+  // Absolute base URL used to build invite links (e.g. https://app.example.sa).
+  // Defaults to the first allowed CORS origin, which is the app's own origin.
+  APP_BASE_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
