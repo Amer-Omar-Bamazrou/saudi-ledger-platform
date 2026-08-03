@@ -121,7 +121,11 @@ router.post("/signup", signupRateLimiter, async (req, res) => {
     req.session.save((err) => {
       if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
       res.status(201).json({
-        user: { id: created.userId, email: created.email, name: created.name, role: "admin", isActive: true },
+        // Report the REAL global role (non-privileged). Do not echo "admin" here:
+        // the client stores this as `user.role`, and any UI that gated on it would
+        // be misled about a privilege the server does not actually grant. The
+        // user's admin authority is their organization membership.
+        user: { id: created.userId, email: created.email, name: created.name, role: created.role, isActive: true },
         organizationId: created.organizationId,
         verificationStatus: "pending_review",
       });
