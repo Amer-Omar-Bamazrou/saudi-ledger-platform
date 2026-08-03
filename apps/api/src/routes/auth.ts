@@ -9,6 +9,7 @@ import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { securityAuditService } from "../services/securityAudit.service";
+import { signupService } from "../services/signup.service";
 
 const router = Router();
 const SALT_ROUNDS = 12;
@@ -24,6 +25,19 @@ const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many attempts. Please try again in a few minutes." },
+});
+
+/**
+ * Public self-service signup is the ONLY unauthenticated write in the platform,
+ * so it gets its own STRICTER limiter than the credential endpoints: creating
+ * organizations is expensive and abusable. IP-keyed, 5 per hour.
+ */
+const signupRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many signup attempts. Please try again later." },
 });
 
 // Fixed decoy hash used to keep login timing constant when the email is unknown
@@ -74,6 +88,44 @@ router.post("/register", authRateLimiter, requireAuth, requireAdmin, async (req,
     });
     res.status(201).json(safeUser(user));
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
+});
+
+/**
+ * POST /auth/signup — PUBLIC self-service organization registration (M11.5).
+ *
+ * Creates organization + company + admin user + admin membership in ONE atomic
+ * transaction, with the organization in `pending_review`: the account can log in
+ * and see its verification status, but the M11.2 gate blocks every business route
+ * until a platform operator approves it. We log the user in on success so they
+ * land directly on the status page.
+ *
+ * This is distinct from /auth/register, which stays admin-only and is how an
+ * APPROVED org provisions its own team.
+ *
+ * AppErrors thrown by the service (400 invalid, 409 duplicate email) are mapped
+ * by the app-level errorHandler (Express 5 forwards async rejections).
+ */
+router.post("/signup", signupRateLimiter, async (req, res) => {
+  const created = await signupService.signup(req.body ?? {}, { ipAddress: req.ip ?? null });
+
+  // Rotate the session id on the anonymous → authenticated transition, then sign
+  // the new admin in (same posture as /auth/login).
+  req.session.regenerate((regenErr) => {
+    if (regenErr) { req.log.error({ err: regenErr }); res.status(500).json({ error: "Session error." }); return; }
+    req.session.userId = created.userId;
+    req.session.userRole = "admin";
+    req.session.userName = created.name;
+    req.session.userEmail = created.email;
+    req.session.activeOrgId = created.organizationId;
+    req.session.save((err) => {
+      if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
+      res.status(201).json({
+        user: { id: created.userId, email: created.email, name: created.name, role: "admin", isActive: true },
+        organizationId: created.organizationId,
+        verificationStatus: "pending_review",
+      });
+    });
+  });
 });
 
 /** POST /auth/login */

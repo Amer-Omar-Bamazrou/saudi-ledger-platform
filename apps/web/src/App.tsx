@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
 import Login from '@/pages/Login';
+import Signup from '@/pages/Signup';
+import VerificationStatus from '@/pages/VerificationStatus';
+import OperatorReview from '@/pages/OperatorReview';
 import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Categorize from '@/pages/Categorize';
@@ -97,6 +100,20 @@ function Router() {
     <Switch>
       {/* Public */}
       <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
+
+      {/*
+        Authenticated but OUTSIDE Layout: these serve users who cannot reach
+        business routes at all — an org pending verification (M11.2 gate) and a
+        platform operator (no org membership). Rendering them inside Layout would
+        fire the sidebar's tenant-scoped queries, which 403 for both.
+      */}
+      <Route path="/verification">
+        <AuthGuard><VerificationStatus /></AuthGuard>
+      </Route>
+      <Route path="/operator">
+        <AuthGuard><OperatorReview /></AuthGuard>
+      </Route>
 
       {/* Protected — everything else */}
       <Route>

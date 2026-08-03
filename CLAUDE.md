@@ -508,9 +508,61 @@ project memory (design record; a `docs/` spec will follow).
   `tests/documents.test.ts` (validation, real bucket round-trip, org-scoping,
   audit, multipart upload + attachment-only download — gated on Storage creds, so
   it skips in CI) and the `verification_documents` owner-only DB boundary test.
-- **M11.5–M11.7 (planned):** public signup + status/resubmit UIs; **company setup
-  + ZATCA correctness (M11.6 — see the production blocker below)**; invitations +
-  multi-org member administration.
+- **M11.5 (done): public self-service signup + applicant status/resubmit + minimal
+  UIs — the flow is clickable end-to-end for the first time.**
+  - **`POST /auth/signup` (PUBLIC)** — the platform's only unauthenticated write.
+    One **atomic transaction** creates organization (`pending_review`) + company
+    (name, CR, VAT) + admin user + active admin membership
+    (`signup.repository.createTenant`, with unique-slug derivation), then logs the
+    user in so they land on the status page. Strict dedicated rate limiter
+    (**5/hour/IP**, separate from the credential limiter); duplicate email → 409;
+    validation in `signup.service` (CR = 10 digits **required**, VAT = 15 digits
+    starting/ending with 3 **optional** — not every entity is VAT-registered).
+    Audited as `signup.completed`. **`/auth/register` stays admin-only** for an
+    approved org to provision its own team.
+  - **Applicant resubmit** — `POST /onboarding/resubmit` moves
+    `needs_info → pending_review`, clearing the reason and re-stamping
+    `verification_submitted_at`. The status guard is **in the UPDATE** (`WHERE
+    status='needs_info'`) so a concurrent operator decision can't be clobbered
+    (zero rows → 409). Audited (`verification.resubmitted`) and appended to the
+    shared `verification_reviews` history with a **null operator** (an applicant
+    action). `rejected` is NOT applicant-resubmittable — only an operator `reopen`.
+  - **UI (functional, reusing the existing shadcn patterns):** `/signup`
+    (public), `/verification` (status + reason + document upload + resubmit +
+    sign-out), `/operator` (review queue → detail with CR/VAT + documents +
+    history → approve / request-info / reject / reopen). Both `/verification` and
+    `/operator` render **inside `AuthGuard` but OUTSIDE `Layout`** — the sidebar
+    fires tenant-scoped queries that 403 for a gated org and for a
+    membership-less operator.
+  - **The gate drives the redirect centrally — across BOTH data paths.** The web
+    app fetches two ways: hand-written call sites via `apiFetch` (`lib/api.ts`)
+    and — for the dashboard and most business pages — the **generated** React
+    Query client via `customFetch`. The single policy
+    `handleApiErrorResponse(status, body)` in `lib/api.ts` redirects to
+    `/verification` on `403 {code:"org_not_verified"}` and is invoked by **both**:
+    directly by `apiFetch`, and by the generated client through the new
+    **`setApiErrorHandler`** hook in
+    `packages/api-client-react/src/custom-fetch.ts` (registered in `main.tsx`).
+    That hook keeps the shared package route-agnostic. **This was a real bug found
+    in manual browser testing:** covering only `apiFetch` left a gated org sitting
+    on the dashboard shell while every query 403'd (the server-side gate held —
+    no data was ever served — but the user was never redirected).
+    `apiFetch` also now omits `Content-Type` for `FormData` (the browser must set
+    the multipart boundary) and merges headers after `...init` (previously `init`
+    could clobber them).
+  - **Tests:** `tests/signup.test.ts` — validation + atomicity at the service
+    level (kept off HTTP so the many cases don't burn the deliberately strict
+    signup limiter), then the full loop over the real app: signup → gated 403 →
+    operator request-info → applicant resubmit → operator approve → **the same
+    business write now posts**; plus duplicate-email 409 and a rate-limit (429)
+    assertion placed last (it poisons the IP for the window).
+  - **Verified clickable end-to-end** against the running app through the Vite
+    proxy (the exact path the UI uses): signup → status → gated 403 → **multipart
+    document upload** → operator queue/detail → audited document download
+    (attachment + nosniff) → request-info → resubmit → approve → business write
+    201, with the full security-audit trail and review history correct.
+- **M11.6–M11.7 (planned):** **company setup + ZATCA correctness (M11.6 — see the
+  production blocker below)**; invitations + multi-org member administration.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 
@@ -674,6 +726,16 @@ docs/                architecture-blueprint.md, phase-0-implementation-plan.md
    (`@workspace/api-client-react`). Change the spec first, regenerate, then
    implement. Keep this pipeline — do not hand-write client types or hand-edit
    generated files.
+
+   > **`packages/api-client-react/src/custom-fetch.ts` is a HAND-MAINTAINED source
+   > file, not generated.** It is orval's configured *mutator* (see
+   > `packages/api-spec/orval.config.ts` → `override.mutator`), and codegen's
+   > `clean: true` only wipes `src/generated/`. Edit it deliberately and commit
+   > your changes — do **not** dismiss it as codegen noise when it shows up in
+   > `git status`. Only `src/generated/**` is off-limits. It is where
+   > cross-cutting client behavior lives (cookie credentials, and the
+   > `setApiErrorHandler` hook the web app uses for the M11.2 verification-gate
+   > redirect).
 
 5. **AI proposes; it never posts.**
    AI features must never write directly to the ledger. They _propose_ entries,

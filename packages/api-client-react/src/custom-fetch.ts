@@ -44,6 +44,25 @@ export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
 }
 
+export type ApiErrorHandler = (error: ApiError) => void;
+
+let _errorHandler: ApiErrorHandler | null = null;
+
+/**
+ * Register a handler invoked for every non-OK response, just before the
+ * {@link ApiError} is thrown. Lets the host application apply cross-cutting
+ * response policy — e.g. redirecting to the login page on 401, or to the
+ * verification status page when the tenant's organization is not yet approved —
+ * WITHOUT this package hard-coding any route or app-specific behavior.
+ *
+ * The error is still thrown afterwards, so per-call error handling is unaffected.
+ * A throwing handler must not mask the original error, so it is called defensively.
+ * Pass `null` to clear.
+ */
+export function setApiErrorHandler(handler: ApiErrorHandler | null): void {
+  _errorHandler = handler;
+}
+
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
@@ -366,7 +385,15 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    const error = new ApiError(response, errorData, requestInfo);
+    // Cross-cutting response policy (registered by the host app). Guarded so a
+    // faulty handler can never mask the real API error.
+    try {
+      _errorHandler?.(error);
+    } catch {
+      /* ignore handler failures */
+    }
+    throw error;
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;

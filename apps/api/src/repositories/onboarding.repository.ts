@@ -9,7 +9,12 @@
  * runs outside the verification gate and outside tenant scoping. Callers
  * authorize by membership.
  */
-import { db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
+import {
+  db,
+  organizationMembershipsTable,
+  organizationsTable,
+  verificationReviewsTable,
+} from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 
 export const onboardingRepository = {
@@ -34,5 +39,43 @@ export const onboardingRepository = {
         ),
       )
       .orderBy(asc(organizationMembershipsTable.createdAt));
+  },
+
+  /**
+   * Applicant resubmission: needs_info → pending_review, clearing the reason and
+   * re-stamping the submission time. Guarded IN THE UPDATE (`status='needs_info'`)
+   * so a concurrent operator decision can't be clobbered — zero rows back means
+   * the org was no longer in needs_info.
+   */
+  resubmit(orgId: string) {
+    return db
+      .update(organizationsTable)
+      .set({
+        verificationStatus: "pending_review",
+        verificationReason: null,
+        verificationSubmittedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(organizationsTable.id, orgId),
+          eq(organizationsTable.verificationStatus, "needs_info"),
+        ),
+      )
+      .returning({
+        organizationId: organizationsTable.id,
+        status: organizationsTable.verificationStatus,
+      });
+  },
+
+  /** Record the resubmission in the shared review history (no operator actor). */
+  insertResubmitReview(orgId: string) {
+    return db.insert(verificationReviewsTable).values({
+      organizationId: orgId,
+      operatorUserId: null,
+      fromStatus: "needs_info",
+      toStatus: "pending_review",
+      reason: null,
+    });
   },
 };

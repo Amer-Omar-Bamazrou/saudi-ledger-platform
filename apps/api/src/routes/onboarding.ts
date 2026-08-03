@@ -38,6 +38,11 @@ router.post("/documents", uploadSingle(upload, "file"), async (req, res) => {
   res.status(201).json(await documentsService.upload(req.session.userId!, orgId, req.body?.type, file, actorCtx(req)));
 });
 
+/** POST /api/onboarding/resubmit — needs_info → pending_review after supplying info. */
+router.post("/resubmit", async (req, res) => {
+  res.json(await onboardingService.resubmit(req.session.userId!, req.session.activeOrgId, actorCtx(req)));
+});
+
 /** GET /api/onboarding/documents — list the active org's uploaded documents. */
 router.get("/documents", async (req, res) => {
   const orgId = await onboardingService.requireActiveOrgId(req.session.userId!, req.session.activeOrgId);

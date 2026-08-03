@@ -9,8 +9,9 @@
  * it is still an active membership, else default to the primary (first) one — so
  * the status/documents shown match the org the gate would evaluate.
  */
-import { ForbiddenError } from "../lib/errors";
+import { ConflictError, ForbiddenError } from "../lib/errors";
 import { onboardingRepository } from "../repositories/onboarding.repository";
+import { securityAuditService } from "./securityAudit.service";
 
 type ActiveMembership = Awaited<
   ReturnType<typeof onboardingRepository.activeMembershipsWithVerification>
@@ -41,5 +42,41 @@ export const onboardingService = {
    */
   async requireActiveOrgId(userId: number, requestedOrgId?: string): Promise<string> {
     return (await activeMembership(userId, requestedOrgId)).organizationId;
+  },
+
+  /**
+   * Applicant resubmits after supplying the requested information:
+   * `needs_info → pending_review` (audited, and recorded in the review history).
+   * Only valid from `needs_info` — `rejected` is terminal for the applicant (only
+   * an operator can reopen it), and pending/approved have nothing to resubmit.
+   */
+  async resubmit(
+    userId: number,
+    requestedOrgId?: string,
+    ctx: { actorEmail?: string | null; ipAddress?: string | null } = {},
+  ) {
+    const active = await activeMembership(userId, requestedOrgId);
+    if (active.verificationStatus !== "needs_info") {
+      throw new ConflictError(
+        `Cannot resubmit an application in '${active.verificationStatus}' state.`,
+      );
+    }
+
+    const [updated] = await onboardingRepository.resubmit(active.organizationId);
+    if (!updated) {
+      // Lost a race with an operator decision — re-read and report the truth.
+      throw new ConflictError("This application is no longer awaiting more information.");
+    }
+    await onboardingRepository.insertResubmitReview(active.organizationId);
+    await securityAuditService.record({
+      action: "verification.resubmitted",
+      actorUserId: userId,
+      actorEmail: ctx.actorEmail,
+      organizationId: active.organizationId,
+      metadata: { fromStatus: "needs_info", toStatus: "pending_review" },
+      ipAddress: ctx.ipAddress,
+    });
+
+    return { organizationId: updated.organizationId, status: updated.status, reason: null };
   },
 };

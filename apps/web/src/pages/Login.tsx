@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +99,12 @@ export default function Login() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? t("Signing in…", "جارٍ تسجيل الدخول…") : t("Sign in", "تسجيل الدخول")}
                 </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  {t("New organization?", "مؤسسة جديدة؟")}{" "}
+                  <Link href="/signup" className="text-primary hover:underline">
+                    {t("Create an account", "إنشاء حساب")}
+                  </Link>
+                </p>
               </form>
             </CardContent>
           </Card>
