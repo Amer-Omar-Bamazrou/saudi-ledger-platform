@@ -601,25 +601,64 @@ project memory (design record; a `docs/` spec will follow).
   - **UI consequence handled:** `UserManagement` gated on the global `users.role`;
     it now gates on the caller's **membership** role in the active org (the server
     authorizes the same way), so a self-signup org owner isn't locked out.
-- **M11.6–M11.7 (planned):** **company setup + ZATCA correctness (M11.6 — see the
-  production blocker below)**; invitations + multi-org member administration.
+- **M11.6 (done): company setup + ZATCA correctness — THE PRODUCTION BLOCKER IS
+  CLOSED.** Invoice issuance now stamps the tenant's REAL ZATCA identity.
+  - **`services/sellerIdentity.ts` is the single seam.** It replaces the
+    `DEFAULT_SELLER_VAT` / `DEFAULT_SELLER_NAME` constants that were **duplicated**
+    in `invoices.service.ts` and `invoices.approvable.ts` (a ZATCA *sandbox*
+    placeholder that was fed into every QR and hash). Seller identity resolves
+    from the **active company**, honoring an explicit per-invoice override.
+    **There is deliberately NO fallback value:** `requireIssuanceSeller` **fails
+    closed** with 400 `company_vat_missing` when no VAT number is configured, so
+    the platform can never again mint a legally-invalid invoice. Draft creation
+    stays lenient (`resolveDraftSeller`) — a draft is not a legal document.
+  - **Tenant-scoped `companies` resource** — `GET/PATCH /companies/current`
+    through route→controller→service→repository, behind
+    `requirePermission("companies")` (matrix: **read = all roles, update = admin
+    only**, since VAT/CR feed the QR and hash chain). The "active company" is the
+    org's first-created company — the same rule `resolveTenant` uses, so the two
+    never disagree. OpenAPI-first (`Company` + `UpdateCompanyInput`), client
+    regenerated.
+  - **Statutory validation lives in one place** — `lib/saudiIdentifiers.ts`
+    (VAT = 15 digits starting/ending with 3; CR = 10 digits; postal = 5; building
+    = 4), shared with signup. Duplicated constants are precisely what caused this
+    blocker, so the rules are imported, never re-inlined.
+  - **Schema (migration `0014`, additive/nullable):** `name_ar` plus the national
+    short-address block (`building_number`, `street`, `district`, `city`,
+    `postal_code`) — not needed by the Phase-1 QR or hash (so they don't gate
+    issuance) but required for **ZATCA Phase 2**, added now to avoid a second
+    migration.
+  - **`fiscalYearStart` is stored and exposed but NOT yet wired into report
+    periods** — reports still use calendar periods. That is a reporting change,
+    deliberately out of scope here; the Company Settings UI says so explicitly.
+    Tracked in the deferred list below.
+  - **Company Settings UI** (`/company`, in the Settings nav) with a prominent
+    warning when no VAT number is set ("invoices cannot be issued").
+  - **Acceptance test** (`tests/company-zatca-identity.test.ts`): decodes the real
+    base64 TLV QR (tag 1 = name, tag 2 = VAT) and **recomputes the invoice hash**,
+    asserting it matches only when the COMPANY's VAT was the input and does NOT
+    match the sandbox value; plus fail-closed-without-VAT, format validation, and
+    a company VAT change flowing into the next issued invoice. Existing company
+    fixtures across the approval suites now carry a real CR/VAT, and the invoice
+    zero-movement + hash-chain suites still pass unchanged (M10 behavior intact).
+- **M11.7 (planned):** invitations + multi-org member administration.
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 
 These were identified in the post-M4 security review and **intentionally deferred**
 (not bugs to fix ad hoc — address them in the milestone noted):
 
-- **[🚫 PRODUCTION BLOCKER — fixed in M11.6] Invoices carry the ZATCA sandbox VAT
-  number.** Invoice issuance (`services/invoices.approvable.ts` +
-  `invoices.service.ts`) hardcodes `DEFAULT_SELLER_VAT = "300000000000003"` (the
-  ZATCA sandbox placeholder) and `DEFAULT_SELLER_NAME = "KSA Ledger Company"`,
-  denormalized onto each invoice and fed into the ZATCA QR (TLV tags 1–2) and the
-  invoice hash — the company's real `vatNumber`/`name` are **never consulted**, and
-  the constants are **duplicated across the two files**. So **every invoice issued
-  today carries a fake VAT number.** **Must NOT deploy to production or issue real
-  invoices until fixed.** Correctly sequenced at **M11.6** (wire
-  `company.vatNumber`/`name` into issuance, replace + de-duplicate the constants),
-  since nothing is deployed yet — noted here so it cannot be forgotten.
+- **[✅ RESOLVED in M11.6 — was a PRODUCTION BLOCKER] Invoices carried the ZATCA
+  sandbox VAT number.** Issuance hardcoded `DEFAULT_SELLER_VAT = "300000000000003"`
+  (the ZATCA sandbox placeholder) and `DEFAULT_SELLER_NAME = "KSA Ledger Company"`,
+  **duplicated** across `invoices.service.ts` and `invoices.approvable.ts`, and
+  never consulted the company — so every issued invoice carried a fake VAT number
+  in its QR (tag 2) and hash. **Fixed:** seller identity now resolves from the
+  active company through the single `services/sellerIdentity.ts` seam, with **no
+  placeholder fallback** — issuance **fails closed** (400 `company_vat_missing`)
+  if the tenant has no VAT number, so the blocker cannot be reintroduced.
+  Proven by `tests/company-zatca-identity.test.ts`, which decodes the real QR and
+  recomputes the real hash.
 ### Open findings from the M11 security audit (M11.5.1)
 
 The CRITICAL and HIGH-1/M-2 were fixed in M11.5.1 (see above). These remain open,
@@ -669,6 +708,13 @@ with severity and location — address in the milestone noted, not ad hoc:
 - **[LOW L-3] Non-deterministic "primary membership" tie-break** — `tenant.ts`
   and `onboarding.service.ts` order by `createdAt` only; add a secondary key
   (`id`) for determinism.
+- **[DEFERRED — M11.6] `companies.fiscalYearStart` is stored but not applied.**
+  Reports still assume calendar periods: the VAT return uses `period_from`/
+  `period_to` params (with `1900-01-01`…`2099-12-31` fallbacks) and the Zakat base
+  takes no date range at all, so a company with a non-January fiscal year gets
+  calendar-year figures. Wiring it in is a **reporting** change (report period
+  derivation + defaults), deliberately out of M11.6's onboarding scope. The
+  Company Settings UI states the limitation to the user.
 - **[LOW L-4] The operator queue list is unaudited** (detail views and document
   views ARE audited). Accepted trade-off — revisit if operator-activity forensics
   become a requirement.

@@ -13,6 +13,59 @@ export interface ErrorResponse {
   error: string;
 }
 
+/**
+ * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
+ */
+export interface Company {
+  id: string;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  vatNumber: string | null;
+  fiscalYearStart: number;
+  /** @nullable */
+  buildingNumber: string | null;
+  /** @nullable */
+  street: string | null;
+  /** @nullable */
+  district: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  postalCode: string | null;
+}
+
+/**
+ * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
+ */
+export interface UpdateCompanyInput {
+  name?: string;
+  /** @nullable */
+  nameAr?: string | null;
+  /** @nullable */
+  crNumber?: string | null;
+  /** @nullable */
+  vatNumber?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  fiscalYearStart?: number;
+  /** @nullable */
+  buildingNumber?: string | null;
+  /** @nullable */
+  street?: string | null;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  postalCode?: string | null;
+}
+
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
 
 

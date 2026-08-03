@@ -263,6 +263,59 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary Get the active company's profile (legal identity + address)
+ */
+export const GetCurrentCompanyResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "vatNumber": zod.string().nullable(),
+  "fiscalYearStart": zod.number(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "postalCode": zod.string().nullable()
+}).describe('A company\'s legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.\n')
+
+
+/**
+ * @summary Update the active company's profile (admin only)
+ */
+export const updateCurrentCompanyBodyFiscalYearStartMax = 12;
+
+
+
+export const UpdateCurrentCompanyBody = zod.object({
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "crNumber": zod.string().nullish(),
+  "vatNumber": zod.string().nullish(),
+  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).optional(),
+  "buildingNumber": zod.string().nullish(),
+  "street": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "postalCode": zod.string().nullish()
+}).describe('Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.\n')
+
+export const UpdateCurrentCompanyResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "vatNumber": zod.string().nullable(),
+  "fiscalYearStart": zod.number(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "postalCode": zod.string().nullable()
+}).describe('A company\'s legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.\n')
+
+
+/**
  * @summary Get full financial summary
  */
 export const GetSummaryQueryParams = zod.object({

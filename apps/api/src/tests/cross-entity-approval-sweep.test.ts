@@ -78,7 +78,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
   beforeAll(async () => {
     await pool.query(`DELETE FROM organizations WHERE slug = 'sweep'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('SWEEP Org','sweep') RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'SWEEP Co') RETURNING id`, [orgId])).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'SWEEP Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email,name,password_hash,role,is_active) VALUES ('sweep@test.local','Sweep',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id,name,name_ar,tax_number) VALUES ($1,'Sweep Vendor','مورد','300000000000003') RETURNING id`, [orgId])).rows[0].id;

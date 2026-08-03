@@ -37,7 +37,7 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
   beforeAll(async () => {
     await pool.query(`DELETE FROM organizations WHERE slug = 'audit-int'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('AUDIT Org','audit-int') RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'AUDIT Co') RETURNING id`, [orgId])).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'AUDIT Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('audit-int@test.local','Audit',' ','admin',true) RETURNING id`,

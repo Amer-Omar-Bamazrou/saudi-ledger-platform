@@ -37,6 +37,7 @@ import Products from '@/pages/Products';
 import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
 import UserManagement from '@/pages/UserManagement';
+import CompanySettings from '@/pages/CompanySettings';
 import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
 import TrialBalance from '@/pages/TrialBalance';
@@ -185,6 +186,7 @@ function Router() {
               {/* Settings */}
               <Route path="/categories" component={Categories} />
               <Route path="/approvals" component={Approvals} />
+              <Route path="/company" component={CompanySettings} />
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />
               <Route component={NotFound} />

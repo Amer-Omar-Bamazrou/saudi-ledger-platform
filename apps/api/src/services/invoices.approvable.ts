@@ -26,6 +26,7 @@ import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "./accounting/zatca";
 import { invoicesRepository } from "../repositories/invoices.repository";
+import { requireIssuanceSeller } from "./sellerIdentity";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
@@ -34,8 +35,10 @@ type Invoice = typeof InvoicesTable.$inferSelect;
 type Customer = typeof customersTable.$inferSelect;
 type InvoiceRow = { inv: Invoice; cust: Customer | null };
 
-const DEFAULT_SELLER_VAT = "300000000000003";
-const DEFAULT_SELLER_NAME = "KSA Ledger Company";
+// Seller identity is resolved from the ACTIVE COMPANY via sellerIdentity.ts.
+// The former DEFAULT_SELLER_VAT / DEFAULT_SELLER_NAME constants (a ZATCA SANDBOX
+// placeholder, duplicated here and in invoices.service.ts) are gone — see that
+// module for why there is deliberately no fallback value any more.
 
 /**
  * The invoice's on-approve action — the ledger-affecting + e-invoice-issuing
@@ -52,8 +55,12 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const vatAmount = toNum(inv.vatAmount);
   const total = toNum(inv.total);
 
-  const sellerVatNumber = inv.sellerVatNumber ?? DEFAULT_SELLER_VAT;
-  const sellerName = inv.sellerName ?? DEFAULT_SELLER_NAME;
+  // The tenant's real ZATCA identity — fails closed if unconfigured, so an
+  // invoice can never be issued carrying a placeholder VAT number.
+  const { sellerName, sellerVatNumber } = await requireIssuanceSeller({
+    sellerName: inv.sellerName,
+    sellerVatNumber: inv.sellerVatNumber,
+  });
   const invoiceDateTime = `${inv.date}T00:00:00Z`;
 
   // ── ZATCA hash chain + QR — the sequence number is consumed HERE, not at

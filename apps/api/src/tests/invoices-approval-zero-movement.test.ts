@@ -69,7 +69,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
   beforeAll(async () => {
     await pool.query(`DELETE FROM organizations WHERE slug = 'inv-appr'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('INV-APPR Org','inv-appr') RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'INV-APPR Co') RETURNING id`, [orgId])).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'INV-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('inv-approval@test.local','Inv Approver',' ','admin',true) RETURNING id`,

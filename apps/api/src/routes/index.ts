@@ -10,6 +10,7 @@ import auth from "./auth.js";
 import orgs from "./orgs.js";
 import onboarding from "./onboarding.js";
 import operator from "./operator.js";
+import companies from "./companies.js";
 import transactions from "./transactions.js";
 import categories from "./categories.js";
 import categorize from "./categorize.js";
@@ -69,6 +70,7 @@ router.use(resolveTenant);
 // (GET→read, POST→create, PATCH/PUT→update, DELETE→delete), and checks it
 // against the seeded role→resource→action mapping. Fail-closed. This replaces
 // the old blanket method guard and the ad-hoc requireTenantRole guards.
+router.use("/companies", requirePermission("companies"), companies);
 router.use("/transactions", requirePermission("transactions"), transactions);
 router.use("/categories", requirePermission("categories"), categories);
 router.use("/summary", requirePermission("summary"), summary);

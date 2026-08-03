@@ -103,6 +103,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     label: "Settings", labelAr: "الإعدادات",
     items: [
       { href: "/categories",       label: "Chart of Accounts", labelAr: "دليل الحسابات",    icon: Tags },
+      { href: "/company",          label: "Company Settings",  labelAr: "إعدادات الشركة",   icon: Building2 },
       { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },
       { href: "/change-password",  label: "Change Password",   labelAr: "تغيير كلمة المرور", icon: KeyRound },
     ],

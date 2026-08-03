@@ -73,7 +73,7 @@ describeMaybe("JE draft/approval — a pending draft moves zero balances; approv
   beforeAll(async () => {
     await pool.query(`DELETE FROM organizations WHERE slug = 'je-appr'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('JE-APPR Org','je-appr') RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'JE-APPR Co') RETURNING id`, [orgId])).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'JE-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('je-approval@test.local','JE Approver',' ','admin',true) RETURNING id`,

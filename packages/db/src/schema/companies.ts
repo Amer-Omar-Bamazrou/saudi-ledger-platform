@@ -16,9 +16,23 @@ export const companiesTable = pgTable("companies", {
     .notNull()
     .references(() => organizationsTable.id),
   name: varchar("name", { length: 255 }).notNull(),
+  /** Arabic legal name — printed on invoices; required for ZATCA Phase 2. */
+  nameAr: varchar("name_ar", { length: 255 }),
   crNumber: varchar("cr_number", { length: 50 }), // Saudi commercial registration number
   vatNumber: varchar("vat_number", { length: 50 }), // ZATCA VAT registration
   fiscalYearStart: integer("fiscal_year_start").notNull().default(1), // month number (1-12)
+
+  // ── Seller national short address (M11.6) ──────────────────────────────────
+  // Nullable: NOT required by the ZATCA Phase-1 QR (tags 1-5) or the invoice
+  // hash, so they do not gate issuance today. Added now because ZATCA Phase 2
+  // (standard tax invoices) requires the seller address, and they already appear
+  // on printed invoices — storing them here avoids a second migration later.
+  buildingNumber: varchar("building_number", { length: 10 }),
+  street: varchar("street", { length: 255 }),
+  district: varchar("district", { length: 255 }),
+  city: varchar("city", { length: 100 }),
+  postalCode: varchar("postal_code", { length: 10 }),
+
   status: varchar("status", { length: 50 }).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

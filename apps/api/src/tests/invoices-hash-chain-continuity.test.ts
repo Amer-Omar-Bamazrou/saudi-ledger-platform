@@ -70,7 +70,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
   beforeAll(async () => {
     await pool.query(`DELETE FROM organizations WHERE slug = 'inv-chain'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('CHAIN Org','inv-chain') RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'CHAIN Co') RETURNING id`, [orgId])).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'CHAIN Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('inv-chain@test.local','Chain',' ','admin',true) RETURNING id`,

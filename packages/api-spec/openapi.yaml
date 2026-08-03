@@ -242,6 +242,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
 
+  /companies/current:
+    get:
+      operationId: getCurrentCompany
+      tags: [companies]
+      summary: Get the active company's profile (legal identity + address)
+      responses:
+        "200":
+          description: The active company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    patch:
+      operationId: updateCurrentCompany
+      tags: [companies]
+      summary: Update the active company's profile (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompanyInput"
+      responses:
+        "200":
+          description: The updated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
   /summary:
     get:
       operationId: getSummary
@@ -874,6 +904,79 @@ components:
           type: string
       required:
         - error
+
+    Company:
+      type: object
+      description: >
+        A company's legal identity. `vatNumber` and `name` are the SELLER identity
+        stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice
+        hash), so they are not cosmetic settings.
+      required:
+        [
+          id,
+          name,
+          nameAr,
+          crNumber,
+          vatNumber,
+          fiscalYearStart,
+          buildingNumber,
+          street,
+          district,
+          city,
+          postalCode,
+        ]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        nameAr:
+          type: ["string", "null"]
+        crNumber:
+          type: ["string", "null"]
+        vatNumber:
+          type: ["string", "null"]
+        fiscalYearStart:
+          type: integer
+        buildingNumber:
+          type: ["string", "null"]
+        street:
+          type: ["string", "null"]
+        district:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        postalCode:
+          type: ["string", "null"]
+
+    UpdateCompanyInput:
+      type: object
+      description: >
+        Partial update. Any omitted field is left unchanged; send an empty string
+        to clear an optional field.
+      properties:
+        name:
+          type: string
+        nameAr:
+          type: ["string", "null"]
+        crNumber:
+          type: ["string", "null"]
+        vatNumber:
+          type: ["string", "null"]
+        fiscalYearStart:
+          type: integer
+          minimum: 1
+          maximum: 12
+        buildingNumber:
+          type: ["string", "null"]
+        street:
+          type: ["string", "null"]
+        district:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        postalCode:
+          type: ["string", "null"]
 
     Category:
       type: object

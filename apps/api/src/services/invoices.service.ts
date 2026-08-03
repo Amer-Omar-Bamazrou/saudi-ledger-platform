@@ -23,11 +23,13 @@ import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
+import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
 
-const DEFAULT_SELLER_VAT = "300000000000003";
-const DEFAULT_SELLER_NAME = "KSA Ledger Company";
+// Seller identity comes from the ACTIVE COMPANY (services/sellerIdentity.ts).
+// The former DEFAULT_SELLER_* constants were a ZATCA SANDBOX placeholder,
+// duplicated here and in invoices.approvable.ts — see sellerIdentity.ts.
 
 export const invoicesService = {
   async list(filter: InvoiceListFilter) {
@@ -75,6 +77,14 @@ export const invoicesService = {
     // Persist a DRAFT — deliberately NO invoiceHash/previousHash/qrCode and NO GL
     // posting here; those are minted only at approval. Seller identity is
     // captured now (denormalized for the QR built at approval).
+    // Stamp the seller from the active company (an explicit per-invoice override
+    // still wins). Lenient here — a draft is not a legal document; issuance
+    // (approval) is where a missing VAT number fails closed.
+    const draftSeller = await resolveDraftSeller({
+      sellerName: invData.sellerName,
+      sellerVatNumber: invData.sellerVatNumber,
+    });
+
     const [inv] = await invoicesRepository.insert({
       ...invData,
       subtotal: String(subtotal.toFixed(2)),
@@ -82,8 +92,8 @@ export const invoicesService = {
       total: String(total.toFixed(2)),
       status: "draft",
       createdBy: userId ?? null,
-      sellerName: invData.sellerName ?? DEFAULT_SELLER_NAME,
-      sellerVatNumber: invData.sellerVatNumber ?? DEFAULT_SELLER_VAT,
+      sellerName: draftSeller.sellerName,
+      sellerVatNumber: draftSeller.sellerVatNumber,
     } as Parameters<typeof invoicesRepository.insert>[0]);
 
     if (preparedItems.length > 0) {

@@ -76,6 +76,11 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   payroll: { read: READ_ALL, create: WRITE, approve: APPROVE },
   llm: { read: READ_ALL, create: WRITE },
 
+  // Company settings (M11.6): everyone may READ the company profile (it is
+  // displayed on invoices and reports), but only an admin may change the legal
+  // identity — the VAT/CR numbers feed the ZATCA QR and invoice hash chain.
+  companies: { read: READ_ALL, update: ADMIN_ONLY },
+
   // Read-only resources.
   reports: { read: READ_ALL },
   summary: { read: READ_ALL },

@@ -94,7 +94,7 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     }
     // The approved org needs a company (transactions.company_id is NOT NULL).
     approvedCompanyId = (await pool.query(
-      `INSERT INTO companies (organization_id, name) VALUES ($1,'Gate Co') RETURNING id`,
+      `INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'Gate Co','1010101010','399999999999993') RETURNING id`,
       [org.approved],
     )).rows[0].id;
   });
