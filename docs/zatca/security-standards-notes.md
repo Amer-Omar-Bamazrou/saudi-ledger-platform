@@ -66,21 +66,43 @@ crypto.generateKeyPairSync("ec", { namedCurve: "secp256k1" })  // ✅
 crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" }) // ❌ rejected
 ```
 
-## 🔴 TRAP 2 — invoice type goes in `title`, not `businessCategory`
+## 🔴 TRAP 2 — invoice type goes in `title`, not `businessCategory` (CONFIRMED)
 
 The spec's Table 1 assigns OID **2.5.4.15 (`businessCategory`) to TWO different
 rows** — "Invoice Type" *and* "Industry". That is a defect in the document, and
 following it literally produces a rejected CSR.
 
-**What ZATCA's actual CSR template (`cert.cnf`) uses:**
+**PROVEN against ZATCA's own SDK.** Generating a CSR with the SDK's own example
+config (`csr.invoice.type=1111`, `csr.industry.business.category=TST`):
+
+```
+java -jar Apps/cli-3.0.8-jar-with-dependencies.jar -csr -pem \
+  -csrConfig Data/Input/csr-config-example.properties \
+  -privateKey key.pem -generatedCsr out.csr -nonprod
+```
+
+and decoding the resulting subject DN yields:
+
+```
+C (2.5.4.6)                  = "SA"
+OU (2.5.4.11)                = "3123456789"
+O (2.5.4.10)                 = "3123456789"
+CN (2.5.4.3)                 = "TST-886431145-312345678900003"
+title (2.5.4.12)             = "1111"     ← INVOICE TYPE
+registeredAddress (2.5.4.26) = "TST"
+businessCategory (2.5.4.15)  = "TST"      ← INDUSTRY
+```
 
 | CSR field | Holds | Example |
 | --- | --- | --- |
-| `title` (2.5.4.12) | **Invoice type**, 4 digits | `1100` |
+| `title` (2.5.4.12) | **Invoice type**, 4 digits over `TSCZ` | `1100` |
 | `businessCategory` (2.5.4.15) | **Industry / business sector** (free text) | `Software` |
 
-So: **`title` = TSCZ invoice-type flags; `businessCategory` = industry.** Verify
-against the SDK's shipped `cert.cnf` in M12.4 before generating a real CSR.
+**`title` = TSCZ invoice-type flags; `businessCategory` = industry.** Settled.
+
+Note: `organizationIdentifier` (2.5.4.97) and the EGS serial do **not** appear in
+the main subject DN — they are carried in the `subjectAltName` `dirName`
+(as `UID` and `SN`). Confirm that placement when building our own CSR in M12.3.
 
 ---
 

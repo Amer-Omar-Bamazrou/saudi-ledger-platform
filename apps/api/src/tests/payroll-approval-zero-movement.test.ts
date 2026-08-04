@@ -145,7 +145,7 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
   it("records every transition in the audit trail", async () => {
     const rows = (
       await pool.query(
-        `SELECT action FROM audit_logs WHERE entity_type = 'payroll_run' AND entity_id = $1 ORDER BY created_at ASC, id ASC`,
+        `SELECT action FROM audit_logs WHERE entity_type = 'payroll_run' AND entity_id = $1 ORDER BY created_at ASC`,
         [String(runId)],
       )
     ).rows.map((r) => r.action);

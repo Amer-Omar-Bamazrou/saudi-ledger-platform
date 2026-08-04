@@ -181,7 +181,7 @@ describeMaybe("JE draft/approval — a pending draft moves zero balances; approv
   it("records the create and approve transitions in the audit trail", async () => {
     const rows = (
       await pool.query(
-        `SELECT action FROM audit_logs WHERE entity_type = 'journal_entry' AND entity_id = $1 ORDER BY created_at ASC, id ASC`,
+        `SELECT action FROM audit_logs WHERE entity_type = 'journal_entry' AND entity_id = $1 ORDER BY created_at ASC`,
         [String(jeId)],
       )
     ).rows.map((r) => r.action);

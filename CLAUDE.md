@@ -838,11 +838,20 @@ belong, not ad hoc:
     a company-B invoice carries B's VAT, drafts still consume no sequence number,
     and the DB rejects a reused ICV within a company while allowing it across
     companies. **Verified failing against the pre-fix code.**
-  - **Also fixed (pre-existing, unrelated):** five tests ordered audit rows by
-    `created_at` alone. Postgres `now()` is the *transaction* timestamp, so rows
-    written in one request share an identical value and the sort had no tiebreak
-    — latent flakiness that the `customers` column addition exposed by shifting
-    physical row order. All five now order by `created_at, id`.
+  - **Also fixed (pre-existing, unrelated): a genuinely non-deterministic audit
+    test.** `audit.test.ts` destructured `const [createLog, updateLog] = rows`
+    from an `ORDER BY created_at` query. **Postgres `now()` is the TRANSACTION
+    timestamp**, so the create and the update — written in one request
+    transaction — carry an *identical* `created_at` and the sort had no tiebreak.
+    Latent flakiness the `customers` column addition exposed by shifting physical
+    row order. **`audit_logs.id` is a random uuid, not a sequence, so ordering by
+    it does not fix this** (a first attempt did exactly that, passed locally by
+    luck, and failed in CI). The test now selects rows **by `action`** and
+    asserts their content — ordering was never the property under test. The other
+    four transition tests use `toContain` and are order-insensitive; their
+    `ORDER BY` is incidental and was left alone.
+    **If you ever need true audit ordering, `audit_logs` has no monotonic
+    sequence column — add one rather than ordering by `id`.**
 - **M12.1b: credit/debit notes** as first-class documents — `document_type` is
   already in place; this adds the note→original reference, the **reversed GL
   posting** (Dr Sales+VAT / Cr AR) and negative treatment in AR aging,
