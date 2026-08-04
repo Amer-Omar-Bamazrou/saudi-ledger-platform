@@ -62,16 +62,18 @@ export function computeInvoiceHash(params: {
   return createHash("sha256").update(canonical, "utf-8").digest("hex");
 }
 
-/** Fetch the most recent invoice hash from the DB (or "GENESIS" if none). */
-export async function getPreviousInvoiceHash(db: any, invoicesTable: any): Promise<string> {
-  const { desc } = await import("drizzle-orm");
-  const rows = await db
-    .select({ hash: invoicesTable.invoiceHash })
-    .from(invoicesTable)
-    .where(
-      (await import("drizzle-orm")).isNotNull(invoicesTable.invoiceHash)
-    )
-    .orderBy(desc(invoicesTable.id))
-    .limit(1);
-  return rows[0]?.hash ?? "GENESIS";
-}
+/**
+ * Genesis link for the legacy (Phase 1) chain.
+ *
+ * NOTE: this is OUR literal, not ZATCA's. ZATCA's genesis PIH is
+ * `NWZlY2ViNjZ…` — base64 of the hex string of SHA-256("0"), shipped in the SDK
+ * at `Data/PIH/pih.txt`. M12.3 replaces this whole module's chain with the real
+ * one; do not conflate them.
+ */
+export const LEGACY_GENESIS_HASH = "GENESIS";
+
+// `getPreviousInvoiceHash(db, invoicesTable)` used to live here. It is now
+// `invoicesRepository.previousInvoiceHash(companyId)` — moved so it is scoped to
+// ONE COMPANY (a multi-company org previously interleaved chains) and so the
+// query lives in the repository layer where Drizzle access belongs. See the
+// M12.1a note on that method.

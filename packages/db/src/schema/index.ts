@@ -13,6 +13,7 @@ export * from "./bankAccounts";
 export * from "./budgets";
 export * from "./users";
 export * from "./periodLocks";
+export * from "./einvoiceDocuments";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)
 export * from "./organizations";

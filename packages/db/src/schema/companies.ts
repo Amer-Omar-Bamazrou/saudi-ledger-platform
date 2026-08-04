@@ -33,6 +33,23 @@ export const companiesTable = pgTable("companies", {
   city: varchar("city", { length: 100 }),
   postalCode: varchar("postal_code", { length: 10 }),
 
+  // ── ZATCA Phase 2 EGS identity (M12.1a) ────────────────────────────────────
+  /**
+   * EGS (E-invoice Generation Solution) unit serial number, in ZATCA's validated
+   * format `1-<Manufacturer>|2-<Model>|3-<Serial>`. One EGS unit — and therefore
+   * one certificate, one PIH chain and one ICV counter — per company.
+   * Minted during onboarding (M12.5).
+   */
+  egsSerialNumber: varchar("egs_serial_number", { length: 255 }),
+  /**
+   * not_started | csr_generated | compliance_csid | onboarded | failed
+   * Certificates and key material are NOT stored here — they live in the
+   * owner-only encrypted vault added in M12.5.
+   */
+  zatcaOnboardingStatus: varchar("zatca_onboarding_status", { length: 50 })
+    .notNull()
+    .default("not_started"),
+
   status: varchar("status", { length: 50 }).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

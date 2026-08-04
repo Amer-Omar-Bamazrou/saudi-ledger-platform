@@ -70,23 +70,31 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
     const rows = (
       await pool.query(
         `SELECT action, user_id, organization_id, entity_type, entity_id, before_state, after_state, ip_address
-         FROM audit_logs WHERE entity_type = 'customer' AND entity_id = $1 ORDER BY created_at ASC`,
+         FROM audit_logs WHERE entity_type = 'customer' AND entity_id = $1`,
         [String(customerId)],
       )
     ).rows;
 
     expect(rows.length).toBe(2);
 
-    const [createLog, updateLog] = rows;
-    // create record
-    expect(createLog.action).toBe("create");
+    // Select by ACTION, never by row order. The create and the update happen in
+    // ONE request transaction, and Postgres `now()` is the transaction
+    // timestamp — so both rows carry an IDENTICAL `created_at` and any
+    // `ORDER BY created_at` has no tiebreak. `audit_logs.id` is a random uuid,
+    // not a sequence, so it cannot break the tie either. This test asserts the
+    // CONTENT of each record, which is what it actually cares about; ordering
+    // was never the property under test.
+    const createLog = rows.find((r) => r.action === "create");
+    const updateLog = rows.find((r) => r.action === "update");
+    expect(createLog, "expected a create audit record").toBeDefined();
+    expect(updateLog, "expected an update audit record").toBeDefined();
+    // create record — actor, tenant and IP come from the auditContext ALS.
     expect(createLog.user_id).toBe(userId);
     expect(createLog.organization_id).toBe(orgId);
     expect(createLog.ip_address).toBe("203.0.113.7");
     expect(createLog.before_state).toBeNull();
     expect(createLog.after_state?.name).toBe("AUDIT-CUST");
-    // update record
-    expect(updateLog.action).toBe("update");
+    // update record — carries the before/after transition.
     expect(updateLog.before_state?.name).toBe("AUDIT-CUST");
     expect(updateLog.after_state?.name).toBe("AUDIT-CUST-2");
   });

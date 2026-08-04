@@ -1,6 +1,6 @@
 /** Invoices repository — tenant-scoped via RLS. */
 import { db, invoicesTable, invoiceItemsTable, customersTable } from "@workspace/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -35,6 +35,36 @@ export const invoicesRepository = {
 
   itemsByInvoice(id: number) {
     return db.select().from(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, id));
+  },
+
+  /**
+   * The most recent issued invoice's hash for ONE COMPANY — the tail of that
+   * company's chain.
+   *
+   * ── M12.1a bug fix ────────────────────────────────────────────────────────
+   * This used to live in `services/accounting/zatca.ts` as
+   * `getPreviousInvoiceHash(db, invoicesTable)`, taking `any` params and
+   * filtering ONLY on `invoice_hash IS NOT NULL`. RLS confined it to the active
+   * organization, but NOT to a company — so an org with two companies
+   * INTERLEAVED their chains into one, which is invalid: ZATCA's chain (and the
+   * ICV counter) are per EGS unit, i.e. per company. Harmless while every org
+   * had one company; a correctness bug the moment one had two.
+   *
+   * It also belongs here on layering grounds — repositories own Drizzle access.
+   * That it lived in the accounting layer behind `any` types is precisely why
+   * the missing filter was invisible.
+   *
+   * Drafts are excluded by the `invoice_hash IS NOT NULL` predicate (M10.4), so
+   * a draft still consumes no sequence number.
+   */
+  async previousInvoiceHash(companyId: string): Promise<string | null> {
+    const [row] = await db
+      .select({ hash: invoicesTable.invoiceHash })
+      .from(invoicesTable)
+      .where(and(eq(invoicesTable.companyId, companyId), isNotNull(invoicesTable.invoiceHash)))
+      .orderBy(desc(invoicesTable.id))
+      .limit(1);
+    return row?.hash ?? null;
   },
 
   insert(values: typeof invoicesTable.$inferInsert) {
