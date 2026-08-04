@@ -20,9 +20,20 @@ export const customersTable = pgTable(
     crNumber: text("cr_number"),          // Commercial Registration
     phone: text("phone"),
     email: text("email"),
+    /** Free-text address — retained for display and back-compat. */
     address: text("address"),
     city: text("city"),
     country: text("country").default("SA"),
+
+    // ── Buyer national short address (M12.1a) ────────────────────────────────
+    // ZATCA STANDARD (B2B) tax invoices require a STRUCTURED buyer address; the
+    // free-text `address` above cannot satisfy it. Nullable because simplified
+    // (B2C) invoices do not require a buyer address at all — issuance validates
+    // per document type rather than the schema forcing it on every customer.
+    buildingNumber: text("building_number"),
+    street: text("street"),
+    district: text("district"),
+    postalCode: text("postal_code"),
     currency: text("currency").default("SAR"),
     creditLimit: text("credit_limit"),    // numeric stored as text
     paymentTermsDays: text("payment_terms_days").default("30"),

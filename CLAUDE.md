@@ -683,6 +683,246 @@ project memory (design record; a `docs/` spec will follow).
   - **Tests:** `tests/invitations.test.ts` (20) covers the full lifecycle both
     over HTTP and at the service layer, and asserts every invariant above.
 
+## Phase 2 — Milestone 12: ZATCA Phase 2 (Fatoora) Integration (IN PROGRESS)
+
+Transmitting invoices to ZATCA. M11.6 fixed the invoice **data** (each invoice
+carries the tenant's real VAT number and company name, verified by decoding the
+TLV QR and recomputing the hash); M12 builds the **integration** — UBL 2.1 XML,
+XAdES-BES cryptographic stamping, per-tenant certificates, and the clearance /
+reporting APIs. Research report and decision: see `docs/zatca/README.md` for the
+specifications, environments and enforcement timeline.
+
+**Why now:** ZATCA Wave 24 entered enforcement 1 Jul 2026; Wave 25 (announced
+24 Jul 2026) drops the threshold to **SAR 187,500** with a **1 Feb 2027**
+deadline — effectively every VAT-registered Saudi business. Phase 2 is no longer
+a feature, it is the price of entry for the product.
+
+### ⚠️ THE SCOPE SPLIT — READ THIS BEFORE CONTINUING M12
+
+**M12 is deliberately built in two halves, separated by a real-world business
+dependency that does not yet exist.**
+
+| | Sub-milestones | Gating requirement |
+| --- | --- | --- |
+| **IN SCOPE NOW** | **M12.0 → M12.6 _and_ M12.8** | Sandbox only. **Email registration, nothing else.** |
+| **BLOCKED, DO NOT START** | **M12.7 and M12.9** | **A registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials.** |
+
+**The company entity and its Saudi VAT/ERAD registration DO NOT EXIST YET.** That
+is a real-world business step the owner will take **after the platform is
+complete** — it is not a signup form and cannot be worked around. ZATCA's
+**Simulation** environment (`fatoora.zatca.gov.sa`) requires ERAD credentials,
+i.e. a real active taxpayer account, and production requires the same. The
+**Sandbox** (`sandbox.zatca.gov.sa`) requires only an email.
+
+The split is therefore **by external dependency, not by sequence number**: build
+everything that does not need a real taxpayer account, which is *everything
+except* the two milestones that literally submit to a live ZATCA environment.
+**M12.8 (archival, residency design, PCSID renewal reminders, operator
+visibility) is fully buildable today** and is deliberately NOT deferred despite
+its number — it needs no ZATCA credentials.
+
+Only **M12.7** (simulation end-to-end) and **M12.9** (production pilot) wait.
+When the entity exists they resume with no rework — sandbox exercises the
+identical API surface.
+
+**Do not** attempt to "finish" M12 by mocking simulation, and **do not** onboard
+any real tenant to production until M12.7 and M12.9 have actually run against a
+real VAT registration.
+
+### Decision: BUILD DIRECT (not a certified provider)
+
+ZATCA's own Solution Providers Directory states the list is *"a guiding list
+(non-legally binding to taxpayers)"* and that taxpayers *"have the option to get
+E-invoicing services from any company, as long as the Solution used ... complies
+to E-invoicing requirements."* **There is no certification gate** — compliance
+attaches to the solution and is proven by passing ZATCA's own compliance checks.
+
+Building directly was chosen because (a) ZATCA compliance **is** the product for a
+Saudi accounting platform, not a side integration; (b) every provider prices
+**per taxpayer** (SAR 99–299/month at SME tier) while we are a multi-tenant
+platform with N taxpayers — the economics do not close; (c) the credible
+providers (Wafeq, ClearTax, Qoyod) sell **competing** accounting software.
+
+Two hedges are **mandatory**, not optional:
+
+1. **Use a maintained open-source library for the cryptographic and XML
+   primitives** (`zatca-xml-js` or equivalent). **Do NOT hand-write C14N, XAdES,
+   or the CSR template.** Read the source, pin the version, own the orchestration
+   / multi-tenancy / state ourselves.
+2. **Build behind a swappable `EInvoiceProvider` interface from day one**, so a
+   certified provider can be slotted in per-tenant later without re-architecting.
+
+### Three pre-existing platform bugs fixed as part of M12
+
+These are real bugs today, independent of ZATCA; Phase 2 merely escalates them
+from latent to compliance-breaking. They are fixed in the milestone where they
+belong, not ad hoc:
+
+- **[M12.1] The hash chain is org-scoped, not company-scoped.**
+  `getPreviousInvoiceHash` (`services/accounting/zatca.ts`) orders by
+  `invoices.id` across the whole organization. ZATCA's chain and ICV are per EGS
+  unit / per VAT registration, so a multi-company org **interleaves two chains
+  into one** — invalid.
+- **[M12.1] `sellerIdentity` resolves the wrong company.**
+  `requireIssuanceSeller` uses `companiesRepository.findActive()` (the org's
+  *first-created* company) and ignores the invoice's own `companyId`. Under Phase
+  2 this signs the invoice **with the wrong company's certificate**.
+- **[M12.6] The per-request tenant transaction cannot survive a synchronous
+  external API call.** `resolveTenant` holds a Postgres transaction open for the
+  whole request with `idle_in_transaction_session_timeout='15s'`; clearance is a
+  blocking outbound call to ZATCA inside `issueInvoice()`. This **forces the
+  outbox/worker redesign** in M12.6 (which also delivers the retry that reporting
+  requires anyway).
+
+### Sub-milestones
+
+- **M12.0 (done): external dependency kickoff.** Specs pulled and pinned
+  (`docs/zatca/`, with `fetch-specs.sh` + SHA-256 manifest — PDFs gitignored);
+  sandbox confirmed live and email-only; hosting/residency question resolved
+  (see below). Sandbox account registration is a manual owner step (see
+  `docs/zatca/README.md`). **The Compliance & Enablement Toolbox (SDK) is
+  PUBLIC — no account needed** (`fetch-sdk.sh` +
+  [`docs/zatca/sdk-manifest.md`](docs/zatca/sdk-manifest.md)): UBL 2.1 XSDs, 55
+  `BR-KSA-*` schematron rules, an offline validator/signer CLI, a test cert +
+  secp256k1 key, and the genesis PIH. It **proved the `secp256k1` curve three
+  ways** (see M12.3). It ships **no sample invoices**, and its ruleset is dated
+  2021 — a locally-clean invoice can still fail M12.4.
+- **M12.1a (done): Phase 2 data model + the two multi-company bug fixes.**
+  Migration `0016_m12_1a_zatca_phase2_fields` — additive and nullable throughout;
+  existing invoices are pre-ZATCA legacy and deliberately **not** backfilled with
+  `uuid`/`icv` (the ZATCA chain starts fresh at first onboarding, so NULL is the
+  correct representation).
+  - **`invoices`**: `zatca_uuid`, `icv`, `issued_at`, `document_type`. **`issued_at`
+    is NOT `date`** — `date` is the accounting date the ledger and reports use;
+    `issued_at` is the real issuance instant ZATCA needs and the 24-hour
+    simplified-reporting clock runs off. Issuance previously fed a fabricated
+    `${date}T00:00:00Z` into the QR. **Unique index on `(company_id, icv)`** — the
+    DB is the real guarantee against a reused counter under concurrent approvals.
+  - **`einvoice_documents`** (NEW, tenant-scoped **business** table with RLS +
+    app-role grants — *not* owner-only; the tenant is legally required to retain
+    their own cleared XML). Holds the Phase 2 artifacts (`invoice_hash` =
+    base64 SHA-256 of canonical XML, `previous_invoice_hash`, 9-tag `qr_code`,
+    `signed_xml`, `cleared_xml`) **and** the transmission state (`flow`,
+    `status`, attempts, `next_attempt_at`, ZATCA warnings/errors). Split from
+    `invoices` on identity-vs-transmission lines: M12.6 churns this row hard with
+    retries and it carries large XML blobs, neither of which belongs on the row
+    the accounting core reads. **This is where M12.6's outbox lives.**
+  - **`invoice_items`**: `tax_category_code` (S/Z/E/O), exemption reason
+    code+text, `unit_code` (default `PCE`). **The 15% → `'S'` backfill is
+    deliberately partial**: a `vat_rate = 0` line is genuinely ambiguous between
+    zero-rated (Z) and exempt (E) — different tax treatments the existing data
+    cannot distinguish — so those stay NULL and issuance will **fail closed**
+    demanding an explicit answer rather than the migration guessing a tax fact
+    (same principle as M11.6's seller VAT).
+  - **`customers`**: structured buyer national short address (building/street/
+    district/postal). Nullable — only STANDARD (B2B) invoices require it.
+    Free-text `address` retained for display.
+  - **`companies`**: `egs_serial_number` + `zatca_onboarding_status`. Key
+    material is NOT here — it lands in M12.5's owner-only encrypted vault.
+  - **BUG 1 FIXED — the hash chain was org-scoped.** `getPreviousInvoiceHash(db,
+    invoicesTable)` is gone from `services/accounting/zatca.ts`; it is now
+    **`invoicesRepository.previousInvoiceHash(companyId)`** — filtered to ONE
+    company and moved into the repository layer where Drizzle access belongs
+    (that it lived in the accounting layer behind `any` params is exactly why the
+    missing filter was invisible).
+  - **BUG 2 FIXED — seller identity came from the first-created company.**
+    `requireIssuanceSeller` now takes the **invoice's own `companyId`** as a
+    required argument. A second layer had to be fixed too: `resolveDraftSeller`
+    stamped the draft via `findActive()`, and because issuance honors the stamped
+    values as an override, that wrong identity survived approval — it now uses
+    the new `companiesRepository.findCurrent()` (the `app.current_company_id`
+    GUC, i.e. the company whose id the row actually gets).
+  - **Test** `tests/multi-company-invoice-identity.test.ts` — one org, two
+    companies. Proves interleaved issuance keeps each chain separate
+    (`A1 → B1 → A2` links A2 to **A1**, not B1), one genesis root **per company**,
+    a company-B invoice carries B's VAT, drafts still consume no sequence number,
+    and the DB rejects a reused ICV within a company while allowing it across
+    companies. **Verified failing against the pre-fix code.**
+  - **Also fixed (pre-existing, unrelated):** five tests ordered audit rows by
+    `created_at` alone. Postgres `now()` is the *transaction* timestamp, so rows
+    written in one request share an identical value and the sort had no tiebreak
+    — latent flakiness that the `customers` column addition exposed by shifting
+    physical row order. All five now order by `created_at, id`.
+- **M12.1b: credit/debit notes** as first-class documents — `document_type` is
+  already in place; this adds the note→original reference, the **reversed GL
+  posting** (Dr Sales+VAT / Cr AR) and negative treatment in AR aging,
+  balance-sheet AR and the VAT return. Split out of M12.1 deliberately: it is
+  money-touching accounting work, not a schema change.
+- **M12.2: UBL 2.1 XML generation** (pure, offline) — validated against the ZATCA
+  SDK's XSD + 55 `BR-KSA-*` schematron rules via `Apps/fatoora -validate`.
+  **Note: the SDK ships NO sample invoices**, so there is no ZATCA golden file to
+  diff against — the loop is *generate → validate → iterate until clean*, using a
+  reference implementation's test invoice as an informal (non-normative) shape
+  guide. Details in [`docs/zatca/sdk-manifest.md`](docs/zatca/sdk-manifest.md).
+- **M12.3: cryptography** — ECDSA **`secp256k1`** keygen, CSR, XAdES signing, QR
+  tags 6–9, and **replacing `computeInvoiceHash`** (see the landmine below).
+  **Build against [`docs/zatca/security-standards-notes.md`](docs/zatca/security-standards-notes.md)**
+  — spec-verified notes with two 🔴 traps that a plain reading of ZATCA's own
+  document gets wrong: the curve is **`secp256k1`, NOT P-256** (P-256 appears only
+  in an explicitly *illustrative* table; ZATCA's SDK emits
+  `ec-secp256k1-priv-key.pem`), and the CSR **invoice type goes in `title`, not
+  `businessCategory`** (the spec assigns OID 2.5.4.15 to two different rows).
+  Both fail only at M12.4, after the whole crypto layer is built.
+- **M12.4: sandbox onboarding + compliance checks** — CSR → CCSID → the six
+  compliance documents → PCSID, against sandbox. *This is the milestone that
+  proves the cryptography is correct.*
+- **M12.5: credential vault + per-tenant onboarding flow** — owner-only
+  `zatca_credentials` (no RLS, no app-role grants — the established pattern), KMS
+  envelope encryption, tenant OTP paste UI.
+- **M12.6: clearance & reporting transport** — outbox + worker (see the M12.6 bug
+  above), retry, idempotency, status model, ZATCA error-code surfacing.
+- **M12.8: archival, residency, renewal, operator visibility — IN SCOPE
+  (buildable without ZATCA credentials).** Cleared-XML archive under ZATCA's
+  naming convention (VAT number + timestamp + invoice reference), 6–11 year
+  retention, PCSID expiry/renewal reminders, and operator-side onboarding
+  visibility.
+  **KSA data residency stays an OPEN DEPLOYMENT DECISION** — there is no hosted
+  Supabase project yet (see below), so the archival layer must be built with a
+  **swappable storage backend** behind an interface, NOT against an assumed
+  region or provider. Choosing the KSA-resident host is a deployment step, and
+  the code must not have to change when it happens.
+- **M12.7 and M12.9: BLOCKED** on the Saudi entity — simulation end-to-end, and
+  the production pilot. Nothing else in M12 is blocked.
+
+### 🔴 LANDMINE — our hash chain is NOT ZATCA's hash chain
+
+`services/accounting/zatca.ts` is titled *"Phase 2 hash chaining"*. **It is not.**
+
+```
+Ours    computeInvoiceHash()   sha256_HEX( "num|date|vat|total|vatAmount|prevHash" )
+ZATCA                          BASE64( sha256( C14N-canonicalised UBL XML ) )
+```
+
+These share nothing. Our genesis is the literal string `"GENESIS"`; ZATCA's is a
+defined constant. It is a homegrown tamper-evidence mechanism, and it must be
+**replaced in M12.3, not extended**. The `invoice_hash` / `previous_hash`
+**columns** are reusable as storage, but **every value currently in them is
+meaningless to ZATCA** — the real chain starts fresh at first onboarding.
+Likewise the QR (`generateZatcaQr`) emits Phase 1 tags **1–5 only**; Phase 2
+needs **1–9**.
+
+### Prerequisites tracked for M12.7+ (surface early, do not rediscover)
+
+- **🔴 Saudi company entity + active ZATCA VAT registration + ERAD credentials.**
+  The blocking dependency for M12.7–M12.9 and the longest-lead item in the whole
+  programme. VAT registration is mandatory above SAR 375,000 revenue and
+  **voluntary above SAR 187,500**. Nothing technical unblocks this.
+- **Data residency.** ZATCA requires e-invoices archived on **servers inside Saudi
+  Arabia**, retained **6 years (11 for certain services)**, under a naming
+  convention (VAT number + timestamp + invoice reference). **Good news, resolved
+  in M12.0:** there is *no hosted Supabase project yet* — the database is local
+  Supabase CLI (`127.0.0.1:54322`) and `SUPABASE_URL` is unset. So residency is
+  an **open deployment decision, not a migration** — choose a KSA-resident host
+  before production. Do not provision a non-KSA hosted project in the meantime
+  without revisiting this.
+- **Possible ZATCA IP whitelisting.** Secondary sources indicate server IPs may
+  need whitelisting. **Unverified against official docs** — confirm in M12.4. If
+  true it means static egress IPs (NAT gateway) and constrains serverless hosting.
+- **KMS** for envelope-encrypting tenant private keys (M12.5). ~$1/key/month on
+  AWS KMS, or self-hosted Vault.
+- **ZATCA itself charges nothing** — CSIDs, sandbox, simulation and API access are
+  all free. The cost of the build-direct path is engineering time only.
+
 ### Known Issues / Deferred (from the M4 security re-audit)
 
 These were identified in the post-M4 security review and **intentionally deferred**
@@ -712,6 +952,21 @@ with severity and location — address in the milestone noted, not ad hoc:
   multiplies every limit. **Before deploying:** confirm exactly one trusted proxy
   that overwrites `X-Forwarded-For`; **before scaling out:** move the limiters to
   a Redis store.
+- **[MEDIUM — REVIEW BEFORE PRODUCTION, found in M12.1a] The app role holds
+  `TRUNCATE` on every business table, and TRUNCATE BYPASSES RLS.** The
+  `authenticated` role has `SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER,
+  TRUNCATE` on `invoices`, `bills`, `customers` and every other business table —
+  more than migration `0004` explicitly granted. The extras come from the
+  **Supabase base setup's `ALTER DEFAULT PRIVILEGES`**, not from our migrations.
+  This matters because **`TRUNCATE` is not subject to row-level security**: unlike
+  `DELETE`, it is not filtered by the `tenant_isolation` policy, so a SQL-injection
+  or compromised-app-role scenario could wipe **all tenants'** rows in a table,
+  not just the active org's. **Pre-existing and platform-wide — NOT introduced by
+  M12.1a** (`einvoice_documents` matches the existing tables exactly, so the new
+  table added no exposure). **Fix before deployment:** `REVOKE TRUNCATE (and
+  REFERENCES/TRIGGER) ON <each business table> FROM authenticated` in a migration,
+  and re-check the hosted project's default privileges — they may differ from the
+  local Supabase CLI stack where this was observed.
 - **[MEDIUM M-1 — LANDMINE, read before writing business-layer queries]
   `organizations`, `users` and `organization_memberships` are deliberately OUTSIDE
   RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the app role

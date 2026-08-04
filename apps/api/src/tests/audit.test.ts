@@ -70,7 +70,7 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
     const rows = (
       await pool.query(
         `SELECT action, user_id, organization_id, entity_type, entity_id, before_state, after_state, ip_address
-         FROM audit_logs WHERE entity_type = 'customer' AND entity_id = $1 ORDER BY created_at ASC`,
+         FROM audit_logs WHERE entity_type = 'customer' AND entity_id = $1 ORDER BY created_at ASC, id ASC`,
         [String(customerId)],
       )
     ).rows;

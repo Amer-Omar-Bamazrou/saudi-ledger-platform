@@ -21,10 +21,9 @@
  *   paid      → approved   (post-approval)
  *   overdue   → approved   (post-approval)
  */
-import { db, invoicesTable } from "@workspace/db";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
-import { generateZatcaQr, computeInvoiceHash, getPreviousInvoiceHash } from "./accounting/zatca";
+import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
@@ -57,15 +56,26 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
 
   // The tenant's real ZATCA identity — fails closed if unconfigured, so an
   // invoice can never be issued carrying a placeholder VAT number.
-  const { sellerName, sellerVatNumber } = await requireIssuanceSeller({
+  // M12.1a: resolved from THIS INVOICE'S company, not "the first company in the
+  // org" — otherwise a multi-company org stamps the wrong legal entity.
+  const { sellerName, sellerVatNumber } = await requireIssuanceSeller(inv.companyId, {
     sellerName: inv.sellerName,
     sellerVatNumber: inv.sellerVatNumber,
   });
-  const invoiceDateTime = `${inv.date}T00:00:00Z`;
 
-  // ── ZATCA hash chain + QR — the sequence number is consumed HERE, not at
-  //    create. getPreviousInvoiceHash ignores null-hash (draft) invoices. ──
-  const previousHash = await getPreviousInvoiceHash(db, invoicesTable);
+  // M12.1a: the real issuance instant. `inv.date` is the ACCOUNTING date (what
+  // the ledger and reports use); ZATCA needs date+time and the 24-hour
+  // simplified-reporting clock runs off this. Previously a fabricated
+  // `T00:00:00Z` was fed into the QR.
+  const issuedAt = new Date();
+  const invoiceDateTime = issuedAt.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+  // ── Hash chain + QR — the sequence number is consumed HERE, not at create.
+  //    Scoped to THIS COMPANY (M12.1a): the chain is per EGS unit, so a
+  //    multi-company org must not interleave. Drafts carry a null hash and are
+  //    excluded, so they still consume no sequence number. ──
+  const previousHash =
+    (await invoicesRepository.previousInvoiceHash(inv.companyId)) ?? LEGACY_GENESIS_HASH;
   const invoiceHash = computeInvoiceHash({
     invoiceNumber: inv.invoiceNumber,
     date: inv.date,
@@ -89,6 +99,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     qrCode,
     sellerName,
     sellerVatNumber,
+    issuedAt,
     reviewNote: null,
   });
 

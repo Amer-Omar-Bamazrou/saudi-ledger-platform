@@ -52,3 +52,11 @@ Thumbs.db
 .env
 **/.env
 !.env.example
+
+# ZATCA specification PDFs — large vendor binaries, re-fetchable.
+# docs/zatca/README.md records exact URLs, dates and SHA-256 checksums.
+docs/zatca/specs/*.pdf
+
+# ZATCA Compliance & Enablement Toolbox (SDK) — 40 MB zip + extracted tree.
+# docs/zatca/sdk-manifest.md records the URL, checksum and full inventory.
+docs/zatca/sdk/

@@ -171,7 +171,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   it("records every transition in the audit trail", async () => {
     const rows = (
       await pool.query(
-        `SELECT action FROM audit_logs WHERE entity_type = 'bill' AND entity_id = $1 ORDER BY created_at ASC`,
+        `SELECT action FROM audit_logs WHERE entity_type = 'bill' AND entity_id = $1 ORDER BY created_at ASC, id ASC`,
         [String(billId)],
       )
     ).rows.map((r) => r.action);
