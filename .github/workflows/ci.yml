@@ -59,6 +59,48 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # ── ZATCA SDK: the ONLY authoritative check that our UBL is valid ──────
+      # M12.2 generates UBL 2.1 XML. Its correctness is proven by running
+      # ZATCA's own Compliance & Enablement Toolbox (XSD + EN 16931 + 55 BR-KSA
+      # schematron rules), which needs Java. Without this, `ubl-zatca-validator`
+      # skips and CI would look green while proving nothing about the highest
+      # consequence code in the platform — exactly the M11.4 storage-coverage
+      # gap, repeated. So it runs here.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The SDK is a ~40 MB download from ZATCA's SharePoint. Cache it on the
+      # pinned checksum so a normal run does not hit their host at all.
+      - name: Cache ZATCA SDK
+        id: zatca-sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: docs/zatca/sdk
+          key: zatca-sdk-1a7df6d91fd34968ad59a97087f637f56504fdf92c42050916b838be20fc5ae3
+
+      # SKIP LOUDLY, never fail the build: SharePoint is a third-party host we
+      # do not control, and an outage there must not red-build unrelated work.
+      # The test file prints a prominent skip banner when the SDK is absent, so
+      # a fetch failure is visible in the log rather than silently "passing".
+      # Invoked via `bash` rather than `./…` on purpose: a lost executable bit
+      # is otherwise a silent `Permission denied` that skips the validator while
+      # CI stays green. (It bit exactly once — the scripts were committed 100644.
+      # The bit is now set too; this is belt and braces.)
+      - name: Fetch ZATCA SDK
+        if: steps.zatca-sdk-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: bash ./docs/zatca/fetch-sdk.sh
+
+      - name: Report ZATCA SDK availability
+        run: |
+          if [ -f docs/zatca/sdk/extracted/zatca-envoice-sdk-203/Apps/cli-3.0.8-jar-with-dependencies.jar ]; then
+            echo "::notice title=ZATCA SDK::present — UBL validator tests will RUN"
+          else
+            echo "::warning title=ZATCA SDK::MISSING — UBL validator tests will SKIP. This run does NOT prove our UBL is valid."
+          fi
+
       # The RLS isolation/rollback tests drop to the non-owner `authenticated`
       # role (a Supabase built-in) via SET LOCAL ROLE, and migration 0004 grants
       # privileges to it. A vanilla postgres:16 container has no such role, so
