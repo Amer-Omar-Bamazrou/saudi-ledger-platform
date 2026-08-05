@@ -84,10 +84,14 @@ jobs:
       # do not control, and an outage there must not red-build unrelated work.
       # The test file prints a prominent skip banner when the SDK is absent, so
       # a fetch failure is visible in the log rather than silently "passing".
+      # Invoked via `bash` rather than `./…` on purpose: a lost executable bit
+      # is otherwise a silent `Permission denied` that skips the validator while
+      # CI stays green. (It bit exactly once — the scripts were committed 100644.
+      # The bit is now set too; this is belt and braces.)
       - name: Fetch ZATCA SDK
         if: steps.zatca-sdk-cache.outputs.cache-hit != 'true'
         continue-on-error: true
-        run: ./docs/zatca/fetch-sdk.sh
+        run: bash ./docs/zatca/fetch-sdk.sh
 
       - name: Report ZATCA SDK availability
         run: |
