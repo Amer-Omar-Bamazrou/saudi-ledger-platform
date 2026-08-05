@@ -32,6 +32,16 @@ export const companiesTable = pgTable("companies", {
   district: varchar("district", { length: 255 }),
   city: varchar("city", { length: 100 }),
   postalCode: varchar("postal_code", { length: 10 }),
+  /**
+   * Saudi National Address "additional number" (4 digits) — M12.2.
+   *
+   * Required by **BR-KSA-09**: "Seller address must contain additional number
+   * (KSA-23), street name (BT-35), building number (KSA-17), postal code
+   * (BT-38), city (BT-37), Neighborhood (KSA-3), country code (BT-40)." Missed
+   * by M11.6/M12.1a — a STANDARD tax invoice cannot pass validation without it.
+   * Maps to `cbc:PlotIdentification` in the UBL seller PostalAddress.
+   */
+  additionalNumber: varchar("additional_number", { length: 10 }),
 
   // ── ZATCA Phase 2 EGS identity (M12.1a) ────────────────────────────────────
   /**

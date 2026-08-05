@@ -857,12 +857,68 @@ belong, not ad hoc:
   posting** (Dr Sales+VAT / Cr AR) and negative treatment in AR aging,
   balance-sheet AR and the VAT return. Split out of M12.1 deliberately: it is
   money-touching accounting work, not a schema change.
-- **M12.2: UBL 2.1 XML generation** (pure, offline) — validated against the ZATCA
-  SDK's XSD + 55 `BR-KSA-*` schematron rules via `Apps/fatoora -validate`.
-  **Note: the SDK ships NO sample invoices**, so there is no ZATCA golden file to
-  diff against — the loop is *generate → validate → iterate until clean*, using a
-  reference implementation's test invoice as an informal (non-normative) shape
-  guide. Details in [`docs/zatca/sdk-manifest.md`](docs/zatca/sdk-manifest.md).
+- **M12.2 (done): UBL 2.1 XML generation + the `EInvoiceProvider` seam.**
+  - **`EInvoiceProvider`** (`services/einvoice/provider.ts`) is declared in FULL
+    now — `onboard` / `renewCertificate` / `buildDocument` / `submit` — with the
+    unbuilt methods throwing a typed `NotImplementedError` naming their
+    milestone, so a caller can never mistake "not built" for "succeeded with
+    nulls". The interface is deliberately **coarse**, matching what a vendor
+    actually sells (invoice data in, finished artifacts out); an interface shaped
+    around our internal steps could not be implemented by any provider, which
+    would defeat the seam. Selection is **per company** (`resolveProvider`), since
+    ZATCA identity is per EGS unit. Ours is `zatca-direct`.
+  - **The generator is OURS, the crypto is not.** `buildInvoiceXml` is a pure
+    function (`EInvoiceInput` → XML string, no DB/context/clock) built on
+    `xmlbuilder2`. UBL generation is domain-model→schema mapping; the library
+    reservation applies to **C14N, XAdES and the CSR template** in M12.3.
+  - **The M12.2/M12.3 boundary is read off the spec, not invented.** The ZATCA
+    transform excludes exactly `ext:UBLExtensions`, `cac:Signature` and
+    `cac:AdditionalDocumentReference[cbc:ID='QR']` — precisely what M12.3
+    injects. Everything M12.2 emits IS signed content, **including the ICV and
+    PIH references**. A test asserts those three are absent, so the boundary
+    can't silently drift.
+  - **VALIDATED AGAINST ZATCA'S OWN SDK** (`tests/ubl-zatca-validator.test.ts`):
+    generate → `-sign` → `-validate`. **Standard and simplified invoices both
+    pass XSD, EN 16931 and all 55 `BR-KSA-*` rules** (simplified also passes QR).
+    The SDK ships no sample invoices, so there is no golden file — this IS the
+    authority. Skips **loudly** (a prominent banner) when Java or the SDK is
+    absent; **CI now installs Java 17 and caches the SDK by its pinned
+    checksum**, with the fetch `continue-on-error` so a SharePoint outage can't
+    red-build unrelated work.
+  - **🔴 The signature stage is deliberately NOT asserted.** The SDK's bundled
+    `cert.pem` **expired 18 Apr 2024** and its subject VAT isn't our fixture's
+    seller, so `[SIGNATURE] FAILED` is guaranteed regardless of what we generate
+    — it says nothing about our document. Real signature verification is M12.3
+    (our keys) and M12.4 (a sandbox CSID). Do not "fix" this by chasing the
+    signature result.
+  - **🔴 TWO schematron requirements the rule text does not state.** Both found by
+    running the validator, not by reading the spec — the reason the CI investment
+    was worth it:
+    - **BR-KSA-09 (seller)** needs `cbc:PlotIdentification` — the National
+      Address **additional number** (KSA-23). Added as `companies.additional_number`.
+      (Only a *warning*.)
+    - **BR-KSA-10 (buyer)** is a hard **error** and additionally asserts
+      **`cbc:CountrySubentity`** and `cbc:CitySubdivisionName`, while its message
+      names only "street, city, postal code, country code". Added as
+      `customers.province`. **A regression test pins this**, so deleting the
+      field fails loudly instead of silently breaking every B2B invoice.
+    - Also noted: `cbc:BuildingNumber` is capped at **4 characters** (BR-CL-KSA-17).
+    - Migration `0017_m12_2_national_address_fields` (additive, nullable — the
+      fields are not required for simplified invoices).
+  - **`cac:AccountingCustomerParty` is MANDATORY in UBL even for an anonymous B2C
+    sale** — omitting it fails XSD before any KSA rule is reached. BR-KSA-10
+    exempts simplified invoices from the buyer *address*, not from the element.
+  - **Assembler** (`einvoiceInput.assembler.ts`) is the only DB-aware piece and
+    **fails closed** on anything that would mint a legally-invalid document:
+    a NULL line tax category (the ambiguous 0%-VAT case M12.1a left unbackfilled),
+    a non-standard category with no exemption reason, or a missing company VAT /
+    UUID / ICV. Standard-vs-simplified is derived from whether the **buyer** is
+    VAT-registered.
+  - **Test-infra fix:** the Java subprocesses starved other suites' `beforeAll`
+    hooks at the 10s default, failing four unrelated DB-backed suites. Fixed with
+    `hookTimeout: 60_000`. **Do NOT "fix" it with `fileParallelism: false`** —
+    that is several times slower AND couples suites to each other's leftover
+    state (`operator.test.ts` fails under that ordering while passing alone).
 - **M12.3: cryptography** — ECDSA **`secp256k1`** keygen, CSR, XAdES signing, QR
   tags 6–9, and **replacing `computeInvoiceHash`** (see the landmine below).
   **Build against [`docs/zatca/security-standards-notes.md`](docs/zatca/security-standards-notes.md)**

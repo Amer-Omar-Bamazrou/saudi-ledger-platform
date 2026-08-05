@@ -34,6 +34,24 @@ export const customersTable = pgTable(
     street: text("street"),
     district: text("district"),
     postalCode: text("postal_code"),
+    /**
+     * Saudi National Address "additional number" — the buyer-side mirror of
+     * `companies.additional_number` (M12.2). Not itself required by BR-KSA-10;
+     * carried for completeness when the buyer supplies a full national address.
+     */
+    additionalNumber: text("additional_number"),
+    /**
+     * Country subentity / province (`cbc:CountrySubentity`, BT-54) — M12.2.
+     *
+     * **REQUIRED for STANDARD (B2B) invoices by BR-KSA-10**, which is a
+     * *hard error*. Its human-readable message lists only "street (BT-50), city
+     * (BT-52), postal code (BT-53), country code (BT-55)" — but the actual
+     * schematron ALSO asserts `cbc:CountrySubentity` and
+     * `cbc:CitySubdivisionName`. Found by running ZATCA's own validator; the
+     * message alone would have sent you looking in the wrong place.
+     * Not required on the seller (BR-KSA-09 omits it, and is only a warning).
+     */
+    province: text("province"),
     currency: text("currency").default("SAR"),
     creditLimit: text("credit_limit"),    // numeric stored as text
     paymentTermsDays: text("payment_terms_days").default("30"),
