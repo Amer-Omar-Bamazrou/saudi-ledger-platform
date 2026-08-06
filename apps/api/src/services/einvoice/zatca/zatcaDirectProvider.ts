@@ -1,19 +1,22 @@
 /**
- * `zatca-direct` — our own implementation of {@link EInvoiceProvider} (M12.2).
+ * `zatca-direct` — our own implementation of {@link EInvoiceProvider}
+ * (M12.2 XML, M12.3 signing).
  *
  * This is the default provider: we build, sign and submit to ZATCA ourselves
- * rather than paying a vendor per taxpayer. Only the XML half of
- * `buildDocument` exists today; the rest fail loudly with a typed
+ * rather than paying a vendor per taxpayer. `buildDocument` now builds AND
+ * signs; onboarding and submission still fail loudly with a typed
  * {@link NotImplementedError} naming the milestone that delivers them, so a
  * caller can never mistake "not built yet" for "succeeded with nulls".
  */
 import { buildInvoiceXml } from "../ubl/buildInvoiceXml";
+import { assembleSignedInvoice } from "../crypto/assembleSignedInvoice";
 import {
   NotImplementedError,
   type EInvoiceProvider,
   type OnboardingInput,
   type OnboardingResult,
   type SubmissionFlow,
+  type SigningCredentials,
   type SubmissionResult,
 } from "../provider";
 import type { BuiltDocument, EInvoiceInput } from "../types";
@@ -31,15 +34,41 @@ export const zatcaDirectProvider: EInvoiceProvider = {
     throw new NotImplementedError("Certificate renewal", "M12.5");
   },
 
-  async buildDocument(input: EInvoiceInput): Promise<BuiltDocument> {
+  async buildDocument(input: EInvoiceInput, credentials?: SigningCredentials): Promise<BuiltDocument> {
     const xml = buildInvoiceXml(input);
-    return {
+
+    // Without credentials this is an UNSIGNED preview: the document is real UBL
+    // but carries no hash, QR or signature. Issuance must never take this path —
+    // the caller supplies credentials from the M12.5 vault once it exists.
+    if (!credentials) {
+      return {
+        xml,
+        invoiceHash: null,
+        qrCode: null,
+        previousInvoiceHash: input.previousInvoiceHash,
+        uuid: input.uuid,
+        icv: input.icv,
+      };
+    }
+
+    const assembled = assembleSignedInvoice({
       xml,
-      // Minted in M12.3: base64(SHA-256(C14N xml)) and the 9-tag TLV QR. They
-      // are explicitly null rather than absent so persistence stays honest
-      // about the document being unsigned.
-      invoiceHash: null,
-      qrCode: null,
+      certificatePem: credentials.certificatePem,
+      privateKey: credentials.privateKey,
+      publicKey: credentials.publicKey,
+      qr: {
+        sellerName: input.seller.legalName,
+        vatNumber: input.seller.vatNumber ?? "",
+        timestamp: input.issuedAt.toISOString().replace(/\.\d{3}Z$/, "Z"),
+        totalWithVat: input.taxInclusiveTotal,
+        vatTotal: input.taxTotal,
+      },
+    });
+
+    return {
+      xml: assembled.signedXml,
+      invoiceHash: assembled.invoiceHash,
+      qrCode: assembled.qrCode,
       previousInvoiceHash: input.previousInvoiceHash,
       uuid: input.uuid,
       icv: input.icv,

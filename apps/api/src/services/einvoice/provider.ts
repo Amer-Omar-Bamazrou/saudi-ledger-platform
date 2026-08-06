@@ -22,7 +22,21 @@
  * ZATCA identity is per EGS unit, i.e. per company, so provider choice is too.
  * One tenant can be moved to a vendor — or back — without affecting any other.
  */
+import type { KeyObject } from "crypto";
 import type { BuiltDocument, EInvoiceInput } from "./types";
+
+/**
+ * Key material for signing ONE company's invoices.
+ *
+ * Passed in per call and never held by the provider. In M12.3 these come from a
+ * test fixture only — there is deliberately NO persistence path until the M12.5
+ * KMS-encrypted, owner-only vault exists.
+ */
+export interface SigningCredentials {
+  certificatePem: string;
+  privateKey: KeyObject;
+  publicKey: KeyObject;
+}
 
 /** Thrown by provider methods whose milestone has not landed yet. */
 export class NotImplementedError extends Error {
@@ -73,10 +87,13 @@ export interface EInvoiceProvider {
   renewCertificate(companyId: string): Promise<OnboardingResult>;
 
   /**
-   * Produce the document: UBL 2.1 XML, and — from M12.3 — the XAdES signature,
-   * invoice hash and 9-tag QR. Does NOT transmit.
+   * Produce the document: UBL 2.1 XML plus, when `credentials` are supplied, the
+   * XAdES signature, invoice hash and 9-tag QR. Does NOT transmit.
+   *
+   * Omitting `credentials` yields an UNSIGNED preview with null hash/QR — never
+   * valid for issuance.
    */
-  buildDocument(input: EInvoiceInput): Promise<BuiltDocument>;
+  buildDocument(input: EInvoiceInput, credentials?: SigningCredentials): Promise<BuiltDocument>;
 
   /** Clearance (standard) or reporting (simplified). */
   submit(doc: BuiltDocument, flow: SubmissionFlow): Promise<SubmissionResult>;

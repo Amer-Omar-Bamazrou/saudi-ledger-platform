@@ -747,10 +747,30 @@ SignedProperties digest taken over **dom4j `asXML()` rather than any
 canonicalisation**, and a `CertDigest` over the **base64 certificate string
 rather than its DER**.
 
-**Decompile early.** The last three were invisible to black-box testing — ~30
+**Decompile early.** Several were invisible to black-box testing — ~30
 canonicalisation variants were tried and failed before decompiling
 `SigningServiceImpl` answered it in minutes. CFR (`cfr.jar`) works on the SDK
 jar; the packages are `com.zatca.sdk.*` and `com.gazt.einvoicing.*`.
+
+**The natural experiment — the strongest evidence for this principle.** M12.3
+produced a clean controlled comparison, entirely by accident:
+
+| Module | Written from | Correct? |
+| --- | --- | --- |
+| `crypto/invoiceHash.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/csr.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/xades.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/qr.ts` | **the PDF alone** | ❌ **wrong in 3 of 4 Phase 2 tags** |
+
+Same engineer, same session, same care. The only variable was the source. The
+three modules checked against binaries were right; the one written from the
+specification was wrong — its docstring even confidently explained the PDF's
+(incorrect) rule that tag 6 carries raw digest bytes.
+
+**So: anything written from the PDF is SUSPECT until a binary confirms it.** And
+note *how* it stayed hidden — M12.2's `[QR] PASSED` was validating ZATCA's *own*
+signed output, not ours. **A differential must compare OUR output against
+ZATCA's**, or it proves nothing about our code.
 
 The PDFs are not uniformly wrong (the transform chain, QR TLV rules and
 algorithm identifiers all check out) — they are **unreliable**, which is worse,
