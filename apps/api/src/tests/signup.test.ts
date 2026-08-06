@@ -22,6 +22,7 @@ import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { signupService } from "../services/signup.service";
+import { __resetRateLimitsForTests } from "../routes/auth";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -86,6 +87,9 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
     (await pool.query(`SELECT verification_status AS s FROM organizations WHERE id = $1`, [orgId])).rows[0]?.s as string;
 
   beforeAll(async () => {
+    // Suites share one process-global, IP-keyed rate-limit budget; start clean
+    // so another suite\'s signups cannot 429 this one. See auth.ts.
+    __resetRateLimitsForTests();
     await cleanup();
     primePermissionCache(PERMISSION_MATRIX); // CI applies migrations but doesn't seed permissions
     operatorId = (await pool.query(

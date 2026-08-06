@@ -729,6 +729,63 @@ identical API surface.
 any real tenant to production until M12.7 and M12.9 have actually run against a
 real VAT registration.
 
+### 🔴 OPERATING PRINCIPLE: ZATCA's BINARIES are the specification; the PDFs are an unreliable narrator
+
+**Whenever ZATCA's documentation and ZATCA's shipped software disagree, follow
+the software** — and record the divergence in
+[`docs/zatca/spec-vs-implementation-divergences.md`](docs/zatca/spec-vs-implementation-divergences.md)
+with what the PDF claims, what the binary does, and which we track.
+
+This is not a stylistic preference. **TWELVE divergences have been found so far,
+every one of them by running or DECOMPILING ZATCA's SDK rather than reading their
+PDF**, and every one would have failed at M12.4 with a rejection and no useful
+diagnostic: the elliptic curve, three separate CSR-structure errors, an entirely
+undocumented required certificate extension, three XAdES property errors, a
+signature that uses *two different digest encodings in the same document*, a
+`SignatureValue` that is **not computed over `SignedInfo` at all**, a
+SignedProperties digest taken over **dom4j `asXML()` rather than any
+canonicalisation**, and a `CertDigest` over the **base64 certificate string
+rather than its DER**.
+
+**Decompile early.** Several were invisible to black-box testing — ~30
+canonicalisation variants were tried and failed before decompiling
+`SigningServiceImpl` answered it in minutes. CFR (`cfr.jar`) works on the SDK
+jar; the packages are `com.zatca.sdk.*` and `com.gazt.einvoicing.*`.
+
+**The natural experiment — the strongest evidence for this principle.** M12.3
+produced a clean controlled comparison, entirely by accident:
+
+| Module | Written from | Correct? |
+| --- | --- | --- |
+| `crypto/invoiceHash.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/csr.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/xades.ts` | verified against ZATCA's binaries | ✅ |
+| `crypto/qr.ts` | **the PDF alone** | ❌ **wrong in 3 of 4 Phase 2 tags** |
+
+Same engineer, same session, same care. The only variable was the source. The
+three modules checked against binaries were right; the one written from the
+specification was wrong — its docstring even confidently explained the PDF's
+(incorrect) rule that tag 6 carries raw digest bytes.
+
+**So: anything written from the PDF is SUSPECT until a binary confirms it.** And
+note *how* it stayed hidden — M12.2's `[QR] PASSED` was validating ZATCA's *own*
+signed output, not ours. **A differential must compare OUR output against
+ZATCA's**, or it proves nothing about our code.
+
+The PDFs are not uniformly wrong (the transform chain, QR TLV rules and
+algorithm identifiers all check out) — they are **unreliable**, which is worse,
+because it means you cannot tell which parts to trust without checking.
+
+**So, concretely:**
+- Verify against the SDK **before** building, not after. `fatoora -csr`,
+  `-generateHash`, `-sign` and `-validate` are ground truth.
+- ZATCA's own XAdES template lives inside their jar at **`xml/ubl.xml`** — it is
+  the real XAdES specification.
+- Differentials against the SDK are **blocking tests**, not investigative ones.
+  A correct hash with a structurally wrong signature passes a hash check and
+  still fails at M12.4.
+- The SDK is checksum-pinned so a ZATCA-side change is detectable.
+
 ### Decision: BUILD DIRECT (not a certified provider)
 
 ZATCA's own Solution Providers Directory states the list is *"a guiding list
@@ -987,6 +1044,67 @@ needs **1–9**.
   AWS KMS, or self-hosted Vault.
 - **ZATCA itself charges nothing** — CSIDs, sandbox, simulation and API access are
   all free. The cost of the build-direct path is engineering time only.
+
+### ⚠️ The API test suite has order/timing sensitivities that only appear under full parallel load
+
+**Two latent fragilities have now been exposed by M12 work — neither caused by
+it, both invisible until something perturbed timing.** Expect more, and suspect
+this class first when a suite fails in a full run but passes in isolation.
+
+| # | Fragility | Surfaced by | Fix |
+| --- | --- | --- | --- |
+| 1 | `audit.test.ts` ordered audit rows by `created_at` alone. Postgres `now()` is the **transaction** timestamp, so rows written in one request are identical and the sort had no tiebreak. | M12.1a adding `customers` columns, which shifted physical row order | Select by `action`, never by row position. `audit_logs.id` is a random uuid and does **not** break the tie. |
+| 2 | Rate limiters are **process-global and IP-keyed**, and every test request comes from the same loopback address — so parallel suites share one budget. Signup's is deliberately strict (5/hour). | M12.3 adding ~20s of CPU-heavy Java, which shifted interleaving | `__resetRateLimitsForTests()` in `routes/auth.ts`; suites that sign up call it in `beforeAll`. |
+
+**The diagnostic:** *passes alone, passes in pairs, fails in the full run* means
+shared mutable state or an unstable ordering — not a real regression. Reproduce
+by running the suite whole, not by re-running the failing file.
+
+**Do NOT "fix" #2 by raising `max` in the test environment.** `signup.test.ts`
+asserts a flood IS rejected and loops only 8 times, so it needs `max < 8` to
+observe one. Raising the limit silently deletes the abuse protection that test
+exists to prove. Isolate the buckets instead.
+
+**Do NOT "fix" ordering problems with `fileParallelism: false`.** It is several
+times slower AND couples suites to each other's leftover state — `operator.test.ts`
+fails under that ordering while passing alone. See `vitest.config.ts`.
+
+### M12.3 review — carried forward
+
+**Key-handling items to address WHEN THE M12.5 VAULT IS BUILT** (not exploitable
+now — nothing persists or transmits keys — but M12.5 is when the blast radius
+changes):
+
+- `crypto/keys.ts` `generateZatcaKeyPair()` eagerly exports `privateKeyPem` on
+  every call, materialising the key as an immutable, unzeroable JS string even
+  when only the `KeyObject` is needed. Make it a lazy accessor at the vault
+  boundary.
+- `crypto/keys.ts` `assertZatcaCurve()` exports the private key to DER purely to
+  check the curve OID, creating a second in-memory copy per validation. The
+  `namedCurve` check on the same line already covers the normal case; decide
+  whether the DER round-trip earns its keep or should be restricted to public
+  keys.
+
+Verified clean in the same review: no logging anywhere in `services/einvoice/`,
+no serialisation of credentials, nothing key-related on any returned type, and
+`errorHandler` emits only `err.message` / a generic 500 — never a stack or
+object dump.
+
+**Surface the M12.3 differentials DO NOT reach** — they exercise one invoice, one
+key, one certificate, one signing time. M12.1b and M12.4 should extend coverage
+to:
+
+- **credit and debit notes** (`documentType` other than `invoice`) — untested
+  end-to-end through signing
+- **zero-value lines and zero-VAT invoices**
+- **certificates with unusual issuer DNs** — `issuerName` comes from ZATCA's CA,
+  and only one CA's format has ever been seen
+- **invoices with no PIH** — now guarded with a throw rather than silent QR
+  misplacement, but never exercised against ZATCA
+- **multi-byte item descriptions** in the XML body (lower risk — M12.2's
+  generator escapes via `xmlbuilder2`)
+- **the tag 8/9 `r`/`s` split**, whose *intent* is still unverified (divergence
+  #13) — re-confirm against the sandbox
 
 ### Known Issues / Deferred (from the M4 security re-audit)
 

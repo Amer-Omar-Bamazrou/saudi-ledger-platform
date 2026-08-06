@@ -28,6 +28,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
+import { __resetRateLimitsForTests } from "../routes/auth";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -80,6 +81,9 @@ describeMaybe("M11.5.1 — user-administration authorization (CRITICAL-1 regress
   const login = (who: string, email: string) => api(who, "POST", "/auth/login", { email, password: PW });
 
   beforeAll(async () => {
+    // Suites share one process-global, IP-keyed rate-limit budget; start clean
+    // so another suite\'s signups cannot 429 this one. See auth.ts.
+    __resetRateLimitsForTests();
     await cleanup();
 
     // A legitimate, APPROVED victim organization with an admin and a member.

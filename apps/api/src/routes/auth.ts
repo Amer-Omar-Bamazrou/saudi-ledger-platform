@@ -3,7 +3,7 @@
  */
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import rateLimit from "express-rate-limit";
+import rateLimit, { MemoryStore } from "express-rate-limit";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -25,7 +25,9 @@ function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
  * single instance; move to a Redis store when the API scales horizontally).
  * Keys on client IP; 10 attempts per 15 minutes.
  */
+const authLimiterStore = new MemoryStore();
 const authRateLimiter = rateLimit({
+  store: authLimiterStore,
   windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: true,
@@ -38,7 +40,9 @@ const authRateLimiter = rateLimit({
  * so it gets its own STRICTER limiter than the credential endpoints: creating
  * organizations is expensive and abusable. IP-keyed, 5 per hour.
  */
+const signupLimiterStore = new MemoryStore();
 const signupRateLimiter = rateLimit({
+  store: signupLimiterStore,
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -52,13 +56,38 @@ const signupRateLimiter = rateLimit({
  * practical mass-takeover primitive (`users.id` is a serial integer, so an
  * attacker could walk every id). Rate-limited independently of login/signup.
  */
+const userAdminLimiterStore = new MemoryStore();
 const userAdminRateLimiter = rateLimit({
+  store: userAdminLimiterStore,
   windowMs: 15 * 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please try again in a few minutes." },
 });
+
+/**
+ * TEST-ONLY: clear the in-memory rate-limit buckets.
+ *
+ * The limiters are process-global and IP-keyed, and every test request arrives
+ * from the same loopback address — so suites running in parallel SHARE one
+ * budget. Signup's is deliberately strict (5/hour), so a handful of legitimate
+ * signups across different suites can exhaust it and produce 429s that have
+ * nothing to do with the behaviour under test.
+ *
+ * Raising `max` in the test environment is the wrong fix: `signup.test.ts`
+ * asserts that a flood IS rejected, and its loop of 8 attempts requires
+ * `max < 8` to observe one. Disabling the limit would silently delete the
+ * abuse protection that test exists to prove.
+ *
+ * So suites that sign up call this in `beforeAll` to start from a clean bucket.
+ * Production behaviour is completely unchanged — this only resets stores.
+ */
+export function __resetRateLimitsForTests(): void {
+  authLimiterStore.resetAll?.();
+  signupLimiterStore.resetAll?.();
+  userAdminLimiterStore.resetAll?.();
+}
 
 // Fixed decoy hash used to keep login timing constant when the email is unknown
 // or the account is inactive. Comparing the supplied password against this hash
