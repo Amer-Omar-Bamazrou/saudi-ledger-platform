@@ -736,12 +736,21 @@ the software** — and record the divergence in
 [`docs/zatca/spec-vs-implementation-divergences.md`](docs/zatca/spec-vs-implementation-divergences.md)
 with what the PDF claims, what the binary does, and which we track.
 
-This is not a stylistic preference. **Nine divergences have been found so far,
-every one of them by running ZATCA's SDK rather than reading their PDF**, and
-every one would have failed at M12.4 with a rejection and no useful diagnostic:
-the elliptic curve, three separate CSR-structure errors, an entirely
-undocumented required certificate extension, three XAdES property errors, and a
-signature that uses *two different digest encodings in the same document*.
+This is not a stylistic preference. **TWELVE divergences have been found so far,
+every one of them by running or DECOMPILING ZATCA's SDK rather than reading their
+PDF**, and every one would have failed at M12.4 with a rejection and no useful
+diagnostic: the elliptic curve, three separate CSR-structure errors, an entirely
+undocumented required certificate extension, three XAdES property errors, a
+signature that uses *two different digest encodings in the same document*, a
+`SignatureValue` that is **not computed over `SignedInfo` at all**, a
+SignedProperties digest taken over **dom4j `asXML()` rather than any
+canonicalisation**, and a `CertDigest` over the **base64 certificate string
+rather than its DER**.
+
+**Decompile early.** The last three were invisible to black-box testing — ~30
+canonicalisation variants were tried and failed before decompiling
+`SigningServiceImpl` answered it in minutes. CFR (`cfr.jar`) works on the SDK
+jar; the packages are `com.zatca.sdk.*` and `com.gazt.einvoicing.*`.
 
 The PDFs are not uniformly wrong (the transform chain, QR TLV rules and
 algorithm identifiers all check out) — they are **unreliable**, which is worse,

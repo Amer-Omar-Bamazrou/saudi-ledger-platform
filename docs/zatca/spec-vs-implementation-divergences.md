@@ -124,7 +124,98 @@ for the other two. Note this is the same double-encoding as the genesis PIH
 (`base64` of the *hex string* of `SHA-256("0")`), so it is at least internally
 consistent with ZATCA's habits.
 
-## 10. Canonicalisation — C14N 1.1 declared, and genuinely used
+## 10. 🔴 XAdES — `SignatureValue` is NOT computed over `SignedInfo`
+
+**The single most consequential divergence found so far.** A standards-correct
+XMLDSig implementation is *wrong* here and would be rejected.
+
+Decompiled from `com.gazt.einvoicing.digitalsignature.service.impl.DigitalSignatureServiceImpl`:
+
+```java
+public DigitalSignature getDigitalSignature(String xmlDocument, PrivateKey privateKey, String xmlHashing) {
+    byte[] xmlHashingBytes = Base64.getDecoder().decode(xmlHashing.getBytes(UTF_8));  // raw 32 digest bytes
+    byte[] digitalSignatureBytes = this.signECDSA(privateKey, xmlHashingBytes);
+    ...
+}
+byte[] signECDSA(PrivateKey privateKey, byte[] messageHash) {
+    Signature signature = Signature.getInstance("SHA256withECDSA");
+    signature.initSign(privateKey);
+    signature.update(messageHash);      // <-- the RAW INVOICE DIGEST, not SignedInfo
+    return signature.sign();
+}
+```
+
+| | |
+| --- | --- |
+| **XMLDSig / the PDF imply** | Sign the canonicalised `ds:SignedInfo`. |
+| **Implementation** | **`SignatureValue = base64( DER-ECDSA( SHA256withECDSA over the RAW 32-byte invoice digest ) )`.** `SignedInfo` is never signed. |
+| **Corroboration** | In `SigningServiceImpl.signDocument`, `getDigitalSignature(...)` is called **before** `populateSignedSignatureProperties(...)` computes the SignedProperties digest — the signature cannot cover a `SignedInfo` whose contents do not yet exist. |
+| **We follow** | Implementation. |
+
+Note `SHA256withECDSA` hashes its input again, so the 32-byte digest is itself
+SHA-256'd before signing.
+
+## 11. 🔴 XAdES — the `SignedProperties` digest input is dom4j `asXML()`, not C14N
+
+The problem that blocked the signer. Resolved by decompiling
+`SigningServiceImpl.populateSignedSignatureProperties`:
+
+```java
+String signedSignatureElement = this.getNodeXmlValue(document, nameSpacesMap, ".../xades:SignedProperties");
+return this.encodeBase64(this.bytesToHex(this.hashStringToBytes(
+        signedSignatureElement.getBytes(StandardCharsets.UTF_8))).getBytes(StandardCharsets.UTF_8));
+```
+
+`getNodeXmlValue` returns **`node.asXML()`** — dom4j's plain serialiser. **There is
+no canonicalisation at all.** The exact input is the SignedProperties subtree
+with its source indentation preserved, plus dom4j's per-element namespace
+declarations:
+
+- `xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"` on `<xades:SignedProperties>`,
+  **before** the `Id` attribute
+- `xmlns:ds="http://www.w3.org/2000/09/xmldsig#"` on **every** `ds:*` descendant
+  element (`DigestMethod`, `DigestValue`, `X509IssuerName`, `X509SerialNumber`),
+  each immediately after its tag name
+
+Verified: running dom4j's `asXML()` over the reference document's
+SignedProperties and hashing produces
+`149ec719e099efc90cf7547da70b132cdcfe1588144b774cbdbd16bf2eedd1ec` — an exact
+match for ZATCA's emitted `DigestValue`.
+
+### Search space already ruled out — do not repeat
+
+Before decompiling, ~30 candidates were tested against the target and **all
+failed**. Recorded so a future session doesn't retrace them:
+
+- the raw substring exactly as it appears in the signed document
+- C14N 1.0 of the node (which does add `xmlns:xades` and preserve `Id`)
+- `xmlns:ds` added, in both orderings relative to `xmlns:xades`
+- leading indentation of 0, 4, 8, 12, 16, 20, 24, 28, 32, 36 spaces (with and
+  without the namespace)
+- de-indenting children by 4, 8, 12, 16, 20, 24
+- CRLF→LF, stray-CR stripping
+
+The lesson: it was never a canonicalisation variant, so no amount of searching within
+canonicalisation would have found it. **Decompile earlier.**
+
+## 12. XAdES — `CertDigest` hashes the base64 certificate STRING, not the DER
+
+```java
+String certificateHashing = this.encodeBase64(this.bytesToHex(this.hashStringToBytes(
+        certificateAsString.getBytes(StandardCharsets.UTF_8))).getBytes(StandardCharsets.UTF_8));
+```
+
+`certificateAsString` is the **base64 text** of the certificate (the PEM body),
+not its decoded DER bytes. The PDF's Req 17 speaks of a digest "computed over the
+entire DER encoded certificate", which is the opposite.
+
+Related, from the same method:
+- `ds:X509IssuerName` = Java's `certificate.getIssuerDN().getName()` —
+  e.g. `CN=TSZEINVOICE-SubCA-1, DC=extgazt, DC=gov, DC=local` (reversed RDN
+  order, comma-space separated)
+- `ds:X509SerialNumber` = `certificate.getSerialNumber().toString()` — decimal
+
+## 13. Canonicalisation — C14N 1.1 declared, and genuinely used
 
 Not a divergence, recorded because it was investigated at length: ZATCA declares
 `http://www.w3.org/2006/12/xml-c14n11` **and** bundles Apache Santuario
