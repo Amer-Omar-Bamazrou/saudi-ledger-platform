@@ -729,6 +729,34 @@ identical API surface.
 any real tenant to production until M12.7 and M12.9 have actually run against a
 real VAT registration.
 
+### 🔴 OPERATING PRINCIPLE: ZATCA's BINARIES are the specification; the PDFs are an unreliable narrator
+
+**Whenever ZATCA's documentation and ZATCA's shipped software disagree, follow
+the software** — and record the divergence in
+[`docs/zatca/spec-vs-implementation-divergences.md`](docs/zatca/spec-vs-implementation-divergences.md)
+with what the PDF claims, what the binary does, and which we track.
+
+This is not a stylistic preference. **Nine divergences have been found so far,
+every one of them by running ZATCA's SDK rather than reading their PDF**, and
+every one would have failed at M12.4 with a rejection and no useful diagnostic:
+the elliptic curve, three separate CSR-structure errors, an entirely
+undocumented required certificate extension, three XAdES property errors, and a
+signature that uses *two different digest encodings in the same document*.
+
+The PDFs are not uniformly wrong (the transform chain, QR TLV rules and
+algorithm identifiers all check out) — they are **unreliable**, which is worse,
+because it means you cannot tell which parts to trust without checking.
+
+**So, concretely:**
+- Verify against the SDK **before** building, not after. `fatoora -csr`,
+  `-generateHash`, `-sign` and `-validate` are ground truth.
+- ZATCA's own XAdES template lives inside their jar at **`xml/ubl.xml`** — it is
+  the real XAdES specification.
+- Differentials against the SDK are **blocking tests**, not investigative ones.
+  A correct hash with a structurally wrong signature passes a hash check and
+  still fails at M12.4.
+- The SDK is checksum-pinned so a ZATCA-side change is detectable.
+
 ### Decision: BUILD DIRECT (not a certified provider)
 
 ZATCA's own Solution Providers Directory states the list is *"a guiding list

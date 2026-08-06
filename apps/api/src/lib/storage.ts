@@ -64,7 +64,10 @@ export const storage = {
     const res = await fetch(objectUrl(c, objectPath), {
       method: "POST",
       headers: { ...authHeader(c), "content-type": contentType, "x-upsert": "false" },
-      body: bytes,
+      // `Uint8Array` rather than the Node `Buffer` directly: M12.3's crypto
+      // dependencies pulled in DOM lib types that narrowed `BodyInit`, and a
+      // Buffer no longer satisfies it. Same bytes, no runtime change.
+      body: new Uint8Array(bytes),
     });
     if (!res.ok) {
       throw new AppError(502, `Storage upload failed (${res.status}).`);
