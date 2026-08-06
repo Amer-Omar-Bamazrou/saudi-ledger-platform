@@ -57,6 +57,41 @@ necessary but not sufficient. See the manifest's "Impact on M12.2".
 | **Simulation** | <https://fatoora.zatca.gov.sa/> | **ERAD credentials — a real, active Saudi VAT registration.** ⚠️ Blocks M12.7. |
 | **Production** | <https://fatoora.zatca.gov.sa/> | Real VAT registration; each tenant onboards their own EGS via OTP. |
 
+## 🔴 OPEN: ZATCA's API hosts are unreachable (observed 2026-08-07)
+
+**M12.4 is blocked on this.** Not a crypto failure — nothing reached an
+application at all.
+
+| Host | DNS | TCP 443 |
+| --- | --- | --- |
+| `gw-fatoora.zatca.gov.sa` | resolves (185.117.128.50, .129.50) | **no connection** |
+| `sandbox.zatca.gov.sa` | resolves (185.117.129.147, .128.147) | **no connection** |
+| `zatca.gov.sa` (control) | resolves | **OPEN**, HTTP 302 |
+
+Both API/sandbox hosts resolve but refuse TCP on 443, while the main site on the
+same domain connects normally. Network layer — not TLS, not auth, not a rejected
+request.
+
+**Evidence gathered:**
+
+- Confirmed unreachable from **two independent networks** — home broadband and
+  5G mobile data — so it is not a local ISP or router problem.
+- The reporter is **in Saudi Arabia**. This substantially weakens the
+  geo-restriction hypothesis: in-region traffic would be permitted, and a Saudi
+  taxpayer unable to reach ZATCA's own developer sandbox would be very odd.
+- **`sandbox.zatca.gov.sa` returned HTTP 200 on 2026-08-04** during M12.0, from
+  the same machine. So this is a change, not a standing condition.
+
+**Current reading:** more likely an outage or maintenance window than IP
+allowlisting. **Retry in 24-48h before treating it as structural.**
+
+**If it persists:**
+
+- The M12.0 note about a **static egress IP / NAT gateway** stops being a
+  "verify this" item and becomes a **hard deployment requirement**.
+- Check ZATCA's developer forum for reports:
+  <https://zatca1.discourse.group>
+
 ## Enforcement timeline (as of 4 Aug 2026)
 
 | Wave | Threshold (VAT-taxable revenue, 2022/23/24) | Deadline |
