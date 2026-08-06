@@ -1045,6 +1045,30 @@ needs **1–9**.
 - **ZATCA itself charges nothing** — CSIDs, sandbox, simulation and API access are
   all free. The cost of the build-direct path is engineering time only.
 
+### ⚠️ The API test suite has order/timing sensitivities that only appear under full parallel load
+
+**Two latent fragilities have now been exposed by M12 work — neither caused by
+it, both invisible until something perturbed timing.** Expect more, and suspect
+this class first when a suite fails in a full run but passes in isolation.
+
+| # | Fragility | Surfaced by | Fix |
+| --- | --- | --- | --- |
+| 1 | `audit.test.ts` ordered audit rows by `created_at` alone. Postgres `now()` is the **transaction** timestamp, so rows written in one request are identical and the sort had no tiebreak. | M12.1a adding `customers` columns, which shifted physical row order | Select by `action`, never by row position. `audit_logs.id` is a random uuid and does **not** break the tie. |
+| 2 | Rate limiters are **process-global and IP-keyed**, and every test request comes from the same loopback address — so parallel suites share one budget. Signup's is deliberately strict (5/hour). | M12.3 adding ~20s of CPU-heavy Java, which shifted interleaving | `__resetRateLimitsForTests()` in `routes/auth.ts`; suites that sign up call it in `beforeAll`. |
+
+**The diagnostic:** *passes alone, passes in pairs, fails in the full run* means
+shared mutable state or an unstable ordering — not a real regression. Reproduce
+by running the suite whole, not by re-running the failing file.
+
+**Do NOT "fix" #2 by raising `max` in the test environment.** `signup.test.ts`
+asserts a flood IS rejected and loops only 8 times, so it needs `max < 8` to
+observe one. Raising the limit silently deletes the abuse protection that test
+exists to prove. Isolate the buckets instead.
+
+**Do NOT "fix" ordering problems with `fileParallelism: false`.** It is several
+times slower AND couples suites to each other's leftover state — `operator.test.ts`
+fails under that ordering while passing alone. See `vitest.config.ts`.
+
 ### Known Issues / Deferred (from the M4 security re-audit)
 
 These were identified in the post-M4 security review and **intentionally deferred**
