@@ -215,7 +215,46 @@ Related, from the same method:
   order, comma-space separated)
 - `ds:X509SerialNumber` = `certificate.getSerialNumber().toString()` — decimal
 
-## 13. Canonicalisation — C14N 1.1 declared, and genuinely used
+## 13. 🔴 QR — tags 6-9 are NOT what the spec describes
+
+The spec's §4 table and its encoding rules are both wrong about tags 6-9.
+Established by decoding the QR from a real `fatoora -sign` output (byte offsets
+verified, not inferred):
+
+| Tag | PDF says | Bytes ZATCA actually emits |
+| --- | --- | --- |
+| 6 | "Hash of XML invoice", length "**32 bytes**", raw digest | **44 bytes — the BASE64 STRING** `NRhTmCMYV0J6…` |
+| 7 | ECDSA signature of the hash | **88 bytes — the SPKI DER public key** (`3056301006072a8648ce3d0201…`) |
+| 8 | ECDSA public key | **32 bytes** — the `r` of the ECDSA signature |
+| 9 | ZATCA CA signature (simplified only) | **32 bytes** — the `s` of the ECDSA signature |
+
+The `r`/`s` reading is confirmed against the document's own `SignatureValue`:
+
+```
+SignatureValue DER = 3044 0220 0462621b…c4bfb7c  0220 0b15c8cc…574bd404
+                              └─ tag 8 (32B) ─┘        └─ tag 9 (32B) ─┘
+```
+
+Two corrections that matter most:
+
+1. **Tag 6 carries the 44-character base64 STRING, not the raw 32 digest bytes.**
+   The spec is explicit and explicit*ly wrong*: *"Length: length of hash (SHA256)
+   is 32 bytes"*. Implementing the documented rule yields a QR ZATCA's own
+   validator will not recognise.
+2. **Tag 7 is the public key, tag 8/9 are the signature** — i.e. the spec's tag
+   7 and 8 are effectively swapped, and its tag 9 is not a CA signature at all.
+
+⚠️ **Open question, flagged rather than guessed:** whether the `r`/`s` split
+across tags 8 and 9 is deliberate or an artefact of ZATCA's TLV writer. It is
+what their SDK emits and what their validator accepts (our M12.2 simplified
+invoice passed the `[QR]` stage), so **we follow the observed bytes** — but the
+*intent* is unverified. Re-confirm against the sandbox in M12.4 before relying on
+tag 9 semantics for simplified invoices.
+
+**We follow** the observed bytes. `crypto/qr.ts`'s original tag semantics were
+written from the PDF and are wrong; they are corrected to match.
+
+## 14. Canonicalisation — C14N 1.1 declared, and genuinely used
 
 Not a divergence, recorded because it was investigated at length: ZATCA declares
 `http://www.w3.org/2006/12/xml-c14n11` **and** bundles Apache Santuario
