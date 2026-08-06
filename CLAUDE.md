@@ -1069,6 +1069,43 @@ exists to prove. Isolate the buckets instead.
 times slower AND couples suites to each other's leftover state — `operator.test.ts`
 fails under that ordering while passing alone. See `vitest.config.ts`.
 
+### M12.3 review — carried forward
+
+**Key-handling items to address WHEN THE M12.5 VAULT IS BUILT** (not exploitable
+now — nothing persists or transmits keys — but M12.5 is when the blast radius
+changes):
+
+- `crypto/keys.ts` `generateZatcaKeyPair()` eagerly exports `privateKeyPem` on
+  every call, materialising the key as an immutable, unzeroable JS string even
+  when only the `KeyObject` is needed. Make it a lazy accessor at the vault
+  boundary.
+- `crypto/keys.ts` `assertZatcaCurve()` exports the private key to DER purely to
+  check the curve OID, creating a second in-memory copy per validation. The
+  `namedCurve` check on the same line already covers the normal case; decide
+  whether the DER round-trip earns its keep or should be restricted to public
+  keys.
+
+Verified clean in the same review: no logging anywhere in `services/einvoice/`,
+no serialisation of credentials, nothing key-related on any returned type, and
+`errorHandler` emits only `err.message` / a generic 500 — never a stack or
+object dump.
+
+**Surface the M12.3 differentials DO NOT reach** — they exercise one invoice, one
+key, one certificate, one signing time. M12.1b and M12.4 should extend coverage
+to:
+
+- **credit and debit notes** (`documentType` other than `invoice`) — untested
+  end-to-end through signing
+- **zero-value lines and zero-VAT invoices**
+- **certificates with unusual issuer DNs** — `issuerName` comes from ZATCA's CA,
+  and only one CA's format has ever been seen
+- **invoices with no PIH** — now guarded with a throw rather than silent QR
+  misplacement, but never exercised against ZATCA
+- **multi-byte item descriptions** in the XML body (lower risk — M12.2's
+  generator escapes via `xmlbuilder2`)
+- **the tag 8/9 `r`/`s` split**, whose *intent* is still unverified (divergence
+  #13) — re-confirm against the sandbox
+
 ### Known Issues / Deferred (from the M4 security re-audit)
 
 These were identified in the post-M4 security review and **intentionally deferred**

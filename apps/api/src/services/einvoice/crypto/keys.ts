@@ -78,13 +78,8 @@ export function assertZatcaCurve(key: KeyObject): void {
   }
 }
 
-/**
- * The raw 64-byte (r‖s) public key point, minus the 0x04 uncompressed prefix —
- * the form QR **tag 8** carries.
- */
-export function publicKeyRawBytes(publicKey: KeyObject): Buffer {
-  const der = publicKey.export({ type: "spki", format: "der" }) as Buffer;
-  // The SPKI BIT STRING payload ends with the uncompressed point (0x04 ‖ X ‖ Y).
-  const idx = der.lastIndexOf(0x04, der.length - 65);
-  return der.subarray(idx + 1);
-}
+// `publicKeyRawBytes()` used to live here, returning the raw 64-byte point
+// "for QR tag 8". It was DEAD CODE and its premise was WRONG: divergence #13
+// established that tag 7 carries the SPKI DER public key and tag 8 carries `r`
+// of the signature. Deleted rather than left in place — a stale helper with a
+// confident, incorrect docstring is exactly how a fixed bug gets reintroduced.

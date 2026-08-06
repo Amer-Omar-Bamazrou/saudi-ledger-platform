@@ -18,9 +18,33 @@ import type {
   TaxSubtotal,
 } from "./types";
 
-/** Money → the exact string that goes on the wire (and gets signed). */
+/**
+ * Money → the exact string that goes on the wire (and gets signed).
+ *
+ * Guarded against silent IEEE-754 precision loss. `numeric(15,2)` in Postgres
+ * exceeds JavaScript's exact-integer range (2^53), so a large enough total would
+ * round on conversion — and because this string is what gets hashed and signed,
+ * the resulting document would be internally consistent but WRONG, with no error
+ * anywhere. Unreachable in practice (the bound is ~SAR 90 trillion) but the check
+ * costs nothing and turns an invisible corruption into a loud failure.
+ */
 export function money(value: unknown): string {
-  return Number(value ?? 0).toFixed(2);
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) {
+    throw new BusinessRuleError(400, {
+      error: `Invoice amount "${String(value)}" is not a finite number.`,
+      code: "amount_not_finite",
+    });
+  }
+  if (Math.abs(n) > Number.MAX_SAFE_INTEGER / 100) {
+    throw new BusinessRuleError(400, {
+      error:
+        `Invoice amount ${n} is too large to represent exactly, so the value that would be ` +
+        "signed could differ from the value stored. Split the invoice.",
+      code: "amount_exceeds_safe_precision",
+    });
+  }
+  return n.toFixed(2);
 }
 
 /** VAT percent, e.g. 15 → "15.00". */

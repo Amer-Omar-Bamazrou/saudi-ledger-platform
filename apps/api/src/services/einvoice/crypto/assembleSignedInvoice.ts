@@ -14,7 +14,14 @@
  * in; its indentation is preserved because the SignedProperties digest is
  * computed over that exact text (divergence #11).
  */
-import { buildSignedProperties, signInvoice, certificateBase64, javaIssuerName } from "./xades";
+import {
+  buildSignedProperties,
+  signInvoice,
+  certificateBase64,
+  escapeXml,
+  javaIssuerName,
+} from "./xades";
+import { computeInvoiceHash } from "./invoiceHash";
 import { buildZatcaQr } from "./qr";
 import { X509Certificate, type KeyObject } from "crypto";
 
@@ -57,17 +64,17 @@ function ublExtensions(v: {
                                     <ds:Transform Algorithm="${C14N_URI}"/>
                                 </ds:Transforms>
                                 <ds:DigestMethod Algorithm="${SHA256_URI}"/>
-                                <ds:DigestValue>${v.invoiceDigest}</ds:DigestValue>
+                                <ds:DigestValue>${escapeXml(v.invoiceDigest)}</ds:DigestValue>
                             </ds:Reference>
                             <ds:Reference Type="http://www.w3.org/2000/09/xmldsig#SignatureProperties" URI="#xadesSignedProperties">
                                 <ds:DigestMethod Algorithm="${SHA256_URI}"/>
-                                <ds:DigestValue>${v.signedPropertiesDigest}</ds:DigestValue>
+                                <ds:DigestValue>${escapeXml(v.signedPropertiesDigest)}</ds:DigestValue>
                             </ds:Reference>
                         </ds:SignedInfo>
-                        <ds:SignatureValue>${v.signatureValue}</ds:SignatureValue>
+                        <ds:SignatureValue>${escapeXml(v.signatureValue)}</ds:SignatureValue>
                         <ds:KeyInfo>
                             <ds:X509Data>
-                                <ds:X509Certificate>${v.certificateBase64}</ds:X509Certificate>
+                                <ds:X509Certificate>${escapeXml(v.certificateBase64)}</ds:X509Certificate>
                             </ds:X509Data>
                         </ds:KeyInfo>
                         <ds:Object>
@@ -86,7 +93,7 @@ function ublExtensions(v: {
 const QR_REFERENCE = (qr: string) => `<cac:AdditionalDocumentReference>
     <cbc:ID>QR</cbc:ID>
     <cac:Attachment>
-        <cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">${qr}</cbc:EmbeddedDocumentBinaryObject>
+        <cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">${escapeXml(qr)}</cbc:EmbeddedDocumentBinaryObject>
     </cac:Attachment>
 </cac:AdditionalDocumentReference>`;
 
@@ -163,12 +170,51 @@ export function assembleSignedInvoice(input: AssembleInput): AssembledInvoice {
   xml = xml.replace(/(<Invoice[^>]*>)/, `$1${extensions}`);
 
   // 2. The QR reference AFTER the PIH AdditionalDocumentReference.
-  const pihEnd = xml.indexOf("</cac:AdditionalDocumentReference>", xml.indexOf("<cbc:ID>PIH</cbc:ID>"));
+  //
+  // Guarded because the failure is SILENT otherwise: a missing PIH makes the
+  // inner indexOf return -1, and `indexOf(needle, -1)` searches from 0 — landing
+  // on the ICV reference instead and inserting the QR in the wrong position with
+  // no error at all.
+  const pihAt = xml.indexOf("<cbc:ID>PIH</cbc:ID>");
+  if (pihAt === -1) {
+    throw new Error(
+      "Refusing to assemble: the invoice has no PIH AdditionalDocumentReference, so the QR " +
+        "reference cannot be positioned. Every ZATCA document must carry a previous-invoice hash.",
+    );
+  }
+  const pihEnd = xml.indexOf("</cac:AdditionalDocumentReference>", pihAt);
+  if (pihEnd === -1) {
+    throw new Error("Refusing to assemble: the PIH AdditionalDocumentReference is unterminated.");
+  }
   const insertAt = pihEnd + "</cac:AdditionalDocumentReference>".length;
   xml = xml.slice(0, insertAt) + QR_REFERENCE(qrCode) + xml.slice(insertAt);
 
   // 3. cac:Signature immediately before cac:AccountingSupplierParty.
   xml = xml.replace("<cac:AccountingSupplierParty>", `${SIGNATURE_REFERENCE}<cac:AccountingSupplierParty>`);
+
+  // ── 🔴 THE INVARIANT THAT MAKES THE WHOLE SIGNATURE VALID ────────────────
+  // The digest was computed over the document BEFORE these three elements were
+  // injected. ZATCA computes it over the document WITH them, removed by the
+  // transform — which leaves behind any whitespace that surrounded them.
+  //
+  // The two agree only if the injection introduces no such whitespace. That was
+  // a code convention (`$1${extensions}` with no newline) and nothing enforced
+  // it: prettifying the interpolation would silently change every hash we emit,
+  // and the document would still look perfectly well-formed.
+  //
+  // So assert the ACTUAL property rather than the convention that implies it —
+  // re-run the real transform over the finished document and require the digest
+  // to be unchanged. This catches any whitespace, ordering or namespace drift in
+  // the injection, whatever its cause.
+  const rehash = computeInvoiceHash(xml).base64;
+  if (rehash !== signed.invoiceHash) {
+    throw new Error(
+      "Refusing to emit: the signed document does not re-hash to the value that was signed " +
+        `(signed ${signed.invoiceHash}, re-hashed ${rehash}). The UBLExtensions/QR/Signature ` +
+        "injection changed content the ZATCA transform does not remove — most likely whitespace " +
+        "introduced around an injected element. See assembleSignedInvoice.ts.",
+    );
+  }
 
   return {
     signedXml: xml,

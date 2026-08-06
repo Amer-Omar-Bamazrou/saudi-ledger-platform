@@ -32,6 +32,8 @@
  *   Build the complete byte array first, THEN base64 the whole array once.
  */
 
+import { BusinessRuleError } from "../../../lib/errors";
+
 /** Max encoded length (spec §4.1 — this part is accurate). */
 export const QR_MAX_LENGTH = 700;
 
@@ -49,8 +51,52 @@ export interface ZatcaQrFields {
   signatureDer?: Buffer;
 }
 
+/** TLV length is one byte, so no field may exceed this. */
+export const TLV_MAX_FIELD_BYTES = 255;
+
+/** Human names for the text fields, used in the validation error. */
+const FIELD_LABEL: Record<number, string> = {
+  1: "seller name",
+  2: "VAT registration number",
+  3: "invoice timestamp",
+  4: "invoice total",
+  5: "VAT total",
+};
+
+/**
+ * Validate the text fields at the INPUT BOUNDARY, before any TLV is built, so
+ * the caller gets an actionable 400 naming the offending field rather than a
+ * bare throw surfacing as a 500.
+ *
+ * The realistic trigger is an Arabic company name: UTF-8 Arabic runs ~2 bytes
+ * per character (more with diacritics), and `companies.name` permits 255
+ * CHARACTERS — so a legitimate name can exceed 255 BYTES. That is a real tenant
+ * hitting a real limit, not an edge case, and it deserves a real message.
+ */
+export function assertQrFieldLengths(fields: ZatcaQrFields): void {
+  const texts: [number, string][] = [
+    [1, fields.sellerName],
+    [2, fields.vatNumber],
+    [3, fields.invoiceTimestamp],
+    [4, fields.totalWithVat],
+    [5, fields.vatTotal],
+  ];
+  for (const [tag, value] of texts) {
+    const bytes = Buffer.byteLength(value ?? "", "utf-8");
+    if (bytes > TLV_MAX_FIELD_BYTES) {
+      throw new BusinessRuleError(400, {
+        error:
+          `The ${FIELD_LABEL[tag]} is ${bytes} bytes long, exceeding the ${TLV_MAX_FIELD_BYTES}-byte ` +
+          "limit ZATCA's QR code allows for a single field. Note the limit is on BYTES, not " +
+          "characters — Arabic text uses roughly two bytes per character. Shorten it in Company Settings.",
+        code: "qr_field_too_long",
+      });
+    }
+  }
+}
+
 function tlv(tag: number, value: Buffer): Buffer {
-  if (value.length > 255) {
+  if (value.length > TLV_MAX_FIELD_BYTES) {
     throw new Error(`QR tag ${tag} value is ${value.length} bytes; TLV length must fit in one byte.`);
   }
   return Buffer.concat([Buffer.from([tag, value.length]), value]);
@@ -98,6 +144,8 @@ export function splitEcdsaDer(der: Buffer): { r: Buffer; s: Buffer } {
  * never for issuance.
  */
 export function buildZatcaQr(fields: ZatcaQrFields): string {
+  assertQrFieldLengths(fields);
+
   const parts: Buffer[] = [
     tlv(1, utf8(fields.sellerName)),
     tlv(2, utf8(fields.vatNumber)),

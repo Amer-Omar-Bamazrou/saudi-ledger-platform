@@ -186,8 +186,26 @@ describe("M12.3 — QR encoding (divergence #13: built from observed bytes)", ()
     ).toThrowError(/700/);
   });
 
-  it("rejects a single field too long for a one-byte TLV length", () => {
-    expect(() => buildZatcaQr({ ...base, sellerName: "x".repeat(256) })).toThrowError(/one byte/);
+  it("rejects an over-long field at the boundary with an actionable 400", () => {
+    // Caught by assertQrFieldLengths BEFORE any TLV is built, so the caller gets
+    // a named field and the byte limit rather than a bare throw surfacing as 500.
+    try {
+      buildZatcaQr({ ...base, sellerName: "x".repeat(256) });
+      throw new Error("expected a rejection");
+    } catch (err: any) {
+      expect(err.statusCode).toBe(400);
+      expect(err.payload?.code).toBe("qr_field_too_long");
+      expect(err.payload?.error).toMatch(/seller name is 256 bytes/);
+    }
+  });
+
+  it("an Arabic company name can legitimately exceed 255 BYTES within 255 characters", () => {
+    // The realistic trigger: `companies.name` allows 255 CHARACTERS, and Arabic
+    // is ~2 bytes/char — so a valid name can overflow the QR's byte limit.
+    const arabic = "مؤسسة".repeat(30); // 150 chars, ~270 bytes
+    expect(arabic.length).toBeLessThan(255);
+    expect(Buffer.byteLength(arabic, "utf-8")).toBeGreaterThan(255);
+    expect(() => buildZatcaQr({ ...base, sellerName: arabic })).toThrowError(/qr_field_too_long|bytes long/);
   });
 });
 

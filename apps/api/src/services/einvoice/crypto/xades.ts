@@ -44,6 +44,31 @@ export function certificateBase64(certPem: string): string {
   return certPem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
 }
 
+/**
+ * Escape a value for XML text content.
+ *
+ * These templates are raw strings, unlike M12.2's generator which goes through
+ * `xmlbuilder2` and escapes for us — so escaping has to be explicit here.
+ *
+ * Most interpolated values are base64 or decimal and could never need it. The
+ * one that can is **`issuerName`**: it is a Distinguished Name read off the
+ * certificate, i.e. it comes from ZATCA's CA rather than from us. A DN
+ * containing `&`, `<` or `"` would produce malformed XML, and "their CA does not
+ * currently use those characters" is a property of their naming conventions, not
+ * of our code.
+ *
+ * Note this changes nothing for well-formed input: escaping is a no-op on
+ * base64, digits and ordinary DNs, so the verified digests are unaffected.
+ */
+export function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 const XADES_NS = "http://uri.etsi.org/01903/v1.3.2#";
 const DS_NS = "http://www.w3.org/2000/09/xmldsig#";
 const SHA256_URI = "http://www.w3.org/2001/04/xmlenc#sha256";
@@ -65,7 +90,12 @@ export function buildSignedProperties(params: {
   issuerName: string;
   serialNumber: string;
 }): { document: string; digestInput: string } {
-  const { signingTime, certDigest, issuerName, serialNumber } = params;
+  // Escape at the boundary so both the document form and the digest form get
+  // identical, well-formed values.
+  const signingTime = escapeXml(params.signingTime);
+  const certDigest = escapeXml(params.certDigest);
+  const issuerName = escapeXml(params.issuerName);
+  const serialNumber = escapeXml(params.serialNumber);
 
   const document =
     `<xades:SignedProperties Id="xadesSignedProperties">\n` +
