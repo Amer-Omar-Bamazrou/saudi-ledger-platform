@@ -127,6 +127,13 @@
       "when": 1785856243921,
       "tag": "0017_m12_2_national_address_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786060640652,
+      "tag": "0018_m12_6_outbox_claiming",
+      "breakpoints": true
     }
   ]
 }
