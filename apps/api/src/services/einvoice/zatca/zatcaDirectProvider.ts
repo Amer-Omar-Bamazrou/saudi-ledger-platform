@@ -59,7 +59,9 @@ export const zatcaDirectProvider: EInvoiceProvider = {
       qr: {
         sellerName: input.seller.legalName,
         vatNumber: input.seller.vatNumber ?? "",
-        timestamp: input.issuedAt.toISOString().replace(/\.\d{3}Z$/, "Z"),
+        // The Date itself — assembleSignedInvoice formats it with the SAME
+        // helper the XML uses, so tag 3 cannot drift from cbc:IssueTime.
+        issuedAt: input.issuedAt,
         totalWithVat: input.taxInclusiveTotal,
         vatTotal: input.taxTotal,
       },

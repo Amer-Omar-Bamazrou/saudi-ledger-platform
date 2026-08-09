@@ -23,7 +23,23 @@ import {
 } from "./xades";
 import { computeInvoiceHash } from "./invoiceHash";
 import { buildZatcaQr } from "./qr";
+import { qrTimestamp } from "../issuedAt";
+import { AsnConvert } from "@peculiar/asn1-schema";
+import { Certificate } from "@peculiar/asn1-x509";
 import { X509Certificate, type KeyObject } from "crypto";
+
+/**
+ * The CA's signature over the certificate — QR tag 9.
+ *
+ * This is `Certificate.signatureValue`: the issuing CA's ECDSA signature on the
+ * TBS certificate. It is NOT derived from our key or our invoice signature, and
+ * it is emitted as RAW bytes (a base64 string here is rejected with
+ * `CERTIFICATE_SIGNATURE_QRCODE_INVALID`).
+ */
+function certificateSignature(certificatePem: string): Buffer {
+  const der = new X509Certificate(certificatePem).raw;
+  return Buffer.from(AsnConvert.parse(der, Certificate).signatureValue);
+}
 
 const C14N_URI = "http://www.w3.org/2006/12/xml-c14n11";
 const XPATH_URI = "http://www.w3.org/TR/1999/REC-xpath-19991116";
@@ -108,8 +124,16 @@ export interface AssembleInput {
   certificatePem: string;
   privateKey: KeyObject;
   publicKey: KeyObject;
-  /** QR tags 1-5 come from the invoice, not re-derived from the XML. */
-  qr: { sellerName: string; vatNumber: string; timestamp: string; totalWithVat: string; vatTotal: string };
+  /**
+   * QR tags 1-5 come from the invoice, not re-derived from the XML.
+   *
+   * 🔴 `issuedAt` is a Date, NOT a preformatted string. ZATCA cross-checks QR
+   * tag 3 against the XML's IssueDate/IssueTime, and passing a string here let a
+   * caller format it differently from the XML — which is exactly the bug that
+   * produced `invoiceTimeStamp_QRCODE_INVALID`. The single formatter lives in
+   * `../issuedAt.ts`.
+   */
+  qr: { sellerName: string; vatNumber: string; issuedAt: Date; totalWithVat: string; vatTotal: string };
   signingTime?: Date;
 }
 
@@ -147,12 +171,17 @@ export function assembleSignedInvoice(input: AssembleInput): AssembledInvoice {
   const qrCode = buildZatcaQr({
     sellerName: input.qr.sellerName,
     vatNumber: input.qr.vatNumber,
-    invoiceTimestamp: input.qr.timestamp,
+    invoiceTimestamp: qrTimestamp(input.qr.issuedAt),
     totalWithVat: input.qr.totalWithVat,
     vatTotal: input.qr.vatTotal,
     invoiceHashBase64: signed.invoiceHash,
+    // Tag 7 is the SAME signature the document carries. Signing twice would
+    // produce two different ECDSA signatures (it is randomised) and the QR would
+    // disagree with `SignatureValue`.
+    signatureBase64: signed.signatureValue,
     publicKeySpkiDer: input.publicKey.export({ type: "spki", format: "der" }) as Buffer,
-    signatureDer: signed.signatureBytes,
+    // Tag 9 comes from the CERTIFICATE, not from our key.
+    certificateSignature: certificateSignature(input.certificatePem),
   });
 
   const extensions = ublExtensions({

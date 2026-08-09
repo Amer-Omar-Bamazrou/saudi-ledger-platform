@@ -735,7 +735,38 @@ identical API surface.
 any real tenant to production until M12.7 and M12.9 have actually run against a
 real VAT registration.
 
-### 🔴 OPERATING PRINCIPLE: ZATCA's BINARIES are the specification; the PDFs are an unreliable narrator
+### 🔴 OPERATING PRINCIPLE: **LIVE API > SDK > PDF**
+
+**Revised in M12.4.** The original principle — *binaries beat PDFs* — was right
+but **incomplete**. There is a third tier above the SDK, and it cost a full
+rewrite to find:
+
+| Source | Trust | Why |
+| --- | --- | --- |
+| **Live compliance API** | 🟢 **authoritative** | it is what actually gates real invoices |
+| **SDK / decompiled binaries** | 🟡 useful offline signal | ZATCA's bundled SDK is a **stale 2021-era writer** |
+| **PDF specification** | 🔴 unreliable narrator | fourteen documented divergences |
+
+**The proof.** `crypto/qr.ts` was written from the PDF and was wrong in 3 of 4
+tags. It was then rewritten from decoded SDK bytes — and was **STILL WRONG**, in
+tags 3, 7, 8 and 9. It only became correct when determined from live
+`/compliance/invoices` responses.
+
+**The M12.3 SDK differential passed byte-for-byte the entire time.** It proved
+only that we matched a stale writer — **necessary but NOT sufficient**. Worse,
+its green status was actively misleading: it read as validation.
+
+So: **a green SDK differential is NOT evidence of compliance. Only a live PASS
+is.** Keep the SDK differential — it is a genuinely useful fast offline check
+that needs no network — but never treat it as the gate. The gate is
+`tests/zatca-compliance-live.test.ts`.
+
+The three most counter-intuitive divergences (#10 `SignatureValue` not over
+`SignedInfo`, #11 SignedProperties digest over dom4j `asXML()`, #12 `CertDigest`
+over the base64 string) were **decompilation-only until M12.4** and are now
+confirmed against reality — a standard invoice would not clear if any were wrong.
+
+### The older framing, retained: ZATCA's BINARIES beat the PDFs
 
 **Whenever ZATCA's documentation and ZATCA's shipped software disagree, follow
 the software** — and record the divergence in
@@ -753,32 +784,50 @@ SignedProperties digest taken over **dom4j `asXML()` rather than any
 canonicalisation**, and a `CertDigest` over the **base64 certificate string
 rather than its DER**.
 
-#### 🔴 VALIDATION STATUS — #1–#5 confirmed by ZATCA; **#6–#13 are UNVERIFIED**
+#### ✅ VALIDATION STATUS — #1–#12 confirmed against ZATCA; #13 CORRECTED
 
-On **2026-08-09** a CSR from `crypto/csr.ts` was submitted to the sandbox and
-ZATCA's CA returned `dispositionMessage: "ISSUED"`, with a certificate binding
-**our** `secp256k1` key and **our** SAN fields (`title=1100` alongside a separate
-`businessCategory=Software`), valid 5 years. That is the **first validation of any
-divergence against a real ZATCA response** rather than against a decompiled
-binary.
+**M12.4 ran all six compliance documents against the live API.** Every divergence
+is now checked against reality rather than against a decompiled binary.
 
 | Divergence | Area | Status |
 | --- | --- | --- |
-| **#1–#5** | curve, CSR structure, template extension | ✅ **confirmed by ZATCA's CA** |
-| **#6–#13** | XAdES properties, digests, `SignatureValue`, QR tags 6–9 | 🔴 **UNVERIFIED against ZATCA** |
+| **#1–#5** | curve, CSR structure, template extension | ✅ confirmed (CCSID issued, binds our key) |
+| **#6–#12** | XAdES properties, digests, `SignatureValue`, `CertDigest` | ✅ **confirmed** — standard invoice + debit note returned `PASS` / `CLEARED` |
+| **#13** | QR tags 3, 6–9 | 🔴 **WAS WRONG, now corrected and pinned** |
 
-**CSID issuance exercises ONLY the CSR.** The XAdES structure and the QR tags are
-checked when a *signed invoice* is submitted to the compliance endpoints — the
-remaining work of M12.4. **Do not read "ISSUED" as evidence that the signature is
-correct**; a structurally wrong signature gets a CSID just fine.
+**#13 was wrong twice, from two different sources.** Written from the PDF →
+wrong; rewritten from decoded SDK bytes → **still wrong**; correct only from live
+responses. The verified layout: tag 3 has **no trailing `Z`**, tags 6 and 7 are
+base64 **strings**, tags 8 and 9 are **raw bytes**, and tag 9 comes from the
+CERTIFICATE (the CA's signature), not from our signature. The M12.3 note flagging
+the `r`/`s` split as "intent UNVERIFIED" is what stopped this shipping — it was
+an artefact of ZATCA's TLV writer.
 
-**🔴 Two sandbox traps — a green sandbox run is NOT validation:**
+**How the fault was isolated:** standard documents passed while both simplified
+ones failed with QR-only errors. Standard invoices are cleared by ZATCA, which
+generates their QR itself — so that clean split localised the bug to the QR and
+exonerated the whole signature chain in a single run.
 
-- **The sandbox accepts ANY OTP.** `123456`, `123345` and `111222` all returned
-  `ISSUED`. A successful sandbox onboarding says **nothing** about whether the
-  real OTP path works; that is only exercised in simulation/production (M12.7+).
-- **`requestID` is the constant stub `1234567890123`** — not a real identifier.
-  Do not build reconciliation logic that assumes it is unique or meaningful.
+Full evidence, with the exact error codes per tag:
+[`docs/zatca/spec-vs-implementation-divergences.md`](docs/zatca/spec-vs-implementation-divergences.md).
+
+**🔴 Sandbox traps — a green sandbox run is NOT validation:**
+
+- **The sandbox accepts ANY OTP** (`123456`, `123345`, `111222` all issue). It
+  says **nothing** about whether the real OTP path works.
+- **`requestID` from the compliance endpoint is the constant stub
+  `1234567890123`.** Never build reconciliation logic on it.
+- **The sandbox PCSID is a SHARED CANNED CERTIFICATE**
+  (`CN=TST-886431145-399999999900003`, "Maximum Speed Tech Supply LTD", issued
+  Jan 2024, VAT `399999999900003`) — **not bound to our key**. Signing with it
+  would sign as another taxpayer. `activateCredential` now verifies the returned
+  certificate's public key against the stored private key and **refuses** a
+  mismatch (`CertificateMismatchError`); the check is correct in every
+  environment and catches this automatically.
+- **PCSID issuance is NOT a compliance gate in sandbox** — a PCSID is issued even
+  when compliance documents FAIL. So compliance results must be **asserted
+  directly** from `/compliance/invoices`, never inferred from "we got a
+  certificate".
 
 **Decompile early.** Several were invisible to black-box testing — ~30
 canonicalisation variants were tried and failed before decompiling
@@ -1018,28 +1067,68 @@ belong, not ad hoc:
   `ec-secp256k1-priv-key.pem`), and the CSR **invoice type goes in `title`, not
   `businessCategory`** (the spec assigns OID 2.5.4.15 to two different rows).
   Both fail only at M12.4, after the whole crypto layer is built.
-- **M12.4: sandbox onboarding + compliance checks — UNBLOCKED, NOT an external
-  dependency.** CSR → CCSID → the six compliance documents → PCSID, against
-  sandbox. *This is the milestone that proves the cryptography is correct.*
-  - **The 2026-08-07 connectivity block CLEARED on 2026-08-09** — it was a
-    transient outage, not IP allowlisting (the hosts also moved behind
-    Cloudflare; the A records changed). **M12.4 does NOT belong with M12.7/M12.9**
-    — it needs no VAT registration and no ERAD credentials, and the sandbox
-    compliance endpoint required no account at all.
-  - **The first real ZATCA response has now been obtained.** A CSR from
-    `crypto/csr.ts` was submitted to the sandbox and ZATCA's CA returned
-    `dispositionMessage: "ISSUED"` with a certificate that binds **our**
-    `secp256k1` key and **our** SAN fields (`title=1100` alongside
-    `businessCategory=Software`), valid 5 years. **That validates divergences
-    #1–#5 against reality** — the curve and all three CSR-structure findings were
-    right, confirmed by ZATCA rather than by decompilation alone.
-  - **🔴 Divergences #6–#13 remain UNVALIDATED against ZATCA.** CSID issuance
-    exercises only the CSR. The XAdES structure and QR tags 6–9 are checked when a
-    *signed invoice* is submitted to the compliance endpoints — the remaining work
-    of M12.4. Do not treat "ISSUED" as evidence the signature is correct.
-  - **Sandbox accepts ANY OTP** (`123456`, `123345`, `111222` all issued) and
-    returns a constant stub `requestID`. A green sandbox OTP proves nothing about
-    the real OTP path.
+- **M12.4 (done): sandbox onboarding + compliance checks — THE CRYPTOGRAPHY IS
+  NOW PROVEN AGAINST ZATCA.** CSR → CCSID → the six compliance documents → PCSID.
+  - **All six compliance documents PASS** against the live sandbox — standard and
+    simplified, invoice / credit note / debit note — with zero errors and zero
+    warnings, plus a zero-rated (0% VAT) invoice. This is the milestone that
+    validates divergences **#6–#12** and corrected **#13** (see the validation
+    status above). The connectivity block that stopped it cleared on 2026-08-09.
+  - **🔴 `tests/zatca-compliance-live.test.ts` is now THE GATE**, replacing the
+    SDK differential as the authoritative check. The SDK differential is KEPT as
+    a fast offline signal but it is no longer evidence of compliance — it passed
+    byte-for-byte while the QR was rejected by the live API. It now asserts the
+    **deliberate divergences** from the SDK (tags 3, 7, 8, 9), so a future SDK
+    release that changes to match the live API fails loudly instead of silently.
+    The live test **skips loudly** when ZATCA is unreachable so an outage cannot
+    red-build unrelated work — a green run without it proves much less.
+  - **QR corrected** (`crypto/qr.ts`): tag 7 = base64 signature STRING, tag 8 =
+    raw SPKI public key, tag 9 = the CA's signature over the CERTIFICATE. Tag 6
+    (base64 string) was the one part of the old reading that held.
+    `splitEcdsaDer` was **deleted**, not left unused, so the disproven `r`/`s`
+    split cannot be reached for again.
+  - **A second, independent QR bug found and fixed: the timestamp.** QR tag 3
+    carried a trailing `Z` that disagreed with UBL's `cbc:IssueTime` (which has
+    no timezone designator), warning `invoiceTimeStamp_QRCODE_INVALID`.
+    **Stripping milliseconds was NOT the fix** — that was tested separately and
+    still warned. The real bug was that the same fact had **two independent
+    formatters**, so `services/einvoice/issuedAt.ts` is now the single source and
+    `assembleSignedInvoice` takes `issuedAt: Date` rather than a preformatted
+    string. That makes the drift impossible rather than fixing one instance.
+  - **Onboarding flow** (`services/einvoice/onboarding/`): prerequisites → CSR →
+    CCSID → six documents → PCSID → activate, plugged into M12.5's
+    `createCredential`/`activateCredential`. The six documents are signed inside
+    ONE scoped `withCredentialKey` callback, so the key is never in memory during
+    a network call.
+  - **The OTP boundary:** the tenant generates the OTP in their OWN Fatoora
+    portal and pastes it in. We never see, store or proxy their ERAD
+    credentials; the OTP is trimmed, used once, and never persisted (asserted by
+    a test).
+  - **Prerequisites checklist** surfaced BEFORE onboarding starts (the M11.6
+    fields: VAT, CR, Arabic name, and the full national address including the
+    `additionalNumber` that only schematron reveals). Onboarding fails closed
+    with `zatca_prerequisites_missing` naming each gap, so a tenant fixes it in
+    Company Settings rather than hitting an opaque ZATCA rejection mid-flow.
+  - **Compliance failure blocks activation**: if any document is rejected, the
+    production CSID is **not requested**, the credential is revoked, and the
+    per-document ZATCA errors are returned to the UI. Asserted directly rather
+    than inferred from PCSID issuance — because in sandbox a PCSID is issued even
+    when documents FAIL.
+  - **UI** (`/zatca`): prerequisites checklist, OTP paste, per-document
+    compliance results, certificate status and expiry with a T-90 warning banner.
+    RBAC: `zatca_onboarding` read = all roles, **create = admin only**.
+  - **New finding, pinned in the REJECTING direction:** `VATEX-SA-EDU` /
+    `VATEX-SA-HEA` require a buyer **national ID** (BR-KSA-49) and buyer **name**
+    (BR-KSA-25), so they cannot appear on an anonymous simplified invoice at all.
+    Found by submitting one. The assembler should eventually fail closed on this
+    rather than letting ZATCA reject it.
+  - **⚠️ COVERAGE GAP (closes with M12.1b):** the compliance credit/debit notes
+    are built from **directly-constructed inputs**, not from the database. They
+    are test artifacts that never post to the ledger, so M12.1b was NOT a
+    prerequisite — the note XML (`InvoiceTypeCode` 381/383 + `cac:BillingReference`)
+    has existed since M12.2. But `einvoiceInput.assembler.ts` still hardcodes
+    `billingReference: null`, so **a note assembled from real ledger rows has
+    never been validated by ZATCA.** Close this when M12.1b lands.
 - **M12.5 (done): credential vault.** Per-company ZATCA signing keys, stored
   encrypted and reachable only through one narrow service. Full design:
   [`docs/zatca/m12-5-credential-vault-design.md`](docs/zatca/m12-5-credential-vault-design.md).

@@ -24,7 +24,13 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createPublicKey, createSign, createVerify, generateKeyPairSync } from "node:crypto";
 import { pool } from "@workspace/db";
-import { signingService, SigningError } from "../services/einvoice/signing/signing.service";
+import {
+  signingService,
+  SigningError,
+  CertificateMismatchError,
+} from "../services/einvoice/signing/signing.service";
+import { selfSignedCertificate } from "./helpers/selfSignedCert";
+import { generateZatcaKeyPair as generateZatcaKeyPairForTest } from "../services/einvoice/crypto/keys";
 import { vaultRepository } from "../services/einvoice/signing/vault.repository";
 import {
   LocalDevKeyWrapper,
@@ -169,6 +175,12 @@ describeMaybe("M12.5 — credential vault lifecycle", () => {
     await cleanup();
   });
 
+  /**
+   * Activation now REFUSES a certificate whose public key is not the
+   * credential's own (M12.4 — it is what catches ZATCA's sandbox handing out a
+   * shared canned certificate). So the fixture must be a REAL certificate that
+   * genuinely binds this credential's key, not a placeholder PEM.
+   */
   async function createAndActivate(company = companyId): Promise<{
     credentialId: string;
     publicKeyPem: string;
@@ -178,15 +190,47 @@ describeMaybe("M12.5 — credential vault lifecycle", () => {
       environment: "sandbox",
       csr: CSR_INPUT,
     });
+    const certificatePem = await signingService.withCredentialKey(
+      credentialId,
+      ({ privateKey, publicKey }) => selfSignedCertificate(privateKey, publicKey),
+    );
     await signingService.activateCredential({
       credentialId,
-      certificatePem: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+      certificatePem,
       csidSecret: "the-csid-secret-value",
       notBefore: new Date("2026-08-09T00:00:00Z"),
       notAfter: new Date("2031-08-08T21:00:00Z"),
     });
     return { credentialId, publicKeyPem };
   }
+
+  it("🔴 REFUSES a certificate that does not bind this credential's key", async () => {
+    // The guard that catches ZATCA's sandbox production CSID — a shared
+    // certificate bound to somebody else's key. Correct in every environment.
+    const { credentialId } = await signingService.createCredential({
+      companyId: companyId,
+      environment: "simulation",
+      csr: CSR_INPUT,
+    });
+    const strangerKey = generateZatcaKeyPairForTest();
+    await expect(
+      signingService.activateCredential({
+        credentialId,
+        certificatePem: selfSignedCertificate(strangerKey.privateKey, strangerKey.publicKey),
+        csidSecret: "irrelevant",
+        notBefore: null,
+        notAfter: null,
+      }),
+    ).rejects.toBeInstanceOf(CertificateMismatchError);
+
+    // Nothing was stored.
+    const { rows } = await pool.query(
+      `SELECT status, certificate_pem FROM zatca_credentials WHERE id = $1`,
+      [credentialId],
+    );
+    expect(rows[0].status).toBe("pending_csr");
+    expect(rows[0].certificate_pem).toBeNull();
+  });
 
   it("stores the private key ENCRYPTED — the raw row contains no usable key", async () => {
     const { credentialId } = await signingService.createCredential({
