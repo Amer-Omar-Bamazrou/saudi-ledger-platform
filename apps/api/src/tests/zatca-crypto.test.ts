@@ -23,7 +23,8 @@ import { standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import { computeInvoiceHash, GENESIS_PIH } from "../services/einvoice/crypto/invoiceHash";
 import { canonicalizeForZatca } from "../services/einvoice/crypto/canonicalize";
 import { generateZatcaKeyPair, assertZatcaCurve } from "../services/einvoice/crypto/keys";
-import { buildZatcaQr, decodeZatcaQr, splitEcdsaDer } from "../services/einvoice/crypto/qr";
+import { buildZatcaQr, decodeZatcaQr } from "../services/einvoice/crypto/qr";
+import { qrTimestamp, splitIssuedAt } from "../services/einvoice/issuedAt";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
 
 const SDK_ROOT = resolve(__dirname, "../../../../docs/zatca/sdk/extracted/zatca-envoice-sdk-203");
@@ -162,14 +163,32 @@ describe("M12.3 — QR encoding (divergence #13: built from observed bytes)", ()
     expect(tags[6].toString("utf-8")).toBe(hash);
   });
 
-  it("splits a DER ECDSA signature into r and s, verbatim", () => {
-    const der = Buffer.from(
-      "304402200462621b0b173af398679094aafefb15fc2e1048d1061a28414303580c4bfb7c02200b15c8cc8812d4d478e9181da9c91b069d9a44278fdcc1ed7bc8e83d574bd404",
-      "hex",
+  it("tag 7 is the BASE64 STRING of the signature; tags 8 and 9 are RAW bytes", () => {
+    // Pinned by the live compliance API (M12.4). The mixed encoding is ZATCA's:
+    // an all-base64 variant fails with publicKey_QRCODE_INVALID +
+    // CERTIFICATE_SIGNATURE_QRCODE_INVALID, and a raw-DER tag 7 fails with
+    // INVOICE_SIGNATURE_VALUE_QRCODE_INVALID. Both directions were tested.
+    const signatureBase64 = Buffer.from("a".repeat(70)).toString("base64");
+    const spki = Buffer.alloc(88, 7);
+    const certSig = Buffer.alloc(71, 9);
+
+    const tags = decodeZatcaQr(
+      buildZatcaQr({ ...base, signatureBase64, publicKeySpkiDer: spki, certificateSignature: certSig }),
     );
-    const { r, s } = splitEcdsaDer(der);
-    expect(r.toString("hex")).toBe("0462621b0b173af398679094aafefb15fc2e1048d1061a28414303580c4bfb7c");
-    expect(s.toString("hex")).toBe("0b15c8cc8812d4d478e9181da9c91b069d9a44278fdcc1ed7bc8e83d574bd404");
+
+    expect(tags[7].toString("utf-8")).toBe(signatureBase64); // text, not bytes
+    expect(tags[8]).toEqual(spki); // raw SPKI DER
+    expect(tags[9]).toEqual(certSig); // raw CA signature
+  });
+
+  it("tag 3 carries NO trailing Z — it must equal the XML's IssueDate + IssueTime", () => {
+    // A trailing `Z` warns invoiceTimeStamp_QRCODE_INVALID: cbc:IssueTime has no
+    // timezone designator, so `...57Z` disagrees with `...57`. Stripping only
+    // the milliseconds was tested separately and still warned.
+    const issuedAt = new Date("2026-04-01T09:13:57.123Z");
+    expect(qrTimestamp(issuedAt)).toBe("2026-04-01T09:13:57");
+    const [date, time] = splitIssuedAt(issuedAt);
+    expect(qrTimestamp(issuedAt)).toBe(`${date}T${time}`);
   });
 
   it("enforces the 700-character cap", () => {
@@ -259,7 +278,7 @@ describeMaybe("M12.3 — verified against ZATCA's SDK", () => {
       qr: {
         sellerName: "Al-Rashid Trading Est.",
         vatNumber: "310123456789013",
-        timestamp: "2026-04-01T09:13:57Z",
+        issuedAt: new Date("2026-04-01T09:13:57Z"),
         totalWithVat: "1150.00",
         vatTotal: "150.00",
       },
@@ -336,7 +355,7 @@ describeMaybe("M12.3 — verified against ZATCA's SDK", () => {
       qr: {
         sellerName: "Al-Rashid Trading Est.",
         vatNumber: "310123456789013",
-        timestamp: "2026-04-01T09:13:57Z",
+        issuedAt: new Date("2026-04-01T09:13:57Z"),
         totalWithVat: "1150.00",
         vatTotal: "150.00",
       },
@@ -344,37 +363,47 @@ describeMaybe("M12.3 — verified against ZATCA's SDK", () => {
     });
     const ourTags = decodeZatcaQr(ours.qrCode);
 
-    // Same tag set — proves we emit 1-9 exactly as ZATCA does.
+    // Same tag set — we emit 1-9, as ZATCA does.
     expect(Object.keys(ourTags).sort()).toEqual(Object.keys(refTags).sort());
 
-    // Tags 1-7 are deterministic: byte-for-byte against ZATCA's OWN QR. This is
-    // what catches a wrong tag 6 encoding or a swapped tag 7 — the failure the
-    // PDF-derived implementation had.
-    for (const t of [1, 2, 3, 4, 5, 6, 7]) {
+    // Tags 1, 2, 4, 5 and 6 still match the SDK byte-for-byte. This remains a
+    // genuinely useful fast local signal — it catches a wrong tag 6 encoding or
+    // a broken TLV length without a network round-trip.
+    for (const t of [1, 2, 4, 5, 6]) {
       expect(ourTags[t].length, `tag ${t} length`).toBe(refTags[t].length);
       expect(ourTags[t].toString("hex"), `tag ${t} value`).toBe(refTags[t].toString("hex"));
     }
 
-    // ── ACCEPTED DIVERGENCE (not a weakening) ────────────────────────────────
-    // Tags 8 and 9 ARE the r and s of the ECDSA signature, and ECDSA is
-    // randomised — their values necessarily differ between two signings of the
-    // same document. Byte equality is impossible in principle.
-    //
-    // What IS asserted, and is the real claim: our tags 8/9 are exactly the DER
-    // integers of OUR OWN signature, verbatim including sign padding. That
-    // pins the encoding (the thing that was wrong before) without pretending a
-    // random value is reproducible.
-    const ourDer = Buffer.from(el(ours.signedXml, "ds:SignatureValue")!, "base64");
-    const { r, s } = splitEcdsaDer(ourDer);
-    expect(ourTags[8].toString("hex"), "tag 8 must be r verbatim").toBe(r.toString("hex"));
-    expect(ourTags[9].toString("hex"), "tag 9 must be s verbatim").toBe(s.toString("hex"));
+    // 🔴 TAG 3 ALSO DIVERGES FROM THE SDK (M12.4).
+    // The SDK emits `2026-04-01T09:13:57Z` (20 bytes). The LIVE compliance API
+    // warns `invoiceTimeStamp_QRCODE_INVALID` for exactly that, because the
+    // trailing `Z` disagrees with the XML's `cbc:IssueTime`, which carries no
+    // timezone designator. Ours is the 19-byte form, which passes.
+    expect(ourTags[3].toString("utf-8"), "our tag 3 has no trailing Z").not.toMatch(/Z$/);
+    expect(refTags[3].toString("utf-8"), "the SDK's tag 3 does").toMatch(/Z$/);
+    expect(ourTags[3].toString("utf-8")).toBe(refTags[3].toString("utf-8").replace(/Z$/, ""));
 
-    // And ZATCA's own tags 8/9 decompose the same way — proving the r/s split
-    // is genuinely what they emit, not an artefact of how we read it.
-    const refDer = Buffer.from(el(ref, "ds:SignatureValue")!, "base64");
-    const refRS = splitEcdsaDer(refDer);
-    expect(refTags[8].toString("hex")).toBe(refRS.r.toString("hex"));
-    expect(refTags[9].toString("hex")).toBe(refRS.s.toString("hex"));
+    // ── 🔴 TAGS 7-9 DELIBERATELY DIVERGE FROM THE SDK (M12.4) ────────────────
+    // This is the whole lesson of M12.4, asserted rather than described.
+    //
+    // The SDK emits tag 7 = public key, tag 8 = r, tag 9 = s. Matching it
+    // byte-for-byte is exactly what M12.3 did — and ZATCA's LIVE compliance API
+    // rejects that layout with three errors (publicKey_QRCODE_INVALID,
+    // INVOICE_SIGNATURE_VALUE_QRCODE_INVALID, CERTIFICATE_SIGNATURE_QRCODE_INVALID).
+    // The bundled SDK is a stale 2021-era writer.
+    //
+    // So we assert the DIFFERENCE. If a future SDK release changes to match the
+    // live API, this test fails loudly and tells us to re-check — which is the
+    // signal we want, rather than silence.
+    const sigB64 = el(ours.signedXml, "ds:SignatureValue")!;
+    expect(ourTags[7].toString("utf-8"), "tag 7 = base64 signature STRING").toBe(sigB64);
+    expect(ourTags[8].length, "tag 8 = SPKI DER public key").toBe(88);
+    expect(ourTags[8].toString("hex")).not.toBe(refTags[8].toString("hex"));
+
+    // The SDK's tag 7 is the public key; ours is the signature. Different length
+    // class, so this is a structural difference, not a value coincidence.
+    expect(refTags[7].length, "SDK tag 7 is the 88-byte public key").toBe(88);
+    expect(ourTags[7].length).not.toBe(refTags[7].length);
   }, SDK_TIMEOUT);
 
   it("the signature self-verifies against the public key", () => {
@@ -388,7 +417,7 @@ describeMaybe("M12.3 — verified against ZATCA's SDK", () => {
       qr: {
         sellerName: "Al-Rashid Trading Est.",
         vatNumber: "310123456789013",
-        timestamp: "2026-04-01T09:13:57Z",
+        issuedAt: new Date("2026-04-01T09:13:57Z"),
         totalWithVat: "1150.00",
         vatTotal: "150.00",
       },

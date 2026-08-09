@@ -29,7 +29,7 @@
  *
  * Design: `docs/zatca/m12-5-credential-vault-design.md`
  */
-import { createPrivateKey, type KeyObject } from "node:crypto";
+import { createPrivateKey, createPublicKey, X509Certificate, type KeyObject } from "node:crypto";
 import { loadEnv } from "@workspace/config";
 import type { ZatcaCredentialRow, ZatcaEnvironment } from "@workspace/db";
 import { assertZatcaCurve, generateZatcaKeyPair } from "../crypto/keys";
@@ -52,9 +52,44 @@ import { vaultRepository } from "./vault.repository";
  */
 export class SigningError extends Error {
   readonly statusCode = 500;
-  constructor(public readonly stage: string) {
-    super("ZATCA signing is unavailable for this company.");
+  /**
+   * The underlying failure is attached as `cause` for diagnosis. It is NEVER on
+   * the wire: `errorHandler` emits only `err.message`, which is the fixed string
+   * below. Without this the original error was discarded entirely, which made a
+   * failure in the crypto path effectively undiagnosable.
+   */
+  constructor(
+    public readonly stage: string,
+    cause?: unknown,
+  ) {
+    super("ZATCA signing is unavailable for this company.", { cause });
     this.name = "SigningError";
+  }
+}
+
+/**
+ * The certificate ZATCA returned does not belong to the key we generated.
+ *
+ * 🔴 THIS IS NOT A THEORETICAL GUARD — it fires against ZATCA's own sandbox.
+ * The sandbox's PRODUCTION CSID endpoint returns a SHARED CANNED CERTIFICATE
+ * (`CN=TST-886431145-399999999900003`, "Maximum Speed Tech Supply LTD", issued
+ * Jan 2024) which is bound to somebody else's key and carries a different VAT
+ * number. Storing it would leave a company holding a credential that cannot
+ * sign, or — worse — signing as another taxpayer.
+ *
+ * Unlike `SigningError` this message is safe to surface: it describes a
+ * mismatch, and contains no key material.
+ */
+export class CertificateMismatchError extends Error {
+  readonly statusCode = 502;
+  constructor(readonly detail: string) {
+    super(
+      "The certificate ZATCA returned does not match this unit's signing key, so it was " +
+        "NOT stored. In the sandbox this is expected: its production CSID endpoint returns a " +
+        "shared test certificate that belongs to no one. Onboard against simulation or " +
+        "production for a real credential.",
+    );
+    this.name = "CertificateMismatchError";
   }
 }
 
@@ -154,7 +189,7 @@ export const signingService = {
       return { credentialId: row.id, csrPem, publicKeyPem };
     } catch (err) {
       if (err instanceof SigningError) throw err;
-      throw new SigningError("create");
+      throw new SigningError("create", err);
     } finally {
       wipe(dataKey, privateKeyDer);
     }
@@ -175,6 +210,7 @@ export const signingService = {
     const wrapper = getKeyWrapper();
     let dataKey: Buffer | null = null;
     let secretBytes: Buffer | null = null;
+    let der: Buffer | null = null;
 
     try {
       const row = await vaultRepository.findById(input.credentialId);
@@ -182,6 +218,31 @@ export const signingService = {
       assertUsableProvider(row);
 
       dataKey = await unwrapDataKey(row, wrapper);
+
+      // ── Refuse a certificate that is not ours ────────────────────────────
+      // Correct in EVERY environment, and it catches the sandbox's canned
+      // production CSID automatically. Done BEFORE anything is written, so a
+      // mismatched certificate never reaches the vault.
+      der = openWithDataKey(
+        {
+          ciphertext: row.encryptedPrivateKey,
+          iv: row.privateKeyIv,
+          authTag: row.privateKeyAuthTag,
+        },
+        dataKey,
+      );
+      const ourSpki = createPublicKey(createPrivateKey({ key: der, format: "der", type: "pkcs8" }))
+        .export({ type: "spki", format: "der" }) as Buffer;
+      const certSpki = new X509Certificate(input.certificatePem).publicKey.export({
+        type: "spki",
+        format: "der",
+      }) as Buffer;
+      if (!ourSpki.equals(certSpki)) {
+        throw new CertificateMismatchError(
+          `certificate subject ${new X509Certificate(input.certificatePem).subject.replace(/\n/g, " ")}`,
+        );
+      }
+
       secretBytes = Buffer.from(input.csidSecret, "utf8");
       const sealedCsidSecret = sealWithDataKey(secretBytes, dataKey);
 
@@ -193,11 +254,74 @@ export const signingService = {
         notAfter: input.notAfter,
       });
     } catch (err) {
+      // The mismatch is deliberately propagated: it is actionable, safe to show,
+      // and must not be flattened into the generic signing failure.
+      if (err instanceof CertificateMismatchError) throw err;
       if (err instanceof SigningError) throw err;
-      throw new SigningError("activate");
+      throw new SigningError("activate", err);
     } finally {
-      wipe(dataKey, secretBytes);
+      wipe(dataKey, secretBytes, der);
     }
+  },
+
+  /**
+   * Run `fn` with a specific credential's key pair, by id.
+   *
+   * Needed by onboarding, which must sign the six compliance documents with a
+   * credential that is still `pending_csr` — {@link withSigningKey} resolves the
+   * ACTIVE credential and would not find it.
+   *
+   * Same contract: scoped callback, nothing escapes but the return value, and
+   * the plaintext is zeroed in a `finally`. Do NOT add a variant that returns
+   * the key — sign inside the callback and return the signed artifacts.
+   */
+  async withCredentialKey<T>(
+    credentialId: string,
+    fn: (keys: { privateKey: KeyObject; publicKey: KeyObject }) => T | Promise<T>,
+  ): Promise<T> {
+    const wrapper = getKeyWrapper();
+    let dataKey: Buffer | null = null;
+    let der: Buffer | null = null;
+
+    try {
+      const row = await vaultRepository.findById(credentialId);
+      if (!row) throw new SigningError("credential-missing");
+      assertUsableProvider(row);
+
+      dataKey = await unwrapDataKey(row, wrapper);
+      der = openWithDataKey(
+        {
+          ciphertext: row.encryptedPrivateKey,
+          iv: row.privateKeyIv,
+          authTag: row.privateKeyAuthTag,
+        },
+        dataKey,
+      );
+      const privateKey = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+      assertZatcaCurve(privateKey);
+      return await fn({ privateKey, publicKey: createPublicKey(privateKey) });
+    } catch (err) {
+      if (err instanceof SigningError) throw err;
+      throw new SigningError("sign-by-id", err);
+    } finally {
+      wipe(dataKey, der);
+    }
+  },
+
+  /** Metadata for the onboarding status view. NO key material. */
+  async findActiveMetadata(
+    companyId: string,
+    environment: ZatcaEnvironment,
+  ): Promise<{ status: string; notAfter: Date | null; egsSerialNumber: string | null } | null> {
+    const row = await vaultRepository.findActive(companyId, environment);
+    if (!row) return null;
+    return { status: row.status, notAfter: row.notAfter, egsSerialNumber: row.egsSerialNumber };
+  },
+
+  /** Read a certificate's validity window — public data, no vault access. */
+  certificateValidity(certificatePem: string): { notBefore: Date; notAfter: Date } {
+    const cert = new X509Certificate(certificatePem);
+    return { notBefore: new Date(cert.validFrom), notAfter: new Date(cert.validTo) };
   },
 
   /**
@@ -235,7 +359,7 @@ export const signingService = {
       return await fn(key);
     } catch (err) {
       if (err instanceof SigningError) throw err;
-      throw new SigningError("sign");
+      throw new SigningError("sign", err);
     } finally {
       wipe(dataKey, der);
     }
@@ -282,7 +406,7 @@ export const signingService = {
       return await fn(credentials);
     } catch (err) {
       if (err instanceof SigningError) throw err;
-      throw new SigningError("transport-credentials");
+      throw new SigningError("transport-credentials", err);
     } finally {
       wipe(dataKey, secretBytes);
     }

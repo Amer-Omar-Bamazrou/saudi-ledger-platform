@@ -90,6 +90,15 @@ const EnvSchema = z.object({
    * 'local-dev' when running in production).
    */
   ZATCA_DEV_MASTER_KEY: z.string().min(1).optional(),
+
+  /**
+   * Which ZATCA environment tenants onboard against (M12.4).
+   *
+   * `sandbox` needs no account and accepts ANY OTP; `simulation` and
+   * `production` require a real Saudi VAT registration with ERAD credentials —
+   * the M12.7/M12.9 dependency that does not exist yet.
+   */
+  ZATCA_ENVIRONMENT: z.enum(["sandbox", "simulation", "production"]).default("sandbox"),
 })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ZATCA_KMS_PROVIDER === "local-dev") {

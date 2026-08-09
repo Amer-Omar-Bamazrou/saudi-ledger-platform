@@ -1,32 +1,46 @@
 /**
- * ZATCA QR code — TLV tags 1-9 (M12.3).
+ * ZATCA QR code — TLV tags 1-9.
  *
- * ── 🔴 BUILT FROM OBSERVED BYTES, NOT THE SPEC (divergence #13) ─────────────
- * An earlier version of this module was written from the PDF's §4 table and was
- * WRONG in three of the four Phase 2 tags. The spec's description of tags 6-9
- * does not match what ZATCA emits. Decoded from a real `fatoora -sign` output,
- * with byte offsets verified:
+ * ── 🔴 VERIFIED AGAINST THE LIVE COMPLIANCE API (M12.4) ─────────────────────
+ * This module has now been wrong twice, from two different sources, and is
+ * finally pinned by ZATCA's own validator returning PASS with zero errors and
+ * zero warnings. Read this history before changing anything here.
  *
- *   tag 6   44 bytes   the BASE64 STRING of the invoice hash
- *                      (the spec says "length of hash (SHA256) is 32 bytes"
- *                       and raw digest bytes — explicitly wrong)
- *   tag 7   88 bytes   the SPKI DER public key   (spec says: signature)
- *   tag 8   32 bytes   `r` of the ECDSA signature (spec says: public key)
- *   tag 9   32 bytes   `s` of the ECDSA signature (spec says: ZATCA CA signature)
+ *   1. M12.3 first wrote tags 6-9 from the PDF          → WRONG (3 of 4 tags)
+ *   2. M12.3 then rewrote them from decompiled SDK bytes → ALSO WRONG (7/8/9)
+ *   3. M12.4 determined them from live API responses     → PASS
  *
- * Confirmed against the same document's `SignatureValue`:
+ * The SDK differential in step 2 passed byte-for-byte against `fatoora -sign`,
+ * which proved only that we matched a **stale 2021-era writer**. The live API is
+ * the authority: LIVE API > SDK > PDF.
  *
- *   3044 0220 0462621b…c4bfb7c  0220 0b15c8cc…574bd404
- *             └─ tag 8 (32B) ─┘       └─ tag 9 (32B) ─┘
+ * ── The layout, each element pinned by a live rejection ─────────────────────
  *
- * ⚠️ OPEN, FLAGGED NOT GUESSED: whether the r/s split across tags 8 and 9 is
- * deliberate or an artefact of ZATCA's TLV writer is UNVERIFIED. We emit the
- * observed bytes because ZATCA's validator accepts them; the *intent* must be
- * re-confirmed against the sandbox in M12.4 before anything relies on tag 9
- * meaning "CA signature" for simplified invoices.
+ *   tag 3   19 bytes   `YYYY-MM-DDTHH:MM:SS` — 🔴 NO trailing `Z`.
+ *                      A `Z` warns `invoiceTimeStamp_QRCODE_INVALID` because it
+ *                      disagrees with the XML's `cbc:IssueTime`, which carries no
+ *                      timezone designator. Stripping milliseconds is NOT enough;
+ *                      that was tested separately and still warned.
+ *   tag 6   44 bytes   the BASE64 STRING of the invoice hash.
+ *                      (The PDF says raw 32-byte digest — genuinely wrong; this
+ *                       is the one part of the old reading that held.)
+ *   tag 7   96 bytes   the BASE64 STRING of the signature — the same value the
+ *                      document carries in `SignatureValue`.
+ *                      Raw DER here → `INVOICE_SIGNATURE_VALUE_QRCODE_INVALID`.
+ *   tag 8   88 bytes   the SPKI DER public key, RAW BYTES.
+ *                      base64 here → `publicKey_QRCODE_INVALID`.
+ *   tag 9   ~71 bytes  the CA's signature over the certificate
+ *                      (`Certificate.signatureValue`), RAW BYTES.
+ *                      base64 here → `CERTIFICATE_SIGNATURE_QRCODE_INVALID`.
  *
- * ── What the spec DID get right ─────────────────────────────────────────────
- * The encoding mechanics for tags 1-5 are correct and still apply:
+ * Note ZATCA mixes encodings deliberately: tags 6 and 7 are base64 STRINGS while
+ * 8 and 9 are raw bytes. That is not a mistake in this file — it was verified in
+ * both directions, and the "consistent" all-base64 variant fails.
+ *
+ * 🔴 tag 9 is NOT part of our signature. The old reading put `s` there; it is the
+ * ZATCA CA's signature on the certificate, so it comes from the cert, not the key.
+ *
+ * ── Encoding mechanics (tags 1-5, unchanged and correct) ────────────────────
  *   Tag: one byte. Length: the UTF-8 BYTE length in one byte — byte length, not
  *   character count, so an Arabic seller name must not use `String.length`.
  *   Build the complete byte array first, THEN base64 the whole array once.
@@ -45,10 +59,12 @@ export interface ZatcaQrFields {
   /** Tag 5 — VAT total (business term BT-110) */ vatTotal: string;
   /** Tag 6 — the BASE64 STRING of the invoice hash, not the raw bytes. */
   invoiceHashBase64?: string;
-  /** Tag 7 — SPKI DER public key (`publicKey.export({type:"spki",format:"der"})`). */
+  /** Tag 7 — the BASE64 STRING of the signature (the document's SignatureValue). */
+  signatureBase64?: string;
+  /** Tag 8 — SPKI DER public key, RAW (`publicKey.export({type:"spki",format:"der"})`). */
   publicKeySpkiDer?: Buffer;
-  /** Tags 8 + 9 — the DER ECDSA signature; split into r and s here. */
-  signatureDer?: Buffer;
+  /** Tag 9 — the CA's signature over the certificate, RAW. Not ours to compute. */
+  certificateSignature?: Buffer;
 }
 
 /** TLV length is one byte, so no field may exceed this. */
@@ -105,36 +121,15 @@ function tlv(tag: number, value: Buffer): Buffer {
 const utf8 = (s: string) => Buffer.from(s, "utf-8");
 
 /**
- * Split a DER ECDSA signature into its `r` and `s` components, **verbatim**.
+ * 🔴 `splitEcdsaDer` was DELETED in M12.4, deliberately.
  *
- * DER: `30 <len> 02 <rlen> <r> 02 <slen> <s>`.
- *
- * ⚠️ The integer contents are copied EXACTLY as DER encodes them — sign padding
- * included, length NOT normalised to 32. A DER INTEGER whose high bit is set
- * carries a leading `0x00`, so `r` and `s` are 32 **or 33** bytes depending on
- * the signature.
- *
- * This is not a stylistic choice: ZATCA emits the raw DER integer bytes. An
- * earlier version normalised to a fixed 32 bytes and produced a QR whose tag 8
- * was one byte short of ZATCA's whenever the high bit was set — caught by the
- * tag-for-tag differential against a real ZATCA QR, which is precisely the check
- * that comparing against the PDF would never have made.
+ * It existed only to split the signature into `r`/`s` for tags 8 and 9 — a
+ * layout ZATCA's live validator rejects (`publicKey_QRCODE_INVALID` +
+ * `CERTIFICATE_SIGNATURE_QRCODE_INVALID`). Tag 8 is the public key and tag 9 is
+ * the CA's signature over the certificate; neither is derived from our
+ * signature. The helper is gone rather than left unused so the disproven
+ * approach cannot be reintroduced by someone reaching for a convenient utility.
  */
-export function splitEcdsaDer(der: Buffer): { r: Buffer; s: Buffer } {
-  if (der[0] !== 0x30) throw new Error("Not a DER SEQUENCE ECDSA signature.");
-  let o = 2;
-  // Long-form length on the outer SEQUENCE.
-  if (der[1] & 0x80) o = 2 + (der[1] & 0x7f);
-
-  const read = (): Buffer => {
-    if (der[o] !== 0x02) throw new Error("Expected a DER INTEGER in the ECDSA signature.");
-    const len = der[o + 1];
-    const v = der.subarray(o + 2, o + 2 + len);
-    o += 2 + len;
-    return v;
-  };
-  return { r: read(), s: read() };
-}
 
 /**
  * Build the QR payload.
@@ -154,14 +149,12 @@ export function buildZatcaQr(fields: ZatcaQrFields): string {
     tlv(5, utf8(fields.vatTotal)),
   ];
 
-  // Tag 6 is the base64 STRING, encoded as UTF-8 text like tags 1-5.
+  // Tags 6 and 7 are base64 STRINGS (UTF-8 text, like tags 1-5); tags 8 and 9
+  // are RAW bytes. The mixed encoding is ZATCA's, and was verified both ways.
   if (fields.invoiceHashBase64) parts.push(tlv(6, utf8(fields.invoiceHashBase64)));
-  if (fields.publicKeySpkiDer) parts.push(tlv(7, fields.publicKeySpkiDer));
-  if (fields.signatureDer) {
-    const { r, s } = splitEcdsaDer(fields.signatureDer);
-    parts.push(tlv(8, r));
-    parts.push(tlv(9, s));
-  }
+  if (fields.signatureBase64) parts.push(tlv(7, utf8(fields.signatureBase64)));
+  if (fields.publicKeySpkiDer) parts.push(tlv(8, fields.publicKeySpkiDer));
+  if (fields.certificateSignature) parts.push(tlv(9, fields.certificateSignature));
 
   const encoded = Buffer.concat(parts).toString("base64");
   if (encoded.length > QR_MAX_LENGTH) {

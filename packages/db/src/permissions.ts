@@ -81,6 +81,13 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // identity — the VAT/CR numbers feed the ZATCA QR and invoice hash chain.
   companies: { read: READ_ALL, update: ADMIN_ONLY },
 
+  /**
+   * ZATCA onboarding (M12.4). Read is open so any role can see the prerequisite
+   * checklist and the certificate expiry; CREATE is admin-only because it mints
+   * the credential that signs the tenant's legally-valid tax invoices.
+   */
+  zatca_onboarding: { read: READ_ALL, create: ADMIN_ONLY },
+
   // Read-only resources.
   reports: { read: READ_ALL },
   summary: { read: READ_ALL },

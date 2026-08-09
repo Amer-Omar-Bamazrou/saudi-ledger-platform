@@ -1,16 +1,55 @@
 # ZATCA: where the PDFs and the implementation disagree
 
-**Operating principle: ZATCA's binaries are the specification. The PDFs are an
-unreliable narrator.**
+**Operating principle (revised in M12.4): LIVE API > SDK > PDF.**
 
-Every divergence below was found by running ZATCA's own SDK, not by reading
-their documentation. Each one would have failed at M12.4 (Compliance CSID) with
-a rejection and no useful diagnostic. **Where the two disagree, we follow the
-implementation and record it here.**
+The original principle — *"ZATCA's binaries are the specification; the PDFs are
+an unreliable narrator"* — was right but INCOMPLETE. M12.4 proved there is a
+third tier above the SDK: the **live API**.
 
-If ZATCA ever updates either the PDF or the SDK, this file says which one we
-tracked and why. The SDK is checksum-pinned in
-[`sdk-manifest.md`](sdk-manifest.md) so a change is detectable.
+The QR module (#13) was written from the PDF and was wrong; rewritten from
+decoded SDK bytes and was **still wrong**; and only became correct when
+determined from live `/compliance/invoices` responses. The SDK differential
+passed byte-for-byte the whole time — it proved only that we matched a **stale
+2021-era writer**. It was necessary but **not sufficient**.
+
+So: the SDK is still the best OFFLINE signal and remains a fast local check, but
+**a green SDK differential is not evidence of compliance.** Only a live PASS is.
+
+## Validation status
+
+| # | Area | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | `secp256k1` curve | ✅ **confirmed live** | CCSID issued; returned certificate carries `namedCurve: secp256k1` and binds our key |
+| 2 | CSR: invoice type in `title` | ✅ **confirmed live** | issued cert SAN shows `title=1100` with `businessCategory` separate |
+| 3 | CSR: four-attribute subject DN | ✅ **confirmed live** | CA accepted the CSR; subject echoed back verbatim |
+| 4 | CSR: EGS serial in `surname` | ✅ **confirmed live** | SAN shows `SN=1-SLP\|2-Platform\|3-…` |
+| 5 | CSR: template extension required | ✅ **confirmed live** | CSR accepted with it present |
+| 6 | XAdES `Reference/@Type` | ✅ **confirmed live** | standard invoice + debit note → `status: PASS`, `clearanceStatus: CLEARED` |
+| 7 | `SigningCertificate`, not V2 | ✅ **confirmed live** | as above |
+| 8 | two required properties absent | ✅ **confirmed live** | as above |
+| 9 | three digests, two encodings | ✅ **confirmed live** | as above — clearance validates the cryptographic stamp |
+| 10 | `SignatureValue` NOT over `SignedInfo` | ✅ **confirmed live** | as above (was decompilation-only until M12.4) |
+| 11 | SignedProperties digest over dom4j `asXML()` | ✅ **confirmed live** | as above (was decompilation-only until M12.4) |
+| 12 | `CertDigest` over the base64 STRING | ✅ **confirmed live** | as above (was decompilation-only until M12.4) |
+| 13 | QR tags 3, 6-9 | 🔴 **CORRECTED** — see below | three `*_QRCODE_INVALID` errors + one timestamp warning |
+| 14 | C14N 1.1 genuinely used | ✅ unchanged | structural + empirical |
+
+**The three that were decompilation-only (#10, #11, #12) are now confirmed
+against reality.** They are the least intuitive findings in this document — a
+signature not computed over `SignedInfo`, a digest over dom4j's `asXML()` rather
+than any canonicalisation, and a `CertDigest` over the base64 string rather than
+the DER — and a standard invoice would not clear if any were wrong.
+
+**How the fault was isolated:** all six documents were submitted at once.
+Standard invoice and standard debit note passed; both simplified documents failed
+with QR-only errors. Standard invoices are cleared by ZATCA, which generates
+their QR itself — so a clean split between "standard passes, simplified fails on
+QR" localised the bug to the QR and exonerated the entire signature chain in one
+run.
+
+If ZATCA ever updates the PDF or the SDK, this file says which we tracked and
+why. The SDK is checksum-pinned in [`sdk-manifest.md`](sdk-manifest.md) so a
+change is detectable.
 
 ---
 
@@ -215,44 +254,61 @@ Related, from the same method:
   order, comma-space separated)
 - `ds:X509SerialNumber` = `certificate.getSerialNumber().toString()` — decimal
 
-## 13. 🔴 QR — tags 6-9 are NOT what the spec describes
+## 13. 🔴 QR — tags 6-9. WRONG TWICE, now pinned by the LIVE API
 
-The spec's §4 table and its encoding rules are both wrong about tags 6-9.
-Established by decoding the QR from a real `fatoora -sign` output (byte offsets
-verified, not inferred):
+**This entry is the single strongest lesson in this document.** It was wrong from
+the PDF, then wrong again from the SDK, and is now settled by ZATCA's live
+compliance API returning PASS with zero errors and zero warnings.
 
-| Tag | PDF says | Bytes ZATCA actually emits |
+| Attempt | Source | Result |
 | --- | --- | --- |
-| 6 | "Hash of XML invoice", length "**32 bytes**", raw digest | **44 bytes — the BASE64 STRING** `NRhTmCMYV0J6…` |
-| 7 | ECDSA signature of the hash | **88 bytes — the SPKI DER public key** (`3056301006072a8648ce3d0201…`) |
-| 8 | ECDSA public key | **32 bytes** — the `r` of the ECDSA signature |
-| 9 | ZATCA CA signature (simplified only) | **32 bytes** — the `s` of the ECDSA signature |
+| M12.3 (first) | the PDF's §4 table | ❌ wrong in 3 of 4 tags |
+| M12.3 (second) | decompiled/decoded SDK output | ❌ **still wrong** in tags 3, 7, 8, 9 |
+| M12.4 | live `/compliance/invoices` responses | ✅ **PASS** |
 
-The `r`/`s` reading is confirmed against the document's own `SignatureValue`:
+The SDK differential passed byte-for-byte and proved only that we matched a
+**stale 2021-era writer**. It was necessary but NOT sufficient.
 
-```
-SignatureValue DER = 3044 0220 0462621b…c4bfb7c  0220 0b15c8cc…574bd404
-                              └─ tag 8 (32B) ─┘        └─ tag 9 (32B) ─┘
-```
+### The verified layout
 
-Two corrections that matter most:
+| Tag | Encoding | Pinned by this live rejection |
+| --- | --- | --- |
+| 3 | `YYYY-MM-DDTHH:MM:SS` — **no trailing `Z`** | `invoiceTimeStamp_QRCODE_INVALID` |
+| 6 | the BASE64 **STRING** of the invoice hash (44 chars) | *(accepted — the PDF's "32 raw bytes" is genuinely wrong)* |
+| 7 | the BASE64 **STRING** of the signature (the document's `SignatureValue`) | `INVOICE_SIGNATURE_VALUE_QRCODE_INVALID` |
+| 8 | the SPKI DER public key, **RAW bytes** (88) | `publicKey_QRCODE_INVALID` |
+| 9 | the CA's signature over the certificate, **RAW bytes** (~71) | `CERTIFICATE_SIGNATURE_QRCODE_INVALID` |
 
-1. **Tag 6 carries the 44-character base64 STRING, not the raw 32 digest bytes.**
-   The spec is explicit and explicit*ly wrong*: *"Length: length of hash (SHA256)
-   is 32 bytes"*. Implementing the documented rule yields a QR ZATCA's own
-   validator will not recognise.
-2. **Tag 7 is the public key, tag 8/9 are the signature** — i.e. the spec's tag
-   7 and 8 are effectively swapped, and its tag 9 is not a CA signature at all.
+**ZATCA mixes encodings deliberately:** tags 6 and 7 are base64 strings, tags 8
+and 9 are raw bytes. Verified in BOTH directions — an "obviously consistent"
+all-base64 variant reintroduces the tag 8 and 9 errors.
 
-⚠️ **Open question, flagged rather than guessed:** whether the `r`/`s` split
-across tags 8 and 9 is deliberate or an artefact of ZATCA's TLV writer. It is
-what their SDK emits and what their validator accepts (our M12.2 simplified
-invoice passed the `[QR]` stage), so **we follow the observed bytes** — but the
-*intent* is unverified. Re-confirm against the sandbox in M12.4 before relying on
-tag 9 semantics for simplified invoices.
+### What each attempt got wrong
 
-**We follow** the observed bytes. `crypto/qr.ts`'s original tag semantics were
-written from the PDF and are wrong; they are corrected to match.
+- **The PDF's tag ASSIGNMENT was right all along** (7 = signature, 8 = public key,
+  9 = CA signature). Its *encodings* were wrong (tag 6 raw bytes; nothing about
+  the mixed base64/raw split).
+- **The SDK reading inverted the assignment**: it put the public key in tag 7 and
+  split the signature's `r`/`s` across tags 8 and 9. Tag 9 is not part of our
+  signature at all — it comes from the CERTIFICATE.
+- **Tag 3**: the SDK emits a trailing `Z`; the live API warns on it, because
+  UBL's `cbc:IssueTime` has no timezone designator and ZATCA cross-checks the
+  two. Stripping only the milliseconds was tested separately and did **not**
+  clear the warning.
+
+### Evidence
+
+The `r`/`s` open question flagged in M12.3 — *"whether the split is deliberate or
+an artefact of ZATCA's TLV writer... re-confirm against the sandbox in M12.4"* —
+is now **resolved: it was an artefact.** Flagging it rather than assuming it is
+what stopped this shipping.
+
+`splitEcdsaDer` has been **deleted** rather than left unused, so the disproven
+approach cannot be reached for again.
+
+**Scope of the bug:** simplified invoices only. Standard invoices are cleared by
+ZATCA, which generates their QR itself — which is why the standard documents
+passed while every simplified one failed, and why the fault was isolatable.
 
 ## 14. Canonicalisation — C14N 1.1 declared, and genuinely used
 

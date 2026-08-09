@@ -11,7 +11,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages,
+  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages, ShieldCheck,
 } from "lucide-react";
 
 type NavItem = {
@@ -104,6 +104,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     items: [
       { href: "/categories",       label: "Chart of Accounts", labelAr: "دليل الحسابات",    icon: Tags },
       { href: "/company",          label: "Company Settings",  labelAr: "إعدادات الشركة",   icon: Building2 },
+      { href: "/zatca",            label: "ZATCA e-invoicing", labelAr: "الفوترة الإلكترونية", icon: ShieldCheck },
       { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },
       { href: "/change-password",  label: "Change Password",   labelAr: "تغيير كلمة المرور", icon: KeyRound },
     ],

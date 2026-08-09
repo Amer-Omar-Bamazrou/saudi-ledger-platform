@@ -25,6 +25,7 @@
  */
 import { create } from "xmlbuilder2";
 import type { EInvoiceInput, EInvoiceLine, EInvoiceParty, NationalAddress, TaxSubtotal } from "../types";
+import { splitIssuedAt } from "../issuedAt";
 
 const NS = {
   inv: "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
@@ -58,10 +59,8 @@ function transactionCode(subtype: EInvoiceInput["subtype"]): string {
 }
 
 /** `2026-04-01T09:13:57.123Z` → `["2026-04-01", "09:13:57"]`. */
-function splitIssuedAt(issuedAt: Date): [string, string] {
-  const iso = issuedAt.toISOString();
-  return [iso.slice(0, 10), iso.slice(11, 19)];
-}
+// Shared with the QR builder — ZATCA cross-checks tag 3 against these two
+// fields, so they must come from ONE formatter. See `../issuedAt.ts`.
 
 /**
  * Emit `cac:PostalAddress`.
