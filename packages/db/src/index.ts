@@ -30,6 +30,19 @@ type DB = NodePgDatabase<typeof schema>;
  */
 const baseDb: DB = drizzle(pool, { schema });
 
+/**
+ * The base/owner connection, exported EXPLICITLY for owner-only tables.
+ *
+ * Use this — never the `db` proxy — when touching a table that has no app-role
+ * grants (`zatca_credentials`, `security_audit_logs`, `platform_operators`,
+ * `verification_reviews`, `verification_documents`, `organization_invitations`).
+ *
+ * Inside a request the `db` proxy resolves to the tenant connection, which has
+ * no privileges on those tables, so the query would fail. Depending on that
+ * failure would be luck rather than design: state the connection you mean.
+ */
+export const ownerDb: DB = baseDb;
+
 interface TenantStore {
   db: DB;
 }

@@ -70,7 +70,46 @@ const EnvSchema = z.object({
   // Absolute base URL used to build invite links (e.g. https://app.example.sa).
   // Defaults to the first allowed CORS origin, which is the app's own origin.
   APP_BASE_URL: z.string().url().optional(),
-});
+
+  // ── ZATCA credential vault (M12.5) ──────────────────────────────────────────
+  // Envelope encryption: a per-company data key (DEK) encrypts the private key,
+  // and the DEK is wrapped by a KMS master key. The provider is chosen HERE, at
+  // deployment — not compiled in — because the KSA data-residency question is
+  // still open and committing to a KMS partially pre-decides the hosting
+  // provider. Same hedge as M12.8's storage backend.
+  ZATCA_KMS_PROVIDER: z.enum(["aws-kms", "local-dev"]).default("local-dev"),
+  /** The CMK id/ARN. ONE platform key wrapping per-company DEKs — never one per tenant. */
+  ZATCA_KMS_KEY_ID: z.string().min(1).optional(),
+  ZATCA_KMS_REGION: z.string().min(1).optional(),
+  /**
+   * Local-development master key — 32 bytes, base64 or hex.
+   *
+   * 🔴 Refused in production by the superRefine below. This is the failure that
+   * would silently ship fake cryptography, so it is blocked at boot AND again at
+   * use (the signing service rejects any row stored with kms_provider
+   * 'local-dev' when running in production).
+   */
+  ZATCA_DEV_MASTER_KEY: z.string().min(1).optional(),
+})
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === "production" && env.ZATCA_KMS_PROVIDER === "local-dev") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZATCA_KMS_PROVIDER"],
+        message:
+          "ZATCA_KMS_PROVIDER='local-dev' is refused in production — it would encrypt every " +
+          "tenant's ZATCA signing key with a key from an env var. Set 'aws-kms' with " +
+          "ZATCA_KMS_KEY_ID.",
+      });
+    }
+    if (env.ZATCA_KMS_PROVIDER === "aws-kms" && !env.ZATCA_KMS_KEY_ID) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZATCA_KMS_KEY_ID"],
+        message: "ZATCA_KMS_KEY_ID is required when ZATCA_KMS_PROVIDER is 'aws-kms'",
+      });
+    }
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 

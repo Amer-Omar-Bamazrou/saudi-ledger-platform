@@ -27,5 +27,6 @@ export * from "./platformOperators";
 export * from "./verificationReviews";
 export * from "./verificationDocuments";
 export * from "./invitations";
+export * from "./zatcaCredentials";
 export * from "./permissions";
 export * from "./featureFlags";
