@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, uuid, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, uuid, index, uniqueIndex, jsonb, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -94,6 +94,26 @@ export const einvoiceDocumentsTable = pgTable(
     /** Retry accounting for the M12.6 worker. */
     attemptCount: integer("attempt_count").notNull().default(0),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+
+    // ── Worker claiming (M12.6) ──────────────────────────────────────────────
+    /**
+     * Set when a worker claims the row via `FOR UPDATE SKIP LOCKED`. A row stuck
+     * in `submitting` with an old `claimed_at` means the worker died mid-flight;
+     * the sweeper reclaims it — but ONLY through the query-then-decide
+     * reconciliation path, never by blind resubmission.
+     */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    claimedBy: text("claimed_by"),
+    /**
+     * TRUE when a submission failed in a way that leaves ZATCA's state UNKNOWN
+     * (timeout, connection reset) — i.e. they may or may not have received it.
+     *
+     * This is the flag that makes blind retry unsafe: resubmitting a document
+     * ZATCA already accepted risks a duplicate, and abandoning one they never
+     * received strands a consumed ICV. Such rows must be reconciled by ASKING
+     * ZATCA, not by guessing.
+     */
+    ambiguous: boolean("ambiguous").notNull().default(false),
     /** ZATCA's own status string, verbatim (e.g. reported/cleared variants). */
     zatcaStatus: text("zatca_status"),
     /** ZATCA validation warnings — accepted, but worth surfacing to the user. */

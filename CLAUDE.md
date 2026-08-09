@@ -1069,6 +1069,21 @@ exists to prove. Isolate the buckets instead.
 times slower AND couples suites to each other's leftover state — `operator.test.ts`
 fails under that ordering while passing alone. See `vitest.config.ts`.
 
+### 🔴 PRE-PRODUCTION REQUIREMENT: real alerting on the e-invoice outbox
+
+M12.6 surfaces overdue documents via `listOverdue()` and the operator UI, and
+logs through `pino`. **There is no actual alerting**, and that is a deliberate
+scope call to be closed before production.
+
+Why it matters more than it looks: **the dangerous failure is not a loud
+rejection, it is quiet neglect.** A rejected document is visible and someone acts
+on it. A simplified invoice that silently misses ZATCA's **24-hour reporting
+deadline** looks like nothing is wrong — and it is legal exposure for the tenant,
+with fines from SAR 5,000. Nothing in the current design pages a human when the
+queue stops draining.
+
+Wire `listOverdue()` to real alerting before go-live.
+
 ### M12.3 review — carried forward
 
 **Key-handling items to address WHEN THE M12.5 VAULT IS BUILT** (not exploitable
