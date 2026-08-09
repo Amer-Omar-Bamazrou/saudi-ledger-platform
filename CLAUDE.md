@@ -1338,6 +1338,36 @@ with severity and location — address in the milestone noted, not ad hoc:
   REFERENCES/TRIGGER) ON <each business table> FROM authenticated` in a migration,
   and re-check the hosted project's default privileges — they may differ from the
   local Supabase CLI stack where this was observed.
+  **UPDATE (M12.5) — scope confirmed and PARTIALLY closed.** Measured against the
+  live local stack: every newly created table receives **`REFERENCES, TRIGGER,
+  TRUNCATE`** from the Supabase default privileges — including the *owner-only*
+  identity tables, which were assumed to be granted nothing. `zatca_credentials`
+  now **REVOKEs explicitly** (migration `0019`, guarded per role) and a test pins
+  it, because destroying signing keys is unrecoverable. **The other five
+  owner-only tables still hold `TRUNCATE`** and belong in the same pre-deployment
+  migration as the business tables:
+  `security_audit_logs`, `platform_operators`, `verification_reviews`,
+  `verification_documents`, `organization_invitations`.
+  Destructive-but-recoverable rather than catastrophic (they hold audit history,
+  operator flags and invitations, not key material), but there is no reason to
+  leave it. **Do not assume "owner-only" means "no grants" — verify with
+  `information_schema.role_table_grants`.**
+
+### 🔴 PRE-DEPLOYMENT MIGRATION QUEUE (consolidated)
+
+One migration should close these together before go-live; they are all
+grant/configuration issues, not code:
+
+| # | Item | Where recorded |
+| --- | --- | --- |
+| 1 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` on **every business table** from the app role | MEDIUM finding above |
+| 2 | Same REVOKE on the **five remaining owner-only tables** | MEDIUM finding above (M12.5 update) |
+| 3 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out | M11 audit findings |
+| 4 | **M-1** — add RLS to `organizations`/`users`/`organization_memberships`, or a CI guard failing on business-layer imports | M11 audit findings |
+| 5 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
+
+Re-check the hosted project's default privileges when it exists: they may differ
+from the local Supabase CLI stack where all of this was measured.
 - **[MEDIUM M-1 — LANDMINE, read before writing business-layer queries]
   `organizations`, `users` and `organization_memberships` are deliberately OUTSIDE
   RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the app role
