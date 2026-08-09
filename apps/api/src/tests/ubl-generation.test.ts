@@ -134,6 +134,7 @@ describe("M12.2 — assembler", () => {
       total: 1150,
       paidAmount: 0,
       notes: null,
+    noteReason: null,
     },
     items: [
       {
@@ -173,6 +174,7 @@ describe("M12.2 — assembler", () => {
       additionalNumber: "9876",
       province: "Makkah Region",
       country: "SA",
+    nationalId: null,
     },
     previousInvoiceHash: null,
   });

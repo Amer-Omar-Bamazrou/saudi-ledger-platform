@@ -1,0 +1,13 @@
+-- M12.1b · Buyer national ID (BT-46, scheme NAT).
+--
+-- Required ONLY when a line uses exemption code VATEX-SA-EDU or VATEX-SA-HEA:
+-- ZATCA's BR-KSA-49 makes the buyer's national ID mandatory for those, and
+-- BR-KSA-25 additionally requires the buyer name — so neither code can appear on
+-- an anonymous simplified (B2C) invoice.
+--
+-- Found in M12.4 by submitting such an invoice to the live compliance API and
+-- reading the rejection; the rule text alone does not say so. Enforced at the
+-- input boundary in einvoiceInput.assembler.ts.
+--
+-- Additive and nullable: the overwhelming majority of customers never need it.
+ALTER TABLE "customers" ADD COLUMN "national_id" text;

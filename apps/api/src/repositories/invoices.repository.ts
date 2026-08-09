@@ -1,6 +1,6 @@
 /** Invoices repository — tenant-scoped via RLS. */
-import { db, invoicesTable, invoiceItemsTable, customersTable } from "@workspace/db";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { db, invoicesTable, invoiceItemsTable, customersTable, einvoiceDocumentsTable } from "@workspace/db";
+import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -62,9 +62,114 @@ export const invoicesRepository = {
       .select({ hash: invoicesTable.invoiceHash })
       .from(invoicesTable)
       .where(and(eq(invoicesTable.companyId, companyId), isNotNull(invoicesTable.invoiceHash)))
-      .orderBy(desc(invoicesTable.id))
+      // 🔴 ORDER BY ICV, NOT BY ROW ID (M12.1b bug fix).
+      //
+      // `id` is assigned at CREATE; the chain position is assigned at APPROVAL.
+      // Those orders differ whenever documents are approved out of the order they
+      // were created — which happens under concurrency AND in the ordinary case
+      // of an approver working a queue out of order.
+      //
+      // Ordering by `id` picked "the highest-numbered row that happens to be
+      // hashed", so several approvals could read the SAME head and FORK THE
+      // CHAIN — three documents sharing one predecessor, reproduced with 8
+      // parallel approvals in `invoice-icv-concurrency.test.ts`. The ICVs were
+      // dense and unique the whole time (the advisory lock was working); only
+      // this ordering was wrong.
+      //
+      // `NULLS LAST` keeps pre-M12.1b rows (hashed but with no ICV) behind
+      // ICV-bearing ones, so a company with legacy invoices continues its chain
+      // instead of starting a second genesis root.
+      .orderBy(sql`${invoicesTable.icv} DESC NULLS LAST`, desc(invoicesTable.id))
       .limit(1);
     return row?.hash ?? null;
+  },
+
+  /**
+   * Serialise sequence consumption for one company (M12.1b).
+   *
+   * 🔴 Both the ICV and the hash chain are read-then-write: each reads the
+   * current head and writes the next position. Under two concurrent approvals
+   * for the same company, READ COMMITTED lets both read the SAME head — which
+   * would mint a duplicate ICV and, worse, FORK THE HASH CHAIN (two documents
+   * claiming the same predecessor). A forked chain is not repairable after the
+   * fact and is exactly what ZATCA's chain exists to detect.
+   *
+   * The `unique(company_id, icv)` index is a backstop that turns the duplicate
+   * into an error, but it cannot fix the fork and it cannot tell the loser to
+   * retry cleanly. So allocation is serialised properly, and the index remains
+   * the backstop rather than the mechanism.
+   *
+   * A TRANSACTION-scoped advisory lock is used (not a counter table, not
+   * `SELECT FOR UPDATE`) because:
+   *   - it covers the ICV **and** the hash-chain read in one critical section,
+   *     which a counter table would not;
+   *   - it needs no new table and no lock-ordering discipline;
+   *   - it releases automatically on commit OR rollback, so a failed approval
+   *     cannot strand the lock.
+   *
+   * Scoped per company: two different companies onboard and issue in parallel
+   * without contending, which matters because the chain is per EGS unit.
+   */
+  async lockCompanySequence(companyId: string): Promise<void> {
+    await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}::text, 0))`);
+  },
+
+  /**
+   * The next ICV for a company — call only while holding
+   * {@link lockCompanySequence}.
+   *
+   * ICV counts ISSUED documents, so it keys off `icv IS NOT NULL`: a draft (and
+   * a rejected draft) consumes no sequence number, exactly like the hash chain.
+   * Notes share the sequence with invoices — ZATCA's counter is per EGS unit and
+   * covers every document type.
+   */
+  async nextIcv(companyId: string): Promise<number> {
+    const [row] = await db
+      .select({ maxIcv: sql<number | null>`max(${invoicesTable.icv})` })
+      .from(invoicesTable)
+      .where(eq(invoicesTable.companyId, companyId));
+    return (row?.maxIcv ?? 0) + 1;
+  },
+
+  /**
+   * The ZATCA PIH for the document preceding `invoiceId` in this company's
+   * chain — read from `einvoice_documents`, NEVER from `invoices.previous_hash`.
+   *
+   * 🔴 Those are two different chains. `invoices.previous_hash` is the homegrown
+   * hex chain with the literal genesis `"GENESIS"`; ZATCA's is the base64
+   * SHA-256 of the canonical XML. See the landmine note in CLAUDE.md.
+   *
+   * Returns `null` when no ZATCA document has been recorded yet, so the
+   * assembler substitutes ZATCA's defined genesis constant.
+   */
+  async zatcaPreviousInvoiceHash(companyId: string, invoiceId: number): Promise<string | null> {
+    const [row] = await db
+      .select({ hash: einvoiceDocumentsTable.invoiceHash })
+      .from(einvoiceDocumentsTable)
+      .where(
+        and(
+          eq(einvoiceDocumentsTable.companyId, companyId),
+          isNotNull(einvoiceDocumentsTable.invoiceHash),
+          ne(einvoiceDocumentsTable.invoiceId, invoiceId),
+        ),
+      )
+      .orderBy(desc(einvoiceDocumentsTable.invoiceId))
+      .limit(1);
+    return row?.hash ?? null;
+  },
+
+  /** Every note already issued against one original — the over-crediting guard. */
+  async notesAgainst(originalInvoiceId: number, documentType: string) {
+    return db
+      .select()
+      .from(invoicesTable)
+      .where(
+        and(
+          eq(invoicesTable.originalInvoiceId, originalInvoiceId),
+          eq(invoicesTable.documentType, documentType),
+          isNotNull(invoicesTable.invoiceHash),
+        ),
+      );
   },
 
   insert(values: typeof invoicesTable.$inferInsert) {

@@ -4,7 +4,7 @@
  * is added here (that is the established M4 enforcement mechanism).
  */
 import { db, customersTable, invoicesTable } from "@workspace/db";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, ilike, notInArray } from "drizzle-orm";
 
 export interface CustomerListFilter {
   search?: string;
@@ -27,8 +27,24 @@ export const customersRepository = {
     return db.select().from(customersTable).where(eq(customersTable.id, id)).limit(1);
   },
 
-  invoicesByCustomer(id: number) {
-    return db.select().from(invoicesTable).where(eq(invoicesTable.customerId, id));
+  /**
+   * Issued documents for a customer — drafts and submitted invoices EXCLUDED.
+   *
+   * The previous `invoicesByCustomer` had no status filter, so unapproved drafts
+   * counted toward the customer's balance (M12.1b fix). The exclusion list
+   * mirrors `INVOICE_NOT_IN_BOOKS` in the reports repository; the two must stay
+   * in lockstep.
+   */
+  issuedInvoicesByCustomer(id: number) {
+    return db
+      .select()
+      .from(invoicesTable)
+      .where(
+        and(
+          eq(invoicesTable.customerId, id),
+          notInArray(invoicesTable.status, ["draft", "submitted"]),
+        ),
+      );
   },
 
   insert(values: typeof customersTable.$inferInsert) {

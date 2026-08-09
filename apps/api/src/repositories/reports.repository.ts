@@ -40,6 +40,30 @@ const approvedBillsOnly = () => notInArray(billsTable.status, BILL_NOT_IN_BOOKS)
 const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 const approvedInvoicesOnly = () => notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS);
 
+/**
+ * The sign a document contributes to receivables, sales and output VAT (M12.1b).
+ *
+ * 🔴 READ THIS BEFORE WRITING A REPORT THAT SUMS INVOICE ROWS.
+ *
+ * Notes live in the `invoices` table with `document_type` = credit_note |
+ * debit_note, and their amounts are stored **POSITIVE** — the direction is
+ * carried by the type, not by the sign of the number.
+ *
+ * Storing negatives was considered and rejected because it FAILS SILENTLY:
+ *   - AR aging skips them entirely (`if (outstanding < 0.01) continue`);
+ *   - the VAT return misroutes them — a negative `vat_amount` computes a rate of
+ *     0, so the note lands in the ZERO-RATED box and never reduces output VAT.
+ * Balance-sheet AR and the customer ledger *would* net correctly, and two of
+ * four reports being right is precisely what makes negatives dangerous.
+ *
+ * So: every consumer applies this explicitly, and forgetting it is a visible
+ * omission rather than an invisible one. A DEBIT note is +1 — it is an
+ * additional charge, not a reversal.
+ */
+export function documentSign(documentType: string | null | undefined): 1 | -1 {
+  return documentType === "credit_note" ? -1 : 1;
+}
+
 const lineJoin = () =>
   db
     .select({
