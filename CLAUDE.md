@@ -753,6 +753,33 @@ SignedProperties digest taken over **dom4j `asXML()` rather than any
 canonicalisation**, and a `CertDigest` over the **base64 certificate string
 rather than its DER**.
 
+#### 🔴 VALIDATION STATUS — #1–#5 confirmed by ZATCA; **#6–#13 are UNVERIFIED**
+
+On **2026-08-09** a CSR from `crypto/csr.ts` was submitted to the sandbox and
+ZATCA's CA returned `dispositionMessage: "ISSUED"`, with a certificate binding
+**our** `secp256k1` key and **our** SAN fields (`title=1100` alongside a separate
+`businessCategory=Software`), valid 5 years. That is the **first validation of any
+divergence against a real ZATCA response** rather than against a decompiled
+binary.
+
+| Divergence | Area | Status |
+| --- | --- | --- |
+| **#1–#5** | curve, CSR structure, template extension | ✅ **confirmed by ZATCA's CA** |
+| **#6–#13** | XAdES properties, digests, `SignatureValue`, QR tags 6–9 | 🔴 **UNVERIFIED against ZATCA** |
+
+**CSID issuance exercises ONLY the CSR.** The XAdES structure and the QR tags are
+checked when a *signed invoice* is submitted to the compliance endpoints — the
+remaining work of M12.4. **Do not read "ISSUED" as evidence that the signature is
+correct**; a structurally wrong signature gets a CSID just fine.
+
+**🔴 Two sandbox traps — a green sandbox run is NOT validation:**
+
+- **The sandbox accepts ANY OTP.** `123456`, `123345` and `111222` all returned
+  `ISSUED`. A successful sandbox onboarding says **nothing** about whether the
+  real OTP path works; that is only exercised in simulation/production (M12.7+).
+- **`requestID` is the constant stub `1234567890123`** — not a real identifier.
+  Do not build reconciliation logic that assumes it is unique or meaningful.
+
 **Decompile early.** Several were invisible to black-box testing — ~30
 canonicalisation variants were tried and failed before decompiling
 `SigningServiceImpl` answered it in minutes. CFR (`cfr.jar`) works on the SDK
@@ -1013,9 +1040,79 @@ belong, not ad hoc:
   - **Sandbox accepts ANY OTP** (`123456`, `123345`, `111222` all issued) and
     returns a constant stub `requestID`. A green sandbox OTP proves nothing about
     the real OTP path.
-- **M12.5: credential vault + per-tenant onboarding flow** — owner-only
-  `zatca_credentials` (no RLS, no app-role grants — the established pattern), KMS
-  envelope encryption, tenant OTP paste UI.
+- **M12.5 (done): credential vault.** Per-company ZATCA signing keys, stored
+  encrypted and reachable only through one narrow service. Full design:
+  [`docs/zatca/m12-5-credential-vault-design.md`](docs/zatca/m12-5-credential-vault-design.md).
+  - **`zatca_credentials` (migration `0019`) — owner-only, no RLS, no app-role
+    grants.** The sixth table on that pattern, but for a different reason than
+    the first five: not "keep identity data out of tenant scope" but **blast
+    radius under app-role compromise**. RLS answers "can org A read org B's row";
+    it does NOT stop a SQL-injection flaw in any of the ~18 business domains from
+    reading the *current* tenant's signing key, because the app role is acting as
+    that tenant. With no grants at all, no business route is on the attack path.
+  - **🔴 The migration REVOKEs explicitly — do not delete that block.** Creating a
+    table is not sufficient: Supabase's base `ALTER DEFAULT PRIVILEGES` silently
+    grants `REFERENCES, TRIGGER, TRUNCATE` on every new table to
+    `anon`/`authenticated`/`service_role` (verified locally — all five existing
+    owner-only tables carry exactly those three). **`TRUNCATE` needs no DELETE
+    privilege and bypasses RLS**, so without the REVOKE the app role could wipe
+    every tenant's signing keys in one statement — unrecoverable, since each
+    tenant would have to re-onboard. The REVOKE is guarded per role (CI
+    bootstraps only `authenticated`). This is the platform-wide MEDIUM finding,
+    fixed for the one table where destruction is catastrophic.
+  - **Envelope encryption: ONE platform CMK + per-company DEKs.** AES-256-GCM
+    under a per-company data key; the DEK is wrapped by the master key. The
+    plaintext DEK is never stored. **`KeyWrapper`** (`signing/keyWrapper.ts`) is
+    the seam — `LocalDevKeyWrapper` for dev/CI, `AwsKmsKeyWrapper` for
+    deployment. `@aws-sdk/client-kms` is **deliberately not a dependency**: the
+    specifier is a runtime variable so neither tsc nor esbuild pulls it into the
+    build graph, and installing it is a deployment step.
+  - **`local-dev` cannot reach production, checked twice independently:**
+    `loadEnv` refuses the provider at boot, and the signing service refuses any
+    row whose stored `kms_provider` is `local-dev` when `NODE_ENV=production`.
+    Shipping fake cryptography is the failure that would stay invisible until
+    ZATCA rejected everything.
+  - **The narrow signing service** (`signing/signing.service.ts`) is the only code
+    that decrypts. There is **no `getPrivateKey()`** — callers pass a callback
+    (`withSigningKey`, `withTransportCredentials`) and only its return value
+    escapes; plaintext lives in Buffers zeroed in a `finally`, never a PEM string.
+    Seven enforcement layers: no key field on any exported type; the vault
+    repository is outside `repositories/` with a **test that fails the build** on
+    outside imports; `toJSON()` **throws**; nothing key-bearing reaches a logger;
+    every error is re-thrown as `SigningError` with a **fixed** message (because
+    `errorHandler` puts `err.message` on the wire and an OpenSSL/KMS error can
+    quote key bytes); and no HTTP route returns key material.
+  - **`ownerDb` is now exported from `@workspace/db`** — owner-only tables must
+    state the connection they mean rather than relying on the tenant proxy
+    failing.
+  - **The CSID `secret` is encrypted like the private key.** ZATCA returns it in
+    the same JSON body as the certificate so it reads like metadata; it is the
+    password half of the transport's Basic auth.
+  - **Both M12.3 prerequisites landed first** (before anything persisted a key):
+    `privateKeyPem` is **removed** from `generateZatcaKeyPair`'s return type — not
+    made lazy, since a getter still yields an unzeroable string — and
+    `assertZatcaCurve` now runs its DER check on the **derived public key**, same
+    OID assurance with no private-key copy.
+  - **Lifecycle:** `pending_csr → active → superseded | revoked`, with rotation
+    superseding the old credential in one transaction and a **partial unique
+    index** making the DB the guarantee of one active credential per (company,
+    environment). Superseded rows are retained (past invoices were signed under
+    them; the archive must stay verifiable for 6–11 years); revocation
+    **crypto-shreds** the key while keeping metadata and the public certificate.
+  - **Tests** (`tests/zatca-credential-vault.test.ts`, 19 + 7 DB-boundary in
+    `packages/db`): the valuable ones are negative — the app role cannot
+    SELECT/INSERT/UPDATE/DELETE/**TRUNCATE** the table, serialisation throws,
+    errors leak nothing (including when decryption itself fails), one company
+    cannot sign as another, and revocation makes signing impossible. All run with
+    **no KMS**. **They do NOT prove the AWS IAM/key policy is correct** — that is
+    deployment verification, the same shape as the known M11.4 storage gap.
+  - **NOT built here — the per-tenant onboarding FLOW** (the OTP paste UI and the
+    route that drives CSR → CCSID → PCSID). The vault deliberately ships first
+    and standalone: it is the storage and access boundary, and it is complete and
+    tested on its own. The flow that *fills* it calls ZATCA's compliance
+    endpoints, so it belongs with **M12.4**, which now has a live sandbox to
+    build against. `createCredential` / `activateCredential` are the seam it
+    plugs into.
 - **M12.6: clearance & reporting transport** — outbox + worker (see the M12.6 bug
   above), retry, idempotency, status model, ZATCA error-code surfacing.
 - **M12.8: archival, residency, renewal, operator visibility — IN SCOPE
@@ -1065,8 +1162,16 @@ needs **1–9**.
 - **Possible ZATCA IP whitelisting.** Secondary sources indicate server IPs may
   need whitelisting. **Unverified against official docs** — confirm in M12.4. If
   true it means static egress IPs (NAT gateway) and constrains serverless hosting.
-- **KMS** for envelope-encrypting tenant private keys (M12.5). ~$1/key/month on
-  AWS KMS, or self-hosted Vault.
+- **KMS** for envelope-encrypting tenant private keys (M12.5). **ONE platform CMK
+  (~$1/month) + a per-company data key — NOT a CMK per tenant.** An earlier note
+  here read "~$1/key/month", which if applied per tenant implies **$1,000/month at
+  1,000 tenants for identical isolation**. Per-company DEKs give the same blast
+  radius (one DEK compromised ⇒ one company) at flat cost; requests are
+  $0.03/10,000, i.e. cents. Self-hosted Vault avoids per-key cost but adds a
+  service to operate.
+  **The provider is chosen at DEPLOYMENT, behind the `KeyWrapper` interface** —
+  the same hedge as M12.8's storage backend, because the KSA residency question
+  is still open and picking a KMS partially pre-decides the hosting provider.
 - **ZATCA itself charges nothing** — CSIDs, sandbox, simulation and API access are
   all free. The cost of the build-direct path is engineering time only.
 
@@ -1108,6 +1213,49 @@ with fines from SAR 5,000. Nothing in the current design pages a human when the
 queue stops draining.
 
 Wire `listOverdue()` to real alerting before go-live.
+
+### 🔴 PRE-PRODUCTION REQUIREMENT: PCSID expiry — 5 years, NO grace period
+
+**The same failure shape as the outbox gap above, and it must be treated with the
+same seriousness.** Confirmed empirically on 2026-08-09: ZATCA's sandbox CA issued
+a certificate valid **2026-08-09 → 2031-08-08**, exactly 5 years, with no grace
+period.
+
+At expiry, signing **stops dead**: the tenant cannot clear or report invoices, and
+therefore cannot legally invoice at all. Nothing looks wrong beforehand — this is
+**quiet neglect**, not a loud rejection, which is precisely why it needs an alarm
+rather than a dashboard.
+
+It is worse than the outbox case in one respect: **renewal requires the TENANT's
+own action** (a fresh CSR plus an OTP they obtain from Fatoora), so a reminder
+that fires late cannot be fixed by us alone. Lead time is the whole point.
+
+**Required before go-live:** reminders at **T-90 / T-30 / T-7 days**, plus
+operator-side visibility of expiring certificates (M12.8). Drive them off
+`zatca_credentials.not_after`.
+
+### 🔴 DEPLOYMENT REQUIREMENTS: protecting the KMS master key (M12.5)
+
+**If the CMK is deleted, every wrapped data key becomes undecryptable and every
+tenant's private key is permanently lost.** Already-issued invoices and their
+archived signed XML survive (they are already signed and stored) — what is lost is
+the ability to sign NEW ones, and recovery means re-onboarding every tenant with a
+fresh key, CSR and OTP. That needs action from each tenant, so it is a business
+event, not merely an outage.
+
+These are **deployment configuration requirements**, not code:
+
+- **30-day deletion window** — set KMS's mandatory waiting period to the maximum.
+- **`kms:ScheduleKeyDeletion` restricted to a break-glass role** via key policy;
+  no routine role may hold it.
+- **CloudTrail alarm on any deletion attempt** — it must page a human.
+- **Multi-region CMK replica.**
+
+Note what is safe and needs no action: **automatic annual key rotation.** KMS
+retains prior key versions and the ciphertext blob names its own version, so
+wrapped DEKs stay decryptable. That holds only while the CMK is never deleted.
+Migrating to a *different* CMK is a re-wrap job (unwrap with old, re-wrap with
+new, update `wrapped_data_key` + `kms_key_id`); the invoice keys are untouched.
 
 ### M12.3 review — carried forward
 

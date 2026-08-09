@@ -32,18 +32,29 @@ const SECP256K1_OID_DER = Buffer.from([0x2b, 0x81, 0x04, 0x00, 0x0a]);
 export interface ZatcaKeyPair {
   privateKey: KeyObject;
   publicKey: KeyObject;
-  /** PEM (PKCS#8) — for handing to the M12.5 vault. Never log this. */
-  privateKeyPem: string;
   publicKeyPem: string;
 }
 
-/** Generate a fresh secp256k1 key pair. */
+/**
+ * Generate a fresh secp256k1 key pair.
+ *
+ * 🔴 There is deliberately NO `privateKeyPem` on the returned type (M12.5).
+ *
+ * It used to be exported eagerly on every call, which materialised the PKCS#8
+ * key as an immutable JS **string** — unzeroable, resident in the heap until GC,
+ * and potentially copied by the runtime — even when only the `KeyObject` was
+ * wanted. A lazy getter was considered and rejected: it still yields an
+ * unzeroable string the moment it is touched.
+ *
+ * The vault instead exports the `KeyObject` straight to a DER **Buffer**,
+ * encrypts it, and zeroes the buffer in a `finally`. If you need the private key
+ * bytes, do the same — see `services/einvoice/signing/`.
+ */
 export function generateZatcaKeyPair(): ZatcaKeyPair {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: ZATCA_CURVE });
   return {
     privateKey,
     publicKey,
-    privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
     publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
   };
 }
@@ -65,10 +76,20 @@ export function publicKeyFromPrivate(privateKey: KeyObject): KeyObject {
  * Checks the DER-encoded curve OID rather than trusting
  * `asymmetricKeyDetails.namedCurve`, so an alias or a differently-labelled
  * P-256 key cannot slip through and produce signatures ZATCA silently rejects.
+ * The curve is divergence #1 — the spec's illustrative table says P-256 and is
+ * wrong — so this check earns its keep.
+ *
+ * 🔴 The DER check runs on the **public** key, never the private one (M12.5).
+ *
+ * It previously exported the *private* key to DER purely to read the curve OID,
+ * creating a second unzeroable in-memory copy on every validation. Deriving the
+ * public key gives byte-identical OID assurance (the curve lives in the shared
+ * `AlgorithmIdentifier`) with no private-key copy at all.
  */
 export function assertZatcaCurve(key: KeyObject): void {
   const named = key.asymmetricKeyDetails?.namedCurve;
-  const der = key.export({ type: key.type === "private" ? "pkcs8" : "spki", format: "der" }) as Buffer;
+  const publicKey = key.type === "private" ? createPublicKey(key) : key;
+  const der = publicKey.export({ type: "spki", format: "der" }) as Buffer;
   if (named !== ZATCA_CURVE || !der.includes(SECP256K1_OID_DER)) {
     throw new Error(
       `Refusing to use a non-${ZATCA_CURVE} key (got "${named ?? "unknown"}"). ` +

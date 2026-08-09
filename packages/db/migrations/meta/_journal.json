@@ -134,6 +134,13 @@
       "when": 1786060640652,
       "tag": "0018_m12_6_outbox_claiming",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786282617077,
+      "tag": "0019_m12_5_zatca_credentials",
+      "breakpoints": true
     }
   ]
 }
