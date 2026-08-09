@@ -57,40 +57,70 @@ necessary but not sufficient. See the manifest's "Impact on M12.2".
 | **Simulation** | <https://fatoora.zatca.gov.sa/> | **ERAD credentials — a real, active Saudi VAT registration.** ⚠️ Blocks M12.7. |
 | **Production** | <https://fatoora.zatca.gov.sa/> | Real VAT registration; each tenant onboards their own EGS via OTP. |
 
-## 🔴 OPEN: ZATCA's API hosts are unreachable (observed 2026-08-07)
+## ✅ RESOLVED: the API-host outage cleared (2026-08-09)
 
-**M12.4 is blocked on this.** Not a crypto failure — nothing reached an
-application at all.
+The connectivity block recorded on 2026-08-07 was **transient — an outage, not IP
+allowlisting**, exactly as the leading hypothesis predicted. **M12.4 is no longer
+blocked.**
 
-| Host | DNS | TCP 443 |
+| Host | 2026-08-07 | 2026-08-09 |
 | --- | --- | --- |
-| `gw-fatoora.zatca.gov.sa` | resolves (185.117.128.50, .129.50) | **no connection** |
-| `sandbox.zatca.gov.sa` | resolves (185.117.129.147, .128.147) | **no connection** |
-| `zatca.gov.sa` (control) | resolves | **OPEN**, HTTP 302 |
+| `gw-fatoora.zatca.gov.sa` | TCP 443 refused | **HTTP 200 to the API** |
+| `sandbox.zatca.gov.sa` | TCP 443 refused | TLS OK; `403` at `/` (Cloudflare edge) |
+| `zatca.gov.sa` (control) | open | open |
 
-Both API/sandbox hosts resolve but refuse TCP on 443, while the main site on the
-same domain connects normally. Network layer — not TLS, not auth, not a rejected
-request.
+**The A records changed.** On 07 Aug the hosts resolved to `185.117.128.x`; they
+now resolve via `*.cdn.cloudflare.net` (`82.197.55.4/.5`, `84.235.57.230`). ZATCA
+appears to have moved these hosts behind Cloudflare, which plausibly explains both
+the outage window and the changed edge behaviour.
 
-**Evidence gathered:**
+**No corroborating outage report was found** on
+<https://zatca1.discourse.group> for Aug 2026 — the connection-reset and
+DNS-failure threads there are from Apr/Aug/Nov **2025**. So the forum neither
+confirms nor contradicts; the direct retry settled it.
 
-- Confirmed unreachable from **two independent networks** — home broadband and
-  5G mobile data — so it is not a local ISP or router problem.
-- The reporter is **in Saudi Arabia**. This substantially weakens the
-  geo-restriction hypothesis: in-region traffic would be permitted, and a Saudi
-  taxpayer unable to reach ZATCA's own developer sandbox would be very odd.
-- **`sandbox.zatca.gov.sa` returned HTTP 200 on 2026-08-04** during M12.0, from
-  the same machine. So this is a change, not a standing condition.
+### What the retry proved — the FIRST validation against a real ZATCA response
 
-**Current reading:** more likely an outage or maintenance window than IP
-allowlisting. **Retry in 24-48h before treating it as structural.**
+A CSR built by `crypto/csr.ts` was submitted to the sandbox compliance endpoint
+and **ZATCA's CA issued a certificate**:
 
-**If it persists:**
+```
+POST https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal/compliance
+  headers: OTP, Accept-Version: V2      body: {"csr": base64(PEM)}
+→ 200 {"requestID":…, "dispositionMessage":"ISSUED", "binarySecurityToken":…, "secret":…}
+```
 
-- The M12.0 note about a **static egress IP / NAT gateway** stops being a
-  "verify this" item and becomes a **hard deployment requirement**.
-- Check ZATCA's developer forum for reports:
-  <https://zatca1.discourse.group>
+Decoding the returned certificate confirms it binds **our** key and **our** CSR
+fields:
+
+| Property | Value returned by ZATCA |
+| --- | --- |
+| subject | `C=SA, OU=Head Office, O=…, CN=SLP-EGS-TEST-001` |
+| issuer | `CN=eInvoicing` |
+| key | `ec`, **`namedCurve: secp256k1`**, byte-identical to the key we generated |
+| SAN | `SN=1-SLP\|2-Platform\|3-EGS001, UID=300000000000003, title=1100, registeredAddress=…, businessCategory=Software` |
+| validity | 2026-08-09 → **2031-08-08 (5 years)** |
+
+**This validates divergences #1–#5 against reality** (the `secp256k1` curve; the
+invoice type in `title` with `businessCategory` carrying the sector separately;
+the four-attribute subject DN; `surname` for the EGS serial; the undocumented
+template extension). Had any been wrong, the CA would have rejected the CSR.
+
+**It does NOT validate #6–#13** (XAdES structure and the QR tags). Those are only
+exercised when a *signed invoice* is submitted to the compliance checks — the next
+step of M12.4 — so they remain unverified against ZATCA.
+
+**Sandbox observations worth knowing:**
+
+- The sandbox **accepts any OTP** — `123456`, `123345` and `111222` all returned
+  `ISSUED`. Do not read a successful sandbox OTP as evidence the OTP path works.
+- `requestID` is the constant `1234567890123` in sandbox — a stub, not a real id.
+- **No account or email registration was needed** for this endpoint.
+- The 5-year validity is the **PCSID expiry** M12.8's renewal reminders must track.
+
+**Still unverified:** whether production requires **egress IP allowlisting**
+(the M12.0 open question). Sandbox did not, but that says nothing about
+production — confirm before go-live.
 
 ## Enforcement timeline (as of 4 Aug 2026)
 

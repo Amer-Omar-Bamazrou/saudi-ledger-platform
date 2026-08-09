@@ -707,6 +707,12 @@ dependency that does not yet exist.**
 | **IN SCOPE NOW** | **M12.0 → M12.6 _and_ M12.8** | Sandbox only. **Email registration, nothing else.** |
 | **BLOCKED, DO NOT START** | **M12.7 and M12.9** | **A registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials.** |
 
+**M12.4 stays IN SCOPE — it is not an external dependency.** The 2026-08-07
+outage that stopped it cleared on 2026-08-09, and the sandbox has since **issued a
+real CCSID against our CSR without any account, VAT number or OTP validity**. The
+gating requirement for M12.7/M12.9 is a *taxpayer registration*; M12.4 never
+needed one. Do not move it into the blocked row.
+
 **The company entity and its Saudi VAT/ERAD registration DO NOT EXIST YET.** That
 is a real-world business step the owner will take **after the platform is
 complete** — it is not a signup form and cannot be worked around. ZATCA's
@@ -985,9 +991,28 @@ belong, not ad hoc:
   `ec-secp256k1-priv-key.pem`), and the CSR **invoice type goes in `title`, not
   `businessCategory`** (the spec assigns OID 2.5.4.15 to two different rows).
   Both fail only at M12.4, after the whole crypto layer is built.
-- **M12.4: sandbox onboarding + compliance checks** — CSR → CCSID → the six
-  compliance documents → PCSID, against sandbox. *This is the milestone that
-  proves the cryptography is correct.*
+- **M12.4: sandbox onboarding + compliance checks — UNBLOCKED, NOT an external
+  dependency.** CSR → CCSID → the six compliance documents → PCSID, against
+  sandbox. *This is the milestone that proves the cryptography is correct.*
+  - **The 2026-08-07 connectivity block CLEARED on 2026-08-09** — it was a
+    transient outage, not IP allowlisting (the hosts also moved behind
+    Cloudflare; the A records changed). **M12.4 does NOT belong with M12.7/M12.9**
+    — it needs no VAT registration and no ERAD credentials, and the sandbox
+    compliance endpoint required no account at all.
+  - **The first real ZATCA response has now been obtained.** A CSR from
+    `crypto/csr.ts` was submitted to the sandbox and ZATCA's CA returned
+    `dispositionMessage: "ISSUED"` with a certificate that binds **our**
+    `secp256k1` key and **our** SAN fields (`title=1100` alongside
+    `businessCategory=Software`), valid 5 years. **That validates divergences
+    #1–#5 against reality** — the curve and all three CSR-structure findings were
+    right, confirmed by ZATCA rather than by decompilation alone.
+  - **🔴 Divergences #6–#13 remain UNVALIDATED against ZATCA.** CSID issuance
+    exercises only the CSR. The XAdES structure and QR tags 6–9 are checked when a
+    *signed invoice* is submitted to the compliance endpoints — the remaining work
+    of M12.4. Do not treat "ISSUED" as evidence the signature is correct.
+  - **Sandbox accepts ANY OTP** (`123456`, `123345`, `111222` all issued) and
+    returns a constant stub `requestID`. A green sandbox OTP proves nothing about
+    the real OTP path.
 - **M12.5: credential vault + per-tenant onboarding flow** — owner-only
   `zatca_credentials` (no RLS, no app-role grants — the established pattern), KMS
   envelope encryption, tenant OTP paste UI.
