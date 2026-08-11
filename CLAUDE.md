@@ -92,6 +92,29 @@ mandatory hedges behind the build-direct decision. The rest are `Redis` (listed
 in the stack, used nowhere), a stale layout section, an empty `packages/auth`,
 and `feature_flags`/`branches`/`departments` (tables with no consumer).
 
+### 🔴 THE FOUR HUBS ARE NOT SPECIFIED — do not build against a reading of them
+
+The project is described as an "AI-powered Accounting & Finance Operating
+Platform", and the roadmap is spoken of in terms of a **Finance Hub, Automation
+Hub, AI Hub, Analytics** and **integrations**. **None of those is defined
+anywhere in this repository.** There is no spec, no scope, no acceptance
+criteria — `docs/architecture-blueprint.md` covers architecture and tenancy only.
+
+Any list of what those hubs "contain" that a session produces from the current
+codebase — including the orientation given at the M12 close-out (treasury,
+collections, recurring invoices, bank feeds, OCR, anomaly detection,
+natural-language reporting, …) — is **a reading of the gap between what exists
+and the stated ambition. It is not a specification and must not be treated as
+one.** It was inferred, not recovered.
+
+**Defining them is its own piece of work**, to be done deliberately with the
+owner before anything is built against them. A future session that starts
+implementing "the Automation Hub" from an inferred list will be building
+someone's guess.
+
+The one constraint that IS real and recorded: **AI proposes, it never posts**
+(§5.6). That governs the AI Hub whatever it turns out to contain.
+
 ### Two standing rules earned the hard way
 
 1. **[Six instances] Correct is not connected.** Before recording a milestone
@@ -2177,8 +2200,14 @@ because these do not all land in one change.
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.
-- **[HIGH — MILESTONE CANDIDATE, money-touching, found in M12.1b] Invoice
-  revenue is MISCLASSIFIED in the income statement.** `postJournalEntry` writes
+- **[HIGH — 📄 DESIGNED as M13, awaiting approval: `docs/feature-spec-chart-of-accounts.md`]
+  Invoice revenue is MISCLASSIFIED in the income statement.**
+  🔴 The design found the problem is LARGER than recorded here: **`categories`
+  contains zero rows and nothing ever creates any**, so there is no chart of
+  accounts to resolve against; and naively setting `account_id` would
+  **double-count AR on the balance sheet**, because AR is currently bolted on
+  from the `invoices` table *and* the GL lines contribute nothing only because
+  their type is unresolvable. Read the spec before touching the posting path. `postJournalEntry` writes
   `accountId: l.accountId ?? null` and the invoice path never supplies one, so
   **every invoice GL line has `account_id = NULL`**. The income statement then
   classifies by `const type = cat?.type ?? "expense"` (`reports.service.ts`), so
