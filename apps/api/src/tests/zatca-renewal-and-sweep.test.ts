@@ -245,7 +245,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
     });
 
     it("archives nothing while the document is still pending", async () => {
-      const result = await archiveService.runOnce(store);
+      const result = await archiveService.runOnce(store, orgId);
       const rows = await archiveRows();
       expect(rows).toHaveLength(0);
       expect(result.archived).toBe(0);
@@ -262,7 +262,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
         clearedXml: null,
       });
 
-      const result = await archiveService.runOnce(store);
+      const result = await archiveService.runOnce(store, orgId);
       expect(result.archived).toBe(1);
 
       const [row] = await archiveRows();
@@ -292,7 +292,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
     });
 
     it("🔴 is idempotent — a second sweep adds nothing and does not overwrite", async () => {
-      const result = await archiveService.runOnce(store);
+      const result = await archiveService.runOnce(store, orgId);
       expect(result.archived).toBe(0);
       expect(result.scanned).toBe(0); // already indexed, so not even picked up
       expect(await archiveRows()).toHaveLength(1);

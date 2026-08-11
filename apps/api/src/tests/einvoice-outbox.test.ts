@@ -19,6 +19,7 @@ import { einvoiceOutboxRepository } from "../repositories/einvoiceOutbox.reposit
 import { EInvoiceWorker, backoffSeconds } from "../services/einvoice/outbox/worker";
 import { mapZatcaResponse } from "../services/einvoice/zatca/errorMapping";
 import type { ZatcaHttpClient, ZatcaRequest, ZatcaResponse } from "../services/einvoice/zatca/zatcaHttpClient";
+import { createZatcaDirectProvider } from "../services/einvoice/zatca/zatcaDirectProvider";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -37,6 +38,22 @@ function fakeClient(script: (req: ZatcaRequest) => ZatcaResponse): ZatcaHttpClie
       return script(req);
     },
   };
+}
+
+/**
+ * Wrap the fake HTTP boundary in the REAL provider (S1).
+ *
+ * These tests used to construct the worker with a raw client, which meant they
+ * exercised the transport while BYPASSING the `EInvoiceProvider` seam — the same
+ * bypass that made the seam only one-third wired in production. Driving the real
+ * provider over a fake socket keeps the boundary exactly where it was (scripted
+ * HTTP responses) and now covers the seam as well.
+ */
+function providerWith(
+  client: ZatcaHttpClient,
+  resolveTransportCredentials: (companyId: string) => Promise<{ certificateBase64: string; secret: string } | null>,
+) {
+  return createZatcaDirectProvider({ client, resolveTransportCredentials });
 }
 
 const ACCEPTED: ZatcaResponse = { httpStatus: 200, body: { status: "REPORTED" }, networkFailure: false, errorMessage: null };
@@ -74,8 +91,8 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
     const { rows } = await pool.query(
       `INSERT INTO einvoice_documents
-         (organization_id, company_id, invoice_id, flow, status, invoice_hash, signed_xml)
-       VALUES ($1,$2,$3,$4,'pending',$5,$6) RETURNING id`,
+         (organization_id, company_id, invoice_id, flow, status, invoice_hash, signed_xml, zatca_uuid)
+       VALUES ($1,$2,$3,$4,'pending',$5,$6, gen_random_uuid()) RETURNING id`,
       [
         orgId,
         companyId,
@@ -155,7 +172,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("a definitive acceptance is terminal and records ZATCA's status", async () => {
     const id = await queueDocument({ flow: "reporting" });
     const client = fakeClient(() => ACCEPTED);
-    await new EInvoiceWorker({ client, resolveCredentials: creds }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     const row = await einvoiceOutboxRepository.findById(id);
     expect(row!.status).toBe("reported");
@@ -166,7 +183,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("clearance acceptance yields `cleared`, not `reported`", async () => {
     const id = await queueDocument({ flow: "clearance" });
     const client = fakeClient(() => ({ ...ACCEPTED, body: { status: "CLEARED", clearedInvoice: "<Cleared/>" } }));
-    await new EInvoiceWorker({ client, resolveCredentials: creds }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     const row = await einvoiceOutboxRepository.findById(id);
     expect(row!.status).toBe("cleared");
@@ -178,7 +195,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("a non-2xx response is RETRYABLE, never guessed into `rejected`", async () => {
     const id = await queueDocument();
     const client = fakeClient(() => REJECTED);
-    await new EInvoiceWorker({ client, resolveCredentials: creds }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     const row = await einvoiceOutboxRepository.findById(id);
     // Until M12.4 supplies real error semantics, a 4xx is NOT assumed terminal:
@@ -189,7 +206,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("escalates to needs_review once attempts are exhausted, instead of retrying forever", async () => {
     const id = await queueDocument();
     const client = fakeClient(() => REJECTED);
-    const worker = new EInvoiceWorker({ client, resolveCredentials: creds, maxAttempts: 2 });
+    const worker = new EInvoiceWorker({ provider: providerWith(client, creds), maxAttempts: 2, organizationId: orgId });
 
     await worker.runOnce(); // attempt 1 → failed, backoff
     await pool.query(`UPDATE einvoice_documents SET next_attempt_at = now() - interval '1 hour' WHERE id = $1`, [id]);
@@ -206,7 +223,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("AMBIGUOUS FAILURE: a timeout never schedules a blind retry", async () => {
     const id = await queueDocument();
     const client = fakeClient(() => TIMEOUT);
-    await new EInvoiceWorker({ client, resolveCredentials: creds }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     const row = await einvoiceOutboxRepository.findById(id);
     // ZATCA may have processed it. Resubmitting risks a duplicate; abandoning it
@@ -219,7 +236,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("IDEMPOTENCY: a retry resubmits byte-identical content; the worker mints nothing", async () => {
     const id = await queueDocument();
     const client = fakeClient(() => REJECTED);
-    const worker = new EInvoiceWorker({ client, resolveCredentials: creds });
+    const worker = new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId });
 
     await worker.runOnce();
     await pool.query(`UPDATE einvoice_documents SET next_attempt_at = now() - interval '1 hour' WHERE id = $1`, [id]);
@@ -274,7 +291,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("an unsigned document is not retried — it needs re-issuing, not resending", async () => {
     const id = await queueDocument({ signed: false });
     const client = fakeClient(() => ACCEPTED);
-    await new EInvoiceWorker({ client, resolveCredentials: creds }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     expect(client.sent).toHaveLength(0); // never transmitted
     expect((await einvoiceOutboxRepository.findById(id))!.status).toBe("needs_review");
@@ -283,7 +300,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("a company without credentials retries rather than failing permanently", async () => {
     const id = await queueDocument();
     const client = fakeClient(() => ACCEPTED);
-    await new EInvoiceWorker({ client, resolveCredentials: async () => null }).runOnce();
+    await new EInvoiceWorker({ provider: providerWith(client, async () => null), organizationId: orgId }).runOnce();
 
     expect(client.sent).toHaveLength(0);
     // Onboarding may complete at any moment, so this is not the document's fault.

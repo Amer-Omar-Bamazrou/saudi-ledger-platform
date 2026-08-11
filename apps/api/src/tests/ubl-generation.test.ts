@@ -237,10 +237,33 @@ describe("M12.2 — the EInvoiceProvider seam", () => {
     expect(built.icv).toBe(1);
   });
 
-  it("unbuilt provider methods fail loudly rather than silently succeeding", async () => {
-    await expect(
-      zatcaDirectProvider.onboard({ companyId: "x", otp: "1", egsSerialNumber: "1-a|2-b|3-c", invoiceTypeFlags: "1100" }),
-    ).rejects.toBeInstanceOf(NotImplementedError);
-    await expect(zatcaDirectProvider.submit({} as any, "clearance")).rejects.toBeInstanceOf(NotImplementedError);
+  /**
+   * 🔴 S1 REGRESSION GUARD — this test used to assert the OPPOSITE.
+   *
+   * It previously pinned that `onboard` and `submit` throw `NotImplementedError`,
+   * which was true and correct at M12.2. What no one noticed is that it stayed
+   * green through M12.4 (which built onboarding) and M12.6 (which built
+   * transport), because BOTH shipped their real logic somewhere else and left
+   * the seam throwing. A passing test was quietly certifying that the swap point
+   * for a certified vendor did not work.
+   *
+   * Now inverted: every method must be reachable. If a future change routes a
+   * real path around the seam again, this fails.
+   */
+  it("every EInvoiceProvider method is implemented — the vendor swap point is real", async () => {
+    for (const method of ["onboard", "renewCertificate", "buildDocument", "submit"] as const) {
+      expect(typeof zatcaDirectProvider[method]).toBe("function");
+    }
+
+    // `submit` reaches its own guards rather than a NotImplementedError. An
+    // unsigned document is refused as a RESULT, not an exception, so one bad
+    // document cannot take down a worker batch.
+    const result = await zatcaDirectProvider.submit(
+      { xml: "<x/>", invoiceHash: null, qrCode: null, previousInvoiceHash: "", uuid: "u", icv: 1 },
+      "clearance",
+      { companyId: "no-such-company", uuid: "u" },
+    );
+    expect(result.status).toBe("failed");
+    expect(result.errors?.[0]).toMatchObject({ reason: expect.stringContaining("never signed") });
   });
 });

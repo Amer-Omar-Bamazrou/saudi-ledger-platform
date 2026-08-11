@@ -26,6 +26,8 @@ export interface NewEInvoiceDocument {
   organizationId: string;
   companyId: string;
   invoiceId: number;
+  /** ZATCA's document UUID — must match `cbc:UUID` in the signed XML. */
+  zatcaUuid: string;
   flow: "clearance" | "reporting";
   invoiceHash: string;
   previousInvoiceHash: string;
@@ -53,6 +55,7 @@ export const einvoiceDocumentsRepository = {
         organizationId: doc.organizationId,
         companyId: doc.companyId,
         invoiceId: doc.invoiceId,
+        zatcaUuid: doc.zatcaUuid,
         flow: doc.flow,
         status: "pending",
         invoiceHash: doc.invoiceHash,

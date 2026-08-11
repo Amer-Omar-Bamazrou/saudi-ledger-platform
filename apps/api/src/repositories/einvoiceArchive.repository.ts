@@ -71,7 +71,7 @@ export const einvoiceArchiveJobRepository = {
    * cross-tenant join can't slip in there; this module is archival-specific and
    * joins deliberately, filtering by the document's own ids.)
    */
-  async listUnarchived(limit = 100): Promise<ArchivableDocument[]> {
+  async listUnarchived(limit = 100, organizationId?: string): Promise<ArchivableDocument[]> {
     const { rows } = await pool.query(
       `SELECT d.id                AS "documentId",
               d.organization_id   AS "organizationId",
@@ -90,9 +90,10 @@ export const einvoiceArchiveJobRepository = {
                 SELECT 1 FROM einvoice_archive a
                  WHERE a.einvoice_document_id = d.id
               )
+          AND ($2::uuid IS NULL OR d.organization_id = $2::uuid)
         ORDER BY d.completed_at NULLS LAST, d.created_at
         LIMIT $1`,
-      [limit],
+      [limit, organizationId ?? null],
     );
     return rows;
   },

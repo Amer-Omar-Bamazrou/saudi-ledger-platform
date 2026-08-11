@@ -21,19 +21,41 @@
  */
 import { randomUUID } from "crypto";
 import { einvoiceOutboxRepository, type OutboxRow } from "../../../repositories/einvoiceOutbox.repository";
-import { mapZatcaResponse } from "../zatca/errorMapping";
-import type { ZatcaHttpClient } from "../zatca/zatcaHttpClient";
+import type { EInvoiceProvider } from "../provider";
 import { logger } from "../../../lib/logger";
 
 export interface WorkerOptions {
-  client: ZatcaHttpClient;
-  /** Credentials come from the M12.5 vault; injected until it exists. */
-  resolveCredentials: (companyId: string) => Promise<{ certificateBase64: string; secret: string } | null>;
+  /**
+   * The e-invoice provider (S1, M12 close-out).
+   *
+   * 🔴 This used to be a `ZatcaHttpClient` plus a credential resolver, which
+   * meant the worker **bypassed the `EInvoiceProvider` seam entirely** — the
+   * seam that exists so a certified vendor can be swapped in per company. Taking
+   * the provider instead is what makes that hedge real for submission, which is
+   * most of what a vendor sells. The provider resolves its own credentials, as a
+   * vendor would.
+   */
+  provider: EInvoiceProvider;
   batchSize?: number;
   /** Attempts before a document stops retrying and escalates to needs_review. */
   maxAttempts?: number;
   /** Reclaim rows stuck in `submitting` longer than this. */
   staleClaimSeconds?: number;
+  /**
+   * Restrict claiming to ONE organization. Omitted in production, where a worker
+   * drains every tenant's queue — that is the whole point of a background worker.
+   *
+   * It exists because claiming is deliberately CROSS-TENANT and global, which
+   * makes any two test suites that both touch `einvoice_documents` interfere:
+   * one suite's worker will happily claim and submit another suite's documents.
+   * That is not hypothetical — it broke three tests the moment M12.8 gave more
+   * than one suite real documents to create. Scoping the test worker is the
+   * honest fix; the alternative (asserting on partial counts) would weaken the
+   * assertions to accommodate the harness.
+   *
+   * It is also the seam a future sharded/per-tenant worker would use.
+   */
+  organizationId?: string;
 }
 
 const DEFAULTS = { batchSize: 10, maxAttempts: 5, staleClaimSeconds: 300 };
@@ -52,8 +74,8 @@ export function backoffSeconds(attempt: number, maxAttempts: number): number | n
 
 export class EInvoiceWorker {
   private readonly id = `worker-${randomUUID().slice(0, 8)}`;
-  private readonly opts: Required<Omit<WorkerOptions, "client" | "resolveCredentials">> &
-    Pick<WorkerOptions, "client" | "resolveCredentials">;
+  private readonly opts: Required<Omit<WorkerOptions, "provider" | "organizationId">> &
+    Pick<WorkerOptions, "provider" | "organizationId">;
   private running = false;
 
   constructor(options: WorkerOptions) {
@@ -74,7 +96,7 @@ export class EInvoiceWorker {
       logger.warn({ reclaimed }, "e-invoice outbox: reclaimed stale claims (flagged for reconciliation)");
     }
 
-    const batch = await einvoiceOutboxRepository.claimDue(this.id, this.opts.batchSize);
+    const batch = await einvoiceOutboxRepository.claimDue(this.id, this.opts.batchSize, this.opts.organizationId);
     for (const row of batch) {
       await this.submitOne(row);
     }
@@ -95,28 +117,34 @@ export class EInvoiceWorker {
       return;
     }
 
-    const credentials = await this.opts.resolveCredentials(row.companyId);
-    if (!credentials) {
-      // Not the document's fault: the company is not onboarded yet. Retry rather
-      // than reject, since onboarding may complete at any time.
+    // 🔴 ZATCA's own document UUID, which MUST match `cbc:UUID` inside the
+    // signed XML. This previously sent `String(row.invoiceId)` — our internal
+    // row id, which is not the document UUID and would have been rejected. The
+    // mismatch is invisible to every offline check (the XML is valid, the hash
+    // is correct, the signature verifies) and could only ever have surfaced on a
+    // real submission — which has never happened. See m12-status.md §0.
+    if (!row.zatcaUuid) {
       await einvoiceOutboxRepository.markFailed(row.id, {
-        errors: [{ reason: "no ZATCA credentials for this company; is it onboarded?" }],
+        errors: [{ reason: "document has no ZATCA UUID; it cannot be submitted" }],
         zatcaStatus: null,
         ambiguous: false,
-        retryInSeconds: backoffSeconds(row.attemptCount, this.opts.maxAttempts),
+        retryInSeconds: null,
       });
       return;
     }
 
-    const response = await this.opts.client.send({
-      endpoint: row.flow,
-      invoiceBase64: Buffer.from(row.signedXml, "utf-8").toString("base64"),
-      uuid: String(row.invoiceId),
-      invoiceHash: row.invoiceHash,
-      credentials,
-    });
-
-    const outcome = mapZatcaResponse(response, row.flow);
+    const outcome = await this.opts.provider.submit(
+      {
+        xml: row.signedXml,
+        invoiceHash: row.invoiceHash,
+        qrCode: null,
+        previousInvoiceHash: row.previousInvoiceHash ?? "",
+        uuid: row.zatcaUuid,
+        icv: 0,
+      },
+      row.flow,
+      { companyId: row.companyId, uuid: row.zatcaUuid },
+    );
 
     if (outcome.status === "cleared" || outcome.status === "reported") {
       await einvoiceOutboxRepository.markAccepted(row.id, {
@@ -128,8 +156,9 @@ export class EInvoiceWorker {
       return;
     }
 
-    // An ambiguous failure never schedules a blind retry: `markFailed` routes it
-    // to needs_review so it is reconciled by ASKING ZATCA what happened.
+    // An ambiguous failure never schedules a blind retry. `markFailed` routes it
+    // to `needs_review`, where a HUMAN reconciles it — see the note on
+    // `reclaimStale` about what "reconciliation" does and does not mean here.
     await einvoiceOutboxRepository.markFailed(row.id, {
       errors: outcome.errors,
       zatcaStatus: outcome.zatcaStatus,

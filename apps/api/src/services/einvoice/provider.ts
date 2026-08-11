@@ -23,6 +23,7 @@
  * One tenant can be moved to a vendor — or back — without affecting any other.
  */
 import type { KeyObject } from "crypto";
+import type { ZatcaEnvironment } from "@workspace/db";
 import type { BuiltDocument, EInvoiceInput } from "./types";
 
 /**
@@ -49,21 +50,67 @@ export class NotImplementedError extends Error {
 
 export interface OnboardingInput {
   companyId: string;
-  /** One-time password the taxpayer generates in the Fatoora portal. */
+  /**
+   * One-time password the taxpayer generates in the Fatoora portal.
+   *
+   * We never see or store their ERAD credentials; the OTP is used once and
+   * discarded. This is why onboarding cannot be automated on the tenant's behalf
+   * — and why a renewal reminder that fires late cannot be fixed by us.
+   */
   otp: string;
-  /** EGS serial in ZATCA's validated `1-<Mfr>|2-<Model>|3-<Serial>` format. */
-  egsSerialNumber: string;
-  /** 4-digit TSCZ invoice-type flags, e.g. "1100" = standard + simplified. */
-  invoiceTypeFlags: string;
+  /** Which ZATCA environment. Defaults to the configured one. */
+  environment?: ZatcaEnvironment;
 }
 
+/**
+ * Renewal takes the same inputs as onboarding, and deliberately so.
+ *
+ * 🔴 The M12.2 declaration was `renewCertificate(companyId: string)` — no OTP.
+ * That was wrong: ZATCA re-issues a certificate only against a fresh CSR
+ * authorised by a new OTP from the taxpayer's own portal. The original signature
+ * quietly implied renewal was something the platform could do unattended, which
+ * is the opposite of true and is the single most important operational fact
+ * about certificate expiry. Corrected in M12.8's follow-up.
+ */
+export type RenewalInput = OnboardingInput;
+
 export interface OnboardingResult {
-  /** Opaque handle to the stored credential — NEVER the key material itself. */
-  credentialRef: string;
-  certificateExpiresAt: Date;
+  /**
+   * Opaque handle to the stored credential — NEVER the key material itself.
+   * `null` when onboarding did not activate (e.g. compliance checks failed).
+   */
+  credentialRef: string | null;
+  certificateExpiresAt: Date | null;
+  /** Whether the company can now sign. False ⇒ inspect `documentChecks`. */
+  activated: boolean;
+  /**
+   * Per-document validation detail, when the provider exposes it.
+   *
+   * For `zatca-direct` these are ZATCA's six compliance documents. Optional
+   * because a vendor performs its own onboarding and may report only success or
+   * failure — but when detail IS available it must reach the UI, since "ZATCA
+   * rejected you" without the rule that failed is not actionable.
+   */
+  documentChecks?: { label: string; passed: boolean; errors: unknown[]; warnings: unknown[] }[];
 }
 
 export type SubmissionFlow = "clearance" | "reporting";
+
+/** What a provider needs to know about WHOSE invoice it is submitting. */
+export interface SubmissionContext {
+  /**
+   * ZATCA identity is per EGS unit, i.e. per company. The provider resolves its
+   * own credentials from this — they are never passed in, because a vendor holds
+   * its own and ours must not leave the vault's scoped callback.
+   */
+  companyId: string;
+  /**
+   * ZATCA's document UUID (`cbc:UUID`), which MUST match the value inside the
+   * signed XML. Carried explicitly rather than re-derived, because a mismatch
+   * is rejected and is invisible to every offline check.
+   */
+  uuid: string;
+}
 
 export interface SubmissionResult {
   /** Mirrors `einvoice_documents.status`. */
@@ -74,6 +121,12 @@ export interface SubmissionResult {
   clearedXml: string | null;
   warnings: unknown[] | null;
   errors: unknown[] | null;
+  /**
+   * TRUE when the outcome is UNKNOWN — a timeout or socket failure that may or
+   * may not have been processed. Forbids a blind retry; the document goes to
+   * `needs_review` instead.
+   */
+  ambiguous: boolean;
 }
 
 export interface EInvoiceProvider {
@@ -83,8 +136,12 @@ export interface EInvoiceProvider {
   /** CSR → Compliance CSID → compliance checks → Production CSID. */
   onboard(input: OnboardingInput): Promise<OnboardingResult>;
 
-  /** Re-key before PCSID expiry (5-year validity, no grace period). */
-  renewCertificate(companyId: string): Promise<OnboardingResult>;
+  /**
+   * Re-key before PCSID expiry (5-year validity, no grace period).
+   *
+   * Requires the tenant's OTP — see {@link RenewalInput}.
+   */
+  renewCertificate(input: RenewalInput): Promise<OnboardingResult>;
 
   /**
    * Produce the document: UBL 2.1 XML plus, when `credentials` are supplied, the
@@ -96,5 +153,5 @@ export interface EInvoiceProvider {
   buildDocument(input: EInvoiceInput, credentials?: SigningCredentials): Promise<BuiltDocument>;
 
   /** Clearance (standard) or reporting (simplified). */
-  submit(doc: BuiltDocument, flow: SubmissionFlow): Promise<SubmissionResult>;
+  submit(doc: BuiltDocument, flow: SubmissionFlow, context: SubmissionContext): Promise<SubmissionResult>;
 }

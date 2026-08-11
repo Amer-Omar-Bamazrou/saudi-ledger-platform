@@ -74,6 +74,20 @@ export const einvoiceDocumentsTable = pgTable(
      * ZATCA's invoice hash: BASE64( SHA-256( C14N-canonicalised UBL XML ) ).
      * NOT the legacy hex hash on `invoices.invoice_hash`.
      */
+    /**
+     * ZATCA's document UUID (`cbc:UUID`), copied from `invoices.zatca_uuid` at
+     * enqueue (M12 close-out / S1).
+     *
+     * 🔴 Duplicated deliberately. The submission payload carries a `uuid` that
+     * MUST equal the `cbc:UUID` inside the signed XML, and the worker runs on
+     * the base pool where joining business tables is forbidden — so it needs the
+     * value on this row. Before this, the worker sent `String(invoice_id)`, our
+     * internal row id, which is not the document UUID. That would be rejected,
+     * and it is invisible to every offline check: the XML is valid, the hash is
+     * right, the signature verifies. Only a real submission could surface it,
+     * and none has ever happened.
+     */
+    zatcaUuid: uuid("zatca_uuid"),
     invoiceHash: text("invoice_hash"),
     /**
      * Previous Invoice Hash. Chained per COMPANY (per EGS unit), not per
