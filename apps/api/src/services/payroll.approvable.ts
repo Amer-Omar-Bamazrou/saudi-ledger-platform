@@ -35,10 +35,10 @@ async function postPayrollGL(run: PayrollRun): Promise<PayrollRunOut> {
     description: `Payroll run for period ${run.period}`,
     reference: `Payroll-${run.id}`,
     lines: [
-      { accountName: "Salaries and Wages Expense", description: `Gross salaries ${run.period}`, debitAmount: gross, creditAmount: 0 },
-      { accountName: "GOSI Expense - Employer", description: `Employer GOSI ${run.period}`, debitAmount: gosiEr, creditAmount: 0 },
-      { accountName: "Salaries Payable", description: `Net pay payable ${run.period}`, debitAmount: 0, creditAmount: netPay },
-      { accountName: "GOSI Payable", description: `GOSI payable ${run.period}`, debitAmount: 0, creditAmount: gosiEmp + gosiEr },
+      { systemCode: "SALARIES", accountName: "Salaries and Wages Expense", description: `Gross salaries ${run.period}`, debitAmount: gross, creditAmount: 0 },
+      { systemCode: "GOSI_EXPENSE", accountName: "GOSI Expense - Employer", description: `Employer GOSI ${run.period}`, debitAmount: gosiEr, creditAmount: 0 },
+      { systemCode: "SALARIES_PAYABLE", accountName: "Salaries Payable", description: `Net pay payable ${run.period}`, debitAmount: 0, creditAmount: netPay },
+      { systemCode: "GOSI_PAYABLE", accountName: "GOSI Payable", description: `GOSI payable ${run.period}`, debitAmount: 0, creditAmount: gosiEmp + gosiEr },
     ],
   });
 

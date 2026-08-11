@@ -1,6 +1,6 @@
-# M13 — Chart of Accounts & GL classification (DESIGN, not yet built)
+# M13 — Chart of Accounts & GL classification
 
-**Status: proposed, awaiting approval.** Money-touching; changes the posting path
+**Status: ✅ BUILT.** Design approved and implemented; see the "as built" notes at the end for what the implementation added or corrected. Money-touching; changes the posting path
 every invoice, bill and payroll run goes through.
 
 Fixes the HIGH finding recorded since M12.1b: *invoice revenue is misclassified in
@@ -245,3 +245,66 @@ Ordered so no step ships a guard that can fire:
    statements will not match a re-run.
 3. **CoA depth** — minimal system set now (proposed), or a fuller Saudi template?
    The latter is its own milestone.
+
+
+---
+
+## 11. As built — what changed from the design
+
+The design held. Four things the build added or corrected, all recorded because
+they were found by the work rather than anticipated by it.
+
+### 🔴 The fail-closed guard immediately found the real hole
+
+Migration `0024` seeded the chart for every organization existing at that moment,
+and signup seeds new ones. **That covers two paths and misses every other** —
+the seed script, the test fixtures, and any future code creating an organization
+with a plain INSERT. All 22 DB-backed suites failed instantly with
+`Chart of accounts is incomplete`, which is the guard doing exactly its job.
+
+Rather than ask every call site to remember, migration `0025` makes it
+structural: a **DB trigger seeds the chart on `INSERT INTO organizations`**, so
+an organization cannot exist without one. Same discipline as append-only
+`audit_logs` — if it matters, the database guarantees it, not a convention.
+
+Two consequences followed:
+- **One canonical template.** The account list lived in TypeScript *and* in
+  0024's SQL. It is now a `system_account_templates` table that both the
+  backfill and the trigger read from, with a test asserting it agrees with
+  `chartOfAccounts.ts`.
+- **`categories` cascades on organization delete.** Every org now owns 11 rows
+  it never asked for, so `DELETE FROM organizations` failed the FK and broke
+  every teardown path. Cascading is also correct: the chart is created with the
+  org and is meaningless without it.
+
+### The system-account guard protects the APP ROLE, not the owner
+
+The first trigger blocked every delete including the owner connection, which
+broke legitimate teardown and protects nothing real (the owner runs migrations).
+It now applies to non-owner roles only — the same owner/app-role boundary used
+everywhere else. `name` and `name_ar` remain editable; `type`, `system_code` and
+deletion do not.
+
+### Bills: the one line whose account the USER chooses
+
+A bill's `debitAccount` is free text supplied per bill. Resolving it **by name**
+is correct here — it is the user naming their own account, which is a different
+thing from resolving our hardcoded literals. If it matches an account in their
+chart we honour it; otherwise the line still classifies correctly as an expense
+via `PURCHASES`, keeping their text as the label. `GLLine` is therefore a union:
+`systemCode` (ours) **or** `accountId` (theirs), never neither — the type system
+makes a NULL account unrepresentable.
+
+### 🔴 A correction to §7: the VAT return does NOT read `transactions`
+
+§7 said cash flow, VAT and Zakat all read `transactions` and were therefore
+unaffected. **Wrong about the VAT return** — it is computed from INVOICES and
+BILLS. The conclusion still holds (M13 does not touch invoices), but for a
+different reason than stated.
+
+This is exactly why the guard was written as a **property** rather than a fixed
+figure: the test posts a GL-only journal entry with no invoice, bill or
+transaction behind it and asserts every VAT box, the Zakat base and cash flow are
+byte-identical, then asserts the income statement DID move so the check is not
+vacuous. It isolates the ledger as the only variable, survives fixture changes,
+and fails for exactly one reason — a tax report started reading the GL.

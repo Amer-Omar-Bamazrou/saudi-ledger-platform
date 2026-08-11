@@ -22,6 +22,7 @@
 import { BusinessRuleError } from "../lib/errors";
 import { postJournalEntry } from "./accounting/glPosting";
 import { billsRepository } from "../repositories/bills.repository";
+import { categoriesRepository } from "../repositories/categories.repository";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
 import type { billsTable, vendorsTable } from "@workspace/db";
@@ -97,8 +98,23 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   }
 
   // ── GL: Dr Purchases/Input VAT / Cr Accounts Payable ──
+  //
+  // M13: the expense line is the ONE line here whose account the USER chooses.
+  // `debitAccount` is free text they supply per bill, so unlike our own posting
+  // literals it is legitimate to resolve it BY NAME — the name is their account's
+  // name, not one of our hardcoded strings. If it names a real account in their
+  // chart we honour it; otherwise the line still classifies correctly as an
+  // expense via PURCHASES, keeping their text as the display label.
+  //
+  // Choosing a specific expense account per bill (a picker over the real chart
+  // rather than free text) is a follow-up — it is a UX change, not a
+  // classification one, and the classification is what M13 is fixing.
   const expenseAccount =
     typeof debitAccount === "string" && debitAccount.trim() ? debitAccount.trim() : "Purchases and Cost of Sales";
+  const chosen = await categoriesRepository.findByName(expenseAccount);
+  const expenseLine = chosen
+    ? { accountId: chosen.id, accountName: expenseAccount }
+    : { systemCode: "PURCHASES" as const, accountName: expenseAccount };
 
   await postJournalEntry({
     entryNumber: `BILL-${bill.billNumber}`,
@@ -106,9 +122,9 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     description: `Vendor bill ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}`,
     reference: bill.billNumber ?? undefined,
     lines: [
-      { accountName: expenseAccount, description: `Bill ${bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
-      { accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
-      { accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal },
+      { ...expenseLine, description: `Bill ${bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
+      { systemCode: "VAT_INPUT", accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+      { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal },
     ],
   });
 

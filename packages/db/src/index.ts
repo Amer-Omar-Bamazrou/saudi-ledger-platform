@@ -191,3 +191,4 @@ export async function beginTenantConnection(scope: TenantScope): Promise<TenantC
 
 export * from "./schema";
 export * from "./permissions";
+export * from "./chartOfAccounts";

@@ -41,6 +41,25 @@ export const journalEntriesService = {
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
       throw new BadRequestError("Journal entry must balance: debits must equal credits");
     }
+
+    // 🔴 M13: every line must name an account. This is a BEHAVIOURAL CHANGE.
+    //
+    // A line with no `accountId` cannot be classified: the income statement and
+    // balance sheet bucket by the account's TYPE, so an accountless line is
+    // invisible to both — which is exactly the defect M13 exists to remove, just
+    // reached from the manual side instead of the automated one. Leaving manual
+    // entries optional would preserve the hole in a different place.
+    //
+    // Existing rows are unaffected (migration 0024 back-fills what it can and
+    // leaves the rest); this applies to NEW entries only.
+    const missingAccount = (lines as any[]).findIndex((l) => l.accountId == null);
+    if (missingAccount >= 0) {
+      throw new BadRequestError(
+        `Journal entry line ${missingAccount + 1} has no account. Every line must post to an ` +
+          "account, otherwise it cannot appear on the income statement or balance sheet.",
+      );
+    }
+
     if (jeData.date) await checkPeriodOpen(jeData.date as string);
 
     const [je] = await journalEntriesRepository.insertEntry({
