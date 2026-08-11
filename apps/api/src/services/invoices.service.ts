@@ -17,7 +17,8 @@
  * generic {@link approvalService} + {@link invoiceApprovable} adapter — the same
  * engine journal entries and bills use.
  */
-import { ConflictError, NotFoundError, BadRequestError } from "../lib/errors";
+import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
+import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -72,7 +73,30 @@ export const invoicesService = {
 
     // A draft dated in a closed period is harmless (no ledger effect), but keep
     // the early guard so drafts aren't entered into closed periods.
+    //
+    // NOTE (M12.1b): this checks the NOTE's OWN date. A note correcting an
+    // invoice from a CLOSED period is legitimate and must not be blocked — the
+    // correction posts in the current open period, which is standard practice.
+    // The consequence is that the closed period's VAT return does not change;
+    // the adjustment lands in the note's period.
     await checkPeriodOpen(invData.date ?? new Date().toISOString().split("T")[0]);
+
+    // Credit/debit notes: validate the reference, the reason and the credit
+    // ceiling before anything is written.
+    if (isNoteType(invData.documentType)) {
+      await assertNoteIsValid({
+        documentType: invData.documentType,
+        originalInvoiceId: invData.originalInvoiceId,
+        noteReason: invData.noteReason,
+        total,
+      });
+    } else if (invData.originalInvoiceId || invData.noteReason) {
+      // The DB CHECK would reject this anyway; a named 400 beats a raw 500.
+      throw new BusinessRuleError(400, {
+        code: "note_fields_on_invoice",
+        error: "Only a credit or debit note may carry an original invoice reference or a note reason.",
+      });
+    }
 
     // Persist a DRAFT — deliberately NO invoiceHash/previousHash/qrCode and NO GL
     // posting here; those are minted only at approval. Seller identity is

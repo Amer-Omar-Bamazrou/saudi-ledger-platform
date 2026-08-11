@@ -74,12 +74,40 @@ export const invoicesTable = pgTable(
      * simplified-invoice reporting clock runs off this.
      */
     issuedAt: timestamp("issued_at", { withTimezone: true }),
-    /** invoice | credit_note | debit_note. Notes land in M12.1b. */
+    /** invoice | credit_note | debit_note (M12.1b). */
     documentType: text("document_type").notNull().default("invoice"),
+
+    /**
+     * The document this note corrects (M12.1b) — a REAL FK, not the invoice
+     * number string.
+     *
+     * ZATCA's `cac:BillingReference` carries the original's NUMBER, but that is
+     * derived from this row at assembly time. Storing the string instead would
+     * let the reference drift from the row it names, and would not let us check
+     * that the original is actually issued or how much has already been credited.
+     *
+     * A CHECK constraint (hand-written in migration 0020 — Drizzle cannot
+     * express it) makes this NULL for ordinary invoices and NOT NULL for notes,
+     * so the pairing cannot be wrong by construction.
+     */
+    originalInvoiceId: integer("original_invoice_id"),
+
+    /**
+     * Why the note was issued — **BR-KSA-17** requires it (KSA-10) on every
+     * credit and debit note. Emitted as `cbc:InstructionNote`.
+     *
+     * Also covered by the CHECK constraint: without it ZATCA rejects the
+     * document, so it is required at entry rather than discovered at submission.
+     */
+    noteReason: text("note_reason"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     index("invoices_org_status_idx").on(t.organizationId, t.status),
+    // Notes-for-an-original lookups: the over-crediting guard sums every note
+    // against one invoice on each note approval.
+    index("invoices_original_idx").on(t.originalInvoiceId),
     // ICV must be unique per company — the DB is the real guarantee against a
     // reused counter value under concurrent approvals.
     uniqueIndex("invoices_company_icv_unq").on(t.companyId, t.icv),

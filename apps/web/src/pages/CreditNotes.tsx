@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,176 +8,320 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileMinus } from "lucide-react";
+import { Plus, FileMinus, FilePlus, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface CreditNote {
-  id: number; creditNoteNumber: string; customerId: number; customerName: string;
-  date: string; invoiceReference: string; status: string; amount: number; reason: string;
+/**
+ * Credit & debit notes (M12.1b).
+ *
+ * ── This page used to be a SHELL ───────────────────────────────────────────
+ * It called `/credit-notes`, which never existed, and swallowed the error with
+ * `.catch(() => [])` — so it rendered an empty list forever and its create
+ * dialog went nowhere. It is now built on the real backend: notes are `invoices`
+ * rows with `documentType` credit_note | debit_note, so they flow through the
+ * same approval workflow and the same ZATCA chain as invoices.
+ *
+ * Amounts are POSITIVE on every document type; the direction is carried by
+ * `documentType`. A credit note reduces what the customer owes; a DEBIT note is
+ * an additional charge and increases it.
+ */
+interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  date: string;
+  customerId: number | null;
+  customerName: string | null;
+  status: string;
+  total: number;
+  documentType: string;
+  originalInvoiceId: number | null;
+  noteReason: string | null;
+  icv: number | null;
 }
-interface Customer { id: number; name: string; }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  issued: "bg-blue-500/20 text-blue-400",
-  applied: "bg-emerald-500/20 text-emerald-400",
-  voided: "bg-red-500/20 text-red-400",
+  submitted: "bg-amber-500/20 text-amber-500",
+  sent: "bg-emerald-500/20 text-emerald-400",
+  paid: "bg-emerald-500/20 text-emerald-400",
 };
 
 const makeEmpty = () => ({
-  creditNoteNumber: `CN-${Date.now().toString().slice(-6)}`,
-  customerId: "",
+  documentType: "credit_note",
+  invoiceNumber: `CN-${Date.now().toString().slice(-6)}`,
+  originalInvoiceId: "",
   date: new Date().toISOString().split("T")[0],
-  invoiceReference: "",
-  status: "draft",
-  subtotal: "",
-  vatAmount: "",
-  amount: "",
-  reason: "",
+  noteReason: "",
+  description: "",
+  quantity: "1",
+  unitPrice: "",
+  vatRate: "15",
 });
 
 export default function CreditNotes() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmpty());
+  const [error, setError] = useState("");
   const { toast } = useToast();
   const { t } = useLanguage();
+  const qc = useQueryClient();
 
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["customers"],
-    queryFn: () => apiFetch("/customers"),
+  const { data: all = [], isLoading } = useQuery<Invoice[]>({
+    queryKey: ["invoices"],
+    queryFn: () => apiFetch<Invoice[]>("/api/invoices"),
   });
 
-  const { data: notes = [], isLoading } = useQuery<CreditNote[]>({
-    queryKey: ["credit-notes"],
-    queryFn: () => apiFetch<CreditNote[]>("/credit-notes").catch(() => [] as CreditNote[]),
+  const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
+  // Only ISSUED invoices can be corrected — a draft has nothing in the books.
+  const correctable = all.filter(
+    (i) => i.documentType === "invoice" && ["sent", "paid", "overdue"].includes(i.status),
+  );
+
+  const create = useMutation({
+    mutationFn: () =>
+      apiFetch("/api/invoices", {
+        method: "POST",
+        body: JSON.stringify({
+          invoiceNumber: form.invoiceNumber,
+          date: form.date,
+          documentType: form.documentType,
+          originalInvoiceId: Number(form.originalInvoiceId),
+          noteReason: form.noteReason,
+          customerId: correctable.find((i) => i.id === Number(form.originalInvoiceId))?.customerId,
+          items: [
+            {
+              description: form.description,
+              quantity: Number(form.quantity),
+              unitPrice: Number(form.unitPrice),
+              vatRate: Number(form.vatRate),
+              taxCategoryCode: "S",
+              unitCode: "PCE",
+            },
+          ],
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setOpen(false);
+      setForm(makeEmpty());
+      setError("");
+      toast({ title: "Note created" });
+    },
+    // The server's message is the useful one — it names the ZATCA rule or the
+    // remaining creditable amount.
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
   });
 
-  const totalIssued = notes.reduce((s, n) => s + n.amount, 0);
+  const isCredit = form.documentType === "credit_note";
+  const totalCredited = notes
+    .filter((n) => n.documentType === "credit_note")
+    .reduce((s, n) => s + n.total, 0);
+  const totalDebited = notes
+    .filter((n) => n.documentType === "debit_note")
+    .reduce((s, n) => s + n.total, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Credit Notes", "إشعارات دائن")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Issued to customers for returns or overbilling", "تُصدر للعملاء مقابل المرتجعات أو الفوترة الزائدة")}</p>
+          <h1 className="text-2xl font-semibold">Credit &amp; debit notes</h1>
+          <p className="text-muted-foreground">
+            Corrections to issued invoices. A credit note reduces what the customer owes; a debit
+            note charges more.
+          </p>
         </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Credit Note", "إشعار دائن جديد")}</Button>
+            <Button disabled={correctable.length === 0}>
+              <Plus className="h-4 w-4 mr-2" />
+              New note
+            </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>{t("New Credit Note", "إشعار دائن جديد")}</DialogTitle></DialogHeader>
-            <div className="space-y-3 mt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Credit Note #", "رقم الإشعار الدائن")}</Label>
-                  <Input value={form.creditNoteNumber} onChange={e => setForm(p => ({ ...p, creditNoteNumber: e.target.value }))} className="mt-1 h-8 text-sm" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Invoice Reference", "مرجع الفاتورة")}</Label>
-                  <Input value={form.invoiceReference} onChange={e => setForm(p => ({ ...p, invoiceReference: e.target.value }))} placeholder="INV-XXXXXX" className="mt-1 h-8 text-sm" />
-                </div>
-              </div>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isCredit ? "New credit note" : "New debit note"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Customer", "عميل")}</Label>
-                <Select value={form.customerId} onValueChange={v => setForm(p => ({ ...p, customerId: v }))}>
-                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer…", "اختر عميلاً…")} /></SelectTrigger>
+                <Label>Type</Label>
+                <Select
+                  value={form.documentType}
+                  onValueChange={(v) =>
+                    setForm({
+                      ...form,
+                      documentType: v,
+                      invoiceNumber: `${v === "credit_note" ? "CN" : "DN"}-${Date.now().toString().slice(-6)}`,
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    <SelectItem value="credit_note">Credit note — reduce the amount owed</SelectItem>
+                    <SelectItem value="debit_note">Debit note — charge more</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
-                  <Input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="mt-1 h-8 text-sm" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
-                  <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
-                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["draft", "issued", "applied", "voided"].map(s => (
-                        <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+
+              <div>
+                <Label>Original invoice</Label>
+                <Select
+                  value={form.originalInvoiceId}
+                  onValueChange={(v) => setForm({ ...form, originalInvoiceId: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select an issued invoice" /></SelectTrigger>
+                  <SelectContent>
+                    {correctable.map((i) => (
+                      <SelectItem key={i.id} value={String(i.id)}>
+                        {i.invoiceNumber} — {i.customerName ?? "—"} — {fmtNum(i.total)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
-                  <Input type="number" step="0.01" value={form.subtotal} onChange={e => setForm(p => ({ ...p, subtotal: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Label>
-                  <Input type="number" step="0.01" value={form.vatAmount} onChange={e => setForm(p => ({ ...p, vatAmount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Total Amount", "المبلغ الإجمالي")}</Label>
-                  <Input type="number" step="0.01" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
-                </div>
+
+              <div>
+                <Label>Number</Label>
+                <Input value={form.invoiceNumber} onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })} />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Reason", "السبب")}</Label>
-                <Input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder={t("Return, overbilling, discount…", "مرتجع، فوترة زائدة، خصم…")} className="mt-1 h-8 text-sm" />
+                <Label>Date</Label>
+                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The note posts to ITS OWN period. Correcting an invoice from a closed period is
+                  fine — date the note in an open one.
+                </p>
               </div>
+              <div>
+                <Label>Reason</Label>
+                <Input
+                  value={form.noteReason}
+                  onChange={(e) => setForm({ ...form, noteReason: e.target.value })}
+                  placeholder={isCredit ? "Goods returned" : "Price correction"}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Required by ZATCA (BR-KSA-17) — every note must say why it was issued.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-3">
+                  <Label>Description</Label>
+                  <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Qty</Label>
+                  <Input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Unit price</Label>
+                  <Input value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
+                </div>
+                <div>
+                  <Label>VAT %</Label>
+                  <Input value={form.vatRate} onChange={(e) => setForm({ ...form, vatRate: e.target.value })} />
+                </div>
+              </div>
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                className="w-full"
+                disabled={!form.originalInvoiceId || !form.noteReason || !form.unitPrice || create.isPending}
+                onClick={() => create.mutate()}
+              >
+                {create.isPending ? "Creating…" : "Create note"}
+              </Button>
             </div>
-            <Button className="w-full mt-4" disabled={!form.customerId}
-              onClick={() => { toast({ title: t("Credit note saved", "تم حفظ الإشعار الدائن") }); setOpen(false); setForm(makeEmpty()); }}>
-              {t("Save Credit Note", "حفظ الإشعار الدائن")}
-            </Button>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          [t("Total Notes", "إجمالي الإشعارات"), notes.length, "text-primary"],
-          [t("Total Credited", "إجمالي المُعاد"), fmtNum(totalIssued), "text-red-400"],
-          [t("Applied", "مطبّق"), notes.filter(n => n.status === "applied").length, "text-emerald-400"],
-          [t("Pending", "معلّق"), notes.filter(n => n.status === "issued").length, "text-amber-400"],
-        ].map(([l, v, c]) => (
-          <Card key={String(l)} className="border-border bg-card">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-          </Card>
-        ))}
+      {correctable.length === 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            There are no issued invoices to correct yet. A note can only be raised against an
+            invoice that has been approved and issued.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileMinus className="h-4 w-4" /> Total credited
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{fmtNum(totalCredited)}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FilePlus className="h-4 w-4" /> Total debited
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{fmtNum(totalDebited)}</CardContent>
+        </Card>
       </div>
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Notes", "الإشعارات")}</CardTitle>
+        </CardHeader>
+        <CardContent>
           {isLoading ? (
-            <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
+            <p className="text-muted-foreground">Loading…</p>
           ) : notes.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FileMinus className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No credit notes yet.", "لا توجد إشعارات دائن بعد.")}</p>
-              <p className="text-xs mt-1 opacity-60">{t("Issue one when a customer needs a refund or adjustment.", "أصدر واحداً عند حاجة العميل إلى استرداد أو تعديل.")}</p>
-            </div>
+            <p className="text-muted-foreground">No credit or debit notes yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Credit Note #", "رقم الإشعار الدائن"), t("Customer", "العميل"), t("Invoice Ref", "مرجع الفاتورة"), t("Date", "التاريخ"), t("Amount", "المبلغ"), t("Status", "الحالة")].map(h => (
-                    <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {notes.map(n => (
-                  <tr key={n.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pr-4 font-mono text-xs text-primary">{n.creditNoteNumber}</td>
-                    <td className="py-3 pr-4 font-medium">{n.customerName}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{n.invoiceReference || "—"}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(n.date)}</td>
-                    <td className="py-3 pr-4 font-mono font-semibold text-red-400">{fmtNum(n.amount)}</td>
-                    <td className="py-3"><Badge className={`text-xs ${STATUS_STYLES[n.status] ?? ""}`}>{n.status}</Badge></td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="py-2">Number</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th className="text-right">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {notes.map((n) => (
+                    <tr key={n.id} className="border-t">
+                      <td className="py-2 font-medium">{n.invoiceNumber}</td>
+                      <td>
+                        <Badge variant="outline">
+                          {n.documentType === "credit_note" ? "Credit" : "Debit"}
+                        </Badge>
+                      </td>
+                      <td>{fmtDate(n.date)}</td>
+                      <td>{n.customerName ?? "—"}</td>
+                      <td className="max-w-[16rem] truncate">{n.noteReason ?? "—"}</td>
+                      <td>
+                        <Badge className={STATUS_STYLES[n.status] ?? ""}>{n.status}</Badge>
+                      </td>
+                      {/* Displayed with the sign the books apply, so the row reads
+                          the way it affects the customer's balance. */}
+                      <td className="text-right tabular-nums">
+                        {n.documentType === "credit_note" ? "−" : "+"}
+                        {fmtNum(n.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

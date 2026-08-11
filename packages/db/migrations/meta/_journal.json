@@ -141,6 +141,20 @@
       "when": 1786282617077,
       "tag": "0019_m12_5_zatca_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786287237648,
+      "tag": "0020_m12_1b_credit_debit_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786287804908,
+      "tag": "0021_m12_1b_customer_national_id",
+      "breakpoints": true
     }
   ]
 }

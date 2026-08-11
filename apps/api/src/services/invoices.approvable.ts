@@ -21,10 +21,12 @@
  *   paid      → approved   (post-approval)
  *   overdue   → approved   (post-approval)
  */
+import { randomUUID } from "node:crypto";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
 import { invoicesRepository } from "../repositories/invoices.repository";
+import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
@@ -39,16 +41,40 @@ type InvoiceRow = { inv: Invoice; cust: Customer | null };
 // placeholder, duplicated here and in invoices.service.ts) are gone — see that
 // module for why there is deliberately no fallback value any more.
 
+/** Human label per document type — used in the GL entry description. */
+const DOCUMENT_LABEL: Record<string, string> = {
+  invoice: "Customer invoice",
+  credit_note: "Credit note",
+  debit_note: "Debit note",
+};
+
 /**
  * The invoice's on-approve action — the ledger-affecting + e-invoice-issuing
- * moment, deferred here from create. Mints the hash-chain link, the QR, and the
- * AR GL posting. Runs only on a transition into `approved`.
+ * moment, deferred here from create. Mints the hash-chain link, the ICV/UUID,
+ * the QR, and the GL posting. Runs only on a transition into `approved`.
+ *
+ * Serves invoices AND notes: they are the same row shape and share one chain,
+ * one ICV sequence and one approval workflow. Only the GL direction differs.
  */
 async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const inv = row.inv;
 
   // Approval is when it hits the books — enforce the period lock first.
   await checkPeriodOpen(inv.date);
+
+  // Re-validate a note at APPROVAL, not only at create (M12.1b). The state can
+  // change while it sits in the queue: a concurrent note may have consumed the
+  // remaining credit, or the original may have been corrected. `excludeNoteId`
+  // stops this note counting against itself on the second pass.
+  if (isNoteType(inv.documentType)) {
+    await assertNoteIsValid({
+      documentType: inv.documentType,
+      originalInvoiceId: inv.originalInvoiceId,
+      noteReason: inv.noteReason,
+      total: toNum(inv.total),
+      excludeNoteId: inv.id,
+    });
+  }
 
   const subtotal = toNum(inv.subtotal);
   const vatAmount = toNum(inv.vatAmount);
@@ -70,12 +96,28 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const issuedAt = new Date();
   const invoiceDateTime = issuedAt.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-  // ── Hash chain + QR — the sequence number is consumed HERE, not at create.
+  // ── Hash chain + ICV — the sequence position is consumed HERE, not at create.
   //    Scoped to THIS COMPANY (M12.1a): the chain is per EGS unit, so a
   //    multi-company org must not interleave. Drafts carry a null hash and are
-  //    excluded, so they still consume no sequence number. ──
+  //    excluded, so they still consume no sequence number.
+  //
+  //    🔴 SERIALISED per company (M12.1b). Reading the chain head and the ICV
+  //    max are both read-then-write; two concurrent approvals under READ
+  //    COMMITTED would otherwise read the same head, duplicating the ICV and
+  //    FORKING THE CHAIN. The unique index catches the duplicate but cannot
+  //    unfork the chain, so the lock is the mechanism and the index the
+  //    backstop. Transaction-scoped: released on commit or rollback. ──
+  await invoicesRepository.lockCompanySequence(inv.companyId);
+
   const previousHash =
     (await invoicesRepository.previousInvoiceHash(inv.companyId)) ?? LEGACY_GENESIS_HASH;
+
+  // ICV + UUID are assigned HERE (M12.1b). Before this they were never written
+  // at runtime, so every issued invoice carried NULLs and the whole ZATCA
+  // Phase-2 pipeline was unreachable from real data — the assembler rejects a
+  // row without them. See CLAUDE.md.
+  const icv = inv.icv ?? (await invoicesRepository.nextIcv(inv.companyId));
+  const zatcaUuid = inv.zatcaUuid ?? randomUUID();
   const invoiceHash = computeInvoiceHash({
     invoiceNumber: inv.invoiceNumber,
     date: inv.date,
@@ -100,21 +142,42 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     sellerName,
     sellerVatNumber,
     issuedAt,
+    icv,
+    zatcaUuid,
     reviewNote: null,
   });
 
-  // ── GL: Dr Accounts Receivable / Cr Sales Revenue + VAT Payable ──
+  // ── GL ────────────────────────────────────────────────────────────────────
+  // A CREDIT note reverses; a DEBIT note does not.
+  //
+  // 🔴 This is the correctness point of M12.1b. A credit note reduces what the
+  // customer owes, so it reverses: Dr Sales + Dr VAT / Cr AR. A DEBIT note is an
+  // ADDITIONAL CHARGE (undercharge, price correction upward, extra freight), so
+  // it posts in the SAME direction as an invoice. Treating both as "reversed"
+  // would understate AR and output VAT.
+  //
+  // Amounts are stored POSITIVE on both; direction lives in `document_type`.
   if (total > 0) {
+    const isCredit = inv.documentType === "credit_note";
+    const label = DOCUMENT_LABEL[inv.documentType] ?? "Invoice";
+
     await postJournalEntry({
       entryNumber: `GL-${inv.invoiceNumber}`,
       date: inv.date,
-      description: `Customer invoice ${inv.invoiceNumber}`,
+      description: `${label} ${inv.invoiceNumber}`,
       reference: inv.invoiceNumber,
-      lines: [
-        { accountName: "Accounts Receivable", description: `Invoice ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0 },
-        { accountName: "Sales Revenue", description: `Invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
-        { accountName: "VAT Payable", description: `VAT on invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
-      ],
+      lines: isCredit
+        ? [
+            // Reversed: the receivable falls, revenue and output VAT are undone.
+            { accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
+            { accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+            { accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: total },
+          ]
+        : [
+            { accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0 },
+            { accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
+            { accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
+          ],
     });
   }
 

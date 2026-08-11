@@ -18,6 +18,18 @@ export const customersTable = pgTable(
     nameAr: text("name_ar").notNull().default("(not yet translated)"),
     taxNumber: text("tax_number"),       // VAT registration / ZATCA number
     crNumber: text("cr_number"),          // Commercial Registration
+    /**
+     * Buyer national ID (BT-46, scheme NAT) — M12.1b.
+     *
+     * Required only for the exemption codes `VATEX-SA-EDU` and `VATEX-SA-HEA`:
+     * ZATCA's **BR-KSA-49** makes the buyer's national ID mandatory whenever one
+     * of those is used, and **BR-KSA-25** additionally requires the buyer name.
+     * Found by submitting such an invoice to the live compliance API in M12.4
+     * and reading the rejection.
+     *
+     * Nullable — the overwhelming majority of customers never need it.
+     */
+    nationalId: text("national_id"),
     phone: text("phone"),
     email: text("email"),
     /** Free-text address — retained for display and back-compat. */

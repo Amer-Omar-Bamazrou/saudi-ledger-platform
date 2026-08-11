@@ -36,6 +36,15 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     invoiceHash: inv.invoiceHash,
     previousHash: inv.previousHash,
     qrCode: inv.qrCode,
+    // ZATCA sequence position, assigned at approval (M12.1b).
+    icv: inv.icv,
+    zatcaUuid: inv.zatcaUuid,
+    // Credit/debit notes (M12.1b). `documentType` is what carries the DIRECTION —
+    // amounts are stored positive on every document type, so a consumer must
+    // read this rather than infer from the sign.
+    documentType: inv.documentType,
+    originalInvoiceId: inv.originalInvoiceId,
+    noteReason: inv.noteReason,
     items:
       items?.map((it) => ({
         id: it.id,

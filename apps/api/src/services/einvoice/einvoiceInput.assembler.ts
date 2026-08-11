@@ -54,6 +54,16 @@ function percent(value: unknown): string {
 
 const VALID_CATEGORIES: readonly string[] = ["S", "Z", "E", "O"];
 
+/**
+ * Exemption codes ZATCA permits ONLY when the buyer is identified.
+ *
+ * BR-KSA-49 requires the buyer's national ID (BT-46, scheme NAT) and BR-KSA-25
+ * requires the buyer name whenever one of these is used — so they cannot appear
+ * on an anonymous simplified invoice. Established in M12.4 from a live rejection,
+ * not from the rule text.
+ */
+const BUYER_IDENTIFIED_EXEMPTIONS: readonly string[] = ["VATEX-SA-EDU", "VATEX-SA-HEA"];
+
 export interface AssembleRows {
   invoice: {
     invoiceNumber: string;
@@ -68,7 +78,18 @@ export interface AssembleRows {
     total: unknown;
     paidAmount: unknown;
     notes: string | null;
+    /** M12.1b — set on credit/debit notes only. */
+    noteReason: string | null;
   };
+  /**
+   * The document a note corrects (M12.1b). Resolved from
+   * `invoices.original_invoice_id`; NULL for ordinary invoices.
+   *
+   * ZATCA's `cac:BillingReference` carries the original's NUMBER, but it is
+   * derived from the referenced ROW here — a stored string could drift from the
+   * document it names.
+   */
+  originalInvoice?: { invoiceNumber: string } | null;
   items: Array<{
     description: string;
     quantity: unknown;
@@ -106,6 +127,8 @@ export interface AssembleRows {
     /** BR-KSA-10 requires this on the buyer of a STANDARD invoice. */
     province: string | null;
     country: string | null;
+    /** BT-46 (scheme NAT) — required by BR-KSA-49 for VATEX-SA-EDU/HEA. */
+    nationalId: string | null;
   } | null;
   previousInvoiceHash: string | null;
 }
@@ -189,6 +212,31 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     });
   }
 
+  // ── Credit/debit notes (M12.1b) ─────────────────────────────────────────
+  // BR-KSA-17 requires BOTH the original-document reference and the reason on
+  // every note. The DB CHECK enforces this at write time; re-checked here
+  // because this function is also reachable from directly-constructed rows.
+  const isNote = invoice.documentType === "credit_note" || invoice.documentType === "debit_note";
+  if (isNote) {
+    if (!rows.originalInvoice?.invoiceNumber) {
+      throw new BusinessRuleError(400, {
+        error: "A credit or debit note must reference the invoice it corrects (ZATCA rule BR-KSA-17).",
+        code: "note_original_missing",
+      });
+    }
+    if (!invoice.noteReason?.trim()) {
+      throw new BusinessRuleError(400, {
+        error: "A credit or debit note must state why it was issued (ZATCA rule BR-KSA-17).",
+        code: "note_reason_missing",
+      });
+    }
+  } else if (rows.originalInvoice) {
+    throw new BusinessRuleError(400, {
+      error: "Only a credit or debit note may reference an original invoice.",
+      code: "billing_reference_on_invoice",
+    });
+  }
+
   const lines: EInvoiceLine[] = items.map((it, i) => {
     const category = it.taxCategoryCode;
     if (!category || !VALID_CATEGORIES.includes(category)) {
@@ -207,6 +255,39 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
         error: `Line ${i + 1} ("${it.description}") is ${cat}-rated and needs a VAT exemption reason.`,
         code: "line_exemption_reason_missing",
       });
+    }
+
+    /**
+     * 🔴 VATEX-SA-EDU / VATEX-SA-HEA require the buyer to be IDENTIFIED.
+     *
+     * Found in M12.4 by submitting one to ZATCA and reading the rejection:
+     *   BR-KSA-49 — the buyer's other ID (BT-46) is mandatory and must be a
+     *               national ID (BT-46-1 = NAT);
+     *   BR-KSA-25 — the buyer NAME (BT-44) is mandatory.
+     * So neither code can appear on an anonymous simplified (B2C) invoice.
+     *
+     * Enforced here, at the input boundary, with an actionable message — rather
+     * than being discovered as an opaque ZATCA rejection after the document has
+     * already consumed a sequence number.
+     */
+    if (BUYER_IDENTIFIED_EXEMPTIONS.includes(it.taxExemptionReasonCode ?? "")) {
+      if (!customer?.name?.trim()) {
+        throw new BusinessRuleError(400, {
+          error:
+            `Line ${i + 1} uses exemption ${it.taxExemptionReasonCode}, which ZATCA allows only when ` +
+            "the buyer is identified: a buyer name is required (BR-KSA-25). It cannot be used on an " +
+            "anonymous cash sale.",
+          code: "exemption_requires_buyer_name",
+        });
+      }
+      if (!customer?.nationalId?.trim()) {
+        throw new BusinessRuleError(400, {
+          error:
+            `Line ${i + 1} uses exemption ${it.taxExemptionReasonCode}, which requires the buyer's ` +
+            "national ID (BR-KSA-49). Add it to the customer record before issuing.",
+          code: "exemption_requires_buyer_national_id",
+        });
+      }
     }
 
     const net = Number(it.total ?? 0) - Number(it.vatAmount ?? 0);
@@ -269,8 +350,12 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     taxTotal: money(invoice.vatAmount),
     taxSubtotals: buildSubtotals(lines),
     paymentMeansCode: "30", // credit transfer — the safe default (BR-KSA-16)
-    billingReference: null, // credit/debit note reference arrives with M12.1b
-    instructionNote: null,
+    billingReference: rows.originalInvoice
+      ? { invoiceNumber: rows.originalInvoice.invoiceNumber }
+      : null,
+    // BR-KSA-17 — the reason a note was issued. Required for notes; validated
+    // above so this can never be silently empty on a note.
+    instructionNote: invoice.noteReason,
     notes: invoice.notes,
   };
 }

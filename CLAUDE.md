@@ -991,11 +991,48 @@ belong, not ad hoc:
     `ORDER BY` is incidental and was left alone.
     **If you ever need true audit ordering, `audit_logs` has no monotonic
     sequence column — add one rather than ordering by `id`.**
-- **M12.1b: credit/debit notes** as first-class documents — `document_type` is
-  already in place; this adds the note→original reference, the **reversed GL
-  posting** (Dr Sales+VAT / Cr AR) and negative treatment in AR aging,
-  balance-sheet AR and the VAT return. Split out of M12.1 deliberately: it is
-  money-touching accounting work, not a schema change.
+- **M12.1b (done): credit & debit notes as first-class documents.** Notes are
+  `invoices` rows carrying `document_type` — ZATCA requires them in the SAME
+  per-EGS hash chain and ICV sequence, so a separate table would be wrong.
+  - **🔴 A CREDIT note reverses; a DEBIT note does NOT.** A debit note is an
+    ADDITIONAL charge (undercharge, price correction upward), so it posts in the
+    same direction as an invoice: Dr AR / Cr Sales + VAT. Only the credit note
+    reverses. Treating both as reversals understates AR and output VAT.
+  - **🔴 AMOUNTS ARE STORED POSITIVE; the direction lives in `document_type`.**
+    Negative storage was evaluated and rejected because it FAILS SILENTLY in two
+    of the four invoice reports while working in the other two — which is what
+    makes it dangerous:
+    - **AR aging** skips them (`if (outstanding < 0.01) continue`), so it drifts
+      from balance-sheet AR with nothing to show it;
+    - **the VAT return** misroutes them — a negative `vat_amount` fails the
+      `> 0` guard, computes a rate of 0, lands in the ZERO-RATED box and **never
+      reduces output VAT**. A silent filing error against ZATCA.
+    Every consumer applies **`documentSign()`** (`reports.repository.ts`)
+    explicitly, so forgetting it is a visible omission. Six consumers: AR aging,
+    balance-sheet AR, VAT return, customer ledger, customer balance, and the GL.
+  - **The note→original reference is a REAL FK** (`invoices.original_invoice_id`,
+    migration `0020`) with a CHECK constraint: an invoice has neither reference
+    nor reason; a note must have BOTH. ZATCA's `cac:BillingReference` carries the
+    original's NUMBER but it is DERIVED from the referenced row, so it can never
+    drift. `note_reason` is in the constraint because **BR-KSA-17** requires it.
+  - **Closed periods: the NOTE'S OWN date governs.** Correcting an invoice from a
+    closed period is legitimate and is NOT blocked — the correction posts in the
+    current open period, which is standard practice. Dating the note *into* the
+    closed period is refused by the existing `checkPeriodOpen`. Consequence worth
+    knowing: the closed period's VAT return does not change; the adjustment lands
+    in the note's period.
+  - **Over-crediting is refused (409)** naming the invoice total, what is already
+    credited and what remains. Checked at create AND re-checked at approval,
+    because a concurrent note can consume the remaining credit while one sits in
+    the queue. Debit notes have no equivalent ceiling.
+  - **Zero-movement proven** (`tests/credit-notes-zero-movement.test.ts`) to the
+    M10 standard: a draft AND submitted note move zero across AR aging,
+    balance-sheet AR, the VAT return and the customer balance; approval posts the
+    correct direction.
+  - **Fixed here (pre-existing, in scope):** `customers.repository` had **no
+    status filter at all**, so DRAFT invoices inflated every customer balance — a
+    gap M10 left when it added `approvedInvoicesOnly()` to the reports but not to
+    that path.
 - **M12.2 (done): UBL 2.1 XML generation + the `EInvoiceProvider` seam.**
   - **`EInvoiceProvider`** (`services/einvoice/provider.ts`) is declared in FULL
     now — `onboard` / `renewCertificate` / `buildDocument` / `submit` — with the
@@ -1216,6 +1253,72 @@ belong, not ad hoc:
   the code must not have to change when it happens.
 - **M12.7 and M12.9: BLOCKED** on the Saudi entity — simulation end-to-end, and
   the production pilot. Nothing else in M12 is blocked.
+
+### 🔴 "CORRECT" IS NOT "CONNECTED" — the Phase-2 pipeline was unreachable from real data
+
+**Read this before reading M12.4's green result as more than it is.**
+
+Until M12.1b, `issueInvoice()` never wrote `icv` or `zatca_uuid`. Every invoice
+issued at runtime carried NULLs, and `assembleEInvoiceInput` **rejects** a row
+without them (`missing_icv` / `missing_uuid`). So the entire ZATCA Phase-2
+pipeline — UBL generation, signing, the QR, the outbox — **could not run on a
+single real invoice.**
+
+M12.4 validated six compliance documents against ZATCA's live API and every one
+passed. That result is real, but it was obtained from **directly-constructed
+inputs**, because nothing else was possible. It proved *the implementation is
+correct*; it did **not** prove *the implementation is connected to the product*.
+Those are different claims and it would be easy to read the first as the second.
+
+**M12.1b closes the gap:** ICV/UUID are assigned at issuance, `loadEInvoiceInput`
+builds the document from database rows, and
+`tests/credit-notes-zatca-live.test.ts` submits an invoice, a credit note and a
+debit note **read back out of Postgres** to the live compliance API.
+
+Two bugs surfaced the moment real rows were used, both invisible to
+hand-built fixtures:
+
+1. **The wrong chain was being fed to ZATCA.** The loader passed
+   `invoices.previous_hash` — the HOMEGROWN chain — as the PIH. On the first
+   document of a chain that is the literal string `"GENESIS"`, which ZATCA
+   rejects with `'GENESIS' is not a valid value for 'base64Binary'`. Worse, on
+   every *subsequent* document it passed **silently**: a 64-character hex hash is
+   accidentally well-formed base64, so ZATCA accepted a PIH that means nothing.
+   The ZATCA PIH now comes from `einvoice_documents`, never from `invoices`.
+2. **The hash chain forked under out-of-order approvals** — see below.
+
+**The general lesson:** a green result against fixtures says nothing about the
+path from the database. When a pipeline is validated, validate it **from the
+data the product actually produces**.
+
+### 🔴 The chain forked because `previousInvoiceHash` ordered by ROW ID
+
+`invoices.id` is assigned at CREATE; the chain position is assigned at APPROVAL.
+Those orders differ whenever documents are approved out of the order they were
+created — under concurrency, and in the ordinary case of an approver working a
+queue out of order.
+
+Ordering by `id` selected "the highest-numbered row that happens to be hashed",
+so several approvals read the SAME head. Reproduced with 8 parallel approvals:
+**three documents shared one predecessor.** A forked chain is not repairable
+after the fact and is exactly what ZATCA's chain exists to detect.
+
+Two separate mechanisms are needed, and only one of them existed:
+
+- **Allocation** is serialised by a per-company **transaction-scoped advisory
+  lock** (`lockCompanySequence`), covering the ICV read AND the chain-head read
+  in one critical section. `unique(company_id, icv)` remains the **backstop**,
+  not the mechanism — it can turn a duplicate ICV into an error but it cannot
+  unfork a chain. The lock was working the whole time: ICVs were dense and
+  unique while the chain forked.
+- **Ordering** must follow the SEQUENCE, not the row id:
+  `ORDER BY icv DESC NULLS LAST, id DESC`. `NULLS LAST` keeps pre-M12.1b rows
+  (hashed, no ICV) behind ICV-bearing ones so a company with legacy invoices
+  continues its chain rather than starting a second genesis root.
+
+Proven in `tests/invoice-icv-concurrency.test.ts` under real parallel
+transactions — the way the M12.6 outbox claiming was proven, rather than by
+reasoning about isolation levels.
 
 ### 🔴 LANDMINE — our hash chain is NOT ZATCA's hash chain
 
@@ -1454,9 +1557,33 @@ grant/configuration issues, not code:
 | 3 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out | M11 audit findings |
 | 4 | **M-1** — add RLS to `organizations`/`users`/`organization_memberships`, or a CI guard failing on business-layer imports | M11 audit findings |
 | 5 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
+| 6 | **`checkPeriodOpen` ignores `company_id`** — company A's closed period blocks company B in a multi-company org | LOW finding, confirmed M12.1b |
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.
+- **[HIGH — MILESTONE CANDIDATE, money-touching, found in M12.1b] Invoice
+  revenue is MISCLASSIFIED in the income statement.** `postJournalEntry` writes
+  `accountId: l.accountId ?? null` and the invoice path never supplies one, so
+  **every invoice GL line has `account_id = NULL`**. The income statement then
+  classifies by `const type = cat?.type ?? "expense"` (`reports.service.ts`), so
+  the *Sales Revenue* credit line lands in **expenses** — as a negative expense —
+  rather than in revenue.
+  **Net profit is right; the statement's composition is not.** Revenue reads as
+  zero and expenses are understated by the same amount. This affects **every
+  invoice today**, predates M12.1b, and **credit notes inherit it**.
+  Deliberately NOT fixed in M12.1b: the fix is real chart-of-accounts resolution
+  in the posting path (mapping "Accounts Receivable"/"Sales Revenue"/"VAT
+  Payable" to `categories` rows), which is money-touching work deserving its own
+  milestone and its own tests — not a rider on a notes change. The same NULL
+  `account_id` also makes these lines invisible to the balance sheet, which is
+  why AR is computed from the `invoices` table instead of from the GL.
+- **[LOW — CONFIRMED in M12.1b] `checkPeriodOpen` ignores `company_id`.** The
+  query filters on `period` alone (`periodLock.ts`), though the uniqueness key is
+  `(organization_id, company_id, period)` and RLS scopes only to the
+  organization. **In a multi-company org, company A closing a period blocks
+  company B's postings** — including credit notes correcting company B's
+  invoices. Not a cross-tenant breach; scope the query by `company_id` when
+  multi-company support is built out. Belongs in the pre-deployment queue.
 - **[MEDIUM M-1 — LANDMINE, read before writing business-layer queries]
   `organizations`, `users` and `organization_memberships` are deliberately OUTSIDE
   RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the app role

@@ -4,7 +4,7 @@
  * pre-M6 route handlers; only the DB access now goes through reportsRepository.
  */
 import { BadRequestError } from "../lib/errors";
-import { reportsRepository } from "../repositories/reports.repository";
+import { reportsRepository, documentSign } from "../repositories/reports.repository";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -128,8 +128,15 @@ export const reportsService = {
       }
     }
 
+    // Balance-sheet AR. Credit notes reduce the receivable (M12.1b) — amounts
+    // are stored positive, so the sign is applied here.
     const invRows = await reportsRepository.allInvoices();
-    const arBalance = fmt2(invRows.reduce((s, i) => s + toNum(i.total) - toNum(i.paidAmount), 0));
+    const arBalance = fmt2(
+      invRows.reduce(
+        (s, i) => s + documentSign(i.documentType) * (toNum(i.total) - toNum(i.paidAmount)),
+        0,
+      ),
+    );
     const billRows = await reportsRepository.allBills();
     const apBalance = fmt2(billRows.reduce((s, b) => s + toNum(b.total) - toNum(b.paidAmount), 0));
 
@@ -322,11 +329,17 @@ export const reportsService = {
     for (const { inv, cust } of rows) {
       const cid = inv.customerId ?? 0;
       if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
+      // M12.1b: a credit note appears on the ledger as a NEGATIVE line, so the
+      // running balance is what the customer actually owes. `documentType` is
+      // surfaced so the UI can label the row rather than infer from the sign.
+      const sign = documentSign(inv.documentType);
       custMap.get(cid)!.invoices.push({
         id: inv.id, invoiceNumber: inv.invoiceNumber, date: inv.date, dueDate: inv.dueDate,
-        status: inv.status, total: fmt2(toNum(inv.total)), paidAmount: fmt2(toNum(inv.paidAmount)),
-        outstanding: fmt2(toNum(inv.total) - toNum(inv.paidAmount)),
-        vatAmount: fmt2(toNum(inv.vatAmount)), subtotal: fmt2(toNum(inv.subtotal)),
+        documentType: inv.documentType,
+        status: inv.status,
+        total: fmt2(sign * toNum(inv.total)), paidAmount: fmt2(sign * toNum(inv.paidAmount)),
+        outstanding: fmt2(sign * (toNum(inv.total) - toNum(inv.paidAmount))),
+        vatAmount: fmt2(sign * toNum(inv.vatAmount)), subtotal: fmt2(sign * toNum(inv.subtotal)),
       });
     }
     const customers = Array.from(custMap.values()).map(({ customer, invoices }) => ({
@@ -388,8 +401,14 @@ export const reportsService = {
     const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
     const items: any[] = [];
     for (const { inv, cust } of rows) {
-      const outstanding = toNum(inv.total) - toNum(inv.paidAmount);
-      if (outstanding < 0.01 || inv.status === "paid") continue;
+      // 🔴 M12.1b: test the document's OWN unsettled amount (always positive)
+      // BEFORE applying the sign. Testing the signed value would make every
+      // credit note fail `< 0.01` and be skipped silently — which is exactly
+      // how AR aging would drift from balance-sheet AR with nothing to show it.
+      const unsettled = toNum(inv.total) - toNum(inv.paidAmount);
+      if (unsettled < 0.01 || inv.status === "paid") continue;
+      // A credit note reduces the aged balance; a debit note adds to it.
+      const outstanding = documentSign(inv.documentType) * unsettled;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
       items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
@@ -485,9 +504,27 @@ export const reportsService = {
 
     let standardRatedSales = 0, outputVat = 0, zeroRatedSales = 0;
     for (const inv of invoiceRows) {
-      const vatRate = toNum(inv.vatAmount) > 0 ? (toNum(inv.vatAmount) / toNum(inv.subtotal)) * 100 : 0;
-      if (vatRate >= 14.9) { standardRatedSales += toNum(inv.subtotal); outputVat += toNum(inv.vatAmount); }
-      else if (vatRate === 0) zeroRatedSales += toNum(inv.subtotal);
+      /**
+       * 🔴 M12.1b — the most dangerous sum in this file.
+       *
+       * The rate is derived from the POSITIVE stored amounts, then the sign is
+       * applied to the contribution. Deriving the rate from a signed amount is
+       * what makes negative storage a silent filing error: a negative
+       * `vat_amount` fails the `> 0` guard, computes a rate of 0, drops into the
+       * zero-rated branch, and **never reduces output VAT** — so a credit note
+       * would understate credits AND overstate output VAT on the return.
+       */
+      const subtotal = toNum(inv.subtotal);
+      const vat = toNum(inv.vatAmount);
+      const sign = documentSign(inv.documentType);
+      const vatRate = vat > 0 ? (vat / subtotal) * 100 : 0;
+
+      if (vatRate >= 14.9) {
+        standardRatedSales += sign * subtotal;
+        outputVat += sign * vat;
+      } else if (vatRate === 0) {
+        zeroRatedSales += sign * subtotal;
+      }
     }
 
     let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
