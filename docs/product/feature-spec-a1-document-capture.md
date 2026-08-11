@@ -141,16 +141,22 @@ answerable.** Today it is not.
 5. **Audit** the capture and the posting, through the existing `auditService`.
 6. **Link the bill to its source document**, and show it on the bill.
 
-### 3.1 🔴 Retention interaction — flag, do not decide here
+### 3.1 ✅ Retention — inbound is retained to the same standard (conservative default)
 
 A supplier invoice is a **purchase** record supporting an input-VAT deduction,
 and ZATCA's retention obligations (6 years, 11 for some cases) are about the
 taxpayer's records generally, not only the invoices they issue.
 
-M12.8 built retention for **outbound** documents. Whether captured **inbound**
-documents fall under the same obligation is a **tax question, not an engineering
-one.** Storing them via `ArchiveStore` means the capability is there either way;
-setting a `retain_until` on them is the decision. **Q4 below.**
+M12.8 built retention for **outbound** documents. **Decision: captured inbound
+documents are retained to the same standard, with `retain_until` set.**
+
+🔴 **This is a CONSERVATIVE DEFAULT, not a settled reading of the obligation.**
+The asymmetry decides it: storage is capable either way, so setting `retain_until`
+costs almost nothing — while **not** setting it and being wrong means the evidence
+supporting a deduction is gone at exactly the moment it is asked for. Recorded in
+the pre-production queue as a question for whoever handles tax advice; if the
+answer comes back narrower, shortening a retention window is easy and lengthening
+one retroactively is impossible.
 
 ---
 
@@ -255,7 +261,39 @@ becomes visible.
 | # | Question | Why it matters |
 | --- | --- | --- |
 | **Q1** | What share of supplier documents carry a readable ZATCA QR **today**? | Sizes the OCR path. Rough split is enough. |
-| **Q2** | **Phone camera, or file upload?** | The "stop typing" moment is photographing a receipt at the till. Camera capture implies a mobile-first surface; file upload is cheaper and less magical. **This is the difference between a feature and the wedge**, and it is a product decision, not a technical one. |
+| **Q2** | ✅ **ANSWERED — PHONE CAMERA.** | Not close. The wedge is "stop typing", and the moment that delivers it is photographing a receipt **at the till**. File upload presupposes someone already got the receipt onto a computer — which is the friction being sold away. **Cheaper is not the criterion when what is being cut is the reason people switch.** See §9. |
 | **Q3** | On a **failed signature**, block or warn? | §2.3. Proposed: warn prominently, allow a recorded override. |
-| **Q4** | Do captured **inbound** documents need ZATCA-grade retention? | §3.1. A tax question. Storage is capable either way; the decision is whether to set `retain_until`. |
+| **Q4** | ✅ **ANSWERED — RETAIN inbound to the same standard, set `retain_until`.** | Conservative default, **not** a settled reading of the obligation. A supplier invoice is the evidence for an input-VAT deduction; if ZATCA queries it, the document is what answers. Storage is capable either way, and **not setting it and being wrong means the evidence is gone.** Flagged in the pre-production queue for whoever handles tax advice. |
 | **Q5** | Should a correction **teach** the system (remember this supplier's layout)? | Where automation starts becoming the AI moat. **Not in A1** — but if yes, provenance must be captured now, which §3 does anyway. |
+
+
+---
+
+## 9. ✅ Q2 ANSWERED — phone camera, and what follows
+
+**The capture surface is the phone camera**, not a file picker. The wedge is
+delivered at the till, not at a desk: a file upload presupposes the receipt is
+already on a computer, which is the friction being sold away.
+
+**What this changes:**
+
+- **Capture must work on a phone browser.** `<input type="file" accept="image/*"
+  capture="environment">` opens the camera directly on iOS and Android — cheap,
+  no native app, no new dependency. File selection remains available as a
+  secondary path (a PDF emailed by a supplier is still a real case).
+- **`ScanReview` must be usable one-handed on a phone.** It was built as a
+  desktop review screen. This is the one place A1 touches layout, and it is
+  load-bearing: a review step that is painful on a phone undoes the capture step
+  that made the phone worth using.
+- **The QR path gets better, not worse, on a phone.** A camera frame is exactly
+  what a QR reader wants, and decode succeeds or fails immediately — so the user
+  learns instantly whether this is the exact path or the fuzzy one.
+- **Tesseract in a phone browser is the honest risk.** WASM OCR on a mid-range
+  Android over a photographed (not scanned) receipt is slower and less accurate
+  than on a desktop scan. **This raises the stakes of the §5 bake-off** and it
+  must be run on **phone-captured photographs**, not clean desktop scans, or it
+  measures the wrong thing.
+
+**Explicitly NOT in scope:** a native mobile app. The camera is reachable from
+the browser; a native app is a separate product decision with its own
+distribution, review and release cost.

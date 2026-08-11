@@ -68,6 +68,10 @@ export default function ScanReview() {
     notes:               "",
   });
   const [rawText, setRawText] = useState("");
+  /** How these figures were obtained — the A1 provenance requirement. */
+  const [source, setSource] = useState<"qr" | "ocr" | "manual">("ocr");
+  const [qrMissing, setQrMissing] = useState<string[]>([]);
+  const [isPhase2, setIsPhase2] = useState(false);
   const [rawVisible, setRawVisible] = useState(false);
 
   // ── vendor match state ─────────────────────────────────────────────────────
@@ -91,8 +95,12 @@ export default function ScanReview() {
 
   // ── load from sessionStorage on mount ─────────────────────────────────────
   useEffect(() => {
-    const data = loadAndClearScanData();
-    if (!data) { navigate("/bills"); return; }
+    const payload = loadAndClearScanData();
+    if (!payload) { navigate("/bills"); return; }
+    const data = payload.parsed;
+    setSource(payload.source);
+    setQrMissing(payload.missing ?? []);
+    setIsPhase2(!!payload.isPhase2);
 
     setFields({
       vendorName:        data.vendorName ?? "",
@@ -227,9 +235,52 @@ export default function ScanReview() {
           <h1 className="text-xl font-bold flex items-center gap-2">
             <ScanLine className="w-5 h-5 text-primary" /> Review Scanned Receipt
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Correct any OCR errors before posting to the ledger</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {source === "qr"
+              ? "Read from the invoice's ZATCA QR code — check and post"
+              : "Correct any OCR errors before posting to the ledger"}
+          </p>
         </div>
       </div>
+
+      {/*
+        🔴 PROVENANCE (A1). The actual question a disputed figure raises is
+        "was this decoded, read by OCR, or typed?" — and the honest answer
+        changes how hard the user should look before posting.
+
+        A QR decode is exact: the supplier's own system wrote those bytes. OCR is
+        a guess from pixels. Telling the user which they are looking at is the
+        difference between "check this" and "verify all of it".
+      */}
+      {source === "qr" ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+          <p className="text-sm font-medium text-emerald-500 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            Read directly from the invoice&apos;s ZATCA QR code — these figures are exact
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            The seller, VAT number, date and amounts come from the supplier&apos;s own
+            e-invoice data, not from reading the image.
+            {isPhase2 && " This invoice is cryptographically stamped."}
+          </p>
+          {qrMissing.length > 0 && (
+            <p className="text-xs text-amber-500 mt-1">
+              Not carried by the QR code, please check: {qrMissing.join(", ")}.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3">
+          <p className="text-sm font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-muted-foreground" />
+            Read by text recognition — please check every figure
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            No ZATCA QR code was found on this document, so the fields below were
+            recognised from the image and may contain errors.
+          </p>
+        </div>
+      )}
 
       {/* ── validation flags ──────────────────────────────────────────────── */}
       {flags.length > 0 && (

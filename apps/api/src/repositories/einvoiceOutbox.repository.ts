@@ -91,14 +91,23 @@ export const einvoiceOutboxRepository = {
    * earlier comments described an automated query that does not and cannot
    * exist, which is the same disease as a schema with no consumer.
    */
-  async reclaimStale(olderThanSeconds: number): Promise<number> {
+  async reclaimStale(olderThanSeconds: number, organizationId?: string): Promise<number> {
+    // 🔴 Scoped for the same reason as `claimDue`, and M14 missing this is why
+    // the outbox suite flaked. Reclaiming is global by default — correct in
+    // production, where one worker drains every tenant — but it means any two
+    // test suites holding a row in `submitting` reclaim each other's, flipping
+    // it to `pending` + `ambiguous` under the owning suite's feet.
+    //
+    // M14 scoped `claimDue` and left this one global: half a fix, which reads
+    // as a whole one. Both global operations need the same escape hatch.
     const { rowCount } = await pool.query(
       `UPDATE einvoice_documents
           SET status = 'pending', ambiguous = true, claimed_at = NULL, claimed_by = NULL,
               updated_at = now()
         WHERE status = 'submitting'
-          AND claimed_at < now() - ($1 || ' seconds')::interval`,
-      [String(olderThanSeconds)],
+          AND claimed_at < now() - ($1 || ' seconds')::interval
+          AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
+      [String(olderThanSeconds), organizationId ?? null],
     );
     return rowCount ?? 0;
   },

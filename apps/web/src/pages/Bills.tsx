@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { storeScanData } from "@/lib/scanReviewStore";
+import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -183,8 +184,17 @@ export default function Bills() {
   });
 
   /** Called when the ReceiptScanner returns parsed fields — go to review page */
-  const handleScanned = (data: ParsedReceipt) => {
-    storeScanData(data);
+  const handleScanned = (data: ParsedReceipt, qr?: QrCaptureResult) => {
+    storeScanData({
+      parsed: data,
+      // Provenance travels with the extraction: a figure decoded from a ZATCA
+      // QR is exact, one read by OCR is a guess, and the review page must be
+      // able to tell the user which it is looking at.
+      source: qr ? "qr" : "ocr",
+      isPhase2: qr?.isPhase2,
+      missing: qr?.missing,
+      payloadBase64: qr?.payloadBase64,
+    });
     navigate("/scan-review");
   };
 
