@@ -72,10 +72,13 @@ taxpayer. Full detail in the consolidated queue later in this file.
   tenant can take); **B2** real alerting (visibility is not alerting — the
   operator panel only helps someone already looking, and both the outbox age
   alarm and PCSID expiry fail by quiet neglect).
-- **A — ONE MIGRATION (4 items).** Grants and config: `REVOKE TRUNCATE` (it
-  bypasses RLS) on business tables and the five remaining owner-only tables,
-  M-1 RLS on the identity tables, and `checkPeriodOpen`'s missing `company_id`
-  scope.
+- **A — ✅ CLOSED in M13/M14.** The revokes turned out to cover **35 tables**,
+  not "business tables plus five", and narrowing `ALTER DEFAULT PRIVILEGES` is
+  what stops the next `CREATE TABLE` re-granting them. M-1 closed with a **build
+  guard rather than RLS** (policies there would be exercised by no traffic — see
+  M-1). Period locks are company-scoped in both the posting path and the routes;
+  the route bug was the serious one — one company's unlock deleted every other
+  company's lock, silently reopening closed books.
 - **C — VERIFICATION GAPS (6 items).** Trusted proxy + Redis rate limiters, the
   CI storage gap, KMS deployment verification, AV scanning, fail-closed
   diagnosability, and the hosting/residency decision.
@@ -1609,6 +1612,43 @@ review — a mechanical check, because the failure survives careful review by
 construction. Thirteen instances found so far (six live, seven retroactive), and
 the check caught something every single time it was run.
 
+### 🔴 ASSERT THE PROPERTY, NOT THE NUMBER — when the reasoning might be wrong
+
+Learned in M13, and it saved the milestone's most important guard from being
+worthless.
+
+The M13 design justified "no tax figure moves" by reasoning that the VAT return,
+the Zakat base and cash flow all read `transactions` rather than the ledger.
+**That reasoning was wrong about the VAT return, which reads INVOICES and BILLS.**
+The conclusion happened to survive (M13 does not touch invoices), but the stated
+mechanism did not.
+
+Had the test been written from that reasoning — *"the VAT return should be zero,
+because this org has no transactions"* — it would have asserted a fixed figure
+derived from a false premise. Worse, it would have **passed**: the fixture had no
+transactions, so zero was arrived at for the wrong reason, and a later change
+that pointed the VAT return at the ledger would have been caught only by luck.
+A vacuous test that looks green is worse than no test, because it is *counted*.
+
+What was written instead asserts the PROPERTY:
+
+> Post a GL-only journal entry — no invoice, no bill, no transaction behind it —
+> then assert every VAT box, the Zakat base and cash flow are byte-identical
+> before and after. Then assert the income statement **did** move, so the check
+> cannot be vacuous.
+
+That isolates the ledger as the only variable. It does not care *why* the tax
+reports are independent, survives fixture changes, and fails for exactly one
+reason: a tax report started reading the GL.
+
+**The rule:** when you are about to assert a specific number, ask what has to be
+true for that number to be right. If the answer is a chain of reasoning you have
+not verified, **assert the invariant instead** — change one thing, prove the
+figure does not move, and prove something else DID move so the test cannot pass
+vacuously. Fixed figures are fine when the number itself is the requirement
+(1,000 SAR of revenue); they are a trap when the number is a *consequence* of
+reasoning that might not hold.
+
 ### 🔴 THE SECOND NAMED FAILURE MODE: **A TEST THAT BECAME A GUARD FOR THE BUG**
 
 Its close relative, and in one way worse — because here the safety mechanism is
@@ -2171,14 +2211,39 @@ with severity and location — address in the milestone noted, not ad hoc:
 Everything that must close before a real taxpayer is onboarded. Split by kind,
 because these do not all land in one change.
 
-**A. One migration closes these — grants and configuration, not code:**
+**A. ✅ CLOSED IN M14 — grants and configuration:**
 
-| # | Item | Where recorded |
+| # | Item | Outcome |
 | --- | --- | --- |
-| A1 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` on **every business table** from the app role | MEDIUM finding above |
-| A2 | Same REVOKE on the **five remaining owner-only tables** (`einvoice_archive` and `zatca_credentials` already do it) | MEDIUM finding (M12.5/M12.8 updates) |
-| A3 | **M-1** — add RLS to `organizations`/`users`/`organization_memberships`, or a CI guard failing on business-layer imports | M11 audit findings |
-| A4 | **`checkPeriodOpen` ignores `company_id`** — company A's closed period blocks company B in a multi-company org | LOW finding, confirmed M12.1b |
+| A1/A2 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` from the app roles | ✅ Done, and **broader than this queue recorded** — see below. |
+| A3 | RLS **or** a CI guard on `organizations`/`users`/`organization_memberships` | ✅ **CI guard** (`tests/identity-table-boundary.test.ts`). RLS was considered and rejected — see the M-1 entry for the reasoning. |
+| A4 | `checkPeriodOpen` ignores `company_id` | ✅ Fixed in M13, and the **route layer** in M14 — see below. |
+
+**🔴 The revokes were BROADER than "business tables plus five owner-only ones".**
+Measured against the live stack: **35 tables** carried
+`TRUNCATE`/`REFERENCES`/`TRIGGER` for `anon`/`authenticated`/`service_role`,
+including `user_sessions`, `permissions`, `feature_flags` and the three identity
+tables. None of it came from our migrations — it is Supabase's base
+`ALTER DEFAULT PRIVILEGES`. Do not estimate this class of finding from the
+schema; **measure it** with `information_schema.role_table_grants`.
+
+**🔴 Narrowing `ALTER DEFAULT PRIVILEGES` is the part that prevents recurrence.**
+The REVOKE fixes today. Without also narrowing the DEFAULT, **the next
+`CREATE TABLE` silently re-grants all three** — which is precisely how 35 tables
+accumulated them unnoticed over twelve milestones. The permanent guard is the
+test that **creates a throwaway table and asserts it inherits nothing**; a test
+that only checks existing tables would pass forever while the hole reopened on
+every new one.
+
+**🔴 The period-lock route finding, stated on its own because it is the serious
+one:** `removeByPeriod()` filtered on `period` alone, so in a multi-company org
+**one company's unlock DELETED every other company's lock for that period —
+silently reopening closed books across the organization.** Nothing surfaced it:
+no error, no audit distinction, and the unlocking company saw exactly the result
+it expected. The other two symptoms (`list()` showing another company's locks,
+`findByPeriod()` reporting "already locked" so the real lock could never be
+created) are visible and annoying; this one is invisible and destroys the
+integrity of a closed period.
 
 **B. 🔴 BLOCKING for ZATCA — a reminder that reaches nobody:**
 
@@ -2200,8 +2265,21 @@ because these do not all land in one change.
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.
-- **[HIGH — 📄 DESIGNED as M13, awaiting approval: `docs/feature-spec-chart-of-accounts.md`]
-  Invoice revenue is MISCLASSIFIED in the income statement.**
+- **[✅ RESOLVED in M13] Invoice revenue was MISCLASSIFIED in the income
+  statement.** Fixed by real chart-of-accounts resolution in the posting path:
+  a seeded system chart, `system_code` resolution, fail-closed on unresolvable,
+  a deterministic backfill, and balance-sheet AR/AP moved to the GL. Design and
+  as-built notes: [`docs/feature-spec-chart-of-accounts.md`](docs/feature-spec-chart-of-accounts.md).
+  User-facing note: [`docs/release-notes/m13-income-statement-classification.md`](docs/release-notes/m13-income-statement-classification.md).
+  **Historical income statements changed** (revenue up, expenses up by the same,
+  net profit identical) — a display defect corrected, not a restatement.
+  **UX FOLLOW-UP (not a bug):** a bill's expense account is still free text
+  (`debitAccount`), resolved by NAME against the tenant's chart with a
+  `PURCHASES` fallback. Resolving by name is correct there — the user is naming
+  their OWN account, unlike our hardcoded literals — but a **per-bill account
+  picker over the real chart** would be better. That is a UX change, not a
+  classification one.
+  The ORIGINAL note, kept because it explains why the bug survived:
   🔴 The design found the problem is LARGER than recorded here: **`categories`
   contains zero rows and nothing ever creates any**, so there is no chart of
   accounts to resolve against; and naively setting `account_id` would
@@ -2229,15 +2307,41 @@ from the local Supabase CLI stack where all of this was measured.
   company B's postings** — including credit notes correcting company B's
   invoices. Not a cross-tenant breach; scope the query by `company_id` when
   multi-company support is built out. Belongs in the pre-deployment queue.
-- **[MEDIUM M-1 — LANDMINE, read before writing business-layer queries]
-  `organizations`, `users` and `organization_memberships` are deliberately OUTSIDE
-  RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the app role
-  (`0004_m4_rls_enforcement.sql:95-98`). Unlike every business table, **RLS will
-  not save you here** — only an explicit `WHERE` clause will. Today nothing in the
-  business layer queries them, so it is not exploitable; but the next engineer who
-  joins `organizationsTable` from a business service (e.g. "show the org name on an
-  invoice PDF") creates a **silent cross-tenant leak**. Either add RLS to these
-  tables or add a CI guard failing on such imports outside the identity layer.
+- **[✅ CLOSED in M14 — M-1. STILL A LANDMINE, now with a build guard]
+  `organizations`, `users` and `organization_memberships` are deliberately
+  OUTSIDE RLS** (`0003_rls_policies.sql:20-22`) and granted plain `SELECT` to the
+  app role (`0004_m4_rls_enforcement.sql:95-98`).
+
+  **Read this before writing any business-layer query.** For every other business
+  table, forgetting a tenant filter is survivable — RLS catches it. **On these
+  three, nothing catches it.** A service that joins `organizationsTable` to put
+  the org name on an invoice PDF returns EVERY organization's row: no error, no
+  failing test, a silent cross-tenant leak written by ordinary-looking code.
+
+  **The rule:** business-layer code (`services/`, `repositories/`) must not read
+  these tables. The **identity layer is the only correct consumer** — it runs
+  before `resolveTenant` on the owner connection and does its own explicit
+  authorization (admin-of-THIS-org, platform operator, or the session user).
+  Enforced by `tests/identity-table-boundary.test.ts`, which fails the build on
+  the import and prints what to do instead.
+  **If the business layer ever genuinely needs them, that is a DESIGN DECISION,
+  not a lint exception** — do not add an allowlist entry to make the build green.
+
+  **Why a guard and not RLS** (decided in M14; the queue listed both):
+  1. **Policies there would be exercised by no traffic.** Every legitimate
+     consumer runs on the owner/base connection, which BYPASSES RLS. An untested
+     security control is its own risk, and this one would first be exercised by
+     the exact mistake it exists to prevent — under production conditions rather
+     than in CI.
+  2. **`users` cannot take the standard policy.** No `organization_id`, so
+     `tenant_isolation` does not apply; it would need a membership subquery,
+     which is real design work on the login and user-administration paths,
+     against a hypothetical.
+
+  **Its limit, stated plainly:** the guard matches IMPORTS. A raw
+  `pool.query("SELECT ... FROM users")` inside a service slips past — the same
+  limitation `vault-boundary` has. It raises the cost of the mistake; it does not
+  make it impossible.
 - **[MEDIUM M-3] Signup email/slug check-then-insert race surfaces as a raw 500.**
   `signup.service.ts` checks `emailExists` before the transaction; the DB unique
   constraint correctly prevents duplicates (no half-provisioned tenant), but the
