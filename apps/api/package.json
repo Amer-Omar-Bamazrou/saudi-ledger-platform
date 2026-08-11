@@ -36,7 +36,8 @@
     "tesseract.js": "^7.0.0",
     "xml-crypto": "^6.1.2",
     "xmlbuilder2": "^4.0.3",
-    "xpath": "^0.0.34"
+    "xpath": "^0.0.34",
+    "@workspace/zatca-tlv": "workspace:*"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

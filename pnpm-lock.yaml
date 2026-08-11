@@ -194,6 +194,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/zatca-tlv':
+        specifier: workspace:*
+        version: link:../../packages/zatca-tlv
       '@xmldom/xmldom':
         specifier: ^0.9.10
         version: 0.9.10

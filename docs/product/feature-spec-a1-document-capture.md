@@ -1,6 +1,6 @@
 # A1 — Document capture (SPEC)
 
-**Status: specced, not built. Present for approval before building.**
+**Status: ✅ BUILT (parts 1 and 2).** One known gap is recorded in §10.
 
 The first half of the automation wedge — *"I stopped doing data entry"* — and the
 piece nothing external gates. See
@@ -297,3 +297,49 @@ already on a computer, which is the friction being sold away.
 **Explicitly NOT in scope:** a native mobile app. The camera is reachable from
 the browser; a native app is a separate product decision with its own
 distribution, review and release cost.
+
+
+---
+
+## 10. As built — and the one gap left open
+
+### Stage → promote (decided during the build)
+
+Inbound captures do **not** inherit `ArchiveStore`'s no-delete guarantee. They
+are staged in deletable storage and **promoted into the immutable archive when
+posted to a bill** — the moment a document becomes evidence for an input-VAT
+deduction. Three reasons, in increasing order of importance: a capture may be
+the wrong receipt; most captures are evidence of nothing; and a phone-camera
+surface will eventually receive **a third party's personal data**, where
+"immutable by design" is not obviously defensible (queue **C8**, PDPL).
+
+This is one archive plus a staging buffer — not the second archive M12.8 warns
+against. `ArchiveStore`'s guarantee stays exactly as strong as it was.
+
+### Promotion is an outbox, not a transaction
+
+Object storage is not transactional with Postgres, so "atomic with the bill
+posting" means the **intent** commits inside the bill's transaction
+(`promotion_pending`, `bill_id`, `retain_until`) and a job moves the bytes.
+Same pattern as M12.6. Both wrong states are covered, and both are tested:
+evidence for a bill that does not exist **rolls back with the bill**, and a bill
+whose evidence never promoted is **visible as `promotion_pending`** and retried.
+
+### 🔴 KNOWN GAP — staged-object purge is local-fs only
+
+`ArchiveStore` deliberately has **no `delete` method**, so `stagingStore.remove`
+reaches past the interface for the `local-fs` backend and is a **no-op for
+`supabase-storage`**. On a cloud deployment the metadata row is purged and the
+staged bytes are left behind.
+
+Recorded rather than hidden. **This must be closed before a cloud deployment**,
+and it is not merely housekeeping: it is exactly the PDPL question in C8 — an
+abandoned photograph that cannot be deleted is the problem staging exists to
+avoid. The fix is a separate deletable-staging interface (not a `delete` on
+`ArchiveStore`, which would hand every implementation the power to destroy a
+legally-retained invoice).
+
+### Still not built
+
+The OCR bake-off (§5) — run it on **phone-captured photographs**, after the QR
+path has been in real use, so it measures the population OCR actually gets.

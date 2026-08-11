@@ -190,6 +190,13 @@
       "when": 1786478650072,
       "tag": "0026_m14_revoke_destructive_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786488240276,
+      "tag": "0027_a1_captured_documents",
+      "breakpoints": true
     }
   ]
 }
