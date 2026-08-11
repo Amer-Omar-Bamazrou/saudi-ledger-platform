@@ -21,8 +21,19 @@ export default defineConfig({
     // constructs a lazy pg Pool at module load) doesn't throw. The RBAC tests
     // never open a connection — they prime the permission cache directly — so a
     // real database is not required to run the API unit tests.
+    //
+    // The rest mirror what `loadEnv()` requires at boot. Tests drive services
+    // directly and so skip the boot call; before M12.8 nothing on a service path
+    // read config, so an incomplete environment went unnoticed. Issuance now
+    // consults `ZATCA_ENVIRONMENT` to decide whether to queue a document, and
+    // `loadEnv` validates the WHOLE schema — so a missing PORT surfaced as 21
+    // failing invoice tests. It cannot happen in production: `loadEnv` is
+    // memoized and runs at boot, so the process would never have started.
     env: {
       DATABASE_URL: process.env["DATABASE_URL"] ?? "postgresql://localhost:5432/placeholder",
+      PORT: process.env["PORT"] ?? "3000",
+      SESSION_SECRET: process.env["SESSION_SECRET"] ?? "test-session-secret-not-used-for-real-auth",
+      CORS_ALLOWED_ORIGINS: process.env["CORS_ALLOWED_ORIGINS"] ?? "http://localhost:5173",
     },
   },
 });

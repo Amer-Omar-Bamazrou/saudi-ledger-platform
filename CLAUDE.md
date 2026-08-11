@@ -704,7 +704,7 @@ dependency that does not yet exist.**
 
 | | Sub-milestones | Gating requirement |
 | --- | --- | --- |
-| **IN SCOPE NOW** | **M12.0 → M12.6 _and_ M12.8** | Sandbox only. **Email registration, nothing else.** |
+| **IN SCOPE NOW — ✅ ALL COMPLETE** | **M12.0 → M12.6 _and_ M12.8** | Sandbox only. **Email registration, nothing else.** |
 | **BLOCKED, DO NOT START** | **M12.7 and M12.9** | **A registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials.** |
 
 **M12.4 stays IN SCOPE — it is not an external dependency.** The 2026-08-07
@@ -917,8 +917,10 @@ belong, not ad hoc:
 
 - **M12.0 (done): external dependency kickoff.** Specs pulled and pinned
   (`docs/zatca/`, with `fetch-specs.sh` + SHA-256 manifest — PDFs gitignored);
-  sandbox confirmed live and email-only; hosting/residency question resolved
-  (see below). Sandbox account registration is a manual owner step (see
+  sandbox confirmed live and email-only; hosting/residency established as an open
+  deployment decision rather than a migration — though the *premise* recorded
+  then (in-country storage mandated) was corrected in M12.8: see the residency
+  correction. Sandbox account registration is a manual owner step (see
   `docs/zatca/README.md`). **The Compliance & Enablement Toolbox (SDK) is
   PUBLIC — no account needed** (`fetch-sdk.sh` +
   [`docs/zatca/sdk-manifest.md`](docs/zatca/sdk-manifest.md)): UBL 2.1 XSDs, 55
@@ -1241,18 +1243,151 @@ belong, not ad hoc:
     plugs into.
 - **M12.6: clearance & reporting transport** — outbox + worker (see the M12.6 bug
   above), retry, idempotency, status model, ZATCA error-code surfacing.
-- **M12.8: archival, residency, renewal, operator visibility — IN SCOPE
-  (buildable without ZATCA credentials).** Cleared-XML archive under ZATCA's
-  naming convention (VAT number + timestamp + invoice reference), 6–11 year
-  retention, PCSID expiry/renewal reminders, and operator-side onboarding
-  visibility.
-  **KSA data residency stays an OPEN DEPLOYMENT DECISION** — there is no hosted
-  Supabase project yet (see below), so the archival layer must be built with a
-  **swappable storage backend** behind an interface, NOT against an assumed
-  region or provider. Choosing the KSA-resident host is a deployment step, and
-  the code must not have to change when it happens.
+- **M12.8 (done): archival, residency, renewal, operator visibility — AND the
+  milestone that finally CONNECTED the ZATCA pipeline to the product.**
+  - **🔴 The outbox had no producer.** Closing that was agreed into M12.8 scope
+    because the two halves are inseparable: fixing the chain ordering alone
+    corrects a chain nothing writes to, and wiring the enqueue alone activates a
+    fork in the chain ZATCA legally validates, on real customer invoices. The
+    disconnection was *masking a live compliance defect*. See the
+    three-occurrences table below.
+  - **BUG FIXED — the fork was still live in the ZATCA chain.**
+    `zatcaPreviousInvoiceHash` ordered by `einvoice_documents.invoice_id DESC`:
+    the same row-id defect M12.1b fixed for the homegrown chain, in the same
+    file, left on the chain that legally matters. It had **neither** mechanism —
+    wrong ordering AND read outside `lockCompanySequence` (the loader resolved it
+    at assembly time). Now ordered `icv DESC NULLS LAST, id DESC` and read inside
+    the lock. `loadEInvoiceInput` takes `previousInvoiceHash` as a **required
+    parameter** so the read cannot drift back outside the critical section.
+    Proven by `tests/einvoice-enqueue.test.ts`, whose headline case is
+    **strictly sequential** (approve 3 → 1 → 2, no concurrency) because that is
+    the ordinary approver behaviour a race-shaped fix would have missed.
+  - **Enqueue-on-issuance** (`services/einvoice/outbox/enqueue.ts`), called from
+    `issueInvoice` inside the sequence lock and the tenant transaction, so the
+    queued row commits atomically with the ledger effect. It **builds and signs
+    there**, because the worker's contract is that it never mints a hash or
+    signature — that is what makes a retry byte-identical. Two failure policies,
+    deliberately different: **not onboarded ⇒ skip silently** (every existing
+    tenant must still be able to invoice), **onboarded but unbuildable ⇒ throw**
+    and roll the approval back (an invoice ZATCA never learns about would consume
+    an ICV and leave a permanent gap in a legally-required sequence — refusing to
+    issue is recoverable, a gap is not). An onboarded company's invoice also gets
+    the **Phase-2 (9-tag) QR** written over the Phase-1 one.
+  - **`ZATCA_WORKER_ENABLED` finally declared** in `@workspace/config` (it was
+    referenced in two comments and existed nowhere), plus the **live
+    clearance/reporting client** (`zatca/liveZatcaClient.ts`) — without it an
+    instantiated worker would have thrown on every send.
+    🔴 The flag uses a strict `booleanFlag`, **not `z.coerce.boolean()`**:
+    `Boolean("false")` is `true`, so coercion would turn an explicit
+    `=false` into ON for a flag that starts transmissions to a government API.
+  - **First background-job infrastructure in the repo** (`jobs/scheduler.ts`).
+    One loop, three jobs (outbox, archive sweep, renewal check) sharing it rather
+    than each inventing a timer. Each exposes `runOnce()` separately from the
+    schedule, so tests drive them deterministically and an operator can run any
+    of them on demand **with the worker off**. Self-rescheduling `setTimeout`
+    (not `setInterval`) so a slow ZATCA response cannot stack up submissions.
+  - **Archive** — `ArchiveStore` is a swappable interface (`local-fs` for
+    dev/CI/on-prem, `supabase-storage` for cloud), chosen at deployment like
+    M12.5's `KeyWrapper`. 🔴 **It has no `delete` method, by design**: ZATCA §5.5
+    forbids deletion or alteration of generated invoices, so the interface cannot
+    express it. `einvoice_archive` (migration `0022`) is tenant-scoped with RLS
+    and **GRANT SELECT, INSERT only** — with UPDATE/DELETE/**TRUNCATE**/
+    REFERENCES/TRIGGER revoked, because TRUNCATE bypasses RLS and would erase
+    every tenant's index in one statement. Pinned by a DB boundary test.
+    Filenames follow §5.5 exactly: **VAT + GENERATION timestamp + invoice
+    reference** — 🔴 generation (`invoices.issued_at`), never clearance.
+    The sweep is a **separate pass from submission** so a storage outage cannot
+    turn a document ZATCA already accepted into a failed submission.
+  - **Renewal reminders** at T-90/30/7, driven off real `not_after` data,
+    idempotent via a **unique index** on (credential, threshold) rather than a
+    scheduling assumption. An already-expired certificate still reports —
+    silence after expiry is the worst case. 🔴 A bug caught by its own test:
+    searching the descending `[90,30,7]` returns the WIDEST crossed window, so a
+    certificate with 5 days left would have been announced as a T-90 notice;
+    the search is now explicitly ascending.
+  - **Operator visibility** — `GET /operator/zatca/{health,overdue,needs-review,
+    certificates,onboarding}` + `POST /operator/zatca/jobs/:name/run`, rendered
+    in `OperatorZatcaPanel.tsx`. Metadata only: queue depth, ages, expiry dates,
+    onboarding state. Never a tenant's financial data, never XML, never key
+    material — the M11.3 rule is unchanged. Onboarding status is derived from
+    `zatca_credentials.status`; **`companies.zatca_onboarding_status` was DROPPED**
+    (migration `0022`) because nothing ever wrote it, so every row read
+    `not_started` forever.
+  - **Residency: the recorded requirement was wrong.** See the correction below —
+    ZATCA §5.5 explicitly permits cloud storage; the binding constraint is
+    ACCESSIBILITY (a direct link for the Authority), which is why
+    `ArchiveStore.directLink` is part of the interface. The backend stays
+    swappable regardless.
+  - **Flagged, not taken on: email delivery.** `lib/mailer.ts` is still
+    `noopMailer` (`delivered: false`), so reminders reach a human only in-app and
+    through the operator panel. The row records whether email actually went, and
+    an absent reminder is worse than a late one here because renewal needs the
+    tenant's own OTP. Integrating SES/Resend/Postmark (~$0–20/month) is the
+    dependency to close before go-live.
 - **M12.7 and M12.9: BLOCKED** on the Saudi entity — simulation end-to-end, and
   the production pilot. Nothing else in M12 is blocked.
+
+### 🔴 RESIDENCY CORRECTION — "must be stored inside Saudi Arabia" was NEVER in the specification
+
+**A recorded requirement that shaped hosting thinking for three milestones turns
+out not to be a ZATCA requirement at all.** It was believed until M12.8, when the
+primary source was actually read.
+
+**What the primary source says.** §5.5 (*Data Storage and Archival*) of the
+E-Invoicing Detailed Guideline — the pinned PDF in `docs/zatca/specs/` — states
+that taxpayers *"may store their electronic invoices in a server **on-premises in
+the KSA or in the cloud** as per their solution requirements."* The same section
+adds that *"Taxpayer's E-Invoice Solutions **may reside on the cloud** in
+accordance with VAT Implementing Regulation."* Cloud storage is **explicitly
+permitted**, not tolerated.
+
+**The binding constraint is ACCESSIBILITY, not location:** *"if the data is
+hosted on the cloud, it must be **accessible through a direct link that can be
+made available to the Authority**. This requirement is mandatory for audit
+purposes."* That is a capability we must build — see the M12.8 design — and it is
+a materially different obligation from a geography.
+
+**Where the wrong claim came from, and why it survived.** A secondary source
+(vendor/blog material of the kind that summarises this area) asserted in-country
+storage; it was recorded here as fact and never checked against the PDF. Note the
+irony: this repository's own operating principle is that **ZATCA's PDFs are an
+unreliable narrator** — but that principle was formulated about the PDFs being
+*wrong where a binary disagrees*. It was never a licence to skip reading them. A
+secondary source is strictly worse than an unreliable primary one, and here the
+primary source was not merely more reliable, it was **the opposite of what we
+believed**. Add the tier explicitly: **LIVE API > SDK > PDF > anything else.**
+
+**What is NOT settled, and must not be treated as settled.** §5.5 defers outward:
+*"additional non-tax-related regulations may apply to the taxpayer entity, such
+as **National Cybersecurity Authority** published laws and any other applicable
+regulations or controls."* So residency pressure may still exist — from NCA / CSP
+cloud controls or sector regulation (e.g. financial-sector rules), **not from
+ZATCA**. That is a **LEGAL question we have not verified**, and it must not be
+acted on as though we had. We have neither established that KSA hosting is
+required nor that it is unnecessary.
+
+**Therefore the engineering position is unchanged, for a better reason.** The
+storage backend stays **swappable behind an interface**, exactly as planned — not
+because a KSA host is required, but because **an unverified claim is not a basis
+for committing hosting, and neither is the absence of one.** The interface is
+what lets the legal answer arrive late without costing a rewrite. Do not "simplify"
+it away on the strength of this correction.
+
+**Verified in the same reading, and safe to build to:**
+- **Naming convention** — *"VAT Registration (tax registration number) +
+  Timestamp (date and time **at the point of invoice generation**) + Invoice
+  Reference Number."* 🔴 **GENERATION, not clearance.** These differ (clearance
+  is later, and for simplified invoices reporting can be up to 24h later), and
+  the inversion is easy to make and invisible once made.
+- **Immutability** — *"Once invoices are generated, they should not be deleted or
+  altered by any user"*, and the solution must *"protect the generated Electronic
+  Invoices ... from any alteration or undetected deletion."* This is a **property
+  of the archive, not a retention duration** — enforce it the way `audit_logs`
+  and `security_audit_logs` already do (DB-level REVOKE + a boundary test), not
+  by convention.
+- **Retention** — 6 years, 11 for certain cases. The e-invoicing guideline itself
+  only says *"archived as per VAT regulations"*; the durations come from the VAT
+  Implementing Regulation, not from this document.
 
 ### 🔴 "CORRECT" IS NOT "CONNECTED" — the Phase-2 pipeline was unreachable from real data
 
@@ -1281,40 +1416,120 @@ hand-built fixtures:
 1. **The wrong chain was being fed to ZATCA.** The loader passed
    `invoices.previous_hash` — the HOMEGROWN chain — as the PIH. On the first
    document of a chain that is the literal string `"GENESIS"`, which ZATCA
-   rejects with `'GENESIS' is not a valid value for 'base64Binary'`. Worse, on
-   every *subsequent* document it passed **silently**: a 64-character hex hash is
-   accidentally well-formed base64, so ZATCA accepted a PIH that means nothing.
-   The ZATCA PIH now comes from `einvoice_documents`, never from `invoices`.
-2. **The hash chain forked under out-of-order approvals** — see below.
+   rejects with `'GENESIS' is not a valid value for 'base64Binary'`. On every
+   *subsequent* document it passed **silently**: a 64-character hex hash is
+   accidentally well-formed base64, so ZATCA **accepted a PIH that means
+   nothing** — a chain link pointing at a value from a different chain
+   altogether, returned as `CLEARED`. The ZATCA PIH now comes from
+   `einvoice_documents`, never from `invoices`.
 
-**The general lesson:** a green result against fixtures says nothing about the
-path from the database. When a pipeline is validated, validate it **from the
-data the product actually produces**.
+   **🔴 Only the LOUD genesis failure exposed it.** Had the genesis case
+   happened to be well-formed, the bug would have shipped: every document
+   cleared, every response green, and the chain meaningless. **A stricter
+   validator on ZATCA's side would have caught this at document one** — hex
+   digits are a subset of the base64 alphabet, so `base64Binary` well-formedness
+   is a near-worthless check here; a length or decoded-value check would have
+   rejected it immediately. The lesson generalises past ZATCA: **when an
+   external validator is the only thing checking a value's meaning, assume it
+   checks the weakest property it plausibly could.** Validate our own chain
+   linkage locally rather than inferring correctness from an accepted
+   submission.
+2. **The hash chain forked under out-of-order approvals** — see below. Note that
+   this one had *no* loud case at all: nothing rejected it, and the DB constraint
+   that looks like it covers the sequence structurally cannot see it.
+
+### 🔴 THREE OCCURRENCES IS A PATTERN — the standing check
+
+The same defect has now been found three times in M12, each time in a different
+component, each time invisible until something forced the code onto a real path:
+
+| # | Found | What was correct | What was not connected |
+| --- | --- | --- | --- |
+| 1 | M12.1b | UBL generation, signing, QR, outbox — all validated | `issueInvoice()` never wrote `icv`/`zatca_uuid`, so the assembler rejected every real row. The whole Phase-2 pipeline was unreachable. |
+| 2 | M12.1b | The ZATCA PIH logic | The loader fed it `invoices.previous_hash` — a different chain entirely. |
+| 3 | **M12.8** | M12.6's outbox transport, proven offline | **Nothing ever enqueued.** No production code inserted an `einvoice_documents` row; `EInvoiceWorker` was never instantiated; `ZATCA_WORKER_ENABLED` was named in two comments and never declared; `listOverdue()` had no callers. |
+
+A fourth, found while closing #3: **`invoice_items.tax_category_code` was added
+in M12.1a and written by NOTHING.** The column existed, the migration back-filled
+history, and the write path never set it — so every invoice created through the
+API carried NULL, and issuance fails closed on a NULL category. For an onboarded
+company that meant **every invoice was unissuable**. Fixed in
+`invoices.service.create` (positive VAT rate ⇒ `'S'`; 0% stays NULL and must be
+stated explicitly, exactly as the migration decided).
+
+**THE STANDING CHECK — apply it before recording any milestone as done:**
+
+> When a milestone claims a capability is **surfaced to users** — an alarm, a
+> queue, a status view, a column, a config flag — **verify a PRODUCTION CALLER
+> EXISTS** before writing it down. Grep for the symbol and discard test files
+> and comments from the results. A function that only a test calls, a column
+> only a migration writes, and a flag only a comment names are all *unbuilt*,
+> however correct their implementation.
+
+This is cheap (one grep) and it has caught something every single time it has
+been applied. The reason it keeps happening is structural rather than careless:
+a component built correctly and tested in isolation produces a green suite, and
+a green suite reads as "done". Nothing in that loop ever asks whether anything
+calls it.
+
+**The general lesson — and the reason "validate from real ledger rows" is an
+acceptance criterion, not a nicety:** a green result against fixtures says
+nothing about the path from the database. **Both bugs above were invisible to
+hand-built fixtures, and neither was a subtle one** — one fed the wrong chain
+entirely, the other broke the chain's core invariant. They were invisible because
+fixtures supply by hand exactly the values the real path gets wrong: a fixture
+author writes a plausible base64 PIH and approves documents in creation order,
+so both faults are papered over by construction. Fixtures test the code you
+wrote; only real rows test the code you forgot to write. **Every future
+integration milestone must have at least one test that submits data read back
+out of Postgres**, produced by the product's own write path — that is what
+`tests/credit-notes-zatca-live.test.ts` is for, and it earned its keep on the
+first run.
 
 ### 🔴 The chain forked because `previousInvoiceHash` ordered by ROW ID
 
 `invoices.id` is assigned at CREATE; the chain position is assigned at APPROVAL.
 Those orders differ whenever documents are approved out of the order they were
-created — under concurrency, and in the ordinary case of an approver working a
-queue out of order.
+created. Ordering by `id` selected "the highest-numbered row that happens to be
+hashed", so several approvals read the SAME head. Reproduced with 8 parallel
+approvals: **three documents shared one predecessor.** A forked chain is not
+repairable after the fact and is exactly what ZATCA's chain exists to detect.
 
-Ordering by `id` selected "the highest-numbered row that happens to be hashed",
-so several approvals read the SAME head. Reproduced with 8 parallel approvals:
-**three documents shared one predecessor.** A forked chain is not repairable
-after the fact and is exactly what ZATCA's chain exists to detect.
+**🔴 THIS IS NOT PURELY A CONCURRENCY BUG. Do not file it as one.** An approver
+working a queue out of creation order forks the chain **sequentially, one request
+at a time, with no parallelism anywhere**: approve invoice #7 before invoice #5,
+and #5 chains to #7's predecessor instead of to #7. That is ordinary,
+correct-by-any-other-measure approver behaviour — an approver is free to work
+their queue in any order, and nothing about the product suggests otherwise.
+Concurrency is how it was *reproduced*, not the condition it requires. A fix
+reasoned about purely as a race (isolation levels, a serialisable transaction)
+would leave the common case broken.
+
+**🔴 `unique(company_id, icv)` COULD NEVER HAVE CAUGHT THIS.** Anyone reading
+"we have a unique constraint on ICV" will assume the sequence is protected. It
+is not, and the shape of the failure is the reason: **a fork produces no
+duplicate value and therefore no error.** Two documents pointing at the same
+predecessor still get distinct, dense, gapless ICVs — the constraint sees nothing
+wrong because nothing it checks *is* wrong. Precisely that was observed: **ICVs
+were dense and unique for the entire time the chain was forking.** A constraint
+on the counter says nothing about the *link*, and the link is where the chain
+lives. Uniqueness and chain integrity are different properties; only one of them
+was enforced.
 
 Two separate mechanisms are needed, and only one of them existed:
 
 - **Allocation** is serialised by a per-company **transaction-scoped advisory
   lock** (`lockCompanySequence`), covering the ICV read AND the chain-head read
   in one critical section. `unique(company_id, icv)` remains the **backstop**,
-  not the mechanism — it can turn a duplicate ICV into an error but it cannot
-  unfork a chain. The lock was working the whole time: ICVs were dense and
-  unique while the chain forked.
+  not the mechanism — it can turn a duplicate ICV into an error, but per the
+  above it cannot see a fork at all, let alone unfork one. The lock was working
+  the whole time.
 - **Ordering** must follow the SEQUENCE, not the row id:
-  `ORDER BY icv DESC NULLS LAST, id DESC`. `NULLS LAST` keeps pre-M12.1b rows
-  (hashed, no ICV) behind ICV-bearing ones so a company with legacy invoices
-  continues its chain rather than starting a second genesis root.
+  `ORDER BY icv DESC NULLS LAST, id DESC`. This is the half that fixes the
+  sequential out-of-order case, which no amount of locking would have.
+  `NULLS LAST` keeps pre-M12.1b rows (hashed, no ICV) behind ICV-bearing ones so
+  a company with legacy invoices continues its chain rather than starting a
+  second genesis root.
 
 Proven in `tests/invoice-icv-concurrency.test.ts` under real parallel
 transactions — the way the M12.6 outbox claiming was proven, rather than by
@@ -1343,14 +1558,16 @@ needs **1–9**.
   The blocking dependency for M12.7–M12.9 and the longest-lead item in the whole
   programme. VAT registration is mandatory above SAR 375,000 revenue and
   **voluntary above SAR 187,500**. Nothing technical unblocks this.
-- **Data residency.** ZATCA requires e-invoices archived on **servers inside Saudi
-  Arabia**, retained **6 years (11 for certain services)**, under a naming
-  convention (VAT number + timestamp + invoice reference). **Good news, resolved
-  in M12.0:** there is *no hosted Supabase project yet* — the database is local
-  Supabase CLI (`127.0.0.1:54322`) and `SUPABASE_URL` is unset. So residency is
-  an **open deployment decision, not a migration** — choose a KSA-resident host
-  before production. Do not provision a non-KSA hosted project in the meantime
-  without revisiting this.
+- **Data residency — 🔴 THE EARLIER CLAIM HERE WAS WRONG. See the correction
+  below before making any hosting decision.** This entry previously read *"ZATCA
+  requires e-invoices archived on servers inside Saudi Arabia."* That came from a
+  **secondary source and is NOT supported by the primary specification.** What
+  remains true and verified: retention **6 years (11 for certain services)** and
+  the file naming convention (see the corrected section below). What is open: the
+  hosting location. There is still *no hosted Supabase project* — the database is
+  local Supabase CLI (`127.0.0.1:54322`) and `SUPABASE_URL` is unset — so this
+  stays an **open deployment decision, not a migration**, and the archive backend
+  is built swappable regardless.
 - **Possible ZATCA IP whitelisting.** Secondary sources indicate server IPs may
   need whitelisting. **Unverified against official docs** — confirm in M12.4. If
   true it means static egress IPs (NAT gateway) and constrains serverless hosting.
@@ -1362,21 +1579,25 @@ needs **1–9**.
   $0.03/10,000, i.e. cents. Self-hosted Vault avoids per-key cost but adds a
   service to operate.
   **The provider is chosen at DEPLOYMENT, behind the `KeyWrapper` interface** —
-  the same hedge as M12.8's storage backend, because the KSA residency question
-  is still open and picking a KMS partially pre-decides the hosting provider.
+  the same hedge as M12.8's storage backend, because the hosting-region question
+  is still open (see the residency correction — the constraint is not what we
+  thought, but it is not resolved either) and picking a KMS partially pre-decides
+  the hosting provider.
 - **ZATCA itself charges nothing** — CSIDs, sandbox, simulation and API access are
   all free. The cost of the build-direct path is engineering time only.
 
 ### ⚠️ The API test suite has order/timing sensitivities that only appear under full parallel load
 
-**Two latent fragilities have now been exposed by M12 work — neither caused by
-it, both invisible until something perturbed timing.** Expect more, and suspect
-this class first when a suite fails in a full run but passes in isolation.
+**Three latent fragilities have now been exposed by M12 work — none caused by
+it, all invisible until something perturbed timing or coupling.** Expect more,
+and suspect this class first when a suite fails in a full run but passes in
+isolation.
 
 | # | Fragility | Surfaced by | Fix |
 | --- | --- | --- | --- |
 | 1 | `audit.test.ts` ordered audit rows by `created_at` alone. Postgres `now()` is the **transaction** timestamp, so rows written in one request are identical and the sort had no tiebreak. | M12.1a adding `customers` columns, which shifted physical row order | Select by `action`, never by row position. `audit_logs.id` is a random uuid and does **not** break the tie. |
 | 2 | Rate limiters are **process-global and IP-keyed**, and every test request comes from the same loopback address — so parallel suites share one budget. Signup's is deliberately strict (5/hour). | M12.3 adding ~20s of CPU-heavy Java, which shifted interleaving | `__resetRateLimitsForTests()` in `routes/auth.ts`; suites that sign up call it in `beforeAll`. |
+| 3 | `vitest.config.ts` supplied only `DATABASE_URL`. Tests drive services directly and skip boot, so nothing had ever called `loadEnv()` on a service path — and it validates the WHOLE schema. | M12.8 making issuance consult `ZATCA_ENVIRONMENT`, which turned a missing `PORT` into **21 failing invoice tests** | Supply `PORT`/`SESSION_SECRET`/`CORS_ALLOWED_ORIGINS` in `vitest.config.ts`, mirroring boot. It cannot happen in production: `loadEnv` is memoized and runs at startup, so the process would never have started. |
 
 **The diagnostic:** *passes alone, passes in pairs, fails in the full run* means
 shared mutable state or an unstable ordering — not a real regression. Reproduce
@@ -1393,9 +1614,21 @@ fails under that ordering while passing alone. See `vitest.config.ts`.
 
 ### 🔴 PRE-PRODUCTION REQUIREMENT: real alerting on the e-invoice outbox
 
-M12.6 surfaces overdue documents via `listOverdue()` and the operator UI, and
-logs through `pino`. **There is no actual alerting**, and that is a deliberate
-scope call to be closed before production.
+**🔴 CORRECTED IN M12.8.** This section previously read *"M12.6 surfaces overdue
+documents via `listOverdue()` and the operator UI"*. **That was false in both
+halves.** `listOverdue()` had **zero production callers** — only a test — and
+there was **no operator UI for it at all**. A capability was recorded as
+delivered on the strength of the function existing. See the standing check
+below.
+
+**As of M12.8 the claim is now true:** `listOverdue()` is surfaced by
+`operatorZatca.service.health()` at `GET /operator/zatca/health` and rendered in
+`OperatorZatcaPanel.tsx`, which reports the OLDEST waiting document rather than
+just a count (age is what matters against a 24-hour deadline).
+
+**But there is still NO ACTUAL ALERTING**, and that remains the pre-production
+requirement. Visibility is not alerting: the operator panel only helps a human
+who is already looking at it.
 
 Why it matters more than it looks: **the dangerous failure is not a loud
 rejection, it is quiet neglect.** A rejected document is visible and someone acts
@@ -1422,9 +1655,23 @@ It is worse than the outbox case in one respect: **renewal requires the TENANT's
 own action** (a fresh CSR plus an OTP they obtain from Fatoora), so a reminder
 that fires late cannot be fixed by us alone. Lead time is the whole point.
 
-**Required before go-live:** reminders at **T-90 / T-30 / T-7 days**, plus
-operator-side visibility of expiring certificates (M12.8). Drive them off
-`zatca_credentials.not_after`.
+**✅ BUILT IN M12.8, with one gap that is still a go-live blocker.**
+Reminders at **T-90 / T-30 / T-7** run off `zatca_credentials.not_after`
+(`services/einvoice/renewal/renewal.service.ts`), are idempotent through a unique
+index on (credential, threshold), still fire for an already-expired certificate,
+and are surfaced to the operator alongside the windows that passed *unannounced*.
+
+**🔴 THE REMAINING GAP: the reminder cannot actually reach the tenant.**
+`lib/mailer.ts` is still `noopMailer` — it logs and returns `delivered: false`.
+So a reminder exists as a row and appears in-app and in the operator panel, but
+**no message is sent to anyone**. For this alarm specifically that is close to
+useless on its own: the whole point is lead time for an action *only the tenant
+can take*, and a tenant who does not open the app does not learn anything.
+
+Integrating an email provider (SES / Resend / Postmark, ~$0–20/month) is
+therefore a **hard prerequisite for onboarding a real taxpayer**, not a polish
+item. `Mailer` is the seam — implement `send` and swap the export; nothing else
+changes.
 
 ### 🔴 DEPLOYMENT REQUIREMENTS: protecting the KMS master key (M12.5)
 

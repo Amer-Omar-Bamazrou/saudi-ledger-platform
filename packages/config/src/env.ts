@@ -14,6 +14,20 @@ const commaSeparated = z
   .string()
   .transform((value) => value.split(",").map((part) => part.trim()).filter(Boolean));
 
+/**
+ * An explicit on/off env var.
+ *
+ * 🔴 Do NOT reach for `z.coerce.boolean()` here. It applies JavaScript's
+ * `Boolean()`, under which every non-empty string is true — so
+ * `FLAG=false`, `FLAG=0` and `FLAG=off` all mean ON. For a flag that gates
+ * transmissions to a government API, silently inverting the operator's
+ * explicit "false" is not an acceptable failure mode. Anything unrecognised is
+ * rejected at boot rather than guessed.
+ */
+const booleanFlag = z
+  .enum(["true", "false", "1", "0", "yes", "no", "on", "off"])
+  .transform((value) => value === "true" || value === "1" || value === "yes" || value === "on");
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -99,6 +113,54 @@ const EnvSchema = z.object({
    * the M12.7/M12.9 dependency that does not exist yet.
    */
   ZATCA_ENVIRONMENT: z.enum(["sandbox", "simulation", "production"]).default("sandbox"),
+
+  // ── Background jobs (M12.8) ────────────────────────────────────────────────
+  /**
+   * Run the in-process job scheduler: the e-invoice outbox worker, the archive
+   * sweep and the certificate-renewal check.
+   *
+   * 🔴 M12.6 documented this flag in two code comments and NEVER DECLARED IT, so
+   * nothing could read it and the worker was never started. Declared here in
+   * M12.8 as part of connecting the outbox. Default OFF: the worker transmits to
+   * a government API, so starting it must be a deliberate act, and every job is
+   * separately runnable on demand from the operator surface.
+   *
+   * 🔴 NOT `z.coerce.boolean()`. `Boolean("false")` is `true`, so coercion turns
+   * an explicit `ZATCA_WORKER_ENABLED=false` into ON — the exact opposite of the
+   * intent, for a flag that starts transmissions to a government API.
+   */
+  ZATCA_WORKER_ENABLED: booleanFlag.default("false"),
+  /** Poll interval for the outbox worker. */
+  ZATCA_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
+  /**
+   * How long a document may sit unsubmitted before it is overdue.
+   *
+   * Simplified invoices must be REPORTED within 24 hours, so the alarm has to
+   * fire with time left to act on it, not at the deadline.
+   */
+  ZATCA_OVERDUE_MINUTES: z.coerce.number().int().min(1).default(60),
+
+  // ── E-invoice archive (M12.8) ─────────────────────────────────────────────
+  /**
+   * Where cleared/reported XML is retained for ZATCA's 6–11 year window.
+   *
+   * 🔴 The provider is chosen HERE, at deployment — the same hedge as
+   * `ZATCA_KMS_PROVIDER`. ZATCA §5.5 explicitly permits cloud storage and does
+   * NOT mandate in-country servers (a claim we carried from a secondary source
+   * and corrected in M12.8); what it mandates is that the data be reachable by
+   * a direct link given to the Authority. Residency pressure, if any, comes from
+   * NCA/CSP or sector rules we have not verified. An unverified claim is not a
+   * basis for committing hosting, and neither is its absence — so the backend
+   * stays swappable and the region stays a deployment decision.
+   */
+  ZATCA_ARCHIVE_PROVIDER: z.enum(["supabase-storage", "local-fs"]).default("local-fs"),
+  ZATCA_ARCHIVE_BUCKET: z.string().min(1).default("einvoice-archive"),
+  /** Filesystem root for the `local-fs` provider (development and CI). */
+  ZATCA_ARCHIVE_DIR: z.string().min(1).default(".archive/einvoice"),
+  /** Retention floor in years. 6 by VAT regulation; 11 for certain services. */
+  ZATCA_ARCHIVE_RETENTION_YEARS: z.coerce.number().int().min(6).max(20).default(6),
+  /** TTL for a direct link handed to an auditor. */
+  ZATCA_ARCHIVE_LINK_TTL_SECONDS: z.coerce.number().int().min(60).default(3600),
 })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ZATCA_KMS_PROVIDER === "local-dev") {
@@ -118,7 +180,45 @@ const EnvSchema = z.object({
         message: "ZATCA_KMS_KEY_ID is required when ZATCA_KMS_PROVIDER is 'aws-kms'",
       });
     }
+    if (
+      env.ZATCA_ARCHIVE_PROVIDER === "supabase-storage" &&
+      !(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZATCA_ARCHIVE_PROVIDER"],
+        message:
+          "ZATCA_ARCHIVE_PROVIDER='supabase-storage' requires SUPABASE_URL and " +
+          "SUPABASE_SERVICE_ROLE_KEY. Fail at boot rather than discovering it when the " +
+          "first cleared invoice cannot be archived.",
+      });
+    }
+    // 🔴 A relative archive directory in production is almost certainly a
+    // container's ephemeral filesystem — the archive would appear to work and be
+    // gone at the next deploy, which is the worst possible failure for a 6–11
+    // year legal retention obligation. `local-fs` IS a legitimate production
+    // choice (ZATCA §5.5 permits on-premises storage), so it is not refused;
+    // it just has to be pointed somewhere deliberately.
+    if (
+      env.NODE_ENV === "production" &&
+      env.ZATCA_ARCHIVE_PROVIDER === "local-fs" &&
+      !isAbsolutePath(env.ZATCA_ARCHIVE_DIR)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZATCA_ARCHIVE_DIR"],
+        message:
+          "ZATCA_ARCHIVE_DIR must be an ABSOLUTE path when archiving to 'local-fs' in " +
+          "production — a relative path resolves inside the container and the archive is " +
+          "lost on redeploy. Point it at durable, backed-up storage.",
+      });
+    }
   });
+
+/** Absolute on POSIX (`/srv/...`) or Windows (`C:\...`, `\\host\share`). */
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("\\\\");
+}
 
 export type Env = z.infer<typeof EnvSchema>;
 

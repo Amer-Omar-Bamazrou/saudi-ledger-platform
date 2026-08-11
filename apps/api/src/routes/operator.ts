@@ -9,8 +9,10 @@
  */
 import { Router } from "express";
 import { operatorService } from "../services/operator.service";
+import { operatorZatcaService } from "../services/operatorZatca.service";
 import { documentsService } from "../services/documents.service";
 import { sendDocument } from "./documentHttp";
+import { BadRequestError } from "../lib/errors";
 
 const router = Router();
 
@@ -58,6 +60,54 @@ router.post("/applications/:orgId/request-info", async (req, res) => {
 /** POST /api/operator/applications/:orgId/reopen { reason } — rejected → needs_info (mistake fix). */
 router.post("/applications/:orgId/reopen", async (req, res) => {
   res.json(await operatorService.reopen(req.session.userId!, req.params.orgId, req.body?.reason, actorCtx(req)));
+});
+
+// ── ZATCA e-invoicing visibility (M12.8) ───────────────────────────────────
+// Operational metadata only — queue depth, ages, certificate expiry, onboarding
+// state. Never a tenant's financial data, never XML, never key material.
+
+/** GET /api/operator/zatca/health — the outbox age alarm + archive coverage. */
+router.get("/zatca/health", async (_req, res) => {
+  res.json(await operatorZatcaService.health());
+});
+
+/** GET /api/operator/zatca/overdue — documents past the overdue threshold. */
+router.get("/zatca/overdue", async (_req, res) => {
+  res.json(await operatorZatcaService.overdue());
+});
+
+/** GET /api/operator/zatca/needs-review — documents a human must reconcile. */
+router.get("/zatca/needs-review", async (_req, res) => {
+  res.json(await operatorZatcaService.needsReview());
+});
+
+/** GET /api/operator/zatca/certificates?days=90 — expiring PCSIDs + reminder state. */
+router.get("/zatca/certificates", async (req, res) => {
+  const days = req.query.days ? Number(req.query.days) : 90;
+  if (!Number.isFinite(days) || days < 1 || days > 3650) {
+    throw new BadRequestError("days must be between 1 and 3650");
+  }
+  res.json(await operatorZatcaService.expiringCertificates(days));
+});
+
+/** GET /api/operator/zatca/onboarding — per-company onboarding state (from the vault). */
+router.get("/zatca/onboarding", async (_req, res) => {
+  res.json(await operatorZatcaService.onboardingStatus());
+});
+
+/**
+ * POST /api/operator/zatca/jobs/:name/run — run one background job now.
+ *
+ * The jobs are deliberately runnable with `ZATCA_WORKER_ENABLED` off, so an
+ * operator can drain the outbox, sweep the archive or re-check expiry without
+ * enabling the polling loop.
+ */
+router.post("/zatca/jobs/:name/run", async (req, res) => {
+  const name = req.params.name;
+  if (!operatorZatcaService.jobNames().includes(name)) {
+    throw new BadRequestError(`Unknown job '${name}'. Known jobs: ${operatorZatcaService.jobNames().join(", ")}`);
+  }
+  res.json(await operatorZatcaService.runJob(name));
 });
 
 export default router;

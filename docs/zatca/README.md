@@ -57,6 +57,75 @@ necessary but not sufficient. See the manifest's "Impact on M12.2".
 | **Simulation** | <https://fatoora.zatca.gov.sa/> | **ERAD credentials — a real, active Saudi VAT registration.** ⚠️ Blocks M12.7. |
 | **Production** | <https://fatoora.zatca.gov.sa/> | Real VAT registration; each tenant onboards their own EGS via OTP. |
 
+## 🔴 CORRECTION (M12.8): storage residency — cloud is explicitly permitted
+
+We recorded, from **2026-08-04 until M12.8**, that ZATCA requires e-invoices to be
+archived on servers **inside Saudi Arabia**. **That is not in the specification.**
+It came from a secondary source and was never checked against the pinned PDFs in
+`specs/`, which contradict it.
+
+**§5.5 *Data Storage and Archival*, `E-Invoicing_Detailed__Guideline.pdf`:**
+
+> Persons subject to the E-Invoicing Regulation **may store their electronic
+> invoices in a server on-premises in the KSA or in the cloud** as per their
+> solution requirements and storage requirements and according to the provisions
+> in VAT Law, VAT Implementing Regulation, E-Invoicing Regulation and Resolutions
+> and all other relevant Laws in KSA.
+
+and, in the same section:
+
+> Taxpayer's E-Invoice Solutions **may reside on the cloud** in accordance with
+> VAT Implementing Regulation, however additional non-tax-related regulations may
+> apply to the taxpayer entity, such as **National Cybersecurity Authority**
+> published laws and any other applicable regulations or controls.
+
+**The binding constraint is accessibility, not geography:**
+
+> As per VAT Implementing Regulations, if the data is hosted on the cloud, it
+> **must be accessible through a direct link that can be made available to the
+> Authority**. This requirement is **mandatory for audit purposes**.
+
+### What this does and does not change
+
+| | Status |
+| --- | --- |
+| ZATCA mandates in-country storage | ❌ **False** — not in the primary source |
+| Cloud storage permitted by ZATCA | ✅ Explicitly |
+| A direct audit link must be producible | ✅ **Mandatory** — a feature to build (M12.8) |
+| NCA / CSP / sector rules may impose residency | ⚠️ **Unverified — a LEGAL question** |
+| Hosting region decided | ❌ **Still open** |
+
+**Do not read this as "we can host anywhere."** §5.5 defers outward to the NCA
+and to "any other applicable regulations"; we have not checked those, and they
+are a legal question rather than a technical one. We have established only that
+**ZATCA is not the source of a residency constraint** — not that no constraint
+exists.
+
+The archive backend therefore stays **swappable behind an interface** (M12.8),
+the same hedge as `KeyWrapper` in M12.5. An unverified claim is not a basis for
+committing hosting, and neither is the absence of one.
+
+### Also verified in the same reading
+
+- **Naming convention** (§5.5): *VAT Registration (tax registration number) +
+  Timestamp (**date and time at the point of invoice generation**) + Invoice
+  Reference Number.* 🔴 **Generation, not clearance** — they differ, and for
+  simplified invoices reporting may follow up to 24h later.
+- **Immutability:** *"Once invoices are generated, they should not be deleted or
+  altered by any user"*; the solution must *"protect the generated Electronic
+  Invoices and Electronic Notes from any alteration or **undetected deletion**."*
+  A property of the archive, not a retention duration.
+- **Retention:** the guideline says only *"archived as per VAT regulations"* — the
+  6-year / 11-year figures come from the VAT Implementing Regulation, not here.
+
+### The process lesson
+
+Our operating principle is **LIVE API > SDK > PDF**, formulated because ZATCA's
+PDFs are wrong wherever their binaries disagree. That was never a licence to skip
+reading them. A **secondary source ranks below all three**, and here the primary
+source was not merely more reliable than the belief we held — it said the
+opposite. Extend the ladder: **LIVE API > SDK > PDF > anything else.**
+
 ## ✅ RESOLVED: the API-host outage cleared (2026-08-09)
 
 The connectivity block recorded on 2026-08-07 was **transient — an outage, not IP

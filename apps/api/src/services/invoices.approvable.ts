@@ -28,6 +28,7 @@ import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./acco
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { requireIssuanceSeller } from "./sellerIdentity";
+import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
@@ -134,7 +135,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     vatAmount: vatAmount.toFixed(2),
   });
 
-  const [updated] = await invoicesRepository.update(inv.id, {
+  let [updated] = await invoicesRepository.update(inv.id, {
     status: "sent",
     invoiceHash,
     previousHash,
@@ -146,6 +147,30 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     zatcaUuid,
     reviewNote: null,
   });
+
+  // ── ZATCA Phase 2 (M12.8) ─────────────────────────────────────────────────
+  // Build, sign and queue the UBL document — STILL INSIDE the sequence lock and
+  // the request transaction, so the queued row commits atomically with the
+  // ledger effect and the chain head cannot be read by anyone else in between.
+  //
+  // A company with no active credential is skipped and issuance proceeds
+  // unchanged; an onboarded company that cannot produce a document throws and
+  // rolls the approval back. See `enqueueEInvoice` for why those differ.
+  const queued = await enqueueEInvoice({
+    id: inv.id,
+    organizationId: inv.organizationId,
+    companyId: inv.companyId,
+  });
+
+  // 🔴 An onboarded company's printed document must carry the PHASE 2 QR.
+  // `generateZatcaQr` above emits tags 1–5 (Phase 1); a Phase-2 taxpayer's
+  // simplified invoice must show tags 1–9, including the signature and the
+  // certificate's public key. Overwriting here keeps ONE QR on the invoice —
+  // the compliant one — rather than leaving the printed copy silently a
+  // generation behind. Companies that are not onboarded keep the Phase-1 QR.
+  if (queued.qrCode) {
+    [updated] = await invoicesRepository.update(inv.id, { qrCode: queued.qrCode });
+  }
 
   // ── GL ────────────────────────────────────────────────────────────────────
   // A CREDIT note reverses; a DEBIT note does not.

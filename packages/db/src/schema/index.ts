@@ -14,6 +14,7 @@ export * from "./budgets";
 export * from "./users";
 export * from "./periodLocks";
 export * from "./einvoiceDocuments";
+export * from "./einvoiceArchive";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)
 export * from "./organizations";
@@ -28,5 +29,6 @@ export * from "./verificationReviews";
 export * from "./verificationDocuments";
 export * from "./invitations";
 export * from "./zatcaCredentials";
+export * from "./zatcaCredentialReminders";
 export * from "./permissions";
 export * from "./featureFlags";
