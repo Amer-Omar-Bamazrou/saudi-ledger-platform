@@ -1586,6 +1586,40 @@ review — a mechanical check, because the failure survives careful review by
 construction. Thirteen instances found so far (six live, seven retroactive), and
 the check caught something every single time it was run.
 
+### 🔴 THE SECOND NAMED FAILURE MODE: **A TEST THAT BECAME A GUARD FOR THE BUG**
+
+Its close relative, and in one way worse — because here the safety mechanism is
+the thing that fails.
+
+> **An obsolete assertion.** A test that was *correct when written* can quietly
+> invert into a guard certifying the defect, and stay green across the very
+> milestones that should have invalidated it. Nothing flags it: it was true, it
+> is still passing, and passing tests are not re-read.
+
+**The instance (S1).** `ubl-generation.test.ts` asserted that
+`zatcaDirectProvider.onboard` and `.submit` throw `NotImplementedError`. Correct
+and useful at M12.2 — "unbuilt methods must fail loudly rather than silently
+succeed". Then **M12.4 built onboarding and M12.6 built transport**, each
+shipping its logic elsewhere and leaving the seam throwing. The assertion stayed
+green through both. For two milestones a passing test was **certifying that the
+vendor swap point did not work**, and its green status was one of the reasons
+nobody looked.
+
+Note how it compounds: a *shape without a consumer* is invisible, and an
+*obsolete assertion* actively defends the invisibility.
+
+**COUNTERMEASURE — add to the milestone checklist:**
+
+> When a milestone **implements or moves** something, grep for tests asserting
+> that thing is **absent, unimplemented, or throwing** — `NotImplementedError`,
+> `.rejects`, `toThrow`, `toBeNull`, `toBeUndefined`, `not.toContain` — and
+> re-read each hit. An assertion of absence is a claim with an expiry date, and
+> the milestone that implements the thing is when it expires.
+
+Where an absence assertion is genuinely long-lived, **invert it into a presence
+assertion** as S1 did (every provider method must be reachable) — a positive
+assertion cannot silently outlive its purpose the same way.
+
 ### 📋 RETROACTIVE SWEEP (M12 close-out) — seven more
 
 Six instances was enough to assume more existed, so the standing check was
@@ -1602,7 +1636,7 @@ future session plans work assuming they exist.
 | **S2** ✅ **FIXED (as a description)** | M12.6: an ambiguous failure "is reconciled by **ASKING ZATCA what happened**". | **Nothing asks ZATCA, and nothing can:** ZATCA's API exposes **no invoice-status or query endpoint** — Compliance CSID, Production CSID, Clearance and Reporting are the entire documented surface. Implementing a query would mean inventing an endpoint, which is exactly the guessing the divergence log exists to prevent. So the **description** was corrected to say what actually happens: an ambiguous document parks in `needs_review` and **a human** resolves it in the Fatoora portal. Sound design; false comment. | **MEDIUM** |
 | **S3** | Tech Stack table: **"Cache / queue — Redis"**. | **Redis is not used anywhere.** No dependency, no client, no config. The only mention in code is a comment saying rate limiters *should* move to a Redis store when scaling. Listed as if it were part of the running stack. | **LOW** (doc accuracy) — but it feeds queue item C1, which assumes Redis exists to move to. |
 | **S4** | Repository Layout: `apps/api/src/lib/` holds "accounting + infra: **glPosting, periodLock, zatca, categorizer**, auth, logger". | **M6 moved all four** to `services/accounting/` and `services/categorization/`. `lib/` no longer contains any of them. The layout section was never updated. | **LOW** — actively misleading for navigation. |
-| **S5** | `packages/auth` is listed as a workspace ("auth/RBAC; populated later"). | **It is a 3-line stub.** All auth and RBAC live in `apps/api/src/lib/`. Six milestones of auth work went elsewhere; the package has never been populated and there is no plan naming when it would be. | **LOW** — decide to populate it or delete it. |
+| **S5** ✅ **RESOLVED (deleted)** | `packages/auth` was listed as a workspace ("auth/RBAC; populated later"). | A 3-line stub. All auth and RBAC live in `apps/api/src/lib/` after six milestones of work; nothing depended on the package. **Deleted** — see below. | **LOW** |
 | **S6** | The `feature_flags` table "exists" and is listed among the platform tables. | **Created by a migration and referenced by nothing.** No repository, no service, no route reads or writes it. Same shape as `companies.zatca_onboarding_status`, which was dropped in M12.8 for exactly this. | **LOW** — but it is a trap: the next engineer will reasonably assume flags work. |
 | **S7** | `branches` and `departments` tables exist as platform tables (M2/M3). | **No production code references either.** Schema-only, like `feature_flags`. | **LOW** — same trap, same class. |
 
@@ -1686,15 +1720,14 @@ decision attached rather than a task:
 - **S4 — the Repository Layout section** still points at `lib/glPosting`,
   `lib/periodLock`, `lib/zatca`, `lib/categorizer`. M6 moved all four to
   `services/`. Actively misleading for navigation; a doc fix.
-- **S5 — `packages/auth` is a 3-line stub.** Six milestones of auth and RBAC work
-  (M4, M5, M10.1, M11.1, M11.3, M11.5.1) landed in `apps/api/src/lib/` instead,
-  and no plan names when the package would be populated. **An empty package named
-  for a concern that lives somewhere else is a trap**: the next engineer looking
-  for auth code looks there first and finds three lines, and the one adding auth
-  code has two plausible homes with nothing to choose between them. **Decide:
-  populate it or delete it.** Deleting is the honest default — the code has a
-  working home and moving it now would churn six milestones of tested boundaries
-  for no functional gain.
+- **S5 ✅ RESOLVED — `packages/auth` DELETED.** It was a 3-line stub while six
+  milestones of auth and RBAC work (M4, M5, M10.1, M11.1, M11.3, M11.5.1) landed
+  in `apps/api/src/lib/`. An empty package named for a concern that lives
+  elsewhere is a trap in both directions: the engineer looking for auth code
+  finds three lines, and the one adding auth code has two plausible homes with
+  nothing to choose between them. Deleted rather than populated — the code has a
+  working, tested home, and relocating six milestones of boundaries would be pure
+  churn. Nothing depended on it.
 - **S6/S7 — `feature_flags`, `branches`, `departments`.** Tables created by
   migrations and referenced by no code. Exactly the shape of
   `companies.zatca_onboarding_status`, which was dropped in M12.8 for this
@@ -2135,7 +2168,7 @@ because these do not all land in one change.
 
 | # | Item | Where recorded |
 | --- | --- | --- |
-| C1 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out. 🔴 **CURRENTLY UNACTIONABLE AS WRITTEN:** it says "move to Redis", but **Redis does not exist in this project** — no dependency, no client, no config, no container (finding S3). It is listed in the Tech Stack table as if it were running. Closing C1 means *introducing* Redis (a new service to provision, secure and operate), not migrating to it. Scope it that way or choose a different shared store. | M11 audit findings + S3 |
+| C1 | **HIGH-2 + Redis INTRODUCTION (not a migration).** Two parts. (a) Confirm exactly one trusted proxy overwrites `X-Forwarded-For` — `trust proxy` is set only in production, so a client-supplied header would make every IP-keyed limiter a no-op via rotation. (b) The rate-limit stores are in-memory and per-process, so **horizontal scaling silently multiplies every limit** — including signup's deliberate 5/hour. 🔴 This item used to read "move the limiters to Redis", which is wrong in a way that hides work: **Redis does not exist in this project** — no dependency, no client, no config, no container (finding S3). Closing (b) means *introducing* a shared store: provisioning it, securing it, operating it, and accepting it as a new failure domain. Scope it as an introduction, or pick a different mechanism (e.g. a Postgres-backed limiter, since Postgres is already a hard dependency). | M11 audit findings + S3 |
 | C2 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
 | C3 | **KMS deployment verification** — the IAM/key policy, 30-day deletion window, break-glass restriction on `kms:ScheduleKeyDeletion`, CloudTrail alarm, multi-region replica | M12.5 deployment requirements |
 | C4 | **AV scanning** on uploaded verification documents before untrusted-tenant growth | M11.4 follow-up |
@@ -2299,12 +2332,22 @@ from the local Supabase CLI stack where all of this was measured.
 | Data fetching | TanStack Query (React Query v5)                                          |
 | ORM           | Drizzle ORM                                                              |
 | Database      | PostgreSQL (via Supabase)                                                |
-| Cache / queue | Redis                                                                    |
+| Cache / queue | **None.** See the note below — Redis is NOT part of this stack.          |
 | Auth          | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
 | API contract  | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen      |
 | Validation    | Zod (generated into `@workspace/api-zod`)                                |
 | i18n          | Custom `LanguageContext` (Arabic / English, RTL-aware)                   |
 | Logging       | pino / pino-http                                                         |
+
+> 🔴 **This table previously listed "Cache / queue — Redis". Redis is not, and
+> has never been, part of this project** — no dependency, no client, no config,
+> no container. It was aspiration recorded as fact, which is the same disease as
+> a schema with no consumer: a future session reads the stack table to learn what
+> it can rely on. Rate limiting is **in-memory and per-process** today (which is
+> why horizontal scaling is a pre-production item — see queue C1), and background
+> work runs on the in-process scheduler in `apps/api/src/jobs/`, not a queue.
+> If a cache or queue is introduced, add it here **when it runs**, not when it is
+> decided.
 
 ## 4. Repository Layout
 
@@ -2325,7 +2368,14 @@ packages/
   api-spec/          @workspace/api-spec — OpenAPI spec + orval config (codegen)
   api-zod/           @workspace/api-zod — generated Zod schemas/types
   api-client-react/  @workspace/api-client-react — generated React Query client
-  auth/              @workspace/auth — scaffold (auth/RBAC; populated later)
+  # NOTE: there is deliberately NO `packages/auth`. It existed as an empty
+  # scaffold from M2 until the M12 close-out and was DELETED: six milestones of
+  # auth and RBAC work (M4, M5, M10.1, M11.1, M11.3, M11.5.1) landed in
+  # `apps/api/src/lib/` instead, and an empty package named for a concern that
+  # lives elsewhere is a trap — the next engineer looks there first and finds
+  # three lines, and the next one adding auth code has two plausible homes with
+  # nothing to choose between them. Auth lives in `apps/api/src/lib/`
+  # (auth.ts, rbac.ts, tenant.ts, operator.ts, tokens.ts).
   config/            @workspace/config — scaffold (shared config/env; populated later)
 scripts/
 docs/                architecture-blueprint.md, phase-0-implementation-plan.md
