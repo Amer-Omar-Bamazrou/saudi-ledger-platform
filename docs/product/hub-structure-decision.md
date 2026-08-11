@@ -15,7 +15,7 @@ spec lives in [`feature-spec-automation.md`](./feature-spec-automation.md).
 | # | Question | Decision |
 | --- | --- | --- |
 | 1 | Are the hubs destinations or capabilities? | **Two destinations, two woven in.** |
-| 2 | Who is the paying customer? | **The SME keeping its own books.** Not accounting firms. |
+| 2 | Who is the paying customer? | **Both — the SME keeping its own books FIRST, accounting firms later.** |
 | 3 | What is the wedge? | **Automation.** AI is the moat, not the wedge. |
 | 4 | Where does AI run? | **Parked**, with an explicit expiry trigger (§4). |
 
@@ -59,29 +59,49 @@ reachable from Settings — a list, not a hub.
 
 ---
 
-## 3. The customer: an SME keeping its own books
+## 3. The customer: SME first, firms later — and the difference matters
 
-Not accounting firms. This was asked explicitly and answered explicitly.
+**Both markets, SME first.** The product being built now is the SME product. What
+this decision buys is not a feature list; it is a **constraint on what may be
+foreclosed.**
 
-**What follows from it:**
+### Build for this user
 
-- **One company in practice.** The `organization → company → branch → department`
-  hierarchy stays (it is built and ZATCA needs per-company identity), but no
-  product surface is designed around a user switching between many companies.
-- **No client switcher, no cross-client triage, no client portal, no staff
-  assignment.** These are the firm-shaped features and they are **out of scope**.
 - **The reader is not an accountant.** Terms like "journal entry", "trial
   balance" and "input VAT" may appear in reports, but no primary workflow may
   *require* understanding them.
 - **Onboarding is disproportionately important**, because the buyer is also the
   implementer. There is nobody to configure it for them.
+- **One company is the normal case.** Design every screen as though the user has
+  exactly one, because they do.
 
-**If this ever changes**, it is a strategy change, not a feature request — the
-navigation, permissions and data model implications are large. Firms remain a
-plausible later market (the schema would support them); nothing here forecloses
-it, and nothing here is built for it.
+### 🔴 But do not design firms OUT
 
----
+This is the operative half of the decision, and the reason it is not "SME only".
+A firm keeps books for many client businesses. The `organization → company`
+hierarchy already supports that shape — the cost of keeping the door open is low
+now and high later.
+
+**Concretely, when building SME features:**
+
+| Do | Do not |
+| --- | --- |
+| Keep "the active company" a real, resolved concept (it already is — `app.current_company_id`, per-company ZATCA identity, M13's per-company period locks) | Collapse "the active company" into "the only company", or hardcode a single-company assumption into a query, a route or a screen |
+| Let services take a company as input | Reach for "the org's first company" — the M12.1a bug, twice |
+| Leave room in the navigation for a client switcher (the org switcher already exists) | Redesign the shell around the assumption that there is nothing to switch |
+| Treat batch/bulk capability as **deferred** | Treat it as **impossible** — see the automation spec, where bulk intake is deferred rather than excluded |
+| Keep membership roles per-organization | Assume one user ⇒ one company |
+
+### Still out of scope NOW
+
+Client switcher UI, cross-client dashboards and triage, staff assignment,
+per-client billing, client portals. These are the firm *product* and none is
+built. They are **deferred, not rejected** — the distinction that separates this
+answer from "SME only".
+
+**Trigger to revisit:** the first paying accounting firm, or any SME customer
+managing more than about three companies. At that point firms stop being
+hypothetical and get their own interview.
 
 ## 4. AI is the moat, not the wedge — and hosting is parked
 
