@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { FileText, RefreshCw } from "lucide-react";
+import OperatorZatcaPanel from "./OperatorZatcaPanel";
 
 /**
  * Platform-operator review surface (M11.5) — list pending applications, inspect
@@ -207,6 +208,11 @@ export default function OperatorReview() {
           </CardContent>
         </Card>
       )}
+
+      {/* M12.8 — ZATCA e-invoicing visibility: outbox age, certificate expiry,
+          onboarding. Separate component because it is a different concern from
+          verification review, and its queries are independent. */}
+      <OperatorZatcaPanel />
     </div>
   );
 }

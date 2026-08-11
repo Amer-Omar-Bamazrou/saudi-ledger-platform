@@ -139,6 +139,31 @@ export const invoicesRepository = {
    * hex chain with the literal genesis `"GENESIS"`; ZATCA's is the base64
    * SHA-256 of the canonical XML. See the landmine note in CLAUDE.md.
    *
+   * 🔴 CALL ONLY WHILE HOLDING {@link lockCompanySequence}, and only from the
+   * issuance path. Both halves matter — see below.
+   *
+   * ── M12.8 bug fix: THE FORK WAS STILL LIVE HERE ───────────────────────────
+   * M12.1b found that ordering a chain head by row id forks the chain, fixed it
+   * in {@link previousInvoiceHash}, and left this function ordering by
+   * `einvoice_documents.invoice_id DESC` — the SAME defect, in the SAME file,
+   * applied to the chain ZATCA actually validates. It survived review because
+   * nothing enqueued a document, so the table was always empty and this always
+   * returned `null` → genesis. The disconnection was masking it.
+   *
+   * `invoice_id` is assigned at CREATE; the chain position is assigned at
+   * ISSUANCE. They diverge whenever documents are approved out of creation
+   * order — which is NOT merely a race: an approver working a queue out of
+   * order forks the chain one sequential request at a time. So the ordering
+   * follows the SEQUENCE (`icv`), exactly as the homegrown chain now does.
+   *
+   * And ordering alone is not sufficient. Reading the head and writing the next
+   * document's hash is read-then-write, so the read must sit in the same
+   * critical section as the ICV allocation — hence the lock requirement above.
+   * M12.1b needed BOTH mechanisms; this path had NEITHER.
+   *
+   * `NULLS LAST` keeps any document whose invoice predates ICV assignment
+   * behind ICV-bearing ones, so a chain continues rather than restarting.
+   *
    * Returns `null` when no ZATCA document has been recorded yet, so the
    * assembler substitutes ZATCA's defined genesis constant.
    */
@@ -146,6 +171,7 @@ export const invoicesRepository = {
     const [row] = await db
       .select({ hash: einvoiceDocumentsTable.invoiceHash })
       .from(einvoiceDocumentsTable)
+      .innerJoin(invoicesTable, eq(einvoiceDocumentsTable.invoiceId, invoicesTable.id))
       .where(
         and(
           eq(einvoiceDocumentsTable.companyId, companyId),
@@ -153,7 +179,8 @@ export const invoicesRepository = {
           ne(einvoiceDocumentsTable.invoiceId, invoiceId),
         ),
       )
-      .orderBy(desc(einvoiceDocumentsTable.invoiceId))
+      // 🔴 ORDER BY ICV, NOT BY ROW ID. See the note above.
+      .orderBy(sql`${invoicesTable.icv} DESC NULLS LAST`, desc(invoicesTable.id))
       .limit(1);
     return row?.hash ?? null;
   },

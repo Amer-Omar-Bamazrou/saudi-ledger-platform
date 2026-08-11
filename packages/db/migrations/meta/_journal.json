@@ -155,6 +155,13 @@
       "when": 1786287804908,
       "tag": "0021_m12_1b_customer_national_id",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786472609261,
+      "tag": "0022_m12_8_archive_and_reminders",
+      "breakpoints": true
     }
   ]
 }

@@ -58,7 +58,8 @@ export const invoicesService = {
       const lineTotal = Number(it.quantity) * Number(it.unitPrice);
       const disc = Number(it.discount ?? 0);
       const base = lineTotal - disc;
-      const vat = base * (Number(it.vatRate ?? 15) / 100);
+      const vatRate = Number(it.vatRate ?? 15);
+      const vat = base * (vatRate / 100);
       subtotal += base;
       vatTotal += vat;
       return {
@@ -67,6 +68,23 @@ export const invoicesService = {
         unitPrice: String(it.unitPrice),
         vatAmount: String(vat.toFixed(2)),
         total: String((base + vat).toFixed(2)),
+        // 🔴 M12.8: stamp the ZATCA tax category at CREATE.
+        //
+        // `tax_category_code` was added in M12.1a and, until now, was written by
+        // NOTHING — the column existed, the migration back-filled history, and
+        // the write path never set it. So every invoice created through the API
+        // carried NULL, and `assembleEInvoiceInput` fails closed on a NULL
+        // category. For an onboarded company that meant EVERY invoice was
+        // unissuable. Invisible until issuance was actually connected to real
+        // ledger rows, because fixtures supply the category by hand.
+        //
+        // The rule is the migration's, deliberately: a positive VAT rate is
+        // unambiguously STANDARD ('S'); a ZERO rate is genuinely ambiguous
+        // between zero-rated (Z), exempt (E) and out-of-scope (O) — different
+        // tax treatments the amount cannot distinguish. So 0% is left NULL for
+        // the caller to state explicitly, and issuance demands an answer rather
+        // than guessing a tax fact. An explicit code from the caller always wins.
+        taxCategoryCode: it.taxCategoryCode ?? (vatRate > 0 ? "S" : null),
       };
     });
     const total = subtotal + vatTotal - Number(invData.discount ?? 0);

@@ -21,8 +21,29 @@ export default defineConfig({
     // constructs a lazy pg Pool at module load) doesn't throw. The RBAC tests
     // never open a connection — they prime the permission cache directly — so a
     // real database is not required to run the API unit tests.
+    //
+    // The rest mirror what `loadEnv()` requires at boot. Tests drive services
+    // directly and so skip the boot call; before M12.8 nothing on a service path
+    // read config, so an incomplete environment went unnoticed. Issuance now
+    // consults `ZATCA_ENVIRONMENT` to decide whether to queue a document, and
+    // `loadEnv` validates the WHOLE schema — so a missing PORT surfaced as 21
+    // failing invoice tests. It cannot happen in production: `loadEnv` is
+    // memoized and runs at boot, so the process would never have started.
     env: {
       DATABASE_URL: process.env["DATABASE_URL"] ?? "postgresql://localhost:5432/placeholder",
+      PORT: process.env["PORT"] ?? "3000",
+      SESSION_SECRET: process.env["SESSION_SECRET"] ?? "test-session-secret-not-used-for-real-auth",
+      CORS_ALLOWED_ORIGINS: process.env["CORS_ALLOWED_ORIGINS"] ?? "http://localhost:5173",
+      // The M12.5 vault refuses to boot without a dev master key, and refuses
+      // `local-dev` entirely in production — so a test value here is safe and is
+      // never reachable from a real deployment. Set centrally rather than in each
+      // suite: `zatca-credential-vault.test.ts` set it at its own file scope,
+      // which worked only because it was the sole vault-touching suite. M12.8
+      // added two more and they failed in CI while passing locally, where a
+      // developer's `.env` happened to supply it.
+      ZATCA_KMS_PROVIDER: process.env["ZATCA_KMS_PROVIDER"] ?? "local-dev",
+      ZATCA_DEV_MASTER_KEY:
+        process.env["ZATCA_DEV_MASTER_KEY"] ?? "vitest-master-key-not-a-real-secret-0123456789",
     },
   },
 });

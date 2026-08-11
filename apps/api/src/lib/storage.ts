@@ -15,22 +15,35 @@
 import { loadEnv } from "@workspace/config";
 import { AppError } from "./errors";
 
-interface StorageConfig {
+export interface StorageConfig {
   baseUrl: string;
   serviceKey: string;
   bucket: string;
 }
 
-function config(): StorageConfig {
+/**
+ * Resolve credentials for an arbitrary bucket (M12.8).
+ *
+ * M11.4 hard-bound this module to one bucket. The e-invoice archive is a
+ * SECOND bucket with a different lifetime (6–11 years) and a different access
+ * model, so the bucket became a parameter. The auth header and object-URL
+ * construction stay in ONE place rather than being copied into the archive
+ * backend — that copying is exactly how M11.6's production blocker happened.
+ */
+export function bucketConfig(bucket: string): StorageConfig {
   const env = loadEnv();
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new AppError(503, "Document storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+    throw new AppError(503, "Object storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
   }
   return {
     baseUrl: env.SUPABASE_URL.replace(/\/+$/, ""),
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
-    bucket: env.VERIFICATION_DOCS_BUCKET,
+    bucket,
   };
+}
+
+function config(): StorageConfig {
+  return bucketConfig(loadEnv().VERIFICATION_DOCS_BUCKET);
 }
 
 /** True when both storage credentials are present. */
@@ -39,9 +52,12 @@ export function isStorageConfigured(): boolean {
   return !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
-const authHeader = (c: StorageConfig) => ({ Authorization: `Bearer ${c.serviceKey}` });
-const objectUrl = (c: StorageConfig, objectPath: string) =>
-  `${c.baseUrl}/storage/v1/object/${c.bucket}/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
+export const authHeader = (c: StorageConfig) => ({ Authorization: `Bearer ${c.serviceKey}` });
+export const objectUrl = (c: StorageConfig, objectPath: string) =>
+  `${c.baseUrl}/storage/v1/object/${c.bucket}/${encodeObjectPath(objectPath)}`;
+/** Percent-encode each segment, preserving the `/` separators. */
+export const encodeObjectPath = (objectPath: string) =>
+  objectPath.split("/").map(encodeURIComponent).join("/");
 
 export const storage = {
   /** Idempotently ensure the private bucket exists. */

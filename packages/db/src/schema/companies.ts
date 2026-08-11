@@ -51,14 +51,20 @@ export const companiesTable = pgTable("companies", {
    * Minted during onboarding (M12.5).
    */
   egsSerialNumber: varchar("egs_serial_number", { length: 255 }),
-  /**
-   * not_started | csr_generated | compliance_csid | onboarded | failed
-   * Certificates and key material are NOT stored here — they live in the
-   * owner-only encrypted vault added in M12.5.
-   */
-  zatcaOnboardingStatus: varchar("zatca_onboarding_status", { length: 50 })
-    .notNull()
-    .default("not_started"),
+  //
+  // 🔴 `zatca_onboarding_status` was REMOVED in M12.8 (migration 0022).
+  //
+  // It was declared in M12.1a and NEVER WRITTEN by any code — a search across
+  // apps/, packages/db/src/ and scripts/ found exactly one reference, this
+  // declaration. Every row therefore read 'not_started' for its whole life, so
+  // any view trusting it would report that no company had ever onboarded.
+  //
+  // The real onboarding state is `zatca_credentials.status`
+  // (pending_csr → active → superseded | revoked), which M12.4 maintains and
+  // which M12.8's operator view derives from. A column nothing writes is worse
+  // than no column: it reads as authoritative. Do not reintroduce it — two
+  // sources of truth for one fact is precisely how the M11.6 production blocker
+  // happened.
 
   status: varchar("status", { length: 50 }).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

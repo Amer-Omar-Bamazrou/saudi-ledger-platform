@@ -27,6 +27,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { loadEInvoiceInput } from "../services/einvoice/einvoiceInput.loader";
+import { invoicesRepository } from "../repositories/invoices.repository";
 import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
@@ -130,9 +131,25 @@ interface Validation {
   warningMessages?: { code: string; message: string }[];
 }
 
+/**
+ * Resolve the ZATCA chain head the way issuance does, then build the model.
+ *
+ * M12.8 made `previousInvoiceHash` an explicit parameter of the loader so the
+ * read cannot drift outside the per-company sequence lock. This mirrors the
+ * production path rather than hardcoding genesis, so the test keeps exercising
+ * the real chain lookup.
+ */
+async function loadFromLedger(invoiceId: number) {
+  return inTenant(async () => {
+    const [inv] = await invoicesRepository.findById(invoiceId);
+    const pih = await invoicesRepository.zatcaPreviousInvoiceHash(inv.companyId, invoiceId);
+    return loadEInvoiceInput(invoiceId, pih);
+  });
+}
+
 /** Load an ISSUED row from Postgres, sign it, and ask ZATCA. */
 async function submitFromLedger(invoiceId: number): Promise<Validation> {
-  const input = await inTenant(() => loadEInvoiceInput(invoiceId));
+  const input = await loadFromLedger(invoiceId);
 
   const assembled = assembleSignedInvoice({
     xml: buildInvoiceXml(input),
@@ -330,7 +347,7 @@ describe("M12.1b — notes built from REAL LEDGER ROWS pass ZATCA", () => {
 
   it("the billing reference is resolved from the FK, naming the real original", async () => {
     if (!REAL_DB) return;
-    const input = await inTenant(() => loadEInvoiceInput(creditNoteId));
+    const input = await loadFromLedger(creditNoteId);
     expect(input.documentType).toBe("credit_note");
     // Derived from the referenced ROW, never a stored string that could drift.
     expect(input.billingReference).toEqual({ invoiceNumber: "INV-LIVE-1" });

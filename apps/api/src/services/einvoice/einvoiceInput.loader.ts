@@ -21,8 +21,26 @@ import { customersRepository } from "../../repositories/customers.repository";
 import { assembleEInvoiceInput } from "./einvoiceInput.assembler";
 import type { EInvoiceInput } from "./types";
 
-/** Build the ZATCA document model for an ISSUED invoice, credit note or debit note. */
-export async function loadEInvoiceInput(invoiceId: number): Promise<EInvoiceInput> {
+/**
+ * Build the ZATCA document model for an ISSUED invoice, credit note or debit note.
+ *
+ * 🔴 `previousInvoiceHash` is a REQUIRED PARAMETER, not something this function
+ * looks up (M12.8). It used to call `zatcaPreviousInvoiceHash` itself, which put
+ * the chain-head read wherever the loader happened to be called — outside the
+ * per-company sequence lock, and therefore outside the critical section that
+ * makes the chain safe. Reading the head and writing the next document's hash is
+ * read-then-write; if those straddle the lock boundary, two documents can claim
+ * the same predecessor and FORK THE CHAIN.
+ *
+ * Passing it in makes the requirement type-enforced: a caller must already hold
+ * a value, and the only production caller obtains it under
+ * `invoicesRepository.lockCompanySequence`. Pass `null` for the first document
+ * in a company's chain and the assembler substitutes ZATCA's genesis constant.
+ */
+export async function loadEInvoiceInput(
+  invoiceId: number,
+  previousInvoiceHash: string | null,
+): Promise<EInvoiceInput> {
   const [invoice] = await invoicesRepository.findById(invoiceId);
   if (!invoice) throw new NotFoundError("Invoice not found");
 
@@ -113,14 +131,9 @@ export async function loadEInvoiceInput(invoiceId: number): Promise<EInvoiceInpu
      * 64-character hex string is accidentally well-formed base64, so ZATCA
      * accepts a PIH that means nothing.
      *
-     * The real ZATCA chain lives in `einvoice_documents` and is advanced when a
-     * document is actually submitted (M12.6/M12.7). Until a predecessor has been
-     * recorded there, the correct value is ZATCA's defined genesis constant —
-     * which is what the assembler substitutes for `null`.
+     * The real ZATCA chain lives in `einvoice_documents`. It is resolved by the
+     * caller under the per-company sequence lock — see this function's contract.
      */
-    previousInvoiceHash: await invoicesRepository.zatcaPreviousInvoiceHash(
-      invoice.companyId,
-      invoice.id,
-    ),
+    previousInvoiceHash,
   });
 }

@@ -366,6 +366,62 @@ export const signingService = {
   },
 
   /**
+   * Run `fn` with the ACTIVE credential's full signing material — certificate
+   * plus key pair (M12.8).
+   *
+   * {@link withSigningKey} yields only the private key, and {@link withCredentialKey}
+   * addresses a credential by id (onboarding, where it is still `pending_csr`).
+   * Stamping an invoice needs the certificate too — XAdES embeds it, and the QR
+   * carries both its public key (tag 8) and the CA's signature over it (tag 9) —
+   * so this is the accessor the issuance path uses.
+   *
+   * Same contract as its siblings, deliberately: a scoped callback, nothing
+   * escapes but the return value, plaintext zeroed in a `finally`. The
+   * certificate is public and could safely be returned on its own, but it is
+   * passed through the callback anyway so there is exactly ONE shape for
+   * reaching signing material. Do NOT add a variant that returns the key.
+   */
+  async withSigningCredentials<T>(
+    companyId: string,
+    environment: ZatcaEnvironment,
+    fn: (credentials: { certificatePem: string; privateKey: KeyObject; publicKey: KeyObject }) => T | Promise<T>,
+  ): Promise<T> {
+    const wrapper = getKeyWrapper();
+    let dataKey: Buffer | null = null;
+    let der: Buffer | null = null;
+
+    try {
+      const row = await vaultRepository.findActive(companyId, environment);
+      if (!row) throw new SigningError("no-active-credential");
+      assertUsableProvider(row);
+      if (!row.certificatePem) throw new SigningError("credential-not-activated");
+
+      dataKey = await unwrapDataKey(row, wrapper);
+      der = openWithDataKey(
+        {
+          ciphertext: row.encryptedPrivateKey,
+          iv: row.privateKeyIv,
+          authTag: row.privateKeyAuthTag,
+        },
+        dataKey,
+      );
+
+      const privateKey = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+      assertZatcaCurve(privateKey);
+      return await fn({
+        certificatePem: row.certificatePem,
+        privateKey,
+        publicKey: createPublicKey(privateKey),
+      });
+    } catch (err) {
+      if (err instanceof SigningError) throw err;
+      throw new SigningError("sign", err);
+    } finally {
+      wipe(dataKey, der);
+    }
+  },
+
+  /**
    * Run `fn` with the transport credentials (certificate + CSID secret) for
    * ZATCA's Basic auth. Scoped for the same reason as {@link withSigningKey}:
    * the secret reaches the HTTP client and nothing else.
