@@ -10,6 +10,50 @@ appears inside the pages where the work happens
 
 ---
 
+## 0. 🔴 THE MOAT: decode, don't OCR
+
+**Read this first. It is the most valuable thing in this document and it changes
+what gets built.**
+
+Every ZATCA-compliant invoice carries a QR code holding, as structured TLV data:
+**seller name, seller VAT number, timestamp, total including VAT, total VAT.**
+Phase 2 adds the **cryptographic signature**.
+
+So for a compliant Saudi supplier, capturing a purchase invoice is a **decode,
+not an OCR call**:
+
+|  | OCR | ZATCA QR decode |
+| --- | --- | --- |
+| Accuracy | Probabilistic; Arabic receipts are the hard case | **Exact** |
+| Cost | ~$10 / 1,000 pages | **Zero** |
+| Data leaves the country | Yes | **No** |
+| Proves the invoice is genuine | **Impossible** | **Yes** (Phase 2 signature) |
+
+**Three things make this a moat rather than an optimisation:**
+
+1. **The decoder already exists here.** `crypto/qr.ts` builds these tags and
+   `tests/company-zatca-identity.test.ts` decodes a real one. This falls out of
+   work already done for M12 — it is not new capability, it is reuse.
+2. **It does something OCR cannot at any price: proves the invoice is real.**
+   ZATCA will not accept an input-VAT deduction against a fake invoice.
+   Verifying the Phase 2 signature protects the customer's **money**, not their
+   time. No OCR vendor can offer that.
+3. **Foreign competitors have no reason to build it.** Xero and QuickBooks will
+   never implement ZATCA TLV decoding, because it is worthless outside Saudi
+   Arabia. This is the advantage of building here rather than localising
+   something built elsewhere.
+
+And the coverage is not niche: by **Wave 25's 1 Feb 2027 deadline** the QR is on
+effectively every invoice issued by every VAT-registered Saudi business — which
+is to say, on your customers' supplier invoices.
+
+**Consequence for the build: QR decode is the PRIMARY path and ships first. OCR
+is the fallback**, for foreign, handwritten and non-compliant documents. That
+inverts the usual cost model and removes the biggest delivery risk in this
+milestone (Arabic OCR accuracy) from the majority case.
+
+---
+
 ## 1. What the SME does today, and what replaces it
 
 | Today | After |
@@ -25,19 +69,9 @@ Three workstreams, in the order they should be built. The order is set by
 
 ## 2. A1 — Document capture (build first: nothing external gates it)
 
-### 🔴 The key insight: for Saudi supplier invoices, don't OCR — read the QR
+### The capture path
 
-Every ZATCA-compliant invoice carries a QR code containing, as structured TLV
-data: **seller name, seller VAT number, timestamp, total including VAT, and total
-VAT**. Phase 2 adds the cryptographic signature. By Wave 25's **1 Feb 2027**
-deadline that is effectively every VAT-registered Saudi business — i.e. your
-customers' suppliers.
-
-**This platform already has the decoder.** `crypto/qr.ts` builds these tags;
-`tests/company-zatca-identity.test.ts` decodes a real one (tag 1 = name,
-tag 2 = VAT). The work is reading rather than writing.
-
-So the capture path is:
+Per §0, decode is primary and OCR is the fallback:
 
 ```
 photo/PDF
@@ -50,22 +84,55 @@ photo/PDF
                                              non-compliant vendors)
 ```
 
-**Why this matters beyond cost:**
-
-- **Accuracy stops being the risk.** A decoded QR is exact. OCR accuracy on
-  Arabic receipts is the single biggest delivery risk in this milestone, and this
-  removes it for the majority case.
-- **It does something OCR cannot at any price: proves the invoice is real.**
-  Verifying the Phase 2 signature protects the customer's **input-VAT deduction**
-  — ZATCA will not accept a deduction against a fake invoice. "We check your
-  supplier invoices are genuine" is a claim no OCR vendor can make.
-- **Competitors cannot copy it.** Xero and QuickBooks have no reason to build
-  ZATCA TLV decoding. This is the Saudi-specific advantage of building here.
-
 **Open question for the owner (§7 Q1):** how common are non-compliant supplier
 receipts in practice today — small cash purchases, restaurants, foreign
 suppliers? That ratio decides how much the OCR fallback matters and therefore how
 much of §5's budget is real.
+
+### 🔴 CORRECTION: OCR already exists, client-side. It is ~80% built.
+
+An earlier reading of this codebase reported "there is no OCR endpoint at all"
+and concluded the extraction feeding `ScanReview` did not exist. **The first half
+was true and the conclusion was wrong** — inferring the absence of *extraction*
+from the absence of an *endpoint*. The pipeline is client-side and it runs today:
+
+```
+ReceiptScanner.tsx      drag-drop JPEG/PNG/WEBP/PDF-page
+   │                    Tesseract.js (WASM) IN THE BROWSER
+   ▼
+receiptParser.ts        Arabic numerals (٠-٩), Arabic decimal separator,
+   │                    KSA date formats, bilingual RTL column ordering
+   ▼
+scanReviewStore.ts      sessionStorage handoff
+   ▼
+ScanReview.tsx          review → supplier match → JE preview → POST /bills/:id/post
+```
+
+**What this changes about §5 Decision 1 (the OCR provider):**
+
+- **There is a working, zero-cost baseline.** Tesseract.js is free and runs in
+  the browser. There is no per-page bill and **no cloud provider to buy**.
+- **The residency concern disappears for this path.** Nothing leaves the
+  browser — not the country, not even your servers.
+- **The purchase decision becomes deferrable and, more importantly,
+  MEASURABLE.** The bake-off is no longer "which vendor should we buy?" but
+  **"is the thing we already have good enough on real Saudi receipts?"** Only if
+  the answer is no does a paid provider become a question — and then with a
+  baseline to beat rather than a vendor table to guess from.
+
+**What is genuinely missing** is narrower than "OCR":
+
+1. **The QR decode path — the moat (§0). Not built at all.** No QR reader in the
+   web dependencies; the TLV decoder exists only server-side in `crypto/qr.ts`.
+2. **Nothing is persisted.** The handoff is `sessionStorage`: refresh the page
+   and the extraction is gone. No document image is retained, so a posted bill
+   cannot be traced back to the picture it came from, and there is no extraction
+   provenance or audit.
+3. **`receiptParser.test.ts` never runs.** It is 352 lines with ~60 assertions —
+   real, careful work on Arabic parsing — but it is a **hand-rolled script**
+   (`npx tsx receiptParser.test.ts`, its own `expect()`, `process.exit(1)`), not
+   a Vitest suite. There is no web test runner and CI runs API tests only. The
+   parser at the centre of the wedge is **unguarded**.
 
 ### The review step already exists
 
@@ -97,10 +164,17 @@ working, let a human commit. Generalise it; do not reinvent it.
 6. **Audit**: extraction provenance recorded per field. When a figure is later
    disputed, "where did this number come from" must be answerable.
 
-### Explicitly out of scope
+### Deferred, NOT excluded
 
-Bulk/batch intake, an email-in address, WhatsApp ingestion. All are firm-shaped
-or volume-shaped; the SME photographs one document at a time.
+Bulk/batch intake, an email-in address, WhatsApp ingestion. The SME photographs
+one document at a time, so none of these is built now.
+
+🔴 But the customer decision is **SME first, firms later** — so these must not be
+designed *out*. Concretely: `POST /documents/scan` handles one document, but the
+extraction pipeline behind it must be a **function of a document**, not a
+function of a request, so processing fifty is a loop rather than a rewrite. That
+costs nothing today and is the difference between adding bulk intake in a week
+and re-architecting for it.
 
 ---
 
@@ -148,11 +222,25 @@ Today a human types those rows, so volume is small and errors are self-inflicted
 at a volume no one reviews line by line. That is a materially different risk, and
 it should be decided before A2 is built, not discovered after.
 
-**Owner question (§7 Q3).** Options, with how others handle it: QuickBooks and
-Xero both land bank data in a **holding area** ("For Review" / bank statement
-lines) that is explicitly *not* the ledger until a human accepts it — the user
-sees the transaction immediately but nothing hits the books unattended. That is
-the industry default and it exists precisely because feeds are noisy.
+### ✅ DECIDED: imported rows land in a HOLDING AREA, not the ledger
+
+Settled by the owner, for the reason above: a feed changes both the volume and
+the **authorship** of rows that move tax figures. Imported transactions land
+somewhere explicitly **not the books** until a human accepts them. The user sees
+them immediately; nothing reaches VAT, Zakat or cash flow unattended. Same reason
+QuickBooks ("For Review") and Xero (bank statement lines) both do it — feeds are
+noisy, and it is not an accident that the two largest products in this category
+converged on the same answer.
+
+🔴 **"Holding area" is itself a design question, owned by the A2 spec.** It must
+be designed **against the existing M10 approval workflow, not as a parallel
+one.** The platform already has a draft → submitted → approved engine with
+adapters, audit and a worklist UI; a second, differently-shaped review queue
+beside it would be two mechanisms for one idea — and the M10 engine was
+deliberately built generic so entities plug in rather than fork it. Whether an
+imported transaction becomes an `Approvable`, or whether the un-gated
+`transactions` table finally gets the status column M10 deferred, is the actual
+question. Do not answer it inside an implementation ticket.
 
 ---
 
@@ -178,10 +266,18 @@ stalls.
 
 Nothing here is committed. These are the bills, named before they are incurred.
 
-### Decision 1 — OCR fallback provider
+### Decision 1 — OCR fallback provider — 🔴 DEFERRED, and possibly unnecessary
 
-Only relevant for documents **without** a readable ZATCA QR (§2). Prices are
-public and current as of August 2026.
+**Do not buy anything yet.** A working zero-cost baseline already ships in the
+product: Tesseract.js in the browser (§2 correction). It costs nothing, sends
+nothing anywhere, and is already wired to a parser that handles Arabic numerals
+and bilingual layouts.
+
+So the sequence is: **measure the baseline first, buy only if it fails.** The
+table below stays because it is the answer *if* the baseline proves inadequate on
+real Saudi receipts — not because a purchase is scheduled.
+
+Prices are public and current as of August 2026.
 
 | Provider | Invoice/receipt model | Plain OCR | Arabic | Verdict |
 | --- | --- | --- | --- | --- |
@@ -189,20 +285,25 @@ public and current as of August 2026.
 | **Azure Document Intelligence** | ~$10 / 1,000 pages | ~$1.50 / 1,000 | 100+ languages | Close second |
 | **AWS Textract** | ~$15–50 / 1,000 pages | ~$1.50 / 1,000 | **6 printed languages** | 🔴 **Disqualified** — Arabic not realistically covered |
 
-**What it actually costs.** At 200 documents/month per tenant with **70% carrying
-a readable QR**, the OCR fallback is ~60 pages/month → **under $1 per tenant per
-month.** Even at 100% OCR it is ~$2. **This is not a meaningful cost.** The
-decision is about *accuracy and data residency*, not price.
+**What it would cost.** At 200 documents/month per tenant with **70% carrying a
+readable QR**, a paid fallback is ~60 pages/month → **under $1 per tenant per
+month.** Even at 100% it is ~$2. **Price is not the decision.**
 
-🔴 **The real risk is Arabic accuracy on real Saudi receipts, and no published
-benchmark will settle it.** Language *support* is not the same as being good at
-thermal-printed Arabic receipts. **Do not pick from this table.** Run a bake-off:
-30–50 real documents your customers would actually submit, both providers, score
-field-level accuracy. That is a day of work and it de-risks the wedge.
+🔴 **The decision is Arabic accuracy, and the bake-off now has a baseline.** Run
+it on **30–50 real documents your customers would actually submit**, scoring
+field-level accuracy, with **three** contenders: Tesseract (free, local, already
+built), Google, and Azure. Three outcomes:
 
-⚠️ **Residency interaction:** both send customer documents outside the Kingdom.
-That collides with the open KSA residency question. Note the QR path never leaves
-your infrastructure — another reason it is the primary path.
+- **Tesseract is good enough** → buy nothing. Best case, and not unlikely for
+  clean printed tax invoices, which is what a VAT-registered supplier issues.
+- **Tesseract fails only on receipts** (thermal, handwritten, poor light) → use
+  it for invoices and a paid provider for the hard tail. Smallest bill.
+- **Tesseract fails broadly** → then, and only then, buy from the table.
+
+⚠️ **Residency:** Tesseract sends nothing anywhere; the QR path sends nothing
+anywhere. **Both paid providers send customer documents outside the Kingdom**,
+which collides with the open KSA residency question. That is another reason to
+establish whether the local baseline suffices before committing.
 
 ### Decision 2 — Bank aggregation provider
 
@@ -257,10 +358,9 @@ dependency should not block the wedge — the same reasoning that split M12.
 2. **Photograph, or upload a file?** Phone camera capture is the "stop typing"
    moment but implies a mobile-friendly capture surface; file upload is cheaper
    and less magical. This is the difference between a feature and the wedge.
-3. **🔴 Should bank-feed transactions land in the ledger, or in a holding area?**
-   Bank data drives VAT, Zakat and cash flow, and `transactions` is not
-   approval-gated. QuickBooks and Xero both use a holding area that is explicitly
-   not the books until accepted. Load-bearing, and cheaper to decide now.
+3. ✅ **ANSWERED — holding area.** See §3. The remaining question is not
+   *whether* but *how*: it must be designed against the M10 approval engine
+   rather than beside it.
 4. **How much history on first bank connect?** Drives cost and the new customer's
    first experience.
 5. **What does the SME do when extraction is wrong?** `ScanReview` lets them fix
