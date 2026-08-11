@@ -215,8 +215,8 @@ export const invoicesService = {
       description: `Payment received for invoice ${inv.invoiceNumber}`,
       reference: inv.invoiceNumber,
       lines: [
-        { accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
-        { accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid },
+        { systemCode: "CASH", accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
+        { systemCode: "AR", accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid },
       ],
     });
 

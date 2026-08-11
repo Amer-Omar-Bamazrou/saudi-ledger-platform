@@ -169,6 +169,20 @@
       "when": 1786476327297,
       "tag": "0023_s1_einvoice_zatca_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786478650070,
+      "tag": "0024_m13_chart_of_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786478650071,
+      "tag": "0025_m13_coa_template_and_trigger",
+      "breakpoints": true
     }
   ]
 }

@@ -128,24 +128,40 @@ export const reportsService = {
       }
     }
 
-    // Balance-sheet AR. Credit notes reduce the receivable (M12.1b) — amounts
-    // are stored positive, so the sign is applied here.
-    const invRows = await reportsRepository.allInvoices();
-    const arBalance = fmt2(
-      invRows.reduce(
-        (s, i) => s + documentSign(i.documentType) * (toNum(i.total) - toNum(i.paidAmount)),
-        0,
-      ),
-    );
-    const billRows = await reportsRepository.allBills();
-    const apBalance = fmt2(billRows.reduce((s, b) => s + toNum(b.total) - toNum(b.paidAmount), 0));
+    // ── M13: AR and AP now come from the GENERAL LEDGER ─────────────────────
+    //
+    // 🔴 This is not a preference, it is forced. Before M13 every GL line had
+    // `account_id = NULL`, so its type was "" and it matched NO branch above —
+    // invoice lines contributed NOTHING to the balance sheet. AR was then bolted
+    // on from the `invoices` table and added straight into total assets, and the
+    // sheet balanced only because of that accident.
+    //
+    // The moment an AR line resolves to an `asset` it lands in `assets` above.
+    // Adding the bolt-on as well would DOUBLE-COUNT the entire receivable and
+    // break `balanced`. So the bolt-on is gone and the totals come from the one
+    // place that is now correct.
+    //
+    // Deliberately NOT moved to the GL: AR/AP **aging**, customer statements and
+    // customer balances. Those need a per-customer dimension that journal entry
+    // lines do not carry. They remain invoice/bill-derived. Only the
+    // balance-sheet TOTAL moves — and a permanent test asserts the two
+    // computations agree, because a divergence means something posted to AR that
+    // no invoice explains, or an invoice that never posted.
+    const systemIdByCode = new Map<string, number>();
+    for (const c of cats) if (c.systemCode) systemIdByCode.set(c.systemCode, c.id);
+    const arKey = systemIdByCode.has("AR") ? String(systemIdByCode.get("AR")) : null;
+    const apKey = systemIdByCode.has("AP") ? String(systemIdByCode.get("AP")) : null;
+    const arBalance = fmt2(arKey && assets[arKey] ? assets[arKey].amount : 0);
+    const apBalance = fmt2(apKey && liabilities[apKey] ? liabilities[apKey].amount : 0);
 
     const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
     const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
     const eqItems = Object.values(equityAccounts).map((e) => ({ ...e, amount: fmt2(e.amount) }));
 
-    const totalAssets = fmt2(assetItems.reduce((s, a) => s + a.amount, 0) + arBalance);
-    const totalLiab = fmt2(liabItems.reduce((s, l) => s + l.amount, 0) + apBalance);
+    // AR/AP are ALREADY inside assetItems/liabItems — they are ordinary GL
+    // accounts now. Adding them again is the double count described above.
+    const totalAssets = fmt2(assetItems.reduce((s, a) => s + a.amount, 0));
+    const totalLiab = fmt2(liabItems.reduce((s, l) => s + l.amount, 0));
     const totalEquity = fmt2(eqItems.reduce((s, e) => s + e.amount, 0) + retainedEarnings);
     const totalLiabAndEquity = fmt2(totalLiab + totalEquity);
     const balanced = Math.abs(totalAssets - totalLiabAndEquity) < 0.05;

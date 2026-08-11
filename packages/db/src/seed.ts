@@ -9,6 +9,7 @@ import {
   platformOperatorsTable,
 } from "./schema";
 import { seedPermissions } from "./permissions";
+import { seedChartOfAccountsForAllOrgs } from "./chartOfAccounts";
 
 /**
  * Idempotent seed for the bootstrap tenant.
@@ -270,6 +271,14 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
       const perms = await seedPermissions();
       // eslint-disable-next-line no-console
       console.log(`[seed] permissions: ${perms.inserted} inserted, ${perms.total} total`);
+
+      // 🔴 EVERY organization, not just the default one (M13). A tenant with no
+      // chart of accounts cannot post: the GL resolution fails closed. Every org
+      // created before M13 has zero accounts, so this must sweep them all.
+      // Idempotent on (organization_id, system_code).
+      const coa = await seedChartOfAccountsForAllOrgs();
+      // eslint-disable-next-line no-console
+      console.log(`[seed] chart of accounts: ${coa.inserted} accounts inserted across ${coa.organizations} organization(s)`);
     })
     .catch((err) => {
       // eslint-disable-next-line no-console

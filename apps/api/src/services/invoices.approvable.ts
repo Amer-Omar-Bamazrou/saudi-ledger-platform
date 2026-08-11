@@ -194,14 +194,14 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
       lines: isCredit
         ? [
             // Reversed: the receivable falls, revenue and output VAT are undone.
-            { accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
-            { accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
-            { accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: total },
+            { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
+            { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+            { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: total },
           ]
         : [
-            { accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0 },
-            { accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
-            { accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
+            { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0 },
+            { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
+            { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
           ],
     });
   }

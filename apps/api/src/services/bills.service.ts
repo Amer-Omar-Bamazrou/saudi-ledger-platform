@@ -149,8 +149,8 @@ export const billsService = {
       description: `Payment to vendor for bill ${bill.billNumber}`,
       reference: bill.billNumber ?? undefined,
       lines: [
-        { accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0 },
-        { accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
+        { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0 },
+        { systemCode: "CASH", accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
       ],
     });
 

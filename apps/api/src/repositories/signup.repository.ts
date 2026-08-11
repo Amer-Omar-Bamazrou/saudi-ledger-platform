@@ -14,6 +14,7 @@ import {
   organizationMembershipsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { seedChartOfAccounts } from "@workspace/db";
 
 export interface CreateTenantInput {
   email: string;
@@ -121,6 +122,12 @@ export const signupRepository = {
         role: "admin",
         status: "active",
       });
+
+      // 🔴 M13: a tenant with no chart of accounts cannot post — GL resolution
+      // fails closed. Seeded INSIDE the same transaction as the organization, so
+      // a new tenant can never exist without one. (Existing tenants were
+      // back-filled by migration 0024.)
+      await seedChartOfAccounts(org.id, tx);
 
       return { userId: user.id, organizationId: org.id, companyId: company.id };
     });
