@@ -1834,6 +1834,41 @@ as done:**
 >    endpoint does not cover the production path, however green and however real
 >    — *(finding #6, the one that survived three milestones because it looked
 >    finished)*.
+> 5. **🔴 RUN THE CHECK ON YOUR OWN CONCLUSIONS, NOT ONLY ON THE CODEBASE.**
+>    Before reporting that a capability is missing, ask what implementation
+>    shape you searched for and whether it is the only shape that capability
+>    could take — *(finding #7, which is one of MINE)*.
+
+### 🔴 FINDING #7 — the check applied to its own author
+
+Every finding above is about the codebase. This one is about the analysis of it,
+and it is recorded because a check applied only outward will keep missing this
+class.
+
+**What happened.** Asked what was half-built, a survey grepped for an OCR/scan
+**endpoint**, found none, and reported *"there is no OCR at all; someone built
+the review UI and never built the extraction that feeds it."* The first clause
+was true. The conclusion was false: document capture is **~80% built and runs
+today**, entirely client-side — `ReceiptScanner.tsx` runs Tesseract.js in the
+browser, feeding `receiptParser.ts` → `ScanReview.tsx` → `POST /bills/:id/post`.
+
+**The error is the same shape as findings #1–#6, inverted.** Those were
+*capability present, consumer absent*. This was **capability present, searched
+for in the wrong place** — absence of an *endpoint* taken as absence of
+*extraction*, because the searcher assumed OCR must be server-side.
+
+**Why it mattered.** It was reported to the owner as fact and used to justify a
+recurring cloud-OCR bill. Had it not been caught, the platform would have bought
+a provider it may not need, sending customer documents out of the Kingdom against
+an open residency question, to replace a free local baseline that already worked.
+**A wrong finding is more expensive than a missing one**, because it gets acted
+on.
+
+**The habit that catches it:** before writing "X does not exist", name the
+implementation shapes X could take — server endpoint, client-side library, build
+step, third-party call, database trigger — and confirm the search covered them.
+One extra grep (`package.json` dependencies would have shown `tesseract.js`
+immediately).
 
 Each part is cheap — three greps — and every one has caught something the first
 time it was applied. The reason it keeps happening is structural rather than

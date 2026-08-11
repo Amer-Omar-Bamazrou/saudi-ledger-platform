@@ -69,6 +69,11 @@ Three workstreams, in the order they should be built. The order is set by
 
 ## 2. A1 — Document capture (build first: nothing external gates it)
 
+> 📄 **Full spec: [`feature-spec-a1-document-capture.md`](./feature-spec-a1-document-capture.md).**
+> It is NOT "build OCR" — capture is ~80% built client-side. A1 adds the QR
+> moat, closes an audit gap (nothing is persisted; provenance is unrecorded),
+> and puts the existing parser under a runner.
+
 ### The capture path
 
 Per §0, decode is primary and OCR is the fallback:
