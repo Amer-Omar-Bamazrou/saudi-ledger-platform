@@ -91,7 +91,10 @@ export class EInvoiceWorker {
   async runOnce(): Promise<number> {
     // Return abandoned rows to the queue FIRST — flagged ambiguous, so they go
     // through reconciliation rather than being resubmitted blindly.
-    const reclaimed = await einvoiceOutboxRepository.reclaimStale(this.opts.staleClaimSeconds);
+    const reclaimed = await einvoiceOutboxRepository.reclaimStale(
+      this.opts.staleClaimSeconds,
+      this.opts.organizationId,
+    );
     if (reclaimed > 0) {
       logger.warn({ reclaimed }, "e-invoice outbox: reclaimed stale claims (flagged for reconciliation)");
     }

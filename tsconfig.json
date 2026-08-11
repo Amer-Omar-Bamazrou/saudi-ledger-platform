@@ -4,6 +4,9 @@
   "files": [],
   "references": [
     {
+      "path": "./packages/zatca-tlv"
+    },
+    {
       "path": "./packages/config"
     },
     {

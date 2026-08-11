@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Both runtimes on purpose: `dom` for btoa/atob/TextEncoder in the browser,
+    // `node` for the Buffer fallback on the server. This package is imported by
+    // apps/api AND apps/web, so it must typecheck against both.
+    "lib": ["es2022", "dom"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

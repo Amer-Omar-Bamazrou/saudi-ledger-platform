@@ -9,6 +9,7 @@
 import { useState, useRef, useCallback } from "react";
 import { createWorker } from "tesseract.js";
 import { parseReceiptText, type ParsedReceipt } from "@/lib/receiptParser";
+import { readZatcaQr, type QrCaptureResult } from "@/lib/qrCapture";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -24,7 +25,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** Called when the user confirms — fields ready to pre-fill the bill form */
-  onExtracted: (data: ParsedReceipt) => void;
+  onExtracted: (data: ParsedReceipt, qr?: QrCaptureResult) => void;
 }
 
 // ── component ──────────────────────────────────────────────────────────────────
@@ -34,24 +35,46 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
   const [progressMsg, setProgressMsg] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ParsedReceipt | null>(null);
+  /** Set when the document carried a readable ZATCA QR — the exact path. */
+  const [qr, setQr] = useState<QrCaptureResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setPhase("idle"); setProgress(0); setProgressMsg("");
-    setPreview(null); setResult(null); setErrorMsg("");
+    setPreview(null); setResult(null); setQr(null); setErrorMsg("");
   };
 
   const handleClose = () => { reset(); onOpenChange(false); };
 
-  // ── OCR ────────────────────────────────────────────────────────────────────
+  // ── extraction: ZATCA QR first, OCR only if that fails ────────────────────
   const runOcr = useCallback(async (file: File) => {
     // Show image preview immediately
     const url = URL.createObjectURL(file);
     setPreview(url);
     setPhase("loading");
     setProgress(5);
+
+    // 🔴 THE MOAT (A1 §0). A ZATCA-compliant supplier invoice carries the
+    // seller, VAT number, timestamp, total and VAT as structured TLV. Reading it
+    // is exact, instant, free, and never leaves the device — where OCR is
+    // probabilistic and slow, especially on the phone this feature is for.
+    //
+    // Tried FIRST and short-circuits: when it succeeds, the ~10MB Tesseract WASM
+    // download never happens.
+    setProgressMsg("Looking for a ZATCA QR code…");
+    const qrResult = await readZatcaQr(file);
+    if (qrResult) {
+      setQr(qrResult);
+      setResult(qrResult.parsed);
+      setPhase("done");
+      setProgress(100);
+      setProgressMsg("Read directly from the invoice's ZATCA QR code.");
+      return;
+    }
+
     setProgressMsg("Initialising OCR engine…");
 
     try {
@@ -78,6 +101,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
       setProgress(98);
       setProgressMsg("Parsing receipt fields…");
       const parsed = parseReceiptText(text);
+      setQr(null);
       setResult(parsed);
       setPhase("done");
       setProgress(100);
@@ -110,7 +134,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
   // ── confirm extracted data ─────────────────────────────────────────────────
   const confirm = () => {
-    if (result) { onExtracted(result); handleClose(); }
+    if (result) { onExtracted(result, qr ?? undefined); handleClose(); }
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -125,33 +149,59 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
         <div className="space-y-4 mt-1">
 
-          {/* ── drop zone (shown while idle) ─────────────────────────────── */}
+          {/* ── capture (shown while idle) ───────────────────────────────── */}
           {phase === "idle" && (
             <div
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
-              onClick={() => fileRef.current?.click()}
-              className={`flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed cursor-pointer
-                transition-all py-14 px-8 select-none
+              className={`flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed
+                transition-all py-10 px-6 select-none
                 ${dragging
                   ? "border-primary bg-primary/5 scale-[1.01]"
-                  : "border-border hover:border-primary/50 hover:bg-secondary/20"}`}
+                  : "border-border"}`}
             >
+              {/*
+                🔴 CAMERA FIRST (A1 Q2). The wedge is "stop typing", and the
+                moment that delivers it is photographing a receipt AT THE TILL.
+                A file picker presupposes the receipt is already on a computer —
+                which is the friction being sold away.
+
+                `capture="environment"` opens the rear camera directly on iOS and
+                Android. No native app, no new dependency. On desktop the same
+                input falls back to a file dialog, so one control serves both.
+              */}
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={onFileChange}
+              />
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+
               <div className={`p-4 rounded-full transition-colors ${dragging ? "bg-primary/20" : "bg-secondary"}`}>
                 <FileImage className={`w-10 h-10 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
               </div>
-              <div className="text-center">
-                <p className="font-semibold text-foreground">
-                  {dragging ? "Drop to scan" : "Drag & drop a receipt image"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  or click to browse — JPEG, PNG, WEBP
-                </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button size="lg" className="flex-1" onClick={() => cameraRef.current?.click()}>
+                  <ScanLine className="w-4 h-4 mr-2" />
+                  Photograph a receipt
+                </Button>
+                <Button size="lg" variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
+                  <UploadCloud className="w-4 h-4 mr-2" />
+                  Choose a file
+                </Button>
               </div>
+
+              <p className="text-sm text-muted-foreground text-center">
+                {dragging ? "Drop to scan" : "or drag an image here — JPEG, PNG, WEBP"}
+              </p>
               <p className="text-xs text-muted-foreground text-center max-w-xs">
-                OCR runs entirely in your browser — the image is never uploaded to any server.
+                A ZATCA QR code is read instantly and exactly. Otherwise text
+                recognition runs in your browser — the image is never uploaded.
               </p>
             </div>
           )}

@@ -132,12 +132,12 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   it("claims due work and marks it submitting in ONE atomic statement", async () => {
     await queueDocument();
-    const claimed = await einvoiceOutboxRepository.claimDue("w1", 10);
+    const claimed = await einvoiceOutboxRepository.claimDue("w1", 10, orgId);
     expect(claimed).toHaveLength(1);
     expect(claimed[0].attemptCount).toBe(1);
 
     // Re-claiming finds nothing: the row is no longer pending.
-    expect(await einvoiceOutboxRepository.claimDue("w2", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w2", 10, orgId)).toHaveLength(0);
   });
 
   it("CONCURRENCY: two workers claiming at once never get the same row", async () => {
@@ -147,8 +147,8 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     // row is handed to both. This is the property that lets us scale out by
     // adding processes rather than redesigning.
     const [a, b] = await Promise.all([
-      einvoiceOutboxRepository.claimDue("worker-a", 6),
-      einvoiceOutboxRepository.claimDue("worker-b", 6),
+      einvoiceOutboxRepository.claimDue("worker-a", 6, orgId),
+      einvoiceOutboxRepository.claimDue("worker-b", 6, orgId),
     ]);
     const ids = [...a, ...b].map((r) => r.id);
     expect(ids).toHaveLength(6);
@@ -157,14 +157,14 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   it("does not claim a row whose backoff has not elapsed", async () => {
     const id = await queueDocument();
-    await einvoiceOutboxRepository.claimDue("w1", 10);
+    await einvoiceOutboxRepository.claimDue("w1", 10, orgId);
     await einvoiceOutboxRepository.markFailed(id, {
       errors: [{ e: 1 }],
       zatcaStatus: null,
       ambiguous: false,
       retryInSeconds: 3600,
     });
-    expect(await einvoiceOutboxRepository.claimDue("w1", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w1", 10, orgId)).toHaveLength(0);
   });
 
   // ── State transitions ────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     const row = await einvoiceOutboxRepository.findById(id);
     expect(row!.status).toBe("reported");
     // Terminal: a further pass must not pick it up again.
-    expect(await einvoiceOutboxRepository.claimDue("w1", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w1", 10, orgId)).toHaveLength(0);
   });
 
   it("clearance acceptance yields `cleared`, not `reported`", async () => {
@@ -215,7 +215,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     const row = await einvoiceOutboxRepository.findById(id);
     expect(row!.status).toBe("needs_review");
     // And it stops consuming ZATCA quota.
-    expect(await einvoiceOutboxRepository.claimDue("w1", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w1", 10, orgId)).toHaveLength(0);
   });
 
   // ── Idempotency and the ambiguous case ───────────────────────────────────
@@ -230,7 +230,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     // strands a consumed ICV. So it goes to a human, not back into the queue.
     expect(row!.ambiguous).toBe(true);
     expect(row!.status).toBe("needs_review");
-    expect(await einvoiceOutboxRepository.claimDue("w1", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w1", 10, orgId)).toHaveLength(0);
   });
 
   it("IDEMPOTENCY: a retry resubmits byte-identical content; the worker mints nothing", async () => {
@@ -266,15 +266,15 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   it("reclaims a dead worker's rows AS AMBIGUOUS, not as fresh work", async () => {
     const id = await queueDocument();
-    await einvoiceOutboxRepository.claimDue("dying-worker", 10);
+    await einvoiceOutboxRepository.claimDue("dying-worker", 10, orgId);
     await pool.query(`UPDATE einvoice_documents SET claimed_at = now() - interval '1 hour' WHERE id = $1`, [id]);
 
-    expect(await einvoiceOutboxRepository.reclaimStale(60)).toBe(1);
+    expect(await einvoiceOutboxRepository.reclaimStale(60, orgId)).toBe(1);
     const row = await einvoiceOutboxRepository.findById(id);
     // The dead worker may have sent it before dying, so it must be reconciled
     // rather than resubmitted — the claim query skips ambiguous rows.
     expect(row!.ambiguous).toBe(true);
-    expect(await einvoiceOutboxRepository.claimDue("w1", 10)).toHaveLength(0);
+    expect(await einvoiceOutboxRepository.claimDue("w1", 10, orgId)).toHaveLength(0);
   });
 
   // ── Visibility ───────────────────────────────────────────────────────────

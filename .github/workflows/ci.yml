@@ -118,6 +118,20 @@ jobs:
       - name: DB tests (cross-tenant RLS isolation + transaction rollback)
         run: pnpm --filter @workspace/db run test
 
+      # A1: the ZATCA TLV codec is SHARED by the server (issuing our invoices)
+      # and the browser (reading a supplier's). It carries thirteen documented
+      # divergences that were wrong twice before live responses settled them —
+      # one implementation, and it must stay covered.
+      - name: ZATCA TLV codec tests
+        run: pnpm --filter @workspace/zatca-tlv run test
+
+      # A1: `receiptParser` held ~60 assertions in a hand-rolled script that NO
+      # RUNNER EXECUTED. The OCR bake-off measures this parser, so it has to be
+      # guarded before it is measured. Pure functions only — no jsdom, no
+      # component testing (see apps/web/vitest.config.ts).
+      - name: Web unit tests (receipt parser)
+        run: pnpm --filter @workspace/bookkeeping run test
+
   # ── Production build of every app/package ──────────────────────────────────
   build:
     name: build
