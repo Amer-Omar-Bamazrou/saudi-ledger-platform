@@ -20,6 +20,7 @@ import { reportsService } from "../services/reports.service";
 import { postJournalEntry, AccountResolutionError } from "../services/accounting/glPosting";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { summaryService } from "../services/summary.service";
+import { periodLocksService } from "../services/periodLocks.service";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -481,6 +482,55 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
         ),
       ).rejects.toMatchObject({ statusCode: 423 });
       await connA.rollback();
+    });
+
+    it("🔴 the ROUTE layer is company-scoped too — list, lock and UNLOCK (M14)", async () => {
+      // M13 fixed `checkPeriodOpen` (the posting-path check). The repository
+      // behind the period-lock ROUTES filtered on `period` alone, so in a
+      // multi-company org:
+      //   - list()            showed another company's locks;
+      //   - findByPeriod()    reported "already locked" because a DIFFERENT
+      //                       company held the lock, so the real one could never
+      //                       be created;
+      //   - removeByPeriod()  deleted EVERY company's lock for that period —
+      //                       one company's unlock silently reopened closed books
+      //                       for all of them. That is the dangerous one.
+      const companyC = (
+        await pool.query(
+          `INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'CoA Co C','1010101012','399999999999995') RETURNING id`,
+          [orgId],
+        )
+      ).rows[0].id;
+
+      const asCompany = async <T>(company: string, fn: () => Promise<T>): Promise<T> => {
+        const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated" });
+        try {
+          const out = await conn.run(() =>
+            auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, fn),
+          );
+          await conn.commit();
+          return out;
+        } catch (err) {
+          await conn.rollback();
+          throw err;
+        }
+      };
+
+      // Company A already locked 2026-06 in the previous test.
+      // C must not see it, and must be able to lock the SAME period itself.
+      expect(await asCompany(companyC, () => periodLocksService.list())).toHaveLength(0);
+      await asCompany(companyC, () => periodLocksService.lock({ period: "2026-06", userId }));
+      expect(await asCompany(companyC, () => periodLocksService.list())).toHaveLength(1);
+
+      // 🔴 And C unlocking must NOT reopen A's books.
+      await asCompany(companyC, () => periodLocksService.unlock("2026-06"));
+      expect(await asCompany(companyC, () => periodLocksService.list())).toHaveLength(0);
+
+      const stillLocked = await pool.query(
+        `SELECT count(*)::int AS n FROM period_locks WHERE organization_id=$1 AND company_id=$2 AND period='2026-06'`,
+        [orgId, companyId],
+      );
+      expect(stillLocked.rows[0].n, "company A's lock must survive company C's unlock").toBe(1);
     });
   });
 });

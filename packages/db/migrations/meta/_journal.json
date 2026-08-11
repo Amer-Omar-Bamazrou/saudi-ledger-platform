@@ -183,6 +183,13 @@
       "when": 1786478650071,
       "tag": "0025_m13_coa_template_and_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786478650072,
+      "tag": "0026_m14_revoke_destructive_grants",
+      "breakpoints": true
     }
   ]
 }

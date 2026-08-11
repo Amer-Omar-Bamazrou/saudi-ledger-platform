@@ -1609,6 +1609,43 @@ review — a mechanical check, because the failure survives careful review by
 construction. Thirteen instances found so far (six live, seven retroactive), and
 the check caught something every single time it was run.
 
+### 🔴 ASSERT THE PROPERTY, NOT THE NUMBER — when the reasoning might be wrong
+
+Learned in M13, and it saved the milestone's most important guard from being
+worthless.
+
+The M13 design justified "no tax figure moves" by reasoning that the VAT return,
+the Zakat base and cash flow all read `transactions` rather than the ledger.
+**That reasoning was wrong about the VAT return, which reads INVOICES and BILLS.**
+The conclusion happened to survive (M13 does not touch invoices), but the stated
+mechanism did not.
+
+Had the test been written from that reasoning — *"the VAT return should be zero,
+because this org has no transactions"* — it would have asserted a fixed figure
+derived from a false premise. Worse, it would have **passed**: the fixture had no
+transactions, so zero was arrived at for the wrong reason, and a later change
+that pointed the VAT return at the ledger would have been caught only by luck.
+A vacuous test that looks green is worse than no test, because it is *counted*.
+
+What was written instead asserts the PROPERTY:
+
+> Post a GL-only journal entry — no invoice, no bill, no transaction behind it —
+> then assert every VAT box, the Zakat base and cash flow are byte-identical
+> before and after. Then assert the income statement **did** move, so the check
+> cannot be vacuous.
+
+That isolates the ledger as the only variable. It does not care *why* the tax
+reports are independent, survives fixture changes, and fails for exactly one
+reason: a tax report started reading the GL.
+
+**The rule:** when you are about to assert a specific number, ask what has to be
+true for that number to be right. If the answer is a chain of reasoning you have
+not verified, **assert the invariant instead** — change one thing, prove the
+figure does not move, and prove something else DID move so the test cannot pass
+vacuously. Fixed figures are fine when the number itself is the requirement
+(1,000 SAR of revenue); they are a trap when the number is a *consequence* of
+reasoning that might not hold.
+
 ### 🔴 THE SECOND NAMED FAILURE MODE: **A TEST THAT BECAME A GUARD FOR THE BUG**
 
 Its close relative, and in one way worse — because here the safety mechanism is
@@ -2200,8 +2237,21 @@ because these do not all land in one change.
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.
-- **[HIGH — 📄 DESIGNED as M13, awaiting approval: `docs/feature-spec-chart-of-accounts.md`]
-  Invoice revenue is MISCLASSIFIED in the income statement.**
+- **[✅ RESOLVED in M13] Invoice revenue was MISCLASSIFIED in the income
+  statement.** Fixed by real chart-of-accounts resolution in the posting path:
+  a seeded system chart, `system_code` resolution, fail-closed on unresolvable,
+  a deterministic backfill, and balance-sheet AR/AP moved to the GL. Design and
+  as-built notes: [`docs/feature-spec-chart-of-accounts.md`](docs/feature-spec-chart-of-accounts.md).
+  User-facing note: [`docs/release-notes/m13-income-statement-classification.md`](docs/release-notes/m13-income-statement-classification.md).
+  **Historical income statements changed** (revenue up, expenses up by the same,
+  net profit identical) — a display defect corrected, not a restatement.
+  **UX FOLLOW-UP (not a bug):** a bill's expense account is still free text
+  (`debitAccount`), resolved by NAME against the tenant's chart with a
+  `PURCHASES` fallback. Resolving by name is correct there — the user is naming
+  their OWN account, unlike our hardcoded literals — but a **per-bill account
+  picker over the real chart** would be better. That is a UX change, not a
+  classification one.
+  The ORIGINAL note, kept because it explains why the bug survived:
   🔴 The design found the problem is LARGER than recorded here: **`categories`
   contains zero rows and nothing ever creates any**, so there is no chart of
   accounts to resolve against; and naively setting `account_id` would
