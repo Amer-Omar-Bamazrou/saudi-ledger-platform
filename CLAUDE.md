@@ -16,9 +16,97 @@ and a foundation for future AI features.
 
 When in doubt, favor evolving the existing system over replacing it.
 
-## 2. Current State — Phase 0: Platform Foundation
+## 2. Current State
 
-We are in **Phase 0 (Platform Foundation)**, working through small milestones to:
+> **This block is the answer to "where are things?". Everything below it in this
+> section is the historical record of how we got here — accurate, but long.
+> Keep this block current; if it disagrees with reality, fix it first.**
+
+**Last updated: 2026-08-11 (M12 close-out).**
+
+### Where we are
+
+| Phase | Status |
+| --- | --- |
+| **Phase 0** — Platform Foundation (M1–M10) | ✅ **Complete.** Multi-tenancy + RLS, auth/session hardening, RBAC, layering, CI/CD, audit logging, draft/approval workflow + 4-role model. |
+| **Phase 1** — Onboarding & Multi-Company (M11.1–M11.7) | ✅ **Complete.** Self-service signup behind a verification gate, platform operators, document upload, company/ZATCA identity, invitations. Includes the M11.5.1 CRITICAL security hotfix. |
+| **Phase 2** — ZATCA Phase 2 / Fatoora (M12) | 🟡 **Closed except M12.7 + M12.9**, which are blocked on a real Saudi taxpayer registration. Everything buildable without ZATCA credentials is done. |
+| **Next** | The rest of the platform — no ZATCA work is unblocked. |
+
+### 🔴 What is verified LIVE vs only LOCALLY
+
+Full detail: [`docs/zatca/m12-status.md`](docs/zatca/m12-status.md). The
+one-paragraph version:
+
+**Confirmed against the live ZATCA sandbox:** the CSR and `secp256k1` curve, the
+XAdES properties and both digest encodings, all nine QR tags, six compliance
+documents (standard + simplified × invoice / credit note / debit note, plus
+zero-rated), and the ledger→ZATCA path built from real Postgres rows. Divergences
+#1–#13 are checked against reality, not against a decompiled binary.
+
+**🔴 NOT verified — we have never submitted an invoice to ZATCA.** The compliance
+pass covers document **CONSTRUCTION** (`POST /compliance/invoices`, an onboarding
+gate). The production path — `POST /invoices/{clearance,reporting}/single` — has
+**never been called in any environment**. Also local-only: the outbox transport
+(proven against a mock), the archive (`local-fs` only; the Supabase backend has
+never touched a real bucket), renewal reminders (synthetic dates), and M12.8's
+enqueue path (a self-signed certificate, not a real PCSID).
+
+### What is blocked, and on what
+
+**M12.7 (simulation) and M12.9 (production pilot)** need a **registered Saudi
+company entity with an active ZATCA VAT registration and ERAD credentials.** That
+does not exist, is not a technical step, and nothing unblocks it except the owner
+registering the entity. No rework is expected when it arrives — sandbox exercises
+the same API surface. **Do not** mock simulation to "finish" M12, and **do not**
+onboard a real tenant to production before both have actually run.
+
+### Pre-production queue — three groups
+
+Nothing here blocks ordinary platform work; all of it blocks onboarding a real
+taxpayer. Full detail in the consolidated queue later in this file.
+
+- **B — BLOCKING for ZATCA (2 items).** Both halves of *a reminder that reaches
+  nobody*: **B1** email delivery (`mailer` is still a no-op, so renewal reminders
+  are sent to no one — and their whole value is lead time for an action only the
+  tenant can take); **B2** real alerting (visibility is not alerting — the
+  operator panel only helps someone already looking, and both the outbox age
+  alarm and PCSID expiry fail by quiet neglect).
+- **A — ONE MIGRATION (4 items).** Grants and config: `REVOKE TRUNCATE` (it
+  bypasses RLS) on business tables and the five remaining owner-only tables,
+  M-1 RLS on the identity tables, and `checkPeriodOpen`'s missing `company_id`
+  scope.
+- **C — VERIFICATION GAPS (6 items).** Trusted proxy + Redis rate limiters, the
+  CI storage gap, KMS deployment verification, AV scanning, fail-closed
+  diagnosability, and the hosting/residency decision.
+
+### Open findings from the retroactive sweep (not yet fixed)
+
+A backwards application of the standing check found **seven** more
+schema-or-interface-without-a-consumer cases (S1–S7, detailed later in this
+file). None is exploitable; all are documentation claiming a capability that does
+not exist. The one that matters: **S1 — the `EInvoiceProvider` seam is only
+~1/3 wired** (`buildDocument` only; `onboard`/`renewCertificate`/`submit` still
+throw and the real paths bypass the seam), and that seam is one of the two
+mandatory hedges behind the build-direct decision. The rest are `Redis` (listed
+in the stack, used nowhere), a stale layout section, an empty `packages/auth`,
+and `feature_flags`/`branches`/`departments` (tables with no consumer).
+
+### Two standing rules earned the hard way
+
+1. **[Six instances] Correct is not connected.** Before recording a milestone
+   done, verify every capability has a production **caller**, every field a
+   production **writer**, every client a real **implementation** (not an
+   interface plus a mock), and every live external result is recorded with **the
+   endpoint that produced it and what that endpoint attests**.
+2. **Validate from real ledger rows.** Fixtures test the code you wrote; only
+   real rows test the code you forgot to write.
+
+---
+
+### How Phase 0 got here (historical record)
+
+We worked through **Phase 0 (Platform Foundation)** in small milestones to:
 
 - Restructure the architecture into clean, testable layers
 - Add **multi-tenancy** (organization scoping) across all business data
@@ -1118,6 +1206,18 @@ belong, not ad hoc:
     warnings, plus a zero-rated (0% VAT) invoice. This is the milestone that
     validates divergences **#6–#12** and corrected **#13** (see the validation
     status above). The connectivity block that stopped it cleared on 2026-08-09.
+
+    **🔴 SCOPE OF THAT PASS — read before citing it.** It came from
+    `POST /compliance/invoices`, which validates **document CONSTRUCTION**: the
+    UBL, the XAdES signature, the digests, the QR, the chain. It is an
+    *onboarding gate* — "can this EGS unit produce valid documents?"
+    **It is NOT submission.** `POST /invoices/clearance/single` and
+    `POST /invoices/reporting/single` — the production path — have **never been
+    called, in any environment**, and appear only in `liveZatcaClient.ts`.
+    So the response shapes `errorMapping.ts` interprets, the `Clearance-Status`
+    header, where `clearedXml` actually arrives, and real ZATCA error codes are
+    all **unverified**. Do not read this green result as end-to-end proof; it is
+    finding **#6** in the standing-check table, and M12.7's first task.
   - **🔴 `tests/zatca-compliance-live.test.ts` is now THE GATE**, replacing the
     SDK differential as the authoritative check. The SDK differential is KEPT as
     a fast offline signal but it is no longer evidence of compliance — it passed
@@ -1443,13 +1543,14 @@ hand-built fixtures:
    this one had *no* loud case at all: nothing rejected it, and the DB constraint
    that looks like it covers the sequence structurally cannot see it.
 
-### 🔴 FIVE OCCURRENCES IS A PATTERN — the standing check
+### 🔴 SIX OCCURRENCES IS A PATTERN — the standing check
 
-The same defect has now been found **five times in M12**, each in a different
+The same defect has now been found **six times in M12**, each in a different
 component, each invisible until something forced the code onto a real path.
-Note the last two especially: they are not "a function nobody calls" but a
-**field nobody writes** and a **client that was only ever a mock** — the same
-disease in forms a caller-grep alone would miss.
+Note the last three especially: they are not "a function nobody calls" but a
+**field nobody writes**, a **client that was only ever a mock**, and a **live
+green result that covers less than it appears to** — the same disease in forms a
+caller-grep alone would miss.
 
 | # | Found | What was correct | What was not connected |
 | --- | --- | --- | --- |
@@ -1457,7 +1558,51 @@ disease in forms a caller-grep alone would miss.
 | 2 | M12.1b | The ZATCA PIH logic | The loader fed it `invoices.previous_hash` — a different chain entirely. |
 | 3 | M12.8 | M12.6's outbox transport, proven offline | **Nothing ever enqueued.** No production code inserted an `einvoice_documents` row; `EInvoiceWorker` was never instantiated; `ZATCA_WORKER_ENABLED` was named in two comments and never declared; `listOverdue()` had no callers. |
 | 4 | **M12.8** | `invoice_items.tax_category_code` — declared in M12.1a, back-filled by its migration, **validated** by the assembler | **No production writer.** The write path never set it, so every invoice created through the API carried NULL — and the assembler fails closed on NULL. For an onboarded company, **every invoice was unissuable.** Fixed in `invoices.service.create`: positive VAT rate ⇒ `'S'`; 0% stays NULL and must be stated explicitly, exactly as the migration decided. |
-| 5 | **M12.8** | M12.6's transport logic, claiming, backoff and state machine | **No real client existed.** `unconfiguredZatcaClient` THROWS; the only implementation was the test's mock. So M12.6's "complete" status covered a transport **proven only against a fake**, and an instantiated worker would have failed every send. Fixed by `zatca/liveZatcaClient.ts`. |
+| 5 | M12.8 | M12.6's transport logic, claiming, backoff and state machine | **No real client existed.** `unconfiguredZatcaClient` THROWS; the only implementation was the test's mock. So M12.6's "complete" status covered a transport **proven only against a fake**, and an instantiated worker would have failed every send. Fixed by `zatca/liveZatcaClient.ts`. |
+| **6** | **M12 close-out** | M12.4's live result: **six compliance documents PASS, zero errors, zero warnings** — real, and obtained against the live API | **🔴 IT COVERS DOCUMENT CONSTRUCTION, NOT SUBMISSION.** That result came from `POST /compliance/invoices` — an *onboarding gate* asking "can this EGS unit produce valid documents?". The production path is `POST /invoices/{clearance,reporting}/single`, which **has never been called, in any environment.** Still open; it is M12.7's first task. See [`docs/zatca/m12-status.md` §0](docs/zatca/m12-status.md). |
+
+### 📋 RETROACTIVE SWEEP (M12 close-out) — seven more, REPORTED NOT FIXED
+
+Six instances was enough to assume more existed, so the standing check was
+applied backwards across everything `CLAUDE.md` claims. **Findings below are
+recorded, NOT fixed** — fixing them is separate, prioritised work.
+
+**Nothing here is exploitable or wrong today.** These are capabilities the
+documentation implies are available and which are not, which matters when a
+future session plans work on the assumption that they are.
+
+| # | Claim | Reality | Severity |
+| --- | --- | --- | --- |
+| **S1** | **The `EInvoiceProvider` seam is one of two MANDATORY hedges** for the build-direct decision: "so a certified provider can be slotted in per-tenant later without re-architecting". | **Only `buildDocument` is wired** (M12.8). `onboard`, `renewCertificate` and `submit` still throw `NotImplementedError`, and the real paths bypass the seam entirely — onboarding calls `zatcaOnboardingClient` directly, submission calls `ZatcaHttpClient` directly. A vendor could be slotted in for document *building* only — which is the part we are best at and the least of what a vendor sells. **The hedge is roughly one-third delivered.** | **HIGH** — it is the stated fallback if building direct fails. |
+| **S2** | M12.6: an ambiguous failure "is reconciled by **ASKING ZATCA what happened**" (`einvoiceOutbox.repository`, `worker.ts`). | **Nothing asks ZATCA anything.** There is no status/reconciliation call; `liveZatcaClient` returns an explicit "not implemented" for the `status` endpoint. Reconciliation today = set `needs_review` and wait for a human. That is a defensible design, but it is not what the comments and the milestone record say. | **MEDIUM** — the behaviour is safe, the description is false. |
+| **S3** | Tech Stack table: **"Cache / queue — Redis"**. | **Redis is not used anywhere.** No dependency, no client, no config. The only mention in code is a comment saying rate limiters *should* move to a Redis store when scaling. Listed as if it were part of the running stack. | **LOW** (doc accuracy) — but it feeds queue item C1, which assumes Redis exists to move to. |
+| **S4** | Repository Layout: `apps/api/src/lib/` holds "accounting + infra: **glPosting, periodLock, zatca, categorizer**, auth, logger". | **M6 moved all four** to `services/accounting/` and `services/categorization/`. `lib/` no longer contains any of them. The layout section was never updated. | **LOW** — actively misleading for navigation. |
+| **S5** | `packages/auth` is listed as a workspace ("auth/RBAC; populated later"). | **It is a 3-line stub.** All auth and RBAC live in `apps/api/src/lib/`. Six milestones of auth work went elsewhere; the package has never been populated and there is no plan naming when it would be. | **LOW** — decide to populate it or delete it. |
+| **S6** | The `feature_flags` table "exists" and is listed among the platform tables. | **Created by a migration and referenced by nothing.** No repository, no service, no route reads or writes it. Same shape as `companies.zatca_onboarding_status`, which was dropped in M12.8 for exactly this. | **LOW** — but it is a trap: the next engineer will reasonably assume flags work. |
+| **S7** | `branches` and `departments` tables exist as platform tables (M2/M3). | **No production code references either.** Schema-only, like `feature_flags`. | **LOW** — same trap, same class. |
+
+**Already correctly documented as deferred — checked and NOT findings:**
+`companies.fiscalYearStart` (stored, exposed, explicitly recorded as not wired
+into report periods, and the Company Settings UI says so to the user); the
+`users` permission resource (seeded, explicitly recorded as not wired to
+`requirePermission`); `mailer` as a no-op (now queue item B1). These are the
+model — a gap stated plainly is not a gap in the record.
+
+**The pattern across S1–S7:** every one is a **schema or interface that exists
+without a consumer**. That is the same disease as findings #1–#6, and it suggests
+the failure mode is structural to how this project works — declaring the shape of
+a thing is satisfying and looks like progress, and nothing forces the follow-up.
+The standing check is the countermeasure; **applying it retroactively found seven
+more in one pass**, which is the strongest argument for applying it prospectively.
+
+---
+
+**#6 is the most consequential, and the only one that did not look unfinished.**
+The first five were absences — no caller, no writer, no implementation — visible
+to anyone who looked. #6 is a **green live result that reads as end-to-end proof**
+and survived three milestones precisely because it looked finished. A green
+compliance run says the envelope is well-formed; it says nothing about posting
+the letter.
 
 **🔴 THE STANDING CHECK — apply ALL THREE parts before recording any milestone
 as done:**
@@ -1476,6 +1621,12 @@ as done:**
 >    design, not a transport. If the only thing that ever satisfied the interface
 >    lives in a test file, the milestone that "completed" it did not
 >    — *(finding #5)*.
+> 4. **Every LIVE EXTERNAL RESULT is recorded with the ENDPOINT that produced it
+>    and what that endpoint attests.** "It passed against the real API" is not a
+>    scope — the scope is the endpoint. A pass on an onboarding/validation
+>    endpoint does not cover the production path, however green and however real
+>    — *(finding #6, the one that survived three milestones because it looked
+>    finished)*.
 
 Each part is cheap — three greps — and every one has caught something the first
 time it was applied. The reason it keeps happening is structural rather than

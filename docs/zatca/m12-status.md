@@ -6,6 +6,55 @@ narrative lives in `CLAUDE.md`.
 
 ---
 
+## 0. 🔴 READ THIS FIRST — we have NEVER submitted an invoice to ZATCA
+
+**Nothing in this repository has ever received a response from ZATCA's clearance
+or reporting endpoints.** Not once, in any environment.
+
+`/invoices/clearance/single` and `/invoices/reporting/single` appear in exactly
+one place — `services/einvoice/zatca/liveZatcaClient.ts` — written in M12.8 from
+the base URL and auth that M12.4 established. **No ZATCA response has ever come
+back from either.**
+
+### Why this is easy to get wrong
+
+M12.4's headline result is *"all six compliance documents PASS, zero errors, zero
+warnings"*, obtained live. That is a real and important result — and it does
+**not** cover submission:
+
+| | Endpoint | What a PASS proves |
+| --- | --- | --- |
+| **What we ran** | `POST /compliance/invoices` | Our document **CONSTRUCTION** is correct: the UBL, the XAdES signature, the digests, the QR, the hash chain. ZATCA validated the artifact. |
+| **What we have never run** | `POST /invoices/clearance/single`<br>`POST /invoices/reporting/single` | **SUBMISSION** — that a document is accepted *as a real invoice*, cleared and returned stamped, or reported within the 24-hour window. |
+
+The compliance endpoint is an onboarding gate: it asks *"can this EGS unit
+produce valid documents?"* The submission endpoints are the production path:
+they ask *"is this actual invoice accepted, and what comes back?"* A green
+compliance run says the envelope is well-formed. It says nothing about posting
+the letter.
+
+**Concretely unproven:** the response shapes our `errorMapping.ts` interprets,
+the `Clearance-Status` header, whether `clearedXml` comes back where we expect
+it, the reporting flow's distinct response, real ZATCA error codes, and the
+24-hour clock.
+
+### The rule for a future session
+
+> **Do not treat "the six compliance documents passed" as end-to-end proof.** It
+> is proof of document construction only. Until a real clearance or reporting
+> response has been received and asserted on, the transport is unproven —
+> whatever the test suite's colour.
+
+This is **instance #6** of the correct-but-not-connected pattern (see §5) and
+arguably the most consequential of them, because unlike the others it does not
+look unfinished. The others were absences — no caller, no writer, no
+implementation. This one is a **green live result that appears to cover more
+than it does**, which is the only kind that can survive a careful reading.
+
+**It is the first thing M12.7 must exercise.** See §3.
+
+---
+
 ## 1. What is done
 
 | Sub-milestone | Delivers |
@@ -45,7 +94,7 @@ test files ever talk to ZATCA: `zatca-compliance-live.test.ts` and
 
 | What | Why it matters |
 | --- | --- |
-| **🔴 The clearance and reporting SUBMISSION endpoints have NEVER been called.** `/invoices/clearance/single` and `/invoices/reporting/single` appear only in `liveZatcaClient.ts`. M12.4 used `/compliance/invoices`, which is a different endpoint. | The client is written from the base URL and auth M12.4 established, but **no ZATCA response has ever come back from it.** This is the single largest untested surface, and it is the first thing M12.7 must exercise. |
+| **🔴 SUBMISSION — see §0, which this table is not the primary record of.** The clearance and reporting endpoints have never been called. | The single largest untested surface. A green compliance result covers document **construction**, not submission. |
 | The outbox transport (claiming, backoff, retries, ambiguity) | Proven against a **mock** at the HTTP boundary — excellent tests, but they prove behaviour, not that a transport works |
 | The archive | `local-fs` only. The `supabase-storage` backend has never run against a real bucket |
 | Renewal reminders | Synthetic `not_after` values, not a real expiring certificate |
@@ -70,9 +119,19 @@ except the owner registering the entity.
 
 ### M12.7 — simulation end-to-end
 
+**1. 🔴 SUBMIT AN INVOICE — the first thing to do, before anything else.**
+Call `/invoices/clearance/single` and `/invoices/reporting/single` and assert on
+what comes back. This is the never-exercised surface from §0, and everything
+below is secondary to it. Specifically confirm: the response shapes
+`errorMapping.ts` interprets, the `Clearance-Status` header, that `clearedXml`
+arrives where the outbox expects it, the reporting flow's distinct response, and
+real ZATCA error codes. Expect divergences — every previous first contact with a
+live ZATCA endpoint produced some.
+
+Then:
+
 - Onboard a real EGS unit against `fatoora.zatca.gov.sa` with a real OTP
   (the sandbox accepts **any** OTP, so that path is genuinely unproven)
-- **Exercise clearance and reporting for real** — the gap named above
 - Confirm the PCSID binds our key in an environment where it is not a shared
   canned certificate
 - Verify the 24-hour reporting window behaviour end-to-end
@@ -131,10 +190,19 @@ the primary. NCA/CSP/sector rules may still impose residency — an unverified
 legal question. The archive backend is swappable either way, because an
 unverified claim is not a basis for committing hosting and neither is its absence.
 
-**Five instances of correct-but-not-connected**, all within M12: a pipeline
+**Six instances of correct-but-not-connected**, all within M12: a pipeline
 unreachable from real rows, a loader fed the wrong chain, an outbox nothing
-enqueued into, a field nothing wrote, and a client that was only ever a mock.
+enqueued into, a field nothing wrote, a client that was only ever a mock, and —
+**§0** — a live green result that covers document construction while reading as
+end-to-end proof.
+
 Hence the three-part standing check in `CLAUDE.md`: before marking a milestone
 complete, verify every capability has a production **caller**, every field it
 depends on has a production **writer**, and every client it depends on has a real
 **implementation** — not an interface plus a mock.
+
+**And a fourth part that #6 adds:** when a milestone cites a **live external
+result** as evidence, record *which endpoint produced it and what that endpoint
+actually attests*. "It passed against the real API" is not a scope; the scope is
+the endpoint. The first five instances all looked unfinished on inspection. This
+one looked finished, which is why it survived three milestones.
