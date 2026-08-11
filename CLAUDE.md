@@ -685,6 +685,11 @@ project memory (design record; a `docs/` spec will follow).
 
 ## Phase 2 — Milestone 12: ZATCA Phase 2 (Fatoora) Integration (IN PROGRESS)
 
+> **📄 Status summary:** [`docs/zatca/m12-status.md`](docs/zatca/m12-status.md) —
+> what is done, **what is verified against the live API versus only locally**,
+> what M12.7/M12.9 need, and the full pre-production queue. Read that first; this
+> section is the narrative behind it.
+
 Transmitting invoices to ZATCA. M11.6 fixed the invoice **data** (each invoice
 carries the tenant's real VAT number and company name, verified by decoding the
 TLV QR and recomputing the hash); M12 builds the **integration** — UBL 2.1 XML,
@@ -1438,39 +1443,51 @@ hand-built fixtures:
    this one had *no* loud case at all: nothing rejected it, and the DB constraint
    that looks like it covers the sequence structurally cannot see it.
 
-### 🔴 THREE OCCURRENCES IS A PATTERN — the standing check
+### 🔴 FIVE OCCURRENCES IS A PATTERN — the standing check
 
-The same defect has now been found three times in M12, each time in a different
-component, each time invisible until something forced the code onto a real path:
+The same defect has now been found **five times in M12**, each in a different
+component, each invisible until something forced the code onto a real path.
+Note the last two especially: they are not "a function nobody calls" but a
+**field nobody writes** and a **client that was only ever a mock** — the same
+disease in forms a caller-grep alone would miss.
 
 | # | Found | What was correct | What was not connected |
 | --- | --- | --- | --- |
 | 1 | M12.1b | UBL generation, signing, QR, outbox — all validated | `issueInvoice()` never wrote `icv`/`zatca_uuid`, so the assembler rejected every real row. The whole Phase-2 pipeline was unreachable. |
 | 2 | M12.1b | The ZATCA PIH logic | The loader fed it `invoices.previous_hash` — a different chain entirely. |
-| 3 | **M12.8** | M12.6's outbox transport, proven offline | **Nothing ever enqueued.** No production code inserted an `einvoice_documents` row; `EInvoiceWorker` was never instantiated; `ZATCA_WORKER_ENABLED` was named in two comments and never declared; `listOverdue()` had no callers. |
+| 3 | M12.8 | M12.6's outbox transport, proven offline | **Nothing ever enqueued.** No production code inserted an `einvoice_documents` row; `EInvoiceWorker` was never instantiated; `ZATCA_WORKER_ENABLED` was named in two comments and never declared; `listOverdue()` had no callers. |
+| 4 | **M12.8** | `invoice_items.tax_category_code` — declared in M12.1a, back-filled by its migration, **validated** by the assembler | **No production writer.** The write path never set it, so every invoice created through the API carried NULL — and the assembler fails closed on NULL. For an onboarded company, **every invoice was unissuable.** Fixed in `invoices.service.create`: positive VAT rate ⇒ `'S'`; 0% stays NULL and must be stated explicitly, exactly as the migration decided. |
+| 5 | **M12.8** | M12.6's transport logic, claiming, backoff and state machine | **No real client existed.** `unconfiguredZatcaClient` THROWS; the only implementation was the test's mock. So M12.6's "complete" status covered a transport **proven only against a fake**, and an instantiated worker would have failed every send. Fixed by `zatca/liveZatcaClient.ts`. |
 
-A fourth, found while closing #3: **`invoice_items.tax_category_code` was added
-in M12.1a and written by NOTHING.** The column existed, the migration back-filled
-history, and the write path never set it — so every invoice created through the
-API carried NULL, and issuance fails closed on a NULL category. For an onboarded
-company that meant **every invoice was unissuable**. Fixed in
-`invoices.service.create` (positive VAT rate ⇒ `'S'`; 0% stays NULL and must be
-stated explicitly, exactly as the migration decided).
+**🔴 THE STANDING CHECK — apply ALL THREE parts before recording any milestone
+as done:**
 
-**THE STANDING CHECK — apply it before recording any milestone as done:**
+> 1. **Every capability has a production CALLER.** For anything claimed as
+>    surfaced to users — an alarm, a queue, a status view, a job — grep for the
+>    symbol and discard tests and comments. A function only a test calls is
+>    unbuilt.
+> 2. **Every field it depends on has a production WRITER.** A column that only a
+>    migration back-fills is unbuilt. Declaring it, validating it, and reading it
+>    are three things that all look like progress and none of which populate it.
+>    Grep for writes, not just references — *(this is finding #4, and note the
+>    field was fully validated, which made it look more finished than it was)*.
+> 3. **Every client it depends on has a REAL IMPLEMENTATION, not an interface
+>    plus a mock.** A seam with one throwing stub and one test double is a
+>    design, not a transport. If the only thing that ever satisfied the interface
+>    lives in a test file, the milestone that "completed" it did not
+>    — *(finding #5)*.
 
-> When a milestone claims a capability is **surfaced to users** — an alarm, a
-> queue, a status view, a column, a config flag — **verify a PRODUCTION CALLER
-> EXISTS** before writing it down. Grep for the symbol and discard test files
-> and comments from the results. A function that only a test calls, a column
-> only a migration writes, and a flag only a comment names are all *unbuilt*,
-> however correct their implementation.
+Each part is cheap — three greps — and every one has caught something the first
+time it was applied. The reason it keeps happening is structural rather than
+careless: a component built correctly and tested in isolation produces a green
+suite, and a green suite reads as "done". Nothing in that loop ever asks whether
+anything calls it, writes to it, or implements it for real.
 
-This is cheap (one grep) and it has caught something every single time it has
-been applied. The reason it keeps happening is structural rather than careless:
-a component built correctly and tested in isolation produces a green suite, and
-a green suite reads as "done". Nothing in that loop ever asks whether anything
-calls it.
+**The mock is the subtlest of the three**, because a good mock makes the test
+*more* convincing: M12.6's outbox tests are genuinely excellent and prove exactly
+what they claim — the transport's behaviour. What they cannot prove is that a
+transport exists. Judge a seam by its non-test implementations; if that count is
+zero, say so in the milestone record.
 
 **The general lesson — and the reason "validate from real ledger rows" is an
 acceptance criterion, not a nicety:** a green result against fixtures says
@@ -1612,6 +1629,44 @@ exists to prove. Isolate the buckets instead.
 times slower AND couples suites to each other's leftover state — `operator.test.ts`
 fails under that ordering while passing alone. See `vitest.config.ts`.
 
+### 🔴 DELIBERATE BEHAVIOURAL DECISION (M12.8): issuance FAILS CLOSED for onboarded companies
+
+**Decided and approved, not incidental — and flagged for revisit before a real
+taxpayer is onboarded.**
+
+For a company with an active ZATCA credential, if the document cannot be built
+or signed, `enqueueEInvoice` **throws and the whole approval rolls back**. No
+invoice is issued. Causes include a KMS outage, a revoked credential, or invoice
+data too incomplete to assemble (a NULL tax category, a missing buyer address on
+a B2B sale).
+
+**Why blocking is the correct choice for a compliance platform.** The alternative
+is issuing invoices that cannot reach ZATCA — and the tenant then discovers the
+problem **from the tax authority rather than from us**, after the fact, with
+penalties attached and no way to repair the record. Worse, a silently-issued
+invoice would consume an ICV and a chain position that can never be filled,
+leaving a permanent gap in a legally-required sequence. Refusing to issue is
+recoverable in minutes; a gap is not recoverable at all.
+
+It is also consistent with the posture chosen everywhere else that touches
+statutory identity: `requireIssuanceSeller` (M11.6) fails closed rather than
+stamping a placeholder VAT number, and the assembler fails closed on an ambiguous
+tax category rather than guessing a tax fact.
+
+**What it costs, stated plainly:** a KMS or vault outage stops invoicing for
+onboarded tenants. That is a real availability trade, accepted knowingly.
+
+**Not affected:** a company with **no** active credential is skipped silently and
+issues exactly as before. Every existing tenant and every pre-M12.8 test depends
+on that, and it is what keeps the platform usable for non-Phase-2 businesses.
+
+**🔴 REVISIT BEFORE ONBOARDING A REAL TAXPAYER.** The decision is right in
+principle; what has not been tested is how it *feels* under a real outage. Before
+go-live, confirm the failure surfaces to the user as an actionable message
+(which field, which company, what to fix) rather than an opaque 500 — a
+fail-closed guard that cannot be diagnosed is a fail-closed guard people work
+around.
+
 ### 🔴 PRE-PRODUCTION REQUIREMENT: real alerting on the e-invoice outbox
 
 **🔴 CORRECTED IN M12.8.** This section previously read *"M12.6 surfaces overdue
@@ -1637,7 +1692,8 @@ deadline** looks like nothing is wrong — and it is legal exposure for the tena
 with fines from SAR 5,000. Nothing in the current design pages a human when the
 queue stops draining.
 
-Wire `listOverdue()` to real alerting before go-live.
+Wire `listOverdue()` to real alerting before go-live — queue item **B2**, which
+covers this and PCSID expiry together, because they are the same failure shape.
 
 ### 🔴 PRE-PRODUCTION REQUIREMENT: PCSID expiry — 5 years, NO grace period
 
@@ -1792,19 +1848,37 @@ with severity and location — address in the milestone noted, not ad hoc:
   leave it. **Do not assume "owner-only" means "no grants" — verify with
   `information_schema.role_table_grants`.**
 
-### 🔴 PRE-DEPLOYMENT MIGRATION QUEUE (consolidated)
+### 🔴 PRE-PRODUCTION QUEUE (consolidated — the single list)
 
-One migration should close these together before go-live; they are all
-grant/configuration issues, not code:
+Everything that must close before a real taxpayer is onboarded. Split by kind,
+because these do not all land in one change.
+
+**A. One migration closes these — grants and configuration, not code:**
 
 | # | Item | Where recorded |
 | --- | --- | --- |
-| 1 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` on **every business table** from the app role | MEDIUM finding above |
-| 2 | Same REVOKE on the **five remaining owner-only tables** | MEDIUM finding above (M12.5 update) |
-| 3 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out | M11 audit findings |
-| 4 | **M-1** — add RLS to `organizations`/`users`/`organization_memberships`, or a CI guard failing on business-layer imports | M11 audit findings |
-| 5 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
-| 6 | **`checkPeriodOpen` ignores `company_id`** — company A's closed period blocks company B in a multi-company org | LOW finding, confirmed M12.1b |
+| A1 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` on **every business table** from the app role | MEDIUM finding above |
+| A2 | Same REVOKE on the **five remaining owner-only tables** (`einvoice_archive` and `zatca_credentials` already do it) | MEDIUM finding (M12.5/M12.8 updates) |
+| A3 | **M-1** — add RLS to `organizations`/`users`/`organization_memberships`, or a CI guard failing on business-layer imports | M11 audit findings |
+| A4 | **`checkPeriodOpen` ignores `company_id`** — company A's closed period blocks company B in a multi-company org | LOW finding, confirmed M12.1b |
+
+**B. 🔴 BLOCKING for ZATCA — a reminder that reaches nobody:**
+
+| # | Item | Why it blocks |
+| --- | --- | --- |
+| **B1** | **EMAIL DELIVERY — a hard prerequisite, not polish.** `lib/mailer.ts` is still `noopMailer` (logs, returns `delivered: false`). Implement `send` and swap the export; nothing else changes. Options: **AWS SES** (~$0.10/1,000 emails, cheapest, most setup), **Resend** (free to 3,000/mo, then ~$20/mo), **Postmark** (~$15/mo, best deliverability). | The renewal reminder's **entire value is lead time for an action only the tenant can take** — a fresh CSR plus an OTP from THEIR Fatoora portal. Today the reminder exists as a row and in the UI, and **no message is sent to anyone**. A tenant who does not happen to open the app learns nothing, and at expiry signing stops dead: they cannot legally invoice. We cannot fix that for them after the fact. |
+| **B2** | **VISIBILITY IS NOT ALERTING.** M12.8 surfaces both alarms in the operator panel; **nothing pages a human.** Wire `listOverdue()` **and** `renewalService` to real alerting (PagerDuty/Opsgenie/webhook). | Both failures are **quiet neglect, not loud rejection** — the shared property that makes a dashboard the wrong instrument. A simplified invoice silently missing ZATCA's 24-hour reporting deadline looks like nothing is wrong (tenant fines from SAR 5,000); an expiring PCSID looks like nothing is wrong until it stops signing. A panel only helps someone already looking at it, and nobody looks at a panel that is usually green. |
+
+**C. Verification and coverage gaps:**
+
+| # | Item | Where recorded |
+| --- | --- | --- |
+| C1 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out | M11 audit findings |
+| C2 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
+| C3 | **KMS deployment verification** — the IAM/key policy, 30-day deletion window, break-glass restriction on `kms:ScheduleKeyDeletion`, CloudTrail alarm, multi-region replica | M12.5 deployment requirements |
+| C4 | **AV scanning** on uploaded verification documents before untrusted-tenant growth | M11.4 follow-up |
+| C5 | **Fail-closed diagnosability** — confirm a blocked issuance surfaces an actionable message, not an opaque 500 | M12.8 behavioural decision above |
+| C6 | **Data residency / hosting region** — still open, now for the right reason (see the residency correction: ZATCA permits cloud; NCA/sector rules unverified). Choose the host and the KMS region together. | M12.0 / M12.8 |
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.
