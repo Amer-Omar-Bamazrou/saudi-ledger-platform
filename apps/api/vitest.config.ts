@@ -34,6 +34,16 @@ export default defineConfig({
       PORT: process.env["PORT"] ?? "3000",
       SESSION_SECRET: process.env["SESSION_SECRET"] ?? "test-session-secret-not-used-for-real-auth",
       CORS_ALLOWED_ORIGINS: process.env["CORS_ALLOWED_ORIGINS"] ?? "http://localhost:5173",
+      // The M12.5 vault refuses to boot without a dev master key, and refuses
+      // `local-dev` entirely in production — so a test value here is safe and is
+      // never reachable from a real deployment. Set centrally rather than in each
+      // suite: `zatca-credential-vault.test.ts` set it at its own file scope,
+      // which worked only because it was the sole vault-touching suite. M12.8
+      // added two more and they failed in CI while passing locally, where a
+      // developer's `.env` happened to supply it.
+      ZATCA_KMS_PROVIDER: process.env["ZATCA_KMS_PROVIDER"] ?? "local-dev",
+      ZATCA_DEV_MASTER_KEY:
+        process.env["ZATCA_DEV_MASTER_KEY"] ?? "vitest-master-key-not-a-real-secret-0123456789",
     },
   },
 });
