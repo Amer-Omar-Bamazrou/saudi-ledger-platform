@@ -14,4 +14,12 @@ const router = Router();
 router.get("/", zatcaOnboardingController.status);
 router.post("/", zatcaOnboardingController.onboard);
 
+/**
+ * Renew before the 5-year PCSID expires. Same authority as onboarding (admin) —
+ * it mints the credential that signs legal invoices — and resolves to the
+ * `approve` action via the existing activation-suffix override in
+ * `requirePermission`, so it is admin-only rather than merely create-level.
+ */
+router.post("/renew", zatcaOnboardingController.renew);
+
 export default router;

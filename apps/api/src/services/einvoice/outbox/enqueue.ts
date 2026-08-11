@@ -123,6 +123,9 @@ export async function enqueueEInvoice(invoice: EnqueueTarget): Promise<EnqueueRe
     organizationId: invoice.organizationId,
     companyId: invoice.companyId,
     invoiceId: invoice.id,
+    // Copied onto the document row so the worker (base pool, no business joins)
+    // can send the uuid ZATCA must see match `cbc:UUID`.
+    zatcaUuid: input.uuid,
     flow,
     invoiceHash: built.invoiceHash,
     previousInvoiceHash: built.previousInvoiceHash,

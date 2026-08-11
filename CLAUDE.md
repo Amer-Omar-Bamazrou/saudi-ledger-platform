@@ -1561,25 +1561,109 @@ caller-grep alone would miss.
 | 5 | M12.8 | M12.6's transport logic, claiming, backoff and state machine | **No real client existed.** `unconfiguredZatcaClient` THROWS; the only implementation was the test's mock. So M12.6's "complete" status covered a transport **proven only against a fake**, and an instantiated worker would have failed every send. Fixed by `zatca/liveZatcaClient.ts`. |
 | **6** | **M12 close-out** | M12.4's live result: **six compliance documents PASS, zero errors, zero warnings** — real, and obtained against the live API | **🔴 IT COVERS DOCUMENT CONSTRUCTION, NOT SUBMISSION.** That result came from `POST /compliance/invoices` — an *onboarding gate* asking "can this EGS unit produce valid documents?". The production path is `POST /invoices/{clearance,reporting}/single`, which **has never been called, in any environment.** Still open; it is M12.7's first task. See [`docs/zatca/m12-status.md` §0](docs/zatca/m12-status.md). |
 
-### 📋 RETROACTIVE SWEEP (M12 close-out) — seven more, REPORTED NOT FIXED
+### 🔴 THE NAMED FAILURE MODE: **A SHAPE WITHOUT A CONSUMER**
+
+Every finding above and below is the same thing. It deserves a name, because
+naming it is what makes it visible before the fact rather than after.
+
+> **A shape without a consumer.** Declaring the *shape* of a thing — a column, a
+> table, an interface, a config flag, a package — is satisfying, reviewable, and
+> looks exactly like progress. Nothing in the normal development loop then forces
+> the follow-up that makes it real. The declaration passes review, passes
+> typecheck, passes tests, and ships. It is indistinguishable from finished work
+> until something tries to *use* it.
+
+Why it is endemic here specifically: this project is schema-first and
+contract-first by design (OpenAPI-first codegen, declared-in-full provider seams,
+migrations before services). Those are good practices and they are **not** the
+problem — but they systematically produce shapes ahead of consumers, which means
+the gap between "declared" and "connected" is a normal state of the codebase
+rather than an anomaly. In a codebase where half-built is normal, half-built does
+not look wrong.
+
+**The countermeasure is the standing check below.** Not more care, not more
+review — a mechanical check, because the failure survives careful review by
+construction. Thirteen instances found so far (six live, seven retroactive), and
+the check caught something every single time it was run.
+
+### 📋 RETROACTIVE SWEEP (M12 close-out) — seven more
 
 Six instances was enough to assume more existed, so the standing check was
-applied backwards across everything `CLAUDE.md` claims. **Findings below are
-recorded, NOT fixed** — fixing them is separate, prioritised work.
+applied backwards across everything `CLAUDE.md` claims.
 
-**Nothing here is exploitable or wrong today.** These are capabilities the
-documentation implies are available and which are not, which matters when a
-future session plans work on the assumption that they are.
+**S1 and S2 are FIXED** (see below). **S3–S7 are TRACKED DEBT — recorded, not
+fixed.** Nothing in S3–S7 is exploitable or wrong today; they are capabilities
+the documentation implies are available and which are not, which matters when a
+future session plans work assuming they exist.
 
 | # | Claim | Reality | Severity |
 | --- | --- | --- | --- |
-| **S1** | **The `EInvoiceProvider` seam is one of two MANDATORY hedges** for the build-direct decision: "so a certified provider can be slotted in per-tenant later without re-architecting". | **Only `buildDocument` is wired** (M12.8). `onboard`, `renewCertificate` and `submit` still throw `NotImplementedError`, and the real paths bypass the seam entirely — onboarding calls `zatcaOnboardingClient` directly, submission calls `ZatcaHttpClient` directly. A vendor could be slotted in for document *building* only — which is the part we are best at and the least of what a vendor sells. **The hedge is roughly one-third delivered.** | **HIGH** — it is the stated fallback if building direct fails. |
-| **S2** | M12.6: an ambiguous failure "is reconciled by **ASKING ZATCA what happened**" (`einvoiceOutbox.repository`, `worker.ts`). | **Nothing asks ZATCA anything.** There is no status/reconciliation call; `liveZatcaClient` returns an explicit "not implemented" for the `status` endpoint. Reconciliation today = set `needs_review` and wait for a human. That is a defensible design, but it is not what the comments and the milestone record say. | **MEDIUM** — the behaviour is safe, the description is false. |
+| **S1** ✅ **FIXED** | **The `EInvoiceProvider` seam is one of two MANDATORY hedges** for the build-direct decision: "so a certified provider can be slotted in per-tenant later without re-architecting". | Was: **only `buildDocument` wired**; `onboard`/`renewCertificate`/`submit` threw, and the real paths bypassed the seam (onboarding called `zatcaOnboardingClient`, the worker called `ZatcaHttpClient`). **A hedge that covers only the part you do not need is not a hedge** — and it is the stated fallback if building direct fails. **Now all four methods route through the seam**; see the S1 entry below. | **HIGH** |
+| **S2** ✅ **FIXED (as a description)** | M12.6: an ambiguous failure "is reconciled by **ASKING ZATCA what happened**". | **Nothing asks ZATCA, and nothing can:** ZATCA's API exposes **no invoice-status or query endpoint** — Compliance CSID, Production CSID, Clearance and Reporting are the entire documented surface. Implementing a query would mean inventing an endpoint, which is exactly the guessing the divergence log exists to prevent. So the **description** was corrected to say what actually happens: an ambiguous document parks in `needs_review` and **a human** resolves it in the Fatoora portal. Sound design; false comment. | **MEDIUM** |
 | **S3** | Tech Stack table: **"Cache / queue — Redis"**. | **Redis is not used anywhere.** No dependency, no client, no config. The only mention in code is a comment saying rate limiters *should* move to a Redis store when scaling. Listed as if it were part of the running stack. | **LOW** (doc accuracy) — but it feeds queue item C1, which assumes Redis exists to move to. |
 | **S4** | Repository Layout: `apps/api/src/lib/` holds "accounting + infra: **glPosting, periodLock, zatca, categorizer**, auth, logger". | **M6 moved all four** to `services/accounting/` and `services/categorization/`. `lib/` no longer contains any of them. The layout section was never updated. | **LOW** — actively misleading for navigation. |
 | **S5** | `packages/auth` is listed as a workspace ("auth/RBAC; populated later"). | **It is a 3-line stub.** All auth and RBAC live in `apps/api/src/lib/`. Six milestones of auth work went elsewhere; the package has never been populated and there is no plan naming when it would be. | **LOW** — decide to populate it or delete it. |
 | **S6** | The `feature_flags` table "exists" and is listed among the platform tables. | **Created by a migration and referenced by nothing.** No repository, no service, no route reads or writes it. Same shape as `companies.zatca_onboarding_status`, which was dropped in M12.8 for exactly this. | **LOW** — but it is a trap: the next engineer will reasonably assume flags work. |
 | **S7** | `branches` and `departments` tables exist as platform tables (M2/M3). | **No production code references either.** Schema-only, like `feature_flags`. | **LOW** — same trap, same class. |
+
+#### S1 — what "wired through the seam" now means
+
+- **`onboard`** — the ZATCA onboarding controller calls `resolveProvider().onboard(...)`;
+  `zatcaDirectProvider` delegates to the existing flow. No behaviour change, but
+  onboarding is now a provider concern, which is what a vendor actually sells.
+- **`renewCertificate`** — implemented, and it is **the same flow as onboarding**.
+  ZATCA has no "extend" operation: a new certificate comes from a fresh CSR
+  authorised by a new OTP. And `vaultRepository.activate` already supersedes the
+  previous active credential *inside one transaction*, so re-running onboarding
+  rotates atomically — never two active credentials, never none. New route
+  `POST /zatca-onboarding/renew`.
+  🔴 The M12.2 signature was `renewCertificate(companyId)` — **no OTP** — which
+  quietly implied the platform could renew unattended. That is the opposite of
+  true and it is the single most important operational fact about expiry, so the
+  signature now takes `RenewalInput`.
+- **`submit`** — the worker takes an `EInvoiceProvider` instead of a
+  `ZatcaHttpClient` + credential resolver. The provider resolves its own
+  transport credentials, exactly as a vendor would hold its own.
+- **The outbox tests now drive the REAL provider over a fake socket**, so the
+  seam is covered by the same tests that cover the transport, rather than
+  bypassed by them.
+- **The inverted regression test.** `ubl-generation.test.ts` used to assert that
+  `onboard` and `submit` THROW. That assertion was correct at M12.2 and then
+  stayed green through M12.4 (which built onboarding) and M12.6 (which built
+  transport), because both shipped their logic elsewhere and left the seam
+  throwing. **A passing test was certifying that the vendor swap point did not
+  work.** It now asserts the opposite.
+
+#### Two real bugs found while wiring S1
+
+1. **🔴 The worker was sending the WRONG UUID.** It sent
+   `uuid: String(row.invoiceId)` — our internal row id — where ZATCA requires the
+   document UUID that matches `cbc:UUID` inside the signed XML. It would have
+   been rejected. Invisible to every offline check (the XML is valid, the hash is
+   right, the signature verifies) and reachable only by a real submission, which
+   has never happened. Fixed by carrying `zatca_uuid` on `einvoice_documents`
+   (migration `0023`, back-filled) — the worker runs on the base pool where
+   joining business tables is forbidden, so the value must be on the row.
+2. **ZATCA returns HTTP 303 when clearance is DISABLED** for a taxpayer, meaning
+   the document must go to the Reporting API instead. Found in the technical
+   guideline while checking whether a status endpoint exists. Previously a 303
+   fell into the generic retry branch and would have been retried against the
+   clearance endpoint forever, burning every attempt while looking transient. Now
+   classified non-retryable with the real remedy in the message.
+   🔴 Deliberately **not** auto-re-routed: switching a STANDARD invoice to
+   reporting changes its legal treatment (no stamp, no returned QR), and we have
+   never observed the behaviour. Auto-routing is an M12.7 task.
+
+#### Test-isolation consequence (worth knowing before adding suites)
+
+Claiming and the archive sweep are **global and cross-tenant by design** — that
+is the point of a background worker. So any two suites that both create
+`einvoice_documents` interfere: one suite's worker will claim and submit the
+other's documents. This broke three tests the moment M12.8 gave more than one
+suite real documents. Both now accept an optional `organizationId` scope, omitted
+in production and supplied by tests. Weakening the assertions to tolerate
+partial counts was the alternative, and it would have hidden the next real bug.
+The same scope is the seam a future sharded/per-tenant worker would use.
 
 **Already correctly documented as deferred — checked and NOT findings:**
 `companies.fiscalYearStart` (stored, exposed, explicitly recorded as not wired
@@ -1588,12 +1672,39 @@ into report periods, and the Company Settings UI says so to the user); the
 `requirePermission`); `mailer` as a no-op (now queue item B1). These are the
 model — a gap stated plainly is not a gap in the record.
 
-**The pattern across S1–S7:** every one is a **schema or interface that exists
-without a consumer**. That is the same disease as findings #1–#6, and it suggests
-the failure mode is structural to how this project works — declaring the shape of
-a thing is satisfying and looks like progress, and nothing forces the follow-up.
-The standing check is the countermeasure; **applying it retroactively found seven
-more in one pass**, which is the strongest argument for applying it prospectively.
+#### S3–S7 — TRACKED DEBT (not fixed; decide, do not drift)
+
+None is exploitable. Each is a claim that outruns reality, and each has a
+decision attached rather than a task:
+
+- **S3 — Redis.** In the Tech Stack table, used nowhere. **This makes queue item
+  C1 unactionable as written** (see the annotation there): C1 says "move the rate
+  limiters to Redis", which reads as a migration and is actually a new
+  infrastructure dependency. Either introduce Redis deliberately, with its cost
+  and operational burden priced in, or delete the row from the stack table and
+  re-scope C1 around what we will actually run.
+- **S4 — the Repository Layout section** still points at `lib/glPosting`,
+  `lib/periodLock`, `lib/zatca`, `lib/categorizer`. M6 moved all four to
+  `services/`. Actively misleading for navigation; a doc fix.
+- **S5 — `packages/auth` is a 3-line stub.** Six milestones of auth and RBAC work
+  (M4, M5, M10.1, M11.1, M11.3, M11.5.1) landed in `apps/api/src/lib/` instead,
+  and no plan names when the package would be populated. **An empty package named
+  for a concern that lives somewhere else is a trap**: the next engineer looking
+  for auth code looks there first and finds three lines, and the one adding auth
+  code has two plausible homes with nothing to choose between them. **Decide:
+  populate it or delete it.** Deleting is the honest default — the code has a
+  working home and moving it now would churn six milestones of tested boundaries
+  for no functional gain.
+- **S6/S7 — `feature_flags`, `branches`, `departments`.** Tables created by
+  migrations and referenced by no code. Exactly the shape of
+  `companies.zatca_onboarding_status`, which was dropped in M12.8 for this
+  reason. They are a trap in the same way: the next engineer will reasonably
+  assume feature flags work. Either build a consumer or drop them.
+
+**The pattern across S1–S7:** every one is **a shape without a consumer** — the
+named failure mode above. Applying the standing check retroactively found seven
+in a single pass, which is the strongest available argument for applying it
+prospectively.
 
 ---
 
@@ -2024,7 +2135,7 @@ because these do not all land in one change.
 
 | # | Item | Where recorded |
 | --- | --- | --- |
-| C1 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out | M11 audit findings |
+| C1 | **HIGH-2** — confirm exactly one trusted proxy overwrites `X-Forwarded-For`; move rate limiters to Redis before scaling out. 🔴 **CURRENTLY UNACTIONABLE AS WRITTEN:** it says "move to Redis", but **Redis does not exist in this project** — no dependency, no client, no config, no container (finding S3). It is listed in the Tech Stack table as if it were running. Closing C1 means *introducing* Redis (a new service to provision, secure and operate), not migrating to it. Scope it that way or choose a different shared store. | M11 audit findings + S3 |
 | C2 | **CI storage gap** — add a Storage service/stub so the M11.4 document tests actually run in CI | Known CI gap |
 | C3 | **KMS deployment verification** — the IAM/key policy, 30-day deletion window, break-glass restriction on `kms:ScheduleKeyDeletion`, CloudTrail alarm, multi-region replica | M12.5 deployment requirements |
 | C4 | **AV scanning** on uploaded verification documents before untrusted-tenant growth | M11.4 follow-up |

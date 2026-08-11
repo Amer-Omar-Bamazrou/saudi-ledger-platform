@@ -9,8 +9,7 @@ import { loadEnv } from "@workspace/config";
 import { logger } from "../lib/logger";
 import { JobScheduler, type Job } from "./scheduler";
 import { EInvoiceWorker } from "../services/einvoice/outbox/worker";
-import { createLiveZatcaClient } from "../services/einvoice/zatca/liveZatcaClient";
-import { signingService } from "../services/einvoice/signing/signing.service";
+import { resolveProvider } from "../services/einvoice/zatca/zatcaDirectProvider";
 import { archiveService } from "../services/einvoice/archive/archive.service";
 import { renewalService } from "../services/einvoice/renewal/renewal.service";
 
@@ -24,30 +23,11 @@ export function buildScheduler(): JobScheduler {
   const env = loadEnv();
   const s = new JobScheduler();
 
-  const worker = new EInvoiceWorker({
-    client: createLiveZatcaClient(env.ZATCA_ENVIRONMENT),
-    /**
-     * The vault is the only source of transport credentials, and it hands them
-     * over through a scoped callback. Returning them from here widens that
-     * boundary by exactly one call — acceptable because the certificate is
-     * public and the CSID secret goes straight into an Authorization header,
-     * never into a log or a response. It is NOT a precedent for the signing key,
-     * which never leaves `withSigningKey`.
-     */
-    resolveCredentials: async (companyId: string) => {
-      try {
-        return await signingService.withTransportCredentials(
-          companyId,
-          env.ZATCA_ENVIRONMENT,
-          (creds) => creds,
-        );
-      } catch {
-        // No active credential ⇒ the company is not onboarded. The worker treats
-        // null as retryable, since onboarding may complete at any time.
-        return null;
-      }
-    },
-  });
+  // Routed through the EInvoiceProvider seam (S1) rather than around it, so
+  // submission — most of what a certified vendor actually sells — is genuinely
+  // swappable per company. The provider resolves its own transport credentials
+  // from the vault, exactly as a vendor would hold its own.
+  const worker = new EInvoiceWorker({ provider: resolveProvider() });
 
   const jobs: Job[] = [
     {

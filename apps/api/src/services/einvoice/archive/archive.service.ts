@@ -48,9 +48,15 @@ export const archiveService = {
    * One failure never stops the pass: a document whose XML is missing, or whose
    * bytes cannot be stored, is logged and skipped so the rest still land.
    */
-  async runOnce(store: ArchiveStore = resolveArchiveStore()): Promise<SweepResult> {
+  /**
+   * @param organizationId restrict the sweep to one tenant. Omitted in
+   * production (the sweep is global, like the outbox worker); supplied by tests
+   * so two suites creating real documents in parallel cannot archive each
+   * other's. See `WorkerOptions.organizationId` for the same reasoning.
+   */
+  async runOnce(store: ArchiveStore = resolveArchiveStore(), organizationId?: string): Promise<SweepResult> {
     const env = loadEnv();
-    const due = await einvoiceArchiveJobRepository.listUnarchived();
+    const due = await einvoiceArchiveJobRepository.listUnarchived(100, organizationId);
     const result: SweepResult = { scanned: due.length, archived: 0, skipped: 0, failed: 0 };
 
     for (const doc of due) {

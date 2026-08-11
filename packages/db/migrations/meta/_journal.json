@@ -162,6 +162,13 @@
       "when": 1786472609261,
       "tag": "0022_m12_8_archive_and_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786476327297,
+      "tag": "0023_s1_einvoice_zatca_uuid",
+      "breakpoints": true
     }
   ]
 }

@@ -24,14 +24,18 @@ export interface OutboxRow {
   invoiceId: number;
   flow: "clearance" | "reporting";
   status: string;
+  /** ZATCA's document UUID — must match `cbc:UUID` in the signed XML. */
+  zatcaUuid: string | null;
   invoiceHash: string | null;
+  previousInvoiceHash: string | null;
   signedXml: string | null;
   attemptCount: number;
   ambiguous: boolean;
 }
 
 const SELECT_COLS = `id, organization_id AS "organizationId", company_id AS "companyId",
-  invoice_id AS "invoiceId", flow, status, invoice_hash AS "invoiceHash",
+  invoice_id AS "invoiceId", flow, status, zatca_uuid AS "zatcaUuid",
+  invoice_hash AS "invoiceHash", previous_invoice_hash AS "previousInvoiceHash",
   signed_xml AS "signedXml", attempt_count AS "attemptCount", ambiguous`;
 
 export const einvoiceOutboxRepository = {
@@ -47,7 +51,7 @@ export const einvoiceOutboxRepository = {
    * read-then-write window in which a second worker could see the same row as
    * unclaimed.
    */
-  async claimDue(workerId: string, batchSize: number): Promise<OutboxRow[]> {
+  async claimDue(workerId: string, batchSize: number, organizationId?: string): Promise<OutboxRow[]> {
     const { rows } = await pool.query(
       `UPDATE einvoice_documents
           SET status = 'submitting',
@@ -60,12 +64,13 @@ export const einvoiceOutboxRepository = {
            WHERE status IN ('pending', 'failed')
              AND ambiguous = false
              AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+             AND ($3::uuid IS NULL OR organization_id = $3::uuid)
            ORDER BY created_at
            FOR UPDATE SKIP LOCKED
            LIMIT $2
         )
         RETURNING ${SELECT_COLS}`,
-      [workerId, batchSize],
+      [workerId, batchSize, organizationId ?? null],
     );
     return rows;
   },
@@ -75,7 +80,16 @@ export const einvoiceOutboxRepository = {
    *
    * Returns them to `pending` but marks them **ambiguous**: the worker may have
    * sent the document before dying, so ZATCA's state is unknown and the row must
-   * go through reconciliation rather than being resubmitted blindly.
+   * NOT be resubmitted blindly — a second submission of a document ZATCA already
+   * holds is a duplicate invoice, not a retry.
+   *
+   * 🔴 S2: "reconciliation" here means **a human checks the Fatoora portal**.
+   * It does not mean asking ZATCA, and it never did: **ZATCA's API exposes no
+   * invoice-status or query endpoint** (Compliance CSID, Production CSID,
+   * Clearance and Reporting are the whole surface). An ambiguous row lands in
+   * `needs_review` and waits for a person. Correct under the constraint — but
+   * earlier comments described an automated query that does not and cannot
+   * exist, which is the same disease as a schema with no consumer.
    */
   async reclaimStale(olderThanSeconds: number): Promise<number> {
     const { rowCount } = await pool.query(
