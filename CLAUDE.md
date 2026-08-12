@@ -121,6 +121,29 @@ someone's guess.
 The one constraint that IS real and recorded: **AI proposes, it never posts**
 (§5.6). That governs the AI Hub whatever it turns out to contain.
 
+### Context that changes the risk calculus: THERE ARE NO CUSTOMERS YET
+
+Confirmed by the owner, 2026-08-12. Nothing is in production and no tenant
+depends on this platform.
+
+**What that makes cheap right now, and expensive later:** schema changes,
+breaking API changes, renaming things, changing defaults, reversing a decision.
+There is no migration burden, no support load, and no one to notify.
+
+**Concretely:** M13's release note about historical income statements changing is
+correct and worth keeping, but it currently has **no audience** — it is written
+for the first customer, not for an existing one. Do not let it imply caution that
+is not yet required.
+
+**What it does NOT excuse:** correctness in anything that will be hard to
+retrofit — tenant isolation, the ZATCA chain, audit trails, append-only
+guarantees, the fail-closed posture. Those are cheap now precisely because
+nobody depends on them, which is the argument for getting them right *now*
+rather than for deferring them.
+
+**Revisit when the first tenant onboards.** At that point this note becomes
+false and several decisions it makes cheap become expensive.
+
 ### Two standing rules earned the hard way
 
 1. **[Six instances] Correct is not connected.** Before recording a milestone
@@ -1924,9 +1947,26 @@ does not prove it can read a QR produced by **Qoyod, Wafeq, ClearTax, a POS
 terminal, or any of the other ZATCA solutions our customers' suppliers actually
 use** — which is the entire job of the decode path.
 
-That is exactly finding #6 again: a green result whose scope is narrower than it
-appears. There it was a compliance endpoint standing in for a submission
-endpoint; here it is our encoder standing in for the Kingdom's.
+🔴 **This is the SECOND time a test suite has proven a narrower claim than its
+name implied**, and the pattern is worth naming on its own:
+
+| | Suite | Name implies | Actually proved |
+| --- | --- | --- | --- |
+| **#6** | ZATCA compliance tests | our documents are accepted by ZATCA | our documents pass the **onboarding/validation** endpoint. **Submission was never called.** |
+| **#9** | TLV codec tests | our decoder reads ZATCA QR codes | our decoder reads **our own encoder's output**. No third party's QR was ever decoded. |
+
+Both are green, both are honest about what they run, and both were **read as
+covering more than they do** — because the suite's *name* describes the
+capability while its *fixtures* describe something narrower.
+
+> **The habit: read a test suite's name as a CLAIM, then ask what would have to
+> be true for the claim to hold, and check the fixtures supply it.** "Our decoder
+> reads supplier QR codes" requires a supplier's QR code. "Our documents are
+> accepted by ZATCA" requires the endpoint that accepts documents. If the
+> fixtures are ours, the claim is about us.
+
+Related to the standing check's part 4 (record which endpoint produced a live
+result) — this is the same idea applied to fixtures rather than to endpoints.
 
 **Why it is not alarming, and why it still matters.** The TLV format is simple
 and settled, and our encoder was itself validated against live ZATCA responses —
