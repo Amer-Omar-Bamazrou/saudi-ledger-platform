@@ -11,4 +11,11 @@ export interface TransactionUpload {
   rows: TransactionInput[];
   /** @nullable */
   autoCategrize?: boolean | null;
+  /**
+     * M16.2 — which bank account this statement belongs to. Scopes
+     * duplicate detection to the account and is the foundation for
+     * transfer-leg pairing. Validated against the tenant's own accounts.
+     * @nullable
+     */
+  bankAccountId?: number | null;
 }

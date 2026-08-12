@@ -97,7 +97,10 @@ export const transactionsRepository = {
       .where(
         and(
           eq(transactionsTable.reviewStatus, "pending_review"),
-          isNotNull(transactionsTable.categoryId),
+          // M16.2: a TRANSFER carries no category by design — the kind IS the
+          // classification — so a confident transfer is bulk-safe alongside
+          // categorized rows. Everything else still needs a category.
+          or(isNotNull(transactionsTable.categoryId), eq(transactionsTable.kind, "transfer")),
           or(
             eq(transactionsTable.isManuallyOverridden, true),
             sql`${transactionsTable.confidenceScore}::numeric >= ${String(opts.minConfidence)}`,
@@ -119,7 +122,19 @@ export const transactionsRepository = {
       .limit(limit);
   },
 
-  async existsIdentical(v: { date: string; description: string; amount: string; type: string }): Promise<boolean> {
+  async existsIdentical(v: {
+    date: string;
+    description: string;
+    amount: string;
+    type: string;
+    /**
+     * M16.2 — duplicates are scoped to the ACCOUNT (null-safe): the same salary
+     * paid from two accounts is two real transactions; the duplicate case is a
+     * statement re-uploaded against its own account. `IS NOT DISTINCT FROM`
+     * keeps pre-M16.2 (accountless) uploads deduplicating against each other.
+     */
+    bankAccountId: number | null;
+  }): Promise<boolean> {
     const [row] = await db
       .select({ id: transactionsTable.id })
       .from(transactionsTable)
@@ -129,6 +144,7 @@ export const transactionsRepository = {
           eq(transactionsTable.description, v.description),
           eq(transactionsTable.amount, v.amount),
           eq(transactionsTable.type, v.type),
+          sql`${transactionsTable.bankAccountId} IS NOT DISTINCT FROM ${v.bankAccountId}`,
         ),
       )
       .limit(1);

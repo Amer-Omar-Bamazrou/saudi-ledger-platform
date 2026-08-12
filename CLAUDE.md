@@ -144,7 +144,7 @@ rather than for deferring them.
 **Revisit when the first tenant onboards.** At that point this note becomes
 false and several decisions it makes cheap become expensive.
 
-### Two standing rules earned the hard way
+### Three standing rules earned the hard way
 
 1. **[Six instances] Correct is not connected.** Before recording a milestone
    done, verify every capability has a production **caller**, every field a
@@ -153,6 +153,15 @@ false and several decisions it makes cheap become expensive.
    endpoint that produced it and what that endpoint attests**.
 2. **Validate from real ledger rows.** Fixtures test the code you wrote; only
    real rows test the code you forgot to write.
+3. **Re-run the LIVE VERIFICATION PASS at the end of every milestone touching
+   the ingestion/tax path (owner-mandated for all of M16; keep it beyond).**
+   Same fixture, live path (real HTTP → engine → Postgres), OBSERVED values —
+   not test results. The M15 pass proved why: the VAT arithmetic was fixed and
+   test-verified, and the live path still recorded SAR 260.87 of phantom input
+   VAT on an ATM withdrawal, because a different rule (bare bank-name match)
+   produced the same wrong outcome through a path no test asserted. A fix
+   verified by tests can still be wrong in the live path; only observing the
+   live path shows the composed behaviour.
 
 ---
 

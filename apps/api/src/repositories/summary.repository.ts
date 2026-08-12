@@ -10,6 +10,18 @@ import { db, transactionsTable, categoriesTable } from "@workspace/db";
  * M10.3/10.4 standard.
  */
 export const acceptedOnly = () => eq(transactionsTable.reviewStatus, "accepted");
+/**
+ * M16.2 — only OPERATING rows reach income, expense, VAT, Zakat, per-category
+ * and budget aggregates. A `transfer` (ATM withdrawal, own-account move,
+ * credit-card settlement) is an asset movement — money changing pockets — and a
+ * `settlement` (M16.3) re-collects income already recognised at issuance.
+ * Neither may appear in a P&L-type or tax figure. Both remain visible in the
+ * transaction list and in CASH FLOW, which deliberately does NOT take this
+ * filter: the bank balance genuinely moved.
+ */
+export const operatingOnly = () => eq(transactionsTable.kind, "operating");
+/** The standard gate for every tax-facing reader: accepted AND operating. */
+export const taxVisible = () => and(acceptedOnly(), operatingOnly())!;
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 export interface DateRange {
@@ -19,8 +31,7 @@ export interface DateRange {
 
 export const summaryRepository = {
   summaryRows(range: DateRange) {
-    const conditions = [acceptedOnly()];
-    conditions.push(acceptedOnly());
+    const conditions = [taxVisible()];
     if (range.dateFrom) conditions.push(gte(transactionsTable.date, range.dateFrom));
     if (range.dateTo) conditions.push(lte(transactionsTable.date, range.dateTo));
     return db
@@ -35,7 +46,7 @@ export const summaryRepository = {
   },
 
   vatRows(range: DateRange) {
-    const conditions = [isNotNull(transactionsTable.vatAmount), acceptedOnly()];
+    const conditions = [isNotNull(transactionsTable.vatAmount), taxVisible()];
     if (range.dateFrom) conditions.push(gte(transactionsTable.date, range.dateFrom));
     if (range.dateTo) conditions.push(lte(transactionsTable.date, range.dateTo));
     return db.select().from(transactionsTable).where(and(...conditions)).orderBy(transactionsTable.date);
@@ -46,12 +57,12 @@ export const summaryRepository = {
       .select({ tx: transactionsTable, cat: categoriesTable })
       .from(transactionsTable)
       .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
-      .where(and(eq(transactionsTable.isZakatRelevant, true), acceptedOnly()))
+      .where(and(eq(transactionsTable.isZakatRelevant, true), taxVisible()))
       .orderBy(transactionsTable.date);
   },
 
   byCategoryRows(range: DateRange) {
-    const conditions = [isNotNull(transactionsTable.categoryId), acceptedOnly()];
+    const conditions = [isNotNull(transactionsTable.categoryId), taxVisible()];
     if (range.dateFrom) conditions.push(gte(transactionsTable.date, range.dateFrom));
     if (range.dateTo) conditions.push(lte(transactionsTable.date, range.dateTo));
     return db

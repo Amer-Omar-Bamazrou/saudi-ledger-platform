@@ -178,7 +178,10 @@ export const reportsService = {
   },
 
   async cashFlow(date_from?: string, date_to?: string) {
-    const txs = await reportsRepository.txWithCategory(date_from, date_to);
+    // M16.2 — cash flow is the one reader that keeps transfers: an ATM
+    // withdrawal or own-account move genuinely changed the bank balance, even
+    // though no P&L or tax figure may see it.
+    const txs = await reportsRepository.txWithCategory(date_from, date_to, { includeNonOperating: true });
     let operating = 0, investing = 0, financing = 0;
     const operatingItems: any[] = [], investingItems: any[] = [], financingItems: any[] = [];
     for (const { tx, cat } of txs) {

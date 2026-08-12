@@ -218,6 +218,13 @@
       "when": 1786500446612,
       "tag": "0030_m15_transaction_review_status",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786538399475,
+      "tag": "0031_m16_2_kind_treatment_account",
+      "breakpoints": true
     }
   ]
 }

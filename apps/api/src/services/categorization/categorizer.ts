@@ -29,6 +29,14 @@ export interface CategorizationMatch {
   vatApplicable: boolean;
   isZakatRelevant: boolean;
   suggestedVatRate: number | null; // 15 for standard, 0 for exempt, null for unknown
+  /**
+   * M16.2 — set to "transfer" when this movement is money between the
+   * business's own pockets (ATM withdrawal, own-account move, credit-card
+   * settlement). A transfer carries NO category and NO VAT: the classification
+   * IS the kind, and consumers must branch on it BEFORE touching systemCode
+   * (which is a display label for transfers, never resolved against the chart).
+   */
+  kind?: "transfer";
 }
 
 export interface SeedCategory {
@@ -371,6 +379,41 @@ interface CategorizationRule {
   suggestedVatRate: number | null;
 }
 
+/**
+ * M16.2 — transfer detection (design Q2). A SEPARATE list, deliberately outside
+ * `CATEGORIZATION_RULES`: `allEngineCodes()` derives from that list and every
+ * code there must resolve to a chart category — a transfer resolves to nothing,
+ * because the classification is the KIND, not a category.
+ *
+ * Every pattern requires an own-money signal. Bank and gateway names are NOT
+ * signals (they say who processed it); "TRANSFER" alone is not a signal (it
+ * could be a supplier payment).
+ */
+const TRANSFER_RULES: Array<{ patterns: RegExp[]; confidence: number; ruleName: string }> = [
+  {
+    patterns: [/atm.*(withdrawal|cash)/i, /cash\s*withdrawal/i, /سحب\s*نقدي/, /سحب\s*صراف/],
+    confidence: 0.92,
+    ruleName: "ATM / cash withdrawal",
+  },
+  {
+    patterns: [
+      /own\s*account/i,
+      /between\s*(own|my)\s*accounts/i,
+      /internal\s*transfer/i,
+      /account\s*to\s*account/i,
+      /تحويل\s*بين\s*حساب/,
+      /تحويل\s*داخلي/,
+    ],
+    confidence: 0.9,
+    ruleName: "Own-account transfer",
+  },
+  {
+    patterns: [/credit\s*card\s*(payment|settlement|bill)/i, /سداد\s*بطاقة/],
+    confidence: 0.85,
+    ruleName: "Credit-card settlement",
+  },
+];
+
 const CATEGORIZATION_RULES: CategorizationRule[] = [
   // ── GOVERNMENT & REGULATORY ──────────────────────────────────────────
   {
@@ -440,53 +483,46 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   },
 
   // ── BANKING & FINANCIAL CHARGES ───────────────────────────────────────
+  //
+  // 🔴 M16.2 — A FEE-WORD IS REQUIRED. This rule used to match BARE BANK NAMES
+  // (\bANB\b, \bAl.?Rajhi\b, \bSADAD\b, …) at 0.90 — but a bank's name in a
+  // descriptor says WHO PROCESSED the movement, not what it was. Almost every
+  // transfer, withdrawal and SADAD bill payment names a bank, so the rule
+  // confidently booked cash movements as fee expenses carrying phantom VAT.
+  // The live-path verification caught it: "ATM CASH WITHDRAWAL - ANB…" →
+  // Bank Charges 0.90 + SAR 260.87 of input VAT that does not exist, swept
+  // into the accepted figures by bulk accept. A bank CHARGE is the fee line
+  // the bank writes — charge/fee/commission/رسوم/عمولة — and only that.
   {
     patterns: [
-      /\bSNB\b/,
-      /\bAl.?Rajhi\b/i,
-      /\bالراجحي\b/,
-      /\bRiyad.*Bank\b/i,
-      /\bبنك.*الرياض\b/,
-      /\bSAMBA\b/i,
-      /\bANB\b/,
-      /\bArab.*National.*Bank\b/i,
-      /\bBSF\b/,
-      /\bBanque.*Saudi.*Fransi\b/i,
-      /\bGIB\b/,
-      /\bAlinma\b/i,
-      /\bأمانة.*بنك\b/,
-      /\bSADIO\b/i,
       /bank.*(charge|fee|commission)/i,
+      /(SNB|Al.?Rajhi|الراجحي|Riyad.*Bank|SAMBA|ANB|BSF|GIB|Alinma|SAIB).*(charge|fee|commission)/i,
       /transfer.*fee/i,
       /wire.*fee/i,
-      /رسوم.*تحويل/,
-      /\bSADAD\b/i,
-      /\bCLIQ\b/i,
-      /\bAPACS\b/i,
+      /\bATM.*fee/i,
+      /(account|maintenance|service).*fee/i,
+      /\bSADAD.*(fee|رسوم)/i,
+      /رسوم.*(تحويل|بنكية|خدمة|حساب|إدارية)/,
+      /عمولة/,
     ],
     systemCode: "BANK_CHARGES",
     confidence: 0.9,
-    ruleName: "Saudi bank / bank charge",
+    ruleName: "Bank fee/charge (fee-word required)",
     vatApplicable: true,
     isZakatRelevant: false,
     suggestedVatRate: 15,
   },
+  // Same correction for fintech: a bare gateway name (STCPay, Tamara, Tabby…)
+  // is most often the SETTLEMENT DEPOSIT of card sales — money arriving, i.e.
+  // revenue, the exact opposite of a fee expense. Only the gateway's FEE line
+  // is a bank charge.
   {
     patterns: [
-      /\bSTCPay\b/i,
-      /\bSTC.*Pay\b/i,
-      /\bUrpay\b/i,
-      /\bPayTabs\b/i,
-      /\bHyperPay\b/i,
-      /\bMyFatoorah\b/i,
-      /\bTamara\b/i,
-      /\bTabby\b/i,
-      /\bStc.*transfer\b/i,
-      /\bإيداع.*تحويل\b/,
+      /(STC.?Pay|Urpay|PayTabs|HyperPay|MyFatoorah|Tamara|Tabby|Geidea|mada).*(charge|fee|commission|رسوم|عمولة)/i,
     ],
     systemCode: "BANK_CHARGES",
     confidence: 0.88,
-    ruleName: "Saudi payment gateway / fintech",
+    ruleName: "Payment-gateway fee (fee-word required)",
     vatApplicable: true,
     isZakatRelevant: false,
     suggestedVatRate: 15,
@@ -991,6 +1027,33 @@ export function categorizeTransaction(
 ): CategorizationMatch | null {
   const combinedText = [description, descriptionAr ?? ""].join(" ");
   const normalizedText = combinedText.normalize("NFKC");
+
+  // ── M16.2: TRANSFERS FIRST — before any category rule can claim the row ───
+  //
+  // An ATM withdrawal, an own-account move or a credit-card settlement is
+  // money changing pockets, not income or expense. Pre-M16.2 the withdrawal
+  // reached the bank-name rule and was booked as a Bank Charges EXPENSE with
+  // extracted VAT — an active wrong tax figure on the default path. Checked
+  // first so no category rule (however confident) can claim an asset movement.
+  //
+  // 🔴 A bare "TRANSFER" is deliberately NOT here: with no own-account signal
+  // it could equally be a supplier payment. It stays NULL (unknown) — leniency
+  // never means guessing (the M15 rule).
+  for (const rule of TRANSFER_RULES) {
+    if (rule.patterns.some((p) => p.test(normalizedText))) {
+      return {
+        kind: "transfer",
+        systemCode: "TRANSFER", // display label only — never resolved to a category
+        categoryName: "Internal Transfer",
+        categoryNameAr: "تحويل داخلي",
+        confidence: rule.confidence,
+        matchedRule: rule.ruleName,
+        vatApplicable: false,
+        isZakatRelevant: false,
+        suggestedVatRate: 0,
+      };
+    }
+  }
 
   // ── Salary heuristic — DEBITS ONLY (M15 fix) ──────────────────────────────
   // This fired on CREDITS: money coming IN. For a business account payroll is a
