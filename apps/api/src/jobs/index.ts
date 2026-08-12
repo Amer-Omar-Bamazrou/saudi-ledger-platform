@@ -13,12 +13,14 @@ import { resolveProvider } from "../services/einvoice/zatca/zatcaDirectProvider"
 import { archiveService } from "../services/einvoice/archive/archive.service";
 import { renewalService } from "../services/einvoice/renewal/renewal.service";
 import { capturePromotionService } from "../services/capture/promotion.service";
+import { recurringGenerationService } from "../services/recurring/generation.service";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
 export const JOB_RENEWAL = "zatca-renewal-reminders";
 export const JOB_CAPTURE_PROMOTION = "capture-promotion";
 export const JOB_CAPTURE_PURGE = "capture-purge";
+export const JOB_RECURRING = "recurring-documents";
 
 let scheduler: JobScheduler | null = null;
 
@@ -60,6 +62,15 @@ export function buildScheduler(): JobScheduler {
       name: JOB_CAPTURE_PROMOTION,
       intervalMs: 60_000,
       runOnce: () => capturePromotionService.runOnce(),
+    },
+    {
+      // A3: turns due recurring rules into DRAFTS. Daily — occurrences are
+      // dated, not timed, so running more often would only re-check the same
+      // dates. Each occurrence is claimed by a unique index, so a second
+      // instance cannot double-generate.
+      name: JOB_RECURRING,
+      intervalMs: 24 * 60 * 60_000,
+      runOnce: () => recurringGenerationService.runOnce(),
     },
     {
       // A1: removes abandoned captures. Never touches anything posted to a

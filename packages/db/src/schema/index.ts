@@ -16,6 +16,7 @@ export * from "./periodLocks";
 export * from "./einvoiceDocuments";
 export * from "./einvoiceArchive";
 export * from "./capturedDocuments";
+export * from "./recurring";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)
 export * from "./organizations";

@@ -95,6 +95,16 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // Categorization proposal (POST only).
   categorize: { create: WRITE },
 
+  /**
+   * Recurring rules (A3). Create/update at WRITE level — a rule produces
+   * DRAFTS, so setting one up is the same authority as typing the invoice by
+   * hand, and a bookkeeper may do it. The draft still needs an approver.
+   *
+   * DELETE is admin-only: removing a rule silently stops a customer being
+   * billed, and that is a quieter failure than creating one.
+   */
+  recurring: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
+
   // Period locks: viewing is open; locking (create) and unlocking (delete) are
   // admin-only — stricter than generic writes, preserved from pre-M5.
   period_locks: { read: READ_ALL, create: ADMIN_ONLY, delete: ADMIN_ONLY },

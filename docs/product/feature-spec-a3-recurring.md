@@ -1,6 +1,6 @@
 # A3 — Recurring documents (DESIGN)
 
-**Status: specced, not built. Present for approval.**
+**Status: ✅ BUILT (drafts-only, as decided). Backend complete; UI is the remaining piece — see §8.**
 
 The second half of the wedge. A1 removed typing on the **purchase** side; A3
 removes it on the **sales** side — rent, retainers, subscriptions. *"I stopped

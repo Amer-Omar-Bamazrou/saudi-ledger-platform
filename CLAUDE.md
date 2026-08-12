@@ -1865,6 +1865,44 @@ as done:**
 >    shape you searched for and whether it is the only shape that capability
 >    could take — *(finding #7, which is one of MINE)*.
 
+### 🔴 NAMED LESSON: AN ACT ABOUT A DOCUMENT IS NOT AN ACT ABOUT A PATTERN
+
+Decided in A3, and it resolves an argument that looked settled by precedent.
+
+M10.4 established **self-approve-on-create**: a user with `approve` authority who
+creates an invoice issues it immediately, because the act of creation by an
+authorised person *is* the approval. By analogy, a recurring rule written by that
+same person should carry the same authority to every invoice it generates.
+
+**The analogy fails, and the reason is worth keeping:**
+
+> **Self-approve works because the approver is LOOKING AT THE SPECIFIC DOCUMENT.**
+> Creating an invoice is an act about *that invoice* — its amount, its customer,
+> its date, all visible at the moment of consent. Creating a rule is an act about
+> a **pattern**, and patterns drift: the customer cancels, the price changes, the
+> tax treatment changes, the person who wrote the rule leaves. Consent given to a
+> pattern in January is not consent to what that pattern produces in November.
+
+The cost of being wrong decides it here. Approval fires issuance: an ICV
+consumed, a position taken in the ZATCA hash chain, a QR minted, AR posted, a
+submission queued. **None of it reversible** — correction requires a credit note,
+a second legal document in the same chain.
+
+So A3 generates **drafts only**. Auto-issue is deferred, and the asymmetry is the
+argument: deferring costs one boolean; a bad unattended issuance costs a credit
+note and a permanent chain entry.
+
+**Where else this applies:** any feature where a user authorises a *rule*,
+*template*, *policy* or *schedule* rather than an instance — approval routing,
+auto-categorisation that posts, bank-feed auto-acceptance (A2). Ask whether the
+consent was given to a thing the user could see.
+
+**And the invariant that survives regardless** (borrowed from M11.7's
+invitations): **a rule may never grant authority its creator does not hold**, and
+that authority is **re-checked at generation, never stored**. A rule is not a
+credential. Built in A3 even though nothing uses it yet, so that when auto-issue
+ships the check already exists rather than needing to be remembered.
+
 ### 🔴 NAMED LESSON: PARTIAL DATA IS NOT LENIENT DATA — it is a wrong answer
 
 Found in A1's TLV decoder, and it generalises far beyond TLV.
@@ -1932,6 +1970,33 @@ implementation shapes X could take — server endpoint, client-side library, bui
 step, third-party call, database trigger — and confirm the search covered them.
 One extra grep (`package.json` dependencies would have shown `tesseract.js`
 immediately).
+
+### 🔴 FINDING #10 — "skips a locked period": wrong on mechanism AND on principle
+
+Written into the automation spec, and repeated, before A3's design checked it.
+
+**Wrong on mechanism.** A rule cannot "skip" a locked period, because it cannot
+get that far: `invoicesService.create` already calls `checkPeriodOpen`, so
+creating even a **draft** dated into a closed period throws. The guard predates
+A3. The spec described behaviour the code makes unreachable.
+
+**Wrong on principle, which matters more.** Even if skipping were possible it
+would be the wrong choice: a skipped recurring invoice means **a customer was not
+billed, and nothing says so.** That is the quiet-neglect shape this project keeps
+naming — and it is **worse than the ZATCA outbox case**, because an unsubmitted
+invoice eventually draws a complaint from ZATCA, whereas an unsent invoice has
+**no external party who will ever notice**. The only person who could catch it is
+the one who automated it precisely so they would stop watching.
+
+**How it got written twice:** "skip" sounds tolerant, and tolerant sounds safe.
+The check that would have caught it is asking *who finds out?* — the same question
+behind the alerting requirements (B2) and the truncation lesson. Silence is not a
+neutral outcome; it is a choice about who bears the cost of a failure.
+
+Corrected: the run **fails**, records `period_locked`, and is surfaced in a
+per-rule run history. Re-dating into the next open period was also rejected — it
+moves revenue between VAT periods, which is a tax decision a job must not make
+quietly.
 
 ### 🔴 FINDING #9 — the QR decoder has never read a REAL supplier invoice
 
