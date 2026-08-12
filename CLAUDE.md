@@ -2013,6 +2013,43 @@ step, third-party call, database trigger — and confirm the search covered them
 One extra grep (`package.json` dependencies would have shown `tesseract.js`
 immediately).
 
+### 🔴 FINDING #11 — the page named "VAT Report" was fed by the WEAKER of two VAT sources
+
+**Found preparing the M16 design (2026-08-12), fixed in M16.1 — and it is the
+most consequential instance of the narrower-claim family yet, because unlike
+the others, a user would have FILED from it.**
+
+The product computed VAT two ways:
+
+| Source | Computed from | Treatment-aware? | UI consumer (pre-M16.1) |
+| --- | --- | --- | --- |
+| `reports.vatReturn` | **invoices + bills** — the legal documents: S/Z/E/O per line (M12.1a), credit-note direction (M12.1b), box-structured | ✅ | **NONE** — routed at `/reports/vat-return`, consumed by nothing, absent from the OpenAPI spec |
+| `summary.getVat` | **transactions** — a bank-line guess with no treatment concept | ❌ | the page **literally titled "ZATCA VAT Return"** |
+
+The carefully-built correct source was unreachable from the UI; the guessed
+figure wore the filing page's name. And note what that means about M12.1a and
+M12.1b: **the S/Z/E/O work and the credit-note direction work were built,
+tested, protected by `documentSign()` — and then never surfaced.** That is the
+shape-without-a-consumer pattern applied to a whole report, and it survived
+because the report's *endpoint* existed: every grep for "is the VAT return
+built?" answered yes.
+
+**The fix (M16.1, per design Q0 — decided by the owner):** documents FILE,
+transactions RECONCILE. `VatReport.tsx` renders the box-structured
+`reports.vatReturn` (now in the OpenAPI spec with a generated hook); the
+transaction-derived figure stays visible **beside** it as a reconciliation —
+"VAT per your documents" vs "VAT per your bank activity", gap itemised. The gap
+is a feature: undocumented cash activity shown to an SME *before* filing.
+`tests/vat-return-http.test.ts` pins both halves **over real HTTP** (the
+finding was about reachability, so the test must reach): the return serves the
+box structure, a VAT-carrying bank transaction moves *nothing* on it, and the
+same transaction *does* appear on the reconciliation side.
+
+**The habit this adds:** a report is not done when its endpoint returns the
+right shape — ask **which page renders it**, and if two sources answer the same
+user question, ask **which one the user actually sees**. Full design (all
+questions decided): [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md).
+
 ### 🔴 FINDING #10 — "skips a locked period": wrong on mechanism AND on principle
 
 Written into the automation spec, and repeated, before A3's design checked it.
@@ -2061,6 +2098,7 @@ name implied**, and the pattern is worth naming on its own:
 | --- | --- | --- | --- |
 | **#6** | ZATCA compliance tests | our documents are accepted by ZATCA | our documents pass the **onboarding/validation** endpoint. **Submission was never called.** |
 | **#9** | TLV codec tests | our decoder reads ZATCA QR codes | our decoder reads **our own encoder's output**. No third party's QR was ever decoded. |
+| **#11** | the "ZATCA VAT Return" page | shows the VAT return | showed the **transaction-derived guess**, while the real box-structured return was routed and consumed by nothing. The worst of the family: a user would have **filed** from it. |
 
 Both are green, both are honest about what they run, and both were **read as
 covering more than they do** — because the suite's *name* describes the

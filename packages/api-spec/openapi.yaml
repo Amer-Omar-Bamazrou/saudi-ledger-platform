@@ -388,6 +388,38 @@ paths:
                 items:
                   $ref: "#/components/schemas/CategoryBreakdown"
 
+  /reports/vat-return:
+    get:
+      operationId: getVatReturn
+      tags: [reports]
+      summary: Get the VAT return (filing view, from invoices and bills)
+      description: |
+        The FILING source (M16.1 / design Q0): computed from invoices and
+        bills — the legal documents — with per-line tax treatment (M12.1a) and
+        credit-note direction (M12.1b) applied. The transaction-derived
+        `/summary/vat` figure is the RECONCILIATION view beside this, never the
+        filing source.
+      parameters:
+        - name: period_from
+          in: query
+          description: "Filing period start, YYYY-MM"
+          schema:
+            type: ["string", "null"]
+            pattern: "^\\d{4}-\\d{2}$"
+        - name: period_to
+          in: query
+          description: "Filing period end, YYYY-MM"
+          schema:
+            type: ["string", "null"]
+            pattern: "^\\d{4}-\\d{2}$"
+      responses:
+        "200":
+          description: Box-structured VAT return
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VatReturn"
+
   /journal-entries/{id}/approve:
     post:
       operationId: approveJournalEntry
@@ -1349,6 +1381,76 @@ components:
           type: integer
         uncategorizedCount:
           type: integer
+
+    VatReturn:
+      type: object
+      required:
+        [period, salesSection, purchasesSection, netVatDue, vatPayable, vatRefund, invoiceCount, billCount]
+      properties:
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string }
+            to: { type: string }
+        salesSection:
+          $ref: "#/components/schemas/VatReturnSalesSection"
+        purchasesSection:
+          $ref: "#/components/schemas/VatReturnPurchasesSection"
+        netVatDue:
+          type: number
+        vatPayable:
+          type: number
+        vatRefund:
+          type: number
+        invoiceCount:
+          type: integer
+        billCount:
+          type: integer
+
+    VatReturnSalesSection:
+      type: object
+      required:
+        [
+          box1_standardRatedDomesticSales,
+          box2_zeroRatedDomesticSales,
+          box3_exemptSales,
+          box4_exportSales,
+          box5_totalSales,
+          box6_vatOnStandardRatedSales,
+          box7_vatAdjustments,
+          box8_totalOutputVat,
+        ]
+      properties:
+        box1_standardRatedDomesticSales: { type: number }
+        box2_zeroRatedDomesticSales: { type: number }
+        box3_exemptSales: { type: number }
+        box4_exportSales: { type: number }
+        box5_totalSales: { type: number }
+        box6_vatOnStandardRatedSales: { type: number }
+        box7_vatAdjustments: { type: number }
+        box8_totalOutputVat: { type: number }
+
+    VatReturnPurchasesSection:
+      type: object
+      required:
+        [
+          box9_standardRatedPurchases,
+          box10_zeroRatedPurchases,
+          box11_exemptPurchases,
+          box12_totalPurchases,
+          box13_recoverableInputVat,
+          box14_inputVatAdjustments,
+          box15_totalInputVat,
+        ]
+      properties:
+        box9_standardRatedPurchases: { type: number }
+        box10_zeroRatedPurchases: { type: number }
+        box11_exemptPurchases: { type: number }
+        box12_totalPurchases: { type: number }
+        box13_recoverableInputVat: { type: number }
+        box14_inputVatAdjustments: { type: number }
+        box15_totalInputVat: { type: number }
 
     VatSummary:
       type: object

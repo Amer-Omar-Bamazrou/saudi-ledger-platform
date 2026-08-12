@@ -32,6 +32,7 @@ import type {
   FinancialSummary,
   GetSummaryByCategoryParams,
   GetSummaryParams,
+  GetVatReturnParams,
   GetVatSummaryParams,
   HealthStatus,
   Invoice,
@@ -46,6 +47,7 @@ import type {
   TransactionUpload,
   UpdateCompanyInput,
   UploadResult,
+  VatReturn,
   VatSummary,
   ZakatSummary,
   ZatcaOnboardInput,
@@ -1436,6 +1438,95 @@ export function useGetSummaryByCategory<TData = Awaited<ReturnType<typeof getSum
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSummaryByCategoryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVatReturnUrl = (params?: GetVatReturnParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/vat-return?${stringifiedParams}` : `/api/reports/vat-return`
+}
+
+/**
+ * The FILING source (M16.1 / design Q0): computed from invoices and
+ * bills — the legal documents — with per-line tax treatment (M12.1a) and
+ * credit-note direction (M12.1b) applied. The transaction-derived
+ * `/summary/vat` figure is the RECONCILIATION view beside this, never the
+ * filing source.
+ * @summary Get the VAT return (filing view, from invoices and bills)
+ */
+export const getVatReturn = async (params?: GetVatReturnParams, options?: RequestInit): Promise<VatReturn> => {
+
+  return customFetch<VatReturn>(getGetVatReturnUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVatReturnQueryKey = (params?: GetVatReturnParams,) => {
+    return [
+    `/api/reports/vat-return`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVatReturnQueryOptions = <TData = Awaited<ReturnType<typeof getVatReturn>>, TError = ErrorType<unknown>>(params?: GetVatReturnParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVatReturn>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVatReturnQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVatReturn>>> = ({ signal }) => getVatReturn(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVatReturn>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVatReturnQueryResult = NonNullable<Awaited<ReturnType<typeof getVatReturn>>>
+export type GetVatReturnQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the VAT return (filing view, from invoices and bills)
+ */
+
+export function useGetVatReturn<TData = Awaited<ReturnType<typeof getVatReturn>>, TError = ErrorType<unknown>>(
+ params?: GetVatReturnParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVatReturn>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVatReturnQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
