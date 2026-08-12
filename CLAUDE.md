@@ -66,7 +66,10 @@ onboard a real tenant to production before both have actually run.
 Nothing here blocks ordinary platform work; all of it blocks onboarding a real
 taxpayer. Full detail in the consolidated queue later in this file.
 
-- **B — BLOCKING for ZATCA (2 items).** Both halves of *a reminder that reaches
+- **B — BLOCKING (3 items).** **B3** is new and is *not* a ZATCA item: staged
+  captures cannot be deleted on a cloud backend, which is the **PDPL problem in
+  concrete form** — B3, C7 and C8 are one question in three parts and must be
+  worked together. The other two are both halves of *a reminder that reaches
   nobody*: **B1** email delivery (`mailer` is still a no-op, so renewal reminders
   are sent to no one — and their whole value is lead time for an action only the
   tenant can take); **B2** real alerting (visibility is not alerting — the
@@ -1907,6 +1910,38 @@ step, third-party call, database trigger — and confirm the search covered them
 One extra grep (`package.json` dependencies would have shown `tesseract.js`
 immediately).
 
+### 🔴 FINDING #9 — the QR decoder has never read a REAL supplier invoice
+
+**Found at A1 close-out, and it is finding #6's shape in a new place.**
+
+The TLV codec is well tested: 10 cases covering Arabic multi-byte names, raw-byte
+tags 8/9, truncation, unknown tags, rubbish input. Twelve more cover capture,
+verification and promotion. **Every single payload in all of them was encoded by
+`tlv()` — our own encoder.**
+
+So what the suite proves is that **our codec round-trips our own output.** It
+does not prove it can read a QR produced by **Qoyod, Wafeq, ClearTax, a POS
+terminal, or any of the other ZATCA solutions our customers' suppliers actually
+use** — which is the entire job of the decode path.
+
+That is exactly finding #6 again: a green result whose scope is narrower than it
+appears. There it was a compliance endpoint standing in for a submission
+endpoint; here it is our encoder standing in for the Kingdom's.
+
+**Why it is not alarming, and why it still matters.** The TLV format is simple
+and settled, and our encoder was itself validated against live ZATCA responses —
+so the risk is not that the format is wrong. The risk is in the **edges another
+implementation will produce and ours never does**: tag ordering, optional tags,
+padding, whitespace, a Phase 1 QR from a POS that pads fields, a vendor writing
+tag 3 in a different timestamp shape (divergence #13's territory).
+
+**The cheap fix, and it should happen before OCR work or A2:** photograph half a
+dozen real supplier invoices from different Saudi vendors, run them through
+`readZatcaQr`, and add the payloads as fixtures. A handful of real documents
+converts the wedge from "should work" to "does work" — and if a common vendor's
+output does not decode, that changes the roadmap rather than being discovered by
+a customer.
+
 ### 🔴 FINDING #8 — half a fix that read as a whole one (also mine)
 
 **What happened.** M14 scoped `claimDue` by organization so parallel test suites
@@ -2348,12 +2383,13 @@ it expected. The other two symptoms (`list()` showing another company's locks,
 created) are visible and annoying; this one is invisible and destroys the
 integrity of a closed period.
 
-**B. 🔴 BLOCKING for ZATCA — a reminder that reaches nobody:**
+**B. 🔴 BLOCKING — two ZATCA items (a reminder that reaches nobody) and one privacy/retention item:**
 
 | # | Item | Why it blocks |
 | --- | --- | --- |
 | **B1** | **EMAIL DELIVERY — a hard prerequisite, not polish.** `lib/mailer.ts` is still `noopMailer` (logs, returns `delivered: false`). Implement `send` and swap the export; nothing else changes. Options: **AWS SES** (~$0.10/1,000 emails, cheapest, most setup), **Resend** (free to 3,000/mo, then ~$20/mo), **Postmark** (~$15/mo, best deliverability). | The renewal reminder's **entire value is lead time for an action only the tenant can take** — a fresh CSR plus an OTP from THEIR Fatoora portal. Today the reminder exists as a row and in the UI, and **no message is sent to anyone**. A tenant who does not happen to open the app learns nothing, and at expiry signing stops dead: they cannot legally invoice. We cannot fix that for them after the fact. |
 | **B2** | **VISIBILITY IS NOT ALERTING.** M12.8 surfaces both alarms in the operator panel; **nothing pages a human.** Wire `listOverdue()` **and** `renewalService` to real alerting (PagerDuty/Opsgenie/webhook). | Both failures are **quiet neglect, not loud rejection** — the shared property that makes a dashboard the wrong instrument. A simplified invoice silently missing ZATCA's 24-hour reporting deadline looks like nothing is wrong (tenant fines from SAR 5,000); an expiring PCSID looks like nothing is wrong until it stops signing. A panel only helps someone already looking at it, and nobody looks at a panel that is usually green. |
+| **B3** | 🔴 **STAGED CAPTURES CANNOT BE DELETED ON CLOUD — blocking before any cloud deployment.** `ArchiveStore` has no `delete` by design (M12.8 — and it must stay that way: adding one would give every implementation the power to destroy a legally-retained invoice). So `stagingStore.remove` is **`local-fs` only**: on `supabase-storage` an abandoned capture's metadata row is purged and **its bytes remain forever**. Fix with a **separate deletable-staging interface**, never by weakening `ArchiveStore`. | **This is not housekeeping — it is the PDPL problem in concrete form.** Staging exists precisely so an abandoned photograph, which may contain a third party's personal data, does not become permanent. On cloud the mechanism does not deliver the thing it was built for. <br><br>🔴 **B3, C7 and C8 are ONE QUESTION IN THREE PARTS** and must be worked together: **C8** asks what privacy law requires (*must we be able to delete?*), **C7** asks what tax law requires (*must we keep?*), and **B3 is the TECHNICAL HALF of whatever C8 answers** — without it we could not honour an erasure obligation even having accepted one. Answering C8 alone leaves a policy we cannot implement. |
 
 **C. Verification and coverage gaps:**
 
@@ -2366,7 +2402,6 @@ integrity of a closed period.
 | C5 | **Fail-closed diagnosability** — confirm a blocked issuance surfaces an actionable message, not an opaque 500 | M12.8 behavioural decision above |
 | C6 | **Data residency / hosting region** — still open, now for the right reason (see the residency correction: ZATCA permits cloud; NCA/sector rules unverified). Choose the host and the KMS region together. | M12.0 / M12.8 |
 | C7 | 🔴 **TAX ADVICE NEEDED — retention of INBOUND supplier documents.** A1 retains captured supplier invoices to the same 6/11-year standard as outbound and sets `retain_until`. That is a **conservative default, not a settled reading of the obligation**: a supplier invoice is the evidence for an input-VAT deduction, and the asymmetry decides it — storage is capable either way, while not retaining and being wrong means the evidence is gone when ZATCA asks. Shortening a window later is easy; lengthening one retroactively is impossible. 🔴 **ANSWER TOGETHER WITH C8 — see the conflict note there.** | A1 (Q4) |
-| **C9** | 🔴 **Staged-capture purge is `local-fs` only (A1).** `ArchiveStore` has no `delete` by design, so `stagingStore.remove` is a no-op for `supabase-storage`: on a cloud deployment an abandoned capture's metadata row is purged and its bytes remain. **Close before any cloud deployment** — it is the C8/PDPL problem in concrete form, since an abandoned photograph that cannot be deleted is exactly what staging exists to avoid. Fix with a separate deletable-staging interface, **never** by adding `delete` to `ArchiveStore` (that would give every implementation the power to destroy a legally-retained invoice). | A1 |
 | **C8** | 🔴🔴 **PDPL (Saudi Personal Data Protection Law) — HIGHER PRIORITY THAN C7, AND MUST BE ANSWERED WITH IT.** A1 accepts **phone photographs**. Such a surface will eventually receive personal data — an ID card on the desk beside the receipt, a face in frame, a third party's document. PDPL gives data subjects **erasure rights**. "Immutable by design" is defensible for an invoice **we issued**; it is not obviously defensible for an accidental photograph **of a third party**.<br><br>🔴 **C7 AND C8 MAY CONFLICT AND MUST BE ANSWERED TOGETHER, BY THE SAME ADVISOR.** One asks *must we KEEP this document*; the other asks *must we be able to DELETE it*. **A resolution to either alone could be wrong** — retaining to satisfy C7 could breach C8, and deleting to satisfy C8 could destroy evidence C7 requires. Do not route them to different people, and do not answer them in sequence.<br><br>⚠️ **PDPL has NEVER been considered anywhere in this project**, so the question is **broader than document capture and must not be scoped to it**: `audit_logs` and `security_audit_logs` retain actor identity and IP addresses and are deliberately append-only; the e-invoice archive holds customer names and addresses for 6–11 years; `users`, `customers` and `employees` hold personal data under no retention policy at all. Whoever picks this up should scope it to the platform. **Not investigated — recorded so it is not underestimated.** | A1 |
 
 Re-check the hosted project's default privileges when it exists: they may differ
