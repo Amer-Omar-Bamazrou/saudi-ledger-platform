@@ -335,6 +335,43 @@ export interface FinancialSummary {
   uncategorizedCount: number;
 }
 
+export type VatReturnPeriod = {
+  from: string;
+  to: string;
+};
+
+export interface VatReturnSalesSection {
+  box1_standardRatedDomesticSales: number;
+  box2_zeroRatedDomesticSales: number;
+  box3_exemptSales: number;
+  box4_exportSales: number;
+  box5_totalSales: number;
+  box6_vatOnStandardRatedSales: number;
+  box7_vatAdjustments: number;
+  box8_totalOutputVat: number;
+}
+
+export interface VatReturnPurchasesSection {
+  box9_standardRatedPurchases: number;
+  box10_zeroRatedPurchases: number;
+  box11_exemptPurchases: number;
+  box12_totalPurchases: number;
+  box13_recoverableInputVat: number;
+  box14_inputVatAdjustments: number;
+  box15_totalInputVat: number;
+}
+
+export interface VatReturn {
+  period: VatReturnPeriod;
+  salesSection: VatReturnSalesSection;
+  purchasesSection: VatReturnPurchasesSection;
+  netVatDue: number;
+  vatPayable: number;
+  vatRefund: number;
+  invoiceCount: number;
+  billCount: number;
+}
+
 export interface VatTransaction {
   id: number;
   date: string;
@@ -657,5 +694,20 @@ date_from?: string | null;
  * @nullable
  */
 date_to?: string | null;
+};
+
+export type GetVatReturnParams = {
+/**
+ * Filing period start, YYYY-MM
+ * @nullable
+ * @pattern ^\d{4}-\d{2}$
+ */
+period_from?: string | null;
+/**
+ * Filing period end, YYYY-MM
+ * @nullable
+ * @pattern ^\d{4}-\d{2}$
+ */
+period_to?: string | null;
 };
 

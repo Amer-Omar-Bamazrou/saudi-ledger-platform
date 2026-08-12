@@ -496,6 +496,55 @@ export const GetSummaryByCategoryResponse = zod.array(GetSummaryByCategoryRespon
 
 
 /**
+ * The FILING source (M16.1 / design Q0): computed from invoices and
+ * bills — the legal documents — with per-line tax treatment (M12.1a) and
+ * credit-note direction (M12.1b) applied. The transaction-derived
+ * `/summary/vat` figure is the RECONCILIATION view beside this, never the
+ * filing source.
+ * @summary Get the VAT return (filing view, from invoices and bills)
+ */
+export const getVatReturnQueryPeriodFromRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getVatReturnQueryPeriodToRegExp = new RegExp('^\\d{4}-\\d{2}$');
+
+
+export const GetVatReturnQueryParams = zod.object({
+  "period_from": zod.coerce.string().regex(getVatReturnQueryPeriodFromRegExp).nullish().describe('Filing period start, YYYY-MM'),
+  "period_to": zod.coerce.string().regex(getVatReturnQueryPeriodToRegExp).nullish().describe('Filing period end, YYYY-MM')
+})
+
+export const GetVatReturnResponse = zod.object({
+  "period": zod.object({
+  "from": zod.string(),
+  "to": zod.string()
+}),
+  "salesSection": zod.object({
+  "box1_standardRatedDomesticSales": zod.number(),
+  "box2_zeroRatedDomesticSales": zod.number(),
+  "box3_exemptSales": zod.number(),
+  "box4_exportSales": zod.number(),
+  "box5_totalSales": zod.number(),
+  "box6_vatOnStandardRatedSales": zod.number(),
+  "box7_vatAdjustments": zod.number(),
+  "box8_totalOutputVat": zod.number()
+}),
+  "purchasesSection": zod.object({
+  "box9_standardRatedPurchases": zod.number(),
+  "box10_zeroRatedPurchases": zod.number(),
+  "box11_exemptPurchases": zod.number(),
+  "box12_totalPurchases": zod.number(),
+  "box13_recoverableInputVat": zod.number(),
+  "box14_inputVatAdjustments": zod.number(),
+  "box15_totalInputVat": zod.number()
+}),
+  "netVatDue": zod.number(),
+  "vatPayable": zod.number(),
+  "vatRefund": zod.number(),
+  "invoiceCount": zod.number(),
+  "billCount": zod.number()
+})
+
+
+/**
  * Draft/approval workflow (M10.2). Approving a draft (pending) journal entry fires its activation path — the period-lock check and the post-to-GL transition — so it becomes active in the ledger. Only an approver (admin/accountant) may call this; a bookkeeper is denied.
  * @summary Approve a draft journal entry (posts it to the general ledger)
  */
