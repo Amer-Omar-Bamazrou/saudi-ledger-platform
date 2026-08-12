@@ -60,18 +60,38 @@ export const ListTransactionsResponse = zod.object({
 /**
  * @summary Create a single transaction
  */
+export const createTransactionBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createTransactionBodyDescriptionMax = 500;
+
+export const createTransactionBodyDescriptionArMax = 500;
+
+export const createTransactionBodyAmountExclusiveMin = 0;
+export const createTransactionBodyAmountMax = 999999999999;
+
+export const createTransactionBodyCurrencyMin = 3;
+export const createTransactionBodyCurrencyMax = 3;
+
+export const createTransactionBodyVatAmountMin = 0;
+
+export const createTransactionBodyVatRateMin = 0;
+export const createTransactionBodyVatRateMax = 100;
+
+export const createTransactionBodyNotesMax = 1000;
+
+
+
 export const CreateTransactionBody = zod.object({
-  "date": zod.string(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().nullish(),
-  "amount": zod.number(),
-  "currency": zod.string(),
+  "date": zod.string().regex(createTransactionBodyDateRegExp),
+  "description": zod.string().min(1).max(createTransactionBodyDescriptionMax),
+  "descriptionAr": zod.string().max(createTransactionBodyDescriptionArMax).nullish(),
+  "amount": zod.number().gt(createTransactionBodyAmountExclusiveMin).max(createTransactionBodyAmountMax),
+  "currency": zod.string().min(createTransactionBodyCurrencyMin).max(createTransactionBodyCurrencyMax),
   "type": zod.enum(['debit', 'credit']),
   "categoryId": zod.number().nullish(),
-  "vatAmount": zod.number().nullish(),
-  "vatRate": zod.number().nullish(),
+  "vatAmount": zod.number().min(createTransactionBodyVatAmountMin).nullish(),
+  "vatRate": zod.number().min(createTransactionBodyVatRateMin).max(createTransactionBodyVatRateMax).nullish(),
   "isZakatRelevant": zod.boolean().optional(),
-  "notes": zod.string().nullish(),
+  "notes": zod.string().max(createTransactionBodyNotesMax).nullish(),
   "source": zod.string().nullish()
 })
 
@@ -100,19 +120,39 @@ export const CreateTransactionResponse = zod.object({
 /**
  * @summary Upload transactions from CSV or JSON
  */
+export const uploadTransactionsBodyRowsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const uploadTransactionsBodyRowsItemDescriptionMax = 500;
+
+export const uploadTransactionsBodyRowsItemDescriptionArMax = 500;
+
+export const uploadTransactionsBodyRowsItemAmountExclusiveMin = 0;
+export const uploadTransactionsBodyRowsItemAmountMax = 999999999999;
+
+export const uploadTransactionsBodyRowsItemCurrencyMin = 3;
+export const uploadTransactionsBodyRowsItemCurrencyMax = 3;
+
+export const uploadTransactionsBodyRowsItemVatAmountMin = 0;
+
+export const uploadTransactionsBodyRowsItemVatRateMin = 0;
+export const uploadTransactionsBodyRowsItemVatRateMax = 100;
+
+export const uploadTransactionsBodyRowsItemNotesMax = 1000;
+
+
+
 export const UploadTransactionsBody = zod.object({
   "rows": zod.array(zod.object({
-  "date": zod.string(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().nullish(),
-  "amount": zod.number(),
-  "currency": zod.string(),
+  "date": zod.string().regex(uploadTransactionsBodyRowsItemDateRegExp),
+  "description": zod.string().min(1).max(uploadTransactionsBodyRowsItemDescriptionMax),
+  "descriptionAr": zod.string().max(uploadTransactionsBodyRowsItemDescriptionArMax).nullish(),
+  "amount": zod.number().gt(uploadTransactionsBodyRowsItemAmountExclusiveMin).max(uploadTransactionsBodyRowsItemAmountMax),
+  "currency": zod.string().min(uploadTransactionsBodyRowsItemCurrencyMin).max(uploadTransactionsBodyRowsItemCurrencyMax),
   "type": zod.enum(['debit', 'credit']),
   "categoryId": zod.number().nullish(),
-  "vatAmount": zod.number().nullish(),
-  "vatRate": zod.number().nullish(),
+  "vatAmount": zod.number().min(uploadTransactionsBodyRowsItemVatAmountMin).nullish(),
+  "vatRate": zod.number().min(uploadTransactionsBodyRowsItemVatRateMin).max(uploadTransactionsBodyRowsItemVatRateMax).nullish(),
   "isZakatRelevant": zod.boolean().optional(),
-  "notes": zod.string().nullish(),
+  "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
   "source": zod.string().nullish()
 })),
   "autoCategrize": zod.boolean().nullish()
@@ -121,6 +161,7 @@ export const UploadTransactionsBody = zod.object({
 export const UploadTransactionsResponse = zod.object({
   "inserted": zod.number(),
   "categorized": zod.number(),
+  "duplicatesSkipped": zod.number().optional(),
   "errors": zod.array(zod.string())
 })
 

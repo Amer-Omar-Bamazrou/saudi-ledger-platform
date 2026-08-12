@@ -8,21 +8,47 @@
 import type { TransactionInputType } from './transactionInputType';
 
 export interface TransactionInput {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   date: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
   description: string;
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   descriptionAr?: string | null;
+  /**
+     * @maximum 999999999999
+     * @exclusiveMinimum 0
+     */
   amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
   currency: string;
   type: TransactionInputType;
   /** @nullable */
   categoryId?: number | null;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @nullable
+     */
   vatAmount?: number | null;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
   vatRate?: number | null;
   isZakatRelevant?: boolean;
-  /** @nullable */
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
   notes?: string | null;
   /** @nullable */
   source?: string | null;

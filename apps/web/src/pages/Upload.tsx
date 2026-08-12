@@ -17,12 +17,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListTransactionsQueryKey } from "@workspace/api-client-react";
 import Papa from "papaparse";
+import { parseStatementRow } from "@/lib/statementParser";
 import * as XLSX from "xlsx";
 
 /* ─── types ──────────────────────────────────────────────────────────────── */
 interface TxRow {
   date: string;
   description: string;
+  descriptionAr?: string;
   amount: number;
   type: "debit" | "credit";
   currency: string;
@@ -62,28 +64,23 @@ function downloadXlsxTemplate() {
 }
 
 /* ─── row parser ─────────────────────────────────────────────────────────── */
+// M15: real-export parsing moved into `statementParser` (signed single-column
+// amounts, Debit/Credit columns, non-ISO and HIJRI dates, Arabic-Indic digits,
+// European decimals, Arabic description extraction) — the old inline parser
+// accepted only our own template and rejected or silently corrupted genuine
+// Saudi bank exports.
 function parseRawRows(raw: Record<string, string>[]): TxRow[] {
-  return raw.map((r, i) => {
-    // normalise header keys
-    const keys = Object.keys(r).reduce<Record<string, string>>((acc, k) => {
-      acc[k.toLowerCase().trim().replace(/\s+/g, "_")] = r[k];
-      return acc;
-    }, {});
-
-    const date = (keys.date ?? keys.تاريخ ?? "").trim();
-    const description = (keys.description ?? keys.desc ?? keys.وصف ?? "").trim();
-    const amountStr = (keys.amount ?? keys.مبلغ ?? "").replace(/[,\s]/g, "");
-    const amount = parseFloat(amountStr);
-    const typeRaw = (keys.type ?? keys.نوع ?? "debit").toLowerCase().trim();
-    const type: "debit" | "credit" = typeRaw === "credit" || typeRaw === "دائن" ? "credit" : "debit";
-    const currency = (keys.currency ?? keys.عملة ?? "SAR").trim().toUpperCase() || "SAR";
-
-    const errors: string[] = [];
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push("bad date");
-    if (!description) errors.push("missing description");
-    if (isNaN(amount) || amount <= 0) errors.push("invalid amount");
-
-    return { date, description, amount: isNaN(amount) ? 0 : amount, type, currency, _error: errors.join("; ") || undefined };
+  return raw.map((r) => {
+    const p = parseStatementRow(r);
+    return {
+      date: p.date,
+      description: p.description,
+      descriptionAr: p.descriptionAr,
+      amount: p.amount,
+      type: p.type,
+      currency: p.currency,
+      _error: p.error,
+    };
   });
 }
 

@@ -1675,6 +1675,48 @@ vacuously. Fixed figures are fine when the number itself is the requirement
 (1,000 SAR of revenue); they are a trap when the number is a *consequence* of
 reasoning that might not hold.
 
+### 🔴 THE THIRD NAMED FAILURE MODE: **TWO ID SPACES WITH NO FORCING FUNCTION**
+
+Found by running a realistic bank statement through the upload path (M15).
+Adjacent to *a shape without a consumer*, and distinct in a way that matters.
+
+**What happened.** `categorizeTransaction` returned `categoryId` from a hardcoded
+`SEED_CATEGORIES` list numbered **1–30**. The real `categories` table — seeded by
+M13 — numbers its rows **237–269**. The foreign key rejected every row, so
+**auto-categorisation, which is ON by default in the Upload UI, imported
+nothing.** The entire default path was inert.
+
+**Why it is NOT "a shape without a consumer".** In those findings one side was
+missing: a column nobody wrote, an interface nobody implemented, a function
+nobody called. Here **both sides existed and both worked.** The categorizer
+produced ids; the table held ids; each was correct in isolation. What was missing
+was **anything that required them to be the same ids.**
+
+> **Two id spaces that must agree, with nothing forcing them to, will diverge —
+> and the divergence is invisible until something joins them.**
+>
+> It is worse than a missing consumer because both halves look finished, both
+> have tests, and each test passes against its own notion of an id.
+
+**How it came about, which is the instructive part.** The categorizer's ids were
+correct when written — they described a category set that existed only in that
+file. M13 then created a *real* chart of accounts with serial ids. **Neither
+change was wrong.** The defect was created by the pair, at a distance, with no
+overlap in time or in review.
+
+**The countermeasure is a FORCING FUNCTION, not vigilance.** Fixed in M15 by
+removing the second id space: the categorizer returns a **`system_code`**, the
+same stable identity M13 already uses, and resolution happens against the
+tenant's own chart. A test then asserts **every code the categorizer can emit
+exists in the seeded chart** — so the two cannot drift apart without the build
+failing.
+
+**Where to look for the same shape:** any pair of enum/lookup/id sets maintained
+in different files — permission resource strings vs mounted routes, ZATCA tag
+numbers vs the codec, job names vs the scheduler registry, error codes vs their
+UI mapping. Ask: *if someone edited one of these, what would fail?* If the answer
+is "nothing until runtime", there is no forcing function.
+
 ### 🔴 THE SECOND NAMED FAILURE MODE: **A TEST THAT BECAME A GUARD FOR THE BUG**
 
 Its close relative, and in one way worse — because here the safety mechanism is

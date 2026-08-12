@@ -9,5 +9,6 @@
 export interface UploadResult {
   inserted: number;
   categorized: number;
+  duplicatesSkipped?: number;
   errors: string[];
 }

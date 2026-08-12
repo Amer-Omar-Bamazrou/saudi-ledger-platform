@@ -1187,20 +1187,35 @@ components:
         limit:
           type: integer
 
+    # M15: real constraints. `date: string` / `amount: number` accepted
+    # date="banana" and amount=-431.25, leaving Postgres as the only guard —
+    # the client-side parser was the sole real validation, which a direct API
+    # call bypasses entirely.
     TransactionInput:
       type: object
       required: [date, description, amount, currency, type]
       properties:
         date:
           type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
         description:
           type: string
+          minLength: 1
+          maxLength: 500
         descriptionAr:
           type: ["string", "null"]
+          maxLength: 500
         amount:
+          # Positive by contract: direction lives in `type`, not in the sign.
+          # Signed bank exports are normalised CLIENT-side (statementParser)
+          # before they reach this schema.
           type: number
+          exclusiveMinimum: 0
+          maximum: 999999999999
         currency:
           type: string
+          minLength: 3
+          maxLength: 3
         type:
           type: string
           enum: [debit, credit]
@@ -1208,12 +1223,16 @@ components:
           type: ["integer", "null"]
         vatAmount:
           type: ["number", "null"]
+          minimum: 0
         vatRate:
           type: ["number", "null"]
+          minimum: 0
+          maximum: 100
         isZakatRelevant:
           type: boolean
         notes:
           type: ["string", "null"]
+          maxLength: 1000
         source:
           type: ["string", "null"]
 
@@ -1251,6 +1270,11 @@ components:
         inserted:
           type: integer
         categorized:
+          type: integer
+        # M15: rows skipped because an IDENTICAL row (date+description+amount+
+        # type) already exists — re-uploading a statement must not double every
+        # tax figure. Reported, never silent.
+        duplicatesSkipped:
           type: integer
         errors:
           type: array

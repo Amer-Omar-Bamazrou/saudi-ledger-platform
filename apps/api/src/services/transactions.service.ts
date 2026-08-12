@@ -15,7 +15,18 @@ import {
 } from "@workspace/api-zod";
 import { AppError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
-import { categorizeTransaction } from "./categorization/categorizer.js";
+import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
+import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross } from "./categorization/resolveCategory.js";
+
+/** A row-failure reason safe to show a user — never the driver's SQL dump. */
+function reasonFor(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  if (code === "23503") return " — it references a category that does not exist.";
+  if (code === "23505") return " — an identical row already exists.";
+  if (code === "22007" || code === "22008") return " — its date is not a valid date.";
+  if (code === "22P02" || code === "22003") return " — its amount is not a valid number.";
+  return ".";
+}
 import { transactionsRepository, type TransactionFilter } from "../repositories/transactions.repository";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
 
@@ -69,9 +80,29 @@ export const transactionsService = {
     const errors: string[] = [];
     let inserted = 0;
     let categorized = 0;
+    let duplicatesSkipped = 0;
+
+    // Resolve every code the engine could emit ONCE, inside the tenant tx.
+    const resolvedCodes = autoCategrize
+      ? await resolveSystemCodes(allEngineCodes())
+      : new Map<string, number>();
 
     for (const row of rows) {
+      let rowWasCategorized = false;
       try {
+        // M15: an identical row (date+description+amount+type) is skipped and
+        // REPORTED — uploading the same statement twice used to double every
+        // figure in the dashboard, VAT summary and Zakat base, silently.
+        if (await transactionsRepository.existsIdentical({
+          date: row.date,
+          description: row.description,
+          amount: String(row.amount),
+          type: row.type,
+        })) {
+          duplicatesSkipped++;
+          continue;
+        }
+
         let catId: number | null = row.categoryId ?? null;
         let vatAmount: string | null = row.vatAmount != null ? String(row.vatAmount) : null;
         let vatRate: string | null = row.vatRate != null ? String(row.vatRate) : null;
@@ -85,18 +116,33 @@ export const transactionsService = {
             row.type as "debit" | "credit",
             row.descriptionAr,
           );
-          if (match && catId == null) {
-            catId = match.categoryId;
-            confidenceScore = String(match.confidence);
-            isZakatRelevant = match.isZakatRelevant;
-            if (match.vatApplicable && match.suggestedVatRate != null && vatAmount == null) {
-              const vatRate15 = match.suggestedVatRate;
-              if (vatRate15 > 0) {
-                vatAmount = String((Number(row.amount) * vatRate15) / 100);
-                vatRate = String(vatRate15);
+          // 🔴 THREE M15 RULES, all fixed together:
+          //  - the match carries a SYSTEM CODE resolved against the tenant's own
+          //    chart, never the engine's private ids (which the FK rejected —
+          //    the default upload path imported NOTHING);
+          //  - a low-confidence match is a HINT: it does not assign, the row
+          //    stays uncategorized for the Categorize page. This is the first
+          //    consumer confidence_score has ever had;
+          //  - VAT is EXTRACTED from the gross statement amount (rate/(100+rate)),
+          //    never applied to it. The old arithmetic overstated every input-VAT
+          //    figure by 15% and flowed straight into the VAT position.
+          if (match && catId == null && match.confidence >= AUTO_ASSIGN_CONFIDENCE) {
+            const resolved = resolvedCodes.get(match.systemCode);
+            if (resolved != null) {
+              catId = resolved;
+              confidenceScore = String(match.confidence);
+              isZakatRelevant = match.isZakatRelevant;
+              if (match.vatApplicable && match.suggestedVatRate != null && vatAmount == null) {
+                if (match.suggestedVatRate > 0) {
+                  vatAmount = String(vatFromGross(Number(row.amount), match.suggestedVatRate));
+                  vatRate = String(match.suggestedVatRate);
+                }
               }
+              // Counted here — AFTER resolution succeeded and BEFORE the insert
+              // whose failure is caught below. See the categorized-- on failure.
+              categorized++;
+              rowWasCategorized = true;
             }
-            categorized++;
           }
         }
 
@@ -118,7 +164,14 @@ export const transactionsService = {
         });
         inserted++;
       } catch (err) {
-        errors.push(`Row "${row.description}" — ${String(err)}`);
+        // 🔴 If this row had been counted as categorized, uncount it: a count of
+        // work that did not persist is a lie about state. The pre-M15 response
+        // reported categorized:1 / inserted:0 — claiming success while inserting
+        // nothing.
+        if (rowWasCategorized) categorized--;
+        // 🔴 Never leak the raw driver error: it contained the full SQL text and
+        // every parameter. A row failure names the row and the KIND of problem.
+        errors.push(`Row "${row.description.slice(0, 80)}" could not be imported${reasonFor(err)}`);
       }
     }
 
@@ -131,7 +184,7 @@ export const transactionsService = {
         after: { inserted, categorized },
       });
     }
-    return UploadTransactionsResponse.parse({ inserted, categorized, errors });
+    return UploadTransactionsResponse.parse({ inserted, categorized, duplicatesSkipped, errors });
   },
 
   async create(d: CreateTransactionInput) {

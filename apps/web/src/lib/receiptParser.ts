@@ -25,7 +25,7 @@ export interface ParsedReceipt {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function normalizeDigits(s: string): string {
+export function normalizeDigits(s: string): string {
   return s
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/\u066B/g, "."); // Arabic decimal separator U+066B

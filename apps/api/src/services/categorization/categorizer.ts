@@ -10,7 +10,18 @@
  */
 
 export interface CategorizationMatch {
-  categoryId: number;
+  /**
+   * 🔴 A STABLE SYSTEM CODE, resolved against the tenant's own chart at use —
+   * NEVER a raw category id (M15).
+   *
+   * The engine used to return ids from its own hardcoded list (1–30) while the
+   * real `categories` table used serial ids. Nothing forced the two spaces to
+   * agree, so they diverged, and the FK rejected every auto-categorized row:
+   * the default upload path imported NOTHING. One identity space now — the same
+   * `system_code` M13 established — and a test asserts every code this engine
+   * can emit exists in the seeded template, so they cannot drift apart again.
+   */
+  systemCode: string;
   categoryName: string;
   categoryNameAr: string;
   confidence: number; // 0.0 – 1.0
@@ -21,7 +32,10 @@ export interface CategorizationMatch {
 }
 
 export interface SeedCategory {
+  /** Kept for stable ordering only. NEVER used for resolution — see systemCode. */
   id: number;
+  /** The identity. Must exist in `system_account_templates` (test-enforced). */
+  systemCode: string;
   name: string;
   nameAr: string;
   type: "income" | "expense" | "asset" | "liability" | "equity";
@@ -37,6 +51,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   // INCOME
   {
     id: 1,
+    systemCode: "SALES",
     name: "Sales Revenue",
     nameAr: "إيرادات المبيعات",
     type: "income",
@@ -46,6 +61,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 2,
+    systemCode: "SERVICE_INCOME",
     name: "Service Income",
     nameAr: "إيرادات الخدمات",
     type: "income",
@@ -55,6 +71,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 3,
+    systemCode: "RENTAL_INCOME",
     name: "Rental Income",
     nameAr: "إيرادات الإيجار",
     type: "income",
@@ -64,6 +81,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 4,
+    systemCode: "INVESTMENT_INCOME",
     name: "Investment Returns",
     nameAr: "عوائد الاستثمار",
     type: "income",
@@ -73,6 +91,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 5,
+    systemCode: "GOVT_GRANTS",
     name: "Government Grants",
     nameAr: "المنح الحكومية",
     type: "income",
@@ -82,6 +101,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 6,
+    systemCode: "OTHER_INCOME",
     name: "Other Income",
     nameAr: "إيرادات أخرى",
     type: "income",
@@ -93,6 +113,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   // EXPENSES
   {
     id: 7,
+    systemCode: "SALARIES",
     name: "Salaries & Wages",
     nameAr: "الرواتب والأجور",
     type: "expense",
@@ -102,6 +123,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 8,
+    systemCode: "RENT_UTILITIES",
     name: "Rent & Utilities",
     nameAr: "الإيجار والمرافق",
     type: "expense",
@@ -111,6 +133,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 9,
+    systemCode: "TELECOM",
     name: "Telecommunications",
     nameAr: "الاتصالات",
     type: "expense",
@@ -120,6 +143,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 10,
+    systemCode: "FUEL_TRANSPORT",
     name: "Fuel & Transportation",
     nameAr: "الوقود والمواصلات",
     type: "expense",
@@ -129,6 +153,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 11,
+    systemCode: "FOOD_MEALS",
     name: "Food & Meals",
     nameAr: "الطعام والوجبات",
     type: "expense",
@@ -138,6 +163,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 12,
+    systemCode: "MARKETING",
     name: "Marketing & Advertising",
     nameAr: "التسويق والإعلان",
     type: "expense",
@@ -147,6 +173,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 13,
+    systemCode: "OFFICE_SUPPLIES",
     name: "Office Supplies",
     nameAr: "اللوازم المكتبية",
     type: "expense",
@@ -156,6 +183,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 14,
+    systemCode: "PROFESSIONAL_FEES",
     name: "Professional Services",
     nameAr: "الخدمات المهنية",
     type: "expense",
@@ -165,6 +193,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 15,
+    systemCode: "BANK_CHARGES",
     name: "Bank Charges",
     nameAr: "الرسوم البنكية",
     type: "expense",
@@ -174,6 +203,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 16,
+    systemCode: "GOVT_FEES",
     name: "Government Fees",
     nameAr: "الرسوم الحكومية",
     type: "expense",
@@ -183,6 +213,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 17,
+    systemCode: "INSURANCE",
     name: "Insurance",
     nameAr: "التأمين",
     type: "expense",
@@ -192,6 +223,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 18,
+    systemCode: "TRAVEL",
     name: "Travel & Accommodation",
     nameAr: "السفر والإقامة",
     type: "expense",
@@ -201,6 +233,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 19,
+    systemCode: "IT_SOFTWARE",
     name: "IT & Software",
     nameAr: "تقنية المعلومات والبرمجيات",
     type: "expense",
@@ -210,6 +243,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 20,
+    systemCode: "REPAIRS",
     name: "Repairs & Maintenance",
     nameAr: "الإصلاح والصيانة",
     type: "expense",
@@ -219,6 +253,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 21,
+    systemCode: "ZAKAT_PAYMENT",
     name: "Zakat Payment",
     nameAr: "الزكاة",
     type: "expense",
@@ -228,6 +263,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 22,
+    systemCode: "VAT_PAYMENT",
     name: "VAT Payment",
     nameAr: "ضريبة القيمة المضافة",
     type: "expense",
@@ -237,6 +273,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 23,
+    systemCode: "OTHER_EXPENSES",
     name: "Other Expenses",
     nameAr: "مصاريف أخرى",
     type: "expense",
@@ -248,6 +285,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   // ASSETS
   {
     id: 24,
+    systemCode: "CASH",
     name: "Cash & Bank",
     nameAr: "النقد والبنك",
     type: "asset",
@@ -257,6 +295,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 25,
+    systemCode: "AR",
     name: "Accounts Receivable",
     nameAr: "الذمم المدينة",
     type: "asset",
@@ -266,6 +305,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 26,
+    systemCode: "INVENTORY",
     name: "Inventory",
     nameAr: "المخزون",
     type: "asset",
@@ -275,6 +315,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 27,
+    systemCode: "FIXED_ASSETS",
     name: "Fixed Assets",
     nameAr: "الأصول الثابتة",
     type: "asset",
@@ -284,6 +325,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 28,
+    systemCode: "INVESTMENTS",
     name: "Investments",
     nameAr: "الاستثمارات",
     type: "asset",
@@ -295,6 +337,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   // LIABILITIES
   {
     id: 29,
+    systemCode: "AP",
     name: "Accounts Payable",
     nameAr: "الذمم الدائنة",
     type: "liability",
@@ -304,6 +347,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     id: 30,
+    systemCode: "LOANS",
     name: "Loans & Financing",
     nameAr: "القروض والتمويل",
     type: "liability",
@@ -319,7 +363,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
 
 interface CategorizationRule {
   patterns: RegExp[];
-  categoryId: number;
+  systemCode: string;
   confidence: number;
   ruleName: string;
   vatApplicable: boolean;
@@ -336,7 +380,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bGATZ\b/i,
       /\bZATCA.*zakat\b/i,
     ],
-    categoryId: 21,
+    systemCode: "ZAKAT_PAYMENT",
     confidence: 0.98,
     ruleName: "Zakat payment to ZATCA",
     vatApplicable: false,
@@ -345,7 +389,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   },
   {
     patterns: [/\bVAT.*remit\b/i, /\bZATCA.*VAT\b/i, /\bضريبة.*قيمة\b/],
-    categoryId: 22,
+    systemCode: "VAT_PAYMENT",
     confidence: 0.98,
     ruleName: "VAT remittance",
     vatApplicable: false,
@@ -373,7 +417,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bMISAD\b/i,
       /\bTAWEEN\b/i,
     ],
-    categoryId: 16,
+    systemCode: "GOVT_FEES",
     confidence: 0.95,
     ruleName: "Government fee/ministry payment",
     vatApplicable: false,
@@ -387,7 +431,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bBALADIYAH\b/i,
       /\bرخصة.*تجارية\b/,
     ],
-    categoryId: 16,
+    systemCode: "GOVT_FEES",
     confidence: 0.93,
     ruleName: "Municipal license fee",
     vatApplicable: false,
@@ -420,7 +464,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bCLIQ\b/i,
       /\bAPACS\b/i,
     ],
-    categoryId: 15,
+    systemCode: "BANK_CHARGES",
     confidence: 0.9,
     ruleName: "Saudi bank / bank charge",
     vatApplicable: true,
@@ -440,7 +484,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bStc.*transfer\b/i,
       /\bإيداع.*تحويل\b/,
     ],
-    categoryId: 15,
+    systemCode: "BANK_CHARGES",
     confidence: 0.88,
     ruleName: "Saudi payment gateway / fintech",
     vatApplicable: true,
@@ -466,7 +510,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bZain.*bill\b/i,
       /\bdata.*plan\b/i,
     ],
-    categoryId: 9,
+    systemCode: "TELECOM",
     confidence: 0.93,
     ruleName: "Saudi telecom provider",
     vatApplicable: true,
@@ -484,7 +528,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /electricity.*bill/i,
       /\bSECO\b/i,
     ],
-    categoryId: 8,
+    systemCode: "RENT_UTILITIES",
     confidence: 0.96,
     ruleName: "Saudi Electricity Company",
     vatApplicable: true,
@@ -499,7 +543,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /water.*bill/i,
       /\bMANASEA\b/i,
     ],
-    categoryId: 8,
+    systemCode: "RENT_UTILITIES",
     confidence: 0.95,
     ruleName: "National Water Company",
     vatApplicable: true,
@@ -522,7 +566,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bNOMO.*fuel\b/i,
       /\bDhahran.*fuel\b/i,
     ],
-    categoryId: 10,
+    systemCode: "FUEL_TRANSPORT",
     confidence: 0.9,
     ruleName: "Fuel purchase",
     vatApplicable: true,
@@ -551,7 +595,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bFlyadeal\b/i,
       /\bFlynas\b/i,
     ],
-    categoryId: 10,
+    systemCode: "FUEL_TRANSPORT",
     confidence: 0.88,
     ruleName: "Transport / ride-hailing",
     vatApplicable: true,
@@ -573,7 +617,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /شحن/,
       /توصيل/,
     ],
-    categoryId: 10,
+    systemCode: "FUEL_TRANSPORT",
     confidence: 0.87,
     ruleName: "Shipping / courier",
     vatApplicable: true,
@@ -633,7 +677,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /supermarket/i,
       /hypermarket/i,
     ],
-    categoryId: 11,
+    systemCode: "FOOD_MEALS",
     confidence: 0.85,
     ruleName: "Food / restaurant / grocery",
     vatApplicable: true,
@@ -662,7 +706,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bشقة.*مفروشة\b/,
       /\bapartment.*rent\b/i,
     ],
-    categoryId: 18,
+    systemCode: "TRAVEL",
     confidence: 0.9,
     ruleName: "Hotel / accommodation",
     vatApplicable: true,
@@ -708,7 +752,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /domain.*renew/i,
       /\bServer\b/i,
     ],
-    categoryId: 19,
+    systemCode: "IT_SOFTWARE",
     confidence: 0.88,
     ruleName: "IT / SaaS / software",
     vatApplicable: true,
@@ -734,7 +778,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bتسويق\b/,
       /sponsored/i,
     ],
-    categoryId: 12,
+    systemCode: "MARKETING",
     confidence: 0.9,
     ruleName: "Digital / online advertising",
     vatApplicable: true,
@@ -762,7 +806,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bAl-?Tamimi\b/i,
       /\bfreelancer.*fee\b/i,
     ],
-    categoryId: 14,
+    systemCode: "PROFESSIONAL_FEES",
     confidence: 0.87,
     ruleName: "Professional / legal / consulting services",
     vatApplicable: true,
@@ -788,7 +832,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bMusaned\b/i,
       /\bمساند\b/,
     ],
-    categoryId: 7,
+    systemCode: "SALARIES",
     confidence: 0.92,
     ruleName: "Salary / payroll / GOSI",
     vatApplicable: false,
@@ -809,7 +853,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bwataniya.*insurance\b/i,
       /\bAl.*Rajhi.*Takaful\b/i,
     ],
-    categoryId: 17,
+    systemCode: "INSURANCE",
     confidence: 0.93,
     ruleName: "Insurance / Takaful",
     vatApplicable: false,
@@ -831,7 +875,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bEjar\b/i,
       /\bإيجار.*عقد\b/,
     ],
-    categoryId: 8,
+    systemCode: "RENT_UTILITIES",
     confidence: 0.88,
     ruleName: "Office / shop rent",
     vatApplicable: true,
@@ -858,7 +902,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /investment.*return/i,
       /profit.*share/i,
     ],
-    categoryId: 4,
+    systemCode: "INVESTMENT_INCOME",
     confidence: 0.88,
     ruleName: "Saudi investment / Tadawul",
     vatApplicable: false,
@@ -874,7 +918,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bقسط\b/,
       /\bloan.*repay\b/i,
     ],
-    categoryId: 30,
+    systemCode: "LOANS",
     confidence: 0.85,
     ruleName: "Islamic financing / loan repayment",
     vatApplicable: false,
@@ -898,7 +942,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /capital.*expenditure/i,
       /\bCAPEX\b/i,
     ],
-    categoryId: 27,
+    systemCode: "FIXED_ASSETS",
     confidence: 0.83,
     ruleName: "Fixed asset / capital purchase",
     vatApplicable: true,
@@ -909,11 +953,29 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   // ── AMOUNT-BASED HEURISTICS ────────────────────────────────────────────
 ];
 
+/**
+ * Every system code this engine can emit — rules, heuristic and all.
+ *
+ * The forcing function's other half: `categorizer-chart.test.ts` asserts each of
+ * these exists in `system_account_templates`, so the engine and the seeded chart
+ * cannot drift apart without the build failing. Consumers use it to resolve all
+ * codes in one pass.
+ */
+export function allEngineCodes(): string[] {
+  const codes = new Set<string>(CATEGORIZATION_RULES.map((r) => r.systemCode));
+  codes.add("SALARIES"); // the amount-based heuristic
+  return [...codes];
+}
+
 // Salary pattern: regular round amounts from unknown payors
 function isSalaryLike(description: string, amount: number): boolean {
   const roundAmount = amount % 500 === 0 || amount % 1000 === 0;
-  const salaryWords =
-    /transfer|تحويل|راتب|salary|payroll/i.test(description);
+  // 🔴 M15: "transfer|تحويل" was REMOVED from the word list. It made every
+  // round-amount transfer a salary — including supplier payments ("TRANSFER TO
+  // ALMARAI") and bare "TRANSFER" lines, which are genuinely unknown. Only
+  // words that actually mean payroll count; a transfer with no salary word is
+  // the engine's problem to NOT answer.
+  const salaryWords = /راتب|رواتب|salary|salaries|payroll|wage/i.test(description);
   return roundAmount && salaryWords && amount >= 1000 && amount <= 50000;
 }
 
@@ -930,10 +992,16 @@ export function categorizeTransaction(
   const combinedText = [description, descriptionAr ?? ""].join(" ");
   const normalizedText = combinedText.normalize("NFKC");
 
-  // Salary heuristic (debit credits of round amounts)
-  if (transactionType === "credit" && isSalaryLike(normalizedText, amount)) {
+  // ── Salary heuristic — DEBITS ONLY (M15 fix) ──────────────────────────────
+  // This fired on CREDITS: money coming IN. For a business account payroll is a
+  // DEBIT, and an inbound round transfer is overwhelmingly a customer payment.
+  // The adversarial statement run proved it: a SAR 34,500 customer receipt
+  // ("INCOMING TRANSFER - CUSTOMER PAYMENT INV-…") was booked as Salaries &
+  // Wages — revenue recorded as payroll expense, the worst misclassification in
+  // the set.
+  if (transactionType === "debit" && isSalaryLike(normalizedText, amount)) {
     return {
-      categoryId: 7,
+      systemCode: "SALARIES",
       categoryName: "Salaries & Wages",
       categoryNameAr: "الرواتب والأجور",
       confidence: 0.72,
@@ -952,11 +1020,11 @@ export function categorizeTransaction(
     const rule = CATEGORIZATION_RULES[i];
     for (const pattern of rule.patterns) {
       if (pattern.test(normalizedText)) {
-        const cat = SEED_CATEGORIES.find((c) => c.id === rule.categoryId);
+        const cat = SEED_CATEGORIES.find((c) => c.systemCode === rule.systemCode);
         if (!cat) continue;
         if (!bestMatch || rule.confidence > bestMatch.confidence) {
           bestMatch = {
-            categoryId: rule.categoryId,
+            systemCode: rule.systemCode,
             categoryName: cat.name,
             categoryNameAr: cat.nameAr,
             confidence: rule.confidence,
@@ -977,29 +1045,17 @@ export function categorizeTransaction(
     return match;
   }
 
-  // Fallback: if credit with no match → "Other Income"
-  if (transactionType === "credit") {
-    return {
-      categoryId: 6,
-      categoryName: "Other Income",
-      categoryNameAr: "إيرادات أخرى",
-      confidence: 0.35,
-      matchedRule: "Fallback: unmatched credit transaction",
-      vatApplicable: false,
-      isZakatRelevant: false,
-      suggestedVatRate: null,
-    };
-  }
-
-  // Fallback: debit with no match → "Other Expenses"
-  return {
-    categoryId: 23,
-    categoryName: "Other Expenses",
-    categoryNameAr: "مصاريف أخرى",
-    confidence: 0.3,
-    matchedRule: "Fallback: unmatched debit transaction",
-    vatApplicable: false,
-    isZakatRelevant: false,
-    suggestedVatRate: null,
-  };
+  // ── 🔴 NO FALLBACK. An unmatched transaction returns NULL (M15). ──────────
+  //
+  // This engine used to route every unmatched debit to "Other Expenses" (0.30)
+  // and every unmatched credit to "Other Income" (0.35) — so it was INCAPABLE of
+  // saying "I don't know", and a guess wore the same shape as a 0.98 match.
+  // In the adversarial statement run that turned a ZERO-RATED export sale into
+  // unclassified "Other Income" (vanishing from the VAT return), a payment
+  // REVERSAL into income, and a bare "TRANSFER" into a confident-looking entry.
+  //
+  // NULL means: leave the transaction uncategorized, where the Categorize page
+  // surfaces it for a human. A wrong answer wearing a right answer's shape is
+  // worse than no answer — the truncation lesson, applied to classification.
+  return null;
 }

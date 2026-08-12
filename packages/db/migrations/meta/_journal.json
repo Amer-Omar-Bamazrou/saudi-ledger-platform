@@ -204,6 +204,13 @@
       "when": 1786497033809,
       "tag": "0028_a3_recurring",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786497033810,
+      "tag": "0029_m15_default_categories",
+      "breakpoints": true
     }
   ]
 }
