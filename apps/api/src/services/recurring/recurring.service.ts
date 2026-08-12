@@ -118,7 +118,32 @@ export const recurringService = {
     return rule;
   },
 
-  list: () => recurringRepository.listRules(),
+  /**
+   * Rules with their health.
+   *
+   * The list answers "did my invoices go out?", so it carries the last outcome
+   * AND the consecutive-failure streak — one failure and three in a row are
+   * different problems and must not render the same.
+   */
+  async list() {
+    const [rules, health] = await Promise.all([
+      recurringRepository.listRules(),
+      recurringRepository.health(),
+    ]);
+    const byRule = new Map(health.map((h) => [h.rule_id, h]));
+    return rules.map((r) => {
+      const h = byRule.get(r.id);
+      return {
+        ...r,
+        lastOutcome: h?.last_outcome ?? null,
+        lastScheduledFor: h?.last_scheduled_for ?? null,
+        lastErrorCode: h?.last_error_code ?? null,
+        lastErrorDetail: h?.last_error_detail ?? null,
+        consecutiveFailures: h?.consecutive_failures ?? 0,
+        lastSuccessOn: h?.last_success_on ?? null,
+      };
+    });
+  },
 
   async runs(ruleId: string) {
     const rule = await recurringRepository.findRule(ruleId);
