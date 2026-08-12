@@ -32,6 +32,7 @@ import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
 import llm from "./llm.js";
 import capture from "./capture.js";
+import recurring from "./recurring.js";
 import auditLogs from "./auditLogs.js";
 
 const router = Router();
@@ -98,6 +99,7 @@ router.use("/llm", requirePermission("llm"), llm);
 // A capture becomes a vendor bill, so it carries the bills authority — one
 // answer to "who may enter a purchase", not two.
 router.use("/capture", requirePermission("bills"), capture);
+router.use("/recurring", requirePermission("recurring"), recurring);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);
 router.use("/categorize", requirePermission("categorize"), categorize);
 
