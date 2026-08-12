@@ -46,6 +46,29 @@ export const transactionsTable = pgTable(
       .notNull()
       .default(false),
     source: text("source"),
+    /**
+     * The M15 holding area — the status column M10 deferred.
+     *
+     * `pending_review` — imported (upload / future bank feed): visible in the
+     *   Transactions list but contributes to NO tax-facing figure. VAT, Zakat,
+     *   cash flow, the dashboard and budget actuals all filter to `accepted`.
+     * `accepted` — a human has taken responsibility for it.
+     *
+     * Why a column and not the M10 `Approvable` engine (owner decision): M10
+     * models DOCUMENTS with individual legal significance — each a discrete act
+     * someone approves after looking at that document. A bank line is not a
+     * document; it is EVIDENCE of one that exists elsewhere. Nobody approves a
+     * POS purchase the way they approve an invoice — they scan a month for what
+     * looks wrong. Forcing hundreds of rows through a per-document engine
+     * floods the audit log with transitions nobody reads, burying signal.
+     * The M10 PRINCIPLE (zero movement until a human acts) holds; only the
+     * mechanism differs: report filters, proven by a zero-movement test.
+     *
+     * Default is the fail-safe direction. The manual single-entry path sets
+     * `accepted` explicitly — a human typing one row IS looking at it (the
+     * M10.4 self-approve analogue).
+     */
+    reviewStatus: text("review_status").notNull().default("pending_review"),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

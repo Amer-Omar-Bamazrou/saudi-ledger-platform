@@ -93,7 +93,9 @@ export const reportsRepository = {
 
   // income-statement fallback + cash-flow: transactions joined to categories in a date range
   txWithCategory(date_from?: string, date_to?: string) {
-    const conds: any[] = [];
+    // M15 holding area: pending rows move nothing in cash flow or the
+    // income-statement transaction fallback.
+    const conds: any[] = [eq(transactionsTable.reviewStatus, "accepted")];
     if (date_from) conds.push(gte(transactionsTable.date, date_from));
     if (date_to) conds.push(lte(transactionsTable.date, date_to));
     return db

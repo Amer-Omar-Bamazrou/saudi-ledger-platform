@@ -1,6 +1,6 @@
 /** Transactions repository — tenant-scoped via RLS. */
 import { db, transactionsTable, categoriesTable } from "@workspace/db";
-import { and, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
 
 export interface TransactionFilter {
   categoryId?: number | null;
@@ -50,6 +50,89 @@ export const transactionsRepository = {
 
   insert(values: typeof transactionsTable.$inferInsert) {
     return db.insert(transactionsTable).values(values).returning();
+  },
+
+  /**
+   * Does an IDENTICAL row already exist? (M15 duplicate guard.)
+   *
+   * The key is (date, description, amount, type) — deliberately INCLUDING the
+   * full description. Statement lines carry references ("TRANSFER TO ALMARAI -
+   * INV 88231" vs "… INV 88240"), so two genuine same-amount-same-payee
+   * payments differ in description and BOTH survive. What this catches is the
+   * same statement uploaded twice, where every field is byte-identical — which
+   * previously doubled every tax figure silently.
+   *
+   * Two genuinely identical rows (same day, same wording, same amount, no
+   * reference) WILL be collapsed, and that is the accepted trade: the response
+   * reports every skip, so the rarer case is visible and re-enterable by hand,
+   * while the common failure (a re-upload) stops corrupting VAT and Zakat.
+   */
+  /**
+   * Accept rows into the books.
+   *
+   * 🔴 THE BLIND-ACCEPT GUARD lives HERE, server-side, not in the UI. A single
+   * "Accept all" that sweeps in rows nobody read manufactures a human's
+   * recorded acceptance of things no human looked at — worse than no gate,
+   * because it creates false assurance.
+   *
+   * So bulk mode (`ids` omitted) accepts ONLY rows that are safe to accept in
+   * bulk: categorized, with confidence at or above the auto-assign threshold
+   * (or manually categorized/overridden). Uncategorized and low-confidence rows
+   * are NEVER swept in — accepting those requires naming them (`ids`), which is
+   * what makes the acceptance deliberate. The UI separates them visually; this
+   * makes the separation binding rather than cosmetic.
+   */
+  async acceptPending(opts: { ids?: number[]; minConfidence: number }): Promise<{ accepted: number }> {
+    if (opts.ids && opts.ids.length > 0) {
+      const r = await db
+        .update(transactionsTable)
+        .set({ reviewStatus: "accepted" })
+        .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids)))
+        .returning({ id: transactionsTable.id });
+      return { accepted: r.length };
+    }
+    const r = await db
+      .update(transactionsTable)
+      .set({ reviewStatus: "accepted" })
+      .where(
+        and(
+          eq(transactionsTable.reviewStatus, "pending_review"),
+          isNotNull(transactionsTable.categoryId),
+          or(
+            eq(transactionsTable.isManuallyOverridden, true),
+            sql`${transactionsTable.confidenceScore}::numeric >= ${String(opts.minConfidence)}`,
+          ),
+        ),
+      )
+      .returning({ id: transactionsTable.id });
+    return { accepted: r.length };
+  },
+
+  /** Pending rows, most recent first — the review surface's data. */
+  pendingReview(limit = 200) {
+    return db
+      .select({ tx: transactionsTable, cat: categoriesTable })
+      .from(transactionsTable)
+      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
+      .where(eq(transactionsTable.reviewStatus, "pending_review"))
+      .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
+      .limit(limit);
+  },
+
+  async existsIdentical(v: { date: string; description: string; amount: string; type: string }): Promise<boolean> {
+    const [row] = await db
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.date, v.date),
+          eq(transactionsTable.description, v.description),
+          eq(transactionsTable.amount, v.amount),
+          eq(transactionsTable.type, v.type),
+        ),
+      )
+      .limit(1);
+    return !!row;
   },
 
   update(id: number, values: Partial<typeof transactionsTable.$inferInsert>) {

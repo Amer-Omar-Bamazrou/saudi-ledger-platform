@@ -176,8 +176,10 @@ export async function categorizeWithLlm(
   }
 
   const cat = SEED_CATEGORIES.find(c => c.id === parsed.categoryId)!;
+  // M15: downstream is system-code based; the numeric id exists only inside the
+  // LLM prompt/response loop, mapped here at the boundary.
   return {
-    categoryId: cat.id,
+    systemCode: cat.systemCode,
     categoryName: cat.name,
     categoryNameAr: cat.nameAr,
     confidence: parsed.confidence,
@@ -192,7 +194,10 @@ export async function categorizeWithLlm(
 }
 
 function deterministicFallback(type: "debit" | "credit"): CategorizationMatch {
+  // M15: kept ONLY inside the LLM comparison harness — the production engine no
+  // longer falls back (it returns null and the row goes to review). At 0.3 this
+  // sits below AUTO_ASSIGN_CONFIDENCE, so even here it can never assign.
   return type === "credit"
-    ? { categoryId: 6, categoryName: "Other Income", categoryNameAr: "إيرادات أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null }
-    : { categoryId: 23, categoryName: "Other Expenses", categoryNameAr: "مصاريف أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null };
+    ? { systemCode: "OTHER_INCOME", categoryName: "Other Income", categoryNameAr: "إيرادات أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null }
+    : { systemCode: "OTHER_EXPENSES", categoryName: "Other Expenses", categoryNameAr: "مصاريف أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null };
 }

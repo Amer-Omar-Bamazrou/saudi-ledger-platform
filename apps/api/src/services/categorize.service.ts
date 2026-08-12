@@ -5,7 +5,8 @@
  */
 import { RunCategorizationBody, RunCategorizationResponse } from "@workspace/api-zod";
 import { auditService } from "./audit.service";
-import { categorizeTransaction } from "./categorization/categorizer.js";
+import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
+import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross } from "./categorization/resolveCategory.js";
 import { categorizeRepository } from "../repositories/categorize.repository";
 
 type RunInput = ReturnType<(typeof RunCategorizationBody)["parse"]>;
@@ -13,6 +14,7 @@ type RunInput = ReturnType<(typeof RunCategorizationBody)["parse"]>;
 export const categorizeService = {
   async run({ transactionIds, overrideExisting }: RunInput) {
     const rows = await categorizeRepository.fetchTransactions(transactionIds ?? undefined, overrideExisting);
+    const resolvedCodes = await resolveSystemCodes(allEngineCodes());
     const categories = await categorizeRepository.allCategories();
     const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -43,7 +45,20 @@ export const categorizeService = {
         tx.descriptionAr,
       );
 
-      if (!match) {
+      // M15: the engine now says "I don't know" (null), and a low-confidence
+      // match is a hint rather than an assignment. Both leave the row for the
+      // human on this very page.
+      if (!match || match.confidence < AUTO_ASSIGN_CONFIDENCE) {
+        skipped++;
+        continue;
+      }
+
+      // M15: resolve the SYSTEM CODE against the tenant's own chart. This
+      // service carried its own copy of the id assignment — and of the VAT
+      // arithmetic below — and both copies had both bugs. One shared
+      // implementation now (`resolveCategory.ts`).
+      const resolvedId = resolvedCodes.get(match.systemCode);
+      if (resolvedId == null) {
         skipped++;
         continue;
       }
@@ -52,11 +67,12 @@ export const categorizeService = {
       let vatRate: string | null = tx.vatRate;
       if (match.vatApplicable && match.suggestedVatRate != null && match.suggestedVatRate > 0 && vatAmount == null) {
         vatRate = String(match.suggestedVatRate);
-        vatAmount = String((Number(tx.amount) * match.suggestedVatRate) / 100);
+        // M15: EXTRACTED from the gross statement amount, never applied to it.
+        vatAmount = String(vatFromGross(Number(tx.amount), match.suggestedVatRate));
       }
 
       await categorizeRepository.updateCategory(tx.id, {
-        categoryId: match.categoryId,
+        categoryId: resolvedId,
         confidenceScore: String(match.confidence),
         isZakatRelevant: match.isZakatRelevant,
         vatAmount,
@@ -64,10 +80,10 @@ export const categorizeService = {
         isManuallyOverridden: false,
       });
 
-      const cat = catMap.get(match.categoryId);
+      const cat = catMap.get(resolvedId);
       results.push({
         transactionId: tx.id,
-        categoryId: match.categoryId,
+        categoryId: resolvedId,
         categoryName: cat?.name ?? match.categoryName,
         confidence: match.confidence,
         matchedRule: match.matchedRule,

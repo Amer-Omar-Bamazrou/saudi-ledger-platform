@@ -29,6 +29,17 @@ export const transactionsController = {
     );
   },
 
+  async pendingReview(_req: Request, res: Response) {
+    res.json(await transactionsService.pendingReview());
+  },
+
+  async acceptPending(req: Request, res: Response) {
+    const ids = Array.isArray(req.body?.ids)
+      ? (req.body.ids as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0)
+      : undefined;
+    res.json(await transactionsService.acceptPending(ids));
+  },
+
   async upload(req: Request, res: Response) {
     const body = UploadTransactionsBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);

@@ -76,7 +76,7 @@ export const llmController = {
             llmModel: hybrid.llmModel,
             matchedRule: hybrid.matchedRule,
           },
-          agreement: det?.categoryId === hybrid.categoryId,
+          agreement: det?.systemCode === hybrid.systemCode,
         };
       }),
     );
@@ -123,7 +123,7 @@ export const llmController = {
             source: hybrid.source,
             model: hybrid.llmModel ?? "n/a",
           },
-          match: det?.categoryId === hybrid.categoryId,
+          match: det?.systemCode === hybrid.systemCode,
         };
       }),
     );

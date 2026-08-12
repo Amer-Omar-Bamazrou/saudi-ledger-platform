@@ -133,7 +133,14 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       // They are necessarily duplicated — SQL cannot call TypeScript — so the
       // duplication is pinned rather than trusted. A drift here means the
       // migration and the code disagree about what an account IS.
-      const { rows } = await pool.query(`SELECT code, name, name_ar, type FROM system_account_templates ORDER BY code`);
+      // M15 added 25 DEFAULT categories (is_system = false) to the same
+      // template so the categorization engine has seeded rows to resolve
+      // against. This test's claim is about the SYSTEM tier — the protected 11
+      // the posting path depends on — so it filters to it. The defaults have
+      // their own agreement test (categorization-m15.test.ts §1).
+      const { rows } = await pool.query(
+        `SELECT code, name, name_ar, type FROM system_account_templates WHERE is_system ORDER BY code`,
+      );
       const ts = [...SYSTEM_CHART_OF_ACCOUNTS].sort((a, b) => a.code.localeCompare(b.code));
       expect(rows).toHaveLength(ts.length);
       rows.forEach((r, i) => {
