@@ -339,7 +339,24 @@ avoid. The fix is a separate deletable-staging interface (not a `delete` on
 `ArchiveStore`, which would hand every implementation the power to destroy a
 legally-retained invoice).
 
-### Still not built
+### Still not built: the OCR bake-off — and WHY it is sequenced last
 
-The OCR bake-off (§5) — run it on **phone-captured photographs**, after the QR
-path has been in real use, so it measures the population OCR actually gets.
+Run it on **phone-captured photographs**, after the QR path has been in real use.
+
+🔴 **This is a measurement-validity reason, not convenience.** The bake-off
+decides whether to buy an OCR provider, and that decision depends entirely on
+*which documents actually reach OCR*. Running it now would measure the wrong
+population twice over:
+
+- **The QR path removes the majority case.** Whatever OCR handles after A1 is
+  the residue — foreign, handwritten, non-compliant, unreadable QR. Scoring
+  against a general mix of Saudi invoices would measure documents OCR will never
+  see, and would almost certainly *overstate* how well it copes with the ones it
+  will.
+- **Phone photographs are not desktop scans.** The capture surface is a camera
+  at a till: angle, glare, crumpling, motion. Tesseract on a clean flatbed scan
+  says nothing useful about that.
+
+Measuring early would produce a confident number about a population that does
+not exist, and a purchase decision made on it would be wrong in an
+unfalsifiable way.
