@@ -19,6 +19,8 @@ export const budgetsRepository = {
       .where(
         and(
           eq(transactionsTable.categoryId, categoryId),
+          // M15 holding area: budget ACTUALS count only accepted rows.
+          eq(transactionsTable.reviewStatus, "accepted"),
           gte(transactionsTable.date, periodStart),
           lte(transactionsTable.date, periodEnd),
         ),

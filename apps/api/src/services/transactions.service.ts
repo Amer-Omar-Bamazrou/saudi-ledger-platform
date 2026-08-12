@@ -147,6 +147,8 @@ export const transactionsService = {
         }
 
         await transactionsRepository.insert({
+          // M15 holding area: imported rows are PENDING until a human accepts.
+          reviewStatus: "pending_review",
           date: row.date,
           description: row.description,
           descriptionAr: row.descriptionAr ?? null,
@@ -187,8 +189,56 @@ export const transactionsService = {
     return UploadTransactionsResponse.parse({ inserted, categorized, duplicatesSkipped, errors });
   },
 
+  /** Pending imported rows — the holding-area review surface. */
+  async pendingReview() {
+    const rows = await transactionsRepository.pendingReview();
+    return rows.map((r) => ({
+      id: r.tx.id,
+      date: r.tx.date,
+      description: r.tx.description,
+      descriptionAr: r.tx.descriptionAr,
+      amount: Number(r.tx.amount),
+      type: r.tx.type,
+      categoryId: r.tx.categoryId,
+      categoryName: r.cat?.name ?? null,
+      confidenceScore: r.tx.confidenceScore != null ? Number(r.tx.confidenceScore) : null,
+      vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
+      // The UI separates these; the SERVER enforces the separation in
+      // acceptPending. needsAttention rows are excluded from bulk accept.
+      needsAttention:
+        r.tx.categoryId == null ||
+        (r.tx.confidenceScore != null && Number(r.tx.confidenceScore) < AUTO_ASSIGN_CONFIDENCE && !r.tx.isManuallyOverridden),
+    }));
+  },
+
+  /**
+   * Accept pending rows. `ids` present = deliberate, named acceptance (any
+   * pending row, including uncategorized). `ids` absent = bulk mode, which the
+   * repository restricts to rows safe to accept unread.
+   */
+  async acceptPending(ids?: number[]) {
+    const result = await transactionsRepository.acceptPending({
+      ids,
+      minConfidence: AUTO_ASSIGN_CONFIDENCE,
+    });
+    if (result.accepted > 0) {
+      await auditService.record({
+        action: "update",
+        entityType: "transaction",
+        entityId: "bulk-accept",
+        after: { accepted: result.accepted, mode: ids?.length ? "explicit" : "bulk" },
+      });
+    }
+    return result;
+  },
+
   async create(d: CreateTransactionInput) {
     const [tx] = await transactionsRepository.insert({
+      // M15: manual single entry is ACCEPTED on creation — a human typing one
+      // row is looking at that row (the M10.4 self-approve analogue). Only
+      // IMPORTED rows land pending, because import changes the authorship of
+      // rows that move tax figures.
+      reviewStatus: "accepted",
       date: d.date,
       description: d.description,
       descriptionAr: d.descriptionAr ?? null,
