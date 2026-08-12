@@ -12,10 +12,13 @@ import { EInvoiceWorker } from "../services/einvoice/outbox/worker";
 import { resolveProvider } from "../services/einvoice/zatca/zatcaDirectProvider";
 import { archiveService } from "../services/einvoice/archive/archive.service";
 import { renewalService } from "../services/einvoice/renewal/renewal.service";
+import { capturePromotionService } from "../services/capture/promotion.service";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
 export const JOB_RENEWAL = "zatca-renewal-reminders";
+export const JOB_CAPTURE_PROMOTION = "capture-promotion";
+export const JOB_CAPTURE_PURGE = "capture-purge";
 
 let scheduler: JobScheduler | null = null;
 
@@ -49,6 +52,23 @@ export function buildScheduler(): JobScheduler {
       name: JOB_RENEWAL,
       intervalMs: 60 * 60_000,
       runOnce: () => renewalService.runOnce(),
+    },
+    {
+      // A1: moves a posted capture's bytes from staging into the immutable
+      // archive. Frequent, because until it runs a bill's evidence exists only
+      // in deletable storage — a visible gap, but a gap.
+      name: JOB_CAPTURE_PROMOTION,
+      intervalMs: 60_000,
+      runOnce: () => capturePromotionService.runOnce(),
+    },
+    {
+      // A1: removes abandoned captures. Never touches anything posted to a
+      // bill. Daily is ample — it exists so stray photographs do not accumulate
+      // indefinitely, which is a cost and a PDPL question (queue C8), not an
+      // urgent one.
+      name: JOB_CAPTURE_PURGE,
+      intervalMs: 24 * 60 * 60_000,
+      runOnce: () => capturePromotionService.purgeOnce(),
     },
   ];
 

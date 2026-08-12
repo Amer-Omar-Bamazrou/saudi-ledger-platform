@@ -23,6 +23,7 @@ import { BusinessRuleError } from "../lib/errors";
 import { postJournalEntry } from "./accounting/glPosting";
 import { billsRepository } from "../repositories/bills.repository";
 import { categoriesRepository } from "../repositories/categories.repository";
+import { captureService } from "./capture/capture.service";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
 import type { billsTable, vendorsTable } from "@workspace/db";
@@ -37,6 +38,16 @@ const ZATCA_VAT_RE = /^3\d{13}3$/;
 
 export interface BillApproveOptions {
   debitAccount?: unknown;
+  /**
+   * The captured document this bill came from (A1).
+   *
+   * 🔴 Attached INSIDE this transaction, which is what makes the link atomic
+   * with the posting: if the bill rolls back, so does the capture's claim to be
+   * its evidence. Only the INTENT commits here — the bytes move into the
+   * immutable archive afterwards, via the promotion job, because object storage
+   * is not transactional with Postgres. Same pattern as M12.6's outbox.
+   */
+  captureId?: string;
   force?: boolean;
 }
 
@@ -50,7 +61,7 @@ async function snapshot(row: BillRow): Promise<BillOut> {
  * only on a transition into `approved` (from draft or the submitted queue).
  */
 async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: ApprovalActor): Promise<BillOut> {
-  const { debitAccount, force = false } = opts;
+  const { debitAccount, force = false, captureId } = opts;
   const bill = row.bill;
 
   const subtotal = toNum(bill.subtotal);
@@ -127,6 +138,12 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal },
     ],
   });
+
+  // 🔴 A1: bind the capture to the bill INSIDE this transaction, before the
+  // status flips. A capture that cannot be attached (already used, discarded)
+  // fails the whole approval rather than silently posting a bill whose evidence
+  // is unaccounted for — the document is what supports the input-VAT deduction.
+  if (captureId) await captureService.attachToBill(captureId, bill.id);
 
   // Approved & posted; clear any prior review note.
   const [updated] = await billsRepository.update(bill.id, { status: "received", reviewNote: null });

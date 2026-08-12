@@ -1839,6 +1839,43 @@ as done:**
 >    shape you searched for and whether it is the only shape that capability
 >    could take — *(finding #7, which is one of MINE)*.
 
+### 🔴 NAMED LESSON: PARTIAL DATA IS NOT LENIENT DATA — it is a wrong answer
+
+Found in A1's TLV decoder, and it generalises far beyond TLV.
+
+The decoder was written to be **lenient**, which was correct: it parses payloads
+produced by every other ZATCA vendor's software in the Kingdom, so a truncated or
+odd document must yield what it can rather than throwing away a whole capture.
+
+But leniency had been implemented as *"return the bytes that are there"*. A
+truncated final field came back as a **shorter value**:
+
+```
+   "150.00"   truncated   →   "15"
+```
+
+**`15` is a perfectly plausible VAT amount that is wrong by a factor of ten**, on
+a document supporting an input-VAT deduction, shown to a user with no way to know
+it was clipped. An exception would have been better. **Silence would have been
+better.**
+
+> **The rule: leniency means salvaging the fields that WERE readable. It never
+> means handing back part of a value as though it were the whole value.**
+>
+> A partial number, a truncated identifier, a half-decoded string: each is not a
+> degraded answer, it is a **confident wrong answer wearing a right answer's
+> shape** — and it is worse than an error, because an error gets handled and this
+> gets used.
+
+The fix keeps the leniency and drops the fiction: fields before the damage stay
+readable, the truncated tag is reported **absent** and listed in `truncated`, and
+the caller falls back to OCR rather than presenting a corrupt figure.
+
+**Where to apply it:** any parser reading data this platform did not produce —
+supplier QR codes, OCR output, bank feed rows (A2), imported CSVs, third-party
+API responses. Ask of every partial-read path: *if this value is half-right, does
+the caller find out?* If not, return nothing for that field.
+
 ### 🔴 FINDING #7 — the check applied to its own author
 
 Every finding above is about the codebase. This one is about the analysis of it,
@@ -1869,6 +1906,37 @@ implementation shapes X could take — server endpoint, client-side library, bui
 step, third-party call, database trigger — and confirm the search covered them.
 One extra grep (`package.json` dependencies would have shown `tesseract.js`
 immediately).
+
+### 🔴 FINDING #8 — half a fix that read as a whole one (also mine)
+
+**What happened.** M14 scoped `claimDue` by organization so parallel test suites
+would stop claiming each other's outbox rows. `reclaimStale` — the *other* global,
+cross-tenant mutation in the same repository, called by the same `runOnce()` one
+line earlier — was left unscoped. The outbox suite kept flaking on `main` for two
+milestones.
+
+**Why it stopped there: THE TESTS WENT GREEN.** The suite passed twice
+consecutively after the `claimDue` change, and that was taken as the signal the
+problem was solved. It was the signal that *one instance* was solved. Nothing
+asked whether the same class existed elsewhere in the same file.
+
+**It compounded:** the test suite also called `claimDue` **directly**, bypassing
+the worker's new scoping entirely — so even the fixed operation was unscoped on
+half its call paths.
+
+**The lesson, and it is a specific one:**
+
+> **A green test suite tells you the case you reproduced is fixed. It tells you
+> nothing about the class.** When a fix is "add a scope/guard/filter to X",
+> immediately grep for X's siblings — the other operations with the same
+> signature, the same globality, or the same missing parameter — *before*
+> accepting green as done.
+>
+> Green is where investigation usually ends. That is precisely why it is where
+> this class of bug survives.
+
+Related in kind to finding #4 (`tax_category_code` was declared, back-filled and
+validated — three things that look like progress — while nothing wrote it).
 
 Each part is cheap — three greps — and every one has caught something the first
 time it was applied. The reason it keeps happening is structural rather than
@@ -2297,6 +2365,9 @@ integrity of a closed period.
 | C4 | **AV scanning** on uploaded verification documents before untrusted-tenant growth | M11.4 follow-up |
 | C5 | **Fail-closed diagnosability** — confirm a blocked issuance surfaces an actionable message, not an opaque 500 | M12.8 behavioural decision above |
 | C6 | **Data residency / hosting region** — still open, now for the right reason (see the residency correction: ZATCA permits cloud; NCA/sector rules unverified). Choose the host and the KMS region together. | M12.0 / M12.8 |
+| C7 | 🔴 **TAX ADVICE NEEDED — retention of INBOUND supplier documents.** A1 retains captured supplier invoices to the same 6/11-year standard as outbound and sets `retain_until`. That is a **conservative default, not a settled reading of the obligation**: a supplier invoice is the evidence for an input-VAT deduction, and the asymmetry decides it — storage is capable either way, while not retaining and being wrong means the evidence is gone when ZATCA asks. Shortening a window later is easy; lengthening one retroactively is impossible. 🔴 **ANSWER TOGETHER WITH C8 — see the conflict note there.** | A1 (Q4) |
+| **C9** | 🔴 **Staged-capture purge is `local-fs` only (A1).** `ArchiveStore` has no `delete` by design, so `stagingStore.remove` is a no-op for `supabase-storage`: on a cloud deployment an abandoned capture's metadata row is purged and its bytes remain. **Close before any cloud deployment** — it is the C8/PDPL problem in concrete form, since an abandoned photograph that cannot be deleted is exactly what staging exists to avoid. Fix with a separate deletable-staging interface, **never** by adding `delete` to `ArchiveStore` (that would give every implementation the power to destroy a legally-retained invoice). | A1 |
+| **C8** | 🔴🔴 **PDPL (Saudi Personal Data Protection Law) — HIGHER PRIORITY THAN C7, AND MUST BE ANSWERED WITH IT.** A1 accepts **phone photographs**. Such a surface will eventually receive personal data — an ID card on the desk beside the receipt, a face in frame, a third party's document. PDPL gives data subjects **erasure rights**. "Immutable by design" is defensible for an invoice **we issued**; it is not obviously defensible for an accidental photograph **of a third party**.<br><br>🔴 **C7 AND C8 MAY CONFLICT AND MUST BE ANSWERED TOGETHER, BY THE SAME ADVISOR.** One asks *must we KEEP this document*; the other asks *must we be able to DELETE it*. **A resolution to either alone could be wrong** — retaining to satisfy C7 could breach C8, and deleting to satisfy C8 could destroy evidence C7 requires. Do not route them to different people, and do not answer them in sequence.<br><br>⚠️ **PDPL has NEVER been considered anywhere in this project**, so the question is **broader than document capture and must not be scoped to it**: `audit_logs` and `security_audit_logs` retain actor identity and IP addresses and are deliberately append-only; the e-invoice archive holds customer names and addresses for 6–11 years; `users`, `customers` and `employees` hold personal data under no retention policy at all. Whoever picks this up should scope it to the platform. **Not investigated — recorded so it is not underestimated.** | A1 |
 
 Re-check the hosted project's default privileges when it exists: they may differ
 from the local Supabase CLI stack where all of this was measured.

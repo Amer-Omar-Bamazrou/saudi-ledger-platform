@@ -31,6 +31,7 @@ import budgets from "./budgets.js";
 import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
 import llm from "./llm.js";
+import capture from "./capture.js";
 import auditLogs from "./auditLogs.js";
 
 const router = Router();
@@ -94,6 +95,9 @@ router.use("/budgets", requirePermission("budgets"), budgets);
 router.use("/reports", requirePermission("reports"), reports);
 router.use("/period-locks", requirePermission("period_locks"), periodLocks);
 router.use("/llm", requirePermission("llm"), llm);
+// A capture becomes a vendor bill, so it carries the bills authority — one
+// answer to "who may enter a purchase", not two.
+router.use("/capture", requirePermission("bills"), capture);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);
 router.use("/categorize", requirePermission("categorize"), categorize);
 

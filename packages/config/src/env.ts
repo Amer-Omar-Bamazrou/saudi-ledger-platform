@@ -161,6 +161,17 @@ const EnvSchema = z.object({
   ZATCA_ARCHIVE_RETENTION_YEARS: z.coerce.number().int().min(6).max(20).default(6),
   /** TTL for a direct link handed to an auditor. */
   ZATCA_ARCHIVE_LINK_TTL_SECONDS: z.coerce.number().int().min(60).default(3600),
+
+  // ── Document capture (A1) ─────────────────────────────────────────────────
+  /**
+   * How long an untouched captured document survives before the purge job
+   * treats it as abandoned.
+   *
+   * Only ever applies to `staged` and `discarded` captures. A capture posted to
+   * a bill is evidence for an input-VAT deduction and is never purged — it is
+   * promoted into the immutable archive with its own retention.
+   */
+  CAPTURE_PURGE_AFTER_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ZATCA_KMS_PROVIDER === "local-dev") {
