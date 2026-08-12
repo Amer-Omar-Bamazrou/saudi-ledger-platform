@@ -2107,9 +2107,27 @@ needs **1–9**.
 
 ### Prerequisites tracked for M12.7+ (surface early, do not rediscover)
 
-- **🔴 Saudi company entity + active ZATCA VAT registration + ERAD credentials.**
-  The blocking dependency for M12.7–M12.9 and the longest-lead item in the whole
-  programme. VAT registration is mandatory above SAR 375,000 revenue and
+- **🔴🔴 Saudi company entity + active ZATCA VAT registration + ERAD credentials.
+  NOW BLOCKS TWO WORKSTREAMS, NOT ONE.** The longest-lead item in the programme,
+  and its urgency went up in A1.
+
+  | Workstream | What the entity gates |
+  | --- | --- |
+  | **ZATCA M12.7 / M12.9** | Simulation and production both require ERAD credentials, i.e. a real active taxpayer account. |
+  | **A2 bank connectivity** | Contracting with a **SAMA-licensed** open-banking provider (Lean, Malaa, Tamawal) almost certainly requires a **Saudi commercial registration**. |
+
+  🔴 **The distinction that matters for sequencing: conversations remain useful
+  without the entity; SIGNATURES do not.** Pricing, bank coverage, our
+  obligations under a provider's licence, and sandbox access are all answerable
+  today — which is why the A2 outreach
+  ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md))
+  is framed as exploratory. What cannot happen without the entity is a signed
+  agreement, and therefore a launch.
+
+  So the entity is no longer "the thing that unblocks the last two ZATCA
+  milestones". It is **on the critical path of two independent workstreams**, and
+  nothing technical shortens it. VAT registration is mandatory above SAR 375,000
+  revenue and **voluntary above SAR 187,500**. VAT registration is mandatory above SAR 375,000 revenue and
   **voluntary above SAR 187,500**. Nothing technical unblocks this.
 - **Data residency — 🔴 THE EARLIER CLAIM HERE WAS WRONG. See the correction
   below before making any hosting decision.** This entry previously read *"ZATCA

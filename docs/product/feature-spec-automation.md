@@ -251,6 +251,13 @@ question. Do not answer it inside an implementation ticket.
 
 ## 4. A3 — Recurring documents (no provider, no model, no dependency)
 
+> 📄 **Full spec: [`feature-spec-a3-recurring.md`](./feature-spec-a3-recurring.md).**
+> 🔴 **It CORRECTS the locked-period line below.** A rule cannot "skip" a locked
+> period — `invoicesService.create` already refuses a draft dated into one — and
+> skipping would be wrong regardless, because a skipped recurring invoice means
+> **a customer was not billed and nothing says so**. The same quiet-neglect shape
+> as the ZATCA outbox. Failed runs are recorded and surfaced instead.
+
 Rent, retainers, subscriptions. **The cheapest of the three and the only one with
 zero external dependency** — worth considering first if A1's provider decision
 stalls.
@@ -262,8 +269,10 @@ stalls.
   consumes an ICV and a ZATCA chain position unattended.
 - Runs on the **M12.8 job scheduler**, which is built. A fourth job.
 - The rules list lives in **Settings** — a list, not a hub.
-- Skips a locked period rather than failing (M13 made period locks
-  company-scoped, so this behaves correctly in a multi-company org).
+- 🔴 **A locked period FAILS the run, visibly** — see the A3 spec §3. This line
+  previously read "skips a locked period rather than failing", which was wrong
+  twice over. (M13 made period locks company-scoped, so the check itself behaves
+  correctly in a multi-company org.)
 
 ---
 
