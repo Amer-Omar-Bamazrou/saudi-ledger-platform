@@ -99,6 +99,39 @@ design:
 transactions — needs reason codes, per-row treatment mandatory rather than
 defaulted, and a migration of `VatReport` semantics.)
 
+### 🔴 Treatment defaults: verification status (recorded at M16.2)
+
+The defaults sketched above were written as **design illustrations, not
+verified tax positions** — and one was wrong: `BANK_CHARGES → E` above is
+**incorrect**. It shipped as **'S'** (migration `0031`): explicit bank fees are
+standard-rated in KSA per ZATCA's financial-services guideline; only
+implicit-margin products are exempt. `INSURANCE` was likewise corrected to
+'S' (general insurance is standard-rated; life insurance is exempt and is a
+per-row override), which also corrected 0029's `vat_applicable = false`.
+
+Because two illustrations were wrong, the rest must not be read as verified.
+Status of the seeded map, category by category:
+
+- **Checked against actual KSA rules** (looked up because they were suspected
+  wrong): `BANK_CHARGES → S`, `INSURANCE → S`. Only these two were verified to
+  that standard.
+- **Reasoned from VAT-law categories, not individually researched:** the 'O'
+  group (`SALARIES`, `GOSI_EXPENSE`, `GOVT_FEES`, `ZAKAT_PAYMENT`,
+  `VAT_PAYMENT`, `LOANS`, `GOVT_GRANTS`, `CASH`/`AR`/`AP` — not consideration
+  for a supply) and the 'E' group (`INVESTMENT_INCOME`, `INVESTMENTS` — exempt
+  financial services).
+- **Illustrative majority-default, NOT verified per category:** every remaining
+  'S'. 'S' is the correct default for most supplies, but known per-row
+  divergences exist and are handled as row overrides, e.g. `RENTAL_INCOME`:
+  residential rent is **exempt** in KSA (commercial is 'S');
+  `FUEL_TRANSPORT`: international transport is zero-rated; `SALES`: exports
+  are zero-rated.
+
+Treat any default outside the first bullet as unverified until it has been
+checked the way `BANK_CHARGES` was. The blast radius is bounded by design:
+these are **reconcile-grade only** — the filing return reads invoices and
+bills and never consults this map.
+
 ---
 
 ## 2. Transfers as a class
