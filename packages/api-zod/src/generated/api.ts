@@ -145,6 +145,7 @@ export const GetPendingReviewTransactionsResponseItem = zod.object({
   "vatAmount": zod.number().nullish(),
   "kind": zod.enum(['operating', 'transfer', 'settlement']),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish(),
+  "treatmentAssumed": zod.boolean().optional().describe('M16.3.1 — true when the row\'s treatment came from a category\ndefault that has NOT been verified against KSA VAT rules (only\nBANK_CHARGES and INSURANCE have been — queue C9 tracks the rest).\nThe UI shows these as \"assumed\" with an override; a user must\nnever read a confident \'S\' off a guess.\n'),
   "needsAttention": zod.boolean().describe('True for rows a human MUST look at (uncategorized non-transfer, or\nlow-confidence). The server enforces this: bulk accept never takes\na needsAttention row — accepting one requires naming its id.\n'),
   "suggestion": zod.union([zod.object({
   "documentKind": zod.enum(['invoice', 'bill']),
@@ -314,6 +315,7 @@ export const UpdateTransactionBody = zod.object({
   "isZakatRelevant": zod.boolean().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
   "notes": zod.string().nullish(),
   "descriptionAr": zod.string().nullish()
 })

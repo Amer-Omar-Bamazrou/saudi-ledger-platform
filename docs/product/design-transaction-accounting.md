@@ -156,6 +156,16 @@ checked the way `BANK_CHARGES` was. The blast radius is bounded by design:
 these are **reconcile-grade only** — the filing return reads invoices and
 bills and never consults this map.
 
+**M16.3.1 (owner decision at the M16.3 close-out): the distinction is now
+DATA, not only documentation.** `treatment_verified` on
+`system_account_templates`/`categories` (migration 0033) is true ONLY for the
+two checked categories; a row whose treatment came from an unverified default
+surfaces in the review UI as **"assumed"**, with a per-row override
+(`PATCH /transactions/:id { taxTreatment }` — non-'S' clears the VAT, 'S'
+extracts it from gross). Flipping `treatment_verified` records an actual rule
+lookup, never a side effect. Verifying the rest is **pre-production queue item
+C9** in CLAUDE.md.
+
 ---
 
 ## 2. Transfers as a class

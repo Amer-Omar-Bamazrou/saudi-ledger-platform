@@ -56,6 +56,7 @@ export * from './transactionReviewStatus';
 export * from './transactionTaxTreatment';
 export * from './transactionType';
 export * from './transactionUpdate';
+export * from './transactionUpdateTaxTreatment';
 export * from './transactionUpload';
 export * from './updateCompanyInput';
 export * from './uploadResult';

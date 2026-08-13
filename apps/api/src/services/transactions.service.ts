@@ -251,6 +251,11 @@ export const transactionsService = {
       vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
       kind: r.tx.kind,
       taxTreatment: r.tx.taxTreatment,
+      // M16.3.1 — an unverified treatment default must be visible where it is
+      // USED: true when the treatment came from a category whose default has
+      // not been checked against KSA rules (and no human has overridden it).
+      treatmentAssumed:
+        r.tx.taxTreatment != null && !r.tx.isManuallyOverridden && r.cat?.treatmentVerified === false,
       // The UI separates these; the SERVER enforces the separation in
       // acceptPending. needsAttention rows are excluded from bulk accept.
       // M16.2: a confident TRANSFER is classified — the classification is the
@@ -337,6 +342,20 @@ export const transactionsService = {
     if (data.isZakatRelevant !== undefined) updates.isZakatRelevant = data.isZakatRelevant ?? false;
     if (data.vatAmount !== undefined) updates.vatAmount = data.vatAmount != null ? String(data.vatAmount) : null;
     if (data.vatRate !== undefined) updates.vatRate = data.vatRate != null ? String(data.vatRate) : null;
+    // M16.3.1 — per-row treatment override (the export-sale case; correcting an
+    // assumed default). The VAT consequence travels WITH the treatment so the
+    // two facts cannot disagree: non-'S' rows carry zero VAT and say why; 'S'
+    // with no explicit VAT extracts from the gross amount (never applies to it).
+    if (data.taxTreatment !== undefined) {
+      updates.taxTreatment = data.taxTreatment ?? null;
+      if (data.taxTreatment !== "S") {
+        updates.vatAmount = null;
+        updates.vatRate = null;
+      } else if (data.vatAmount === undefined && existing.tx.vatAmount == null) {
+        updates.vatAmount = String(vatFromGross(Number(existing.tx.amount), 15));
+        updates.vatRate = "15";
+      }
+    }
     if (data.notes !== undefined) updates.notes = data.notes ?? null;
     if (data.descriptionAr !== undefined) updates.descriptionAr = data.descriptionAr ?? null;
 

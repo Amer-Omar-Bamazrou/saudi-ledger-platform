@@ -47,6 +47,18 @@ export const categoriesTable = pgTable(
      * the reconciliation view, never the filing return. Overridable per row.
      */
     defaultTaxTreatment: text("default_tax_treatment"),
+    /**
+     * M16.3.1 — has `default_tax_treatment` been VERIFIED against actual KSA
+     * VAT rules, or is it an assumed majority-default? (Owner decision at the
+     * M16.3 close-out: an unverified default must be visible where it is USED,
+     * not only where it is documented.) Only BANK_CHARGES and INSURANCE were
+     * checked at M16.2; everything else is assumed until verified the same
+     * way — see the verification-status flag in
+     * docs/product/design-transaction-accounting.md and queue item C9.
+     * Flipping this to true is a deliberate act recording a rule lookup,
+     * never a side effect.
+     */
+    treatmentVerified: boolean("treatment_verified").notNull().default(false),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
