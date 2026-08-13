@@ -54,7 +54,10 @@ const ADMIN_ONLY: readonly PermissionRole[] = ["admin"];
  */
 const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionRole[]>>> = {
   // Standard business entities: read=all, create/update=write, delete=admin.
-  transactions: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
+  // transactions carry `approve` (M16.3): POST /:id/settle records a PAYMENT
+  // against an invoice/bill through the pay path — approver authority, same as
+  // invoice/bill pay. Plain accept stays create-level (it moves no money).
+  transactions: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
   customers: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   vendors: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   products: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },

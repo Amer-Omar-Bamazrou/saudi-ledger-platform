@@ -7,6 +7,7 @@ import {
   UpdateTransactionBody,
   DeleteTransactionParams,
   UploadTransactionsBody,
+  SettleTransactionBody,
 } from "@workspace/api-zod";
 import { BadRequestError } from "../lib/errors";
 import { transactionsService } from "../services/transactions.service";
@@ -38,6 +39,16 @@ export const transactionsController = {
       ? (req.body.ids as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0)
       : undefined;
     res.json(await transactionsService.acceptPending(ids));
+  },
+
+  async settle(req: Request, res: Response) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new BadRequestError("Invalid id");
+    const body = SettleTransactionBody.safeParse(req.body ?? {});
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.json(
+      await transactionsService.settle(id, body.data, req.session?.userId ?? null),
+    );
   },
 
   async upload(req: Request, res: Response) {

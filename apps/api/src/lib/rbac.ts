@@ -41,7 +41,9 @@ const METHOD_ACTION: Record<string, PermissionAction> = {
 // absent — it is a bookkeeper's own action (create-level). Matched on the path
 // SUFFIX so it is robust to Express mount-path stripping (works on "/5/approve"
 // or "/x/5/approve" alike). `send-back` is matched with an optional hyphen.
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back)\/?$/i;
+// `settle` (M16.3) fires a payment through the invoice/bill pay path, so it
+// carries the same approver-only authority as `pay`.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {

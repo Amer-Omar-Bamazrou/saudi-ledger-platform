@@ -43,6 +43,7 @@ import type {
   PayrollRun,
   PendingReviewTransaction,
   SendBackInput,
+  SettleTransactionInput,
   Transaction,
   TransactionInput,
   TransactionList,
@@ -469,6 +470,80 @@ export const useAcceptPendingTransactions = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAcceptPendingTransactionsMutationOptions(options));
+    }
+
+export const getSettleTransactionUrl = (id: number,) => {
+
+
+
+
+  return `/api/transactions/${id}/settle`
+}
+
+/**
+ * @summary Accept a pending transaction as the SETTLEMENT of an existing invoice or bill (M16.3). One act — accepting the match IS the review: the row leaves the holding area AND the payment is recorded through the existing pay path (Dr Cash / Cr AR, or Dr AP / Cr Cash). Never automatic — a human names the document, however exact the match.
+
+ */
+export const settleTransaction = async (id: number,
+    settleTransactionInput: SettleTransactionInput, options?: RequestInit): Promise<Transaction> => {
+
+  return customFetch<Transaction>(getSettleTransactionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(settleTransactionInput)
+  }
+);}
+
+
+
+
+
+export const getSettleTransactionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof settleTransaction>>, TError,{id: number;data: BodyType<SettleTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof settleTransaction>>, TError,{id: number;data: BodyType<SettleTransactionInput>}, TContext> => {
+
+const mutationKey = ['settleTransaction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof settleTransaction>>, {id: number;data: BodyType<SettleTransactionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  settleTransaction(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SettleTransactionMutationResult = NonNullable<Awaited<ReturnType<typeof settleTransaction>>>
+    export type SettleTransactionMutationBody = BodyType<SettleTransactionInput>
+    export type SettleTransactionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Accept a pending transaction as the SETTLEMENT of an existing invoice or bill (M16.3). One act — accepting the match IS the review: the row leaves the holding area AND the payment is recorded through the existing pay path (Dr Cash / Cr AR, or Dr AP / Cr Cash). Never automatic — a human names the document, however exact the match.
+
+ */
+export const useSettleTransaction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof settleTransaction>>, TError,{id: number;data: BodyType<SettleTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof settleTransaction>>,
+        TError,
+        {id: number;data: BodyType<SettleTransactionInput>},
+        TContext
+      > => {
+      return useMutation(getSettleTransactionMutationOptions(options));
     }
 
 export const getUploadTransactionsUrl = () => {

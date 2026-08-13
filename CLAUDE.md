@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-13 (M16.2 merged; M16.3 next).**
+**Last updated: 2026-08-14 (M16.3 built + live-verified; PR pending review).**
 If this block disagrees with reality, fix it first.
 
 ### Where we are
@@ -38,7 +38,7 @@ If this block disagrees with reality, fix it first.
 | **M15** — Statement ingestion repair | ✅ Categorizer emits `system_code` (forcing-function test: every emittable code exists in the seeded chart); holding area / review surface for uploaded transactions. | [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md) |
 | **M16.1** — VAT page source switch | ✅ `VatReport.tsx` **files from documents** (`reports.vatReturn`, box-structured); the transaction figure is the **reconciliation view** beside it, gap itemised. (PR #25) | same design doc |
 | **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
-| **M16.3** — Bank reconciliation | ⏳ **Next.** Exact-match suggestions, never actions; acceptance through the existing pay paths; `kind: settlement`. | design doc §3 |
+| **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
 | **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
 
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:

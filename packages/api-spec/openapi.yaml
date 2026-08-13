@@ -142,6 +142,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/AcceptPendingResult"
 
+  /transactions/{id}/settle:
+    post:
+      operationId: settleTransaction
+      tags: [transactions]
+      summary: >
+        Accept a pending transaction as the SETTLEMENT of an existing invoice or
+        bill (M16.3). One act — accepting the match IS the review: the row
+        leaves the holding area AND the payment is recorded through the
+        existing pay path (Dr Cash / Cr AR, or Dr AP / Cr Cash). Never
+        automatic — a human names the document, however exact the match.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettleTransactionInput"
+      responses:
+        "200":
+          description: The settled transaction (kind=settlement, linked, accepted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
   /transactions/upload:
     post:
       operationId: uploadTransactions
@@ -1255,6 +1285,12 @@ components:
           enum: [S, Z, E, O, null]
         bankAccountId:
           type: ["integer", "null"]
+        settlesInvoiceId:
+          description: "M16.3: the invoice this credit settled (kind=settlement)."
+          type: ["integer", "null"]
+        settlesBillId:
+          description: "M16.3: the bill this debit paid (kind=settlement)."
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
         createdAt:
@@ -1282,6 +1318,51 @@ components:
             low-confidence). The server enforces this: bulk accept never takes
             a needsAttention row — accepting one requires naming its id.
           type: boolean
+        suggestion:
+          description: |
+            M16.3 — an exact-match settlement SUGGESTION, never an action. The
+            UI pre-selects it; only POST /transactions/{id}/settle applies it,
+            and only when a human clicks. Null when no unambiguous match
+            exists (unmatched rows stay plain transactions).
+          oneOf:
+            - $ref: "#/components/schemas/SettlementSuggestion"
+            - type: "null"
+
+    SettlementSuggestion:
+      type: object
+      required: [documentKind, documentId, documentNumber, outstanding, matchedBy, partial]
+      properties:
+        documentKind:
+          type: string
+          enum: [invoice, bill]
+        documentId: { type: integer }
+        documentNumber: { type: string }
+        counterpartyName: { type: ["string", "null"] }
+        outstanding:
+          description: The document's outstanding balance (total - paid).
+          type: number
+        matchedBy:
+          description: |
+            "number" — the document number appears in the bank-line description;
+            "amount" — the amount equals exactly ONE open document's outstanding
+            balance. v1 is exact-match only (design Q3a).
+          type: string
+          enum: [number, amount]
+        partial:
+          description: |
+            True when the amount is LESS than the outstanding balance and the
+            description references the document number (Q3b: description-
+            referenced partials suggested; amount-only partials never).
+          type: boolean
+
+    SettleTransactionInput:
+      type: object
+      description: Exactly one of invoiceId / billId must be set.
+      properties:
+        invoiceId:
+          type: ["integer", "null"]
+        billId:
+          type: ["integer", "null"]
 
     AcceptPendingInput:
       type: object

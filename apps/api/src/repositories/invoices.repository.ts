@@ -199,6 +199,31 @@ export const invoicesRepository = {
       );
   },
 
+  /**
+   * Open invoices a bank credit could settle (M16.3 reconciliation).
+   *
+   * "Open" mirrors AR aging's per-document definition: issued (approved —
+   * `invoice_hash IS NOT NULL`, so drafts/submitted are structurally excluded),
+   * not fully paid, with `total - paid_amount >= 0.01`. Restricted to
+   * `document_type = 'invoice'`: a credit/debit NOTE is a correction document,
+   * not a receivable a bank credit settles (v1 scope, design §3).
+   */
+  openForSettlement() {
+    return db
+      .select({ inv: invoicesTable, cust: customersTable })
+      .from(invoicesTable)
+      .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
+      .where(
+        and(
+          isNotNull(invoicesTable.invoiceHash),
+          eq(invoicesTable.documentType, "invoice"),
+          sql`${invoicesTable.status} NOT IN ('draft','submitted','paid','cancelled')`,
+          sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0)) >= 0.01`,
+        ),
+      )
+      .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));
+  },
+
   insert(values: typeof invoicesTable.$inferInsert) {
     return db.insert(invoicesTable).values(values).returning();
   },

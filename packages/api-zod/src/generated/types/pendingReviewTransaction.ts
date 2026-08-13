@@ -8,6 +8,7 @@
 import type { PendingReviewTransactionKind } from './pendingReviewTransactionKind';
 import type { PendingReviewTransactionTaxTreatment } from './pendingReviewTransactionTaxTreatment';
 import type { PendingReviewTransactionType } from './pendingReviewTransactionType';
+import type { SettlementSuggestion } from './settlementSuggestion';
 
 export interface PendingReviewTransaction {
   id: number;
@@ -34,4 +35,11 @@ export interface PendingReviewTransaction {
      * a needsAttention row — accepting one requires naming its id.
      */
   needsAttention: boolean;
+  /**
+     * M16.3 — an exact-match settlement SUGGESTION, never an action. The
+     * UI pre-selects it; only POST /transactions/{id}/settle applies it,
+     * and only when a human clicks. Null when no unambiguous match
+     * exists (unmatched rows stay plain transactions).
+     */
+  suggestion?: SettlementSuggestion | null;
 }

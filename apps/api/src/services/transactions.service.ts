@@ -29,6 +29,7 @@ function reasonFor(err: unknown): string {
   return ".";
 }
 import { transactionsRepository, type TransactionFilter } from "../repositories/transactions.repository";
+import { reconciliationService } from "./reconciliation.service";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
 
 type Tx = typeof transactionsTable.$inferSelect;
@@ -59,6 +60,8 @@ function buildTransactionRow(tx: Tx, cat?: Cat | null) {
     kind: tx.kind,
     taxTreatment: tx.taxTreatment ?? null,
     bankAccountId: tx.bankAccountId ?? null,
+    settlesInvoiceId: tx.settlesInvoiceId ?? null,
+    settlesBillId: tx.settlesBillId ?? null,
     notes: tx.notes ?? null,
     createdAt: tx.createdAt.toISOString(),
   };
@@ -231,7 +234,11 @@ export const transactionsService = {
   /** Pending imported rows — the holding-area review surface. */
   async pendingReview() {
     const rows = await transactionsRepository.pendingReview();
+    // M16.3 — exact-match settlement suggestions, computed server-side so the
+    // UI shows them pre-selected. Suggestions only: nothing here applies one.
+    const suggestions = await reconciliationService.suggestFor(rows.map((r) => r.tx));
     return rows.map((r) => ({
+      suggestion: suggestions.get(r.tx.id) ?? null,
       id: r.tx.id,
       date: r.tx.date,
       description: r.tx.description,
@@ -273,6 +280,17 @@ export const transactionsService = {
       });
     }
     return result;
+  },
+
+  /**
+   * M16.3 — accept a pending row AS the settlement of an invoice/bill. One
+   * act: acceptance out of the holding area + the payment, through the
+   * existing pay path. See reconciliation.service for the full contract.
+   */
+  async settle(id: number, input: { invoiceId?: number | null; billId?: number | null }, userId: number | null) {
+    const tx = await reconciliationService.settle(id, input, userId);
+    const [row] = await transactionsRepository.findWithCategory(tx.id);
+    return GetTransactionResponse.parse(buildTransactionRow(row!.tx, row!.cat));
   },
 
   async create(d: CreateTransactionInput) {

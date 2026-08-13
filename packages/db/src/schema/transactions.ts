@@ -16,6 +16,8 @@ import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 import { bankAccountsTable } from "./bankAccounts";
+import { invoicesTable } from "./invoices";
+import { billsTable } from "./bills";
 
 export const transactionsTable = pgTable(
   "transactions",
@@ -105,6 +107,21 @@ export const transactionsTable = pgTable(
      * pre-M16.2 rows and manual entries may not name one.
      */
     bankAccountId: integer("bank_account_id").references(() => bankAccountsTable.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * M16.3 — reconciliation links (design §3). Set when a human accepts a
+     * settlement match: the invoice this credit settled, or the bill this debit
+     * paid. Exactly one may be set (DB CHECK), and only alongside
+     * `kind = 'settlement'`. Makes "where did this payment go?" answerable from
+     * either side. The ledger effect itself is posted by the EXISTING pay path
+     * (`invoicesService.pay` / `billsService.pay`) — these columns are the
+     * cross-reference, never a second posting mechanism.
+     */
+    settlesInvoiceId: integer("settles_invoice_id").references(() => invoicesTable.id, {
+      onDelete: "set null",
+    }),
+    settlesBillId: integer("settles_bill_id").references(() => billsTable.id, {
       onDelete: "set null",
     }),
     notes: text("notes"),
