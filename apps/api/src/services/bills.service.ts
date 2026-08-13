@@ -135,11 +135,24 @@ export const billsService = {
       throw new BadRequestError("A positive payment amount is required.");
     }
 
+    // M16.3: payments accumulate; a partial keeps the bill open (it must stay
+    // in AP aging); overpay is refused. Mirrors invoices.service.pay — see the
+    // note there.
+    const alreadyPaid = Number(existing.paidAmount ?? 0);
+    const outstanding = Math.round((Number(existing.total) - alreadyPaid) * 100) / 100;
+    if (paid > outstanding + 0.005) {
+      throw new ConflictError(
+        `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this bill.`,
+      );
+    }
+    const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
+    const fullySettled = outstanding - paid < 0.01;
+
     const payDate = paidAt ?? new Date().toISOString().split("T")[0];
     const [bill] = await billsRepository.update(id, {
-      paidAmount: String(paid),
+      paidAmount: String(newPaid),
       paidAt: payDate,
-      status: "paid",
+      status: fullySettled ? "paid" : existing.status,
     });
 
     // ── GL: Dr Accounts Payable / Cr Cash and Bank ──

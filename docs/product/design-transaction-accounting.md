@@ -19,7 +19,31 @@ decision. Approved build order:
    standard-rated in KSA; INSURANCE likewise 'S' (general insurance is
    standard-rated; life-exempt is a per-row override), correcting 0029's
    `vat_applicable=false`.
-4. **M16.3 — bank reconciliation** (matching suggestions → existing pay paths).
+4. ✅ **M16.3 — bank reconciliation** (matching suggestions → existing pay
+   paths). Built as designed: exact-match only (number-in-description, or
+   amount equal to exactly ONE open document's outstanding); Q3a suggestions
+   never auto-applied; Q3b description-referenced partials suggested,
+   amount-only partials never; acceptance routes through
+   `invoicesService.pay` / `billsService.pay` (no parallel posting path);
+   `kind: settlement` + `settles_invoice_id`/`settles_bill_id` links.
+   Two additions found necessary during the build: (a) the M15 review surface
+   had **no UI consumer** (a shape without a consumer — the endpoints existed,
+   nothing rendered them), so the `/review` page ships here; (b) the pay paths
+   gained real **partial-payment semantics** — payments accumulate, "paid"
+   means fully paid, overpay is a 409 — because pre-M16.3 any payment amount
+   flipped the document to `paid`, which would have made a partial settlement
+   vanish from AR aging while balance-sheet AR kept the residual.
+   **Live verification pass (2026-08-14, real HTTP → engine → Postgres,
+   observed values):** clean org; invoice INV-LIVE-M163 issued for 3,450
+   (3,000 + 450 VAT) → VAT return netVatDue **450**, AR aging **3,450**,
+   income **0**, cash flow **0**. Uploaded credit "INCOMING SWIFT ALMARAI REF
+   INV-LIVE-M163" 3,450 → review surface suggested invoice 5040
+   (matchedBy=number, partial=false) and changed nothing. After one settle
+   call: income **0** (the receipt never became revenue — the M15 double-count
+   is dead), VAT summary **0**, VAT return netVatDue **450** (unchanged),
+   cash flow **3,450**, AR aging **0**, invoice `paid`/3,450, GL entry
+   `GL-INV-LIVE-M163-PAY` posted by the existing pay path, row
+   `kind=settlement` linked to the invoice.
 
 **Standing step (owner-mandated):** every M16 milestone ends with a re-run of
 the LIVE verification pass — same fixture, real HTTP path, observed values.

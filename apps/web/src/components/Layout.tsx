@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import {
-  LayoutDashboard, ListOrdered, BrainCog, UploadCloud,
+  LayoutDashboard, ListOrdered, ListChecks, BrainCog, UploadCloud,
   Receipt, Landmark, Tags, Users, Building2, FileText, FileInput,
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
@@ -28,6 +28,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     items: [
       { href: "/",              label: "Dashboard",     labelAr: "لوحة التحكم",  icon: LayoutDashboard },
       { href: "/transactions",  label: "Transactions",  labelAr: "المعاملات",     icon: ListOrdered },
+      { href: "/review",        label: "Review",        labelAr: "المراجعة",      icon: ListChecks },
       { href: "/bank-accounts", label: "Bank Accounts", labelAr: "الحسابات البنكية", icon: CreditCard },
     ],
   },

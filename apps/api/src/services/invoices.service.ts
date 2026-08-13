@@ -201,11 +201,30 @@ export const invoicesService = {
       throw new BadRequestError("A positive payment amount is required.");
     }
 
+    // ── M16.3: real partial-payment semantics ─────────────────────────────
+    // Payments ACCUMULATE against the outstanding balance (total - paid so
+    // far). Pre-M16.3 this overwrote paidAmount and flipped status to "paid"
+    // whatever the amount — so a partial payment vanished from AR aging
+    // (which skips status='paid') while balance-sheet AR still carried the
+    // residual: exactly the aging-vs-balance-sheet drift the M12.1b note
+    // warns about. Now a partial keeps the invoice open; "paid" means paid.
+    // Overpaying the outstanding balance is refused — same posture as the
+    // over-crediting guard on credit notes.
+    const alreadyPaid = Number(existing.paidAmount ?? 0);
+    const outstanding = Math.round((Number(existing.total) - alreadyPaid) * 100) / 100;
+    if (paid > outstanding + 0.005) {
+      throw new ConflictError(
+        `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this invoice.`,
+      );
+    }
+    const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
+    const fullySettled = outstanding - paid < 0.01;
+
     const payDate = paidAt ?? new Date().toISOString().split("T")[0];
     const [inv] = await invoicesRepository.update(id, {
-      paidAmount: String(paid),
+      paidAmount: String(newPaid),
       paidAt: payDate,
-      status: "paid",
+      status: fullySettled ? "paid" : existing.status,
     });
 
     // ── GL: Dr Cash and Bank / Cr Accounts Receivable ──

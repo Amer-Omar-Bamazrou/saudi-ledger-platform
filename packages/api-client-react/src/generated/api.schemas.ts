@@ -256,6 +256,16 @@ export interface Transaction {
   taxTreatment?: TransactionTaxTreatment;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * M16.3: the invoice this credit settled (kind=settlement).
+     * @nullable
+     */
+  settlesInvoiceId?: number | null;
+  /**
+     * M16.3: the bill this debit paid (kind=settlement).
+     * @nullable
+     */
+  settlesBillId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
@@ -291,6 +301,49 @@ export const PendingReviewTransactionTaxTreatment = {
   O: 'O',
 } as const;
 
+export type SettlementSuggestionDocumentKind = typeof SettlementSuggestionDocumentKind[keyof typeof SettlementSuggestionDocumentKind];
+
+
+export const SettlementSuggestionDocumentKind = {
+  invoice: 'invoice',
+  bill: 'bill',
+} as const;
+
+/**
+ * "number" — the document number appears in the bank-line description;
+ * "amount" — the amount equals exactly ONE open document's outstanding
+ * balance. v1 is exact-match only (design Q3a).
+ */
+export type SettlementSuggestionMatchedBy = typeof SettlementSuggestionMatchedBy[keyof typeof SettlementSuggestionMatchedBy];
+
+
+export const SettlementSuggestionMatchedBy = {
+  number: 'number',
+  amount: 'amount',
+} as const;
+
+export interface SettlementSuggestion {
+  documentKind: SettlementSuggestionDocumentKind;
+  documentId: number;
+  documentNumber: string;
+  /** @nullable */
+  counterpartyName?: string | null;
+  /** The document's outstanding balance (total - paid). */
+  outstanding: number;
+  /**
+     * "number" — the document number appears in the bank-line description;
+     * "amount" — the amount equals exactly ONE open document's outstanding
+     * balance. v1 is exact-match only (design Q3a).
+     */
+  matchedBy: SettlementSuggestionMatchedBy;
+  /**
+     * True when the amount is LESS than the outstanding balance and the
+     * description references the document number (Q3b: description-
+     * referenced partials suggested; amount-only partials never).
+     */
+  partial: boolean;
+}
+
 export interface PendingReviewTransaction {
   id: number;
   date: string;
@@ -316,6 +369,23 @@ export interface PendingReviewTransaction {
      * a needsAttention row — accepting one requires naming its id.
      */
   needsAttention: boolean;
+  /**
+     * M16.3 — an exact-match settlement SUGGESTION, never an action. The
+     * UI pre-selects it; only POST /transactions/{id}/settle applies it,
+     * and only when a human clicks. Null when no unambiguous match
+     * exists (unmatched rows stay plain transactions).
+     */
+  suggestion?: SettlementSuggestion | null;
+}
+
+/**
+ * Exactly one of invoiceId / billId must be set.
+ */
+export interface SettleTransactionInput {
+  /** @nullable */
+  invoiceId?: number | null;
+  /** @nullable */
+  billId?: number | null;
 }
 
 export interface AcceptPendingInput {

@@ -49,6 +49,16 @@ export interface Transaction {
   taxTreatment?: TransactionTaxTreatment;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * M16.3: the invoice this credit settled (kind=settlement).
+     * @nullable
+     */
+  settlesInvoiceId?: number | null;
+  /**
+     * M16.3: the bill this debit paid (kind=settlement).
+     * @nullable
+     */
+  settlesBillId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;

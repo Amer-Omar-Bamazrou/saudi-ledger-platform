@@ -225,6 +225,13 @@
       "when": 1786538399475,
       "tag": "0031_m16_2_kind_treatment_account",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786653477687,
+      "tag": "0032_m16_3_settlement_links",
+      "breakpoints": true
     }
   ]
 }

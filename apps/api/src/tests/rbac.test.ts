@@ -118,6 +118,8 @@ describe("requirePermission — activation routes require `approve` (not create)
     ["payroll", "/5/approve"],
     ["payroll", "/5/reject"],
     ["payroll", "/5/send-back"],
+    // M16.3: settling a transaction records a payment through the pay path.
+    ["transactions", "/5/settle"],
   ];
 
   for (const [resource, path] of ACTIVATION) {
