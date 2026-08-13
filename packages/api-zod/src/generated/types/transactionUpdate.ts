@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { TransactionUpdateTaxTreatment } from './transactionUpdateTaxTreatment';
 
 export interface TransactionUpdate {
   /** @nullable */
@@ -15,6 +16,15 @@ export interface TransactionUpdate {
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;
+  /**
+     * M16.3.1 — per-row VAT-treatment override (the export-sale case, or
+     * correcting an assumed default). Setting a non-'S' value clears the
+     * row's VAT (Z/E/O rows carry zero VAT and say why); setting 'S' on a
+     * row with no VAT extracts it from the gross amount at 15%. null
+     * returns the row to honest-unknown.
+     * @nullable
+     */
+  taxTreatment?: TransactionUpdateTaxTreatment;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

@@ -1312,6 +1312,14 @@ components:
         vatAmount: { type: ["number", "null"] }
         kind: { type: string, enum: [operating, transfer, settlement] }
         taxTreatment: { type: ["string", "null"], enum: [S, Z, E, O, null] }
+        treatmentAssumed:
+          description: |
+            M16.3.1 — true when the row's treatment came from a category
+            default that has NOT been verified against KSA VAT rules (only
+            BANK_CHARGES and INSURANCE have been — queue C9 tracks the rest).
+            The UI shows these as "assumed" with an override; a user must
+            never read a confident 'S' off a guess.
+          type: boolean
         needsAttention:
           description: |
             True for rows a human MUST look at (uncategorized non-transfer, or
@@ -1452,6 +1460,15 @@ components:
           type: ["number", "null"]
         vatRate:
           type: ["number", "null"]
+        taxTreatment:
+          description: |
+            M16.3.1 — per-row VAT-treatment override (the export-sale case, or
+            correcting an assumed default). Setting a non-'S' value clears the
+            row's VAT (Z/E/O rows carry zero VAT and say why); setting 'S' on a
+            row with no VAT extracts it from the gross amount at 15%. null
+            returns the row to honest-unknown.
+          type: ["string", "null"]
+          enum: [S, Z, E, O, null]
         notes:
           type: ["string", "null"]
         descriptionAr:

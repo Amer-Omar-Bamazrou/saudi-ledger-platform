@@ -256,6 +256,58 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
     expect(otherAccount.duplicatesSkipped).toBe(0);
   });
 
+  // ── M16.3.1: checked vs assumed treatment defaults ────────────────────────
+  describe("M16.3.1 — an unverified treatment default is visible where it is USED", () => {
+    it("verification is DATA, and exactly the two checked categories carry it", async () => {
+      // Flipping `treatment_verified` records an actual KSA rule lookup; if
+      // this list grows, the lookup must be recorded in the design doc's
+      // verification-status section (queue C9), or this test fails on purpose.
+      const { rows } = await pool.query(
+        `SELECT code FROM system_account_templates WHERE treatment_verified ORDER BY code`,
+      );
+      expect(rows.map((r: { code: string }) => r.code)).toEqual(["BANK_CHARGES", "INSURANCE"]);
+    });
+
+    it("an assumed treatment is flagged in review; a verified one is not", async () => {
+      await inTenant(() =>
+        transactionsService.upload({
+          rows: [
+            // TELECOM → 'S' — a majority-default nobody has verified.
+            { date: "2026-08-01", description: "SADAD PAYMENT - STC 0555000111", amount: 575, currency: "SAR", type: "debit" },
+            // BANK_CHARGES → 'S' — checked against the ZATCA guideline (M16.2).
+            { date: "2026-08-02", description: "AL RAJHI BANK MONTHLY ACCOUNT FEE", amount: 57.5, currency: "SAR", type: "debit" },
+          ],
+          autoCategrize: true,
+          bankAccountId: accountA,
+        } as never),
+      );
+      const pending = await inTenant(() => transactionsService.pendingReview());
+      const telecom = pending.find((p) => p.description.includes("STC 0555000111"));
+      const fee = pending.find((p) => p.description.includes("MONTHLY ACCOUNT FEE"));
+      expect(telecom?.taxTreatment).toBe("S");
+      expect(telecom?.treatmentAssumed).toBe(true); // the user sees "assumed", not a confident S
+      expect(fee?.taxTreatment).toBe("S");
+      expect(fee?.treatmentAssumed).toBe(false); // verified default — no hint needed
+    });
+
+    it("a per-row override to non-'S' clears the VAT, ends the assumed state, and marks the row overridden", async () => {
+      const { rows: [row] } = await pool.query(
+        `SELECT id FROM transactions WHERE organization_id = $1 AND description LIKE '%STC 0555000111%'`,
+        [orgId],
+      );
+      await inTenant(() => transactionsService.update(Number(row.id), { taxTreatment: "Z" } as never));
+      const { rows: [after] } = await pool.query(
+        `SELECT tax_treatment, vat_amount, is_manually_overridden FROM transactions WHERE id = $1`,
+        [row.id],
+      );
+      expect(after.tax_treatment).toBe("Z");
+      expect(after.vat_amount).toBeNull(); // Z carries zero VAT and says why
+      expect(after.is_manually_overridden).toBe(true);
+      const pending = await inTenant(() => transactionsService.pendingReview());
+      expect(pending.find((p) => p.id === Number(row.id))?.treatmentAssumed).toBe(false);
+    });
+  });
+
   it("an unknown bank account id fails closed (400), importing nothing", async () => {
     await expect(
       inTenant(() =>

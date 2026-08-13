@@ -40,9 +40,12 @@ interface PendingRow {
   vatAmount: number | null;
   kind: string;
   taxTreatment: string | null;
+  treatmentAssumed?: boolean;
   needsAttention: boolean;
   suggestion: Suggestion | null;
 }
+
+const TREATMENTS = ["S", "Z", "E", "O"] as const;
 
 export default function TransactionReview() {
   const { lang } = useLanguage();
@@ -71,6 +74,16 @@ export default function TransactionReview() {
       toast({ title: lang === "ar" ? `تم قبول ${r.accepted}` : `Accepted ${r.accepted} row(s)` });
       refresh();
     },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  // M16.3.1 — per-row treatment override. An "assumed" treatment (a category
+  // default never verified against KSA rules) is shown as such and is
+  // correctable in place; a user must never read a confident 'S' off a guess.
+  const treatmentMut = useMutation({
+    mutationFn: ({ id, value }: { id: number; value: string | null }) =>
+      apiFetch(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ taxTreatment: value }) }),
+    onSuccess: refresh,
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
@@ -112,7 +125,31 @@ export default function TransactionReview() {
           {fmtDate(r.date)} · {r.type} · {fmtNum(r.amount)}
           {r.kind !== "operating" && <Badge className="ml-2" variant="outline">{r.kind}</Badge>}
           {r.categoryName && <span className="ml-2">{r.categoryName}</span>}
-          {r.taxTreatment && <Badge className="ml-2" variant="secondary">{r.taxTreatment}</Badge>}
+          {r.kind === "operating" && (
+            <span className="ml-2 inline-flex items-center gap-1">
+              <select
+                className="rounded border border-border bg-background px-1 py-0.5 text-xs"
+                value={r.taxTreatment ?? ""}
+                title={
+                  r.treatmentAssumed
+                    ? lang === "ar"
+                      ? "معاملة مفترضة — لم تُتحقق من قواعد ضريبة القيمة المضافة؛ صحّحها إن لزم"
+                      : "Assumed default — not verified against KSA VAT rules; override if wrong"
+                    : lang === "ar" ? "المعاملة الضريبية" : "VAT treatment"
+                }
+                onChange={(e) => treatmentMut.mutate({ id: r.id, value: e.target.value || null })}
+                disabled={treatmentMut.isPending}
+              >
+                <option value="">{lang === "ar" ? "غير معروف" : "unknown"}</option>
+                {TREATMENTS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {r.treatmentAssumed && (
+                <Badge variant="outline" className="border-amber-500/40 text-amber-500">
+                  {lang === "ar" ? "مفترضة" : "assumed"}
+                </Badge>
+              )}
+            </span>
+          )}
         </div>
         {r.suggestion && (
           <div className="mt-1 flex items-center gap-1 text-xs text-blue-500">

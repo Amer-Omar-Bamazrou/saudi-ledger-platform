@@ -364,6 +364,14 @@ export interface PendingReviewTransaction {
   /** @nullable */
   taxTreatment?: PendingReviewTransactionTaxTreatment;
   /**
+     * M16.3.1 — true when the row's treatment came from a category
+     * default that has NOT been verified against KSA VAT rules (only
+     * BANK_CHARGES and INSURANCE have been — queue C9 tracks the rest).
+     * The UI shows these as "assumed" with an override; a user must
+     * never read a confident 'S' off a guess.
+     */
+  treatmentAssumed?: boolean;
+  /**
      * True for rows a human MUST look at (uncategorized non-transfer, or
      * low-confidence). The server enforces this: bulk accept never takes
      * a needsAttention row — accepting one requires naming its id.
@@ -459,6 +467,24 @@ export interface TransactionInput {
   source?: string | null;
 }
 
+/**
+ * M16.3.1 — per-row VAT-treatment override (the export-sale case, or
+ * correcting an assumed default). Setting a non-'S' value clears the
+ * row's VAT (Z/E/O rows carry zero VAT and say why); setting 'S' on a
+ * row with no VAT extracts it from the gross amount at 15%. null
+ * returns the row to honest-unknown.
+ * @nullable
+ */
+export type TransactionUpdateTaxTreatment = typeof TransactionUpdateTaxTreatment[keyof typeof TransactionUpdateTaxTreatment] | null;
+
+
+export const TransactionUpdateTaxTreatment = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+  O: 'O',
+} as const;
+
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
@@ -468,6 +494,15 @@ export interface TransactionUpdate {
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;
+  /**
+     * M16.3.1 — per-row VAT-treatment override (the export-sale case, or
+     * correcting an assumed default). Setting a non-'S' value clears the
+     * row's VAT (Z/E/O rows carry zero VAT and say why); setting 'S' on a
+     * row with no VAT extracts it from the gross amount at 15%. null
+     * returns the row to honest-unknown.
+     * @nullable
+     */
+  taxTreatment?: TransactionUpdateTaxTreatment;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

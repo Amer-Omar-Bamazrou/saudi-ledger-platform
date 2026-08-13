@@ -698,3 +698,37 @@ missing one, because it reads as diligence and gets built on.
 The countermeasure is the amendment to standing-check part 5 above: **state the
 search shape with the claim** — what was searched, and what would have
 falsified it — so the search is reviewable rather than only the conclusion.
+
+### 🔴 FINDING (M16.3): ANY payment amount marked the document fully paid — a reachable defect nobody had exercised
+
+Recorded as a finding in its own right at the owner's instruction, not merely
+as an M16.3 fix — because it predates the reconciliation work entirely and was
+reachable from the product the whole time.
+
+**The defect.** `invoicesService.pay` and `billsService.pay` overwrote
+`paidAmount` with whatever amount was passed and set `status = 'paid'`
+unconditionally. Pay 100 against a 230 invoice and the invoice was "paid" with
+130 still owed.
+
+**Why it is the M12.1b two-independent-computations hazard again.** Two
+reports computed "what is outstanding" independently: AR/AP aging skips
+`status = 'paid'` rows, while balance-sheet AR (GL-based since M13) carries the
+un-received residual. A partial payment made them **silently diverge** — aging
+under-reported by the residual with nothing to show it, exactly the drift shape
+the M12.1b credit-note note warns about ("AR aging would drift from
+balance-sheet AR with nothing to show it").
+
+**Why it survived.** Every caller — the Invoices/Bills UI and every test —
+paid the full total, so the divergence was never produced. One test
+(`chart-of-accounts.test.ts` "agrees after a partial payment") DID pay
+partially, but asserted only that balance-sheet AR agreed with the invoice
+table — both of which were consistent with each other; neither was aging. The
+test proved the half that happened to work. A reachable defect with no
+exerciser is the shape-without-a-consumer family seen from the other side:
+the CAPABILITY (partial payment) was implied by the API accepting any amount,
+and nothing had ever consumed it.
+
+**The fix (M16.3):** payments ACCUMULATE (`paidAmount += amount`), `paid`
+means fully paid, and overpaying the outstanding balance is refused (409, the
+same posture as the over-crediting guard). Pinned by the M16.3 tests: a
+partial settlement keeps the document open and in aging with the residual.

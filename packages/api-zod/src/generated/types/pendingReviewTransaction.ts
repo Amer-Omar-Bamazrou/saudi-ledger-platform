@@ -30,6 +30,14 @@ export interface PendingReviewTransaction {
   /** @nullable */
   taxTreatment?: PendingReviewTransactionTaxTreatment;
   /**
+     * M16.3.1 — true when the row's treatment came from a category
+     * default that has NOT been verified against KSA VAT rules (only
+     * BANK_CHARGES and INSURANCE have been — queue C9 tracks the rest).
+     * The UI shows these as "assumed" with an override; a user must
+     * never read a confident 'S' off a guess.
+     */
+  treatmentAssumed?: boolean;
+  /**
      * True for rows a human MUST look at (uncategorized non-transfer, or
      * low-confidence). The server enforces this: bulk accept never takes
      * a needsAttention row — accepting one requires naming its id.
