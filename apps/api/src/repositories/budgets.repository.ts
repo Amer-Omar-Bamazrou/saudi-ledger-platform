@@ -21,6 +21,8 @@ export const budgetsRepository = {
           eq(transactionsTable.categoryId, categoryId),
           // M15 holding area: budget ACTUALS count only accepted rows.
           eq(transactionsTable.reviewStatus, "accepted"),
+          // M16.2: and only OPERATING rows — a transfer is not spending.
+          eq(transactionsTable.kind, "operating"),
           gte(transactionsTable.date, periodStart),
           lte(transactionsTable.date, periodEnd),
         ),

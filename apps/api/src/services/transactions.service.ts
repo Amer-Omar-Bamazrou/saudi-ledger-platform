@@ -13,10 +13,11 @@ import {
   UploadTransactionsBody,
   UploadTransactionsResponse,
 } from "@workspace/api-zod";
-import { AppError, NotFoundError } from "../lib/errors";
+import { AppError, BadRequestError, NotFoundError } from "../lib/errors";
+import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
-import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross } from "./categorization/resolveCategory.js";
+import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
 
 /** A row-failure reason safe to show a user — never the driver's SQL dump. */
 function reasonFor(err: unknown): string {
@@ -54,6 +55,10 @@ function buildTransactionRow(tx: Tx, cat?: Cat | null) {
     confidenceScore: tx.confidenceScore != null ? Number(tx.confidenceScore) : null,
     isManuallyOverridden: tx.isManuallyOverridden,
     source: tx.source ?? null,
+    reviewStatus: tx.reviewStatus,
+    kind: tx.kind,
+    taxTreatment: tx.taxTreatment ?? null,
+    bankAccountId: tx.bankAccountId ?? null,
     notes: tx.notes ?? null,
     createdAt: tx.createdAt.toISOString(),
   };
@@ -82,10 +87,19 @@ export const transactionsService = {
     let categorized = 0;
     let duplicatesSkipped = 0;
 
+    // M16.2 — which bank account is this statement from? RLS scopes the lookup,
+    // so another tenant's id simply does not resolve. Fail closed on an unknown
+    // id rather than silently importing unattributed rows.
+    const bankAccountId = data.bankAccountId ?? null;
+    if (bankAccountId != null) {
+      const [account] = await bankAccountsRepository.findById(bankAccountId);
+      if (!account) throw new BadRequestError("Unknown bank account for this organization");
+    }
+
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
     const resolvedCodes = autoCategrize
       ? await resolveSystemCodes(allEngineCodes())
-      : new Map<string, number>();
+      : new Map<string, ResolvedCategory>();
 
     for (const row of rows) {
       let rowWasCategorized = false;
@@ -93,11 +107,15 @@ export const transactionsService = {
         // M15: an identical row (date+description+amount+type) is skipped and
         // REPORTED — uploading the same statement twice used to double every
         // figure in the dashboard, VAT summary and Zakat base, silently.
+        // M16.2 — the duplicate key now includes the account: the same salary
+        // paid from two accounts is two real rows, and a statement re-uploaded
+        // against ITS OWN account is the duplicate case.
         if (await transactionsRepository.existsIdentical({
           date: row.date,
           description: row.description,
           amount: String(row.amount),
           type: row.type,
+          bankAccountId,
         })) {
           duplicatesSkipped++;
           continue;
@@ -108,6 +126,8 @@ export const transactionsService = {
         let vatRate: string | null = row.vatRate != null ? String(row.vatRate) : null;
         let isZakatRelevant = row.isZakatRelevant ?? false;
         let confidenceScore: string | null = null;
+        let kind: string = "operating";
+        let taxTreatment: string | null = null;
 
         if (autoCategrize) {
           const match = categorizeTransaction(
@@ -126,17 +146,33 @@ export const transactionsService = {
           //  - VAT is EXTRACTED from the gross statement amount (rate/(100+rate)),
           //    never applied to it. The old arithmetic overstated every input-VAT
           //    figure by 15% and flowed straight into the VAT position.
-          if (match && catId == null && match.confidence >= AUTO_ASSIGN_CONFIDENCE) {
+          if (match && match.kind === "transfer" && catId == null) {
+            // M16.2 — a TRANSFER: money between the business's own pockets.
+            // No category (a category states what was bought or earned; a
+            // transfer is neither), no VAT, excluded from every P&L/tax
+            // aggregate by `kind`. Counted as classified — the engine gave a
+            // confident answer; it is just not a category.
+            kind = "transfer";
+            confidenceScore = String(match.confidence);
+            vatAmount = null;
+            vatRate = null;
+            categorized++;
+            rowWasCategorized = true;
+          } else if (match && catId == null && match.confidence >= AUTO_ASSIGN_CONFIDENCE) {
             const resolved = resolvedCodes.get(match.systemCode);
             if (resolved != null) {
-              catId = resolved;
+              catId = resolved.id;
               confidenceScore = String(match.confidence);
               isZakatRelevant = match.isZakatRelevant;
-              if (match.vatApplicable && match.suggestedVatRate != null && vatAmount == null) {
-                if (match.suggestedVatRate > 0) {
-                  vatAmount = String(vatFromGross(Number(row.amount), match.suggestedVatRate));
-                  vatRate = String(match.suggestedVatRate);
-                }
+              // M16.2 — the treatment comes from the CATEGORY's default, and
+              // VAT is extracted ONLY for 'S'. 'Z'/'E'/'O' record zero VAT AND
+              // say why; null stays honest-unknown (no VAT guessed).
+              taxTreatment = resolved.defaultTaxTreatment;
+              if (taxTreatment === "S" && vatAmount == null) {
+                const rate =
+                  match.suggestedVatRate != null && match.suggestedVatRate > 0 ? match.suggestedVatRate : 15;
+                vatAmount = String(vatFromGross(Number(row.amount), rate));
+                vatRate = String(rate);
               }
               // Counted here — AFTER resolution succeeded and BEFORE the insert
               // whose failure is caught below. See the categorized-- on failure.
@@ -161,6 +197,9 @@ export const transactionsService = {
           isZakatRelevant,
           confidenceScore,
           isManuallyOverridden: false,
+          kind,
+          taxTreatment,
+          bankAccountId,
           source: row.source ?? "upload",
           notes: row.notes ?? null,
         });
@@ -203,10 +242,14 @@ export const transactionsService = {
       categoryName: r.cat?.name ?? null,
       confidenceScore: r.tx.confidenceScore != null ? Number(r.tx.confidenceScore) : null,
       vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
+      kind: r.tx.kind,
+      taxTreatment: r.tx.taxTreatment,
       // The UI separates these; the SERVER enforces the separation in
       // acceptPending. needsAttention rows are excluded from bulk accept.
+      // M16.2: a confident TRANSFER is classified — the classification is the
+      // kind, not a category — so it does not demand attention.
       needsAttention:
-        r.tx.categoryId == null ||
+        (r.tx.categoryId == null && r.tx.kind !== "transfer") ||
         (r.tx.confidenceScore != null && Number(r.tx.confidenceScore) < AUTO_ASSIGN_CONFIDENCE && !r.tx.isManuallyOverridden),
     }));
   },

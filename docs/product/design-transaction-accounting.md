@@ -3,14 +3,29 @@
 **Status: DECIDED by the owner, 2026-08-12.** Every question below carries its
 decision. Approved build order:
 
-1. **M16.1 — Q0's source switch** (the live filing risk): `VatReport.tsx` files
+1. ✅ **M16.1 — Q0's source switch** (the live filing risk): `VatReport.tsx` files
    from `reports.vat-return`; the transaction figure becomes the reconciliation
    view beside it, gap itemised. Built as a feature, not hidden — an SME seeing
-   undocumented cash activity before filing is the product working.
-2. *(The holding area is already in — M15 item 8.)*
-3. **M16.2 — S/Z/E/O (reconcile-grade) + `kind` (transfers) + `bank_account_id`**
-   with the account picker on statement upload.
+   undocumented cash activity before filing is the product working. **Merged
+   (PR #25).**
+2. ✅ *(The holding area is already in — M15 item 8.)*
+3. ✅ **M16.2 — S/Z/E/O (reconcile-grade) + `kind` (transfers) + `bank_account_id`**
+   with the account picker on statement upload. Took verification-pass finding
+   #6 first, as TWO fixes per the owner's instruction: the `kind: transfer`
+   exclusion AND the rule itself (fee-words now required — a bank or gateway
+   name says who processed a movement, not what it was; the exclusion must not
+   paper over a bad match). Treatment notes: BANK_CHARGES defaults **'S'**, not
+   the 'E' this doc's illustration guessed — explicit bank fees are
+   standard-rated in KSA; INSURANCE likewise 'S' (general insurance is
+   standard-rated; life-exempt is a per-row override), correcting 0029's
+   `vat_applicable=false`.
 4. **M16.3 — bank reconciliation** (matching suggestions → existing pay paths).
+
+**Standing step (owner-mandated):** every M16 milestone ends with a re-run of
+the LIVE verification pass — same fixture, real HTTP path, observed values.
+Tests verified the M15 VAT arithmetic while the live path still produced a
+phantom tax figure through a different rule; only observation catches the
+composed behaviour.
 
 ## Principle recorded at approval: ACCEPTING THE MATCH IS THE REVIEW
 
@@ -102,11 +117,15 @@ money moving *between the business's own accounts*. Design:
 
 ### 🔴 The blocker found while designing this: transactions have no account
 
-`bank_accounts` exists as a table (one of the no-consumer S6/S7 family) and
-**nothing links transactions to it**. Consequences: transfer *pairing* (out of A,
-into B = one movement) is impossible; a multi-account SME cannot reconcile per
-account; and duplicate detection currently scopes to the whole org rather than
-to the account a statement belongs to.
+**Correction (M16.2, my error — finding #7's shape):** this section originally
+called `bank_accounts` "one of the no-consumer S6/S7 family". **Wrong** —
+`bank_accounts` is a full domain (routes, service, repository, permission
+entry, RLS, a `/bank-accounts` UI page). I asserted absence without covering
+the shapes it could take; the standing check's part 5 exists for exactly this.
+The REAL gap stands: **nothing linked transactions to it.** Consequences:
+transfer *pairing* (out of A, into B = one movement) is impossible; a
+multi-account SME cannot reconcile per account; and duplicate detection scoped
+to the whole org rather than to the account a statement belongs to.
 
 **Recommendation: add `bank_account_id` now, and make statement import ask
 "which account is this statement for?"** One picker on the upload page. This is

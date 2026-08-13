@@ -102,6 +102,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/Transaction"
 
+  /transactions/review:
+    get:
+      operationId: getPendingReviewTransactions
+      tags: [transactions]
+      summary: Pending imported transactions — the holding-area review surface (M15)
+      responses:
+        "200":
+          description: Pending rows, flagged where a human must look
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingReviewTransaction"
+
+  /transactions/review/accept:
+    post:
+      operationId: acceptPendingTransactions
+      tags: [transactions]
+      summary: Accept pending transactions (bulk-safe subset, or named ids)
+      description: |
+        With `ids`: deliberate, named acceptance of any pending rows. Without:
+        bulk mode — the server restricts it to rows safe to accept unread
+        (categorized or confidently-classified transfers at/above the
+        confidence threshold, or manually categorized). needsAttention rows are
+        NEVER swept in by bulk mode.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptPendingInput"
+      responses:
+        "200":
+          description: How many rows were accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptPendingResult"
+
   /transactions/upload:
     post:
       operationId: uploadTransactions
@@ -1199,10 +1239,62 @@ components:
           type: boolean
         source:
           type: ["string", "null"]
+        reviewStatus:
+          type: string
+          enum: [pending_review, accepted]
+        kind:
+          description: |
+            M16.2 — operating (real income/expense; the only kind tax figures
+            read), transfer (money between the business's own pockets), or
+            settlement (M16.3: settles an existing invoice/bill).
+          type: string
+          enum: [operating, transfer, settlement]
+        taxTreatment:
+          description: "VAT treatment: S/Z/E/O; null = unknown (and only unknown)."
+          type: ["string", "null"]
+          enum: [S, Z, E, O, null]
+        bankAccountId:
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    PendingReviewTransaction:
+      type: object
+      required: [id, date, description, amount, type, needsAttention, kind]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        description: { type: string }
+        descriptionAr: { type: ["string", "null"] }
+        amount: { type: number }
+        type: { type: string, enum: [debit, credit] }
+        categoryId: { type: ["integer", "null"] }
+        categoryName: { type: ["string", "null"] }
+        confidenceScore: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        kind: { type: string, enum: [operating, transfer, settlement] }
+        taxTreatment: { type: ["string", "null"], enum: [S, Z, E, O, null] }
+        needsAttention:
+          description: |
+            True for rows a human MUST look at (uncategorized non-transfer, or
+            low-confidence). The server enforces this: bulk accept never takes
+            a needsAttention row — accepting one requires naming its id.
+          type: boolean
+
+    AcceptPendingInput:
+      type: object
+      properties:
+        ids:
+          type: ["array", "null"]
+          items: { type: integer }
+
+    AcceptPendingResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: integer }
 
     TransactionList:
       type: object
@@ -1294,6 +1386,12 @@ components:
             $ref: "#/components/schemas/TransactionInput"
         autoCategrize:
           type: ["boolean", "null"]
+        bankAccountId:
+          description: |
+            M16.2 — which bank account this statement belongs to. Scopes
+            duplicate detection to the account and is the foundation for
+            transfer-leg pairing. Validated against the tenant's own accounts.
+          type: ["integer", "null"]
 
     UploadResult:
       type: object

@@ -181,6 +181,42 @@ export const TransactionType = {
   credit: 'credit',
 } as const;
 
+export type TransactionReviewStatus = typeof TransactionReviewStatus[keyof typeof TransactionReviewStatus];
+
+
+export const TransactionReviewStatus = {
+  pending_review: 'pending_review',
+  accepted: 'accepted',
+} as const;
+
+/**
+ * M16.2 — operating (real income/expense; the only kind tax figures
+ * read), transfer (money between the business's own pockets), or
+ * settlement (M16.3: settles an existing invoice/bill).
+ */
+export type TransactionKind = typeof TransactionKind[keyof typeof TransactionKind];
+
+
+export const TransactionKind = {
+  operating: 'operating',
+  transfer: 'transfer',
+  settlement: 'settlement',
+} as const;
+
+/**
+ * VAT treatment: S/Z/E/O; null = unknown (and only unknown).
+ * @nullable
+ */
+export type TransactionTaxTreatment = typeof TransactionTaxTreatment[keyof typeof TransactionTaxTreatment] | null;
+
+
+export const TransactionTaxTreatment = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+  O: 'O',
+} as const;
+
 export interface Transaction {
   id: number;
   date: string;
@@ -206,9 +242,89 @@ export interface Transaction {
   isManuallyOverridden: boolean;
   /** @nullable */
   source?: string | null;
+  reviewStatus?: TransactionReviewStatus;
+  /**
+     * M16.2 — operating (real income/expense; the only kind tax figures
+     * read), transfer (money between the business's own pockets), or
+     * settlement (M16.3: settles an existing invoice/bill).
+     */
+  kind?: TransactionKind;
+  /**
+     * VAT treatment: S/Z/E/O; null = unknown (and only unknown).
+     * @nullable
+     */
+  taxTreatment?: TransactionTaxTreatment;
+  /** @nullable */
+  bankAccountId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
+}
+
+export type PendingReviewTransactionType = typeof PendingReviewTransactionType[keyof typeof PendingReviewTransactionType];
+
+
+export const PendingReviewTransactionType = {
+  debit: 'debit',
+  credit: 'credit',
+} as const;
+
+export type PendingReviewTransactionKind = typeof PendingReviewTransactionKind[keyof typeof PendingReviewTransactionKind];
+
+
+export const PendingReviewTransactionKind = {
+  operating: 'operating',
+  transfer: 'transfer',
+  settlement: 'settlement',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PendingReviewTransactionTaxTreatment = typeof PendingReviewTransactionTaxTreatment[keyof typeof PendingReviewTransactionTaxTreatment] | null;
+
+
+export const PendingReviewTransactionTaxTreatment = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+  O: 'O',
+} as const;
+
+export interface PendingReviewTransaction {
+  id: number;
+  date: string;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  amount: number;
+  type: PendingReviewTransactionType;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  categoryName?: string | null;
+  /** @nullable */
+  confidenceScore?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  kind: PendingReviewTransactionKind;
+  /** @nullable */
+  taxTreatment?: PendingReviewTransactionTaxTreatment;
+  /**
+     * True for rows a human MUST look at (uncategorized non-transfer, or
+     * low-confidence). The server enforces this: bulk accept never takes
+     * a needsAttention row — accepting one requires naming its id.
+     */
+  needsAttention: boolean;
+}
+
+export interface AcceptPendingInput {
+  /** @nullable */
+  ids?: number[] | null;
+}
+
+export interface AcceptPendingResult {
+  accepted: number;
 }
 
 export interface TransactionList {
@@ -292,6 +408,13 @@ export interface TransactionUpload {
   rows: TransactionInput[];
   /** @nullable */
   autoCategrize?: boolean | null;
+  /**
+     * M16.2 — which bank account this statement belongs to. Scopes
+     * duplicate detection to the account and is the foundation for
+     * transfer-leg pairing. Validated against the tenant's own accounts.
+     * @nullable
+     */
+  bankAccountId?: number | null;
 }
 
 export interface UploadResult {

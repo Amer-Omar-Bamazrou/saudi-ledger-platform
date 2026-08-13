@@ -5,6 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { TransactionKind } from './transactionKind';
+import type { TransactionReviewStatus } from './transactionReviewStatus';
+import type { TransactionTaxTreatment } from './transactionTaxTreatment';
 import type { TransactionType } from './transactionType';
 
 export interface Transaction {
@@ -32,6 +35,20 @@ export interface Transaction {
   isManuallyOverridden: boolean;
   /** @nullable */
   source?: string | null;
+  reviewStatus?: TransactionReviewStatus;
+  /**
+     * M16.2 — operating (real income/expense; the only kind tax figures
+     * read), transfer (money between the business's own pockets), or
+     * settlement (M16.3: settles an existing invoice/bill).
+     */
+  kind?: TransactionKind;
+  /**
+     * VAT treatment: S/Z/E/O; null = unknown (and only unknown).
+     * @nullable
+     */
+  taxTreatment?: TransactionTaxTreatment;
+  /** @nullable */
+  bankAccountId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;

@@ -53,22 +53,51 @@ export const categorizeService = {
         continue;
       }
 
+      // M16.2 — a TRANSFER gets a kind, never a category: no VAT, no category
+      // id, excluded from P&L/tax aggregates by the kind filter.
+      if (match.kind === "transfer") {
+        await categorizeRepository.updateCategory(tx.id, {
+          categoryId: null,
+          kind: "transfer",
+          taxTreatment: null,
+          confidenceScore: String(match.confidence),
+          isZakatRelevant: false,
+          vatAmount: null,
+          vatRate: null,
+          isManuallyOverridden: false,
+        });
+        categorized++;
+        results.push({
+          transactionId: tx.id,
+          categoryId: 0,
+          categoryName: match.categoryName,
+          confidence: match.confidence,
+          matchedRule: match.matchedRule,
+        });
+        continue;
+      }
+
       // M15: resolve the SYSTEM CODE against the tenant's own chart. This
       // service carried its own copy of the id assignment — and of the VAT
       // arithmetic below — and both copies had both bugs. One shared
       // implementation now (`resolveCategory.ts`).
-      const resolvedId = resolvedCodes.get(match.systemCode);
-      if (resolvedId == null) {
+      const resolved = resolvedCodes.get(match.systemCode);
+      if (resolved == null) {
         skipped++;
         continue;
       }
+      const resolvedId = resolved.id;
 
       let vatAmount: string | null = tx.vatAmount;
       let vatRate: string | null = tx.vatRate;
-      if (match.vatApplicable && match.suggestedVatRate != null && match.suggestedVatRate > 0 && vatAmount == null) {
-        vatRate = String(match.suggestedVatRate);
+      // M16.2: VAT is extracted ONLY when the category's default treatment is
+      // 'S'. Z/E/O record zero VAT and say why via tax_treatment; a null
+      // treatment stays honest-unknown.
+      if (resolved.defaultTaxTreatment === "S" && vatAmount == null) {
+        const rate = match.suggestedVatRate != null && match.suggestedVatRate > 0 ? match.suggestedVatRate : 15;
+        vatRate = String(rate);
         // M15: EXTRACTED from the gross statement amount, never applied to it.
-        vatAmount = String(vatFromGross(Number(tx.amount), match.suggestedVatRate));
+        vatAmount = String(vatFromGross(Number(tx.amount), rate));
       }
 
       await categorizeRepository.updateCategory(tx.id, {
@@ -77,6 +106,7 @@ export const categorizeService = {
         isZakatRelevant: match.isZakatRelevant,
         vatAmount,
         vatRate,
+        taxTreatment: resolved.defaultTaxTreatment,
         isManuallyOverridden: false,
       });
 

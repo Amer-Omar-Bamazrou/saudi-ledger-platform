@@ -14,7 +14,8 @@ import {
   Download, CheckCircle2, XCircle, File, X, FileSpreadsheet,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import { getListTransactionsQueryKey } from "@workspace/api-client-react";
 import Papa from "papaparse";
 import { parseStatementRow } from "@/lib/statementParser";
@@ -93,6 +94,14 @@ export default function Upload() {
   const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("file");
   const [autoCategorize, setAutoCategorize] = useState(true);
+  // M16.2 — which bank account is this statement from? A statement belongs to
+  // ONE account; naming it scopes duplicate detection and is the foundation
+  // for transfer-leg pairing and the A2 bank feed.
+  const [bankAccountId, setBankAccountId] = useState<string>("");
+  const { data: bankAccounts } = useQuery<Array<{ id: number; name: string; bankName: string }>>({
+    queryKey: ["bank-accounts"],
+    queryFn: () => apiFetch("/bank-accounts"),
+  });
 
   /* file tab state */
   const [dragging, setDragging] = useState(false);
@@ -167,7 +176,13 @@ export default function Upload() {
   const submitRows = (rows: TxRow[]) => {
     const valid = rows.filter(r => !r._error);
     if (!valid.length) { toast({ title: t("No valid rows to import", "لا توجد صفوف صالحة للاستيراد"), variant: "destructive" }); return; }
-    uploadMut.mutate({ data: { rows: valid.map(({ _error, ...r }) => r), autoCategrize: autoCategorize } });
+    uploadMut.mutate({
+      data: {
+        rows: valid.map(({ _error, ...r }) => r),
+        autoCategrize: autoCategorize,
+        bankAccountId: bankAccountId ? Number(bankAccountId) : null,
+      },
+    });
   };
 
   const submitPaste = () => {
@@ -217,13 +232,30 @@ export default function Upload() {
         </div>
       </div>
 
-      {/* auto-categorize toggle */}
-      <div className="flex items-center justify-between p-4 rounded-lg bg-card border">
+      {/* import settings */}
+      <div className="flex items-center justify-between p-4 rounded-lg bg-card border gap-6">
         <div>
           <Label className="font-medium">{t("Auto-categorise on import", "تصنيف تلقائي عند الاستيراد")}</Label>
           <p className="text-xs text-muted-foreground mt-0.5">{t("Runs the categorisation engine immediately after upload.", "يُشغّل محرك التصنيف فور الرفع.")}</p>
         </div>
-        <Switch checked={autoCategorize} onCheckedChange={setAutoCategorize} />
+        <div className="flex items-center gap-6">
+          <div className="w-56">
+            <Label className="text-xs text-muted-foreground">{t("Bank account (which account is this statement for?)", "الحساب البنكي (لأي حساب هذا الكشف؟)")}</Label>
+            <Select value={bankAccountId} onValueChange={setBankAccountId}>
+              <SelectTrigger className="h-9 mt-1">
+                <SelectValue placeholder={t("Not specified", "غير محدد")} />
+              </SelectTrigger>
+              <SelectContent>
+                {(bankAccounts ?? []).map((a) => (
+                  <SelectItem key={a.id} value={String(a.id)}>
+                    {a.name} — {a.bankName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Switch checked={autoCategorize} onCheckedChange={setAutoCategorize} />
+        </div>
       </div>
 
       {/* tab bar */}

@@ -15,6 +15,7 @@ import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
+import { bankAccountsTable } from "./bankAccounts";
 
 export const transactionsTable = pgTable(
   "transactions",
@@ -69,10 +70,50 @@ export const transactionsTable = pgTable(
      * M10.4 self-approve analogue).
      */
     reviewStatus: text("review_status").notNull().default("pending_review"),
+    /**
+     * M16.2 — what KIND of money movement this is (design Q2):
+     *
+     * `operating`  — a real income/expense event. The only kind that reaches
+     *                income, expense, VAT, Zakat, per-category and budget
+     *                aggregates.
+     * `transfer`   — money moving between the business's own pockets (ATM
+     *                withdrawal, own-account transfer, credit-card settlement).
+     *                An asset movement: NO P&L or tax figure may read it. It
+     *                stays visible in the transaction list and in cash flow —
+     *                the bank balance genuinely moved.
+     * `settlement` — reserved for M16.3: a receipt/payment that settles an
+     *                existing invoice/bill. Excluded like a transfer (the income
+     *                was recognised at issuance); linked to its document.
+     *
+     * The classification IS this column — a transfer deliberately carries NO
+     * category, because a category states what was bought or earned, and a
+     * transfer is neither.
+     */
+    kind: text("kind").notNull().default("operating"),
+    /**
+     * M16.2 — VAT treatment (design Q1, reconcile-grade): 'S' | 'Z' | 'E' | 'O',
+     * NULL = UNKNOWN and nothing else. Pre-M16.2, `vat_amount IS NULL` conflated
+     * four different facts (exempt / zero-rated / out-of-scope / don't know).
+     * Stamped from the category's `default_tax_treatment` at categorization,
+     * overridable per row. VAT is extracted ONLY when treatment is 'S'.
+     */
+    taxTreatment: text("tax_treatment"),
+    /**
+     * M16.2 — which bank account this line belongs to (design Q2). Statement
+     * import asks; a bank feed (A2) is per-account by nature. Scopes duplicate
+     * detection and is the foundation for transfer-leg pairing (v2). Nullable:
+     * pre-M16.2 rows and manual entries may not name one.
+     */
+    bankAccountId: integer("bank_account_id").references(() => bankAccountsTable.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("transactions_org_date_idx").on(t.organizationId, t.date)],
+  (t) => [
+    index("transactions_org_date_idx").on(t.organizationId, t.date),
+    index("transactions_org_account_idx").on(t.organizationId, t.bankAccountId),
+  ],
 );
 
 export const insertTransactionSchema = createInsertSchema(transactionsTable)

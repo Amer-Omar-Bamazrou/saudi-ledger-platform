@@ -92,10 +92,14 @@ export const reportsRepository = {
   },
 
   // income-statement fallback + cash-flow: transactions joined to categories in a date range
-  txWithCategory(date_from?: string, date_to?: string) {
+  txWithCategory(date_from?: string, date_to?: string, opts?: { includeNonOperating?: boolean }) {
     // M15 holding area: pending rows move nothing in cash flow or the
     // income-statement transaction fallback.
     const conds: any[] = [eq(transactionsTable.reviewStatus, "accepted")];
+    // M16.2 — transfers/settlements are excluded from P&L-type readers by
+    // DEFAULT; only cash flow opts in, because the bank balance genuinely
+    // moved. A new consumer that wants transfers must say so explicitly.
+    if (!opts?.includeNonOperating) conds.push(eq(transactionsTable.kind, "operating"));
     if (date_from) conds.push(gte(transactionsTable.date, date_from));
     if (date_to) conds.push(lte(transactionsTable.date, date_to));
     return db

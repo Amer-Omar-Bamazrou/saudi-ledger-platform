@@ -48,6 +48,10 @@ export const ListTransactionsResponse = zod.object({
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
+  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
+  "bankAccountId": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 })),
@@ -112,8 +116,50 @@ export const CreateTransactionResponse = zod.object({
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
+  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
+  "bankAccountId": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Pending imported transactions — the holding-area review surface (M15)
+ */
+export const GetPendingReviewTransactionsResponseItem = zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "amount": zod.number(),
+  "type": zod.enum(['debit', 'credit']),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish(),
+  "needsAttention": zod.boolean().describe('True for rows a human MUST look at (uncategorized non-transfer, or\nlow-confidence). The server enforces this: bulk accept never takes\na needsAttention row — accepting one requires naming its id.\n')
+})
+export const GetPendingReviewTransactionsResponse = zod.array(GetPendingReviewTransactionsResponseItem)
+
+
+/**
+ * With `ids`: deliberate, named acceptance of any pending rows. Without:
+ * bulk mode — the server restricts it to rows safe to accept unread
+ * (categorized or confidently-classified transfers at/above the
+ * confidence threshold, or manually categorized). needsAttention rows are
+ * NEVER swept in by bulk mode.
+ * @summary Accept pending transactions (bulk-safe subset, or named ids)
+ */
+export const AcceptPendingTransactionsBody = zod.object({
+  "ids": zod.array(zod.number()).nullish()
+})
+
+export const AcceptPendingTransactionsResponse = zod.object({
+  "accepted": zod.number()
 })
 
 
@@ -155,7 +201,8 @@ export const UploadTransactionsBody = zod.object({
   "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
   "source": zod.string().nullish()
 })),
-  "autoCategrize": zod.boolean().nullish()
+  "autoCategrize": zod.boolean().nullish(),
+  "bankAccountId": zod.number().nullish().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n')
 })
 
 export const UploadTransactionsResponse = zod.object({
@@ -190,6 +237,10 @@ export const GetTransactionResponse = zod.object({
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
+  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
+  "bankAccountId": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 })
@@ -228,6 +279,10 @@ export const UpdateTransactionResponse = zod.object({
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
+  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
+  "bankAccountId": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 })
@@ -469,6 +524,10 @@ export const GetZakatSummaryResponse = zod.object({
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
+  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
+  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
+  "bankAccountId": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 }))

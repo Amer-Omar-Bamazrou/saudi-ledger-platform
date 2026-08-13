@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptPendingInput,
+  AcceptPendingResult,
   Bill,
   BillApproveInput,
   CategorizationRequest,
@@ -39,6 +41,7 @@ import type {
   JournalEntry,
   ListTransactionsParams,
   PayrollRun,
+  PendingReviewTransaction,
   SendBackInput,
   Transaction,
   TransactionInput,
@@ -313,6 +316,159 @@ export const useCreateTransaction = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateTransactionMutationOptions(options));
+    }
+
+export const getGetPendingReviewTransactionsUrl = () => {
+
+
+
+
+  return `/api/transactions/review`
+}
+
+/**
+ * @summary Pending imported transactions — the holding-area review surface (M15)
+ */
+export const getPendingReviewTransactions = async ( options?: RequestInit): Promise<PendingReviewTransaction[]> => {
+
+  return customFetch<PendingReviewTransaction[]>(getGetPendingReviewTransactionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPendingReviewTransactionsQueryKey = () => {
+    return [
+    `/api/transactions/review`
+    ] as const;
+    }
+
+
+export const getGetPendingReviewTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getPendingReviewTransactions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPendingReviewTransactionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPendingReviewTransactions>>> = ({ signal }) => getPendingReviewTransactions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPendingReviewTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getPendingReviewTransactions>>>
+export type GetPendingReviewTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Pending imported transactions — the holding-area review surface (M15)
+ */
+
+export function useGetPendingReviewTransactions<TData = Awaited<ReturnType<typeof getPendingReviewTransactions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPendingReviewTransactionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptPendingTransactionsUrl = () => {
+
+
+
+
+  return `/api/transactions/review/accept`
+}
+
+/**
+ * With `ids`: deliberate, named acceptance of any pending rows. Without:
+ * bulk mode — the server restricts it to rows safe to accept unread
+ * (categorized or confidently-classified transfers at/above the
+ * confidence threshold, or manually categorized). needsAttention rows are
+ * NEVER swept in by bulk mode.
+ * @summary Accept pending transactions (bulk-safe subset, or named ids)
+ */
+export const acceptPendingTransactions = async (acceptPendingInput?: AcceptPendingInput, options?: RequestInit): Promise<AcceptPendingResult> => {
+
+  return customFetch<AcceptPendingResult>(getAcceptPendingTransactionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acceptPendingInput)
+  }
+);}
+
+
+
+
+
+export const getAcceptPendingTransactionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext> => {
+
+const mutationKey = ['acceptPendingTransactions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptPendingTransactions>>, {data?: BodyType<AcceptPendingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  acceptPendingTransactions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptPendingTransactionsMutationResult = NonNullable<Awaited<ReturnType<typeof acceptPendingTransactions>>>
+    export type AcceptPendingTransactionsMutationBody = BodyType<AcceptPendingInput> | undefined
+    export type AcceptPendingTransactionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Accept pending transactions (bulk-safe subset, or named ids)
+ */
+export const useAcceptPendingTransactions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptPendingTransactions>>,
+        TError,
+        {data?: BodyType<AcceptPendingInput>},
+        TContext
+      > => {
+      return useMutation(getAcceptPendingTransactionsMutationOptions(options));
     }
 
 export const getUploadTransactionsUrl = () => {

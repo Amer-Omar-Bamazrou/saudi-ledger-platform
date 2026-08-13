@@ -39,6 +39,14 @@ export const categoriesTable = pgTable(
     isSystem: boolean("is_system").notNull().default(false),
     vatApplicable: boolean("vat_applicable").notNull().default(false),
     zakatRelevant: boolean("zakat_relevant").notNull().default(false),
+    /**
+     * M16.2 — the category's default VAT treatment for TRANSACTIONS categorized
+     * under it: 'S' | 'Z' | 'E' | 'O', or NULL where no honest default exists
+     * (OTHER_INCOME / OTHER_EXPENSES — a catch-all cannot know its treatment).
+     * Reconcile-grade (design Q1): drives the transaction-side VAT estimate and
+     * the reconciliation view, never the filing return. Overridable per row.
+     */
+    defaultTaxTreatment: text("default_tax_treatment"),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

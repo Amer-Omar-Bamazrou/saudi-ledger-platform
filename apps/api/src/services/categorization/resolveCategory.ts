@@ -30,8 +30,19 @@ export function vatFromGross(grossAmount: number, ratePercent: number): number {
   return Math.round(((grossAmount * ratePercent) / (100 + ratePercent)) * 100) / 100;
 }
 
+export interface ResolvedCategory {
+  id: number;
+  /**
+   * M16.2 — the category's default VAT treatment ('S'|'Z'|'E'|'O') or null
+   * where no honest default exists. Stamped onto the transaction at
+   * categorization; VAT is extracted ONLY for 'S'.
+   */
+  defaultTaxTreatment: string | null;
+}
+
 /**
- * Resolve the engine's system codes to the TENANT'S OWN category ids.
+ * Resolve the engine's system codes to the TENANT'S OWN category ids (plus the
+ * category's default tax treatment — M16.2).
  *
  * Runs inside the request's tenant transaction, so RLS confines the lookup to
  * the active organization. Codes that do not resolve — a tenant deleted a
@@ -39,12 +50,12 @@ export function vatFromGross(grossAmount: number, ratePercent: number): number {
  * the transaction uncategorized rather than failing. Resolution failure is
  * "unknown", never an error.
  */
-export async function resolveSystemCodes(codes: string[]): Promise<Map<string, number>> {
+export async function resolveSystemCodes(codes: string[]): Promise<Map<string, ResolvedCategory>> {
   const unique = [...new Set(codes)].filter(Boolean);
-  const map = new Map<string, number>();
+  const map = new Map<string, ResolvedCategory>();
   for (const code of unique) {
     const cat = await categoriesRepository.findBySystemCode(code);
-    if (cat) map.set(code, cat.id);
+    if (cat) map.set(code, { id: cat.id, defaultTaxTreatment: cat.defaultTaxTreatment ?? null });
   }
   return map;
 }
