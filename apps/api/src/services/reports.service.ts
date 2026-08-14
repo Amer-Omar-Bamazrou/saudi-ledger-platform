@@ -182,10 +182,23 @@ export const reportsService = {
     // withdrawal or own-account move genuinely changed the bank balance, even
     // though no P&L or tax figure may see it.
     const txs = await reportsRepository.txWithCategory(date_from, date_to, { includeNonOperating: true });
-    let operating = 0, investing = 0, financing = 0;
-    const operatingItems: any[] = [], investingItems: any[] = [], financingItems: any[] = [];
+    let operating = 0, investing = 0, financing = 0, internal = 0;
+    const operatingItems: any[] = [], investingItems: any[] = [], financingItems: any[] = [], internalItems: any[] = [];
     for (const { tx, cat } of txs) {
       const amount = tx.type === "credit" ? toNum(tx.amount) : -toNum(tx.amount);
+      // ── Audit Tier 3 (finding 8): bucket by KIND before category. A transfer
+      // carries no category BY DESIGN (the kind is the classification), so the
+      // category-type default used to file every ATM withdrawal under
+      // OPERATING as "Uncategorized" — and an internal move between two
+      // tracked accounts inflated operating inflows and outflows
+      // symmetrically. netChange was right; the sections were not. Transfers
+      // and settlements get their own section; settlements are the cash side
+      // of documents already in operating via their invoices/bills.
+      if (tx.kind !== "operating") {
+        internal += amount;
+        internalItems.push({ name: tx.kind === "transfer" ? "Transfer between own accounts" : "Invoice/bill settlement", amount });
+        continue;
+      }
       const catName = cat?.name ?? "Uncategorized";
       const catType = cat?.type ?? "expense";
       if (catType === "asset" && (cat?.name ?? "").toLowerCase().includes("fixed")) {
@@ -203,7 +216,9 @@ export const reportsService = {
       operating: { total: fmt2(operating), items: operatingItems },
       investing: { total: fmt2(investing), items: investingItems },
       financing: { total: fmt2(financing), items: financingItems },
-      netChange: fmt2(operating + investing + financing),
+      /** Transfers + settlements — the bank moved; no P&L activity occurred. */
+      internal: { total: fmt2(internal), items: internalItems },
+      netChange: fmt2(operating + investing + financing + internal),
     };
   },
 
@@ -419,15 +434,42 @@ export const reportsService = {
     const rows = await reportsRepository.invoicesWithCustomer();
     const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
     const items: any[] = [];
+
+    /**
+     * ── Audit Tier 3 (finding 6): credit notes are NETTED into their original,
+     * not listed as separate aged rows. ──────────────────────────────────────
+     *
+     * Pre-fix, aging showed the original at `total − paid` and the credit note
+     * as its own negative row. The bucket TOTALS netted correctly (the M12.1b
+     * sign discipline), but per-document outstanding disagreed with what the
+     * customer actually owes — and once `pay` became credit-aware, the two
+     * views had to be unified or a paid-off credited invoice would leave its
+     * offsetting +X/−X pair in the items list forever.
+     *
+     * Each document now ages at its TRUE outstanding:
+     *   invoice / debit note:  total − paid − Σ(approved credit notes vs it)
+     * A negative outstanding is SHOWN (a fully-paid invoice later credited is
+     * a refund owed to the customer — hiding it would desync aging from
+     * GL-based balance-sheet AR, the exact drift M12.1b warns about). The
+     * `status === 'paid'` skip is gone for the same reason: paid-then-credited
+     * must surface; an ordinarily-paid invoice nets to 0 and drops out on the
+     * magnitude test alone.
+     */
+    const creditedByOriginal = new Map<number, number>();
+    for (const { inv } of rows) {
+      if (inv.documentType === "credit_note" && inv.originalInvoiceId != null) {
+        creditedByOriginal.set(
+          inv.originalInvoiceId,
+          (creditedByOriginal.get(inv.originalInvoiceId) ?? 0) + toNum(inv.total),
+        );
+      }
+    }
+
     for (const { inv, cust } of rows) {
-      // 🔴 M12.1b: test the document's OWN unsettled amount (always positive)
-      // BEFORE applying the sign. Testing the signed value would make every
-      // credit note fail `< 0.01` and be skipped silently — which is exactly
-      // how AR aging would drift from balance-sheet AR with nothing to show it.
-      const unsettled = toNum(inv.total) - toNum(inv.paidAmount);
-      if (unsettled < 0.01 || inv.status === "paid") continue;
-      // A credit note reduces the aged balance; a debit note adds to it.
-      const outstanding = documentSign(inv.documentType) * unsettled;
+      if (inv.documentType === "credit_note") continue; // folded into its original
+      const credited = creditedByOriginal.get(inv.id) ?? 0;
+      const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited) * 100) / 100;
+      if (Math.abs(outstanding) < 0.01) continue;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
       items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });

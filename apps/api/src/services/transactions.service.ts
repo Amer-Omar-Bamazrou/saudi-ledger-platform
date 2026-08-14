@@ -387,6 +387,14 @@ export const transactionsService = {
     const updates: Partial<typeof transactionsTable.$inferInsert> = touchesTaxFacts
       ? { isManuallyOverridden: true }
       : {};
+
+    // Audit Tier 3: assigning a category to a TRANSFER is the human asserting
+    // it is operating after all — so the kind follows, or the row would show a
+    // category while staying excluded from every figure the user believes it
+    // now appears in (the invisible half of the old "Uncategorized" rendering).
+    if (existing.tx.kind === "transfer" && data.categoryId != null) {
+      updates.kind = "operating";
+    }
     if (data.categoryId !== undefined) updates.categoryId = data.categoryId ?? null;
     if (data.isZakatRelevant !== undefined) updates.isZakatRelevant = data.isZakatRelevant ?? false;
     if (data.vatAmount !== undefined) updates.vatAmount = data.vatAmount != null ? String(data.vatAmount) : null;

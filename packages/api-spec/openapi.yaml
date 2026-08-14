@@ -172,6 +172,168 @@ paths:
               schema:
                 $ref: "#/components/schemas/Transaction"
 
+  /capture:
+    post:
+      operationId: captureDocument
+      tags: [capture]
+      summary: >
+        Stage a photographed supplier document (A1). The bytes go to DELETABLE
+        staging — they become immutable evidence only when posted to a bill
+        (BillApproveInput.captureId), after which the promotion job archives
+        them.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CaptureUpload"
+      responses:
+        "201":
+          description: The staged capture, with the server-side signature verdict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureResult"
+
+  /capture/{id}:
+    get:
+      operationId: getCapturedDocument
+      tags: [capture]
+      summary: Resume a review from a staged capture (survives a page refresh).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The staged capture's metadata and extraction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapturedDocument"
+
+  /capture/{id}/discard:
+    post:
+      operationId: discardCapturedDocument
+      tags: [capture]
+      summary: Abandon a staged capture; the purge job removes its bytes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Discarded
+
+  /recurring:
+    get:
+      operationId: listRecurringRules
+      tags: [recurring]
+      summary: List recurring document rules (A3)
+      responses:
+        "200":
+          description: The tenant's recurring rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecurringRule"
+    post:
+      operationId: createRecurringRule
+      tags: [recurring]
+      summary: >
+        Create a recurring rule (A3). v1 generates DRAFTS ONLY — a rule never
+        issues; the draft it produces needs an approver exactly as if typed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecurringRuleInput"
+      responses:
+        "201":
+          description: The created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecurringRule"
+
+  /recurring/{id}/runs:
+    get:
+      operationId: getRecurringRuleRuns
+      tags: [recurring]
+      summary: >
+        The rule's run history — "did my rent invoice go out?". Failed runs
+        (period_locked, generation_failed) are first-class rows here: silence
+        is not a neutral outcome.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Runs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecurringRun"
+
+  /recurring/{id}/pause:
+    post:
+      operationId: pauseRecurringRule
+      tags: [recurring]
+      summary: Pause a rule (audited — silently stopping a customer's billing is a real question later)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The paused rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecurringRule"
+
+  /recurring/{id}/resume:
+    post:
+      operationId: resumeRecurringRule
+      tags: [recurring]
+      summary: Resume a paused rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The resumed rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecurringRule"
+
+  /recurring/{id}:
+    delete:
+      operationId: deleteRecurringRule
+      tags: [recurring]
+      summary: Delete a rule (its run history cascades; generated documents are untouched)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Deleted
+
   /transactions/upload:
     post:
       operationId: uploadTransactions
@@ -1867,6 +2029,97 @@ components:
         force:
           type: ["boolean", "null"]
           description: Override totals-mismatch and invalid-VAT-number rejections.
+        captureId:
+          type: ["string", "null"]
+          description: >
+            A1 — the staged captured document this bill was posted from. Links
+            the bill to its source photograph atomically with the posting; the
+            promotion job then moves the bytes into the immutable archive.
+
+    RecurringRule:
+      type: object
+      required: [id, entity, frequency, dayOfMonth, startsOn, nextRunOn, status]
+      properties:
+        id: { type: string }
+        entity: { type: string, enum: [invoice, bill] }
+        template:
+          type: ["object", "null"]
+          additionalProperties: true
+        frequency: { type: string, enum: [monthly, quarterly, yearly] }
+        dayOfMonth: { type: integer }
+        startsOn: { type: string }
+        endsOn: { type: ["string", "null"] }
+        nextRunOn: { type: string }
+        autoIssue: { type: boolean }
+        status: { type: string, enum: [active, paused] }
+        createdAt: { type: ["string", "null"] }
+
+    CreateRecurringRuleInput:
+      type: object
+      required: [entity, template, frequency, dayOfMonth, startsOn]
+      properties:
+        entity: { type: string, enum: [invoice, bill] }
+        template:
+          type: object
+          additionalProperties: true
+          description: The document body this rule repeats (an invoice/bill create payload).
+        frequency: { type: string, enum: [monthly, quarterly, yearly] }
+        dayOfMonth: { type: integer, minimum: 1, maximum: 31 }
+        startsOn: { type: string }
+        endsOn: { type: ["string", "null"] }
+        autoIssue:
+          type: ["boolean", "null"]
+          description: v1 refuses true — a rule creates drafts only.
+
+    RecurringRun:
+      type: object
+      required: [id, scheduledFor, outcome]
+      properties:
+        id: { type: string }
+        scheduledFor: { type: string }
+        outcome:
+          description: "generated (a draft exists) | failed. Failure detail in errorCode."
+          type: string
+        documentId: { type: ["integer", "null"] }
+        errorCode: { type: ["string", "null"] }
+        errorDetail: { type: ["string", "null"] }
+        ranAt: { type: ["string", "null"] }
+
+    CaptureUpload:
+      # `format: binary` deliberately omitted: the generated zod package is
+      # Node-side (no File/Blob types). Fields: document (the image file,
+      # required), source (qr|ocr|manual), qrPayload (base64 TLV), extraction +
+      # fieldSources (JSON-encoded strings). The UI sends FormData via
+      # apiFetch, not a generated hook.
+      type: object
+      additionalProperties: true
+
+    CaptureResult:
+      type: object
+      required: [captureId, signatureStatus]
+      properties:
+        captureId: { type: string }
+        signatureStatus:
+          description: "ZATCA QR signature verdict: verified | failed | unsigned | not_applicable."
+          type: string
+        signatureDetail: { type: ["string", "null"] }
+        signatureFailed: { type: boolean }
+
+    CapturedDocument:
+      type: object
+      required: [id, status, source]
+      properties:
+        id: { type: string }
+        status: { type: string }
+        source: { type: string, enum: [qr, ocr, manual] }
+        extraction:
+          description: The parsed fields as uploaded — the review page resumes from this.
+          type: ["object", "null"]
+          additionalProperties: true
+        fieldSources:
+          type: ["object", "null"]
+          additionalProperties: true
+        signatureStatus: { type: ["string", "null"] }
 
     SendBackInput:
       type: object

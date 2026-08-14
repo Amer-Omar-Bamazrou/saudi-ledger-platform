@@ -745,6 +745,161 @@ export interface BillApproveInput {
      * @nullable
      */
   force?: boolean | null;
+  /**
+     * A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.
+     * @nullable
+     */
+  captureId?: string | null;
+}
+
+export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
+
+
+export const RecurringRuleEntity = {
+  invoice: 'invoice',
+  bill: 'bill',
+} as const;
+
+/**
+ * @nullable
+ */
+export type RecurringRuleTemplate = { [key: string]: unknown } | null;
+
+export type RecurringRuleFrequency = typeof RecurringRuleFrequency[keyof typeof RecurringRuleFrequency];
+
+
+export const RecurringRuleFrequency = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  yearly: 'yearly',
+} as const;
+
+export type RecurringRuleStatus = typeof RecurringRuleStatus[keyof typeof RecurringRuleStatus];
+
+
+export const RecurringRuleStatus = {
+  active: 'active',
+  paused: 'paused',
+} as const;
+
+export interface RecurringRule {
+  id: string;
+  entity: RecurringRuleEntity;
+  /** @nullable */
+  template?: RecurringRuleTemplate;
+  frequency: RecurringRuleFrequency;
+  dayOfMonth: number;
+  startsOn: string;
+  /** @nullable */
+  endsOn?: string | null;
+  nextRunOn: string;
+  autoIssue?: boolean;
+  status: RecurringRuleStatus;
+  /** @nullable */
+  createdAt?: string | null;
+}
+
+export type CreateRecurringRuleInputEntity = typeof CreateRecurringRuleInputEntity[keyof typeof CreateRecurringRuleInputEntity];
+
+
+export const CreateRecurringRuleInputEntity = {
+  invoice: 'invoice',
+  bill: 'bill',
+} as const;
+
+/**
+ * The document body this rule repeats (an invoice/bill create payload).
+ */
+export type CreateRecurringRuleInputTemplate = { [key: string]: unknown };
+
+export type CreateRecurringRuleInputFrequency = typeof CreateRecurringRuleInputFrequency[keyof typeof CreateRecurringRuleInputFrequency];
+
+
+export const CreateRecurringRuleInputFrequency = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  yearly: 'yearly',
+} as const;
+
+export interface CreateRecurringRuleInput {
+  entity: CreateRecurringRuleInputEntity;
+  /** The document body this rule repeats (an invoice/bill create payload). */
+  template: CreateRecurringRuleInputTemplate;
+  frequency: CreateRecurringRuleInputFrequency;
+  /**
+     * @minimum 1
+     * @maximum 31
+     */
+  dayOfMonth: number;
+  startsOn: string;
+  /** @nullable */
+  endsOn?: string | null;
+  /**
+     * v1 refuses true — a rule creates drafts only.
+     * @nullable
+     */
+  autoIssue?: boolean | null;
+}
+
+export interface RecurringRun {
+  id: string;
+  scheduledFor: string;
+  /** generated (a draft exists) | failed. Failure detail in errorCode. */
+  outcome: string;
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  errorCode?: string | null;
+  /** @nullable */
+  errorDetail?: string | null;
+  /** @nullable */
+  ranAt?: string | null;
+}
+
+export interface CaptureUpload { [key: string]: unknown }
+
+export interface CaptureResult {
+  captureId: string;
+  /** ZATCA QR signature verdict: verified | failed | unsigned | not_applicable. */
+  signatureStatus: string;
+  /** @nullable */
+  signatureDetail?: string | null;
+  signatureFailed?: boolean;
+}
+
+export type CapturedDocumentSource = typeof CapturedDocumentSource[keyof typeof CapturedDocumentSource];
+
+
+export const CapturedDocumentSource = {
+  qr: 'qr',
+  ocr: 'ocr',
+  manual: 'manual',
+} as const;
+
+/**
+ * The parsed fields as uploaded — the review page resumes from this.
+ * @nullable
+ */
+export type CapturedDocumentExtraction = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type CapturedDocumentFieldSources = { [key: string]: unknown } | null;
+
+export interface CapturedDocument {
+  id: string;
+  status: string;
+  source: CapturedDocumentSource;
+  /**
+     * The parsed fields as uploaded — the review page resumes from this.
+     * @nullable
+     */
+  extraction?: CapturedDocumentExtraction;
+  /** @nullable */
+  fieldSources?: CapturedDocumentFieldSources;
+  /** @nullable */
+  signatureStatus?: string | null;
 }
 
 /**

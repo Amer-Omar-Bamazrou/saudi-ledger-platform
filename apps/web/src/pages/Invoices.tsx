@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react";
+import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -59,6 +59,49 @@ export default function Invoices() {
   const payMut = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: JSON.stringify({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  /**
+   * A3 — "make recurring": repeat this invoice monthly as DRAFTS. The rule
+   * copies the invoice's lines and customer; the generation job dates each
+   * occurrence and every draft still needs an approver. Manage rules under
+   * Settings → Automation Rules.
+   */
+  const makeRecurringMut = useMutation({
+    mutationFn: async (inv: Invoice) => {
+      const detail: Invoice & { items?: unknown[] } = await apiFetch(`/invoices/${inv.id}`);
+      const day = Number(inv.date?.slice(8, 10)) || 1;
+      return apiFetch("/recurring", {
+        method: "POST",
+        body: JSON.stringify({
+          entity: "invoice",
+          template: {
+            invoiceNumber: `REC-${inv.invoiceNumber}`,
+            customerId: inv.customerId,
+            // Only the line FACTS — row ids and computed totals must not leak
+            // into the template, or every generated draft would try to reuse
+            // this invoice's item ids.
+            items: ((detail.items ?? []) as Array<Record<string, unknown>>).map((it) => ({
+              description: it.description,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              vatRate: it.vatRate,
+              ...(it.taxCategoryCode ? { taxCategoryCode: it.taxCategoryCode } : {}),
+            })),
+            currency: inv.currency,
+          },
+          frequency: "monthly",
+          dayOfMonth: day,
+          startsOn: inv.date,
+        }),
+      });
+    },
+    onSuccess: () =>
+      toast({
+        title: t("Recurring rule created", "تم إنشاء قاعدة التكرار"),
+        description: t("Monthly drafts will be generated — see Settings → Automation Rules.", "سيتم إنشاء مسودات شهرية — راجع الإعدادات ← قواعد الأتمتة."),
+      }),
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -145,9 +188,23 @@ export default function Invoices() {
                   <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
                   <td className="py-3 pr-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
                   <td className="py-3">
-                    {inv.status !== "paid" && inv.status !== "cancelled" && (
-                      <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {inv.status !== "paid" && inv.status !== "cancelled" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
+                      )}
+                      {/* A3 (hub decision: automation woven into the page) —
+                          repeat this invoice monthly as DRAFTS for approval. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 text-muted-foreground"
+                        title={t("Repeat monthly as drafts", "تكرار شهريًا كمسودات")}
+                        onClick={() => makeRecurringMut.mutate(inv)}
+                        disabled={makeRecurringMut.isPending}
+                      >
+                        <Repeat className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}</tbody>

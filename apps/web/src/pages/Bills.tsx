@@ -183,19 +183,46 @@ export default function Bills() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
-  /** Called when the ReceiptScanner returns parsed fields — go to review page */
-  const handleScanned = (data: ParsedReceipt, qr?: QrCaptureResult) => {
-    storeScanData({
+  /**
+   * Called when the ReceiptScanner returns parsed fields — stage the
+   * photograph server-side (A1: the capture pipeline finally has its caller),
+   * then go to the review page carrying the captureId.
+   */
+  const handleScanned = async (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File) => {
+    const payload = {
       parsed: data,
       // Provenance travels with the extraction: a figure decoded from a ZATCA
       // QR is exact, one read by OCR is a guess, and the review page must be
       // able to tell the user which it is looking at.
-      source: qr ? "qr" : "ocr",
+      source: (qr ? "qr" : "ocr") as "qr" | "ocr",
       isPhase2: qr?.isPhase2,
       missing: qr?.missing,
       payloadBase64: qr?.payloadBase64,
-    });
-    navigate("/scan-review");
+    };
+    try {
+      const form = new FormData();
+      form.append("document", file, file.name);
+      form.append("source", payload.source);
+      if (qr?.payloadBase64) form.append("qrPayload", qr.payloadBase64);
+      form.append("extraction", JSON.stringify(data));
+      const capture: { captureId: string; signatureStatus?: string; signatureFailed?: boolean } =
+        await apiFetch("/capture", { method: "POST", body: form });
+      storeScanData({ ...payload, captureId: capture.captureId, signatureStatus: capture.signatureStatus });
+      navigate(`/scan-review?capture=${capture.captureId}`);
+    } catch (e: any) {
+      // Storage being down must not block billing — but say so plainly: the
+      // bill posted from this scan will have NO stored source document.
+      toast({
+        title: t("Document could not be stored", "تعذّر حفظ المستند"),
+        description: t(
+          "You can still review and post the bill, but the photograph will not be retained as evidence.",
+          "يمكنك مراجعة الفاتورة وترحيلها، لكن لن يتم الاحتفاظ بالصورة كمستند داعم.",
+        ),
+        variant: "destructive",
+      } as any);
+      storeScanData(payload);
+      navigate("/scan-review");
+    }
   };
 
   const totalOutstanding = bills

@@ -138,12 +138,18 @@ export const reconciliationService = {
       wantBills ? billsRepository.openForSettlement() : Promise.resolve([]),
     ]);
 
-    const openInvoices: OpenDocument[] = invoiceRows.map(({ inv, cust }) => ({
-      id: inv.id,
-      number: inv.invoiceNumber,
-      counterpartyName: cust?.name ?? null,
-      outstanding: round2(Number(inv.total) - Number(inv.paidAmount ?? 0)),
-    }));
+    // Audit Tier 3 (finding 6): outstanding is CREDIT-AWARE — the customer
+    // pays `total − credited − paid`, and that is the amount a bank credit
+    // will actually carry, so it is the amount matching must quote and match.
+    const credited = wantInvoices ? await invoicesRepository.creditedTotalsByOriginal() : new Map<number, number>();
+    const openInvoices: OpenDocument[] = invoiceRows
+      .map(({ inv, cust }) => ({
+        id: inv.id,
+        number: inv.invoiceNumber,
+        counterpartyName: cust?.name ?? null,
+        outstanding: round2(Number(inv.total) - (credited.get(inv.id) ?? 0) - Number(inv.paidAmount ?? 0)),
+      }))
+      .filter((d) => d.outstanding >= 0.01); // fully credited ⇒ nothing to settle
     const openBills: OpenDocument[] = billRows.map(({ bill, vendor }) => ({
       id: bill.id,
       number: bill.billNumber ?? String(bill.id),

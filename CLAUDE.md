@@ -23,7 +23,23 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-14 (M16.3 built + live-verified; PR pending review).**
+**Last updated: 2026-08-14 (post-audit fixes, Tiers 1–3 merged).**
+
+**Audit close-out (2026-08-14):** two owner-approved read-only audits
+(accounting correctness under adversarial input; disconnection sweep M13→A3)
+found and fixed, in order: the VAT return's header-rate reconstruction
+(mixed-rate/small/exempt documents vanished from the filing figure — now
+line-level from `tax_category_code`), header≠Σlines rounding (BR-CO-14-invalid
+UBL + GL imbalance — headers are now sums of rounded lines), the Categorize
+run rewriting ACCEPTED rows (now gated to pending+operating at the repository),
+"Z/E/O ⇒ no VAT" as DB CHECK 0034, settlement rows undeletable/uneditable,
+A1's capture pipeline wired to its first caller (ScanReview → staged evidence),
+A3's first frontend (+ the `ZATCA_WORKER_ENABLED` scope-drift fix — platform
+jobs now always schedule), credit-aware outstanding everywhere on the
+receivable side (aging nets notes and always agrees with GL AR), cash-flow
+internal-movements bucketing, and honest kind badges in the transactions list.
+Full findings: [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md);
+unfixed leftovers tracked under "Other open findings".
 If this block disagrees with reality, fix it first.
 
 ### Where we are
@@ -176,6 +192,15 @@ These are short forms; the rules are binding, the history explains why.
 - **Sources rank LIVE API > SDK > PDF > secondary sources** — and an unread
   primary source is not a licence to trust a secondary one (the residency
   claim was the opposite of what §5.5 actually says).
+- **Enforce invariants at the WRITE BOUNDARY, not in one path** (audit
+  close-out). An invariant three writers can violate belongs in a DB CHECK or
+  a shared gate, not in per-path code — per-path enforcement is per-path
+  review, and a new path starts at zero. Corollary: **when line-level truth
+  exists, header-level arithmetic is a second computation of the same fact**
+  and will drift — classify/derive from the finer grain.
+- **A flag's scope drifts past its name** when the thing it gates becomes
+  shared infrastructure (ZATCA_WORKER_ENABLED silently disabled every
+  non-ZATCA job). Move the gate WITH the thing the flag names.
 
 ## 4. Active constraints — do not break these
 
@@ -310,7 +335,7 @@ blocks ordinary platform work.
 | --- | --- | --- |
 | **B1** | **EMAIL DELIVERY.** `lib/mailer.ts` is still `noopMailer` (logs, returns `delivered: false`). Implement `send` and swap the export; nothing else changes. Options: AWS SES (~$0.10/1,000, most setup), Resend (free to 3,000/mo), Postmark (~$15/mo). | The renewal reminder's entire value is **lead time for an action only the tenant can take** (fresh CSR + an OTP from THEIR Fatoora portal). Today no message reaches anyone; at expiry signing stops dead and the tenant cannot legally invoice. |
 | **B2** | **VISIBILITY IS NOT ALERTING.** The operator panel surfaces the outbox age and PCSID expiry; **nothing pages a human**. Wire `listOverdue()` and `renewalService` to real alerting (PagerDuty/Opsgenie/webhook). | Both failures are **quiet neglect, not loud rejection**. A simplified invoice silently missing ZATCA's 24-hour reporting deadline looks like nothing is wrong (tenant fines from SAR 5,000); an expiring PCSID looks fine until it stops signing. Nobody looks at a panel that is usually green. |
-| **B3** | **STAGED CAPTURES CANNOT BE DELETED ON CLOUD.** `ArchiveStore` has no `delete` by design and must stay that way; so `stagingStore.remove` is `local-fs` only — on `supabase-storage` an abandoned capture's bytes remain forever. Fix with a **separate deletable-staging interface**, never by weakening `ArchiveStore`. | This is the **PDPL problem in concrete form**: staging exists precisely so an abandoned photograph (possibly a third party's personal data) does not become permanent. **B3, C7 and C8 are one question in three parts** — B3 is the technical half of whatever C8 answers. |
+| **B3** | **STAGED CAPTURES CANNOT BE DELETED ON CLOUD.** `ArchiveStore` has no `delete` by design and must stay that way; so `stagingStore.remove` is `local-fs` only — on `supabase-storage` an abandoned capture's bytes remain forever. Fix with a **separate deletable-staging interface**, never by weakening `ArchiveStore`. **Audit note (2026-08-14): until the audit fixes, the capture pipeline had NO production caller — nothing staged any bytes, so this item was reasoning about a pipeline nothing fed (and bills posted from scans stored no evidence at all, undercutting C7). The pipeline is wired now; B3 is live in practice.** | This is the **PDPL problem in concrete form**: staging exists precisely so an abandoned photograph (possibly a third party's personal data) does not become permanent. **B3, C7 and C8 are one question in three parts** — B3 is the technical half of whatever C8 answers. |
 
 **C. Verification and coverage gaps:**
 
@@ -323,7 +348,7 @@ blocks ordinary platform work.
 | C5 | **Fail-closed diagnosability** — confirm a blocked issuance surfaces an actionable message (which field, which company, what to fix), not an opaque 500. | M12.8 decision |
 | C6 | **Data residency / hosting region** — ZATCA permits cloud (the "must be in KSA" claim was a secondary-source error); NCA / sector rules are **unverified legal questions**. Choose host and KMS region together. No hosted Supabase project exists yet — this is a deployment decision, not a migration. | Residency correction, phase-2 history |
 | C7 | **TAX ADVICE — retention of INBOUND supplier documents.** A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. **Answer together with C8, same advisor.** | A1 (Q4) |
-| C9 | **Verify the remaining tax-treatment defaults against KSA VAT rules.** Only `BANK_CHARGES` and `INSURANCE` have been checked (M16.2); every other seeded default is an assumed majority-'S' or a reasoned-but-unresearched O/E. The distinction is now DATA (`treatment_verified` on templates/categories, M16.3.1) and assumed treatments surface as "assumed + overridable" in the review UI — but the flags only flip when someone actually looks each category up the way `BANK_CHARGES` was (known divergences to check first: residential rent E, international transport Z, exports Z). Reconcile-grade only, so not filing-critical — but a user-visible guess until closed. | Design doc §1 verification-status flag |
+| C9 | **Verify the remaining tax-treatment defaults against KSA VAT rules.** Only `BANK_CHARGES` and `INSURANCE` have been checked (M16.2); every other seeded default is an assumed majority-'S' or a reasoned-but-unresearched O/E. The distinction is DATA (`treatment_verified`, M16.3.1) and assumed treatments surface as overridable-with-a-hint — but the flags only flip on an actual rule lookup. **Check FIRST (owner-prioritised — these hit most tenants):** (1) `FOOD_MEALS` — KSA blocks input-VAT recovery on meals/entertainment, so 'S' extraction overstates recoverable input VAT for nearly every SME; (2) **reverse-charge foreign digital services** (Google/Meta ads under `MARKETING`/`IT_SOFTWARE`) — the bank debit contains no VAT, so extraction invents input VAT never paid. Then: residential rent E (`RENTAL_INCOME`, `RENT_UTILITIES`), international transport Z (`FUEL_TRANSPORT`), exports Z (`SALES`), loan interest E vs principal O. Reconcile-grade only — but a user-visible guess until closed. | Design doc §1 verification-status flag |
 | C8 | **PDPL — higher priority than C7 and answered with it.** Phone photographs will eventually contain third-party personal data; PDPL grants erasure rights that may conflict with retention. **PDPL has never been considered anywhere in this project** — scope it to the platform (audit logs hold IPs append-only; the archive holds names/addresses 6–11 years; `users`/`customers`/`employees` have no retention policy), not just document capture. | A1 |
 
 Re-check the hosted project's default privileges when it exists — they may
@@ -343,6 +368,20 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **`companies.fiscalYearStart` is stored but not applied** — reports use calendar periods; the Company Settings UI says so.
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
+- **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
+  transaction create has no `kind`/`taxTreatment` fields, so every manual
+  VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
+  adjacent; fields worth adding); sub-cent amounts via raw API can mark a
+  document paid with a 1-halala GL residual (round `paid` at the validation
+  gate — unreachable from UI/settlement); budget actuals `sum(amount)` ignores
+  debit/credit so a refund increases "spent"; the income-statement
+  transactions-FALLBACK (zero journal lines only) reports gross incl. VAT;
+  settlement links are readable from the transaction side only (no invoice/
+  bill-side surface, design said "either side"); the Categories UI cannot mark
+  system accounts (`isSystem` not in the API — latent, no edit routes exist);
+  `status: 'overdue'` has NO writer on invoices or bills (dead enum value; UIs
+  style it, aging derives overdue from dates); VAT-return box 4 (exports) is
+  always 0 — an export today is a 'Z' line in box 2.
 
 ## 6. Tech Stack
 

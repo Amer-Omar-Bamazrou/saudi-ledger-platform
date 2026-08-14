@@ -34,11 +34,21 @@ export function buildScheduler(): JobScheduler {
   // from the vault, exactly as a vendor would hold its own.
   const worker = new EInvoiceWorker({ provider: resolveProvider() });
 
+  // ── Audit Tier 3 (scope-drift fix): ZATCA transmission is the ONLY thing
+  // `ZATCA_WORKER_ENABLED` gates now. It used to gate the entire scheduler —
+  // so a flag named for a government-API worker silently disabled recurring
+  // generation, capture promotion/purge and renewal reminders, none of which
+  // transmit anything. Platform jobs run whenever the process runs; the two
+  // transport jobs are registered (operator run-now still works) but stay off
+  // the timers until the flag is on.
+  const zatcaTransportScheduled = env.ZATCA_WORKER_ENABLED;
+
   const jobs: Job[] = [
     {
       name: JOB_OUTBOX,
       intervalMs: env.ZATCA_WORKER_INTERVAL_MS,
       runOnce: () => worker.runOnce(),
+      scheduled: zatcaTransportScheduled,
     },
     {
       // Slower than the outbox: archival is not time-critical the way ZATCA's
@@ -47,6 +57,7 @@ export function buildScheduler(): JobScheduler {
       name: JOB_ARCHIVE,
       intervalMs: 5 * 60_000,
       runOnce: () => archiveService.runOnce(),
+      scheduled: zatcaTransportScheduled,
     },
     {
       // Certificate expiry moves in days, so hourly is generous. It runs at all
@@ -94,18 +105,19 @@ export function getScheduler(): JobScheduler {
 }
 
 /**
- * Start background work if configured to.
+ * Start background work.
  *
- * 🔴 Default OFF. The outbox worker transmits to a government API, so running
- * it is a deliberate act — and until a tenant has actually onboarded, there is
- * nothing for it to send. With the flag off the jobs still exist and the
- * operator can run any of them on demand.
+ * PLATFORM jobs (recurring generation, capture promotion/purge, renewal
+ * reminders) always run — a rent invoice must generate whether or not ZATCA
+ * transmission is configured. 🔴 The two ZATCA TRANSPORT jobs (outbox,
+ * archive) stay off the timers unless `ZATCA_WORKER_ENABLED` — transmitting
+ * to a government API is a deliberate act, and until a tenant has onboarded
+ * there is nothing to send. Every job remains operator-runnable on demand.
  */
 export function startBackgroundJobs(): void {
   const env = loadEnv();
   if (!env.ZATCA_WORKER_ENABLED) {
-    logger.info("background jobs are disabled (ZATCA_WORKER_ENABLED=false); run them on demand from /operator");
-    return;
+    logger.info("ZATCA transport jobs are unscheduled (ZATCA_WORKER_ENABLED=false); platform jobs run normally");
   }
   getScheduler().start();
 }

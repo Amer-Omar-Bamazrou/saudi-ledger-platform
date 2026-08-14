@@ -228,7 +228,16 @@ export const invoicesService = {
     // Overpaying the outstanding balance is refused — same posture as the
     // over-crediting guard on credit notes.
     const alreadyPaid = Number(existing.paidAmount ?? 0);
-    const outstanding = Math.round((Number(existing.total) - alreadyPaid) * 100) / 100;
+    // Audit Tier 3 (finding 6): the outstanding balance is CREDIT-AWARE. An
+    // invoice with an approved credit note is settled by `total − credited`;
+    // computing outstanding as `total − paid` meant such an invoice could
+    // never reach `paid` (the correct payment registered as a partial forever)
+    // and the overpay guard demanded money the customer does not owe.
+    const credited = (await invoicesRepository.notesAgainst(id, "credit_note")).reduce(
+      (s, n) => s + Number(n.total),
+      0,
+    );
+    const outstanding = Math.round((Number(existing.total) - credited - alreadyPaid) * 100) / 100;
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this invoice.`,

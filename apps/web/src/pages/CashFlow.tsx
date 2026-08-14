@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
 interface CFSection { total: number; items: { name: string; amount: number }[]; }
-interface CFData { operating: CFSection; investing: CFSection; financing: CFSection; netChange: number; }
+interface CFData { operating: CFSection; investing: CFSection; financing: CFSection; internal?: CFSection; netChange: number; }
 
 function CFBlock({ title, data, color, icon }: { title: string; data: CFSection; color: string; icon: React.ReactNode }) {
   const { t } = useLanguage();
@@ -92,6 +92,12 @@ export default function CashFlow() {
           <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} color={data.operating.total >= 0 ? "text-emerald-400" : "text-red-400"} icon={<ArrowUpRight className="w-4 h-4 text-emerald-400" />} />
           <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} color={data.investing.total >= 0 ? "text-emerald-400" : "text-amber-400"} icon={<Minus className="w-4 h-4 text-amber-400" />} />
           <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} color={data.financing.total >= 0 ? "text-emerald-400" : "text-blue-400"} icon={<ArrowDownRight className="w-4 h-4 text-blue-400" />} />
+          {/* Transfers between own accounts + invoice/bill settlements: the
+              bank moved, no P&L activity occurred. Previously these were
+              mis-bucketed under Operating as "Uncategorized". */}
+          {data.internal && data.internal.items.length > 0 && (
+            <CFBlock title={t("Internal Movements", "التحويلات الداخلية")} data={data.internal} color={data.internal.total >= 0 ? "text-emerald-400" : "text-muted-foreground"} icon={<Minus className="w-4 h-4 text-muted-foreground" />} />
+          )}
         </div>
       )}
     </div>

@@ -73,6 +73,13 @@ export default function ScanReview() {
   const [qrMissing, setQrMissing] = useState<string[]>([]);
   const [isPhase2, setIsPhase2] = useState(false);
   const [rawVisible, setRawVisible] = useState(false);
+  /**
+   * A1 (audit Tier 3): the server-side staged capture. When set, the
+   * photograph is stored, a refresh resumes from GET /capture/:id instead of
+   * losing the extraction, and posting links the bill to its evidence.
+   */
+  const [captureId, setCaptureId] = useState<string | null>(null);
+  const [signatureStatus, setSignatureStatus] = useState<string | null>(null);
 
   // ── vendor match state ─────────────────────────────────────────────────────
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
@@ -93,32 +100,54 @@ export default function ScanReview() {
     queryFn: () => apiFetch("/vendors"),
   });
 
-  // ── load from sessionStorage on mount ─────────────────────────────────────
+  // ── load the scan: handoff store first, staged capture as the fallback ────
   useEffect(() => {
+    const applyParsed = (data: ParsedReceipt) => {
+      setFields({
+        vendorName:        data.vendorName ?? "",
+        vendorNameAr:      data.vendorNameAr ?? "",
+        supplierVatNumber: data.supplierVatNumber ?? "",
+        invoiceNumber:     data.vendorReference ?? "",
+        date:              data.date || new Date().toISOString().split("T")[0],
+        subtotal:          data.subtotal > 0 ? data.subtotal : "",
+        vatAmount:         data.vatAmount > 0 ? data.vatAmount : "",
+        total:             data.total > 0 ? data.total : "",
+        notes:             data.notes ?? "",
+      });
+      setRawText(data.rawText ?? "");
+      if (data.supplierVatNumber || data.vendorName) {
+        runMatch(data.supplierVatNumber ?? "", data.vendorName ?? "");
+      }
+    };
+
     const payload = loadAndClearScanData();
-    if (!payload) { navigate("/bills"); return; }
-    const data = payload.parsed;
-    setSource(payload.source);
-    setQrMissing(payload.missing ?? []);
-    setIsPhase2(!!payload.isPhase2);
-
-    setFields({
-      vendorName:        data.vendorName ?? "",
-      vendorNameAr:      data.vendorNameAr ?? "",
-      supplierVatNumber: data.supplierVatNumber ?? "",
-      invoiceNumber:     data.vendorReference ?? "",
-      date:              data.date || new Date().toISOString().split("T")[0],
-      subtotal:          data.subtotal > 0 ? data.subtotal : "",
-      vatAmount:         data.vatAmount > 0 ? data.vatAmount : "",
-      total:             data.total > 0 ? data.total : "",
-      notes:             data.notes ?? "",
-    });
-    setRawText(data.rawText ?? "");
-
-    // Kick off vendor match immediately
-    if (data.supplierVatNumber || data.vendorName) {
-      runMatch(data.supplierVatNumber ?? "", data.vendorName ?? "");
+    if (payload) {
+      setSource(payload.source);
+      setQrMissing(payload.missing ?? []);
+      setIsPhase2(!!payload.isPhase2);
+      setCaptureId(payload.captureId ?? null);
+      setSignatureStatus(payload.signatureStatus ?? null);
+      applyParsed(payload.parsed);
+      return;
     }
+
+    // A1 (audit Tier 3): the refresh-loses-everything defect the spec opens
+    // with. With a staged capture in the URL, the review RESUMES server-side.
+    const capture = new URLSearchParams(window.location.search).get("capture");
+    if (capture) {
+      apiFetch<{ id: string; source: string; extraction: ParsedReceipt | null; signatureStatus: string | null }>(
+        `/capture/${capture}`,
+      )
+        .then((doc) => {
+          setCaptureId(doc.id);
+          setSource((doc.source as "qr" | "ocr" | "manual") ?? "ocr");
+          setSignatureStatus(doc.signatureStatus ?? null);
+          if (doc.extraction) applyParsed(doc.extraction);
+        })
+        .catch(() => navigate("/bills"));
+      return;
+    }
+    navigate("/bills");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -202,10 +231,13 @@ export default function ScanReview() {
         }),
       });
 
-      // Step 2: post the journal entry (same endpoint as manual bill post)
+      // Step 2: post the journal entry (same endpoint as manual bill post).
+      // `captureId` links the bill to its staged photograph ATOMICALLY with the
+      // posting (bills.approvable attaches inside the same transaction) — the
+      // A1 provenance chain: figure → extraction → stored source document.
       await apiFetch(`/bills/${bill.id}/post`, {
         method: "POST",
-        body: JSON.stringify({ debitAccount }),
+        body: JSON.stringify({ debitAccount, ...(captureId ? { captureId } : {}) }),
       });
 
       qc.invalidateQueries({ queryKey: ["bills"] });
@@ -241,7 +273,37 @@ export default function ScanReview() {
               : "Correct any OCR errors before posting to the ledger"}
           </p>
         </div>
+        {/* A1: evidence status — stored means the posted bill will be traceable
+            to this photograph; a missing capture means storage failed and the
+            bill will carry no source document. */}
+        {captureId ? (
+          <a
+            href={`/api/capture/${captureId}/image`}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Source photograph stored — view
+          </a>
+        ) : (
+          <span className="ml-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
+            <AlertTriangle className="w-3.5 h-3.5" /> Photograph not stored
+          </span>
+        )}
       </div>
+
+      {signatureStatus === "failed" && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
+          <p className="text-sm font-medium text-red-500 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            This invoice&apos;s ZATCA cryptographic stamp did NOT verify
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            The QR carries a Phase 2 signature that does not match its contents. Verify the
+            document with the supplier before posting — it may be altered or corrupted.
+          </p>
+        </div>
+      )}
 
       {/*
         🔴 PROVENANCE (A1). The actual question a disputed figure raises is
