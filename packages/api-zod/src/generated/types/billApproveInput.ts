@@ -20,4 +20,9 @@ export interface BillApproveInput {
      * @nullable
      */
   force?: boolean | null;
+  /**
+     * A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.
+     * @nullable
+     */
+  captureId?: string | null;
 }

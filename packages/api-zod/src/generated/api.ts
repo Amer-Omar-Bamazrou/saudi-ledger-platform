@@ -219,6 +219,173 @@ export const SettleTransactionResponse = zod.object({
 
 
 /**
+ * @summary Stage a photographed supplier document (A1). The bytes go to DELETABLE staging — they become immutable evidence only when posted to a bill (BillApproveInput.captureId), after which the promotion job archives them.
+
+ */
+export const CaptureDocumentBody = zod.record(zod.string(), zod.unknown())
+
+export const CaptureDocumentResponse = zod.object({
+  "captureId": zod.string(),
+  "signatureStatus": zod.string().describe('ZATCA QR signature verdict: verified | failed | unsigned | not_applicable.'),
+  "signatureDetail": zod.string().nullish(),
+  "signatureFailed": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Resume a review from a staged capture (survives a page refresh).
+ */
+export const GetCapturedDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetCapturedDocumentResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "extraction": zod.record(zod.string(), zod.unknown()).nullish().describe('The parsed fields as uploaded — the review page resumes from this.'),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "signatureStatus": zod.string().nullish()
+})
+
+
+/**
+ * @summary Abandon a staged capture; the purge job removes its bytes.
+ */
+export const DiscardCapturedDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DiscardCapturedDocumentResponse = zod.void()
+
+
+/**
+ * @summary List recurring document rules (A3)
+ */
+export const ListRecurringRulesResponseItem = zod.object({
+  "id": zod.string(),
+  "entity": zod.enum(['invoice', 'bill']),
+  "template": zod.record(zod.string(), zod.unknown()).nullish(),
+  "frequency": zod.enum(['monthly', 'quarterly', 'yearly']),
+  "dayOfMonth": zod.number(),
+  "startsOn": zod.string(),
+  "endsOn": zod.string().nullish(),
+  "nextRunOn": zod.string(),
+  "autoIssue": zod.boolean().optional(),
+  "status": zod.enum(['active', 'paused']),
+  "createdAt": zod.string().nullish()
+})
+export const ListRecurringRulesResponse = zod.array(ListRecurringRulesResponseItem)
+
+
+/**
+ * @summary Create a recurring rule (A3). v1 generates DRAFTS ONLY — a rule never issues; the draft it produces needs an approver exactly as if typed.
+
+ */
+export const createRecurringRuleBodyDayOfMonthMax = 31;
+
+
+
+export const CreateRecurringRuleBody = zod.object({
+  "entity": zod.enum(['invoice', 'bill']),
+  "template": zod.record(zod.string(), zod.unknown()).describe('The document body this rule repeats (an invoice\/bill create payload).'),
+  "frequency": zod.enum(['monthly', 'quarterly', 'yearly']),
+  "dayOfMonth": zod.number().min(1).max(createRecurringRuleBodyDayOfMonthMax),
+  "startsOn": zod.string(),
+  "endsOn": zod.string().nullish(),
+  "autoIssue": zod.boolean().nullish().describe('v1 refuses true — a rule creates drafts only.')
+})
+
+export const CreateRecurringRuleResponse = zod.object({
+  "id": zod.string(),
+  "entity": zod.enum(['invoice', 'bill']),
+  "template": zod.record(zod.string(), zod.unknown()).nullish(),
+  "frequency": zod.enum(['monthly', 'quarterly', 'yearly']),
+  "dayOfMonth": zod.number(),
+  "startsOn": zod.string(),
+  "endsOn": zod.string().nullish(),
+  "nextRunOn": zod.string(),
+  "autoIssue": zod.boolean().optional(),
+  "status": zod.enum(['active', 'paused']),
+  "createdAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary The rule's run history — "did my rent invoice go out?". Failed runs (period_locked, generation_failed) are first-class rows here: silence is not a neutral outcome.
+
+ */
+export const GetRecurringRuleRunsParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetRecurringRuleRunsResponseItem = zod.object({
+  "id": zod.string(),
+  "scheduledFor": zod.string(),
+  "outcome": zod.string().describe('generated (a draft exists) | failed. Failure detail in errorCode.'),
+  "documentId": zod.number().nullish(),
+  "errorCode": zod.string().nullish(),
+  "errorDetail": zod.string().nullish(),
+  "ranAt": zod.string().nullish()
+})
+export const GetRecurringRuleRunsResponse = zod.array(GetRecurringRuleRunsResponseItem)
+
+
+/**
+ * @summary Pause a rule (audited — silently stopping a customer's billing is a real question later)
+ */
+export const PauseRecurringRuleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PauseRecurringRuleResponse = zod.object({
+  "id": zod.string(),
+  "entity": zod.enum(['invoice', 'bill']),
+  "template": zod.record(zod.string(), zod.unknown()).nullish(),
+  "frequency": zod.enum(['monthly', 'quarterly', 'yearly']),
+  "dayOfMonth": zod.number(),
+  "startsOn": zod.string(),
+  "endsOn": zod.string().nullish(),
+  "nextRunOn": zod.string(),
+  "autoIssue": zod.boolean().optional(),
+  "status": zod.enum(['active', 'paused']),
+  "createdAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Resume a paused rule
+ */
+export const ResumeRecurringRuleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ResumeRecurringRuleResponse = zod.object({
+  "id": zod.string(),
+  "entity": zod.enum(['invoice', 'bill']),
+  "template": zod.record(zod.string(), zod.unknown()).nullish(),
+  "frequency": zod.enum(['monthly', 'quarterly', 'yearly']),
+  "dayOfMonth": zod.number(),
+  "startsOn": zod.string(),
+  "endsOn": zod.string().nullish(),
+  "nextRunOn": zod.string(),
+  "autoIssue": zod.boolean().optional(),
+  "status": zod.enum(['active', 'paused']),
+  "createdAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a rule (its run history cascades; generated documents are untouched)
+ */
+export const DeleteRecurringRuleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteRecurringRuleResponse = zod.void()
+
+
+/**
  * @summary Upload transactions from CSV or JSON
  */
 export const uploadTransactionsBodyRowsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
@@ -805,7 +972,8 @@ export const ApproveBillParams = zod.object({
 
 export const ApproveBillBody = zod.object({
   "debitAccount": zod.string().nullish().describe('Expense\/debit account name for the GL entry.'),
-  "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.')
+  "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.'),
+  "captureId": zod.string().nullish().describe('A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.\n')
 }).describe('Optional post options when approving a bill.')
 
 export const ApproveBillResponse = zod.object({

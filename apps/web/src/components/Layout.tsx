@@ -11,7 +11,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages, ShieldCheck,
+  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages, ShieldCheck, Repeat,
 } from "lucide-react";
 
 type NavItem = {
@@ -104,6 +104,9 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     label: "Settings", labelAr: "الإعدادات",
     items: [
       { href: "/categories",       label: "Chart of Accounts", labelAr: "دليل الحسابات",    icon: Tags },
+      // Hub decision: Automation is settings, not a destination — rules live
+      // here, the "↻ Make recurring" entry point lives on the Invoices page.
+      { href: "/recurring",        label: "Automation Rules",  labelAr: "قواعد الأتمتة",    icon: Repeat },
       { href: "/company",          label: "Company Settings",  labelAr: "إعدادات الشركة",   icon: Building2 },
       { href: "/zatca",            label: "ZATCA e-invoicing", labelAr: "الفوترة الإلكترونية", icon: ShieldCheck },
       { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },

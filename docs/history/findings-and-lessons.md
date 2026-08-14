@@ -732,3 +732,47 @@ and nothing had ever consumed it.
 means fully paid, and overpaying the outstanding balance is refused (409, the
 same posture as the over-crediting guard). Pinned by the M16.3 tests: a
 partial settlement keeps the document open and in aging with the residual.
+
+### 🔴 NAMED LESSON (audit close-out): ENFORCE INVARIANTS AT THE WRITE BOUNDARY, NOT IN ONE PATH
+
+The unifying root cause of the audit's Tier-2 findings, now recurring often
+enough to name. "Z/E/O means no VAT" was enforced in exactly ONE service path
+(update()'s treatment branch) while three other writers violated it — the
+Categorize run kept stale VAT beside a Z/E/O treatment, upload kept
+CSV-supplied VAT beside a non-'S' resolution, and PATCH could write vatAmount
+alone. Each path was individually reviewed and tested; the INVARIANT had no
+owner. The same shape produced the settlement-integrity holes (links checked
+"not both" but tied to nothing) and, earlier, the two-id-spaces defect (M15)
+and the pay-path full-payment defect (M16.3).
+
+> **The rule: an invariant that more than one code path can violate belongs at
+> the write boundary — a DB CHECK, a repository-level gate, a single shared
+> writer — not in the paths.** Per-path enforcement is per-path review, and a
+> new path starts at zero. A CHECK constraint is reviewed once and holds for
+> every writer that will ever exist (migration 0034 is the model: clean the
+> violating rows, add the CHECK, fix the paths so they don't 500 on it).
+
+Corollary, from Tier 1: **when line-level truth exists, header-level
+arithmetic is a second computation of the same fact** — and two computations
+of one fact drift (the M12.1b family). The VAT return reconstructed a rate
+from rounded header cents while `invoice_items.tax_category_code` held the
+actual answer; invoice headers accumulated unrounded VAT while lines stored
+rounded. Both were fixed by making the finer-grained truth the only source
+(classify per line; header = Σ rounded lines by construction). Before deriving
+a fact arithmetically, ask whether the fact is already RECORDED at a finer
+grain.
+
+### Scope drift: a flag named for one thing gating another (audit Tier 3)
+
+`ZATCA_WORKER_ENABLED` was introduced in M12.8 to make transmission to a
+government API a deliberate act. When the scheduler became shared
+infrastructure, the flag's gate stayed at `startBackgroundJobs()` — so a flag
+named for ZATCA silently disabled recurring-document generation, capture
+promotion/purge and renewal reminders, none of which transmit anything. With
+the flag at its documented default (off), A3 generated nothing, ever.
+
+> **The rule: when a gated thing becomes shared infrastructure, the gate must
+> move WITH the thing it names, or the flag's scope drifts past its name.** A
+> reader trusts the name; nothing in review flags that the flag now covers
+> strangers. Fixed by gating per-job (`scheduled: false` on the two transport
+> jobs) with the scheduler always running; every job stays operator-runnable.

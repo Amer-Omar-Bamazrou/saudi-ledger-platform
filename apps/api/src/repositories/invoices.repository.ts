@@ -185,6 +185,33 @@ export const invoicesRepository = {
     return row?.hash ?? null;
   },
 
+  /**
+   * Approved credit-note totals grouped by original invoice (audit Tier 3,
+   * finding 6). The RECEIVABLE side must be credit-aware everywhere: an
+   * invoice's true outstanding is `total − paid − credited`, and computing it
+   * as `total − paid` in some places (pay, matching) while credit notes lived
+   * as separate rows in others (aging) is the two-independent-computations
+   * hazard again — a credited invoice could never reach `paid`, and matching
+   * quoted an outstanding the customer would never pay.
+   */
+  async creditedTotalsByOriginal(): Promise<Map<number, number>> {
+    const rows = await db
+      .select({
+        originalId: invoicesTable.originalInvoiceId,
+        credited: sql<string>`sum(${invoicesTable.total}::numeric)`,
+      })
+      .from(invoicesTable)
+      .where(
+        and(
+          eq(invoicesTable.documentType, "credit_note"),
+          isNotNull(invoicesTable.invoiceHash),
+          isNotNull(invoicesTable.originalInvoiceId),
+        ),
+      )
+      .groupBy(invoicesTable.originalInvoiceId);
+    return new Map(rows.filter((r) => r.originalId != null).map((r) => [r.originalId!, Number(r.credited)]));
+  },
+
   /** Every note already issued against one original — the over-crediting guard. */
   async notesAgainst(originalInvoiceId: number, documentType: string) {
     return db

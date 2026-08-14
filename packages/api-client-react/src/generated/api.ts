@@ -24,12 +24,16 @@ import type {
   AcceptPendingResult,
   Bill,
   BillApproveInput,
+  CaptureResult,
+  CaptureUpload,
+  CapturedDocument,
   CategorizationRequest,
   CategorizationResult,
   Category,
   CategoryBreakdown,
   CategoryInput,
   Company,
+  CreateRecurringRuleInput,
   ErrorResponse,
   FinancialSummary,
   GetSummaryByCategoryParams,
@@ -42,6 +46,8 @@ import type {
   ListTransactionsParams,
   PayrollRun,
   PendingReviewTransaction,
+  RecurringRule,
+  RecurringRun,
   SendBackInput,
   SettleTransactionInput,
   Transaction,
@@ -544,6 +550,670 @@ export const useSettleTransaction = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSettleTransactionMutationOptions(options));
+    }
+
+export const getCaptureDocumentUrl = () => {
+
+
+
+
+  return `/api/capture`
+}
+
+/**
+ * @summary Stage a photographed supplier document (A1). The bytes go to DELETABLE staging — they become immutable evidence only when posted to a bill (BillApproveInput.captureId), after which the promotion job archives them.
+
+ */
+export const captureDocument = async (captureUpload: CaptureUpload, options?: RequestInit): Promise<CaptureResult> => {
+    const formData = new FormData();
+
+  return customFetch<CaptureResult>(getCaptureDocumentUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getCaptureDocumentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureDocument>>, TError,{data: BodyType<CaptureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof captureDocument>>, TError,{data: BodyType<CaptureUpload>}, TContext> => {
+
+const mutationKey = ['captureDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof captureDocument>>, {data: BodyType<CaptureUpload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  captureDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CaptureDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof captureDocument>>>
+    export type CaptureDocumentMutationBody = BodyType<CaptureUpload>
+    export type CaptureDocumentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Stage a photographed supplier document (A1). The bytes go to DELETABLE staging — they become immutable evidence only when posted to a bill (BillApproveInput.captureId), after which the promotion job archives them.
+
+ */
+export const useCaptureDocument = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureDocument>>, TError,{data: BodyType<CaptureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof captureDocument>>,
+        TError,
+        {data: BodyType<CaptureUpload>},
+        TContext
+      > => {
+      return useMutation(getCaptureDocumentMutationOptions(options));
+    }
+
+export const getGetCapturedDocumentUrl = (id: string,) => {
+
+
+
+
+  return `/api/capture/${id}`
+}
+
+/**
+ * @summary Resume a review from a staged capture (survives a page refresh).
+ */
+export const getCapturedDocument = async (id: string, options?: RequestInit): Promise<CapturedDocument> => {
+
+  return customFetch<CapturedDocument>(getGetCapturedDocumentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCapturedDocumentQueryKey = (id: string,) => {
+    return [
+    `/api/capture/${id}`
+    ] as const;
+    }
+
+
+export const getGetCapturedDocumentQueryOptions = <TData = Awaited<ReturnType<typeof getCapturedDocument>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapturedDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCapturedDocumentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCapturedDocument>>> = ({ signal }) => getCapturedDocument(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCapturedDocument>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCapturedDocumentQueryResult = NonNullable<Awaited<ReturnType<typeof getCapturedDocument>>>
+export type GetCapturedDocumentQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Resume a review from a staged capture (survives a page refresh).
+ */
+
+export function useGetCapturedDocument<TData = Awaited<ReturnType<typeof getCapturedDocument>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapturedDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCapturedDocumentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDiscardCapturedDocumentUrl = (id: string,) => {
+
+
+
+
+  return `/api/capture/${id}/discard`
+}
+
+/**
+ * @summary Abandon a staged capture; the purge job removes its bytes.
+ */
+export const discardCapturedDocument = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDiscardCapturedDocumentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscardCapturedDocumentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardCapturedDocument>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discardCapturedDocument>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['discardCapturedDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discardCapturedDocument>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  discardCapturedDocument(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscardCapturedDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof discardCapturedDocument>>>
+
+    export type DiscardCapturedDocumentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Abandon a staged capture; the purge job removes its bytes.
+ */
+export const useDiscardCapturedDocument = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardCapturedDocument>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof discardCapturedDocument>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDiscardCapturedDocumentMutationOptions(options));
+    }
+
+export const getListRecurringRulesUrl = () => {
+
+
+
+
+  return `/api/recurring`
+}
+
+/**
+ * @summary List recurring document rules (A3)
+ */
+export const listRecurringRules = async ( options?: RequestInit): Promise<RecurringRule[]> => {
+
+  return customFetch<RecurringRule[]>(getListRecurringRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecurringRulesQueryKey = () => {
+    return [
+    `/api/recurring`
+    ] as const;
+    }
+
+
+export const getListRecurringRulesQueryOptions = <TData = Awaited<ReturnType<typeof listRecurringRules>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecurringRules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecurringRulesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecurringRules>>> = ({ signal }) => listRecurringRules({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecurringRules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecurringRulesQueryResult = NonNullable<Awaited<ReturnType<typeof listRecurringRules>>>
+export type ListRecurringRulesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recurring document rules (A3)
+ */
+
+export function useListRecurringRules<TData = Awaited<ReturnType<typeof listRecurringRules>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecurringRules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecurringRulesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecurringRuleUrl = () => {
+
+
+
+
+  return `/api/recurring`
+}
+
+/**
+ * @summary Create a recurring rule (A3). v1 generates DRAFTS ONLY — a rule never issues; the draft it produces needs an approver exactly as if typed.
+
+ */
+export const createRecurringRule = async (createRecurringRuleInput: CreateRecurringRuleInput, options?: RequestInit): Promise<RecurringRule> => {
+
+  return customFetch<RecurringRule>(getCreateRecurringRuleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRecurringRuleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecurringRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecurringRule>>, TError,{data: BodyType<CreateRecurringRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecurringRule>>, TError,{data: BodyType<CreateRecurringRuleInput>}, TContext> => {
+
+const mutationKey = ['createRecurringRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecurringRule>>, {data: BodyType<CreateRecurringRuleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createRecurringRule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecurringRuleMutationResult = NonNullable<Awaited<ReturnType<typeof createRecurringRule>>>
+    export type CreateRecurringRuleMutationBody = BodyType<CreateRecurringRuleInput>
+    export type CreateRecurringRuleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a recurring rule (A3). v1 generates DRAFTS ONLY — a rule never issues; the draft it produces needs an approver exactly as if typed.
+
+ */
+export const useCreateRecurringRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecurringRule>>, TError,{data: BodyType<CreateRecurringRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecurringRule>>,
+        TError,
+        {data: BodyType<CreateRecurringRuleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecurringRuleMutationOptions(options));
+    }
+
+export const getGetRecurringRuleRunsUrl = (id: string,) => {
+
+
+
+
+  return `/api/recurring/${id}/runs`
+}
+
+/**
+ * @summary The rule's run history — "did my rent invoice go out?". Failed runs (period_locked, generation_failed) are first-class rows here: silence is not a neutral outcome.
+
+ */
+export const getRecurringRuleRuns = async (id: string, options?: RequestInit): Promise<RecurringRun[]> => {
+
+  return customFetch<RecurringRun[]>(getGetRecurringRuleRunsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecurringRuleRunsQueryKey = (id: string,) => {
+    return [
+    `/api/recurring/${id}/runs`
+    ] as const;
+    }
+
+
+export const getGetRecurringRuleRunsQueryOptions = <TData = Awaited<ReturnType<typeof getRecurringRuleRuns>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecurringRuleRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecurringRuleRunsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecurringRuleRuns>>> = ({ signal }) => getRecurringRuleRuns(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecurringRuleRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecurringRuleRunsQueryResult = NonNullable<Awaited<ReturnType<typeof getRecurringRuleRuns>>>
+export type GetRecurringRuleRunsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The rule's run history — "did my rent invoice go out?". Failed runs (period_locked, generation_failed) are first-class rows here: silence is not a neutral outcome.
+
+ */
+
+export function useGetRecurringRuleRuns<TData = Awaited<ReturnType<typeof getRecurringRuleRuns>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecurringRuleRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecurringRuleRunsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPauseRecurringRuleUrl = (id: string,) => {
+
+
+
+
+  return `/api/recurring/${id}/pause`
+}
+
+/**
+ * @summary Pause a rule (audited — silently stopping a customer's billing is a real question later)
+ */
+export const pauseRecurringRule = async (id: string, options?: RequestInit): Promise<RecurringRule> => {
+
+  return customFetch<RecurringRule>(getPauseRecurringRuleUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPauseRecurringRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pauseRecurringRule>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['pauseRecurringRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseRecurringRule>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  pauseRecurringRule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PauseRecurringRuleMutationResult = NonNullable<Awaited<ReturnType<typeof pauseRecurringRule>>>
+
+    export type PauseRecurringRuleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Pause a rule (audited — silently stopping a customer's billing is a real question later)
+ */
+export const usePauseRecurringRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pauseRecurringRule>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getPauseRecurringRuleMutationOptions(options));
+    }
+
+export const getResumeRecurringRuleUrl = (id: string,) => {
+
+
+
+
+  return `/api/recurring/${id}/resume`
+}
+
+/**
+ * @summary Resume a paused rule
+ */
+export const resumeRecurringRule = async (id: string, options?: RequestInit): Promise<RecurringRule> => {
+
+  return customFetch<RecurringRule>(getResumeRecurringRuleUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResumeRecurringRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resumeRecurringRule>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['resumeRecurringRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resumeRecurringRule>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resumeRecurringRule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResumeRecurringRuleMutationResult = NonNullable<Awaited<ReturnType<typeof resumeRecurringRule>>>
+
+    export type ResumeRecurringRuleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Resume a paused rule
+ */
+export const useResumeRecurringRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resumeRecurringRule>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getResumeRecurringRuleMutationOptions(options));
+    }
+
+export const getDeleteRecurringRuleUrl = (id: string,) => {
+
+
+
+
+  return `/api/recurring/${id}`
+}
+
+/**
+ * @summary Delete a rule (its run history cascades; generated documents are untouched)
+ */
+export const deleteRecurringRule = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteRecurringRuleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteRecurringRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRecurringRule>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteRecurringRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRecurringRule>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteRecurringRule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRecurringRuleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRecurringRule>>>
+
+    export type DeleteRecurringRuleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a rule (its run history cascades; generated documents are untouched)
+ */
+export const useDeleteRecurringRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRecurringRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRecurringRule>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteRecurringRuleMutationOptions(options));
     }
 
 export const getUploadTransactionsUrl = () => {

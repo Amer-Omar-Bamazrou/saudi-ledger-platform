@@ -24,8 +24,12 @@ type Phase = "idle" | "loading" | "done" | "error";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** Called when the user confirms — fields ready to pre-fill the bill form */
-  onExtracted: (data: ParsedReceipt, qr?: QrCaptureResult) => void;
+  /**
+   * Called when the user confirms — fields ready to pre-fill the bill form.
+   * The FILE travels too (audit Tier 3 / A1): the photograph must reach the
+   * server-side capture pipeline, or the posted bill has no stored evidence.
+   */
+  onExtracted: (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File) => void;
 }
 
 // ── component ──────────────────────────────────────────────────────────────────
@@ -39,12 +43,14 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
   const [qr, setQr] = useState<QrCaptureResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [dragging, setDragging] = useState(false);
+  /** The photograph itself — handed to onExtracted for server-side staging. */
+  const [srcFile, setSrcFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setPhase("idle"); setProgress(0); setProgressMsg("");
-    setPreview(null); setResult(null); setQr(null); setErrorMsg("");
+    setPreview(null); setResult(null); setQr(null); setErrorMsg(""); setSrcFile(null);
   };
 
   const handleClose = () => { reset(); onOpenChange(false); };
@@ -118,6 +124,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
       setPhase("error");
       return;
     }
+    setSrcFile(file);
     runOcr(file);
   };
 
@@ -134,7 +141,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
   // ── confirm extracted data ─────────────────────────────────────────────────
   const confirm = () => {
-    if (result) { onExtracted(result, qr ?? undefined); handleClose(); }
+    if (result && srcFile) { onExtracted(result, qr ?? undefined, srcFile); handleClose(); }
   };
 
   // ── render ─────────────────────────────────────────────────────────────────

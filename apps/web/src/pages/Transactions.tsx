@@ -177,7 +177,19 @@ export default function Transactions() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      {tx.categoryName ? (
+                      {/* Audit Tier 3: a transfer/settlement carries NO category BY
+                          DESIGN — the kind IS its classification. Rendering the red
+                          "Uncategorized" error badge for them read as unfinished
+                          work and invited the user to "fix" a correct row. */}
+                      {tx.kind === "transfer" ? (
+                        <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/5">
+                          {t("Transfer", "تحويل داخلي")}
+                        </Badge>
+                      ) : tx.kind === "settlement" ? (
+                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+                          {t("Settlement", "تسوية")}
+                        </Badge>
+                      ) : tx.categoryName ? (
                         <div className="flex flex-col gap-1 items-start">
                           <Badge variant="outline" className="border-primary/30 text-primary/90 bg-primary/5">
                             {tx.categoryName}
@@ -196,6 +208,11 @@ export default function Transactions() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
+                        {tx.reviewStatus === "pending_review" && (
+                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase">
+                            {t("Pending review", "بانتظار المراجعة")}
+                          </Badge>
+                        )}
                         {tx.isManuallyOverridden && (
                           <Badge variant="secondary" className="text-[10px] uppercase">{t("Manual", "يدوي")}</Badge>
                         )}

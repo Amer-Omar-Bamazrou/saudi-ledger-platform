@@ -31,6 +31,16 @@ export interface ScanPayload {
   missing?: string[];
   /** Raw TLV payload, forwarded for server-side verification. */
   payloadBase64?: string;
+  /**
+   * Audit Tier 3 / A1: the server-side staged capture this scan was uploaded
+   * to. When present, the photograph is STORED — a refresh resumes from
+   * GET /capture/:id, and posting links the bill to its source document.
+   * Absent only when the capture upload failed (billing must not be blocked
+   * by storage being down — but the bill will carry no evidence).
+   */
+  captureId?: string;
+  /** Server-side ZATCA signature verdict, when a Phase 2 QR was uploaded. */
+  signatureStatus?: string;
 }
 
 export function storeScanData(data: ScanPayload): void {

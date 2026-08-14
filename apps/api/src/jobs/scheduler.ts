@@ -32,6 +32,16 @@ export interface Job {
   readonly intervalMs: number;
   /** One pass. Must be safe to call concurrently with its own scheduled tick. */
   runOnce(): Promise<unknown>;
+  /**
+   * When false, the job is registered (so `runNow` and the operator surface
+   * still reach it) but `start()` never puts it on a timer. Audit Tier 3: this
+   * is how ZATCA transmission stays a deliberate act (`ZATCA_WORKER_ENABLED`)
+   * without that flag silently disabling every NON-ZATCA platform job — which
+   * is exactly what happened to recurring generation and capture purge when
+   * the whole scheduler was gated on it (a flag's scope drifting past its
+   * name). Default: scheduled.
+   */
+  readonly scheduled?: boolean;
 }
 
 export class JobScheduler {
@@ -50,12 +60,18 @@ export class JobScheduler {
     return [...this.jobs.keys()];
   }
 
+  /** Names `start()` will actually put on timers (audit Tier 3 flag split). */
+  scheduledNames(): string[] {
+    return [...this.jobs.values()].filter((j) => j.scheduled !== false).map((j) => j.name);
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
 
     let stagger = 0;
     for (const job of this.jobs.values()) {
+      if (job.scheduled === false) continue; // reachable via runNow only
       const delay = stagger;
       stagger += 2_000;
 
@@ -85,7 +101,11 @@ export class JobScheduler {
       this.timers.push(first);
     }
 
-    logger.info({ jobs: this.names() }, "background job scheduler started");
+    logger.info(
+      { scheduled: [...this.jobs.values()].filter((j) => j.scheduled !== false).map((j) => j.name),
+        onDemandOnly: [...this.jobs.values()].filter((j) => j.scheduled === false).map((j) => j.name) },
+      "background job scheduler started",
+    );
   }
 
   stop(): void {
