@@ -239,6 +239,13 @@
       "when": 1786655845604,
       "tag": "0033_m16_3_1_treatment_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786655845605,
+      "tag": "0034_audit_write_boundary_checks",
+      "breakpoints": true
     }
   ]
 }
