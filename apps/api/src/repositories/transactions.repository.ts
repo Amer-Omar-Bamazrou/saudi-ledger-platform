@@ -82,14 +82,14 @@ export const transactionsRepository = {
    * what makes the acceptance deliberate. The UI separates them visually; this
    * makes the separation binding rather than cosmetic.
    */
-  async acceptPending(opts: { ids?: number[]; minConfidence: number }): Promise<{ accepted: number }> {
+  async acceptPending(opts: { ids?: number[]; minConfidence: number }): Promise<{ accepted: number; acceptedIds: number[] }> {
     if (opts.ids && opts.ids.length > 0) {
       const r = await db
         .update(transactionsTable)
         .set({ reviewStatus: "accepted" })
         .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids)))
         .returning({ id: transactionsTable.id });
-      return { accepted: r.length };
+      return { accepted: r.length, acceptedIds: r.map((x) => x.id) };
     }
     const r = await db
       .update(transactionsTable)
@@ -108,7 +108,7 @@ export const transactionsRepository = {
         ),
       )
       .returning({ id: transactionsTable.id });
-    return { accepted: r.length };
+    return { accepted: r.length, acceptedIds: r.map((x) => x.id) };
   },
 
   /** Pending rows, most recent first — the review surface's data. */

@@ -171,6 +171,24 @@ tenant's own chart. A test then asserts **every code the categorizer can emit
 exists in the seeded chart** — so the two cannot drift apart without the build
 failing.
 
+**THIRD INSTANCE (flaw report, 2026-08-14) — the categorizer has THREE id
+spaces, not two.** M15 removed the engine-ids-vs-table-ids divergence by making
+`system_code` the single identity. But the matcher still does
+`SEED_CATEGORIES.find(c => c.systemCode === rule.systemCode)` and **`continue`s
+on a miss** — so a rule can name a code that is real, seeded in the tenant's
+chart, and present in `allEngineCodes()`, and still never fire. That is exactly
+what a newly-added GOSI rule did: it matched the text, then vanished.
+
+Note how the existing forcing function could not catch it: `allEngineCodes()`
+is DERIVED from the rules, so "every emittable code exists in the chart"
+passes trivially. The missing link was rules → `SEED_CATEGORIES`, a third list
+nobody had named. Now guarded by its own test.
+
+**The sharpened rule: count the lists, not the pairs.** Asking "do these two
+sets agree?" found two of three. The question that finds all of them is *how
+many independent lists must agree for this to work, and what fails if one is
+edited alone?*
+
 **Where to look for the same shape:** any pair of enum/lookup/id sets maintained
 in different files — permission resource strings vs mounted routes, ZATCA tag
 numbers vs the codec, job names vs the scheduler registry, error codes vs their
@@ -812,3 +830,49 @@ question agree.
 already answers, that is a design decision requiring an explicit reconciliation
 story — which figure is authoritative, how the other is labelled, and what the
 user is told. Absent that story, the two drift and both are believed.
+
+
+### 🔴 MAJOR FINDING (flaw report, 2026-08-14): THE ARABIC HALF OF THE ENGINE HAD NEVER RUN
+
+Not a footnote to the GOSI fix — the largest silent-inertness finding to date,
+in a product positioned Arabic-first, and it survived every review because
+its failure mode was **a plausible answer**.
+
+**Class 1 — the ASCII word boundary.** `` asserts a transition between
+`[A-Za-z0-9_]` and anything else. Arabic letters are not word characters to
+the regex engine, so between a space and "ر" there is **no boundary at all**:
+
+```
+/راتب/.test("راتب سبتمبر")   →  false
+/راتب/.test("راتب سبتمبر")        →  true
+```
+
+Sixty patterns were written the first way — salaries, rent, utilities, Zakat,
+VAT, insurance, government fees. Every one had never matched. Substring
+matching is also the CORRECT semantics here, not a concession: Arabic attaches
+the definite article and prepositions to the word ("الرواتب", "للرواتب"), so a
+boundary-anchored match would miss the common forms even if `` worked.
+
+**Class 2 — a bidirectional-editing typo that reads as correct.** In the salary
+rule, what *looked* like `` was a backslash followed by the Arabic letter
+**ب** (U+0628). `\ب` escapes nothing, so the pattern matched the literal
+string "براتب" — a string no bank statement contains. **Nobody would ever spot
+this reading the source**: in a bidi-rendering editor the glyphs sit exactly
+where `` would.
+
+**Why it was invisible.** Nothing errored and nothing was miscategorised — the
+rows came back **uncategorised**, which is precisely what a well-behaved engine
+returns when it does not know. M15 had *deliberately* taught the engine to say
+"I don't know", so the symptom of total Arabic failure was indistinguishable
+from the feature working correctly. A silent failure wearing the shape of a
+designed behaviour is the hardest kind to see.
+
+**The guard, and why it is source-reading.** Two tests parse
+`categorizer.ts` itself and fail on any `` adjacent to Arabic script or any
+backslash-escaped Arabic letter. Behavioural tests alone would not do: they
+prove the cases you thought of, and this defect is defined by the cases you
+did not. Plus five Arabic probes that previously returned NULL.
+
+**Where else to look:** any regex over non-Latin text (``, `\w`, `\d` are
+all ASCII-centric under default flags), and any bidirectional string literal —
+identifiers, file paths, and test fixtures included.

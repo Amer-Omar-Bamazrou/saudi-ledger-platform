@@ -18,6 +18,7 @@ import { companiesTable } from "./companies";
 import { bankAccountsTable } from "./bankAccounts";
 import { invoicesTable } from "./invoices";
 import { billsTable } from "./bills";
+import { journalEntriesTable } from "./journalEntries";
 
 export const transactionsTable = pgTable(
   "transactions",
@@ -122,6 +123,18 @@ export const transactionsTable = pgTable(
       onDelete: "set null",
     }),
     settlesBillId: integer("settles_bill_id").references(() => billsTable.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * Flaw #1 (Option A) — the journal entry this accepted transaction posted.
+     *
+     * Acceptance is what turns a bank line into an accounting fact, so it is
+     * where the JE is created. Kept as a link (not just an audit trail) because
+     * editing a posted row must REVERSE the old entry and post a new one, and
+     * that needs the original. NULL for pending rows, transfers, settlements
+     * (the pay path already posted those) and pre-Option-A history.
+     */
+    journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, {
       onDelete: "set null",
     }),
     notes: text("notes"),
