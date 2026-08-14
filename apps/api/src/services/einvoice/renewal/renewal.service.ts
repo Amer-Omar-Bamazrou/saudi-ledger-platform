@@ -23,10 +23,11 @@
  * ZATCA page and the operator view — both of which read the rows this job
  * writes, so the reminder is never merely a log line.
  */
-import { ownerDb, zatcaCredentialRemindersTable } from "@workspace/db";
+import { ownerDb, zatcaCredentialRemindersTable, companiesTable } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { logger } from "../../../lib/logger";
 import { mailer } from "../../../lib/mailer";
+import { membersRepository } from "../../../repositories/members.repository";
 import { signingService } from "../signing/signing.service";
 
 /** The reminder windows, widest first — the order they are presented in. */
@@ -134,6 +135,25 @@ export const renewalService = {
   },
 };
 
+/**
+ * Who hears about this company's certificate: the ACTIVE ADMINS of the
+ * organization that owns it.
+ *
+ * The company→organization hop runs on `ownerDb` (a job has no tenant
+ * context), and the membership lookup goes through the identity layer rather
+ * than joining `users`/`organization_memberships` here — those three tables
+ * sit outside RLS, and business-layer code reading them is the M-1 landmine.
+ */
+async function recipientsForCompany(companyId: string): Promise<string[]> {
+  const [company] = await ownerDb
+    .select({ organizationId: companiesTable.organizationId })
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId))
+    .limit(1);
+  if (!company) return [];
+  return membersRepository.activeAdminEmails(company.organizationId);
+}
+
 async function raiseReminder(reminder: RenewalReminder, now: Date): Promise<boolean> {
   const existing = await ownerDb
     .select({ id: zatcaCredentialRemindersTable.id })
@@ -148,19 +168,38 @@ async function raiseReminder(reminder: RenewalReminder, now: Date): Promise<bool
   if (existing.length > 0) return false;
 
   // Best-effort delivery. The row is what makes the reminder visible; email is
-  // an additional channel that currently no-ops, and we record which it was.
+  // the channel that gives it lead time, and we record which actually happened.
+  //
+  // 🔴 B1 found this addressed `zatca-admin+<companyId>@invalid.local` — a
+  // placeholder that can never receive mail. Implementing a provider without
+  // fixing it would have produced a working mailer that still reached nobody:
+  // the same failure one layer down. Recipients are now the organization's
+  // ACTIVE ADMINS, resolved through the identity layer (renewal needs an OTP
+  // from their own Fatoora portal, which is an admin action).
   let delivered = false;
   try {
-    const res = await mailer.send({
-      to: `zatca-admin+${reminder.companyId}@invalid.local`,
-      subject: `ZATCA certificate expires in ${reminder.daysRemaining} days`,
-      text:
-        `The ZATCA signing certificate for this company expires on ` +
-        `${reminder.notAfter.toISOString().slice(0, 10)} (${reminder.daysRemaining} days).\n\n` +
-        `Renewal requires an OTP generated in YOUR Fatoora portal — it cannot be done for you. ` +
-        `Once the certificate expires, invoices can no longer be cleared or reported.`,
-    });
-    delivered = res.delivered;
+    const recipients = await recipientsForCompany(reminder.companyId);
+    if (recipients.length === 0) {
+      // Recorded, not swallowed: a company whose admins cannot be resolved is
+      // a company that will not hear about its own expiry.
+      logger.warn(
+        { credentialId: reminder.credentialId, companyId: reminder.companyId },
+        "renewal reminder: no active admin recipients — reminder is in-app only",
+      );
+    }
+    const subject = `ZATCA certificate expires in ${reminder.daysRemaining} days`;
+    const text =
+      `The ZATCA signing certificate for this company expires on ` +
+      `${reminder.notAfter.toISOString().slice(0, 10)} (${reminder.daysRemaining} days).\n\n` +
+      `Renewal requires an OTP generated in YOUR Fatoora portal — it cannot be done for you. ` +
+      `Once the certificate expires, invoices can no longer be cleared or reported.`;
+
+    const results = await Promise.all(
+      recipients.map((to) => mailer.send({ to, subject, text })),
+    );
+    // Delivered if it reached at least one admin — the alarm's purpose is that
+    // a human learns in time, not that every admin did.
+    delivered = results.some((r) => r.delivered);
   } catch (err) {
     logger.error({ err, credentialId: reminder.credentialId }, "renewal reminder: mail send failed");
   }

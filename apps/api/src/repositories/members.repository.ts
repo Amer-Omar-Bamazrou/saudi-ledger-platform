@@ -7,7 +7,7 @@
  * as the org switcher. Every query is explicitly scoped by `organizationId`;
  * there is no RLS backstop here, so callers MUST authorize first (see the service).
  */
-import { db, organizationMembershipsTable, usersTable } from "@workspace/db";
+import { db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 
 export const membersRepository = {
@@ -25,6 +25,41 @@ export const membersRepository = {
       )
       .limit(1);
     return m?.role ?? null;
+  },
+
+  /**
+   * Email addresses of an org's ACTIVE ADMINS — the recipients for
+   * platform-generated alerts about that organization (B1).
+   *
+   * 🔴 Lives here, in the identity layer, deliberately. The renewal job needs
+   * "who should hear about this company's certificate", which is a membership
+   * question, and `organization_memberships` / `users` are the three tables
+   * OUTSIDE RLS that business-layer code must never touch (M-1). The job calls
+   * this instead of joining them itself, so the boundary guard stays true and
+   * the query stays where the scoping discipline is.
+   *
+   * Admins only: renewal requires an OTP from the tenant's own Fatoora portal
+   * and a fresh CSR, which is an admin action. Inactive members and deactivated
+   * users are excluded — mailing a removed employee about a certificate is both
+   * useless and a small data leak.
+   */
+  async activeAdminEmails(orgId: string): Promise<string[]> {
+    // `ownerDb`, not `db`: the only caller is a BACKGROUND JOB, which has no
+    // request context for the tenant proxy to resolve. Stating the connection
+    // beats relying on the proxy's no-context fallback.
+    const rows = await ownerDb
+      .select({ email: usersTable.email })
+      .from(organizationMembershipsTable)
+      .innerJoin(usersTable, eq(organizationMembershipsTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(organizationMembershipsTable.organizationId, orgId),
+          eq(organizationMembershipsTable.role, "admin"),
+          eq(organizationMembershipsTable.status, "active"),
+          eq(usersTable.isActive, true),
+        ),
+      );
+    return rows.map((r) => r.email);
   },
 
   /** Count active admins in an org (to refuse orphaning the last one). */
