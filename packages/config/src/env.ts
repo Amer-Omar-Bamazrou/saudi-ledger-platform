@@ -145,6 +145,19 @@ const EnvSchema = z.object({
   MAIL_API_KEY: z.string().min(1).optional(),
   /** The verified sender address, e.g. "Saudi Ledger <no-reply@example.com>". */
   MAIL_FROM: z.string().min(3).optional(),
+
+  // ── Operator alerting (queue item B2) ──────────────────────────────────────
+  /**
+   * Where platform alarms page a human. A generic webhook reaches PagerDuty,
+   * Opsgenie and Slack alike, so the vendor stays a deployment decision.
+   * `none` is refused in production: the alarms it carries (a stuck outbox
+   * against a 24-hour ZATCA deadline, an expiring PCSID) both fail by QUIET
+   * NEGLECT, which is precisely what a dashboard cannot catch.
+   */
+  ALERT_PROVIDER: z.enum(["none", "webhook"]).default("none"),
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
+  /** How long a firing condition stays quiet before it re-pages. */
+  ALERT_REPEAT_HOURS: z.coerce.number().int().min(1).default(6),
   /** Poll interval for the outbox worker. */
   ZATCA_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
   /**
@@ -223,6 +236,23 @@ const EnvSchema = z.object({
         message:
           "MAIL_PROVIDER must be set in production (queue item B1). Renewal reminders and " +
           "invitations would otherwise be recorded and delivered to nobody.",
+      });
+    }
+    if (env.ALERT_PROVIDER === "webhook" && !env.ALERT_WEBHOOK_URL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ALERT_WEBHOOK_URL"],
+        message: "ALERT_WEBHOOK_URL is required when ALERT_PROVIDER is 'webhook'",
+      });
+    }
+    if (env.NODE_ENV === "production" && env.ALERT_PROVIDER === "none") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ALERT_PROVIDER"],
+        message:
+          "ALERT_PROVIDER must be set in production (queue item B2). A stuck e-invoice outbox " +
+          "and an expiring PCSID both fail by quiet neglect — an operator panel only helps " +
+          "someone already looking at it.",
       });
     }
     if (env.ZATCA_KMS_PROVIDER === "aws-kms" && !env.ZATCA_KMS_KEY_ID) {
