@@ -130,6 +130,21 @@ const EnvSchema = z.object({
    * intent, for a flag that starts transmissions to a government API.
    */
   ZATCA_WORKER_ENABLED: booleanFlag.default("false"),
+
+  // ── Email delivery (queue item B1) ─────────────────────────────────────────
+  /**
+   * Which mail provider actually sends. `none` is the dev/CI default and is
+   * REFUSED in production (see the refinement below) — an alarm that silently
+   * reaches nobody is the failure mode B1 exists to close.
+   *
+   * AWS SES is deliberately absent: it needs SigV4 signing or the SDK, which is
+   * a deployment-time addition exactly like `@aws-sdk/client-kms`.
+   */
+  MAIL_PROVIDER: z.enum(["none", "resend", "postmark"]).default("none"),
+  /** Provider API key / server token. Never logged. */
+  MAIL_API_KEY: z.string().min(1).optional(),
+  /** The verified sender address, e.g. "Saudi Ledger <no-reply@example.com>". */
+  MAIL_FROM: z.string().min(3).optional(),
   /** Poll interval for the outbox worker. */
   ZATCA_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
   /**
@@ -182,6 +197,32 @@ const EnvSchema = z.object({
           "ZATCA_KMS_PROVIDER='local-dev' is refused in production — it would encrypt every " +
           "tenant's ZATCA signing key with a key from an env var. Set 'aws-kms' with " +
           "ZATCA_KMS_KEY_ID.",
+      });
+    }
+    // ── B1: a configured provider needs its credentials, and production needs
+    // a provider at all. ───────────────────────────────────────────────────────
+    if (env.MAIL_PROVIDER !== "none" && !(env.MAIL_API_KEY && env.MAIL_FROM)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MAIL_PROVIDER"],
+        message:
+          `MAIL_PROVIDER='${env.MAIL_PROVIDER}' requires MAIL_API_KEY and MAIL_FROM. ` +
+          "Fail at boot rather than discovering it when a certificate-expiry reminder " +
+          "is the thing that did not send.",
+      });
+    }
+    // 🔴 Same posture as refusing the `local-dev` key wrapper in production.
+    // The PCSID renewal reminder's whole value is lead time for an action only
+    // the tenant can take; with no provider it exists as a row and reaches no
+    // one, and at expiry they simply cannot legally invoice. Shipping that
+    // silently is worse than refusing to start.
+    if (env.NODE_ENV === "production" && env.MAIL_PROVIDER === "none") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MAIL_PROVIDER"],
+        message:
+          "MAIL_PROVIDER must be set in production (queue item B1). Renewal reminders and " +
+          "invitations would otherwise be recorded and delivered to nobody.",
       });
     }
     if (env.ZATCA_KMS_PROVIDER === "aws-kms" && !env.ZATCA_KMS_KEY_ID) {
