@@ -1,0 +1,189 @@
+/**
+ * B2 — the alarms themselves. One pass evaluates every platform condition,
+ * pages on the ones that are firing, and clears the ones that stopped.
+ *
+ * ── The two conditions, and why they are the two ───────────────────────────
+ * Both fail by QUIET NEGLECT — nothing rejects, nothing errors, and the screen
+ * stays green while the damage accrues. That is precisely the shape an
+ * operator panel cannot catch, and the reason B2 blocks onboarding a real
+ * taxpayer:
+ *
+ *   1. **outbox-overdue** — documents sitting unsubmitted. ZATCA gives
+ *      simplified invoices a 24-HOUR reporting deadline, so the alarm keys off
+ *      the OLDEST document's age, not the count: one document 23 hours old is
+ *      a bigger emergency than fifty that are ten minutes old.
+ *   2. **pcsid-expiring** — a signing certificate inside its final window (or
+ *      already expired). B1 emails the TENANT (only they can renew, with an
+ *      OTP from their own Fatoora portal); this pages US, because a tenant who
+ *      ignores three emails is still our incident when signing stops.
+ *
+ * ── Dedupe is a row, not a timer ───────────────────────────────────────────
+ * `alert_state` holds one row per condition. A firing condition re-pages at
+ * most every `ALERT_REPEAT_HOURS`; when it clears, the row is deleted and a
+ * resolve notice goes out. A channel that never says "clear" trains people to
+ * ignore it, which is the same disease as a panel that is always green.
+ */
+import { loadEnv } from "@workspace/config";
+import { ownerDb } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { alerter, type Alert } from "../../lib/alerter";
+import { logger } from "../../lib/logger";
+import { einvoiceOutboxRepository } from "../../repositories/einvoiceOutbox.repository";
+import { renewalService, REMINDER_THRESHOLDS_DAYS } from "../einvoice/renewal/renewal.service";
+
+export const ALARM_OUTBOX_OVERDUE = "outbox-overdue";
+export const ALARM_PCSID_EXPIRING = "pcsid-expiring";
+
+export interface AlarmRunResult {
+  evaluated: number;
+  firing: string[];
+  paged: string[];
+  resolved: string[];
+}
+
+/** The final reminder window — inside it, an unrenewed certificate is our problem. */
+const CRITICAL_EXPIRY_DAYS = Math.min(...REMINDER_THRESHOLDS_DAYS);
+
+async function record(alert: Alert, repeatHours: number): Promise<"paged" | "suppressed"> {
+  // One statement decides fire-vs-suppress, so two instances evaluating at once
+  // cannot both page: the loser's UPDATE matches zero rows.
+  const { rows } = await ownerDb.execute<{ paged: boolean }>(sql`
+    INSERT INTO alert_state (key, severity, title, first_fired_at, last_fired_at, fire_count)
+    VALUES (${alert.key}, ${alert.severity}, ${alert.title}, now(), now(), 1)
+    ON CONFLICT (key) DO UPDATE
+      SET last_fired_at = now(),
+          fire_count    = alert_state.fire_count + 1,
+          severity      = EXCLUDED.severity,
+          title         = EXCLUDED.title
+      WHERE alert_state.last_fired_at < now() - (${String(repeatHours)} || ' hours')::interval
+    RETURNING true AS paged
+  `);
+  return rows.length > 0 ? "paged" : "suppressed";
+}
+
+/**
+ * Record first, then page. If the webhook is down the row still says we tried,
+ * so the next pass suppresses instead of storming — an alerting outage must
+ * not become a second incident.
+ */
+async function fireIfDue(alert: Alert, repeatHours: number): Promise<boolean> {
+  if ((await record(alert, repeatHours)) !== "paged") return false;
+  logger.warn({ alarm: alert.key, severity: alert.severity }, alert.title);
+  const { sent } = await alerter.fire(alert);
+  if (!sent) {
+    await ownerDb.execute(sql`UPDATE alert_state SET last_sent = false WHERE key = ${alert.key}`);
+  } else {
+    await ownerDb.execute(sql`UPDATE alert_state SET last_sent = true WHERE key = ${alert.key}`);
+  }
+  return true;
+}
+
+/** Minutes since a document was enqueued — `created_at` is not on OutboxRow. */
+async function ageMinutesOf(documentId: string): Promise<number> {
+  const { rows } = await ownerDb.execute<{ minutes: string }>(sql`
+    SELECT EXTRACT(EPOCH FROM (now() - created_at)) / 60 AS minutes
+      FROM einvoice_documents WHERE id = ${documentId}
+  `);
+  return rows[0] ? Math.floor(Number(rows[0].minutes)) : 0;
+}
+
+async function clearIfPresent(key: string, title: string): Promise<boolean> {
+  const { rows } = await ownerDb.execute<{ key: string }>(sql`
+    DELETE FROM alert_state WHERE key = ${key} RETURNING key
+  `);
+  if (rows.length === 0) return false;
+  await alerter.resolve(key, title);
+  return true;
+}
+
+export const alarmsService = {
+  /**
+   * Evaluate every alarm once. Never throws: a monitoring pass that dies takes
+   * the monitoring with it, which is worse than the condition it was watching.
+   */
+  async runOnce(): Promise<AlarmRunResult> {
+    const env = loadEnv();
+    const result: AlarmRunResult = { evaluated: 0, firing: [], paged: [], resolved: [] };
+
+    const alarms: Array<() => Promise<void>> = [
+      // ── 1. Outbox age ──────────────────────────────────────────────────
+      async () => {
+        const overdue = await einvoiceOutboxRepository.listOverdue(env.ZATCA_OVERDUE_MINUTES, 500);
+        if (overdue.length === 0) {
+          if (await clearIfPresent(ALARM_OUTBOX_OVERDUE, "E-invoice outbox is draining again")) {
+            result.resolved.push(ALARM_OUTBOX_OVERDUE);
+          }
+          return;
+        }
+        // listOverdue orders by created_at, so the first row is the oldest.
+        const oldest = overdue[0];
+        const ageMinutes = await ageMinutesOf(oldest.id);
+        const hours = Math.floor(ageMinutes / 60);
+        result.firing.push(ALARM_OUTBOX_OVERDUE);
+        const paged = await fireIfDue(
+          {
+            key: ALARM_OUTBOX_OVERDUE,
+            // Past 12 hours the 24-hour reporting deadline is genuinely at risk.
+            severity: hours >= 12 ? "critical" : "warning",
+            title: `E-invoice outbox stuck — oldest document ${hours}h old`,
+            detail:
+              `${overdue.length} document(s) unsubmitted; the oldest has waited ${hours}h ${ageMinutes % 60}m. ` +
+              `ZATCA requires simplified invoices to be REPORTED within 24 hours — past that the tenant is ` +
+              `exposed to fines from SAR 5,000. Check the worker is running and the ZATCA API is reachable.`,
+            context: { total: overdue.length, oldestAgeMinutes: ageMinutes, oldestDocumentId: oldest.id },
+          },
+          env.ALERT_REPEAT_HOURS,
+        );
+        if (paged) result.paged.push(ALARM_OUTBOX_OVERDUE);
+      },
+
+      // ── 2. Certificate expiry ──────────────────────────────────────────
+      async () => {
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        // `listExpiring` returns everything inside the window; an already-
+        // EXPIRED certificate is included deliberately — silence after expiry
+        // is the worst case, since that is exactly when signing has stopped.
+        const expiring = (await renewalService.listExpiring(CRITICAL_EXPIRY_DAYS))
+          .filter((c) => c.notAfter != null)
+          .map((c) => ({ ...c, daysRemaining: Math.floor((c.notAfter!.getTime() - now) / DAY_MS) }));
+        if (expiring.length === 0) {
+          if (await clearIfPresent(ALARM_PCSID_EXPIRING, "No ZATCA certificate is in its final renewal window")) {
+            result.resolved.push(ALARM_PCSID_EXPIRING);
+          }
+          return;
+        }
+        const worst = expiring.reduce((a, b) => (a.daysRemaining <= b.daysRemaining ? a : b));
+        result.firing.push(ALARM_PCSID_EXPIRING);
+        const paged = await fireIfDue(
+          {
+            key: ALARM_PCSID_EXPIRING,
+            severity: worst.daysRemaining <= 0 ? "critical" : "warning",
+            title:
+              worst.daysRemaining <= 0
+                ? `ZATCA certificate EXPIRED — signing has stopped for ${expiring.length} company/companies`
+                : `ZATCA certificate expires in ${worst.daysRemaining} days`,
+            detail:
+              `${expiring.length} credential(s) at or inside the T-${CRITICAL_EXPIRY_DAYS} window. ` +
+              `Renewal needs an OTP from the TENANT's own Fatoora portal — we cannot do it for them, ` +
+              `so this needs a human chasing the tenant, not a retry. At expiry they cannot legally invoice.`,
+            context: { credentials: expiring.length, worstDaysRemaining: worst.daysRemaining },
+          },
+          env.ALERT_REPEAT_HOURS,
+        );
+        if (paged) result.paged.push(ALARM_PCSID_EXPIRING);
+      },
+    ];
+
+    for (const alarm of alarms) {
+      result.evaluated += 1;
+      try {
+        await alarm();
+      } catch (err) {
+        logger.error({ err }, "alarm evaluation failed");
+      }
+    }
+
+    return result;
+  },
+};

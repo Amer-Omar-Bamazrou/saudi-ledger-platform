@@ -14,6 +14,7 @@ import { archiveService } from "../services/einvoice/archive/archive.service";
 import { renewalService } from "../services/einvoice/renewal/renewal.service";
 import { capturePromotionService } from "../services/capture/promotion.service";
 import { recurringGenerationService } from "../services/recurring/generation.service";
+import { alarmsService } from "../services/alerting/alarms.service";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
@@ -21,6 +22,7 @@ export const JOB_RENEWAL = "zatca-renewal-reminders";
 export const JOB_CAPTURE_PROMOTION = "capture-promotion";
 export const JOB_CAPTURE_PURGE = "capture-purge";
 export const JOB_RECURRING = "recurring-documents";
+export const JOB_ALARMS = "platform-alarms";
 
 let scheduler: JobScheduler | null = null;
 
@@ -91,6 +93,16 @@ export function buildScheduler(): JobScheduler {
       name: JOB_CAPTURE_PURGE,
       intervalMs: 24 * 60 * 60_000,
       runOnce: () => capturePromotionService.purgeOnce(),
+    },
+    {
+      // B2: evaluates the platform alarms. A PLATFORM job — it transmits
+      // nothing to ZATCA, it watches whether we are failing to. Every 5
+      // minutes, because both conditions it detects race real deadlines (a
+      // 24-hour reporting window; a certificate expiry) and because a
+      // firing condition re-pages on its own cooldown, not on this interval.
+      name: JOB_ALARMS,
+      intervalMs: 5 * 60_000,
+      runOnce: () => alarmsService.runOnce(),
     },
   ];
 
