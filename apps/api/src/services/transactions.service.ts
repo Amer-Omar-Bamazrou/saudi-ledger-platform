@@ -16,7 +16,7 @@ import {
 import { AppError, BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { auditService } from "./audit.service";
-import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
+import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
 
 /** A row-failure reason safe to show a user — never the driver's SQL dump. */
@@ -61,6 +61,7 @@ function buildTransactionRow(tx: Tx, cat?: Cat | null) {
     reviewStatus: tx.reviewStatus,
     kind: tx.kind,
     taxTreatment: tx.taxTreatment ?? null,
+    vatBasis: tx.vatBasis ?? null,
     bankAccountId: tx.bankAccountId ?? null,
     settlesInvoiceId: tx.settlesInvoiceId ?? null,
     settlesBillId: tx.settlesBillId ?? null,
@@ -167,6 +168,9 @@ export const transactionsService = {
         let confidenceScore: string | null = null;
         let kind: string = "operating";
         let taxTreatment: string | null = null;
+        // Flaw #6: whether VAT was actually CHARGED — a different fact from
+        // what the supply is. Extraction requires BOTH.
+        let vatBasis: string | null = null;
 
         if (autoCategrize) {
           const match = categorizeTransaction(
@@ -207,11 +211,27 @@ export const transactionsService = {
               // VAT is extracted ONLY for 'S'. 'Z'/'E'/'O' record zero VAT AND
               // say why; null stays honest-unknown (no VAT guessed).
               taxTreatment = resolved.defaultTaxTreatment;
-              if (taxTreatment === "S" && vatAmount == null) {
+              // 🔴 Flaw #6: a foreign digital supplier charges no KSA VAT (the
+              // buyer self-accounts), so a standard-rated supply can still
+              // carry nothing. Extracting anyway is what invented 450.00 of
+              // input VAT on one Google Ads charge in the live SME run.
+              vatBasis =
+                taxTreatment === "S"
+                  ? (match.vatBasis ?? (looksForeignDigitalSupplier(description) ? "reverse_charge" : "charged"))
+                  : null;
+              if (taxTreatment === "S" && vatBasis === "charged" && vatAmount == null) {
                 const rate =
                   match.suggestedVatRate != null && match.suggestedVatRate > 0 ? match.suggestedVatRate : 15;
                 vatAmount = String(vatFromGross(Number(row.amount), rate));
                 vatRate = String(rate);
+              } else if (taxTreatment === "S" && vatBasis !== "charged") {
+                // Standard-rated, but nothing was charged on this payment.
+                // Recorded as such rather than left blank: "no VAT because
+                // reverse charge" and "no VAT because we don't know" are
+                // different answers, and the reconciliation view must not
+                // treat them alike.
+                vatAmount = null;
+                vatRate = null;
               } else if (taxTreatment && taxTreatment !== "S") {
                 // 🔴 Audit Tier 2 (finding 4): a CSV-supplied VAT on a row the
                 // classification says is Z/E/O is a contradiction — the
@@ -248,6 +268,7 @@ export const transactionsService = {
           isManuallyOverridden: false,
           kind,
           taxTreatment,
+          vatBasis,
           bankAccountId,
           source: row.source ?? "upload",
           notes: row.notes ?? null,
@@ -303,6 +324,7 @@ export const transactionsService = {
       vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
       kind: r.tx.kind,
       taxTreatment: r.tx.taxTreatment,
+      vatBasis: r.tx.vatBasis,
       /**
        * M16.3.1 — an unverified treatment default must be visible where it is
        * USED. Corrected after audit finding #3: this keyed off
@@ -425,7 +447,7 @@ export const transactionsService = {
     if (
       existing.tx.kind === "settlement" &&
       (data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
-        data.taxTreatment !== undefined || data.isZakatRelevant !== undefined)
+        data.taxTreatment !== undefined || data.vatBasis !== undefined || data.isZakatRelevant !== undefined)
     ) {
       throw new ConflictError(
         "This transaction settles an invoice/bill — its tax facts live on the settled document and cannot be edited here.",
@@ -453,7 +475,7 @@ export const transactionsService = {
     // eligibility, and a notes-only edit asserts neither.
     const touchesTaxFacts =
       data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
-      data.taxTreatment !== undefined || data.isZakatRelevant !== undefined;
+      data.taxTreatment !== undefined || data.vatBasis !== undefined || data.isZakatRelevant !== undefined;
     const updates: Partial<typeof transactionsTable.$inferInsert> = touchesTaxFacts
       ? { isManuallyOverridden: true }
       : {};
@@ -494,8 +516,22 @@ export const transactionsService = {
         const cat = await categoriesRepository.findById(data.categoryId);
         const treatment = cat?.defaultTaxTreatment ?? null;
         updates.taxTreatment = treatment;
+        // Flaw #6: keep the basis coherent with the treatment. A row that is
+        // no longer standard-rated cannot have a "VAT was charged" basis.
+        // The basis must not depend on HOW the row got its category (flaw #3's
+        // lesson): a foreign supplier categorised by hand is still a foreign
+        // supplier, so the detector runs here too rather than only in the
+        // engine.
+        const basis =
+          data.vatBasis !== undefined
+            ? (data.vatBasis ?? null)
+            : treatment === "S"
+              ? (existing.tx.vatBasis ??
+                 (looksForeignDigitalSupplier(existing.tx.description) ? "reverse_charge" : "charged"))
+              : null;
+        updates.vatBasis = basis;
         if (data.vatAmount === undefined) {
-          if (treatment === "S") {
+          if (treatment === "S" && basis === "charged") {
             // Only extract when the row does not already carry a VAT figure —
             // an engine-extracted or user-entered amount is not overwritten.
             if (existing.tx.vatAmount == null) {
@@ -519,12 +555,34 @@ export const transactionsService = {
     // assumed default). The VAT consequence travels WITH the treatment so the
     // two facts cannot disagree: non-'S' rows carry zero VAT and say why; 'S'
     // with no explicit VAT extracts from the gross amount (never applies to it).
+    /**
+     * Flaw #6 — an explicit basis override, the human's answer to "did this
+     * payment actually carry VAT?". Setting anything other than `charged`
+     * clears the VAT; setting it back to `charged` on a standard-rated row
+     * re-extracts from the gross amount. This is the control that fixes a
+     * wrongly-guessed foreign supplier in either direction.
+     */
+    if (data.vatBasis !== undefined && data.categoryId === undefined) {
+      const basis = data.vatBasis ?? null;
+      updates.vatBasis = basis;
+      const treatment = data.taxTreatment !== undefined ? data.taxTreatment : existing.tx.taxTreatment;
+      if (basis !== "charged") {
+        updates.vatAmount = null;
+        updates.vatRate = null;
+      } else if (treatment === "S" && data.vatAmount === undefined && existing.tx.vatAmount == null) {
+        updates.vatAmount = String(vatFromGross(Number(existing.tx.amount), 15));
+        updates.vatRate = "15";
+      }
+    }
+
     if (data.taxTreatment !== undefined) {
       updates.taxTreatment = data.taxTreatment ?? null;
       if (data.taxTreatment != null && data.taxTreatment !== "S") {
-        // Z/E/O: zero VAT, and the row says why.
+        // Z/E/O: zero VAT, and the row says why. The basis goes with it —
+        // "VAT was charged" is meaningless on a non-standard-rated supply.
         updates.vatAmount = null;
         updates.vatRate = null;
+        updates.vatBasis = null;
       } else if (data.taxTreatment === "S" && data.vatAmount === undefined && existing.tx.vatAmount == null) {
         updates.vatAmount = String(vatFromGross(Number(existing.tx.amount), 15));
         updates.vatRate = "15";

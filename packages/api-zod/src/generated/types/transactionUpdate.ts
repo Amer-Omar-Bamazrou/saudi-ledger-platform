@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TransactionUpdateTaxTreatment } from './transactionUpdateTaxTreatment';
+import type { TransactionUpdateVatBasis } from './transactionUpdateVatBasis';
 
 export interface TransactionUpdate {
   /** @nullable */
@@ -25,6 +26,13 @@ export interface TransactionUpdate {
      * @nullable
      */
   taxTreatment?: TransactionUpdateTaxTreatment;
+  /**
+     * Flaw #6 — the human's answer to "did this payment actually carry
+     * VAT?". Anything other than `charged` clears the row's VAT; setting
+     * `charged` on a standard-rated row re-extracts it from the gross.
+     * @nullable
+     */
+  vatBasis?: TransactionUpdateVatBasis;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
