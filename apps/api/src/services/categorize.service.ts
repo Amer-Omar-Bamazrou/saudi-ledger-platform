@@ -64,7 +64,6 @@ export const categorizeService = {
           isZakatRelevant: false,
           vatAmount: null,
           vatRate: null,
-          isManuallyOverridden: false,
         });
         categorized++;
         results.push({
@@ -98,6 +97,15 @@ export const categorizeService = {
         vatRate = String(rate);
         // M15: EXTRACTED from the gross statement amount, never applied to it.
         vatAmount = String(vatFromGross(Number(tx.amount), rate));
+      } else if (resolved.defaultTaxTreatment && resolved.defaultTaxTreatment !== "S") {
+        // 🔴 Audit Tier 2 (finding 4): the treatment and the VAT travel
+        // TOGETHER. Assigning a Z/E/O category used to keep a stale/CSV
+        // vat_amount alongside the very treatment that says none can exist —
+        // and vatRows counts any non-null vat_amount, so the reconciliation
+        // moved by VAT the platform itself labelled impossible. Also enforced
+        // by the DB CHECK (migration 0034); this keeps the write from 500ing.
+        vatAmount = null;
+        vatRate = null;
       }
 
       await categorizeRepository.updateCategory(tx.id, {
@@ -107,7 +115,9 @@ export const categorizeService = {
         vatAmount,
         vatRate,
         taxTreatment: resolved.defaultTaxTreatment,
-        isManuallyOverridden: false,
+        // Audit Tier 2: the engine never erases the human-override marker —
+        // it gates treatmentAssumed and bulk-accept eligibility, and only a
+        // human PATCH may claim it.
       });
 
       const cat = catMap.get(resolvedId);

@@ -13,7 +13,7 @@ import {
   UploadTransactionsBody,
   UploadTransactionsResponse,
 } from "@workspace/api-zod";
-import { AppError, BadRequestError, NotFoundError } from "../lib/errors";
+import { AppError, BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
@@ -176,6 +176,16 @@ export const transactionsService = {
                   match.suggestedVatRate != null && match.suggestedVatRate > 0 ? match.suggestedVatRate : 15;
                 vatAmount = String(vatFromGross(Number(row.amount), rate));
                 vatRate = String(rate);
+              } else if (taxTreatment && taxTreatment !== "S") {
+                // 🔴 Audit Tier 2 (finding 4): a CSV-supplied VAT on a row the
+                // classification says is Z/E/O is a contradiction — the
+                // treatment wins for the reconcile-grade estimate (a human can
+                // override either in review). Without this, the row persisted
+                // treatment='Z' + VAT and moved the VAT reconciliation by an
+                // amount its own treatment says cannot exist. DB CHECK 0034
+                // enforces the same at the write boundary.
+                vatAmount = null;
+                vatRate = null;
               }
               // Counted here — AFTER resolution succeeded and BEFORE the insert
               // whose failure is caught below. See the categorized-- on failure.
@@ -337,7 +347,46 @@ export const transactionsService = {
     const [existing] = await transactionsRepository.findWithCategory(id);
     if (!existing) throw new NotFoundError("Transaction not found");
 
-    const updates: Partial<typeof transactionsTable.$inferInsert> = { isManuallyOverridden: true };
+    // ── Audit Tier 2 (finding 6): a settlement row's classification is the
+    // settlement contract. Its category/VAT/treatment were deliberately
+    // stripped when the human accepted the match (the VAT fact lives on the
+    // settled document); re-adding any of them would contradict the linked
+    // payment. Notes and Arabic description stay editable.
+    if (
+      existing.tx.kind === "settlement" &&
+      (data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
+        data.taxTreatment !== undefined || data.isZakatRelevant !== undefined)
+    ) {
+      throw new ConflictError(
+        "This transaction settles an invoice/bill — its tax facts live on the settled document and cannot be edited here.",
+      );
+    }
+
+    // Audit Tier 2 (finding 4): treatment and VAT travel together. Refuse a
+    // vatAmount whose effective treatment (the payload's, or the row's when
+    // the payload leaves it alone) says no VAT can exist. Null treatment is
+    // honest-unknown and MAY carry user-asserted VAT (manual-entry design).
+    const effectiveTreatment = data.taxTreatment !== undefined ? data.taxTreatment : existing.tx.taxTreatment;
+    if (
+      data.vatAmount != null &&
+      Number(data.vatAmount) !== 0 &&
+      effectiveTreatment != null &&
+      effectiveTreatment !== "S"
+    ) {
+      throw new BadRequestError(
+        `This row's VAT treatment is '${effectiveTreatment}' — such a row carries no VAT. Set the treatment to 'S' (or clear it) to record VAT.`,
+      );
+    }
+
+    // Audit Tier 2 (finding F8): only a change to the row's TAX FACTS claims
+    // the human-override marker — it gates the "assumed" hint and bulk-accept
+    // eligibility, and a notes-only edit asserts neither.
+    const touchesTaxFacts =
+      data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
+      data.taxTreatment !== undefined || data.isZakatRelevant !== undefined;
+    const updates: Partial<typeof transactionsTable.$inferInsert> = touchesTaxFacts
+      ? { isManuallyOverridden: true }
+      : {};
     if (data.categoryId !== undefined) updates.categoryId = data.categoryId ?? null;
     if (data.isZakatRelevant !== undefined) updates.isZakatRelevant = data.isZakatRelevant ?? false;
     if (data.vatAmount !== undefined) updates.vatAmount = data.vatAmount != null ? String(data.vatAmount) : null;
@@ -348,18 +397,23 @@ export const transactionsService = {
     // with no explicit VAT extracts from the gross amount (never applies to it).
     if (data.taxTreatment !== undefined) {
       updates.taxTreatment = data.taxTreatment ?? null;
-      if (data.taxTreatment !== "S") {
+      if (data.taxTreatment != null && data.taxTreatment !== "S") {
+        // Z/E/O: zero VAT, and the row says why.
         updates.vatAmount = null;
         updates.vatRate = null;
-      } else if (data.vatAmount === undefined && existing.tx.vatAmount == null) {
+      } else if (data.taxTreatment === "S" && data.vatAmount === undefined && existing.tx.vatAmount == null) {
         updates.vatAmount = String(vatFromGross(Number(existing.tx.amount), 15));
         updates.vatRate = "15";
       }
+      // Explicit null = honest-unknown: existing/asserted VAT is kept — a user
+      // clearing the classification is not asserting the VAT was wrong.
     }
     if (data.notes !== undefined) updates.notes = data.notes ?? null;
     if (data.descriptionAr !== undefined) updates.descriptionAr = data.descriptionAr ?? null;
 
-    await transactionsRepository.update(id, updates);
+    // A notes-less, fact-less PATCH has nothing to write (pre-fix the override
+    // stamp made every update non-empty; see F8 above).
+    if (Object.keys(updates).length > 0) await transactionsRepository.update(id, updates);
 
     const [row] = await transactionsRepository.findWithCategory(id);
     if (!row) throw new AppError(500, "Update failed");
@@ -369,6 +423,17 @@ export const transactionsService = {
 
   async remove(id: number) {
     const [existing] = await transactionsRepository.findWithCategory(id);
+    // 🔴 Audit Tier 2 (finding 5): a settlement row is the BANK-SIDE record of
+    // a payment that was actually posted (document paidAmount + GL Dr/Cr).
+    // Deleting it would leave the payment standing while cash flow loses the
+    // movement — and the row would drop out of the duplicate key, so re-
+    // uploading the statement re-imports the line, which could then be settled
+    // against a SECOND document: two recorded payments from one bank movement.
+    if (existing?.tx.kind === "settlement") {
+      throw new ConflictError(
+        "This transaction settles an invoice/bill and is the bank-side record of that payment. It cannot be deleted while the payment stands.",
+      );
+    }
     await transactionsRepository.remove(id);
     if (existing) await auditService.deleted("transaction", id, existing.tx);
   },
