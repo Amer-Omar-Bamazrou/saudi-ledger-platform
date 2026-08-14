@@ -52,22 +52,35 @@ export const invoicesService = {
    */
   async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
     const { items = [], ...invData } = body;
+    // ── Audit fix (Tier 1, finding 2): HEADER = Σ ROUNDED LINES, exactly. ──
+    // Pre-fix, per-line VAT was stored ROUNDED while the header accumulated the
+    // UNROUNDED values and rounded once at the end — so header VAT could differ
+    // from the sum of the line VATs by a halala (3 × base 10.03 @15%: lines
+    // 1.50+1.50+1.50 = 4.50, header round(4.5135) = 4.51). Two consumers break
+    // on that divergence: the UBL assembler mixes the header (TaxTotal) with
+    // the lines (TaxSubtotals) in ONE document, violating EN 16931 BR-CO-14 —
+    // ZATCA rejects it at submission; and GL posting writes Dr AR (total) vs
+    // Cr subtotal + Cr VAT as three INDEPENDENTLY rounded figures against a
+    // 0.005 balance tolerance, so a legitimate mixed-rate invoice could throw
+    // "GL entry does not balance" (finding 7). Rounding each line FIRST and
+    // summing the rounded values makes header = Σ lines by construction.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     let subtotal = 0;
     let vatTotal = 0;
     const preparedItems = items.map((it: any) => {
       const lineTotal = Number(it.quantity) * Number(it.unitPrice);
       const disc = Number(it.discount ?? 0);
-      const base = lineTotal - disc;
+      const base = round2(lineTotal - disc);
       const vatRate = Number(it.vatRate ?? 15);
-      const vat = base * (vatRate / 100);
-      subtotal += base;
-      vatTotal += vat;
+      const vat = round2(base * (vatRate / 100));
+      subtotal = round2(subtotal + base);
+      vatTotal = round2(vatTotal + vat);
       return {
         ...it,
         quantity: String(it.quantity),
         unitPrice: String(it.unitPrice),
-        vatAmount: String(vat.toFixed(2)),
-        total: String((base + vat).toFixed(2)),
+        vatAmount: vat.toFixed(2),
+        total: round2(base + vat).toFixed(2),
         // 🔴 M12.8: stamp the ZATCA tax category at CREATE.
         //
         // `tax_category_code` was added in M12.1a and, until now, was written by
@@ -87,7 +100,11 @@ export const invoicesService = {
         taxCategoryCode: it.taxCategoryCode ?? (vatRate > 0 ? "S" : null),
       };
     });
-    const total = subtotal + vatTotal - Number(invData.discount ?? 0);
+    // Exact by construction: subtotal and vatTotal are sums of 2dp values, so
+    // total = subtotal + vat − discount holds to the halala and the GL entry
+    // posted at approval balances exactly. (A nonzero header-level discount is
+    // NOT posted as a GL line today — pre-existing, unchanged here.)
+    const total = round2(subtotal + vatTotal - Number(invData.discount ?? 0));
 
     // A draft dated in a closed period is harmless (no ledger effect), but keep
     // the early guard so drafts aren't entered into closed periods.

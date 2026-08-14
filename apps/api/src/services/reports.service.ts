@@ -516,41 +516,81 @@ export const reportsService = {
     const dateFrom = period_from ? `${period_from}-01` : "1900-01-01";
     const dateTo = period_to ? `${period_to}-31` : "2099-12-31";
 
-    const [invoiceRows, billRows] = await Promise.all([
+    const [invoiceRows, invoiceLines, billRows, billLines] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
+      reportsRepository.invoiceLinesInRange(dateFrom, dateTo),
       reportsRepository.billsInRange(dateFrom, dateTo),
+      reportsRepository.billLinesInRange(dateFrom, dateTo),
     ]);
 
-    let standardRatedSales = 0, outputVat = 0, zeroRatedSales = 0;
-    for (const inv of invoiceRows) {
-      /**
-       * 🔴 M12.1b — the most dangerous sum in this file.
-       *
-       * The rate is derived from the POSITIVE stored amounts, then the sign is
-       * applied to the contribution. Deriving the rate from a signed amount is
-       * what makes negative storage a silent filing error: a negative
-       * `vat_amount` fails the `> 0` guard, computes a rate of 0, drops into the
-       * zero-rated branch, and **never reduces output VAT** — so a credit note
-       * would understate credits AND overstate output VAT on the return.
-       */
-      const subtotal = toNum(inv.subtotal);
-      const vat = toNum(inv.vatAmount);
-      const sign = documentSign(inv.documentType);
-      const vatRate = vat > 0 ? (vat / subtotal) * 100 : 0;
+    /**
+     * 🔴 AUDIT FIX (Tier 1, finding 1): classify per LINE from
+     * `tax_category_code`, never by reconstructing a rate from rounded header
+     * cents. The old header inference (`vat/subtotal*100`, branches `>= 14.9`
+     * / `=== 0`) silently dropped every MIXED-RATE document (S+Z lines ⇒
+     * header rate between the branches ⇒ absent from every box, including
+     * output VAT the GL had posted), dropped small 15% documents whose rounded
+     * rate fell below 14.9%, and filed EXEMPT documents in the zero-rated box.
+     * Credit notes against such documents never reduced output VAT.
+     *
+     * The M12.1b sign discipline is unchanged: amounts are stored positive,
+     * `documentSign()` is applied to every contribution, per line.
+     *
+     * Legacy fallbacks, stated: a line with NULL `tax_category_code` (pre-
+     * M12.1a data; 0%-rate lines the migration deliberately left ambiguous)
+     * classifies by VAT presence — vat > 0 ⇒ 'S', else 'Z' (preserving the old
+     * report's placement for legacy zero-VAT lines). A document with NO line
+     * rows at all (bills may be created header-only) classifies its header the
+     * same way. 'O' (out of scope) lines are not consideration for a supply
+     * and appear in no box. Box 4 (exports) stays 0 — nothing marks a sale as
+     * an export yet; an export today is a 'Z' line and lands in box 2.
+     */
+    const invLinesByDoc = new Map<number, (typeof invoiceLines)[number][]>();
+    for (const l of invoiceLines) {
+      (invLinesByDoc.get(l.invoiceId) ?? invLinesByDoc.set(l.invoiceId, []).get(l.invoiceId)!).push(l);
+    }
 
-      if (vatRate >= 14.9) {
-        standardRatedSales += sign * subtotal;
-        outputVat += sign * vat;
-      } else if (vatRate === 0) {
-        zeroRatedSales += sign * subtotal;
+    let standardRatedSales = 0, outputVat = 0, zeroRatedSales = 0, exemptSales = 0;
+    for (const inv of invoiceRows) {
+      const sign = documentSign(inv.documentType);
+      const lines = invLinesByDoc.get(inv.id) ?? [];
+      if (lines.length === 0) {
+        const subtotal = toNum(inv.subtotal);
+        const vat = toNum(inv.vatAmount);
+        if (vat > 0) { standardRatedSales += sign * subtotal; outputVat += sign * vat; }
+        else zeroRatedSales += sign * subtotal;
+        continue;
       }
+      for (const { line } of lines) {
+        const vat = toNum(line.vatAmount);
+        const net = toNum(line.total) - vat;
+        const code = line.taxCategoryCode ?? (vat > 0 ? "S" : "Z");
+        if (code === "S") { standardRatedSales += sign * net; outputVat += sign * vat; }
+        else if (code === "Z") zeroRatedSales += sign * net;
+        else if (code === "E") exemptSales += sign * net;
+        // "O": out of scope — on no box of the return.
+      }
+    }
+
+    const billLinesByDoc = new Map<number, (typeof billLines)[number][]>();
+    for (const l of billLines) {
+      (billLinesByDoc.get(l.billId) ?? billLinesByDoc.set(l.billId, []).get(l.billId)!).push(l);
     }
 
     let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
     for (const bill of billRows) {
-      const vatRate = toNum(bill.vatAmount) > 0 ? (toNum(bill.vatAmount) / toNum(bill.subtotal)) * 100 : 0;
-      if (vatRate >= 14.9) { standardRatedPurchases += toNum(bill.subtotal); inputVat += toNum(bill.vatAmount); }
-      else if (vatRate === 0) zeroRatedPurchases += toNum(bill.subtotal);
+      const lines = billLinesByDoc.get(bill.id) ?? [];
+      if (lines.length === 0) {
+        if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += toNum(bill.subtotal); inputVat += toNum(bill.vatAmount); }
+        else zeroRatedPurchases += toNum(bill.subtotal);
+        continue;
+      }
+      for (const { line } of lines) {
+        const vat = toNum(line.vatAmount);
+        const net = toNum(line.total) - vat;
+        if (vat > 0) { standardRatedPurchases += net; inputVat += vat; }
+        else zeroRatedPurchases += net;
+      }
     }
 
     const netVatDue = outputVat - inputVat;
@@ -559,9 +599,9 @@ export const reportsService = {
       salesSection: {
         box1_standardRatedDomesticSales: fmt2(standardRatedSales),
         box2_zeroRatedDomesticSales: fmt2(zeroRatedSales),
-        box3_exemptSales: 0,
+        box3_exemptSales: fmt2(exemptSales),
         box4_exportSales: 0,
-        box5_totalSales: fmt2(standardRatedSales + zeroRatedSales),
+        box5_totalSales: fmt2(standardRatedSales + zeroRatedSales + exemptSales),
         box6_vatOnStandardRatedSales: fmt2(outputVat),
         box7_vatAdjustments: 0,
         box8_totalOutputVat: fmt2(outputVat),

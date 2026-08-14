@@ -37,19 +37,23 @@ export const billsService = {
 
   async create(body: Record<string, any>, userId: number | null) {
     const { items = [], ...billData } = body;
+    // Audit fix (Tier 1, finding 2): header = Σ rounded lines, exactly — see
+    // the full note in invoices.service.create; the same divergence existed
+    // here and feeds AP GL posting and the input-VAT side of the return.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     let subtotal = 0;
     let vatTotal = 0;
     const preparedItems = items.map((it: any) => {
-      const base = Number(it.quantity) * Number(it.unitPrice);
-      const vat = base * (Number(it.vatRate ?? 15) / 100);
-      subtotal += base;
-      vatTotal += vat;
+      const base = round2(Number(it.quantity) * Number(it.unitPrice));
+      const vat = round2(base * (Number(it.vatRate ?? 15) / 100));
+      subtotal = round2(subtotal + base);
+      vatTotal = round2(vatTotal + vat);
       return {
         ...it,
         quantity: String(it.quantity),
         unitPrice: String(it.unitPrice),
-        vatAmount: String(vat.toFixed(2)),
-        total: String((base + vat).toFixed(2)),
+        vatAmount: vat.toFixed(2),
+        total: round2(base + vat).toFixed(2),
       };
     });
 

@@ -8,7 +8,9 @@ import {
   transactionsTable,
   categoriesTable,
   invoicesTable,
+  invoiceItemsTable,
   billsTable,
+  billItemsTable,
   journalEntriesTable,
   journalEntryLinesTable,
   customersTable,
@@ -320,6 +322,36 @@ export const reportsRepository = {
     return db
       .select()
       .from(billsTable)
+      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
+  },
+
+  /**
+   * VAT-return LINE-LEVEL queries (audit Tier 1, finding 1).
+   *
+   * 🔴 The return must classify per LINE from `invoice_items.tax_category_code`
+   * — never by reconstructing a rate from rounded header cents. The header
+   * inference (`vat/subtotal*100` with `>= 14.9` / `=== 0` branches) silently
+   * DROPPED every mixed-rate document (one S line + one Z line ⇒ header rate
+   * 7.5% ⇒ matched neither branch ⇒ absent from every box, including its
+   * posted output VAT) and every 15% invoice small enough for the rounded rate
+   * to fall under 14.9%. Credit notes against such documents never reduced
+   * output VAT — the exact failure `documentSign()` exists to prevent,
+   * reintroduced through the threshold instead of the sign.
+   */
+  invoiceLinesInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ line: invoiceItemsTable, invoiceId: invoiceItemsTable.invoiceId })
+      .from(invoiceItemsTable)
+      .innerJoin(invoicesTable, eq(invoiceItemsTable.invoiceId, invoicesTable.id))
+      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly()));
+  },
+  /** Bill lines carry no ZATCA category (vendor documents) — classification is
+   *  per-line VAT presence, which still fixes the mixed-rate hole. */
+  billLinesInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ line: billItemsTable, billId: billItemsTable.billId })
+      .from(billItemsTable)
+      .innerJoin(billsTable, eq(billItemsTable.billId, billsTable.id))
       .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
   },
 };
