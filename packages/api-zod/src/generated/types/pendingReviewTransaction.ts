@@ -8,6 +8,7 @@
 import type { PendingReviewTransactionKind } from './pendingReviewTransactionKind';
 import type { PendingReviewTransactionTaxTreatment } from './pendingReviewTransactionTaxTreatment';
 import type { PendingReviewTransactionType } from './pendingReviewTransactionType';
+import type { PendingReviewTransactionVatBasis } from './pendingReviewTransactionVatBasis';
 import type { SettlementSuggestion } from './settlementSuggestion';
 
 export interface PendingReviewTransaction {
@@ -29,6 +30,11 @@ export interface PendingReviewTransaction {
   kind: PendingReviewTransactionKind;
   /** @nullable */
   taxTreatment?: PendingReviewTransactionTaxTreatment;
+  /**
+     * Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis).
+     * @nullable
+     */
+  vatBasis?: PendingReviewTransactionVatBasis;
   /**
      * M16.3.1 — true when the row's treatment came from a category
      * default that has NOT been verified against KSA VAT rules (only

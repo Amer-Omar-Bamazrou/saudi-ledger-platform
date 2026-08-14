@@ -37,6 +37,20 @@ export interface CategorizationMatch {
    * (which is a display label for transfers, never resolved against the chart).
    */
   kind?: "transfer";
+  /**
+   * 🔴 Flaw #6 — whether VAT was actually CHARGED on this payment, which is a
+   * different fact from what the supply is (`systemCode` → treatment).
+   *
+   * Set to `reverse_charge` for known foreign digital suppliers: the supply is
+   * standard-rated, but an Irish/Luxembourg entity charges no KSA VAT and the
+   * BUYER self-accounts. Extracting 15% from those payments is what invented
+   * 450.00 of input VAT on one Google Ads charge in the live SME run.
+   *
+   * ⚠️ This is an ASSUMPTION, not a verified fact per supplier — several large
+   * platforms have since registered in KSA and DO charge VAT. It is surfaced
+   * as overridable in review for exactly that reason (queue C9).
+   */
+  vatBasis?: "charged" | "reverse_charge" | "supplier_unregistered";
 }
 
 export interface SeedCategory {
@@ -1058,6 +1072,55 @@ function isSalaryLike(description: string, amount: number): boolean {
 // ─────────────────────────────────────────────
 
 /**
+ * Foreign digital suppliers that bill a Saudi business from outside the
+ * Kingdom and therefore charge NO KSA VAT — the buyer self-accounts under the
+ * reverse-charge mechanism.
+ *
+ * These are the recurring subscriptions almost every SME has, which is why
+ * they dominated the phantom-VAT total: ads, cloud, and SaaS.
+ *
+ * ⚠️ DELIBERATELY A GUESS, and marked as one. Several of these have since
+ * registered for KSA VAT for some product lines, and the invoice — not the
+ * bank line — is what settles it. The engine flags the likelihood; the human
+ * confirms it in review.
+ */
+const FOREIGN_DIGITAL_SUPPLIERS: RegExp[] = [
+  /google/i,
+  /meta\s+platforms/i,
+  /facebook/i,
+  /instagram\s+ads/i,
+  /(^|[^A-Za-z])AWS([^A-Za-z]|$)/,
+  /amazon\s+web\s+services/i,
+  /microsoft/i,
+  /azure/i,
+  /office\s*365/i,
+  /apple.*(services|icloud|store)/i,
+  /linkedin/i,
+  /zoom/i,
+  /adobe/i,
+  /slack/i,
+  /atlassian/i,
+  /github/i,
+  /canva/i,
+  /shopify/i,
+  /digitalocean/i,
+  /cloudflare/i,
+  /notion/i,
+  /figma/i,
+  /openai/i,
+  /anthropic/i,
+  /tiktok\s+ads/i,
+  /snap(chat)?\s+ads/i,
+  /namecheap/i,
+  /godaddy/i,
+];
+
+/** Does this description look like a foreign supplier that charges no KSA VAT? */
+export function looksForeignDigitalSupplier(text: string): boolean {
+  return FOREIGN_DIGITAL_SUPPLIERS.some((p) => p.test(text));
+}
+
+/**
  * 🔴 WHY NO ARABIC PATTERN USES `\b` (found by the SME statement run).
  *
  * `\b` is an ASCII word boundary: it asserts a transition between `[A-Za-z0-9_]`
@@ -1164,6 +1227,13 @@ export function categorizeTransaction(
 
   if (bestMatch) {
     const { ruleIdx: _, ...match } = bestMatch;
+    // Flaw #6: a standard-rated supply from a foreign digital supplier carries
+    // NO KSA VAT on the payment — the buyer self-accounts. Stamped here so
+    // every consumer (upload, the Categorize page) gets it without repeating
+    // the rule, and so extraction can refuse without guessing.
+    if (looksForeignDigitalSupplier(normalizedText)) {
+      return { ...match, vatBasis: "reverse_charge" as const };
+    }
     return match;
   }
 

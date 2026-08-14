@@ -217,6 +217,24 @@ export const TransactionTaxTreatment = {
   O: 'O',
 } as const;
 
+/**
+ * Flaw #6 — whether VAT was actually CHARGED on this payment, which
+ * is a different fact from what the supply IS (taxTreatment).
+ * `reverse_charge`: a foreign supplier charges no KSA VAT and the
+ * buyer self-accounts. `supplier_unregistered`: a supplier below the
+ * VAT threshold charges none. VAT is extracted only when
+ * taxTreatment='S' AND vatBasis='charged'.
+ * @nullable
+ */
+export type TransactionVatBasis = typeof TransactionVatBasis[keyof typeof TransactionVatBasis] | null;
+
+
+export const TransactionVatBasis = {
+  charged: 'charged',
+  reverse_charge: 'reverse_charge',
+  supplier_unregistered: 'supplier_unregistered',
+} as const;
+
 export interface Transaction {
   id: number;
   date: string;
@@ -254,6 +272,16 @@ export interface Transaction {
      * @nullable
      */
   taxTreatment?: TransactionTaxTreatment;
+  /**
+     * Flaw #6 — whether VAT was actually CHARGED on this payment, which
+     * is a different fact from what the supply IS (taxTreatment).
+     * `reverse_charge`: a foreign supplier charges no KSA VAT and the
+     * buyer self-accounts. `supplier_unregistered`: a supplier below the
+     * VAT threshold charges none. VAT is extracted only when
+     * taxTreatment='S' AND vatBasis='charged'.
+     * @nullable
+     */
+  vatBasis?: TransactionVatBasis;
   /** @nullable */
   bankAccountId?: number | null;
   /**
@@ -299,6 +327,19 @@ export const PendingReviewTransactionTaxTreatment = {
   Z: 'Z',
   E: 'E',
   O: 'O',
+} as const;
+
+/**
+ * Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis).
+ * @nullable
+ */
+export type PendingReviewTransactionVatBasis = typeof PendingReviewTransactionVatBasis[keyof typeof PendingReviewTransactionVatBasis] | null;
+
+
+export const PendingReviewTransactionVatBasis = {
+  charged: 'charged',
+  reverse_charge: 'reverse_charge',
+  supplier_unregistered: 'supplier_unregistered',
 } as const;
 
 export type SettlementSuggestionDocumentKind = typeof SettlementSuggestionDocumentKind[keyof typeof SettlementSuggestionDocumentKind];
@@ -363,6 +404,11 @@ export interface PendingReviewTransaction {
   kind: PendingReviewTransactionKind;
   /** @nullable */
   taxTreatment?: PendingReviewTransactionTaxTreatment;
+  /**
+     * Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis).
+     * @nullable
+     */
+  vatBasis?: PendingReviewTransactionVatBasis;
   /**
      * M16.3.1 — true when the row's treatment came from a category
      * default that has NOT been verified against KSA VAT rules (only
@@ -485,6 +531,21 @@ export const TransactionUpdateTaxTreatment = {
   O: 'O',
 } as const;
 
+/**
+ * Flaw #6 — the human's answer to "did this payment actually carry
+ * VAT?". Anything other than `charged` clears the row's VAT; setting
+ * `charged` on a standard-rated row re-extracts it from the gross.
+ * @nullable
+ */
+export type TransactionUpdateVatBasis = typeof TransactionUpdateVatBasis[keyof typeof TransactionUpdateVatBasis] | null;
+
+
+export const TransactionUpdateVatBasis = {
+  charged: 'charged',
+  reverse_charge: 'reverse_charge',
+  supplier_unregistered: 'supplier_unregistered',
+} as const;
+
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
@@ -503,6 +564,13 @@ export interface TransactionUpdate {
      * @nullable
      */
   taxTreatment?: TransactionUpdateTaxTreatment;
+  /**
+     * Flaw #6 — the human's answer to "did this payment actually carry
+     * VAT?". Anything other than `charged` clears the row's VAT; setting
+     * `charged` on a standard-rated row re-extracts it from the gross.
+     * @nullable
+     */
+  vatBasis?: TransactionUpdateVatBasis;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

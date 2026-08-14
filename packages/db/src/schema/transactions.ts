@@ -102,6 +102,31 @@ export const transactionsTable = pgTable(
      */
     taxTreatment: text("tax_treatment"),
     /**
+     * 🔴 Flaw #6 — WHETHER VAT WAS ACTUALLY CHARGED, which is a different fact
+     * from what the supply IS.
+     *
+     * `tax_treatment` is the ZATCA supply taxonomy (S/Z/E/O): it says a supply
+     * is standard-rated. It cannot say that no VAT reached this bank line —
+     * and two common cases mean exactly that:
+     *
+     *   `reverse_charge`        — a foreign supplier (Google Ireland, AWS
+     *                             Luxembourg, Meta) charges no KSA VAT; the
+     *                             BUYER self-accounts for it. The supply is
+     *                             standard-rated; the payment carries nothing.
+     *   `supplier_unregistered` — a small local supplier below the VAT
+     *                             threshold charges none.
+     *
+     * Conflating the two facts is what invented phantom input VAT: a live SME
+     * statement produced 450.00 of "input VAT" on a Google Ads charge and
+     * 65.22 on an AWS one, none of which existed. VAT is now extracted ONLY
+     * when treatment = 'S' AND basis = 'charged', enforced by a DB CHECK.
+     *
+     * NULL = not yet established. The engine's reverse-charge guess for known
+     * foreign suppliers is an ASSUMPTION (some have since registered in KSA),
+     * so it is surfaced as overridable in review, never as settled fact.
+     */
+    vatBasis: text("vat_basis"),
+    /**
      * M16.2 — which bank account this line belongs to (design Q2). Statement
      * import asks; a bank feed (A2) is per-account by nature. Scopes duplicate
      * detection and is the foundation for transfer-leg pairing (v2). Nullable:

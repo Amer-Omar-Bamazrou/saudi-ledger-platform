@@ -260,6 +260,13 @@
       "when": 1786655845607,
       "tag": "0036_flaw1_transactions_to_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786655845608,
+      "tag": "0037_flaw6_vat_basis",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import type { TransactionKind } from './transactionKind';
 import type { TransactionReviewStatus } from './transactionReviewStatus';
 import type { TransactionTaxTreatment } from './transactionTaxTreatment';
 import type { TransactionType } from './transactionType';
+import type { TransactionVatBasis } from './transactionVatBasis';
 
 export interface Transaction {
   id: number;
@@ -47,6 +48,16 @@ export interface Transaction {
      * @nullable
      */
   taxTreatment?: TransactionTaxTreatment;
+  /**
+     * Flaw #6 — whether VAT was actually CHARGED on this payment, which
+     * is a different fact from what the supply IS (taxTreatment).
+     * `reverse_charge`: a foreign supplier charges no KSA VAT and the
+     * buyer self-accounts. `supplier_unregistered`: a supplier below the
+     * VAT threshold charges none. VAT is extracted only when
+     * taxTreatment='S' AND vatBasis='charged'.
+     * @nullable
+     */
+  vatBasis?: TransactionVatBasis;
   /** @nullable */
   bankAccountId?: number | null;
   /**

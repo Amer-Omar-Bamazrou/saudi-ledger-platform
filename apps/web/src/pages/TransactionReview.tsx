@@ -40,12 +40,24 @@ interface PendingRow {
   vatAmount: number | null;
   kind: string;
   taxTreatment: string | null;
+  vatBasis?: string | null;
   treatmentAssumed?: boolean;
   needsAttention: boolean;
   suggestion: Suggestion | null;
 }
 
 const TREATMENTS = ["S", "Z", "E", "O"] as const;
+
+/**
+ * Flaw #6 — whether VAT was actually charged, which is a different question
+ * from what the supply is. Shown only for standard-rated rows, because it is
+ * the only case where the answer changes anything.
+ */
+const VAT_BASES = [
+  { value: "charged", en: "VAT charged", ar: "ضريبة محصّلة" },
+  { value: "reverse_charge", en: "Reverse charge (foreign supplier)", ar: "احتساب عكسي (مورد أجنبي)" },
+  { value: "supplier_unregistered", en: "Supplier not VAT-registered", ar: "المورّد غير مسجّل" },
+] as const;
 
 export default function TransactionReview() {
   const { lang } = useLanguage();
@@ -83,6 +95,16 @@ export default function TransactionReview() {
   const treatmentMut = useMutation({
     mutationFn: ({ id, value }: { id: number; value: string | null }) =>
       apiFetch(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ taxTreatment: value }) }),
+    onSuccess: refresh,
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  // Flaw #6 — correct a wrongly-guessed basis in either direction. The engine
+  // flags known foreign suppliers as reverse-charge, but several have since
+  // registered in KSA, so the guess must be overridable.
+  const basisMut = useMutation({
+    mutationFn: ({ id, value }: { id: number; value: string | null }) =>
+      apiFetch(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ vatBasis: value }) }),
     onSuccess: refresh,
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
@@ -146,6 +168,28 @@ export default function TransactionReview() {
               {r.treatmentAssumed && (
                 <Badge variant="outline" className="border-amber-500/40 text-amber-500">
                   {lang === "ar" ? "مفترضة" : "assumed"}
+                </Badge>
+              )}
+              {r.taxTreatment === "S" && (
+                <select
+                  className="rounded border border-border bg-background px-1 py-0.5 text-xs"
+                  value={r.vatBasis ?? "charged"}
+                  title={
+                    lang === "ar"
+                      ? "هل تضمّنت هذه الدفعة ضريبة فعليًا؟ المورّدون الأجانب لا يحتسبونها"
+                      : "Did this payment actually carry VAT? Foreign suppliers charge none — you self-account"
+                  }
+                  onChange={(e) => basisMut.mutate({ id: r.id, value: e.target.value })}
+                  disabled={basisMut.isPending}
+                >
+                  {VAT_BASES.map((b) => (
+                    <option key={b.value} value={b.value}>{lang === "ar" ? b.ar : b.en}</option>
+                  ))}
+                </select>
+              )}
+              {r.vatBasis === "reverse_charge" && (
+                <Badge variant="outline" className="border-blue-500/40 text-blue-400">
+                  {lang === "ar" ? "احتساب عكسي" : "reverse charge"}
                 </Badge>
               )}
             </span>

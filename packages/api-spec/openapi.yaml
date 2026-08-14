@@ -1445,6 +1445,16 @@ components:
           description: "VAT treatment: S/Z/E/O; null = unknown (and only unknown)."
           type: ["string", "null"]
           enum: [S, Z, E, O, null]
+        vatBasis:
+          description: |
+            Flaw #6 — whether VAT was actually CHARGED on this payment, which
+            is a different fact from what the supply IS (taxTreatment).
+            `reverse_charge`: a foreign supplier charges no KSA VAT and the
+            buyer self-accounts. `supplier_unregistered`: a supplier below the
+            VAT threshold charges none. VAT is extracted only when
+            taxTreatment='S' AND vatBasis='charged'.
+          type: ["string", "null"]
+          enum: [charged, reverse_charge, supplier_unregistered, null]
         bankAccountId:
           type: ["integer", "null"]
         settlesInvoiceId:
@@ -1474,6 +1484,10 @@ components:
         vatAmount: { type: ["number", "null"] }
         kind: { type: string, enum: [operating, transfer, settlement] }
         taxTreatment: { type: ["string", "null"], enum: [S, Z, E, O, null] }
+        vatBasis:
+          description: "Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis)."
+          type: ["string", "null"]
+          enum: [charged, reverse_charge, supplier_unregistered, null]
         treatmentAssumed:
           description: |
             M16.3.1 — true when the row's treatment came from a category
@@ -1631,6 +1645,13 @@ components:
             returns the row to honest-unknown.
           type: ["string", "null"]
           enum: [S, Z, E, O, null]
+        vatBasis:
+          description: |
+            Flaw #6 — the human's answer to "did this payment actually carry
+            VAT?". Anything other than `charged` clears the row's VAT; setting
+            `charged` on a standard-rated row re-extracts it from the gross.
+          type: ["string", "null"]
+          enum: [charged, reverse_charge, supplier_unregistered, null]
         notes:
           type: ["string", "null"]
         descriptionAr:

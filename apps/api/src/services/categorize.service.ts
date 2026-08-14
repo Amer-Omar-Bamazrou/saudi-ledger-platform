@@ -60,6 +60,7 @@ export const categorizeService = {
           categoryId: null,
           kind: "transfer",
           taxTreatment: null,
+          vatBasis: null,
           confidenceScore: String(match.confidence),
           isZakatRelevant: false,
           vatAmount: null,
@@ -92,7 +93,14 @@ export const categorizeService = {
       // M16.2: VAT is extracted ONLY when the category's default treatment is
       // 'S'. Z/E/O record zero VAT and say why via tax_treatment; a null
       // treatment stays honest-unknown.
-      if (resolved.defaultTaxTreatment === "S" && vatAmount == null) {
+      // Flaw #6: standard-rated does not mean VAT was charged — a foreign
+      // digital supplier charges none and the buyer self-accounts.
+      const vatBasis =
+        resolved.defaultTaxTreatment === "S" ? (match.vatBasis ?? "charged") : null;
+      if (resolved.defaultTaxTreatment === "S" && vatBasis !== "charged") {
+        vatAmount = null;
+        vatRate = null;
+      } else if (resolved.defaultTaxTreatment === "S" && vatAmount == null) {
         const rate = match.suggestedVatRate != null && match.suggestedVatRate > 0 ? match.suggestedVatRate : 15;
         vatRate = String(rate);
         // M15: EXTRACTED from the gross statement amount, never applied to it.
@@ -115,6 +123,7 @@ export const categorizeService = {
         vatAmount,
         vatRate,
         taxTreatment: resolved.defaultTaxTreatment,
+        vatBasis,
         // Audit Tier 2: the engine never erases the human-override marker —
         // it gates treatmentAssumed and bulk-accept eligibility, and only a
         // human PATCH may claim it.
