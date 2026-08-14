@@ -776,3 +776,39 @@ the flag at its documented default (off), A3 generated nothing, ever.
 > reader trusts the name; nothing in review flags that the flag now covers
 > strangers. Fixed by gating per-job (`scheduled: false` on the two transport
 > jobs) with the scheduler always running; every job stays operator-runnable.
+
+### 🔴 META-FINDING #9 (flaw report, 2026-08-14): TWO REPORT FAMILIES READING DISJOINT DATA
+
+The M12.1b two-independent-computations hazard at the largest scale in the
+platform, and the frame the whole flaw report resolves to.
+
+**The shape.** Two families of reports read two different stores and never
+reconcile:
+
+| Family | Reads | Feeds |
+| --- | --- | --- |
+| Ledger | `journal_entries` / `journal_entry_lines` | income statement, trial balance, balance sheet, GL, journal report |
+| Transactions | `transactions` (accepted) | dashboard summary, VAT reconciliation, Zakat base, cash flow, budget actuals |
+
+Nothing posts an accepted transaction to the ledger, and nothing in the product
+tells a user which family a figure came from. **Its worst symptom is flaw #1:**
+observed live, one SME month produced an income statement showing **0.00 of
+expenses** beside a dashboard showing **45,063.25** — and a P&L revenue of
+4,200 (one invoice) beside dashboard income of 29,900 (cash sales). Neither
+figure is the business's revenue or expenses; each is one half.
+
+Every other flaw in that report is a smaller instance of the same disease:
+the VAT return vs the VAT reconciliation (deliberate and documented, but the
+reconciliation was 66% phantom), and `paidAmount` vs GL cash before M16.3.
+
+**Why it survived.** Both families are individually correct, individually
+tested, and individually reviewed. The M13 chart-of-accounts work made the
+LEDGER family right; the M15/M16 work made the TRANSACTION family right. No
+milestone owned the relationship between them, and the standing check asks
+whether a capability has a consumer — not whether two consumers of the same
+question agree.
+
+**The rule this adds:** when a second store answers a question the first store
+already answers, that is a design decision requiring an explicit reconciliation
+story — which figure is authoritative, how the other is labelled, and what the
+user is told. Absent that story, the two drift and both are believed.

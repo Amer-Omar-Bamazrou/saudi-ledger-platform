@@ -386,6 +386,24 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   without leaving the list. **Also fixed in the same pass:** `ZatcaOnboarding`
   and `CreditNotes` passed `/api/...` into `apiFetch`, which prepends `/api`
   itself — both pages requested `/api/api/...` and 404'd on every call.
+- **🔴 META-FINDING #9 — TWO REPORT FAMILIES READING DISJOINT DATA (open).**
+  The ledger (income statement, trial balance, balance sheet) and transactions
+  (dashboard, VAT reconciliation, Zakat, cash flow, budgets) answer the same
+  questions from different stores and never reconcile; nothing tells the user
+  which family a figure came from. Observed live: an income statement showing
+  **0.00 expenses** beside a dashboard showing **45,063.25**, same month, same
+  tenant. **Flaw #1 is its worst symptom and its fix is pending a design
+  decision** (post transactions to the ledger, vs. read both sources). Full
+  record: [](docs/history/findings-and-lessons.md).
+- **Flaw-report items still open:** #1 (transactions never reach the P&L —
+  design pending), #1 sub-parts (VAT_PAYMENT/ZAKAT_PAYMENT typed  so
+  paying a liability reduces profit; uncategorised debits counted as expenses;
+   sums by debit/credit and ignores category type — a fixed
+  asset reads as an expense), #6 (reverse charge is not representable: a row can
+  be standard-rated and carry no VAT — foreign or unregistered supplier — and
+   cannot say so), #8 (Zakat base reads ,
+  which almost nothing sets, so it renders a computed-looking **0** for
+  essentially every tenant).
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
