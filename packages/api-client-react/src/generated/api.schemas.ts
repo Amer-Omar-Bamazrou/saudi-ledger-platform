@@ -522,10 +522,17 @@ export interface TransactionUpload {
   bankAccountId?: number | null;
 }
 
+export type UploadResultDuplicatesItem = {
+  date: string;
+  description: string;
+  amount: number;
+};
+
 export interface UploadResult {
   inserted: number;
   categorized: number;
   duplicatesSkipped?: number;
+  duplicates?: UploadResultDuplicatesItem[];
   errors: string[];
 }
 

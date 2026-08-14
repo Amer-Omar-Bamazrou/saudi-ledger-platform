@@ -1666,6 +1666,20 @@ components:
         # tax figure. Reported, never silent.
         duplicatesSkipped:
           type: integer
+        # 🔴 Audit finding #10: the COUNT alone conflated two different events —
+        # "you re-uploaded a statement" (housekeeping) and "your business
+        # genuinely paid the same amount twice today" (lost money, invisible).
+        # The skipped rows are returned so the second case can be seen and
+        # re-entered.
+        duplicates:
+          type: array
+          items:
+            type: object
+            required: [date, description, amount]
+            properties:
+              date: { type: string }
+              description: { type: string }
+              amount: { type: number }
         errors:
           type: array
           items:

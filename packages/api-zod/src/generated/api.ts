@@ -431,6 +431,11 @@ export const UploadTransactionsResponse = zod.object({
   "inserted": zod.number(),
   "categorized": zod.number(),
   "duplicatesSkipped": zod.number().optional(),
+  "duplicates": zod.array(zod.object({
+  "date": zod.string(),
+  "description": zod.string(),
+  "amount": zod.number()
+})).optional(),
   "errors": zod.array(zod.string())
 })
 
