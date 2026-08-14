@@ -130,8 +130,16 @@ These are short forms; the rules are binding, the history explains why.
 
 ### The standing check (apply before recording any milestone as done)
 
-1. Every capability has a production **caller** (grep the symbol; discard tests
-   and comments).
+1. Every capability has a production **caller**, and the caller chain
+   **terminates at a real entry point** — grep the symbol, discard tests and
+   comments, then keep following it up. 🔴 **Name the terminus:** a UI surface
+   in `apps/web`, an operator surface, or a job `start()` actually schedules.
+   Stopping at the HTTP boundary is why this check said *yes* for A1's capture
+   pipeline and A3's recurring rules while neither was reachable from the
+   product — a route file is a caller, and an endpoint nobody calls is the
+   same disease one layer up. Mechanized for routes by
+   `tests/route-reachability.test.ts` (which also carries the known-gap list);
+   the guard covers only that one class, so parts 2–6 stay human.
 2. Every field it depends on has a production **writer** (grep for writes, not
    references — a column only a migration back-fills is unbuilt).
 3. Every client it depends on has a **real implementation** — if the only thing
@@ -368,6 +376,16 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **`companies.fiscalYearStart` is stored but not applied** — reports use calendar periods; the Company Settings UI says so.
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
+- **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,
+  2026-08-14 — the same class as A1/A3, three more instances):**
+  `/period-locks` (a tenant cannot close an accounting period from the
+  product), `/audit-logs` (the admin audit trail has no reader UI, though it is
+  claimed as available to org admins), `/llm` (proposal-only, inert, parked
+  with the AI layer). They are listed in the guard's `KNOWN_UNREACHABLE` with
+  reasons; the guard blocks NEW ones and fails if a listed route gains a UI
+  without leaving the list. **Also fixed in the same pass:** `ZatcaOnboarding`
+  and `CreditNotes` passed `/api/...` into `apiFetch`, which prepends `/api`
+  itself — both pages requested `/api/api/...` and 404'd on every call.
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-

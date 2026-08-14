@@ -66,12 +66,12 @@ export default function ZatcaOnboarding() {
 
   const { data: status, isLoading } = useQuery<OnboardingStatus>({
     queryKey: ["zatca-onboarding"],
-    queryFn: () => apiFetch("/api/zatca/onboarding"),
+    queryFn: () => apiFetch("/zatca/onboarding"),
   });
 
   const onboard = useMutation({
     mutationFn: (): Promise<OnboardResult> =>
-      apiFetch("/api/zatca/onboarding", {
+      apiFetch("/zatca/onboarding", {
         method: "POST",
         body: JSON.stringify({ otp }),
       }),

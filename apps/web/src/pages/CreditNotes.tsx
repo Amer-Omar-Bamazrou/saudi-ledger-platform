@@ -70,7 +70,7 @@ export default function CreditNotes() {
 
   const { data: all = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices"],
-    queryFn: () => apiFetch<Invoice[]>("/api/invoices"),
+    queryFn: () => apiFetch<Invoice[]>("/invoices"),
   });
 
   const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
@@ -81,7 +81,7 @@ export default function CreditNotes() {
 
   const create = useMutation({
     mutationFn: () =>
-      apiFetch("/api/invoices", {
+      apiFetch("/invoices", {
         method: "POST",
         body: JSON.stringify({
           invoiceNumber: form.invoiceNumber,
