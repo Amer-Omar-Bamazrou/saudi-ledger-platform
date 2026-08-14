@@ -76,6 +76,7 @@ export * from './transactionUpdateTaxTreatment';
 export * from './transactionUpload';
 export * from './updateCompanyInput';
 export * from './uploadResult';
+export * from './uploadResultDuplicatesItem';
 export * from './vatReturn';
 export * from './vatReturnPeriod';
 export * from './vatReturnPurchasesSection';

@@ -130,6 +130,21 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     description: "Employee salaries, wages, bonuses",
   },
   {
+    // 🔴 Added when the GOSI rule (#7) silently did nothing: see the
+    // rule-coverage guard in `categorization-m15.test.ts`. A rule whose
+    // `systemCode` is absent from THIS list is skipped by `if (!cat) continue`
+    // in the matcher — the code can be valid, seeded in the chart, and present
+    // in `allEngineCodes()`, and the rule still never fires.
+    id: 31,
+    systemCode: "GOSI_EXPENSE",
+    name: "GOSI / Social Insurance",
+    nameAr: "التأمينات الاجتماعية",
+    type: "expense",
+    vatApplicable: false,
+    zakatRelevant: false,
+    description: "Employer social-insurance (GOSI) contributions",
+  },
+  {
     id: 8,
     systemCode: "RENT_UTILITIES",
     name: "Rent & Utilities",
@@ -419,7 +434,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   {
     patterns: [
       /\bzakat\b/i,
-      /\bزكاة\b/,
+      /زكاة/,
       /\bGATZ\b/i,
       /\bZATCA.*zakat\b/i,
     ],
@@ -431,7 +446,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     suggestedVatRate: 0,
   },
   {
-    patterns: [/\bVAT.*remit\b/i, /\bZATCA.*VAT\b/i, /\bضريبة.*قيمة\b/],
+    patterns: [/\bVAT.*remit\b/i, /\bZATCA.*VAT\b/i, /ضريبة.*قيمة/],
     systemCode: "VAT_PAYMENT",
     confidence: 0.98,
     ruleName: "VAT remittance",
@@ -443,18 +458,18 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     patterns: [
       /\bMOC\b/,
       /\bMinistry.*Commerce\b/i,
-      /\bوزارة.*تجارة\b/,
+      /وزارة.*تجارة/,
       /\bCR\s*renew\b/i,
       /\bcommercial.*register\b/i,
       /\bSGRO\b/i,
       /\bMOI\b/,
       /\bMunicipality\b/i,
-      /\bمجلس.*بلدي\b/,
-      /\bأمانة\b/,
+      /مجلس.*بلدي/,
+      /أمانة/,
       /\bSABT\b/i,
       /\bMOL\b/,
       /\bMinistry.*Labor\b/i,
-      /\bنطاقات\b/,
+      /نطاقات/,
       /\bNitaqat\b/i,
       /\bMOHR\b/i,
       /\bMISAD\b/i,
@@ -472,7 +487,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bBALADI\b/i,
       /\bMunicipalBill\b/i,
       /\bBALADIYAH\b/i,
-      /\bرخصة.*تجارية\b/,
+      /رخصة.*تجارية/,
     ],
     systemCode: "GOVT_FEES",
     confidence: 0.93,
@@ -535,11 +550,11 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bAl.?Jawal\b/i,
       /\bZain\b/i,
       /\bMobily\b/i,
-      /\bموبايلي\b/,
+      /موبايلي/,
       /\bVirgin.*Mobile.*Saudi\b/i,
       /\blebaraKSA\b/i,
-      /\bتلفون.*خلوي\b/,
-      /\bفاتورة.*هاتف\b/,
+      /تلفون.*خلوي/,
+      /فاتورة.*هاتف/,
       /phone.*bill/i,
       /internet.*bill/i,
       /broadband/i,
@@ -559,7 +574,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     patterns: [
       /\bSEC\b/,
       /\bSaudi.*Electric\b/i,
-      /\bكهرباء\b/,
+      /كهرباء/,
       /\bMADINATUL\b/i,
       /electricity.*bill/i,
       /\bSECO\b/i,
@@ -575,7 +590,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     patterns: [
       /\bNWC\b/,
       /\bNational.*Water\b/i,
-      /\bمياه\b/,
+      /مياه/,
       /water.*bill/i,
       /\bMANASEA\b/i,
     ],
@@ -593,11 +608,11 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bAramco\b/i,
       /\bSABIC\b/i,
       /\bPetro.?Rabigh\b/i,
-      /\bوقود\b/,
+      /وقود/,
       /\bpetrol\b/i,
       /\bfuel\b/i,
       /\bgas.*station\b/i,
-      /\bمحطة.*بنزين\b/,
+      /محطة.*بنزين/,
       /\bBADR.*fuel\b/i,
       /\bNOMO.*fuel\b/i,
       /\bDhahran.*fuel\b/i,
@@ -613,18 +628,18 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     patterns: [
       /\bUber\b/i,
       /\bCareem\b/i,
-      /\bكريم\b/,
+      /كريم/,
       /\bJeeny\b/i,
       /\bJahiz\b/i,
       /\bINDRIVE\b/i,
       /\btaxi\b/i,
-      /\bسيارة.*أجرة\b/,
+      /سيارة.*أجرة/,
       /\bSaptco\b/i,
       /\bNHRC.*transport\b/i,
       /\bSAR.*express\b/i,
       /\bSAR.*Rail\b/i,
       /\bHaramain\b/i,
-      /\bالحرمين.*سريع\b/,
+      /الحرمين.*سريع/,
       /flight.*ticket/i,
       /airline/i,
       /\bSaudia\b/i,
@@ -645,7 +660,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bFedEx\b/i,
       /\bSMSA\b/i,
       /\bNaqel\b/i,
-      /\bناقل\b/,
+      /ناقل/,
       /\bJ&T\b/i,
       /\bZahid.*Express\b/i,
       /shipping/i,
@@ -665,10 +680,10 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   {
     patterns: [
       /\bHungerStation\b/i,
-      /\bجاهز\b/,
+      /جاهز/,
       /\bJahiz\b/i,
       /\bMrsool\b/i,
-      /\bمرسول\b/,
+      /مرسول/,
       /\bToYou\b/i,
       /\bCareems.*food\b/i,
       /\bJahez\b/i,
@@ -686,30 +701,30 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bDunkin\b/i,
       /\bTimHorton\b/i,
       /\bAl-?Baik\b/i,
-      /\bالبيك\b/,
+      /البيك/,
       /\bKudu\b/i,
-      /\bكودو\b/,
+      /كودو/,
       /\bHerfy\b/i,
-      /\bهرفي\b/,
+      /هرفي/,
       /\bRing.*Road\b/i,
       /\bNaif.*bakery\b/i,
       /\brestaurant\b/i,
-      /\bمطعم\b/,
+      /مطعم/,
       /\bcafeteria\b/i,
       /\bcafe\b/i,
-      /\bمقهى\b/,
-      /\bبقالة\b/,
+      /مقهى/,
+      /بقالة/,
       /grocery/i,
       /\bLuLu.*Hyper\b/i,
       /\bCarrefour\b/i,
       /\bAl.*Othaim\b/i,
-      /\bالعثيم\b/,
+      /العثيم/,
       /\bPanda.*Retail\b/i,
-      /\bبنده\b/,
+      /بنده/,
       /\bFarm.*Superstores\b/i,
-      /\bأسواق.*المزرعة\b/,
+      /أسواق.*المزرعة/,
       /\bDanube\b/i,
-      /\bالدانوب\b/,
+      /الدانوب/,
       /supermarket/i,
       /hypermarket/i,
     ],
@@ -732,14 +747,14 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bCrowne.*Plaza\b/i,
       /\bRadisson\b/i,
       /\bRotana\b/i,
-      /\bروتانا\b/,
+      /روتانا/,
       /\bAccor\b/i,
       /\bAirbnb\b/i,
       /\bBooking\.com\b/i,
       /\bAGODA\b/i,
       /hotel/i,
-      /\bفندق\b/,
-      /\bشقة.*مفروشة\b/,
+      /فندق/,
+      /شقة.*مفروشة/,
       /\bapartment.*rent\b/i,
     ],
     systemCode: "TRAVEL",
@@ -810,8 +825,8 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bTwitter.*Promote\b/i,
       /advertising/i,
       /marketing/i,
-      /\bإعلان\b/,
-      /\bتسويق\b/,
+      /إعلان/,
+      /تسويق/,
       /sponsored/i,
     ],
     systemCode: "MARKETING",
@@ -830,10 +845,10 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\blegal.*fee\b/i,
       /\bconsulting.*fee\b/i,
       /\blaw.*firm\b/i,
-      /\bمحاسب\b/,
-      /\bمدقق\b/,
-      /\bمحامي\b/,
-      /\bمستشار\b/,
+      /محاسب/,
+      /مدقق/,
+      /محامي/,
+      /مستشار/,
       /\bDeloitte\b/i,
       /\bPwC\b/i,
       /\bErnst.*Young\b/i,
@@ -850,27 +865,50 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     suggestedVatRate: 15,
   },
 
+  // ── SOCIAL INSURANCE (GOSI) ───────────────────────────────────────────
+  //
+  // Listed BEFORE salaries deliberately: `GOSI` used to sit inside the salary
+  // rule, so an employer's social-insurance contribution was booked to
+  // "Salaries and Wages Expense". Both are expense/'O', so no tax figure moved
+  // — but GOSI_EXPENSE exists as its own code precisely because Saudi
+  // employers report and reconcile the contribution separately from payroll,
+  // and a per-category report that hides it inside salaries cannot be checked
+  // against a GOSI statement.
+  {
+    // The Arabic patterns name SOCIAL insurance specifically. A bare
+    // "تأمينات" would also sit inside commercial-insurance text, and since
+    // Arabic patterns are substring matches (see the note on word boundaries
+    // below) that would quietly steal every insurance premium.
+    patterns: [/\bGOSI\b/i, /\bTAMEEN\b/i, /التأمينات\s*الاجتماعية/, /تأمينات\s*اجتماعية/],
+    systemCode: "GOSI_EXPENSE",
+    // Above INSURANCE deliberately: "التأمينات الاجتماعية" is unambiguous, and
+    // the matcher keeps the HIGHEST-confidence rule rather than the first.
+    confidence: 0.95,
+    ruleName: "GOSI / social insurance contribution",
+    vatApplicable: false,
+    isZakatRelevant: false,
+    suggestedVatRate: 0,
+  },
+
   // ── SALARIES & HR ─────────────────────────────────────────────────────
   {
     patterns: [
       /\bsalary\b/i,
       /\bpayroll\b/i,
       /\bwage\b/i,
-      /\براتب\b/,
-      /\bأجر\b/,
-      /\bمكافأة\b/,
+      /راتب|رواتب/,
+      /أجر/,
+      /مكافأة/,
       /\bbonus\b/i,
-      /\bGOSI\b/i,
-      /\bTAMEEN\b/i,
       /\bHRDF\b/i,
       /\bHadaf\b/i,
-      /\bهدف\b/,
+      /هدف/,
       /\bMusaned\b/i,
-      /\bمساند\b/,
+      /مساند/,
     ],
     systemCode: "SALARIES",
     confidence: 0.92,
-    ruleName: "Salary / payroll / GOSI",
+    ruleName: "Salary / payroll",
     vatApplicable: false,
     isZakatRelevant: false,
     suggestedVatRate: 0,
@@ -880,12 +918,12 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   {
     patterns: [
       /\bTawuniya\b/i,
-      /\bالتعاونية\b/,
+      /التعاونية/,
       /\bAXA.*Cooperative\b/i,
       /\bBupa.*Arabia\b/i,
       /\bMedGulf\b/i,
       /\binsurance\b/i,
-      /\bتأمين\b/,
+      /تأمين/,
       /\bwataniya.*insurance\b/i,
       /\bAl.*Rajhi.*Takaful\b/i,
     ],
@@ -900,16 +938,16 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   // ── REAL ESTATE / RENT ────────────────────────────────────────────────
   {
     patterns: [
-      /\bإيجار\b/,
+      /إيجار/,
       /\brent.*office\b/i,
       /\boffice.*rent\b/i,
       /\bshop.*rent\b/i,
       /\bwarehouse.*rent\b/i,
       /\bAqar\b/i,
-      /\bإيجار.*مكتب\b/,
-      /\bإيجار.*محل\b/,
+      /إيجار.*مكتب/,
+      /إيجار.*محل/,
       /\bEjar\b/i,
-      /\bإيجار.*عقد\b/,
+      /إيجار.*عقد/,
     ],
     systemCode: "RENT_UTILITIES",
     confidence: 0.88,
@@ -923,7 +961,7 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   {
     patterns: [
       /\bTadawul\b/i,
-      /\bتداول\b/,
+      /تداول/,
       /\bSaudi.*Exchange\b/i,
       /\bAlJazira.*Capital\b/i,
       /\bFransi.*Capital\b/i,
@@ -931,10 +969,10 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bSNB.*Capital\b/i,
       /\bstock.*purchase\b/i,
       /\bsukuk\b/i,
-      /\bصكوك\b/,
+      /صكوك/,
       /\bdividend\b/i,
-      /\bأسهم\b/,
-      /\bاستثمار\b/,
+      /أسهم/,
+      /استثمار/,
       /investment.*return/i,
       /profit.*share/i,
     ],
@@ -947,11 +985,11 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
   },
   {
     patterns: [
-      /\bتمويل\b/,
+      /تمويل/,
       /\bmurabaha\b/i,
       /\bIslamic.*finance\b/i,
       /\bfinancing.*installment\b/i,
-      /\bقسط\b/,
+      /قسط/,
       /\bloan.*repay\b/i,
     ],
     systemCode: "LOANS",
@@ -969,12 +1007,12 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
       /\bMachinery\b/i,
       /\bvehicle.*purchase\b/i,
       /\bcar.*purchase\b/i,
-      /\bلاب.*توب\b/,
+      /لاب.*توب/,
       /\blaptop.*purchase\b/i,
       /\bcomputer.*purchase\b/i,
       /\bprinter.*purchase\b/i,
       /\bfurniture\b/i,
-      /\bأثاث\b/,
+      /أثاث/,
       /capital.*expenditure/i,
       /\bCAPEX\b/i,
     ],
@@ -1019,6 +1057,27 @@ function isSalaryLike(description: string, amount: number): boolean {
 // Main engine function
 // ─────────────────────────────────────────────
 
+/**
+ * 🔴 WHY NO ARABIC PATTERN USES `\b` (found by the SME statement run).
+ *
+ * `\b` is an ASCII word boundary: it asserts a transition between `[A-Za-z0-9_]`
+ * and anything else. Arabic letters are NOT word characters to the regex
+ * engine, so between a space and "ر" there is no boundary at all — which means
+ * `/راتب/` is **false on "راتب سبتمبر"** while `/راتب/` is true.
+ *
+ * Sixty Arabic patterns in this file were written that way and had NEVER
+ * matched: salaries, rent, utilities, Zakat, VAT, insurance — the entire
+ * Arabic half of a bilingual categorisation engine was inert, silently, in a
+ * product whose customers' bank statements are frequently Arabic. Nothing
+ * failed; rows simply came back uncategorised and looked like honest
+ * "I don't know" answers.
+ *
+ * Substring matching is also the RIGHT semantics for Arabic here, not a
+ * concession: the definite article and prepositions attach to the word
+ * ("الرواتب", "للرواتب"), so a boundary-anchored match would miss the common
+ * forms even if `\b` worked. Pinned by the Arabic cases in
+ * `ingest-correctness.test.ts`.
+ */
 export function categorizeTransaction(
   description: string,
   amount: number,

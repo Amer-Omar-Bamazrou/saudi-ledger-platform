@@ -30,6 +30,7 @@ function reasonFor(err: unknown): string {
 }
 import { transactionsRepository, type TransactionFilter } from "../repositories/transactions.repository";
 import { reconciliationService } from "./reconciliation.service";
+import { categoriesRepository } from "../repositories/categories.repository";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
 
 type Tx = typeof transactionsTable.$inferSelect;
@@ -86,9 +87,16 @@ export const transactionsService = {
   async upload(data: UploadTransactionsInput) {
     const { rows, autoCategrize } = data;
     const errors: string[] = [];
+    /**
+     * 🔴 Audit finding #10: the duplicates COUNT conflated two different
+     * events — "you re-uploaded the same statement" (housekeeping) and "your
+     * business genuinely paid the same amount twice today" (lost money). The
+     * skipped rows are now returned so the user can see WHAT was dropped and
+     * re-enter a genuine second payment. A bare number cannot be acted on.
+     */
+    const duplicates: Array<{ date: string; description: string; amount: number }> = [];
     let inserted = 0;
     let categorized = 0;
-    let duplicatesSkipped = 0;
 
     // M16.2 — which bank account is this statement from? RLS scopes the lookup,
     // so another tenant's id simply does not resolve. Fail closed on an unknown
@@ -104,9 +112,36 @@ export const transactionsService = {
       ? await resolveSystemCodes(allEngineCodes())
       : new Map<string, ResolvedCategory>();
 
-    for (const row of rows) {
+    for (const raw of rows) {
       let rowWasCategorized = false;
       try {
+        // 🔴 Audit finding #5: NORMALISE THE DESCRIPTION ON INGEST.
+        // The duplicate key is exact string equality, so ONE TRAILING SPACE
+        // defeated it — the same statement re-exported with different spacing
+        // imported twice, double-counting the expense AND its VAT. Trailing,
+        // leading and repeated internal whitespace are formatting, not data.
+        const description = String(raw.description ?? "").trim().replace(/\s+/g, " ");
+        if (!description) {
+          errors.push("A row with an empty description could not be imported.");
+          continue;
+        }
+        const row = { ...raw, description, descriptionAr: raw.descriptionAr?.trim() || null };
+
+        // 🔴 Audit finding #4: CURRENCY WAS STORED AND IGNORED. A row of
+        // "500.00 USD" was summed as 500 SAR — understating the expense by
+        // ~73% and extracting SAR "VAT" from a foreign-currency charge that
+        // carried none. No aggregate anywhere consults `currency`, so the only
+        // honest options are convert (needs FX rates we do not have) or
+        // REFUSE. It refuses, per row, naming the row — silently mis-summing
+        // money is the one thing this platform must not do.
+        const currency = (row.currency ?? "SAR").toUpperCase();
+        if (currency !== "SAR") {
+          errors.push(
+            `Row "${description.slice(0, 60)}" is in ${currency}. Multi-currency statements are not supported yet — ` +
+              `convert it to SAR and re-import, or enter it manually at the SAR amount that left your account.`,
+          );
+          continue;
+        }
         // M15: an identical row (date+description+amount+type) is skipped and
         // REPORTED — uploading the same statement twice used to double every
         // figure in the dashboard, VAT summary and Zakat base, silently.
@@ -120,7 +155,7 @@ export const transactionsService = {
           type: row.type,
           bankAccountId,
         })) {
-          duplicatesSkipped++;
+          duplicates.push({ date: row.date, description, amount: Number(row.amount) });
           continue;
         }
 
@@ -225,7 +260,7 @@ export const transactionsService = {
         if (rowWasCategorized) categorized--;
         // 🔴 Never leak the raw driver error: it contained the full SQL text and
         // every parameter. A row failure names the row and the KIND of problem.
-        errors.push(`Row "${row.description.slice(0, 80)}" could not be imported${reasonFor(err)}`);
+        errors.push(`Row "${String(raw.description ?? "").trim().slice(0, 80)}" could not be imported${reasonFor(err)}`);
       }
     }
 
@@ -238,7 +273,13 @@ export const transactionsService = {
         after: { inserted, categorized },
       });
     }
-    return UploadTransactionsResponse.parse({ inserted, categorized, duplicatesSkipped, errors });
+    return UploadTransactionsResponse.parse({
+      inserted,
+      categorized,
+      duplicatesSkipped: duplicates.length,
+      duplicates,
+      errors,
+    });
   },
 
   /** Pending imported rows — the holding-area review surface. */
@@ -261,11 +302,22 @@ export const transactionsService = {
       vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
       kind: r.tx.kind,
       taxTreatment: r.tx.taxTreatment,
-      // M16.3.1 — an unverified treatment default must be visible where it is
-      // USED: true when the treatment came from a category whose default has
-      // not been checked against KSA rules (and no human has overridden it).
+      /**
+       * M16.3.1 — an unverified treatment default must be visible where it is
+       * USED. Corrected after audit finding #3: this keyed off
+       * `isManuallyOverridden`, so once a human assigned the CATEGORY the hint
+       * vanished — even though the treatment was still the category's
+       * unverified guess, not the human's assertion.
+       *
+       * The honest test needs no new column: the treatment is "assumed" when
+       * it still EQUALS the category's unverified default. If the human
+       * changed it to something else, that is their statement and the hint
+       * correctly disappears.
+       */
       treatmentAssumed:
-        r.tx.taxTreatment != null && !r.tx.isManuallyOverridden && r.cat?.treatmentVerified === false,
+        r.tx.taxTreatment != null &&
+        r.cat?.treatmentVerified === false &&
+        r.cat?.defaultTaxTreatment === r.tx.taxTreatment,
       // The UI separates these; the SERVER enforces the separation in
       // acceptPending. needsAttention rows are excluded from bulk accept.
       // M16.2: a confident TRANSFER is classified — the classification is the
@@ -396,6 +448,52 @@ export const transactionsService = {
       updates.kind = "operating";
     }
     if (data.categoryId !== undefined) updates.categoryId = data.categoryId ?? null;
+
+    /**
+     * 🔴 Audit finding #3: A HUMAN'S CATEGORY MUST MEAN WHAT THE ENGINE'S MEANS.
+     *
+     * Only the categorizer stamped `tax_treatment` and extracted VAT. A row
+     * categorised by hand kept `treatment = null, vat = null` — so the VAT
+     * reconciliation depended on HOW a row got its category, not on what it
+     * is. And the review surface exists precisely so humans categorise what
+     * the engine could not, which means every hand-classified row contributed
+     * zero to the figure that is supposed to show cash-side VAT.
+     *
+     * Assigning a category now applies that category's default treatment and
+     * the same extraction rule (`vatFromGross`, never rate-on-gross), unless
+     * the same request states the treatment explicitly. Clearing the category
+     * clears the treatment with it — a treatment with nothing behind it is the
+     * conflation M16.2 removed.
+     */
+    if (data.categoryId !== undefined && data.taxTreatment === undefined) {
+      if (data.categoryId == null) {
+        updates.taxTreatment = null;
+        if (data.vatAmount === undefined) {
+          updates.vatAmount = null;
+          updates.vatRate = null;
+        }
+      } else {
+        const cat = await categoriesRepository.findById(data.categoryId);
+        const treatment = cat?.defaultTaxTreatment ?? null;
+        updates.taxTreatment = treatment;
+        if (data.vatAmount === undefined) {
+          if (treatment === "S") {
+            // Only extract when the row does not already carry a VAT figure —
+            // an engine-extracted or user-entered amount is not overwritten.
+            if (existing.tx.vatAmount == null) {
+              updates.vatAmount = String(vatFromGross(Number(existing.tx.amount), 15));
+              updates.vatRate = "15";
+            }
+          } else {
+            // Z/E/O (or unknown): no VAT can exist on this row. Without this
+            // the DB CHECK (migration 0034) would reject the write outright.
+            updates.vatAmount = null;
+            updates.vatRate = null;
+          }
+        }
+      }
+    }
+
     if (data.isZakatRelevant !== undefined) updates.isZakatRelevant = data.isZakatRelevant ?? false;
     if (data.vatAmount !== undefined) updates.vatAmount = data.vatAmount != null ? String(data.vatAmount) : null;
     if (data.vatRate !== undefined) updates.vatRate = data.vatRate != null ? String(data.vatRate) : null;

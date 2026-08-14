@@ -5,10 +5,12 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { UploadResultDuplicatesItem } from './uploadResultDuplicatesItem';
 
 export interface UploadResult {
   inserted: number;
   categorized: number;
   duplicatesSkipped?: number;
+  duplicates?: UploadResultDuplicatesItem[];
   errors: string[];
 }
