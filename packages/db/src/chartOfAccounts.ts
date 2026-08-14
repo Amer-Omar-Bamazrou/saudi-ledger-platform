@@ -37,6 +37,7 @@ export const SYSTEM_ACCOUNTS = {
   VAT_INPUT: "VAT_INPUT",
   PURCHASES: "PURCHASES",
   CASH: "CASH",
+  SUSPENSE: "SUSPENSE",
   SALARIES: "SALARIES",
   SALARIES_PAYABLE: "SALARIES_PAYABLE",
   GOSI_EXPENSE: "GOSI_EXPENSE",
@@ -62,6 +63,13 @@ export interface SystemAccountDef {
 export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "AR", name: "Accounts Receivable", nameAr: "الذمم المدينة", type: "asset", legacyNames: ["Accounts Receivable"] },
   { code: "CASH", name: "Cash and Bank", nameAr: "النقد والبنك", type: "asset", legacyNames: ["Cash and Bank", "Cash"] },
+  // 🔴 Flaw #1 (Option A): where an ACCEPTED but UNCATEGORISED bank line
+  // posts. Double entry needs two accounts, and the alternative — refusing to
+  // accept an uncategorised row — would strand the review queue. Posting it to
+  // suspense keeps the books balanced and turns "I do not know what this is"
+  // into a VISIBLE BALANCE somebody must clear, instead of a silent expense
+  // (which is exactly what the dashboard used to do with it).
+  { code: "SUSPENSE", name: "Suspense (unclassified)", nameAr: "حساب معلق", type: "asset", legacyNames: ["Suspense"] },
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", legacyNames: ["Input VAT Receivable"] },
 
   { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", legacyNames: ["Accounts Payable"] },

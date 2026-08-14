@@ -386,24 +386,27 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   without leaving the list. **Also fixed in the same pass:** `ZatcaOnboarding`
   and `CreditNotes` passed `/api/...` into `apiFetch`, which prepends `/api`
   itself — both pages requested `/api/api/...` and 404'd on every call.
-- **🔴 META-FINDING #9 — TWO REPORT FAMILIES READING DISJOINT DATA (open).**
-  The ledger (income statement, trial balance, balance sheet) and transactions
-  (dashboard, VAT reconciliation, Zakat, cash flow, budgets) answer the same
-  questions from different stores and never reconcile; nothing tells the user
-  which family a figure came from. Observed live: an income statement showing
-  **0.00 expenses** beside a dashboard showing **45,063.25**, same month, same
-  tenant. **Flaw #1 is its worst symptom and its fix is pending a design
-  decision** (post transactions to the ledger, vs. read both sources). Full
-  record: [](docs/history/findings-and-lessons.md).
-- **Flaw-report items still open:** #1 (transactions never reach the P&L —
-  design pending), #1 sub-parts (VAT_PAYMENT/ZAKAT_PAYMENT typed  so
-  paying a liability reduces profit; uncategorised debits counted as expenses;
-   sums by debit/credit and ignores category type — a fixed
-  asset reads as an expense), #6 (reverse charge is not representable: a row can
-  be standard-rated and carry no VAT — foreign or unregistered supplier — and
-   cannot say so), #8 (Zakat base reads ,
-  which almost nothing sets, so it renders a computed-looking **0** for
-  essentially every tenant).
+- **✅ META-FINDING #9 — CLOSED by flaw #1 (Option A, 2026-08-14).** The ledger
+  and transaction report families used to answer the same questions from
+  disjoint stores: an income statement showing **0.00 expenses** beside a
+  dashboard showing **45,063.25**, same tenant, same month. **Accepted
+  transactions now POST to the ledger** (`transactionPosting.service.ts`), and
+  `summary.getSummary` derives income/expenses from `incomeStatement` — so the
+  dashboard and the P&L cannot drift *by construction* rather than by
+  agreement. Posting rules: gross with **no input-VAT line** (input VAT needs a
+  valid tax invoice; a bank line is not one), uncategorised → **SUSPENSE** (a
+  visible balance, never a silent expense), transfers and settlements never
+  post (one writer per effect), category TYPE decides the statement, period
+  locks apply, and editing a posted row **reverses and re-posts**. VAT/Zakat
+  payments re-typed to `liability` (migration 0036), so settling them no longer
+  reduces profit. Full record: [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md).
+- **Flaw-report items still open:** **#6** (reverse charge is not
+  representable: a row can be standard-rated and carry no VAT — foreign or
+  unregistered supplier — and `tax_treatment` cannot say so; the approved fix
+  is a separate `vat_basis` of `charged | reverse_charge | supplier_unregistered
+  | unknown`, with extraction only when treatment='S' AND basis='charged'), and
+  **#8** (the Zakat base reads `is_zakat_relevant`, which almost nothing sets,
+  so it renders a computed-looking **0** for essentially every tenant).
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
@@ -536,6 +539,32 @@ History (the full narrative this file used to carry):
 - [`docs/history/phase-2-zatca-m12.md`](docs/history/phase-2-zatca-m12.md) — M12 sub-milestones, decisions, landmines, residency correction, KMS requirements.
 - [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md) — findings #1–#11, S1–S7, the named failure modes with incidents.
 - [`docs/history/known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md) — audit findings, resolved-issue history.
+
+## 10b. 🔴 Tooling hazards (learned the hard way)
+
+**The Edit tool can silently write back STALE file content.** During the
+flaw-report work, a scripted fix to `categorizer.ts` (removing sixty broken
+Arabic regex patterns) was **reverted** by a subsequent `Edit` call on the same
+file: the edit applied cleanly against a snapshot taken *before* the script
+ran, and writing that snapshot back undid the change. Nothing warned; the tool
+reported success. It was caught only because a test that had just passed
+started failing again.
+
+**Why it matters more than it sounds:** the reverted change was invisible in
+review (Arabic regex literals), and the failing test was the only signal. Had
+the test not existed, the fix would have been "applied", reported, committed
+and absent.
+
+**Mitigations:**
+1. When a file has been modified by a SCRIPT (python/sed/node) in this session,
+   keep editing it the same way — do not mix scripted edits and `Edit` calls on
+   one file. `categorizer.ts` is on the scripted path for this reason.
+2. After any tool reports "the file had been modified on disk since you last
+   read it", re-verify the earlier change is still present — the warning means
+   the tool's snapshot was stale, and "applied cleanly" only describes the
+   patch, not the rest of the file.
+3. Prefer a test that fails loudly over an inspection: this class of loss is
+   invisible to reading.
 
 ## 11. Development Conventions
 

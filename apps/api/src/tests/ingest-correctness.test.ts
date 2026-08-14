@@ -146,6 +146,10 @@ describeMaybe("statement ingest — currency, whitespace, duplicates, manual cat
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
+    // Flaw #1 (Option A): accepting a transaction now posts a journal entry,
+    // so teardown must clear the ledger before the company it references.
+    await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);

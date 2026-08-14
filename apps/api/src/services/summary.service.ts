@@ -8,6 +8,7 @@ import {
   GetZakatSummaryResponse,
   GetSummaryByCategoryResponse,
 } from "@workspace/api-zod";
+import { reportsService } from "./reports.service";
 import { summaryRepository, type DateRange } from "../repositories/summary.repository";
 
 // Nisab threshold in SAR (approx. 85g gold at ~230 SAR/g as of 2024).
@@ -15,25 +16,43 @@ const NISAB_SAR = 19550;
 const ZAKAT_RATE = 0.025; // 2.5%
 
 export const summaryService = {
+  /**
+   * 🔴 Flaw #1 / meta-finding #9: THE DASHBOARD SHOWS THE P&L'S NUMBERS.
+   *
+   * This used to sum  by debit/credit — a second, independent
+   * answer to "what were my income and expenses". Observed live, the two
+   * disagreed completely: 45,063.25 of expenses here, 0.00 on the income
+   * statement, same tenant and month. Worse, summing by TYPE alone meant
+   * everything that left the bank counted as an expense — a VAT remittance
+   * settling a liability, a loan principal repayment, a fixed-asset purchase,
+   * and every uncategorised debit.
+   *
+   * Now that acceptance posts to the ledger (Option A), the honest fix is not
+   * a better sum — it is to STOP COMPUTING IT TWICE. Income and expenses come
+   * from , so the dashboard and the P&L cannot drift by
+   * construction, and account TYPE decides what counts (a liability payment
+   * is not an expense because the ledger says so, not because a rule here
+   * remembers to exclude it).
+   *
+   * VAT and the row counts stay transaction-derived on purpose: they are the
+   * reconciliation/operational view M16.1 designed, not ledger claims.
+   */
   async getSummary(range: DateRange) {
-    const rows = await summaryRepository.summaryRows(range);
-    let totalIncome = 0;
-    let totalExpenses = 0;
+    const [rows, pl] = await Promise.all([
+      summaryRepository.summaryRows(range),
+      reportsService.incomeStatement(range.dateFrom ?? undefined, range.dateTo ?? undefined),
+    ]);
+    const totalIncome = pl.totalRevenue;
+    const totalExpenses = pl.totalExpenses;
     let totalVatCollected = 0;
     let totalVatPaid = 0;
     let uncategorizedCount = 0;
 
     for (const r of rows) {
-      const amt = Number(r.amount);
       const vat = r.vatAmount != null ? Number(r.vatAmount) : 0;
       if (r.categoryId == null) uncategorizedCount++;
-      if (r.type === "credit") {
-        totalIncome += amt;
-        totalVatCollected += vat;
-      } else {
-        totalExpenses += amt;
-        totalVatPaid += vat;
-      }
+      if (r.type === "credit") totalVatCollected += vat;
+      else totalVatPaid += vat;
     }
 
     return GetSummaryResponse.parse({

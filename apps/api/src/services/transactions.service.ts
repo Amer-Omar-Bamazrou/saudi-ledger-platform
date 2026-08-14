@@ -31,6 +31,7 @@ function reasonFor(err: unknown): string {
 import { transactionsRepository, type TransactionFilter } from "../repositories/transactions.repository";
 import { reconciliationService } from "./reconciliation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
+import { transactionPostingService } from "./transactionPosting.service";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
 
 type Tx = typeof transactionsTable.$inferSelect;
@@ -338,15 +339,32 @@ export const transactionsService = {
       ids,
       minConfidence: AUTO_ASSIGN_CONFIDENCE,
     });
+
+    /**
+     * 🔴 Flaw #1 (Option A): ACCEPTANCE POSTS TO THE LEDGER.
+     *
+     * Runs inside the same tenant transaction as the acceptance, so a row can
+     * never be accepted-but-unposted. Before this, accepted bank lines reached
+     * the dashboard and never the income statement — one live SME month showed
+     * 0.00 of expenses on the P&L beside 45,063.25 on the dashboard.
+     *
+     * A posting failure (a locked period, an incomplete chart) is REPORTED,
+     * not swallowed: the whole point is that nothing lands in the books
+     * silently.
+     */
+    const posting = result.acceptedIds.length > 0
+      ? await transactionPostingService.postMany(result.acceptedIds)
+      : { posted: 0, failed: [] as Array<{ id: number; reason: string }> };
+
     if (result.accepted > 0) {
       await auditService.record({
         action: "update",
         entityType: "transaction",
         entityId: "bulk-accept",
-        after: { accepted: result.accepted, mode: ids?.length ? "explicit" : "bulk" },
+        after: { accepted: result.accepted, mode: ids?.length ? "explicit" : "bulk", posted: posting.posted },
       });
     }
-    return result;
+    return { ...result, posted: posting.posted, postingFailures: posting.failed };
   },
 
   /**
@@ -520,6 +538,21 @@ export const transactionsService = {
     // A notes-less, fact-less PATCH has nothing to write (pre-fix the override
     // stamp made every update non-empty; see F8 above).
     if (Object.keys(updates).length > 0) await transactionsRepository.update(id, updates);
+
+    /**
+     * 🔴 Flaw #1 (Option A): an edit to a POSTED row must reach the ledger.
+     *
+     * Reverse-and-repost, never an in-place update: a posted entry is
+     * immutable and the reversal is what keeps the audit trail honest. Only
+     * changes that alter the POSTING matter — the account (category) or the
+     * classification — so a notes-only edit posts nothing. Without this, a
+     * user correcting a miscategorised expense would fix the dashboard and
+     * leave the P&L wrong, which is the very divergence this milestone closes.
+     */
+    const postingChanged = data.categoryId !== undefined;
+    if (postingChanged && existing.tx.journalEntryId != null) {
+      await transactionPostingService.repost(id);
+    }
 
     const [row] = await transactionsRepository.findWithCategory(id);
     if (!row) throw new AppError(500, "Update failed");
