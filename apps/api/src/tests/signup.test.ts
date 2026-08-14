@@ -225,7 +225,11 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
   // LAST: exhausting the limiter poisons this IP for the rest of the window, so
   // it must run after every other HTTP signup assertion above.
   describe("abuse protection", () => {
-    it("rate-limits repeated signup attempts from one IP (429)", async () => {
+    // Explicit timeout: 8 signups × bcrypt cost 12 under FULL parallel load is
+    // CPU-bound and exceeds the 5s default whenever another suite is added —
+    // fragility class #2 in docs/test-suite-notes.md (the assertion itself
+    // needs max < 8; never "fix" this by raising the limiter).
+    it("rate-limits repeated signup attempts from one IP (429)", { timeout: 30_000 }, async () => {
       let sawTooMany = false;
       for (let i = 0; i < 8 && !sawTooMany; i++) {
         const r = await api(null, "POST", "/auth/signup", validSignup({
