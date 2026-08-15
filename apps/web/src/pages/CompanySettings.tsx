@@ -25,6 +25,8 @@ interface Company {
   vatNumber: string | null;
   fiscalYearStart: number;
   fiscalCalendar: "gregorian" | "hijri";
+  /** M17.1 — null means NOT DECLARED, and the Zakat page asks rather than assumes. */
+  ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
   buildingNumber: string | null;
   street: string | null;
   district: string | null;
@@ -120,6 +122,10 @@ export default function CompanySettings() {
       vatNumber: form.vatNumber ?? "",
       fiscalYearStart: Number(form.fiscalYearStart ?? 1),
       fiscalCalendar: form.fiscalCalendar ?? "gregorian",
+      // null clears it back to NOT DECLARED — a state a tenant may legitimately
+      // return to, rather than leaving a stale claim that gates Zakat standing.
+      // (The server also accepts "" for the same effect, for raw API callers.)
+      ownershipType: form.ownershipType ?? null,
       buildingNumber: form.buildingNumber ?? "",
       street: form.street ?? "",
       district: form.district ?? "",
@@ -227,6 +233,39 @@ export default function CompanySettings() {
                       ))}
                 </select>
               </div>
+            </div>
+
+            {/*
+              M17.1 — ownership structure. Sits with the fiscal settings because
+              both are "what kind of filer are you", and both gate Zakat.
+              "Not declared" is offered explicitly rather than being the blank
+              slot at the top of the list: a tenant should be able to SAY they
+              do not know, and be able to take a claim back.
+            */}
+            <div className="space-y-1.5 max-w-lg">
+              <Label htmlFor="ownershipType">{t("Ownership structure", "هيكل الملكية")}</Label>
+              <select
+                id="ownershipType"
+                className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
+                value={form.ownershipType ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    ownershipType: (e.target.value || null) as Company["ownershipType"],
+                  }))
+                }
+              >
+                <option value="">{t("Not declared", "غير محدد")}</option>
+                <option value="SAUDI_GCC">{t("100% Saudi / GCC-owned", "مملوكة بالكامل لسعوديين أو خليجيين")}</option>
+                <option value="FOREIGN">{t("Foreign-owned", "مملوكة لأجانب")}</option>
+                <option value="MIXED">{t("Mixed ownership", "ملكية مختلطة")}</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                {t(
+                  "Determines whether the Zakat module applies. Foreign and mixed-ownership entities are assessed differently and are out of scope for now.",
+                  "يحدد ما إذا كانت وحدة الزكاة تنطبق. المنشآت ذات الملكية الأجنبية أو المختلطة تخضع لمعالجة مختلفة وهي خارج النطاق حالياً.",
+                )}
+              </p>
             </div>
 
             {fiscalYears && (

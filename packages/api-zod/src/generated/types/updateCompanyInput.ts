@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateCompanyInputFiscalCalendar } from './updateCompanyInputFiscalCalendar';
+import type { UpdateCompanyInputOwnershipType } from './updateCompanyInputOwnershipType';
 
 /**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
@@ -24,6 +25,8 @@ export interface UpdateCompanyInput {
      */
   fiscalYearStart?: number;
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
+  /** @nullable */
+  ownershipType?: UpdateCompanyInputOwnershipType;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */

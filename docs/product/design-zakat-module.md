@@ -59,7 +59,7 @@ Each row is a separate PR with one concern, per §11 of CLAUDE.md.
 | # | Milestone | Content | Status |
 | --- | --- | --- | --- |
 | **M17.0** | **Retire the fake surface** | Q7 + Q6: under-construction page; delete `transactions.is_zakat_relevant`, `categories.zakat_relevant`, `GET /summary/zakat` and everything downstream. | ✅ this PR |
-| **M17.1** | **Ownership scope** | Q2: `companies.ownership_type`, Company Settings field, the out-of-scope notice for FOREIGN/MIXED. | Next |
+| **M17.1** | **Ownership scope** | Q2: `companies.ownership_type`, Company Settings field, the out-of-scope notice for FOREIGN/MIXED. | ✅ done — see §5b |
 | **M17.2** | **Fiscal year + calendar** | Q3: the stated prerequisite. `fiscal_calendar` on companies, the pure resolver, Umm al-Qura conversion, boot assertion, `GET /companies/current/fiscal-years`, Company Settings shows real boundaries. | ✅ done — see §5a |
 | **M17.3** | **COA Zakat classification** | Q4 + Q6: `zakat_classification` on chart-of-accounts entries — the replacement for the deleted flag, at the grain Q6 chose. Seeded for system accounts, editable per tenant. | After M17.2 — **needs advisor answer C2** (what composes the base defines what this must express) |
 | **M17.4** | **Worksheet engine + adjustments** | Q4 + Q5: the base computation, the income-statement cross-check, `zakat_worksheets` + lines + adjustments, lock semantics. | 🔴 **HELD** on §4 / advisor Block C — especially C1, the minimum-base rule |
@@ -178,6 +178,49 @@ date-range component to extend, so a fiscal-period picker across the reports is
 its own UI change. The resolver's consumers today are Company Settings and,
 next, M17.3/M17.4. Recorded here so "fiscal-year support" is not read as more
 than it is.
+
+---
+
+## 5b. M17.1 as built — three states, not two
+
+`companies.ownership_type` is `SAUDI_GCC | FOREIGN | MIXED`, **nullable, with no
+default** (migration 0040 + a CHECK that permits NULL).
+
+**🔴 The default was the whole decision.** `SAUDI_GCC` was tempting: it is the
+common case and would have made every existing tenant "work" immediately. It is
+also the platform asserting a fact about the tenant's ownership that nobody
+supplied — and that assertion decides whether a Zakat surface appears at all.
+Wrong in the `SAUDI_GCC` direction means showing a foreign-owned company a
+capability it must not use, and the failure is silent, because a working page
+looks like a correct page. Same family as the SAR 0.00 this milestone chain
+started by deleting.
+
+So the gate has **three** states, and the third is the point:
+
+| State | Surface |
+| --- | --- |
+| Not declared (NULL) | **Ask.** "Tell us who owns the company", with a link to settings. |
+| `SAUDI_GCC` | The module — under construction today. |
+| `FOREIGN` / `MIXED` | Out of scope, naming which, with why (Zakat/income-tax apportionment) and a pointer to a tax advisor. |
+
+Folding "not declared" into either neighbour is wrong in a different direction
+each time: into *eligible* and we show the surface on an assumption; into *out
+of scope* and we refuse a Saudi company on one. A declaration can also be
+**withdrawn** (cleared back to NULL) — a tenant who realises they were wrong
+must be able to take the claim back, not merely swap it, because a stale claim
+gates Zakat standing.
+
+**The rule lives server-side** (`apps/api/src/lib/zakatScope.ts`) even though
+its only consumer today is the web page. 🔴 **M17.4's worksheet endpoint MUST
+call `zakatScopeFor` and refuse anything not `eligible`**, with a status naming
+the reason rather than an empty worksheet — a UI-only gate is a suggestion, and
+the thing being gated will be a tax figure. Defining it once now is what stops
+M17.4 writing a second copy that can disagree.
+
+**Scope note:** ownership has consequences beyond Zakat (income tax most
+obviously). v1 reads it for the Zakat gate **only**; it is not a general
+tax-status field, and nothing else should start trusting it as one without
+deciding to.
 
 ---
 

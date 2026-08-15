@@ -1,11 +1,15 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { apiFetch } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, TriangleAlert, Construction } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Landmark, TriangleAlert, Construction, HelpCircle, Ban } from "lucide-react";
 
 /**
- * M17.0 (owner decision Q7) — the Zakat surface states that it is not built.
+ * The Zakat surface (M17.0 + M17.1).
  *
  * 🔴 What was here before, and why it had to go NOW rather than at M17.4:
  * a "Zakat Assessment" that summed transactions flagged `is_zakat_relevant`.
@@ -16,32 +20,128 @@ import { Landmark, TriangleAlert, Construction } from "lucide-react";
  * nisab threshold hardcoded from a 2024 gold price. Every number on the page
  * was presented as a calculation and none was one.
  *
- * An empty state is not a regression from that; it is the first accurate thing
- * this page has ever shown. A wrong tax figure that looks computed is worse
- * than no figure, because only one of the two gets filed.
- *
- * The replacement is specified in docs/product/design-zakat-module.md.
+ * M17.1 adds the scope gate (owner decision Q2). Three states, not two —
+ * "not declared" is deliberately NOT folded into "out of scope": a company
+ * that has told us nothing must be ASKED, never assumed to qualify and never
+ * refused on an assumption. The rule itself lives server-side in
+ * `apps/api/src/lib/zakatScope.ts` so M17.4's endpoint enforces the same thing
+ * rather than a second copy of it.
  */
+interface Company {
+  name: string;
+  ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
+}
+
 export default function ZakatReport() {
   const { t } = useLanguage();
+  const { data: company, isLoading } = useQuery<Company>({
+    queryKey: ["company"],
+    queryFn: () => apiFetch("/companies/current"),
+  });
 
+  const header = (
+    <div>
+      <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+        <Landmark className="w-8 h-8 text-muted-foreground" />
+        {t("Zakat", "الزكاة")}
+        <Badge variant="outline" className="text-xs font-normal uppercase tracking-wider">
+          {t("Not implemented", "غير مُنفَّذ")}
+        </Badge>
+      </h1>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {header}
+        <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
+      </div>
+    );
+  }
+
+  // ── Not declared → ASK. Never assume, in either direction. ────────────────
+  if (company && company.ownershipType == null) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {header}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-muted-foreground" />
+              {t("Tell us who owns the company", "أخبِرنا بهيكل ملكية المنشأة")}
+            </CardTitle>
+            <CardDescription>
+              {t(
+                "Zakat applies differently depending on ownership, so we do not guess. Set your ownership structure in Company Settings and this page will tell you whether the Zakat module applies to you.",
+                "تختلف معالجة الزكاة باختلاف هيكل الملكية، ولذلك لا نفترض. حدِّد هيكل الملكية في إعدادات الشركة وستوضح لك هذه الصفحة ما إذا كانت وحدة الزكاة تنطبق عليك.",
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/company">
+              <Button>{t("Open Company Settings", "فتح إعدادات الشركة")}</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Foreign / mixed → out of scope, and say why. ──────────────────────────
+  if (company && company.ownershipType !== "SAUDI_GCC") {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {header}
+        <Alert>
+          <Ban className="h-4 w-4" />
+          <AlertTitle>
+            {t("The Zakat module does not apply to this company", "وحدة الزكاة لا تنطبق على هذه المنشأة")}
+          </AlertTitle>
+          <AlertDescription className="space-y-2 mt-2">
+            <p>
+              {company.ownershipType === "FOREIGN"
+                ? t(
+                    "This company is recorded as foreign-owned.",
+                    "هذه المنشأة مسجَّلة كمملوكة لأجانب.",
+                  )
+                : t(
+                    "This company is recorded as having mixed Saudi/GCC and foreign ownership.",
+                    "هذه المنشأة مسجَّلة كذات ملكية مختلطة سعودية/خليجية وأجنبية.",
+                  )}{" "}
+              {t(
+                "Entities with foreign or mixed ownership are assessed differently — the liability is apportioned between Zakat and income tax — and the platform does not attempt that calculation.",
+                "تخضع المنشآت ذات الملكية الأجنبية أو المختلطة لمعالجة مختلفة — إذ يُقسَّم الالتزام بين الزكاة وضريبة الدخل — ولا تقوم المنصة بهذا الاحتساب.",
+              )}
+            </p>
+            <p className="font-medium">
+              {t(
+                "Please consult your tax advisor for this company's Zakat and income tax position.",
+                "يُرجى الرجوع إلى مستشارك الضريبي بشأن وضع الزكاة وضريبة الدخل لهذه المنشأة.",
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "If this is wrong, correct the ownership structure in Company Settings.",
+                "إذا كان هذا غير صحيح، فصحِّح هيكل الملكية في إعدادات الشركة.",
+              )}{" "}
+              <Link href="/company" className="underline">
+                {t("Open settings", "فتح الإعدادات")}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // ── In scope → the module, which is not built yet. ────────────────────────
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <Landmark className="w-8 h-8 text-muted-foreground" />
-          {t("Zakat", "الزكاة")}
-          <Badge variant="outline" className="text-xs font-normal uppercase tracking-wider">
-            {t("Not implemented", "غير مُنفَّذ")}
-          </Badge>
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {t(
-            "The Zakat working paper is not built yet.",
-            "لم يتم بعد إنشاء ورقة عمل وعاء الزكاة.",
-          )}
-        </p>
-      </div>
+      {header}
+      <p className="text-muted-foreground -mt-4">
+        {t("The Zakat working paper is not built yet.", "لم يتم بعد إنشاء ورقة عمل وعاء الزكاة.")}
+      </p>
 
       <Alert variant="destructive" className="border-destructive/40">
         <TriangleAlert className="h-4 w-4" />
@@ -92,8 +192,8 @@ export default function ZakatReport() {
               <span className="text-muted-foreground shrink-0">•</span>
               <span>
                 {t(
-                  "Both Hijri and Gregorian fiscal years are supported, with the rate adjusted for Gregorian filers.",
-                  "دعم السنة المالية الهجرية والميلادية معًا، مع تعديل النسبة لمن يتبع السنة الميلادية.",
+                  "Both Hijri and Gregorian fiscal years are supported, with the rate adjusted for Gregorian filers. Set yours in Company Settings.",
+                  "دعم السنة المالية الهجرية والميلادية معًا، مع تعديل النسبة لمن يتبع السنة الميلادية. حدِّد سنتك في إعدادات الشركة.",
                 )}
               </span>
             </li>
@@ -103,15 +203,6 @@ export default function ZakatReport() {
                 {t(
                   "You or your accountant can adjust non-ledger items on the worksheet before locking it for the year.",
                   "يمكنك أنت أو محاسبك تعديل البنود غير المقيدة في الدفاتر داخل ورقة العمل قبل إقفالها للسنة.",
-                )}
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-muted-foreground shrink-0">•</span>
-              <span>
-                {t(
-                  "Version 1 covers entities that are 100% Saudi/GCC-owned. Companies with foreign or mixed ownership are assessed differently and are out of scope — consult your tax advisor.",
-                  "الإصدار الأول يغطي المنشآت المملوكة بالكامل لسعوديين أو لمواطني دول الخليج. أما الشركات ذات الملكية الأجنبية أو المختلطة فتخضع لمعالجة مختلفة وهي خارج النطاق — يُرجى الرجوع إلى مستشارك الضريبي.",
                 )}
               </span>
             </li>

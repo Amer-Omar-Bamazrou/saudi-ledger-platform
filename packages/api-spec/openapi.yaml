@@ -1295,6 +1295,7 @@ components:
           vatNumber,
           fiscalYearStart,
           fiscalCalendar,
+          ownershipType,
           buildingNumber,
           street,
           district,
@@ -1326,6 +1327,15 @@ components:
           description: >
             Which calendar the fiscal year is expressed in (M17.2). `hijri`
             means the Umm al-Qura (Saudi civil) calendar specifically.
+        ownershipType:
+          type: ["string", "null"]
+          enum: [SAUDI_GCC, FOREIGN, MIXED, null]
+          description: >
+            Ownership structure (M17.1). NULL means NOT DECLARED and is a
+            first-class state — there is no default, because defaulting would
+            have the platform assert the tenant ownership nobody supplied, and
+            that assertion decides whether a Zakat surface is shown. Zakat v1
+            covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -1358,6 +1368,9 @@ components:
         fiscalCalendar:
           type: string
           enum: [gregorian, hijri]
+        ownershipType:
+          type: ["string", "null"]
+          enum: [SAUDI_GCC, FOREIGN, MIXED, null]
         buildingNumber:
           type: ["string", "null"]
         street:

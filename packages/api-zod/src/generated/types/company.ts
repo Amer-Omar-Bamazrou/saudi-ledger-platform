@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CompanyFiscalCalendar } from './companyFiscalCalendar';
+import type { CompanyOwnershipType } from './companyOwnershipType';
 
 /**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
@@ -27,6 +28,11 @@ export interface Company {
   fiscalYearStart: number;
   /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
   fiscalCalendar: CompanyFiscalCalendar;
+  /**
+     * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+     * @nullable
+     */
+  ownershipType: CompanyOwnershipType;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */

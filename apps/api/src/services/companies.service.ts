@@ -26,6 +26,7 @@ import {
   fiscalYearContaining,
   type FiscalCalendar,
 } from "../lib/fiscalYear";
+import { isOwnershipType } from "../lib/zakatScope";
 import type { companiesTable } from "@workspace/db";
 
 type Company = typeof companiesTable.$inferSelect;
@@ -40,6 +41,7 @@ function buildCompanyOut(c: Company) {
     vatNumber: c.vatNumber ?? null,
     fiscalYearStart: c.fiscalYearStart,
     fiscalCalendar: c.fiscalCalendar,
+    ownershipType: c.ownershipType ?? null,
     buildingNumber: c.buildingNumber ?? null,
     street: c.street ?? null,
     district: c.district ?? null,
@@ -140,6 +142,19 @@ export const companiesService = {
         throw new BadRequestError("fiscalCalendar must be 'gregorian' or 'hijri'.");
       }
       updates.fiscalCalendar = input.fiscalCalendar;
+    }
+
+    // M17.1 — ownership structure (Q2). An empty string clears it back to NOT
+    // DECLARED, which is a legitimate state a tenant may return to: it is
+    // better for a company that no longer knows to say so than to leave a
+    // stale claim standing, because that claim gates the Zakat surface.
+    if (input.ownershipType !== undefined) {
+      const raw = input.ownershipType === null ? null : String(input.ownershipType).trim();
+      const value = raw === "" ? null : raw;
+      if (value !== null && !isOwnershipType(value)) {
+        throw new BadRequestError("ownershipType must be 'SAUDI_GCC', 'FOREIGN' or 'MIXED'.");
+      }
+      updates.ownershipType = value;
     }
 
     // Address block (ZATCA Phase 2 / printed invoices) — free text except the

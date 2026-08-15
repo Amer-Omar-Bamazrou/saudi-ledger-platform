@@ -89,6 +89,19 @@ export const CompanyFiscalCalendar = {
 } as const;
 
 /**
+ * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+ * @nullable
+ */
+export type CompanyOwnershipType = typeof CompanyOwnershipType[keyof typeof CompanyOwnershipType] | null;
+
+
+export const CompanyOwnershipType = {
+  SAUDI_GCC: 'SAUDI_GCC',
+  FOREIGN: 'FOREIGN',
+  MIXED: 'MIXED',
+} as const;
+
+/**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
  */
 export interface Company {
@@ -108,6 +121,11 @@ export interface Company {
   fiscalYearStart: number;
   /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
   fiscalCalendar: CompanyFiscalCalendar;
+  /**
+     * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+     * @nullable
+     */
+  ownershipType: CompanyOwnershipType;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */
@@ -129,6 +147,18 @@ export const UpdateCompanyInputFiscalCalendar = {
 } as const;
 
 /**
+ * @nullable
+ */
+export type UpdateCompanyInputOwnershipType = typeof UpdateCompanyInputOwnershipType[keyof typeof UpdateCompanyInputOwnershipType] | null;
+
+
+export const UpdateCompanyInputOwnershipType = {
+  SAUDI_GCC: 'SAUDI_GCC',
+  FOREIGN: 'FOREIGN',
+  MIXED: 'MIXED',
+} as const;
+
+/**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
  */
 export interface UpdateCompanyInput {
@@ -145,6 +175,8 @@ export interface UpdateCompanyInput {
      */
   fiscalYearStart?: number;
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
+  /** @nullable */
+  ownershipType?: UpdateCompanyInputOwnershipType;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */
