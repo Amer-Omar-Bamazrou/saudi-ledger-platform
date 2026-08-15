@@ -599,6 +599,9 @@ Operating references:
   order/timing fragilities. The diagnostic: *passes alone, fails in the full
   run* = shared state, not a regression. Do NOT fix with
   `fileParallelism: false` or by raising rate limits.
+- [`docs/product/design-analytics.md`](docs/product/design-analytics.md) — Analytics
+  (round 3): cash + solvency trends, "cash collected" never "revenue", and the
+  rule that keeps AI parked (state WHERE a change came from, never WHY).
 - [`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md),
   [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md),
   [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),

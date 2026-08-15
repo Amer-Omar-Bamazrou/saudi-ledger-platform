@@ -126,6 +126,27 @@ safe at the first of these**, and the decision must be made before the feature i
    variance explanation, ask-your-books. The quality ceiling determines whether
    the feature is deliverable at all, so speccing against an undecided model
    risks speccing something impossible.
+
+   🔴 **CLARIFIED 2026-08-15 (Analytics interview), because "variance
+   explanation" read as a trigger when half of it is not one.** The line is:
+
+   > **State WHERE a change came from, never WHY it happened.**
+   > Decomposition is arithmetic; causation is inference.
+
+   *Decomposition* — "income fell SAR 45,000; three customers account for 80% of
+   it" — is ranked subtraction over rows we already store. It computes; it does
+   not reason, it cannot be wrong in a way a better model would fix, and it
+   **does not trip this trigger.** Analytics may build it with AI still parked.
+
+   *Causation* — "because you lost a customer", "because the market slowed" —
+   and free-text narrative, statistical anomaly detection over sparse data, and
+   recommendations, all **do** trip it. Those stay parked until hosting is
+   decided.
+
+   Without this distinction the trigger reads as blocking a deterministic
+   arithmetic feature, which was never its intent — the intent is that the
+   MODEL's quality ceiling must be known before it is depended on, and nothing
+   here depends on a model.
 2. **Pricing any per-transaction AI feature.** Cost per token becomes cost per
    invoice; you need the number before committing to it.
 3. **Settling KSA data residency.** AI hosted abroad with data resident
