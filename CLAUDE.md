@@ -348,6 +348,18 @@ These are short forms; the rules are binding, the history explains why.
   filenames use the **GENERATION** timestamp (`invoices.issued_at`), never
   clearance. Cloud storage is permitted; the binding constraint is a direct
   audit link (`ArchiveStore.directLink`).
+- **🔴 A MIGRATION THAT TOUCHES `categories` OR `system_account_templates` MUST
+  REDEFINE `seed_org_chart_of_accounts()` — and be covered by a trigger
+  round-trip assertion.** The org-seed trigger copies template→category
+  **column by column**, and plpgsql resolves names at EXECUTION time, so both
+  failure directions are silent at deploy: a **dropped** column the trigger
+  still names breaks the next *signup* (M17.0/0038), and an **added** column the
+  trigger omits seeds the next org with NULLs nobody asked for (M18.1/0041).
+  Both happened; both were caught by hand. `tests/org-seed-trigger.test.ts` is
+  the standing countermeasure — it compares the two tables' column sets rather
+  than knowing any column's name, so it covers future migrations without being
+  edited, and it has been verified to fail in **both** directions. Do not
+  weaken it to a list of known columns.
 - **Owner-only tables must REVOKE explicitly.** Supabase's base
   `ALTER DEFAULT PRIVILEGES` re-grants `TRUNCATE`/`REFERENCES`/`TRIGGER` on
   every `CREATE TABLE`, and **TRUNCATE bypasses RLS**. The defaults are
