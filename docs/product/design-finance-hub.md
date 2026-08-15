@@ -23,7 +23,7 @@ without designing firms out) still stand.
 | **Q6** | Tax & Compliance | **The VAT return moves here, and ZATCA status too** — compliance state fits a control surface. |
 | **Q7** | Reconciliation | **`/review` stays in Banking; the hub surfaces its COUNT.** Mirror the signal, not the page. |
 | **Q8** | vs Analytics | **Hub = "are my books right and current". Analytics = "how is the business doing".** |
-| **Q9** | The 26 locked reports | **Delete them.** Greyed-out promises of reports that do not exist are worse than absence. |
+| **Q9** | The 26 locked reports | **Delete them.** Greyed-out promises of reports that do not exist are worse than absence. 🔴 **Found while building: they were worse than promises — see §8.** |
 
 ---
 
@@ -238,9 +238,53 @@ at all).
 
 | # | Milestone | Content | Gate |
 | --- | --- | --- | --- |
-| **M18.0** | Delete the locked reports | Q9 — 26 placeholder entries removed from the Reports Hub catalogue. Independent of everything else. | None |
-| **M18.1** | **Liquidity classification** | §3 — `liquidity_class` on the chart of accounts, seeded for the 14 system accounts, tenant-overridable in the COA UI; the cash-flow name-sniff replaced. | 🔴 **Owner decision on `LOANS` and `INVESTMENTS` (§3.2)** |
+| **M18.0** | Delete the locked reports | Q9 — 26 placeholder entries removed, plus the paywall vocabulary and the flag that made them possible (§8). Guarded by `tests/reports-catalogue.test.ts`. | ✅ done |
+| **M18.1** | **Liquidity classification** | §3 — `liquidity_class` on the chart of accounts, seeded for the 14 system accounts, tenant-overridable in the COA UI; the cash-flow name-sniff replaced. | ✅ decided (§3.2) |
 | **M18.2** | Balance-sheet breakout | Current vs non-current sections in `reports.balanceSheet`, totals reconciling as before. | M18.1 |
 | **M18.3** | The hub, blocks 4.1 + 4.2 | The landing page: liquidity in plain language, the books-current signals. | M18.2 |
 | **M18.4** | Period lock control | Q5 — the first UI for a capability built long ago. | None (parallel) |
 | **M18.5** | Tax & Compliance | Q6 — VAT return moves; ZATCA status surfaces. | M18.3 |
+
+---
+
+## 8. 🔴 Found while building M18.0 — the placeholders were a false PAYWALL
+
+Q9 described the 26 entries as "greyed-out promises of reports that don't
+exist". They were that, and one thing more, which only showed up on opening the
+file:
+
+- Each padlocked entry carried the tooltip **"Upgrade to unlock this report"**.
+- The page header read **"13 available · 26 premium · 39 total"**.
+- Above the grid sat a banner: **"Unlock premium reports — upgrade your plan to
+  access all 26 locked reports."**
+
+**There is no plan.** No billing, no subscription model, no paid tier, and no
+pricing decision anywhere in this product. So the page was not merely promising
+absent reports — it was making a **commercial claim false in both halves**: a
+tier the tenant cannot buy, gating reports nobody has written. For a product
+that has not signed its first customer, that is the worst possible thing to have
+been shipping quietly.
+
+**One padlocked entry was already built.** "Cashflow Report" was greyed out
+behind the upgrade prompt while `/cash-flow` has been a routed page in the main
+navigation the whole time. The catalogue was charging for something already
+shipped. It is restored with its real link rather than deleted — the entry was
+never the problem, the padlock was.
+
+**What was removed:** the 26 entries, the three now-empty categories (Sales,
+Employee, Fixed Asset Reports), the `locked` field itself, the tooltip branch,
+the premium counter and the upgrade banner. Removing the entries while leaving
+the *flag* would simply invite the next 26.
+
+**The guard:** `apps/api/src/tests/reports-catalogue.test.ts` reads
+`ReportsHub.tsx` and `App.tsx` as source and fails if any catalogue entry has no
+mounted route, or if the locked/premium vocabulary returns to the code. Prose in
+comments is exempt by design — the file's header records what was removed and
+why, and that record is the point.
+
+**The general shape, worth carrying:** a UI affordance can assert something the
+business has not decided. A padlock is a claim about *commercial terms*; a
+greyed-out row is a claim about *the roadmap*. Both were invented by whoever
+laid out the page, and neither had an owner. When a screen implies a fact about
+the business — a price, a tier, a forthcoming feature — that fact needs a
+decision behind it, exactly as a tax figure does.
