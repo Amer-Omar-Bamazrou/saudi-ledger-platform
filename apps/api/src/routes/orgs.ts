@@ -9,6 +9,7 @@
 import { Router } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import { db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
+import { selectActiveMembership } from "../lib/activeOrg";
 import { membersService } from "../services/members.service";
 import { invitationsService } from "../services/invitations.service";
 import { securityAuditService } from "../services/securityAudit.service";
@@ -47,8 +48,15 @@ router.get("/", async (req, res) => {
       )
       .orderBy(asc(organizationMembershipsTable.createdAt));
 
-    const activeOrgId = req.session.activeOrgId ?? organizations[0]?.organizationId ?? null;
-    res.json({ activeOrgId, organizations });
+    // 🔴 M18.4.1 — was `req.session.activeOrgId ?? organizations[0]?.id`, which
+    // echoed a STALE session choice back to the client: after a membership was
+    // revoked, `resolveTenant` would put the request in the user's first real
+    // org while this endpoint still reported the old one, so the switcher and
+    // every role check disagreed with the org actually being acted in. The
+    // shared selector honours the session's choice only while it remains a live
+    // membership.
+    const active = selectActiveMembership(organizations, req.session.activeOrgId);
+    res.json({ activeOrgId: active?.organizationId ?? null, organizations });
   } catch (err) {
     req.log.error({ err });
     res.status(500).json({ error: "Internal server error" });

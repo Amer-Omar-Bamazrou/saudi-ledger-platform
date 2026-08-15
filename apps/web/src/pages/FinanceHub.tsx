@@ -7,6 +7,7 @@ import {
   getListPeriodLocksQueryKey,
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,18 +41,18 @@ import { Lock, LockOpen, ShieldCheck, Loader2 } from "lucide-react";
  */
 
 /**
- * 🔴 DELIBERATELY NOT GATED ON THE CLIENT'S ROLE.
+ * Gated on `isOrgAdmin` — the caller's role in the ACTIVE organization,
+ * resolved server-side and delivered by `/auth/me` (M18.4.1).
  *
- * `AuthContext.user.role` is `users.role`, which CLAUDE.md §4 states is
- * VESTIGIAL and must never gate access — the `organization_memberships` role
- * governs, and `GET /auth/me` does not return it. So the frontend cannot know
- * the governing role today, and gating on the field it does have would be
- * wrong in both directions: hiding the control from a real org admin, or
- * offering it to someone the server will refuse.
+ * 🔴 NOT on `user.role`: that is the global `users.role`, which CLAUDE.md §4
+ * states is vestigial and must never gate anything. A self-signup org owner is
+ * a global "viewer" and an admin of their own org, so gating on it would hide
+ * this control from the very person who created the tenant.
  *
- * The server is the authority (`requirePermission("period_locks")` — read for
- * every role, create/delete admin-only). The control is shown, and a 403 is
- * surfaced as a plain sentence instead of being pre-empted by a guess.
+ * ⚠️ RENDERING ONLY. The server authorizes independently
+ * (`requirePermission("period_locks")` — read for every role, create/delete
+ * admin-only), so a 403 is still handled below rather than assumed away: the
+ * session's view of the role can go stale between page load and click.
  */
 function permissionMessage(t: (en: string, ar: string) => string, err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
@@ -75,6 +76,7 @@ export default function FinanceHub() {
   const { t } = useLanguage();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isOrgAdmin } = useAuth();
 
   const [period, setPeriod] = useState(previousMonth());
   const [notes, setNotes] = useState("");
@@ -146,6 +148,15 @@ export default function FinanceHub() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {!isOrgAdmin && (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Only an organization admin can close or reopen a month. You can see which months are closed.",
+                "يمكن لمسؤول المؤسسة فقط إقفال شهر أو إعادة فتحه. ويمكنك الاطلاع على الأشهر المقفلة.",
+              )}
+            </p>
+          )}
+          {isOrgAdmin && (
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="period">{t("Month to close", "الشهر المراد إقفاله")}</Label>
@@ -174,6 +185,7 @@ export default function FinanceHub() {
               {t("Close month", "إقفال الشهر")}
             </Button>
           </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -207,10 +219,12 @@ export default function FinanceHub() {
                       </div>
                       {l.notes && <p className="text-xs text-muted-foreground mt-1 truncate">{l.notes}</p>}
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setReopening(l.period)}>
-                      <LockOpen className="w-3.5 h-3.5 mr-1.5" />
-                      {t("Reopen", "إعادة فتح")}
-                    </Button>
+                    {isOrgAdmin && (
+                      <Button variant="ghost" size="sm" onClick={() => setReopening(l.period)}>
+                        <LockOpen className="w-3.5 h-3.5 mr-1.5" />
+                        {t("Reopen", "إعادة فتح")}
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>

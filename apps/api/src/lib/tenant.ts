@@ -26,6 +26,7 @@ import {
 } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
 import { auditContext } from "./auditContext";
+import { selectActiveMembership } from "./activeOrg";
 import type { UserRole } from "./auth";
 
 export interface TenantContext {
@@ -87,9 +88,10 @@ export async function resolveTenant(
 
     // (2) Active org: honor the session's choice if still a valid membership,
     //     otherwise default to the primary (first) membership.
-    const requested = req.session.activeOrgId;
-    const active =
-      memberships.find((m) => m.organizationId === requested) ?? memberships[0]!;
+    // M18.4.1 — the selection rule is shared with `/orgs` and `/auth/me` (see
+    // lib/activeOrg.ts). It used to be written here and again in /orgs, and the
+    // two disagreed once the session's choice was no longer a live membership.
+    const active = selectActiveMembership(memberships, req.session.activeOrgId)!;
     if (req.session.activeOrgId !== active.organizationId) {
       req.session.activeOrgId = active.organizationId;
     }

@@ -36,7 +36,7 @@ const ROLE_ICON: Record<string, React.ElementType> = {
 const emptyNewUser = { name: "", email: "", password: "", role: "bookkeeper" as string };
 
 export default function UserManagement() {
-  const { user: me } = useAuth();
+  const { user: me, isOrgAdmin } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -63,8 +63,11 @@ export default function UserManagement() {
     queryFn: () => apiFetch("/orgs"),
   });
   const activeOrgId = orgsData?.activeOrgId ?? null;
-  const isOrgAdmin =
-    (orgsData?.organizations ?? []).find((o) => o.organizationId === activeOrgId)?.role === "admin";
+  // M18.4.1 — the membership role now comes from `/auth/me` via AuthContext,
+  // resolved server-side with the same selector `resolveTenant` uses. This page
+  // used to match the active org against the /orgs list itself; that derivation
+  // was one of two copies of a rule that disagreed once a session's chosen org
+  // was no longer a live membership. (`isOrgAdmin` comes from useAuth above.)
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
