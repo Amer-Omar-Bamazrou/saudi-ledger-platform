@@ -25,6 +25,8 @@
  */
 import { reportsService } from "./reports.service";
 import { transactionsService } from "./transactions.service";
+import { companiesRepository } from "../repositories/companies.repository";
+import { zatcaOnboardingService } from "./einvoice/onboarding/zatcaOnboarding.service";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -130,6 +132,62 @@ export const financeHubService = {
       claimable: blockers.length === 0,
       blockers,
       observations,
+    };
+  },
+
+  /**
+   * Tax & Compliance (M18.5, design Q6) — the VAT position and ZATCA state as
+   * CONDITIONS, not links.
+   *
+   * 🔴 THE PERIOD IS OURS, NOT THEIRS. KSA VAT is filed monthly or quarterly
+   * depending on turnover, and the platform does not model a company's filing
+   * frequency — nothing anywhere records it. So this block reports the CURRENT
+   * CALENDAR QUARTER and says so, and it must never be phrased as "your VAT
+   * return" or "due on the Nth": that would assert a filing obligation we have
+   * not established. `filingFrequencyKnown: false` carries that limitation to
+   * the UI rather than leaving it to a comment nobody reads.
+   *
+   * The full return, where the user picks their own period, stays one click
+   * away — the hub states the condition and links to where the work happens
+   * (design §2), it does not become a second VAT page.
+   */
+  async taxCompliance(now: Date = new Date()) {
+    const year = now.getUTCFullYear();
+    const quarter = Math.floor(now.getUTCMonth() / 3); // 0-3
+    const pad = (m: number) => String(m).padStart(2, "0");
+    const periodFrom = `${year}-${pad(quarter * 3 + 1)}`;
+    const periodTo = `${year}-${pad(quarter * 3 + 3)}`;
+
+    const vat = await reportsService.vatReturn(periodFrom, periodTo);
+
+    /**
+     * ZATCA state, from the onboarding service that already owns this question.
+     * A company with no credential is the NORMAL case today (M12.7/M12.9 are
+     * blocked on a real taxpayer registration), so "not connected" is a
+     * statement of fact, not a fault to flag.
+     */
+    const company = await companiesRepository.findCurrent();
+    const zatca = company ? await zatcaOnboardingService.status(company.id) : null;
+
+    return {
+      vat: {
+        periodFrom,
+        periodTo,
+        /** Calendar quarter — see the note above. */
+        periodBasis: "calendar_quarter" as const,
+        filingFrequencyKnown: false,
+        netVatDue: vat.netVatDue,
+        payable: vat.vatPayable,
+        refund: vat.vatRefund,
+      },
+      zatca: zatca
+        ? {
+            environment: zatca.environment,
+            connected: zatca.certificate?.status === "active",
+            certificateStatus: zatca.certificate?.status ?? null,
+            daysUntilExpiry: zatca.certificate?.daysUntilExpiry ?? null,
+          }
+        : null,
     };
   },
 

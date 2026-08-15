@@ -284,6 +284,42 @@ export interface Liquidity {
   observations: LiquidityObservationsItem[];
 }
 
+export type TaxComplianceVatPeriodBasis = typeof TaxComplianceVatPeriodBasis[keyof typeof TaxComplianceVatPeriodBasis];
+
+
+export const TaxComplianceVatPeriodBasis = {
+  calendar_quarter: 'calendar_quarter',
+} as const;
+
+export type TaxComplianceVat = {
+  periodFrom: string;
+  periodTo: string;
+  periodBasis: TaxComplianceVatPeriodBasis;
+  /** Always false today. KSA VAT is filed monthly or quarterly by turnover and nothing records which applies, so the UI must state the period it used rather than imply a filing obligation. */
+  filingFrequencyKnown: boolean;
+  netVatDue: number;
+  payable: number;
+  refund: number;
+};
+
+/**
+ * @nullable
+ */
+export type TaxComplianceZatca = {
+  environment: string;
+  connected: boolean;
+  /** @nullable */
+  certificateStatus: string | null;
+  /** @nullable */
+  daysUntilExpiry: number | null;
+} | null;
+
+export interface TaxCompliance {
+  vat: TaxComplianceVat;
+  /** @nullable */
+  zatca: TaxComplianceZatca;
+}
+
 export interface BooksStatus {
   unreviewedCount: number;
   needsAttentionCount: number;

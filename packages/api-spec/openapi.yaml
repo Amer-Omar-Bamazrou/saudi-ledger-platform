@@ -494,6 +494,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/Liquidity"
 
+  /finance-hub/tax-compliance:
+    get:
+      operationId: getTaxCompliance
+      tags: [finance_hub]
+      summary: >
+        Tax & Compliance state (M18.5) — the VAT position for the CURRENT
+        CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not
+        theirs: KSA filing frequency is not modelled, so this must never be
+        presented as "your VAT return".
+      responses:
+        "200":
+          description: VAT position and ZATCA state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxCompliance"
+
   /finance-hub/books-status:
     get:
       operationId: getBooksStatus
@@ -1582,6 +1599,37 @@ components:
                 enum: [watch]
               ratio:
                 type: number
+
+    TaxCompliance:
+      type: object
+      required: [vat, zatca]
+      properties:
+        vat:
+          type: object
+          required: [periodFrom, periodTo, periodBasis, filingFrequencyKnown, netVatDue, payable, refund]
+          properties:
+            periodFrom: { type: string }
+            periodTo: { type: string }
+            periodBasis:
+              type: string
+              enum: [calendar_quarter]
+            filingFrequencyKnown:
+              type: boolean
+              description: >
+                Always false today. KSA VAT is filed monthly or quarterly by
+                turnover and nothing records which applies, so the UI must state
+                the period it used rather than imply a filing obligation.
+            netVatDue: { type: number }
+            payable: { type: number }
+            refund: { type: number }
+        zatca:
+          type: ["object", "null"]
+          required: [environment, connected, certificateStatus, daysUntilExpiry]
+          properties:
+            environment: { type: string }
+            connected: { type: boolean }
+            certificateStatus: { type: ["string", "null"] }
+            daysUntilExpiry: { type: ["integer", "null"] }
 
     BooksStatus:
       type: object

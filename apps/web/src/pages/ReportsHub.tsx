@@ -73,7 +73,9 @@ const CATEGORIES: ReportCategory[] = [
     labelAr: "التقارير الضريبية",
     icon: PieChart,
     reports: [
-      { label: "Tax Return Form",     labelAr: "نموذج الإقرار الضريبي", href: "/vat" },
+      // M18.5 (Q6) — the VAT return moved to the Finance Hub. "Tax Journal
+      // Entries" stays: it is an accountant's report, and Q4 puts anything
+      // needing accounting vocabulary in Reports rather than the hub.
       { label: "Tax Journal Entries", labelAr: "قيود اليومية الضريبية", href: "/reports/tax-journal-entries", isNew: true },
     ],
   },

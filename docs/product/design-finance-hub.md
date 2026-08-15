@@ -249,7 +249,7 @@ at all).
 | **M18.2** | Balance-sheet breakout | Current / non-current / **unclassified** sections in `reports.balanceSheet`, as a PARTITION of the existing totals so `balanced` keeps reconciling. Plus `quickTotal` (the acid-test numerator M18.3 consumes). | ✅ done |
 | **M18.3** | The hub, blocks 4.1 + 4.2 | ✅ done — liquidity in plain language with the claim WITHHELD when it cannot be stood behind; the unreviewed-count signal mirrored from /review. | ✅ done |
 | **M18.4** | Period lock control | Q5 — the first UI for a capability built long ago. Creates the `/finance-hub` page (its first block) and closes the `/period-locks` known-gap entry. | ✅ done — §9 |
-| **M18.5** | Tax & Compliance | Q6 — VAT return moves; ZATCA status surfaces. | M18.3 |
+| **M18.5** | Tax & Compliance | Q6 — the VAT return moved out of Reports into the hub block; ZATCA connection state surfaces beside it. 🔴 The VAT PERIOD is the calendar quarter and is stated as such: KSA filing frequency is not modelled anywhere, so the block must never read as "your VAT return". | ✅ done |
 
 ---
 

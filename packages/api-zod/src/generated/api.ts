@@ -619,6 +619,29 @@ export const GetLiquidityResponse = zod.object({
 
 
 /**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+export const GetTaxComplianceResponse = zod.object({
+  "vat": zod.object({
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "periodBasis": zod.enum(['calendar_quarter']),
+  "filingFrequencyKnown": zod.boolean().describe('Always false today. KSA VAT is filed monthly or quarterly by turnover and nothing records which applies, so the UI must state the period it used rather than imply a filing obligation.\n'),
+  "netVatDue": zod.number(),
+  "payable": zod.number(),
+  "refund": zod.number()
+}),
+  "zatca": zod.object({
+  "environment": zod.string(),
+  "connected": zod.boolean(),
+  "certificateStatus": zod.string().nullable(),
+  "daysUntilExpiry": zod.number().nullable()
+}).nullable()
+})
+
+
+/**
  * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
 
  */

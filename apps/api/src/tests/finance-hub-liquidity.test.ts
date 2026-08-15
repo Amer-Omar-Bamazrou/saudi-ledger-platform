@@ -182,6 +182,41 @@ describeMaybe("M18.3 — the liquidity block", () => {
     expect(blocker!.amount).toBeCloseTo(750, 2);
   });
 
+  it("🔴 M18.5 — the VAT period is the CALENDAR QUARTER, and says it does not know the filing one", async () => {
+    // KSA VAT is filed monthly or quarterly by turnover and nothing in the
+    // platform records which applies. The block must therefore report a period
+    // it chose and SAY SO — never imply a filing obligation we have not
+    // established. `now` is injected so this pins the rule, not today's date.
+    const q3 = await inTenant(() => financeHubService.taxCompliance(new Date(Date.UTC(2026, 7, 15))));
+    expect(q3.vat.periodFrom).toBe("2026-07");
+    expect(q3.vat.periodTo).toBe("2026-09");
+    expect(q3.vat.periodBasis).toBe("calendar_quarter");
+    // 🔴 The honesty flag. If this ever silently becomes true, the UI stops
+    // printing its "your filing period may differ" caveat.
+    expect(q3.vat.filingFrequencyKnown).toBe(false);
+
+    // Every quarter boundary, so an off-by-one in the month arithmetic fails.
+    for (const [month, from, to] of [
+      [0, "2026-01", "2026-03"],
+      [3, "2026-04", "2026-06"],
+      [11, "2026-10", "2026-12"],
+    ] as const) {
+      const r = await inTenant(() =>
+        financeHubService.taxCompliance(new Date(Date.UTC(2026, month, 5))),
+      );
+      expect(r.vat.periodFrom).toBe(from);
+      expect(r.vat.periodTo).toBe(to);
+    }
+  });
+
+  it("🔴 M18.5 — ZATCA reports NOT CONNECTED, which is a fact and not a fault", async () => {
+    // No company here is onboarded (M12.7/M12.9 are blocked on a real taxpayer
+    // registration), so this is the normal case for every tenant today.
+    const tc = await inTenant(() => financeHubService.taxCompliance(new Date(Date.UTC(2026, 7, 15))));
+    expect(tc.zatca).not.toBeNull();
+    expect(tc.zatca!.connected).toBe(false);
+  });
+
   it("🔴 no current liabilities ⇒ the ratio is NULL, not zero and not Infinity", async () => {
     // A real case (a debt-free company). Zero would read as catastrophic and
     // Infinity renders as garbage; the UI says "you have no short-term

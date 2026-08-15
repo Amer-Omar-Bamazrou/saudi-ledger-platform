@@ -7,6 +7,10 @@ export const financeHubController = {
     res.json(await financeHubService.liquidity(asOf));
   },
 
+  async taxCompliance(_req: Request, res: Response) {
+    res.json(await financeHubService.taxCompliance());
+  },
+
   async booksStatus(_req: Request, res: Response) {
     res.json(await financeHubService.booksStatus());
   },

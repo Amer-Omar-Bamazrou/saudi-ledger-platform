@@ -11,6 +11,7 @@ import { financeHubController } from "../controllers/financeHub.controller";
 const router = Router();
 
 router.get("/liquidity", financeHubController.liquidity);
+router.get("/tax-compliance", financeHubController.taxCompliance);
 router.get("/books-status", financeHubController.booksStatus);
 
 export default router;

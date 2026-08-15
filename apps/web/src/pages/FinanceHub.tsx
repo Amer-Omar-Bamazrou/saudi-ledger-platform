@@ -6,6 +6,7 @@ import {
   useUnlockPeriod,
   useGetLiquidity,
   useGetBooksStatus,
+  useGetTaxCompliance,
   getListPeriodLocksQueryKey,
 } from "@workspace/api-client-react";
 import { Link } from "wouter";
@@ -23,25 +24,26 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, LockOpen, ShieldCheck, Loader2, Wallet, TriangleAlert, ListChecks, ChevronRight } from "lucide-react";
+import { Lock, LockOpen, ShieldCheck, Loader2, Wallet, TriangleAlert, ListChecks, ChevronRight, Receipt } from "lucide-react";
 
 /**
- * Finance Hub (M18.4 — the first block).
+ * Finance Hub — the control surface (design Q2).
  *
- * The hub is a CONTROL SURFACE (design Q2): it states conditions rather than
- * listing links, and stays owner-legible throughout (Q4) — anything needing
- * accounting vocabulary is a report, not the hub.
+ * It STATES CONDITIONS rather than listing links, and stays owner-legible
+ * throughout (Q4) — anything needing accounting vocabulary is a report, not the
+ * hub. Where something is wrong, it names the problem and links to where that
+ * problem is FIXED; it never becomes a second place to do the work (Q7).
  *
- * 🔴 Today it holds ONE block: closing an accounting period. M18.3 adds the
- * liquidity block ("can I pay what I owe?") and the books-current signals above
- * it. The page exists now rather than later because the lock control belongs
- * here (design §4.3) and building it as a standalone page would mean moving it
- * a milestone later.
+ * Four blocks, in the order a reader needs them:
+ *   1. Can you pay what you owe?   (M18.3) — and when NOT to answer.
+ *   2. Are your books current?     (M18.3) — the review count, mirrored.
+ *   3. Tax & compliance            (M18.5) — VAT position and ZATCA state.
+ *   4. Closing the books           (M18.4) — the first UI period locks ever had.
  *
- * Why this block first: closing a period is a CORE accounting function that a
- * tenant could not perform at all. The API, the company-scoped route fix (M14)
- * and the posting-path guard have been real and tested since M13 — with no UI,
- * so period locks existed only for tests and manual API calls.
+ * Block 4 shipped first, deliberately: closing a period is a core accounting
+ * function a tenant could not perform at all. The API, the company-scoped route
+ * fix (M14) and the posting-path guard had been real and tested since M13 —
+ * with no UI, so period locks existed only for tests and manual API calls.
  */
 
 /**
@@ -90,6 +92,7 @@ export default function FinanceHub() {
   const { data: locks, isLoading } = useListPeriodLocks();
   const { data: liq } = useGetLiquidity();
   const { data: books } = useGetBooksStatus();
+  const { data: tax } = useGetTaxCompliance();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListPeriodLocksQueryKey() });
 
@@ -254,6 +257,72 @@ export default function FinanceHub() {
             <Link href="/review">
               <Button variant="outline" size="sm">{t("Review", "مراجعة")}</Button>
             </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Block 3 (M18.5): Tax & Compliance ────────────────────────────── */}
+      {tax && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-muted-foreground" />
+              {t("Tax & compliance", "الضريبة والامتثال")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/*
+              🔴 The PERIOD IS STATED, never implied. KSA VAT is filed monthly
+              or quarterly by turnover and the platform does not model which
+              applies to this company — so this says "for Jan–Mar" and links to
+              the return where the user picks their own period. It must never
+              read as "your VAT return" or name a due date.
+            */}
+            <p className="text-sm">
+              {tax.vat.payable > 0
+                ? t(
+                    `For ${tax.vat.periodFrom} to ${tax.vat.periodTo} you have collected ${formatCurrency(tax.vat.payable)} more VAT than you have paid.`,
+                    `للفترة من ${tax.vat.periodFrom} إلى ${tax.vat.periodTo} حصّلت ضريبة قيمة مضافة تزيد بمقدار ${formatCurrency(tax.vat.payable)} عمّا دفعت.`,
+                  )
+                : tax.vat.refund > 0
+                  ? t(
+                      `For ${tax.vat.periodFrom} to ${tax.vat.periodTo} you have paid ${formatCurrency(tax.vat.refund)} more VAT than you have collected.`,
+                      `للفترة من ${tax.vat.periodFrom} إلى ${tax.vat.periodTo} دفعت ضريبة قيمة مضافة تزيد بمقدار ${formatCurrency(tax.vat.refund)} عمّا حصّلت.`,
+                    )
+                  : t(
+                      `For ${tax.vat.periodFrom} to ${tax.vat.periodTo} your VAT collected and paid are level.`,
+                      `للفترة من ${tax.vat.periodFrom} إلى ${tax.vat.periodTo} تتساوى الضريبة المحصّلة مع المدفوعة.`,
+                    )}
+            </p>
+            {!tax.vat.filingFrequencyKnown && (
+              <p className="text-[11px] text-muted-foreground">
+                {t(
+                  "This is the calendar quarter. Your filing period may differ — open the VAT return to choose it.",
+                  "هذه هي الفترة الربعية الميلادية. قد تختلف فترة إقرارك — افتح إقرار ضريبة القيمة المضافة لاختيارها.",
+                )}
+              </p>
+            )}
+
+            <p className="text-sm">
+              {tax.zatca?.connected
+                ? t(
+                    `ZATCA e-invoicing is connected${tax.zatca.daysUntilExpiry != null ? `; your certificate expires in ${tax.zatca.daysUntilExpiry} days` : ""}.`,
+                    `الفوترة الإلكترونية متصلة بهيئة الزكاة والضريبة${tax.zatca.daysUntilExpiry != null ? `؛ تنتهي شهادتك خلال ${tax.zatca.daysUntilExpiry} يوماً` : ""}.`,
+                  )
+                : t(
+                    "ZATCA e-invoicing is not connected. Invoices are issued without being reported to ZATCA.",
+                    "الفوترة الإلكترونية غير متصلة بهيئة الزكاة والضريبة. تصدر الفواتير دون إبلاغ الهيئة.",
+                  )}
+            </p>
+
+            <div className="flex gap-3 pt-1">
+              <Link href="/vat" className="text-xs underline inline-flex items-center gap-1">
+                {t("VAT return", "إقرار ضريبة القيمة المضافة")} <ChevronRight className="w-3 h-3" />
+              </Link>
+              <Link href="/zakat" className="text-xs underline inline-flex items-center gap-1">
+                {t("Zakat", "الزكاة")} <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}

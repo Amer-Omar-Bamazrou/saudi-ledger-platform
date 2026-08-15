@@ -56,6 +56,7 @@ import type {
   RecurringRun,
   SendBackInput,
   SettleTransactionInput,
+  TaxCompliance,
   Transaction,
   TransactionInput,
   TransactionList,
@@ -1805,6 +1806,85 @@ export function useGetLiquidity<TData = Awaited<ReturnType<typeof getLiquidity>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLiquidityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTaxComplianceUrl = () => {
+
+
+
+
+  return `/api/finance-hub/tax-compliance`
+}
+
+/**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+export const getTaxCompliance = async ( options?: RequestInit): Promise<TaxCompliance> => {
+
+  return customFetch<TaxCompliance>(getGetTaxComplianceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTaxComplianceQueryKey = () => {
+    return [
+    `/api/finance-hub/tax-compliance`
+    ] as const;
+    }
+
+
+export const getGetTaxComplianceQueryOptions = <TData = Awaited<ReturnType<typeof getTaxCompliance>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaxComplianceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaxCompliance>>> = ({ signal }) => getTaxCompliance({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTaxComplianceQueryResult = NonNullable<Awaited<ReturnType<typeof getTaxCompliance>>>
+export type GetTaxComplianceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+
+export function useGetTaxCompliance<TData = Awaited<ReturnType<typeof getTaxCompliance>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTaxComplianceQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
