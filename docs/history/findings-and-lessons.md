@@ -1242,3 +1242,60 @@ coupled one is enforced by the thing nobody dares break.
 Same family as the ArchiveStore lesson — there, deleting was made
 *inexpressible*; here, hiding is made *unbalanced*. Both replace a rule someone
 must remember with a shape that cannot express the violation.
+
+---
+
+### 🔴 NAMED LESSON (M19.1): A PER-POINT QUERY THAT RE-READS FROM THE BEGINNING OF TIME IS QUADRATIC IN HISTORY
+
+The Analytics trend needed a liquidity ratio at each month-end. The obvious
+build is a loop: call `balanceSheet(as_of)` twelve times.
+
+`balanceSheet(as_of)` is a *cumulative* query — it reads **every posted GL line
+from the beginning of time** up to that date, because a balance sheet is a
+position, not a period. Loop it over N points and the work is
+`O(points × lines)`, and since `lines` itself grows with history the real shape
+is **quadratic in how long the tenant has been a customer**.
+
+Measured before building anything (owner instruction — measure, do not
+discover it in the UI):
+
+| GL lines | 12 balance sheets | per point (median) |
+| --- | --- | --- |
+| 61 (a dev org) | 138 ms | 9 ms |
+| **6,000 (a busy SME year)** | **4,612 ms** | **578 ms** |
+
+#### Why this class of defect survives review
+
+**It is fine in development and unusable in production, and the variable that
+separates them is the one nobody seeds.** A dev database has 61 lines; the
+number that makes the feature slow is *history*, and history is the one variable
+that **only ever grows** and that a fresh environment never has. So:
+
+- it passes local testing,
+- it passes CI,
+- it passes a demo,
+- it degrades on the tenants who have been paying longest,
+- and it degrades **exactly when they first have enough history to want the
+  feature at all**.
+
+That last point is the sting: a trend chart is worthless to a two-month-old
+tenant and valuable to a two-year-old one, so the feature gets slower precisely
+in proportion to how much anyone wants it.
+
+#### The rule
+
+> **Before looping a cumulative query, ask what it re-reads.** If each call
+> starts from the beginning of time, N calls are not N× the cost — they are
+> `O(N × history)`, and history is the variable that only grows.
+>
+> The fix is almost always a **single pass with a running fold**: read the lines
+> once in date order, accumulate balances, and emit a snapshot whenever a period
+> boundary goes by. `O(lines)` instead of `O(points × lines)`.
+
+Rejected alternatives, both worse: a **materialised rollup table** (invalidation
+machinery for a problem one query solves) and **caching** (hides the cost rather
+than removing it — and the first load is the one a user judges the product by).
+
+**Where else to look:** any report that takes an `as_of` and might be charted
+over time. A balance sheet, a trial balance, an aging snapshot, a stock
+position, a running customer balance — all cumulative, all tempting to loop.
