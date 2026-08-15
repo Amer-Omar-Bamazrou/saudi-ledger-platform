@@ -246,7 +246,7 @@ at all).
 | --- | --- | --- | --- |
 | **M18.0** | Delete the locked reports | Q9 — 26 placeholder entries removed, plus the paywall vocabulary and the flag that made them possible (§8). Guarded by `tests/reports-catalogue.test.ts`. | ✅ done |
 | **M18.1** | **Liquidity classification** | §3 — `liquidity_class` on the chart of accounts, seeded for the 14 system accounts, tenant-overridable in the COA UI; the cash-flow name-sniff replaced. | ✅ decided (§3.2) |
-| **M18.2** | Balance-sheet breakout | Current vs non-current sections in `reports.balanceSheet`, totals reconciling as before. | M18.1 |
+| **M18.2** | Balance-sheet breakout | Current / non-current / **unclassified** sections in `reports.balanceSheet`, as a PARTITION of the existing totals so `balanced` keeps reconciling. Plus `quickTotal` (the acid-test numerator M18.3 consumes). | ✅ done |
 | **M18.3** | The hub, blocks 4.1 + 4.2 | The landing page: liquidity in plain language, the books-current signals. | M18.2 |
 | **M18.4** | Period lock control | Q5 — the first UI for a capability built long ago. Creates the `/finance-hub` page (its first block) and closes the `/period-locks` known-gap entry. | ✅ done — §9 |
 | **M18.5** | Tax & Compliance | Q6 — VAT return moves; ZATCA status surfaces. | M18.3 |
