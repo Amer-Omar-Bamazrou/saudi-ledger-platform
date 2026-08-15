@@ -997,3 +997,71 @@ test creates an organization, so the trigger is exercised on every one.
 too, not only the application. Trigger bodies, views, RLS policies, generated
 columns and CHECK constraints are all consumers that a TypeScript-wide search
 cannot see, and the plpgsql ones fail late.
+
+---
+
+### 🔴 NAMED LESSON (M17.2): A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT
+
+**The incident.** M17.2 needed Umm al-Qura (Hijri) dates. Node's ICU provides
+them: `new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', …)` converts exactly,
+and no dependency is required.
+
+But ICU is a property of the **runtime**, not of our code. A Node built with
+small-icu **accepts that locale without complaint and silently returns
+Gregorian dates.** The constructor does not throw. The formatter does not
+return null. Every call produces a well-formed, plausible date — in the wrong
+calendar.
+
+**Why that is the dangerous failure and not an inconvenient one.** A Zakat base
+is a balance measured **on a date**. A fiscal-year boundary that is wrong by ten
+days is a wrong balance, which is a wrong filing figure, and nothing downstream
+could detect it: the number is well-formed, in range, and internally consistent.
+The platform would have been confidently wrong on the one output the module
+exists to produce.
+
+#### This is the second instance, so it is a pattern
+
+| | Arabic `\b` (flaw report) | small-ICU (M17.2) |
+| --- | --- | --- |
+| What was asked for | word-boundary match on Arabic | the Umm al-Qura calendar |
+| What the API did | accepted the regex, matched nothing | accepted the locale, returned Gregorian |
+| Error raised | none | none |
+| Output missing | no — rows came back "uncategorised" | no — dates came back well-formed |
+| Why invisible | uncategorised is a DESIGNED outcome | a plausible date is indistinguishable from a correct one |
+
+Both are the same shape: **the interface accepted the input and quietly did
+something else.** Neither produces an error to catch, an exception to log, or an
+absence to notice. In both cases the symptom wears the costume of correct
+behaviour.
+
+#### The countermeasure, stated generally
+
+> When a dependency can silently substitute different behaviour, **probe an
+> externally checkable fact at startup** — not a round-trip through the thing
+> you are testing.
+
+Three parts, each load-bearing:
+
+1. **Externally checkable.** The probe must be verifiable against a source
+   *outside* the dependency. M17.2 asserts that 2025-06-26 is 1 Muharram 1447
+   AH — a published fact anyone can check against a Saudi calendar. A round-trip
+   (`fromHijri(toHijri(x)) === x`) would pass *perfectly* on a Gregorian
+   fallback, because a consistent wrong answer is still consistent.
+2. **At boot, failing closed.** Same posture `loadEnv` takes with the mailer and
+   alerter: refuse to start rather than run degraded. A silently-degraded
+   calendar is invisible until someone files on it.
+3. **Not "it didn't throw".** Absence of an exception is the weakest possible
+   evidence and is exactly what both incidents produced.
+
+#### Where else this applies
+
+Any capability supplied by the *environment* rather than by code we ship:
+locale and collation behaviour, timezone databases, crypto algorithm
+availability, filesystem case-sensitivity, and character-encoding defaults.
+Each can be present-but-different rather than present-or-absent — and each is
+therefore a candidate for a boot probe against an external fact.
+
+**The generalisation of the generalisation:** whenever the failure mode is
+*substitution* rather than *absence*, testing for presence is testing the wrong
+thing. Test for the specific behaviour, against a fact the substitute cannot
+also satisfy.

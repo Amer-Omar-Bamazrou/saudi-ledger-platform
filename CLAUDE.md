@@ -222,6 +222,16 @@ These are short forms; the rules are binding, the history explains why.
 - **External validators check the weakest property they plausibly could** (the
   PIH/base64 lesson). Validate meaning locally; never infer correctness from an
   accepted submission.
+- **🔴 A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT**
+  (M17.2's small-ICU finding; second instance of the shape). A small-ICU Node
+  accepts `islamic-umalqura` and silently returns **Gregorian** dates — no
+  error, no missing output, just a plausible wrong answer. Same shape as the
+  ASCII `\b` that made sixty Arabic patterns match nothing: the API took the
+  input and quietly did something else. **The countermeasure generalises: when
+  a dependency can silently substitute different behaviour, probe an
+  EXTERNALLY CHECKABLE FACT at boot** — a value verifiable against a source
+  outside the dependency (1 Muharram 1447 AH = 26 June 2025), not a round-trip
+  through the thing you are testing. "It didn't throw" is not evidence.
 - **Sources rank LIVE API > SDK > PDF > secondary sources** — and an unread
   primary source is not a licence to trust a secondary one (the residency
   claim was the opposite of what §5.5 actually says).

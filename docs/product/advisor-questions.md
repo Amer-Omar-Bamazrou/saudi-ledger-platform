@@ -13,11 +13,52 @@ from scattered queue entries, and so the answers land in one place.
 | **B** | C8 | PDPL — erasure rights vs. our no-delete archive |
 | **C** | Zakat design §4 | The Zakat base computation itself (M17.4) |
 
-**One caveat on "same advisor":** A and C are Saudi tax/Zakat questions and sit
-naturally with one firm. B is data-protection law. Many Saudi firms cover both
-in a regulatory practice, but if they do not, **B is the one to split out** —
-A and C must stay together, because C7's retention answer and C's Zakat answer
-both turn on ZATCA record-keeping rules.
+## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
+
+A and C are Saudi tax/Zakat questions. B is data-protection law. Many Saudi
+firms cover both in a regulatory practice; if yours does not, the instinct is to
+send B to a separate data-protection advisor. **Mostly wrong — and wrong on the
+most valuable question in the package.**
+
+**B2 is not a PDPL question. It is a CONFLICT question, and it has a tax half:**
+
+> *"May inbound third-party captures be made erasable-with-audit without
+> touching the outbound immutability guarantee?"*
+
+Answering it requires knowing **whether ZATCA §5.5 immutability is actually
+scoped to documents we generated** — which is a tax/e-invoicing question no
+data-protection lawyer can answer — *and* whether PDPL compels erasure for the
+inbound class, which no tax advisor can answer. Split it, and each side answers
+half while **nobody owns the interaction**. The interaction is the entire
+question.
+
+**B1 has the same dependency in a simpler form:** "does PDPL erasure reach
+documents we hold for tax purposes?" cannot be answered without knowing what the
+tax retention obligation *is* — which is **A1**.
+
+**So the separability is not block-shaped:**
+
+| | Separable? | Why |
+| --- | --- | --- |
+| **A1, A2** | Tax only | Ask the tax advisor. |
+| **C1–C5** | Tax only | Ask the tax advisor. |
+| **B1** | ❌ Needs A1's answer as an input | It is a conflict between two obligations. |
+| **B2** | ❌ Spans both — do not split | Half is ZATCA scope, half is PDPL. |
+| **B3** | ✅ Mostly | Audit-log IPs, customer/employee records are pure PDPL — *except* the archive sub-part, which is another retention conflict. |
+
+**The right shape when the firm covers only tax: run it in two passes, not two
+tracks.**
+
+1. **Pass one (tax):** A, C, and the ZATCA-scope half of B2 — "is §5.5
+   immutability scoped to documents we issued, or to all documents we hold?"
+   That is a tax question and it is the more determinate side.
+2. **Pass two (data protection):** B, **carrying pass one's answers as inputs.**
+   The data-protection advisor is then answering "given that retention
+   obligation, what does PDPL require?" — a question they can actually answer.
+
+Ordering matters because tax retention is the *constraint* and PDPL erasure is
+what has to fit around it (or override it). Asking in the other order produces a
+PDPL answer that the tax answer may simply invalidate.
 
 ---
 
