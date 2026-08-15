@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CategoryInputLiquidityClass } from './categoryInputLiquidityClass';
 import type { CategoryInputType } from './categoryInputType';
 
 export interface CategoryInput {
@@ -12,6 +13,11 @@ export interface CategoryInput {
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
+  /**
+     * Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).
+     * @nullable
+     */
+  liquidityClass?: CategoryInputLiquidityClass;
   /** @nullable */
   description?: string | null;
 }

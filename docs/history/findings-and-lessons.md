@@ -1065,3 +1065,180 @@ therefore a candidate for a boot probe against an external fact.
 *substitution* rather than *absence*, testing for presence is testing the wrong
 thing. Test for the specific behaviour, against a fact the substitute cannot
 also satisfy.
+
+---
+
+### 🔴 FINDING (M18.0): THE PRODUCT WAS SELLING A PLAN THAT DOES NOT EXIST
+
+**What was shipping.** `ReportsHub.tsx` listed 39 reports. Thirteen existed. The
+other 26 rendered greyed out behind a padlock, each with the tooltip **"Upgrade
+to unlock this report"**, under a header reading **"13 available · 26 premium ·
+39 total"** and a banner offering to **"upgrade your plan to access all 26
+locked reports."**
+
+**There is no plan.** No billing, no subscription model, no paid tier, no
+pricing decision anywhere in this product. So the page was not merely promising
+reports that did not exist — it was making a **commercial claim false in both
+halves**: a tier the tenant cannot buy, gating reports nobody has written.
+
+**And one padlocked entry was already built.** "Cashflow Report" sat behind the
+upgrade prompt while `/cash-flow` had been a routed, navigable page the whole
+time. The catalogue was charging for something already shipped.
+
+#### Why this is a different failure from the ones already catalogued
+
+The Zakat page (finding #8) asserted a **tax fact** it could not support. This
+asserted a **commercial fact** — and nobody had ever decided it. There was no
+pricing conversation, no tier design, no owner instruction. A screen layout
+invented a business model and shipped it.
+
+That generalises past reports and past pricing:
+
+> **A UI affordance can assert something the business has not decided.**
+> A padlock is a claim about *commercial terms*. A greyed-out row is a claim
+> about *the roadmap*. A "coming soon" is a claim about *intent*. Each is a
+> statement of fact to the reader, and each needs a decision behind it exactly
+> as a tax figure does.
+
+#### The fix that makes it stay fixed: remove the MECHANISM, not the entries
+
+Deleting 26 rows would have left `locked?: boolean` on the interface, the
+padlock branch in `ReportLink`, the premium counter and the upgrade banner —
+i.e. everything needed to list a 27th unbuilt report, and an implicit invitation
+to do so. The affordance is what made the claim cheap to make.
+
+So the removal was: the entries, the three categories they emptied completely,
+**the `locked` field itself**, its rendering branch, the counter and the banner.
+What remains cannot express "a report that does not exist" at all.
+
+**The guard:** `tests/reports-catalogue.test.ts` reads `ReportsHub.tsx` and
+`App.tsx` as source and fails if any catalogue entry has no mounted route, or if
+the locked/premium vocabulary returns to the **code** (prose in comments is
+exempt — the file's header records what was removed and why). A behavioural test
+cannot cover this: the defect is defined by entries nobody wired to anything.
+
+**The general form, worth carrying:** when removing a class of defect, ask what
+made it *expressible*. Removing the instances leaves the grammar; removing the
+grammar ends the class. Same shape as `ArchiveStore` having no `delete` method —
+the guarantee holds because the operation cannot be written, not because
+everyone remembers not to write it.
+
+---
+
+### 🔴 NAMED LESSON (M17.0 + M18.1): A COLUMN-BY-COLUMN TRIGGER FAILS SILENTLY IN BOTH DIRECTIONS
+
+`seed_org_chart_of_accounts()` copies `system_account_templates` → `categories`
+one named column at a time, and runs on every organization INSERT. The same trap
+fired **twice, in opposite directions, two milestones apart**:
+
+| | Migration | What changed | What broke | When it would have surfaced |
+| --- | --- | --- | --- | --- |
+| **Dropped** | 0038 (M17.0) | removed `zakat_relevant` | trigger still NAMED it | the next **signup**, far from the migration |
+| **Added** | 0041 (M18.1) | added `liquidity_class` | trigger did NOT name it | never, visibly — the next org just gets NULLs |
+
+**Neither errors at migration time.** plpgsql resolves column names at
+EXECUTION time, so `CREATE OR REPLACE FUNCTION` happily accepts a body naming a
+column that does not exist. The added-column direction is worse still: nothing
+errors *ever*. The organization is simply seeded incomplete, and the symptom
+appears as a feature that quietly does not work for one tenant.
+
+Both were caught by hand, by remembering. **Twice is a pattern, and "remember to
+check the trigger" is a hope, not a countermeasure.**
+
+#### The standing rule
+
+> Any migration that touches `categories` or `system_account_templates` must
+> redefine `seed_org_chart_of_accounts()`, and is covered by a trigger
+> round-trip assertion.
+
+`tests/org-seed-trigger.test.ts` enforces it **generically** — it compares the
+two tables' live column sets (aliasing `code` → `system_code`, deriving that
+`sort_order` is template-only) rather than knowing any column by name. A future
+migration is covered without editing the test.
+
+Three assertions, and the third is what makes the first two trustworthy:
+1. every column shared by both tables is named in the trigger (added direction);
+2. every column the trigger names still exists on both sides (dropped direction);
+3. a real organization is inserted and every shared value is compared against
+   its template row — source analysis proves the trigger *names* the right
+   columns; only running it proves the values *arrive*.
+
+**Verified to fail, not merely to pass.** Both directions were injected against
+the live database and the guard failed with an actionable message each time —
+the added case reported `probe_col`, the dropped case reported `zakat_relevant`
+by name. A guard that has never been seen to fail is an assumption.
+
+---
+
+### 🔴 NAMED LESSON (M18.4.1): COUNT THE CONSUMERS, NOT THE AGREEMENT
+
+The rule "which organization is this request acting in?" was written twice:
+
+    lib/tenant.ts    memberships.find(m => m.organizationId === requested) ?? memberships[0]
+    routes/orgs.ts   req.session.activeOrgId ?? organizations[0]?.id
+
+They agree whenever the session's chosen org is still a live membership — which
+is every ordinary request. They diverge only after a revoked membership, a
+deleted org, or a session outliving its access: `resolveTenant` then puts the
+request in the user's FIRST real org while `/orgs` echoes the STALE id back, so
+the switcher, the user-admin page and every role check describe a different
+organization from the one being acted in.
+
+**Nobody had noticed, and the reason is the lesson.** Two copies that agree in
+the common case do not look like a defect. They look like duplication — a
+tidiness issue, the kind of thing you leave alone because it works. The
+divergence needs an uncommon precondition to appear at all.
+
+What exposed it was **adding a third consumer**. `/auth/me` needed the same
+fact, and at three call sites the question stops being "are these two copies in
+sync?" and becomes "who owns this rule?" — and the answer was nobody.
+
+> **The signal is the NUMBER of consumers, not whether they currently agree.**
+> Agreement is what a latent divergence looks like from the outside. Two
+> implementations of one rule are a defect waiting for a precondition; the
+> third consumer is just when you find out.
+
+Adjacent to **count the lists, not the pairs**: the cost is combinatorial in
+the number of places a rule lives, and each new consumer multiplies it rather
+than adding to it. The fix is the same either way — extract one owner
+(`lib/activeOrg.ts`) before adding the consumer, not after.
+
+**A shape detail worth copying:** the selector returns the whole membership,
+not an id. A caller therefore cannot pair one organization's id with another's
+role — the two facts travel together or not at all. Splitting a compound answer
+into separate getters is how the next divergence would have started.
+
+---
+
+### 🔴 NAMED LESSON (M18.2): MAKE THE WEAKER REQUIREMENT STRUCTURALLY LOAD-BEARING
+
+Two requirements landed on the balance-sheet breakout:
+
+1. it must keep `balanced` reconciling;
+2. unclassified accounts must surface in the totals rather than vanish.
+
+The obvious build asserts each separately: compute the sections, then add a test
+that unclassified items appear. That leaves (2) as a **cosmetic** check — one a
+future refactor can delete, or quietly satisfy while folding unclassified into
+`current`, without (1) noticing.
+
+Instead the buckets were built as a **partition of the existing item list**:
+
+    current.total + nonCurrent.total + unclassified.total === total
+
+Now (2) cannot be violated without breaking (1). Folding unclassified into
+`current` double-counts and the partition fails; dropping it under-counts and
+the partition fails. Verified by injecting exactly that change — **both** tests
+went red, including the arithmetic one.
+
+> **When two requirements are related, prefer a construction where violating
+> one BREAKS the other over checking both independently.**
+
+The general move: find the arithmetic or type-level relationship that already
+couples them, and express the design in those terms. A separately-asserted
+requirement is only as durable as the test that remembers it; a structurally
+coupled one is enforced by the thing nobody dares break.
+
+Same family as the ArchiveStore lesson — there, deleting was made
+*inexpressible*; here, hiding is made *unbalanced*. Both replace a rule someone
+must remember with a shape that cannot express the violation.

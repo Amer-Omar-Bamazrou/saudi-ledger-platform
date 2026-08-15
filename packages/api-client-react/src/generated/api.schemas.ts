@@ -234,6 +234,118 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
+export type LiquidityBlockersItemCode = typeof LiquidityBlockersItemCode[keyof typeof LiquidityBlockersItemCode];
+
+
+export const LiquidityBlockersItemCode = {
+  suspense_balance: 'suspense_balance',
+  unclassified_accounts: 'unclassified_accounts',
+} as const;
+
+export type LiquidityBlockersItem = {
+  code: LiquidityBlockersItemCode;
+  amount: number;
+  /** @nullable */
+  count?: number | null;
+};
+
+export type LiquidityObservationsItemSeverity = typeof LiquidityObservationsItemSeverity[keyof typeof LiquidityObservationsItemSeverity];
+
+
+export const LiquidityObservationsItemSeverity = {
+  watch: 'watch',
+} as const;
+
+export type LiquidityObservationsItem = {
+  code: string;
+  severity: LiquidityObservationsItemSeverity;
+  ratio: number;
+};
+
+/**
+ * 🔴 `claimable` is the field that matters. When false the UI must NOT state the plain-language claim ("you can cover your short-term debts 1.8x over") — the figures are still returned so the breakdown and the blocker can be shown, but the CLAIM is withheld. `observations` are RULES OF THUMB, never compliance: no severity above "watch" exists.
+ */
+export interface Liquidity {
+  asOf: string;
+  currentAssets: number;
+  /** Cash + quick — the acid-test numerator. */
+  quickAssets: number;
+  currentLiabilities: number;
+  workingCapital: number;
+  /**
+     * NULL when there are no current liabilities — undefined, not zero.
+     * @nullable
+     */
+  currentRatio: number | null;
+  /** @nullable */
+  quickRatio: number | null;
+  claimable: boolean;
+  blockers: LiquidityBlockersItem[];
+  observations: LiquidityObservationsItem[];
+}
+
+export type TaxComplianceVatPeriodBasis = typeof TaxComplianceVatPeriodBasis[keyof typeof TaxComplianceVatPeriodBasis];
+
+
+export const TaxComplianceVatPeriodBasis = {
+  calendar_quarter: 'calendar_quarter',
+} as const;
+
+export type TaxComplianceVat = {
+  periodFrom: string;
+  periodTo: string;
+  periodBasis: TaxComplianceVatPeriodBasis;
+  /** Always false today. KSA VAT is filed monthly or quarterly by turnover and nothing records which applies, so the UI must state the period it used rather than imply a filing obligation. */
+  filingFrequencyKnown: boolean;
+  netVatDue: number;
+  payable: number;
+  refund: number;
+};
+
+/**
+ * @nullable
+ */
+export type TaxComplianceZatca = {
+  environment: string;
+  connected: boolean;
+  /** @nullable */
+  certificateStatus: string | null;
+  /** @nullable */
+  daysUntilExpiry: number | null;
+} | null;
+
+export interface TaxCompliance {
+  vat: TaxComplianceVat;
+  /** @nullable */
+  zatca: TaxComplianceZatca;
+}
+
+export interface BooksStatus {
+  unreviewedCount: number;
+  needsAttentionCount: number;
+}
+
+export interface PeriodLock {
+  id: number;
+  /** The closed month, `YYYY-MM`. */
+  period: string;
+  lockedAt: string;
+  /** @nullable */
+  lockedBy: number | null;
+  /** @nullable */
+  notes: string | null;
+}
+
+export interface PeriodLockInput {
+  /**
+     * The month to close, `YYYY-MM` (e.g. 2026-06).
+     * @pattern ^\d{4}-\d{2}$
+     */
+  period: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
 
 
@@ -245,12 +357,31 @@ export const CategoryType = {
   equity: 'equity',
 } as const;
 
+/**
+ * M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income/expense/equity accounts, where the distinction is meaningless.
+ * @nullable
+ */
+export type CategoryLiquidityClass = typeof CategoryLiquidityClass[keyof typeof CategoryLiquidityClass] | null;
+
+
+export const CategoryLiquidityClass = {
+  cash: 'cash',
+  quick: 'quick',
+  current: 'current',
+  non_current: 'non_current',
+} as const;
+
 export interface Category {
   id: number;
   name: string;
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
+  /**
+     * M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income/expense/equity accounts, where the distinction is meaningless.
+     * @nullable
+     */
+  liquidityClass?: CategoryLiquidityClass;
   /** @nullable */
   description?: string | null;
 }
@@ -266,11 +397,30 @@ export const CategoryInputType = {
   equity: 'equity',
 } as const;
 
+/**
+ * Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).
+ * @nullable
+ */
+export type CategoryInputLiquidityClass = typeof CategoryInputLiquidityClass[keyof typeof CategoryInputLiquidityClass] | null;
+
+
+export const CategoryInputLiquidityClass = {
+  cash: 'cash',
+  quick: 'quick',
+  current: 'current',
+  non_current: 'non_current',
+} as const;
+
 export interface CategoryInput {
   name: string;
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
+  /**
+     * Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).
+     * @nullable
+     */
+  liquidityClass?: CategoryInputLiquidityClass;
   /** @nullable */
   description?: string | null;
 }
@@ -1207,6 +1357,13 @@ export const ListTransactionsType = {
   debit: 'debit',
   credit: 'credit',
 } as const;
+
+export type GetLiquidityParams = {
+/**
+ * @nullable
+ */
+as_of?: string | null;
+};
 
 export type GetSummaryParams = {
 /**

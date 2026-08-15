@@ -1,17 +1,37 @@
 import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DollarSign, FileText, TrendingUp, PieChart, Users, BarChart3,
-  Archive, Lock, Sparkles, ChevronRight,
-} from "lucide-react";
+import { DollarSign, FileText, PieChart, Archive, ChevronRight } from "lucide-react";
 
+/**
+ * The reports catalogue (M18.0 — owner decision Q9).
+ *
+ * 🔴 WHAT THIS PAGE USED TO BE, so nobody restores it:
+ *
+ * A catalogue of 39 reports of which 13 existed. The other 26 were
+ * `locked: true` — rendered greyed out, with a padlock, a tooltip reading
+ * "Upgrade to unlock this report", a header counter reading
+ * "13 available · 26 premium · 39 total", and a banner offering to
+ * "upgrade your plan to access all 26 locked reports".
+ *
+ * There is no plan. There is no billing system, no subscription model, no
+ * pricing decision, and no paid tier anywhere in this product. So the page was
+ * not merely promising reports that did not exist — it was making a COMMERCIAL
+ * claim that was false in both halves: a tier the tenant cannot buy, gating
+ * reports nobody has written.
+ *
+ * One of the "premium" entries was worse still: "Cashflow Report" was padlocked
+ * while `/cash-flow` has been a built, routed, navigable page the whole time.
+ * The catalogue was charging for something already shipped. It is restored
+ * below with its real link rather than deleted.
+ *
+ * Every entry here now resolves to a route that exists. If you add one, add the
+ * page in the same change — an entry whose href 404s is the same defect wearing
+ * a different costume.
+ */
 interface ReportItem {
   label: string;
   labelAr: string;
-  href?: string;
-  locked?: boolean;
+  href: string;
   isNew?: boolean;
 }
 
@@ -28,17 +48,16 @@ const CATEGORIES: ReportCategory[] = [
     labelAr: "التقارير المالية",
     icon: DollarSign,
     reports: [
-      { label: "Income Statement",                    labelAr: "قائمة الدخل",                         href: "/income-statement" },
-      { label: "Balance Sheet",                       labelAr: "الميزانية العمومية",                  href: "/balance-sheet" },
-      { label: "Journal Report",                      labelAr: "تقرير اليومية",                       href: "/reports/journal-report" },
-      { label: "Trial Balance",                       labelAr: "ميزان المراجعة",                      href: "/trial-balance" },
-      { label: "Account Statement",                   labelAr: "كشف الحساب",                          href: "/reports/account-statement" },
-      { label: "Account Summary",                     labelAr: "ملخص الحساب",                         href: "/reports/account-summary" },
-      { label: "Cashflow Report",                     labelAr: "تقرير التدفق النقدي",                  locked: true },
-      { label: "General Ledger",                      labelAr: "دفتر الأستاذ العام",                  href: "/reports/general-ledger" },
-      { label: "Income Statement Actual Vs Budget",   labelAr: "قائمة الدخل الفعلي مقابل الميزانية",  locked: true },
-      { label: "Customer Ledger Report",              labelAr: "تقرير حساب العميل",                   href: "/reports/customer-ledger", isNew: true },
-      { label: "Change in Owner Equity Statement",    labelAr: "قائمة التغير في حقوق الملكية",        href: "/reports/owner-equity",    isNew: true },
+      { label: "Income Statement",                 labelAr: "قائمة الدخل",                  href: "/income-statement" },
+      { label: "Balance Sheet",                    labelAr: "الميزانية العمومية",           href: "/balance-sheet" },
+      { label: "Cash Flow",                        labelAr: "التدفق النقدي",                href: "/cash-flow" },
+      { label: "Trial Balance",                    labelAr: "ميزان المراجعة",               href: "/trial-balance" },
+      { label: "Journal Report",                   labelAr: "تقرير اليومية",                href: "/reports/journal-report" },
+      { label: "General Ledger",                   labelAr: "دفتر الأستاذ العام",           href: "/reports/general-ledger" },
+      { label: "Account Statement",                labelAr: "كشف الحساب",                   href: "/reports/account-statement" },
+      { label: "Account Summary",                  labelAr: "ملخص الحساب",                  href: "/reports/account-summary" },
+      { label: "Customer Ledger Report",           labelAr: "تقرير حساب العميل",            href: "/reports/customer-ledger", isNew: true },
+      { label: "Change in Owner Equity Statement", labelAr: "قائمة التغير في حقوق الملكية", href: "/reports/owner-equity",    isNew: true },
     ],
   },
   {
@@ -46,29 +65,7 @@ const CATEGORIES: ReportCategory[] = [
     labelAr: "تقارير العمليات",
     icon: FileText,
     reports: [
-      { label: "Sales and Purchase Summary",      labelAr: "ملخص المبيعات والمشتريات",    locked: true },
-      { label: "A/R by Customer",                 labelAr: "الذمم المدينة حسب العميل",     locked: true },
-      { label: "A/P by Vendor",                   labelAr: "الذمم الدائنة حسب المورد",     locked: true },
-      { label: "Aged Open Quotation",             labelAr: "عروض الأسعار المفتوحة المتأخرة", locked: true },
-      { label: "Aged Open Invoices",              labelAr: "الفواتير المفتوحة المتأخرة",   locked: true },
-      { label: "Aged Open Purchase Orders",       labelAr: "أوامر الشراء المفتوحة المتأخرة", locked: true },
-      { label: "Aged Open Bills",                 labelAr: "الفواتير المستحقة المتأخرة",   locked: true },
-      { label: "Product Locations Summary",       labelAr: "ملخص مواقع المنتجات",          locked: true },
-      { label: "Aging Reports",                   labelAr: "تقارير الأعمار",               href: "/reports/aging",           isNew: true },
-      { label: "Invoice Details & Margin Report", labelAr: "تفاصيل الفاتورة وتقرير الهامش", locked: true,                      isNew: true },
-    ],
-  },
-  {
-    label: "Sales Reports",
-    labelAr: "تقارير المبيعات",
-    icon: TrendingUp,
-    reports: [
-      { label: "Product Sales Trend Line",        labelAr: "اتجاه مبيعات المنتجات",       locked: true },
-      { label: "Product Purchases Trend Line",    labelAr: "اتجاه مشتريات المنتجات",      locked: true },
-      { label: "New Customers Trend Line",        labelAr: "اتجاه العملاء الجدد",          locked: true },
-      { label: "Number of Invoices Trend Line",   labelAr: "اتجاه عدد الفواتير",           locked: true },
-      { label: "Product Sales Pie Chart",         labelAr: "مخطط دائري لمبيعات المنتجات", locked: true },
-      { label: "Product Cost & Margin Report",    labelAr: "تقرير تكلفة وهامش المنتجات",  locked: true, isNew: true },
+      { label: "Aging Reports", labelAr: "تقارير الأعمار", href: "/reports/aging", isNew: true },
     ],
   },
   {
@@ -76,29 +73,10 @@ const CATEGORIES: ReportCategory[] = [
     labelAr: "التقارير الضريبية",
     icon: PieChart,
     reports: [
-      { label: "Tax Return Form",                 labelAr: "نموذج الإقرار الضريبي",        href: "/vat" },
-      { label: "Invoice Taxes Report",            labelAr: "تقرير ضرائب الفواتير",         locked: true },
-      { label: "Bill Taxes Report",               labelAr: "تقرير ضرائب الفواتير الواردة", locked: true },
-      { label: "Credit Note Taxes Report",        labelAr: "تقرير ضرائب إشعارات الدائن",   locked: true },
-      { label: "Debit Note Taxes Report",         labelAr: "تقرير ضرائب إشعارات المدين",   locked: true },
-      { label: "Tax Journal Entries",             labelAr: "قيود اليومية الضريبية",        href: "/reports/tax-journal-entries", isNew: true },
-    ],
-  },
-  {
-    label: "Employee Reports",
-    labelAr: "تقارير الموظفين",
-    icon: Users,
-    reports: [
-      { label: "Employees Salary Report",         labelAr: "تقرير رواتب الموظفين",         locked: true },
-      { label: "Employee Account Statement",      labelAr: "كشف حساب الموظف",              locked: true },
-    ],
-  },
-  {
-    label: "Fixed Asset Reports",
-    labelAr: "تقارير الأصول الثابتة",
-    icon: BarChart3,
-    reports: [
-      { label: "Fixed Asset Registry Report",     labelAr: "تقرير سجل الأصول الثابتة",    locked: true },
+      // M18.5 (Q6) — the VAT return moved to the Finance Hub. "Tax Journal
+      // Entries" stays: it is an accountant's report, and Q4 puts anything
+      // needing accounting vocabulary in Reports rather than the hub.
+      { label: "Tax Journal Entries", labelAr: "قيود اليومية الضريبية", href: "/reports/tax-journal-entries", isNew: true },
     ],
   },
   {
@@ -106,12 +84,14 @@ const CATEGORIES: ReportCategory[] = [
     labelAr: "تقارير أخرى",
     icon: Archive,
     reports: [
-      { label: "Activity Report",                 labelAr: "تقرير النشاط",                  href: "/reports/activity" },
-      { label: "Analysis by Dimensions Report",   labelAr: "تقرير التحليل حسب الأبعاد",    locked: true },
-      { label: "Deferral Transactions Report",    labelAr: "تقرير معاملات الترحيل المؤجل", locked: true, isNew: true },
+      { label: "Activity Report", labelAr: "تقرير النشاط", href: "/reports/activity" },
     ],
   },
 ];
+
+// "Sales Reports", "Employee Reports" and "Fixed Asset Reports" are gone: every
+// entry in all three was a placeholder, so the categories emptied completely.
+// An empty category card is the same promise in a thinner disguise.
 
 function NewBadge() {
   const { t } = useLanguage();
@@ -124,27 +104,8 @@ function NewBadge() {
 
 function ReportLink({ item }: { item: ReportItem }) {
   const { t } = useLanguage();
-  if (item.locked) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2 py-1.5 px-2 rounded-md cursor-not-allowed group">
-            <Lock className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-            <span className="text-sm text-muted-foreground/50 select-none leading-snug">
-              {t(item.label, item.labelAr)}
-            </span>
-            {item.isNew && <NewBadge />}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="text-xs">
-          {t("Upgrade to unlock this report", "قم بالترقية لفتح هذا التقرير")}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
   return (
-    <Link href={item.href!}>
+    <Link href={item.href}>
       <div className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/60 transition-colors group cursor-pointer">
         <ChevronRight className="w-3 h-3 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
         <span className="text-sm text-foreground leading-snug">{t(item.label, item.labelAr)}</span>
@@ -159,7 +120,6 @@ function CategoryCard({ cat }: { cat: ReportCategory }) {
   const Icon = cat.icon;
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-blue-400" />
@@ -167,12 +127,10 @@ function CategoryCard({ cat }: { cat: ReportCategory }) {
         <h2 className="font-bold text-foreground text-sm tracking-tight leading-tight">{t(cat.label, cat.labelAr)}</h2>
       </div>
 
-      {/* Divider */}
       <div className="h-px bg-border" />
 
-      {/* Report links */}
       <div className="flex flex-col gap-0.5">
-        {cat.reports.map(r => (
+        {cat.reports.map((r) => (
           <ReportLink key={r.label} item={r} />
         ))}
       </div>
@@ -182,31 +140,24 @@ function CategoryCard({ cat }: { cat: ReportCategory }) {
 
 export default function ReportsHub() {
   const { t } = useLanguage();
-  const total    = CATEGORIES.flatMap(c => c.reports).length;
-  const unlocked = CATEGORIES.flatMap(c => c.reports).filter(r => !r.locked).length;
+  const total = CATEGORIES.flatMap((c) => c.reports).length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t("Reports", "التقارير")}</h1>
+        {/*
+          One count, and it counts real things. The old header split it into
+          "available / premium / total" — two thirds of which described reports
+          that did not exist and a tier that could not be bought.
+        */}
         <p className="text-muted-foreground text-sm mt-1">
-          {unlocked} {t("available", "متاح")} · {total - unlocked} {t("premium", "مميز")} · {total} {t("total", "الإجمالي")}
+          {total} {t("reports", "تقارير")}
         </p>
       </div>
 
-      {/* Upgrade banner */}
-      <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
-        <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-        <p className="text-sm text-amber-400">
-          <span className="font-semibold">{t("Unlock premium reports", "افتح التقارير المميزة")}</span>
-          <span className="text-amber-400/70"> — {t("upgrade your plan to access all", "قم بترقية خطتك للوصول إلى جميع")} {total - unlocked} {t("locked reports.", "التقارير المقفلة.")}</span>
-        </p>
-      </div>
-
-      {/* Category grid — 3 columns desktop, 2 tablet, 1 mobile */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {CATEGORIES.map(cat => (
+        {CATEGORIES.map((cat) => (
           <CategoryCard key={cat.label} cat={cat} />
         ))}
       </div>

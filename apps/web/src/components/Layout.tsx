@@ -62,14 +62,20 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     ],
   },
   {
+    // Hub decision Q3: the Finance Hub SITS BESIDE Reports rather than
+    // replacing it — replacing is a large reorganisation with no user feedback
+    // yet. It leads the section because it states conditions, where everything
+    // below it is a document you go and read.
     label: "Reports", labelAr: "التقارير",
     items: [
+      { href: "/finance-hub",       label: "Finance Hub",      labelAr: "لوحة المالية",            icon: ShieldCheck },
       { href: "/reports",           label: "Reports Hub",      labelAr: "مركز التقارير",           icon: BarChart3 },
       { href: "/income-statement",  label: "Income Statement", labelAr: "قائمة الدخل",              icon: TrendingUp },
       { href: "/balance-sheet",     label: "Balance Sheet",    labelAr: "الميزانية العمومية",        icon: BarChart3 },
       { href: "/cash-flow",         label: "Cash Flow",        labelAr: "التدفق النقدي",             icon: Waves },
       { href: "/trial-balance",     label: "Trial Balance",    labelAr: "ميزان المراجعة",            icon: Scale },
-      { href: "/vat",               label: "VAT Report",       labelAr: "تقرير ضريبة القيمة المضافة", icon: Receipt },
+      // M18.5 (Q6): the VAT return MOVED to the Finance Hub's Tax & Compliance
+      // block. Reached from there, and still directly at /vat.
       // M17.0 — not "Zakat Report": the page states the working paper is not
       // built yet. The entry stays so users who relied on the old (fabricated)
       // figure find the notice rather than a missing page.

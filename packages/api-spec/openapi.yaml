@@ -25,6 +25,10 @@ tags:
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
   - name: payroll
     description: Payroll runs and the draft/approval workflow
+  - name: period_locks
+    description: Closing and reopening accounting periods
+  - name: finance_hub
+    description: The Finance Hub control surface
 
 paths:
   /healthz:
@@ -469,6 +473,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
+
+  /finance-hub/liquidity:
+    get:
+      operationId: getLiquidity
+      tags: [finance_hub]
+      summary: >
+        "Can I pay what I owe?" (M18.3) — current/quick assets, current
+        liabilities, working capital and the two ratios, from the GL.
+      parameters:
+        - name: as_of
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: The liquidity position, and whether it may be claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Liquidity"
+
+  /finance-hub/tax-compliance:
+    get:
+      operationId: getTaxCompliance
+      tags: [finance_hub]
+      summary: >
+        Tax & Compliance state (M18.5) — the VAT position for the CURRENT
+        CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not
+        theirs: KSA filing frequency is not modelled, so this must never be
+        presented as "your VAT return".
+      responses:
+        "200":
+          description: VAT position and ZATCA state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxCompliance"
+
+  /finance-hub/books-status:
+    get:
+      operationId: getBooksStatus
+      tags: [finance_hub]
+      summary: >
+        "Are my books current?" — the unreviewed-transaction signal, mirrored
+        from the Banking review surface rather than duplicated (design Q7).
+      responses:
+        "200":
+          description: Counts only; the work happens on /review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooksStatus"
+
+  /period-locks:
+    get:
+      operationId: listPeriodLocks
+      tags: [period_locks]
+      summary: >
+        Accounting periods this company has closed (M18.4). Readable by every
+        role; only an organization admin may close or reopen one.
+      responses:
+        "200":
+          description: Closed periods, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PeriodLock"
+    post:
+      operationId: lockPeriod
+      tags: [period_locks]
+      summary: >
+        Close an accounting period. Nothing may afterwards be posted into it —
+        a correction posts in the current open period instead, never re-dated
+        backwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeriodLockInput"
+      responses:
+        "201":
+          description: The period is now closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodLock"
+
+  /period-locks/{period}:
+    delete:
+      operationId: unlockPeriod
+      tags: [period_locks]
+      summary: >
+        Reopen a closed period (admin only). Company-scoped — reopening one
+        company's period leaves every other company's locks untouched.
+      parameters:
+        - name: period
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Reopened
 
   /companies/current/fiscal-years:
     get:
@@ -1433,6 +1543,130 @@ components:
           items:
             $ref: "#/components/schemas/FiscalPeriod"
 
+    Liquidity:
+      type: object
+      description: >
+        🔴 `claimable` is the field that matters. When false the UI must NOT
+        state the plain-language claim ("you can cover your short-term debts
+        1.8x over") — the figures are still returned so the breakdown and the
+        blocker can be shown, but the CLAIM is withheld. `observations` are
+        RULES OF THUMB, never compliance: no severity above "watch" exists.
+      required:
+        [asOf, currentAssets, quickAssets, currentLiabilities, workingCapital,
+         currentRatio, quickRatio, claimable, blockers, observations]
+      properties:
+        asOf:
+          type: string
+        currentAssets:
+          type: number
+        quickAssets:
+          type: number
+          description: Cash + quick — the acid-test numerator.
+        currentLiabilities:
+          type: number
+        workingCapital:
+          type: number
+        currentRatio:
+          type: ["number", "null"]
+          description: NULL when there are no current liabilities — undefined, not zero.
+        quickRatio:
+          type: ["number", "null"]
+        claimable:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            type: object
+            required: [code, amount]
+            properties:
+              code:
+                type: string
+                enum: [suspense_balance, unclassified_accounts]
+              amount:
+                type: number
+              count:
+                type: ["integer", "null"]
+        observations:
+          type: array
+          items:
+            type: object
+            required: [code, severity, ratio]
+            properties:
+              code:
+                type: string
+              severity:
+                type: string
+                enum: [watch]
+              ratio:
+                type: number
+
+    TaxCompliance:
+      type: object
+      required: [vat, zatca]
+      properties:
+        vat:
+          type: object
+          required: [periodFrom, periodTo, periodBasis, filingFrequencyKnown, netVatDue, payable, refund]
+          properties:
+            periodFrom: { type: string }
+            periodTo: { type: string }
+            periodBasis:
+              type: string
+              enum: [calendar_quarter]
+            filingFrequencyKnown:
+              type: boolean
+              description: >
+                Always false today. KSA VAT is filed monthly or quarterly by
+                turnover and nothing records which applies, so the UI must state
+                the period it used rather than imply a filing obligation.
+            netVatDue: { type: number }
+            payable: { type: number }
+            refund: { type: number }
+        zatca:
+          type: ["object", "null"]
+          required: [environment, connected, certificateStatus, daysUntilExpiry]
+          properties:
+            environment: { type: string }
+            connected: { type: boolean }
+            certificateStatus: { type: ["string", "null"] }
+            daysUntilExpiry: { type: ["integer", "null"] }
+
+    BooksStatus:
+      type: object
+      required: [unreviewedCount, needsAttentionCount]
+      properties:
+        unreviewedCount:
+          type: integer
+        needsAttentionCount:
+          type: integer
+
+    PeriodLock:
+      type: object
+      required: [id, period, lockedAt, lockedBy, notes]
+      properties:
+        id:
+          type: integer
+        period:
+          type: string
+          description: The closed month, `YYYY-MM`.
+        lockedAt:
+          type: string
+        lockedBy:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    PeriodLockInput:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: string
+          pattern: "^\\d{4}-\\d{2}$"
+          description: The month to close, `YYYY-MM` (e.g. 2026-06).
+        notes:
+          type: ["string", "null"]
+
     Category:
       type: object
       required: [id, name, nameAr, type, vatApplicable]
@@ -1448,6 +1682,16 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
+        liquidityClass:
+          type: ["string", "null"]
+          enum: [cash, quick, current, non_current, null]
+          description: >
+            M18.1 — where a BALANCE-SHEET account sits on the liquidity scale,
+            for the Finance Hub. Current assets are everything but
+            `non_current`; quick assets are `cash` + `quick`. NULL on an asset
+            or liability means UNCLASSIFIED and is surfaced as such, never
+            silently treated as current. Always NULL on income/expense/equity
+            accounts, where the distinction is meaningless.
         description:
           type: ["string", "null"]
 
@@ -1464,6 +1708,12 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
+        liquidityClass:
+          type: ["string", "null"]
+          enum: [cash, quick, current, non_current, null]
+          description: >
+            Only meaningful when `type` is `asset` or `liability`; the server
+            rejects it on any other account type (and a DB CHECK backs that up).
         description:
           type: ["string", "null"]
 

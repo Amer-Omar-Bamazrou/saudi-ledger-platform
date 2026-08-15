@@ -69,8 +69,10 @@ const NON_UI_SURFACES: Record<string, string> = {
  * standing check's caller-grep passes.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
-  "/period-locks":
-    "Closing an accounting period has no UI. The API, the company-scoped route fix (M14) and the posting-path guard are all real and tested — but a tenant cannot close a period from the product, so period locks exist only for tests and manual calls.",
+  // "/period-locks" — CLOSED by M18.4. The Finance Hub (`/finance-hub`) is its
+  // first UI: a tenant can now close and reopen a month from the product. Left
+  // as a comment rather than deleted so the entry's history is visible: it sat
+  // here from the guard's creation until the capability got a surface.
   "/audit-logs":
     "The admin-only audit trail has no reader UI. Every business mutation is recorded (M7) and is claimed as available to org admins; today reaching it requires calling the API by hand.",
   "/llm":

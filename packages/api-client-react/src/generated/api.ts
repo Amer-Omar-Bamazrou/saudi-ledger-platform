@@ -24,6 +24,7 @@ import type {
   AcceptPendingResult,
   Bill,
   BillApproveInput,
+  BooksStatus,
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
@@ -37,6 +38,7 @@ import type {
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
+  GetLiquidityParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
   GetVatReturnParams,
@@ -44,13 +46,17 @@ import type {
   HealthStatus,
   Invoice,
   JournalEntry,
+  Liquidity,
   ListTransactionsParams,
   PayrollRun,
   PendingReviewTransaction,
+  PeriodLock,
+  PeriodLockInput,
   RecurringRule,
   RecurringRun,
   SendBackInput,
   SettleTransactionInput,
+  TaxCompliance,
   Transaction,
   TransactionInput,
   TransactionList,
@@ -1724,6 +1730,475 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRunCategorizationMutationOptions(options));
+    }
+
+export const getGetLiquidityUrl = (params?: GetLiquidityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/finance-hub/liquidity?${stringifiedParams}` : `/api/finance-hub/liquidity`
+}
+
+/**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+export const getLiquidity = async (params?: GetLiquidityParams, options?: RequestInit): Promise<Liquidity> => {
+
+  return customFetch<Liquidity>(getGetLiquidityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiquidityQueryKey = (params?: GetLiquidityParams,) => {
+    return [
+    `/api/finance-hub/liquidity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLiquidityQueryOptions = <TData = Awaited<ReturnType<typeof getLiquidity>>, TError = ErrorType<unknown>>(params?: GetLiquidityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiquidityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiquidity>>> = ({ signal }) => getLiquidity(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiquidityQueryResult = NonNullable<Awaited<ReturnType<typeof getLiquidity>>>
+export type GetLiquidityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+
+export function useGetLiquidity<TData = Awaited<ReturnType<typeof getLiquidity>>, TError = ErrorType<unknown>>(
+ params?: GetLiquidityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiquidityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTaxComplianceUrl = () => {
+
+
+
+
+  return `/api/finance-hub/tax-compliance`
+}
+
+/**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+export const getTaxCompliance = async ( options?: RequestInit): Promise<TaxCompliance> => {
+
+  return customFetch<TaxCompliance>(getGetTaxComplianceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTaxComplianceQueryKey = () => {
+    return [
+    `/api/finance-hub/tax-compliance`
+    ] as const;
+    }
+
+
+export const getGetTaxComplianceQueryOptions = <TData = Awaited<ReturnType<typeof getTaxCompliance>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaxComplianceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaxCompliance>>> = ({ signal }) => getTaxCompliance({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTaxComplianceQueryResult = NonNullable<Awaited<ReturnType<typeof getTaxCompliance>>>
+export type GetTaxComplianceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+
+export function useGetTaxCompliance<TData = Awaited<ReturnType<typeof getTaxCompliance>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxCompliance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTaxComplianceQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBooksStatusUrl = () => {
+
+
+
+
+  return `/api/finance-hub/books-status`
+}
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+export const getBooksStatus = async ( options?: RequestInit): Promise<BooksStatus> => {
+
+  return customFetch<BooksStatus>(getGetBooksStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBooksStatusQueryKey = () => {
+    return [
+    `/api/finance-hub/books-status`
+    ] as const;
+    }
+
+
+export const getGetBooksStatusQueryOptions = <TData = Awaited<ReturnType<typeof getBooksStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBooksStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBooksStatus>>> = ({ signal }) => getBooksStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBooksStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getBooksStatus>>>
+export type GetBooksStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+
+export function useGetBooksStatus<TData = Awaited<ReturnType<typeof getBooksStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBooksStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPeriodLocksUrl = () => {
+
+
+
+
+  return `/api/period-locks`
+}
+
+/**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+export const listPeriodLocks = async ( options?: RequestInit): Promise<PeriodLock[]> => {
+
+  return customFetch<PeriodLock[]>(getListPeriodLocksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPeriodLocksQueryKey = () => {
+    return [
+    `/api/period-locks`
+    ] as const;
+    }
+
+
+export const getListPeriodLocksQueryOptions = <TData = Awaited<ReturnType<typeof listPeriodLocks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPeriodLocksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPeriodLocks>>> = ({ signal }) => listPeriodLocks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPeriodLocksQueryResult = NonNullable<Awaited<ReturnType<typeof listPeriodLocks>>>
+export type ListPeriodLocksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+
+export function useListPeriodLocks<TData = Awaited<ReturnType<typeof listPeriodLocks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPeriodLocksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLockPeriodUrl = () => {
+
+
+
+
+  return `/api/period-locks`
+}
+
+/**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const lockPeriod = async (periodLockInput: PeriodLockInput, options?: RequestInit): Promise<PeriodLock> => {
+
+  return customFetch<PeriodLock>(getLockPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(periodLockInput)
+  }
+);}
+
+
+
+
+
+export const getLockPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext> => {
+
+const mutationKey = ['lockPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lockPeriod>>, {data: BodyType<PeriodLockInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  lockPeriod(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LockPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof lockPeriod>>>
+    export type LockPeriodMutationBody = BodyType<PeriodLockInput>
+    export type LockPeriodMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const useLockPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lockPeriod>>,
+        TError,
+        {data: BodyType<PeriodLockInput>},
+        TContext
+      > => {
+      return useMutation(getLockPeriodMutationOptions(options));
+    }
+
+export const getUnlockPeriodUrl = (period: string,) => {
+
+
+
+
+  return `/api/period-locks/${period}`
+}
+
+/**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const unlockPeriod = async (period: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUnlockPeriodUrl(period),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlockPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext> => {
+
+const mutationKey = ['unlockPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlockPeriod>>, {period: string}> = (props) => {
+          const {period} = props ?? {};
+
+          return  unlockPeriod(period,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlockPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof unlockPeriod>>>
+
+    export type UnlockPeriodMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const useUnlockPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlockPeriod>>,
+        TError,
+        {period: string},
+        TContext
+      > => {
+      return useMutation(getUnlockPeriodMutationOptions(options));
     }
 
 export const getListFiscalYearsUrl = () => {

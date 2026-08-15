@@ -100,8 +100,16 @@ export const reportsService = {
     const cats = await reportsRepository.allCategories();
     const catMap = new Map(cats.map((c) => [c.id, c]));
 
-    const assets: Record<string, { name: string; nameAr: string; amount: number }> = {};
-    const liabilities: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    /**
+     * M18.2 — every balance-sheet item now carries its liquidity class, so the
+     * current / non-current breakout is a GROUPING of the same numbers rather
+     * than a second computation of them. That is what makes the reconciling
+     * assertion below meaningful: the sections cannot drift from the total,
+     * because they are partitions of it.
+     */
+    type BsItem = { name: string; nameAr: string; amount: number; liquidityClass: string | null };
+    const assets: Record<string, BsItem> = {};
+    const liabilities: Record<string, BsItem> = {};
     const equityAccounts: Record<string, { name: string; nameAr: string; amount: number }> = {};
     let retainedEarnings = 0;
 
@@ -111,12 +119,16 @@ export const reportsService = {
       const key = l.accountId != null ? String(l.accountId) : l.accountName;
       const name = l.accountName;
       const nameAr = cat?.nameAr ?? "";
+      // NULL here is UNCLASSIFIED and stays null all the way to the response —
+      // never coerced to "current", which would hide it inside a figure the
+      // Finance Hub presents as a plain-language claim.
+      const liquidityClass = cat?.liquidityClass ?? null;
       const net = toNum(l.debit) - toNum(l.credit);
       if (type === "asset") {
-        if (!assets[key]) assets[key] = { name, nameAr, amount: 0 };
+        if (!assets[key]) assets[key] = { name, nameAr, amount: 0, liquidityClass };
         assets[key].amount += net;
       } else if (type === "liability") {
-        if (!liabilities[key]) liabilities[key] = { name, nameAr, amount: 0 };
+        if (!liabilities[key]) liabilities[key] = { name, nameAr, amount: 0, liquidityClass };
         liabilities[key].amount += -net;
       } else if (type === "equity") {
         if (!equityAccounts[key]) equityAccounts[key] = { name, nameAr, amount: 0 };
@@ -153,6 +165,17 @@ export const reportsService = {
     const apKey = systemIdByCode.has("AP") ? String(systemIdByCode.get("AP")) : null;
     const arBalance = fmt2(arKey && assets[arKey] ? assets[arKey].amount : 0);
     const apBalance = fmt2(apKey && liabilities[apKey] ? liabilities[apKey].amount : 0);
+    /**
+     * M18.3 — the SUSPENSE balance, by system code like AR/AP above.
+     *
+     * Since flaw #1, an accepted-but-uncategorised bank line posts here. The
+     * Finance Hub needs the figure not as an asset but as a DATA-QUALITY
+     * signal: money the platform could not identify is not money you can pay
+     * with, and a non-zero balance blocks the hub's plain-language liquidity
+     * claim entirely (design §5.1, owner decision).
+     */
+    const suspenseKey = systemIdByCode.has("SUSPENSE") ? String(systemIdByCode.get("SUSPENSE")) : null;
+    const suspenseBalance = fmt2(suspenseKey && assets[suspenseKey] ? assets[suspenseKey].amount : 0);
 
     const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
     const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
@@ -166,10 +189,60 @@ export const reportsService = {
     const totalLiabAndEquity = fmt2(totalLiab + totalEquity);
     const balanced = Math.abs(totalAssets - totalLiabAndEquity) < 0.05;
 
+    /**
+     * ── M18.2: the current / non-current breakout ──────────────────────────
+     *
+     * 🔴 THREE buckets, not two. `unclassified` holds every balance-sheet
+     * account whose `liquidity_class` is NULL, and it is returned even when
+     * empty. An account that fits no bucket is exactly what a control surface
+     * exists to report, and the alternative — quietly folding it into
+     * `current` — would inflate the liquidity ratios by an amount nothing
+     * discloses.
+     *
+     * 🔴 The partition is the guarantee. `current + nonCurrent + unclassified`
+     * is arithmetically the same set as `items`, so
+     *
+     *     current.total + nonCurrent.total + unclassified.total === total
+     *
+     * holds by construction, and `balanced` keeps reconciling against the same
+     * totals it always did. A test asserts both — the M13 AR-agreement pattern:
+     * when one figure can be derived two ways, pin that they agree.
+     */
+    const bucket = (items: (typeof assetItems)[number][], pred: (c: string | null) => boolean) => {
+      const picked = items.filter((i) => pred(i.liquidityClass));
+      return { items: picked, total: fmt2(picked.reduce((s, i) => s + i.amount, 0)) };
+    };
+    const isCurrent = (c: string | null) => c === "cash" || c === "quick" || c === "current";
+    const isNonCurrent = (c: string | null) => c === "non_current";
+    const isUnclassified = (c: string | null) => c == null;
+
+    /** Cash + quick — the acid-test numerator the Finance Hub needs (M18.3). */
+    const quickTotal = fmt2(
+      assetItems
+        .filter((i) => i.liquidityClass === "cash" || i.liquidityClass === "quick")
+        .reduce((s, i) => s + i.amount, 0),
+    );
+
     return {
       asOf: as_of ?? new Date().toISOString().split("T")[0],
-      assets: { items: assetItems.sort((a, b) => b.amount - a.amount), accountsReceivable: arBalance, total: totalAssets },
-      liabilities: { items: liabItems, accountsPayable: apBalance, total: totalLiab },
+      assets: {
+        items: assetItems.sort((a, b) => b.amount - a.amount),
+        accountsReceivable: arBalance,
+        total: totalAssets,
+        current: bucket(assetItems, isCurrent),
+        nonCurrent: bucket(assetItems, isNonCurrent),
+        unclassified: bucket(assetItems, isUnclassified),
+        quickTotal,
+        suspenseBalance,
+      },
+      liabilities: {
+        items: liabItems,
+        accountsPayable: apBalance,
+        total: totalLiab,
+        current: bucket(liabItems, isCurrent),
+        nonCurrent: bucket(liabItems, isNonCurrent),
+        unclassified: bucket(liabItems, isUnclassified),
+      },
       equity: { items: eqItems, retainedEarnings: fmt2(retainedEarnings), total: totalEquity },
       totalLiabilitiesAndEquity: totalLiabAndEquity,
       balanced,
@@ -201,7 +274,23 @@ export const reportsService = {
       }
       const catName = cat?.name ?? "Uncategorized";
       const catType = cat?.type ?? "expense";
-      if (catType === "asset" && (cat?.name ?? "").toLowerCase().includes("fixed")) {
+      // 🔴 M18.1 — INVESTING is decided by the account's liquidity class, not by
+      // sniffing its NAME.
+      //
+      // This branch used to read:
+      //     catType === "asset" && cat.name.toLowerCase().includes("fixed")
+      // which is the bug class M13 removed from the posting path: resolve by
+      // CODE, never by a label the tenant owns. A tenant who renamed "Fixed
+      // Assets" to "Equipment" — or who runs the product in Arabic, where the
+      // English literal never appears — silently moved every fixed-asset
+      // purchase into OPERATING cash flow, and nothing reported it.
+      //
+      // `non_current` is the honest test: investing activity is the acquisition
+      // and disposal of non-current assets. An UNCLASSIFIED asset account
+      // (liquidity_class NULL) deliberately does NOT land here — it falls
+      // through to operating exactly as before, and the Finance Hub reports it
+      // as an unclassified account rather than this report guessing.
+      if (catType === "asset" && cat?.liquidityClass === "non_current") {
         investing += amount;
         investingItems.push({ name: catName, amount });
       } else if (catType === "liability") {

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, varchar, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -71,6 +71,24 @@ export const categoriesTable = pgTable(
      * never a side effect.
      */
     treatmentVerified: boolean("treatment_verified").notNull().default(false),
+    /**
+     * M18.1 — where this account sits on the liquidity scale, for the Finance
+     * Hub's "can I pay what I owe?" block: `cash` | `quick` | `current` |
+     * `non_current`. Meaningful for `asset` and `liability` accounts ONLY (a DB
+     * CHECK enforces that); income/expense/equity stay NULL forever.
+     *
+     * Four values rather than a boolean because the ratios need two facts:
+     * current assets are everything but `non_current`; QUICK assets are `cash`
+     * + `quick`. A boolean answers the first and forces a hardcoded
+     * "…except inventory" rule for the second, which breaks the moment a tenant
+     * adds a prepayments account.
+     *
+     * 🔴 NULL on a balance-sheet account means UNCLASSIFIED and must stay
+     * visible: an account that quietly counted as current would make the ratio
+     * wrong in a way nothing surfaces. The hub reports unclassified accounts as
+     * a control signal rather than silently defaulting them.
+     */
+    liquidityClass: varchar("liquidity_class", { length: 20 }),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

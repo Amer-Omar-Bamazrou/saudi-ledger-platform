@@ -537,6 +537,7 @@ export const ListCategoriesResponseItem = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -550,6 +551,7 @@ export const CreateCategoryBody = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).\n'),
   "description": zod.string().nullish()
 })
 
@@ -559,6 +561,7 @@ export const CreateCategoryResponse = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
   "description": zod.string().nullish()
 })
 
@@ -583,6 +586,115 @@ export const RunCategorizationResponse = zod.object({
   "matchedRule": zod.string().nullish()
 })).optional()
 })
+
+
+/**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+export const GetLiquidityQueryParams = zod.object({
+  "as_of": zod.coerce.string().nullish()
+})
+
+export const GetLiquidityResponse = zod.object({
+  "asOf": zod.string(),
+  "currentAssets": zod.number(),
+  "quickAssets": zod.number().describe('Cash + quick — the acid-test numerator.'),
+  "currentLiabilities": zod.number(),
+  "workingCapital": zod.number(),
+  "currentRatio": zod.number().nullable().describe('NULL when there are no current liabilities — undefined, not zero.'),
+  "quickRatio": zod.number().nullable(),
+  "claimable": zod.boolean(),
+  "blockers": zod.array(zod.object({
+  "code": zod.enum(['suspense_balance', 'unclassified_accounts']),
+  "amount": zod.number(),
+  "count": zod.number().nullish()
+})),
+  "observations": zod.array(zod.object({
+  "code": zod.string(),
+  "severity": zod.enum(['watch']),
+  "ratio": zod.number()
+}))
+}).describe('🔴 `claimable` is the field that matters. When false the UI must NOT state the plain-language claim (\"you can cover your short-term debts 1.8x over\") — the figures are still returned so the breakdown and the blocker can be shown, but the CLAIM is withheld. `observations` are RULES OF THUMB, never compliance: no severity above \"watch\" exists.\n')
+
+
+/**
+ * @summary Tax & Compliance state (M18.5) — the VAT position for the CURRENT CALENDAR QUARTER and ZATCA connection state. The quarter is ours, not theirs: KSA filing frequency is not modelled, so this must never be presented as "your VAT return".
+
+ */
+export const GetTaxComplianceResponse = zod.object({
+  "vat": zod.object({
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "periodBasis": zod.enum(['calendar_quarter']),
+  "filingFrequencyKnown": zod.boolean().describe('Always false today. KSA VAT is filed monthly or quarterly by turnover and nothing records which applies, so the UI must state the period it used rather than imply a filing obligation.\n'),
+  "netVatDue": zod.number(),
+  "payable": zod.number(),
+  "refund": zod.number()
+}),
+  "zatca": zod.object({
+  "environment": zod.string(),
+  "connected": zod.boolean(),
+  "certificateStatus": zod.string().nullable(),
+  "daysUntilExpiry": zod.number().nullable()
+}).nullable()
+})
+
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+export const GetBooksStatusResponse = zod.object({
+  "unreviewedCount": zod.number(),
+  "needsAttentionCount": zod.number()
+})
+
+
+/**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+export const ListPeriodLocksResponseItem = zod.object({
+  "id": zod.number(),
+  "period": zod.string().describe('The closed month, `YYYY-MM`.'),
+  "lockedAt": zod.string(),
+  "lockedBy": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})
+export const ListPeriodLocksResponse = zod.array(ListPeriodLocksResponseItem)
+
+
+/**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const lockPeriodBodyPeriodRegExp = new RegExp('^\\d{4}-\\d{2}$');
+
+
+export const LockPeriodBody = zod.object({
+  "period": zod.string().regex(lockPeriodBodyPeriodRegExp).describe('The month to close, `YYYY-MM` (e.g. 2026-06).'),
+  "notes": zod.string().nullish()
+})
+
+export const LockPeriodResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string().describe('The closed month, `YYYY-MM`.'),
+  "lockedAt": zod.string(),
+  "lockedBy": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})
+
+
+/**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const UnlockPeriodParams = zod.object({
+  "period": zod.coerce.string()
+})
+
+export const UnlockPeriodResponse = zod.void()
 
 
 /**

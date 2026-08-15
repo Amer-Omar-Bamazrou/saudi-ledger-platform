@@ -5,9 +5,10 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit, { MemoryStore } from "express-rate-limit";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, organizationMembershipsTable } from "@workspace/db";
+import { and, asc, eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { selectActiveMembership } from "../lib/activeOrg";
 import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
 import { userAdminService, safeUser } from "../services/userAdmin.service";
@@ -216,12 +217,53 @@ router.post("/logout", requireAuth, (req, res) => {
   });
 });
 
-/** GET /auth/me */
+/**
+ * GET /auth/me
+ *
+ * 🔴 Returns `organizationRole` — the caller's role in the ACTIVE organization
+ * (M18.4.1). This is the field a UI may render off; `role` beside it is the
+ * global `users.role`, which is VESTIGIAL (CLAUDE.md §4) and must never gate
+ * anything. A self-signup org owner is a global "viewer" and an admin of their
+ * own org, so a screen gated on `role` locks out the very person who created
+ * the tenant — the M11.5.1 lesson, from the rendering side.
+ *
+ * Why it was added: `/period-locks` (M18.4) is the first hub block whose
+ * actions are admin-only, and the frontend had no way to know the governing
+ * role — `/auth/me` did not return it, and deriving it from `/orgs` meant every
+ * page re-implementing the match (two already had).
+ *
+ * ⚠️ FOR RENDERING, NOT ENFORCEMENT. The server remains the authority on every
+ * route (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`).
+ * This value only decides whether a control is shown, never whether it works.
+ * `null` when the user belongs to no organization.
+ */
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId!)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found." }); return; }
-    res.json(safeUser(user));
+
+    // Identity layer: `organization_memberships` is outside RLS and only
+    // pre-tenant code may read it. This route is pre-tenant.
+    const memberships = await db
+      .select({
+        organizationId: organizationMembershipsTable.organizationId,
+        role: organizationMembershipsTable.role,
+      })
+      .from(organizationMembershipsTable)
+      .where(
+        and(
+          eq(organizationMembershipsTable.userId, user.id),
+          eq(organizationMembershipsTable.status, "active"),
+        ),
+      )
+      .orderBy(asc(organizationMembershipsTable.createdAt));
+
+    const active = selectActiveMembership(memberships, req.session.activeOrgId);
+    res.json({
+      ...safeUser(user),
+      organizationId: active?.organizationId ?? null,
+      organizationRole: active?.role ?? null,
+    });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 
