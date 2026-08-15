@@ -586,15 +586,50 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary The active company's fiscal years, resolved to real date ranges (M17.2). The production consumer `companies.fiscal_year_start` never had — it was stored from M11.6 and applied by nothing until now.
+
+ */
+export const listFiscalYearsResponseFiscalYearStartMax = 12;
+
+
+
+export const ListFiscalYearsResponse = zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "fiscalYearStart": zod.number().min(1).max(listFiscalYearsResponseFiscalYearStartMax),
+  "current": zod.object({
+  "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
+  "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startDate": zod.string().describe('Inclusive, YYYY-MM-DD (Gregorian, the platform\'s storage format).'),
+  "endDate": zod.string().describe('Inclusive — the day before the next fiscal year begins.'),
+  "days": zod.number().describe('Inclusive day count: 365\/366 Gregorian, 354\/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3).\n')
+}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n'),
+  "periods": zod.array(zod.object({
+  "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
+  "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startDate": zod.string().describe('Inclusive, YYYY-MM-DD (Gregorian, the platform\'s storage format).'),
+  "endDate": zod.string().describe('Inclusive — the day before the next fiscal year begins.'),
+  "days": zod.number().describe('Inclusive day count: 365\/366 Gregorian, 354\/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3).\n')
+}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n')).describe('A window around the current period, newest first.')
+})
+
+
+/**
  * @summary Get the active company's profile (legal identity + address)
  */
+export const getCurrentCompanyResponseFiscalYearStartMax = 12;
+
+
+
 export const GetCurrentCompanyResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number(),
+  "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),
@@ -616,6 +651,7 @@ export const UpdateCurrentCompanyBody = zod.object({
   "crNumber": zod.string().nullish(),
   "vatNumber": zod.string().nullish(),
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).optional(),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).optional(),
   "buildingNumber": zod.string().nullish(),
   "street": zod.string().nullish(),
   "district": zod.string().nullish(),
@@ -623,13 +659,18 @@ export const UpdateCurrentCompanyBody = zod.object({
   "postalCode": zod.string().nullish()
 }).describe('Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.\n')
 
+export const updateCurrentCompanyResponseFiscalYearStartMax = 12;
+
+
+
 export const UpdateCurrentCompanyResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number(),
+  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),

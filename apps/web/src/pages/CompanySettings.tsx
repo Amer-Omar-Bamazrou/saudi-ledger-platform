@@ -24,6 +24,7 @@ interface Company {
   crNumber: string | null;
   vatNumber: string | null;
   fiscalYearStart: number;
+  fiscalCalendar: "gregorian" | "hijri";
   buildingNumber: string | null;
   street: string | null;
   district: string | null;
@@ -31,9 +32,39 @@ interface Company {
   postalCode: string | null;
 }
 
-const MONTHS = [
+/** M17.2 — one resolved fiscal year (see apps/api/src/lib/fiscalYear.ts). */
+interface FiscalPeriod {
+  label: number;
+  endYear: number;
+  calendar: "gregorian" | "hijri";
+  startDate: string;
+  endDate: string;
+  days: number;
+}
+interface FiscalYears {
+  calendar: "gregorian" | "hijri";
+  fiscalYearStart: number;
+  current: FiscalPeriod;
+  periods: FiscalPeriod[];
+}
+
+const GREGORIAN_MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * Hijri month names. Needed because `fiscalYearStart` is a month number IN THE
+ * COMPANY'S CALENDAR — showing "January" for a Hijri filer's month 1 would be a
+ * plainly wrong label for Muharram.
+ */
+const HIJRI_MONTHS = [
+  "Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani", "Jumada al-Ula", "Jumada al-Akhirah",
+  "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah",
+];
+const HIJRI_MONTHS_AR = [
+  "محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة",
+  "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة",
 ];
 
 export default function CompanySettings() {
@@ -52,11 +83,21 @@ export default function CompanySettings() {
     if (company) setForm(company);
   }, [company]);
 
+  // M17.2 — the server resolves the fiscal year; this page never recomputes it.
+  // Hijri boundaries come from the Umm al-Qura tables in ICU, and duplicating
+  // that in the browser would be a second implementation of the same fact.
+  const { data: fiscalYears } = useQuery<FiscalYears>({
+    queryKey: ["company", "fiscal-years"],
+    queryFn: () => apiFetch("/companies/current/fiscal-years"),
+  });
+
   const save = useMutation({
     mutationFn: (body: Partial<Company>) =>
       apiFetch("/companies/current", { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => {
       setError("");
+      // Invalidates the fiscal-years query too (same key prefix) — changing the
+      // start month or the calendar changes every resolved boundary.
       qc.invalidateQueries({ queryKey: ["company"] });
       toast({ title: t("Company settings saved", "تم حفظ إعدادات الشركة") });
     },
@@ -78,6 +119,7 @@ export default function CompanySettings() {
       crNumber: form.crNumber ?? "",
       vatNumber: form.vatNumber ?? "",
       fiscalYearStart: Number(form.fiscalYearStart ?? 1),
+      fiscalCalendar: form.fiscalCalendar ?? "gregorian",
       buildingNumber: form.buildingNumber ?? "",
       street: form.street ?? "",
       district: form.district ?? "",
@@ -145,23 +187,70 @@ export default function CompanySettings() {
                 <p className="text-[11px] text-muted-foreground">{t("10 digits", "10 أرقام")}</p>
               </div>
             </div>
-            <div className="space-y-1.5 max-w-xs">
-              <Label htmlFor="fiscalYearStart">{t("Fiscal year starts", "تبدأ السنة المالية")}</Label>
-              <select
-                id="fiscalYearStart"
-                className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
-                value={form.fiscalYearStart ?? 1}
-                onChange={(e) => setForm((p) => ({ ...p, fiscalYearStart: Number(e.target.value) }))}
-              >
-                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{t(m, m)}</option>)}
-              </select>
-              <p className="text-[11px] text-muted-foreground">
-                {t(
-                  "Stored for future use — reports currently use calendar periods.",
-                  "محفوظ للاستخدام المستقبلي — تستخدم التقارير حالياً الفترات الميلادية.",
-                )}
-              </p>
+            {/*
+              M17.2 — the fiscal year. The calendar selector comes FIRST because
+              it reinterprets the month below it (1 = January vs 1 = Muharram),
+              and the resolved range underneath is the whole point: the user
+              sees the actual boundaries their settings produce, rather than
+              being told the value is "stored for future use" as this page said
+              from M11.6 until now.
+            */}
+            <div className="grid grid-cols-2 gap-4 max-w-lg">
+              <div className="space-y-1.5">
+                <Label htmlFor="fiscalCalendar">{t("Fiscal calendar", "التقويم المالي")}</Label>
+                <select
+                  id="fiscalCalendar"
+                  className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
+                  value={form.fiscalCalendar ?? "gregorian"}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, fiscalCalendar: e.target.value as Company["fiscalCalendar"] }))
+                  }
+                >
+                  <option value="gregorian">{t("Gregorian", "ميلادي")}</option>
+                  <option value="hijri">{t("Hijri (Umm al-Qura)", "هجري (أم القرى)")}</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fiscalYearStart">{t("Fiscal year starts", "تبدأ السنة المالية")}</Label>
+                <select
+                  id="fiscalYearStart"
+                  className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
+                  value={form.fiscalYearStart ?? 1}
+                  onChange={(e) => setForm((p) => ({ ...p, fiscalYearStart: Number(e.target.value) }))}
+                >
+                  {(form.fiscalCalendar ?? "gregorian") === "hijri"
+                    ? HIJRI_MONTHS.map((m, i) => (
+                        <option key={m} value={i + 1}>{t(m, HIJRI_MONTHS_AR[i])}</option>
+                      ))
+                    : GREGORIAN_MONTHS.map((m, i) => (
+                        <option key={m} value={i + 1}>{t(m, m)}</option>
+                      ))}
+                </select>
+              </div>
             </div>
+
+            {fiscalYears && (
+              <div className="rounded-md border border-border bg-secondary/20 p-3 max-w-lg space-y-1">
+                <p className="text-xs font-medium text-foreground">
+                  {t("Current fiscal year", "السنة المالية الحالية")}
+                  {" · "}
+                  <span className="font-mono">{fiscalYears.current.label}</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  {fiscalYears.current.startDate} → {fiscalYears.current.endDate}
+                  {" · "}
+                  {fiscalYears.current.days} {t("days", "يوماً")}
+                </p>
+                {(form.fiscalCalendar ?? "gregorian") !== fiscalYears.calendar && (
+                  <p className="text-[11px] text-amber-500">
+                    {t(
+                      "Unsaved calendar change — save to see the new boundaries.",
+                      "تغيير غير محفوظ في التقويم — احفظ لعرض الحدود الجديدة.",
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

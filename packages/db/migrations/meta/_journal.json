@@ -274,6 +274,13 @@
       "when": 1786655845609,
       "tag": "0038_m17_0_drop_zakat_relevant",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786655845610,
+      "tag": "0039_m17_2_fiscal_calendar",
+      "breakpoints": true
     }
   ]
 }

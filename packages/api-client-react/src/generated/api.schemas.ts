@@ -78,6 +78,17 @@ export interface ZatcaOnboardResult {
 }
 
 /**
+ * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
+ */
+export type CompanyFiscalCalendar = typeof CompanyFiscalCalendar[keyof typeof CompanyFiscalCalendar];
+
+
+export const CompanyFiscalCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
  */
 export interface Company {
@@ -89,7 +100,14 @@ export interface Company {
   crNumber: string | null;
   /** @nullable */
   vatNumber: string | null;
+  /**
+     * Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.
+     * @minimum 1
+     * @maximum 12
+     */
   fiscalYearStart: number;
+  /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
+  fiscalCalendar: CompanyFiscalCalendar;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */
@@ -101,6 +119,14 @@ export interface Company {
   /** @nullable */
   postalCode: string | null;
 }
+
+export type UpdateCompanyInputFiscalCalendar = typeof UpdateCompanyInputFiscalCalendar[keyof typeof UpdateCompanyInputFiscalCalendar];
+
+
+export const UpdateCompanyInputFiscalCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
 
 /**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
@@ -118,6 +144,7 @@ export interface UpdateCompanyInput {
      * @maximum 12
      */
   fiscalYearStart?: number;
+  fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */
@@ -128,6 +155,51 @@ export interface UpdateCompanyInput {
   city?: string | null;
   /** @nullable */
   postalCode?: string | null;
+}
+
+export type FiscalPeriodCalendar = typeof FiscalPeriodCalendar[keyof typeof FiscalPeriodCalendar];
+
+
+export const FiscalPeriodCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company's own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.
+ */
+export interface FiscalPeriod {
+  /** Year the period starts in, in the company's own calendar (AH for hijri). */
+  label: number;
+  /** Year the period ends in — so a consumer may label by either end. */
+  endYear: number;
+  calendar: FiscalPeriodCalendar;
+  /** Inclusive, YYYY-MM-DD (Gregorian, the platform's storage format). */
+  startDate: string;
+  /** Inclusive — the day before the next fiscal year begins. */
+  endDate: string;
+  /** Inclusive day count: 365/366 Gregorian, 354/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3). */
+  days: number;
+}
+
+export type FiscalYearsCalendar = typeof FiscalYearsCalendar[keyof typeof FiscalYearsCalendar];
+
+
+export const FiscalYearsCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+export interface FiscalYears {
+  calendar: FiscalYearsCalendar;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  fiscalYearStart: number;
+  current: FiscalPeriod;
+  /** A window around the current period, newest first. */
+  periods: FiscalPeriod[];
 }
 
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];

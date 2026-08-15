@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateCompanyInputFiscalCalendar } from './updateCompanyInputFiscalCalendar';
 
 /**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
@@ -22,6 +23,7 @@ export interface UpdateCompanyInput {
      * @maximum 12
      */
   fiscalYearStart?: number;
+  fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */

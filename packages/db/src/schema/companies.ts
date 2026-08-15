@@ -20,7 +20,31 @@ export const companiesTable = pgTable("companies", {
   nameAr: varchar("name_ar", { length: 255 }),
   crNumber: varchar("cr_number", { length: 50 }), // Saudi commercial registration number
   vatNumber: varchar("vat_number", { length: 50 }), // ZATCA VAT registration
-  fiscalYearStart: integer("fiscal_year_start").notNull().default(1), // month number (1-12)
+  /**
+   * Month the fiscal year starts, 1–12 **in `fiscalCalendar`** (M17.2).
+   *
+   * 🔴 Its meaning depends on the column below: under `gregorian` 1 = January,
+   * under `hijri` 1 = Muharram. Read them together, always.
+   *
+   * Stored since M11.6 and applied by NOTHING until M17.2 — the Company
+   * Settings page said so out loud. It is now resolved by
+   * `lib/fiscalYear.ts` and surfaced per company.
+   */
+  fiscalYearStart: integer("fiscal_year_start").notNull().default(1),
+  /**
+   * Which calendar the fiscal year is expressed in — `gregorian` | `hijri`
+   * (M17.2, owner decision Q3: both are supported, and robust fiscal-year
+   * support is a prerequisite for the Zakat working paper).
+   *
+   * Defaults to `gregorian`, which is what every existing tenant effectively
+   * had: it is the only behaviour the platform has ever implemented, so the
+   * default preserves it rather than silently re-dating anyone's year.
+   *
+   * `hijri` means the **Umm al-Qura** calendar specifically — the Saudi civil
+   * calendar. ICU offers three other islamic calendars that disagree by a day
+   * or two; see `lib/hijriCalendar.ts`.
+   */
+  fiscalCalendar: varchar("fiscal_calendar", { length: 20 }).notNull().default("gregorian"),
 
   // ── Seller national short address (M11.6) ──────────────────────────────────
   // Nullable: NOT required by the ZATCA Phase-1 QR (tags 1-5) or the invoice

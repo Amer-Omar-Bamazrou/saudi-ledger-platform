@@ -56,7 +56,8 @@ If this block disagrees with reality, fix it first.
 | **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
 | **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
 | **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
-| **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. **M17.1–M17.5 are specced, not built.** | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
+| **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
+| **M17.2** — Fiscal year + calendar | ✅ Q3's stated prerequisite, and it closes a five-milestone gap: `fiscalYearStart` is finally resolved. `fiscal_calendar` (gregorian \| **Umm al-Qura** hijri, migration 0039 + two CHECKs), a pure resolver (`lib/fiscalYear.ts`), Hijri conversion by **binary search over the ICU tables** (`lib/hijriCalendar.ts` — an arithmetic estimate was tried and is wrong, months are tabulated), a **boot assertion** that refuses to start on a small-ICU runtime, `GET /companies/current/fiscal-years`, and Company Settings showing real boundaries. **Reports still take explicit dates** — see the known-issue note. | same design doc §3 |
 
 **Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
 platform produces an **auditable working paper**, never a ZATCA submission;
@@ -398,7 +399,17 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **L-2**: signup 409 leaks account existence (accepted; document inline).
 - **L-3**: primary-membership tie-break is non-deterministic (`createdAt` only; add `id`).
 - **L-4**: the operator queue list is unaudited (accepted trade-off).
-- **`companies.fiscalYearStart` is stored but not applied** — reports use calendar periods; the Company Settings UI says so.
+- **🟡 `companies.fiscalYearStart` is now RESOLVED but reports still take explicit
+  dates** (M17.2). The column was stored from M11.6 and applied by nothing for
+  five milestones. It now has a real resolver (`lib/fiscalYear.ts`), a calendar
+  basis (`fiscal_calendar`: gregorian | hijri/Umm al-Qura), an endpoint
+  (`GET /companies/current/fiscal-years`) and a UI consumer (Company Settings
+  shows the resolved boundaries and day count). 🔴 **What is NOT done, stated so
+  nobody reads more into it:** the twelve report pages still take `date_from` /
+  `date_to` and know nothing about fiscal years. Wiring a fiscal-period picker
+  into them is a separate UI change (no shared date-range component exists —
+  each page rolls its own). The resolver exists because **Zakat** needs it, and
+  its consumers today are the settings page and M17.3/M17.4.
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
 - **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,

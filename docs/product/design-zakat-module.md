@@ -60,7 +60,7 @@ Each row is a separate PR with one concern, per §11 of CLAUDE.md.
 | --- | --- | --- | --- |
 | **M17.0** | **Retire the fake surface** | Q7 + Q6: under-construction page; delete `transactions.is_zakat_relevant`, `categories.zakat_relevant`, `GET /summary/zakat` and everything downstream. | ✅ this PR |
 | **M17.1** | **Ownership scope** | Q2: `companies.ownership_type`, Company Settings field, the out-of-scope notice for FOREIGN/MIXED. | Next |
-| **M17.2** | **Fiscal year + calendar** | Q3: the stated prerequisite. Apply `fiscalYearStart` (stored since M11.6, applied nowhere), add the calendar basis, build the fiscal-period resolver, Hijri↔Gregorian conversion. | Blocked by nothing |
+| **M17.2** | **Fiscal year + calendar** | Q3: the stated prerequisite. `fiscal_calendar` on companies, the pure resolver, Umm al-Qura conversion, boot assertion, `GET /companies/current/fiscal-years`, Company Settings shows real boundaries. | ✅ done — see §5a |
 | **M17.3** | **COA Zakat classification** | Q4 + Q6: `zakat_classification` on chart-of-accounts entries — the replacement for the deleted flag, at the grain Q6 chose. Seeded for system accounts, editable per tenant. | After M17.2 — **needs advisor answer C2** (what composes the base defines what this must express) |
 | **M17.4** | **Worksheet engine + adjustments** | Q4 + Q5: the base computation, the income-statement cross-check, `zakat_worksheets` + lines + adjustments, lock semantics. | 🔴 **HELD** on §4 / advisor Block C — especially C1, the minimum-base rule |
 | **M17.5** | **Finance Hub surface** | Q8: the annual report generator under Tax & Compliance, plus export. | After M17.4 |
@@ -135,6 +135,49 @@ a tenant's year-end is off by ten days.
 **`categorizer.ts` is on the scripted-edit path** (CLAUDE.md §10b). It holds
 ~60 `zakatRelevant` / `isZakatRelevant` literals; they were removed by script in
 M17.0, and any future edit to that file must also be scripted.
+
+---
+
+## 5a. M17.2 as built — and the two decisions inside it
+
+**One column, two meanings.** `fiscal_year_start` is a month number *in*
+`fiscal_calendar`: 1 = January under `gregorian`, 1 = Muharram under `hijri`.
+A second column (separate Gregorian and Hijri start months) was rejected: a
+company that switched calendars would leave a stale value behind, and a stale
+start month is a wrong year boundary that nothing would flag. The cost is that
+the two fields must always be read together, which the schema, the API
+description and the settings UI all say explicitly.
+
+**🔴 The year LABEL is a display convention, not a fact.** A fiscal year that
+spans two calendar years has no universal name — some jurisdictions label it by
+the starting year, others by the ending one. Rather than pick one and bury the
+ambiguity, `FiscalPeriod` returns `label` (start year), `endYear`, `startDate`
+and `endDate`, and the UI shows the range beside the label. **If the owner or
+the advisor prefers end-year labels, that is a display change with no data
+migration** — which is the point of not baking it in.
+
+**Conversion is a binary search, not arithmetic.** The first implementation
+estimated from the mean Hijri year (354.367 days) and iterated to the answer. It
+was wrong, and wrong in the worst place: Umm al-Qura month lengths are
+*tabulated*, not formulaic, so the error is not smooth and a "close enough"
+break lands a day or two off at **month boundaries** — which is all a fiscal
+year is made of. The Hijri date is monotonic in the day number, so a binary
+search over ICU's own table is exact by construction. A 1,461-day round-trip
+test pins it.
+
+**The runtime is part of the implementation.** A small-ICU Node accepts the
+`islamic-umalqura` locale and silently returns Gregorian dates, so every Hijri
+boundary would be confidently wrong rather than missing. `index.ts` calls
+`assertHijriCalendarAvailable()` at boot and refuses to start — the same
+fail-closed posture `loadEnv` takes with the mailer and the alerter. The probe
+is an externally checkable fact (1 Muharram 1447 AH = 26 June 2025).
+
+**🔴 What M17.2 did NOT do.** The twelve report pages still take explicit
+`date_from` / `date_to` and know nothing about fiscal years. There is no shared
+date-range component to extend, so a fiscal-period picker across the reports is
+its own UI change. The resolver's consumers today are Company Settings and,
+next, M17.3/M17.4. Recorded here so "fiscal-year support" is not read as more
+than it is.
 
 ---
 

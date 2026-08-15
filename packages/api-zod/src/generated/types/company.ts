@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CompanyFiscalCalendar } from './companyFiscalCalendar';
 
 /**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
@@ -18,7 +19,14 @@ export interface Company {
   crNumber: string | null;
   /** @nullable */
   vatNumber: string | null;
+  /**
+     * Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.
+     * @minimum 1
+     * @maximum 12
+     */
   fiscalYearStart: number;
+  /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
+  fiscalCalendar: CompanyFiscalCalendar;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */
