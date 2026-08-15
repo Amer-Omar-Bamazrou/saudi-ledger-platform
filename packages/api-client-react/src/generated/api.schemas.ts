@@ -234,6 +234,27 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
+export interface BudgetLine {
+  id: number;
+  /** @nullable */
+  name?: string | null;
+  /** YYYY — annual only. */
+  period: string;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  categoryName?: string | null;
+  /** @nullable */
+  categoryNameAr?: string | null;
+  /** @nullable */
+  categoryType?: string | null;
+  budgetedAmount: number;
+  /** Signed by account type (M19.0). May be NEGATIVE when refunds exceed spend — a real state, reported rather than clamped to zero. */
+  actualAmount: number;
+  variance: number;
+  variancePct: number;
+}
+
 export type TrendPointBlockersItemCode = typeof TrendPointBlockersItemCode[keyof typeof TrendPointBlockersItemCode];
 
 
@@ -1443,6 +1464,10 @@ export const ListTransactionsType = {
   debit: 'debit',
   credit: 'credit',
 } as const;
+
+export type ListBudgetsParams = {
+period?: string;
+};
 
 export type GetTrendParams = {
 from: string;

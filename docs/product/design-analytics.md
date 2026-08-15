@@ -368,7 +368,7 @@ visualization guidance; the decisions that belong in *this* document:
 | **M19.2** | Decomposition | ✅ **done** — ranked contributors by category / customer / vendor, with share NULL on offsetting movements and arrivals/departures kept (§5). Budget variance and the invoiced-vs-collected bridge remain held. | — |
 | **M19.3** | The Analytics page | ✅ **done** — two separate charts (ratios / money, never dual-axis), decomposition bars, a table view, gaps at unclaimable points and the withheld summary. Palette validated in both modes. | — |
 | **M19.4** | Absorb the Cockpit | ✅ **done** — the Cockpit was taken APART, not moved: each piece went to whichever destination already owned that question, three wrong pieces were deleted, and `/` is now a router that states no figures (§8). | — |
-| **M19.5** | Budgets | Annual-only comparison, with the limitation stated in the product (§7 — decided). | Ready |
+| **M19.5** | Budgets | ✅ **done** — annual-only comparison on Analytics, with the limitation stated in the card itself rather than implied by an empty axis. | — |
 
 ⏳ **§4's "Collected" series is specified but not started** until the accountant
 answers the cash-basis-vs-AR question.

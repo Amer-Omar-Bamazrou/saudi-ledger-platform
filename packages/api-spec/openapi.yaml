@@ -31,6 +31,8 @@ tags:
     description: The Finance Hub control surface
   - name: analytics
     description: Trends and decomposition
+  - name: budgets
+    description: Annual budget vs actual
 
 paths:
   /healthz:
@@ -475,6 +477,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
+
+  /budgets:
+    get:
+      operationId: listBudgets
+      tags: [budgets]
+      summary: >
+        Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY
+        string — budgets are annual by decision, not by omission: see
+        design-analytics.md §7. Actuals are signed by account type (M19.0), so a
+        refund reduces spend rather than adding to it.
+      parameters:
+        - { name: period, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: One row per budgeted category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetLine"
 
   /analytics/trend:
     get:
@@ -1584,6 +1607,26 @@ components:
           description: A window around the current period, newest first.
           items:
             $ref: "#/components/schemas/FiscalPeriod"
+
+    BudgetLine:
+      type: object
+      required: [id, period, budgetedAmount, actualAmount, variance, variancePct]
+      properties:
+        id: { type: integer }
+        name: { type: ["string", "null"] }
+        period: { type: string, description: "YYYY — annual only." }
+        categoryId: { type: ["integer", "null"] }
+        categoryName: { type: ["string", "null"] }
+        categoryNameAr: { type: ["string", "null"] }
+        categoryType: { type: ["string", "null"] }
+        budgetedAmount: { type: number }
+        actualAmount:
+          type: number
+          description: >
+            Signed by account type (M19.0). May be NEGATIVE when refunds exceed
+            spend — a real state, reported rather than clamped to zero.
+        variance: { type: number }
+        variancePct: { type: number }
 
     TrendPoint:
       type: object

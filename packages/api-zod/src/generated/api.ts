@@ -589,6 +589,30 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+
+ */
+export const ListBudgetsQueryParams = zod.object({
+  "period": zod.coerce.string().optional()
+})
+
+export const ListBudgetsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string().nullish(),
+  "period": zod.string().describe('YYYY — annual only.'),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "categoryNameAr": zod.string().nullish(),
+  "categoryType": zod.string().nullish(),
+  "budgetedAmount": zod.number(),
+  "actualAmount": zod.number().describe('Signed by account type (M19.0). May be NEGATIVE when refunds exceed spend — a real state, reported rather than clamped to zero.\n'),
+  "variance": zod.number(),
+  "variancePct": zod.number()
+})
+export const ListBudgetsResponse = zod.array(ListBudgetsResponseItem)
+
+
+/**
  * @summary Liquidity and solvency per month end (M19.1). Each point carries its own `claimable` — the Finance Hub withholding propagates PER POINT, since a blocker is a fact about a moment and an earlier month may be clean.
 
  */

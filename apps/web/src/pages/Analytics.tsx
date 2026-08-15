@@ -3,7 +3,9 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
-import { useGetTrend, useGetDecomposition, useGetSummary } from "@workspace/api-client-react";
+import {
+  useGetTrend, useGetDecomposition, useGetSummary, useListBudgets,
+} from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -107,6 +109,22 @@ export default function Analytics() {
     from: decompWindow.from,
     to: decompWindow.to,
   });
+
+  /**
+   * M19.5 — budget vs actual, ANNUAL ONLY (owner decision, design §7).
+   *
+   * 🔴 It compares the whole YEAR, not the window above, and the card says so.
+   * `budgets.period` is a `YYYY` string — one row per category per year — and
+   * apportioning it across months was ruled out: a business with a Ramadan peak
+   * does not spend a twelfth each month, so ÷12 would render a guess about
+   * seasonality as a variance in performance. Stating the limitation is honest;
+   * inventing the missing precision is not.
+   */
+  const budgetYear = window_.to.slice(0, 4);
+  const { data: budgets } = useListBudgets({ period: budgetYear });
+  const budgetRows = [...(budgets ?? [])].sort(
+    (a, b) => Math.abs(b.variance) - Math.abs(a.variance),
+  );
 
   /**
    * 🔴 THE GAP. recharts breaks a line wherever the value is `null`, so an
@@ -405,6 +423,69 @@ export default function Analytics() {
               </div>
             </>
           ) : null}
+        </CardContent>
+      </Card>
+
+      {/* ── Budget vs actual — ANNUAL, and it says so (M19.5) ─────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t("Against budget", "مقارنةً بالميزانية")}</CardTitle>
+          <CardDescription>
+            {/*
+              🔴 The limitation is stated, not implied by an empty axis.
+              Budgets are annual; a monthly budget line would have to be
+              invented, and an invented figure presented as a variance is worse
+              than no figure at all.
+            */}
+            {t(
+              `Budgets are set per year, so this compares the whole of ${budgetYear} — not the range selected above.`,
+              `تُحدَّد الميزانيات سنوياً، لذا تقارن هذه البطاقة عام ${budgetYear} بأكمله — وليس النطاق المحدد أعلاه.`,
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {budgetRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t(
+                `No budgets are set for ${budgetYear}. Set them in Planning → Budgets and this fills in.`,
+                `لم تُحدَّد ميزانيات لعام ${budgetYear}. حدِّدها من التخطيط ← الميزانيات وسيظهر المحتوى.`,
+              )}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground uppercase border-b">
+                  <tr>
+                    <th className="px-2 py-2 text-left">{t("Category", "الفئة")}</th>
+                    <th className="px-2 py-2 text-right">{t("Budgeted", "المُدرج")}</th>
+                    <th className="px-2 py-2 text-right">{t("Actual", "الفعلي")}</th>
+                    <th className="px-2 py-2 text-right">{t("Difference", "الفرق")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {budgetRows.map((b) => (
+                    <tr key={b.id}>
+                      <td className="px-2 py-2">{b.categoryName ?? b.name ?? "—"}</td>
+                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.budgetedAmount)}</td>
+                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.actualAmount)}</td>
+                      {/*
+                        Neutral ink, never the status palette: over budget is a
+                        judgment about a plan, not a system state, and a plan
+                        may have been wrong.
+                      */}
+                      <td className="px-2 py-2 text-right font-mono text-xs">
+                        {b.variance < 0 ? "+" : ""}
+                        {formatCurrency(Math.abs(b.variance))}
+                        <span className="text-muted-foreground ml-1">
+                          {b.variance < 0 ? t("over", "تجاوز") : t("left", "متبقٍ")}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

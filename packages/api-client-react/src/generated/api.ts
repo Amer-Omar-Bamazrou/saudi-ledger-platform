@@ -25,6 +25,7 @@ import type {
   Bill,
   BillApproveInput,
   BooksStatus,
+  BudgetLine,
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
@@ -50,6 +51,7 @@ import type {
   Invoice,
   JournalEntry,
   Liquidity,
+  ListBudgetsParams,
   ListTransactionsParams,
   PayrollRun,
   PendingReviewTransaction,
@@ -1735,6 +1737,92 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRunCategorizationMutationOptions(options));
     }
+
+export const getListBudgetsUrl = (params?: ListBudgetsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/budgets?${stringifiedParams}` : `/api/budgets`
+}
+
+/**
+ * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+
+ */
+export const listBudgets = async (params?: ListBudgetsParams, options?: RequestInit): Promise<BudgetLine[]> => {
+
+  return customFetch<BudgetLine[]>(getListBudgetsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBudgetsQueryKey = (params?: ListBudgetsParams,) => {
+    return [
+    `/api/budgets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBudgetsQueryOptions = <TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<unknown>>(params?: ListBudgetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBudgetsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBudgets>>> = ({ signal }) => listBudgets(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBudgetsQueryResult = NonNullable<Awaited<ReturnType<typeof listBudgets>>>
+export type ListBudgetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+
+ */
+
+export function useListBudgets<TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<unknown>>(
+ params?: ListBudgetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBudgetsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetTrendUrl = (params: GetTrendParams,) => {
   const normalizedParams = new URLSearchParams();
