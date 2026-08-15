@@ -157,9 +157,14 @@ wait for the hosting decision.
 
 ### 6.2 Short-term: can you pay what you owe — over time
 
-Current ratio and quick ratio per period end, computed from
-`reports.balanceSheet(as_of)` — which already accepts an as-of date and, since
-M18.2, returns the current / non-current / unclassified partition.
+Current ratio and quick ratio per period end, over the M18.1 liquidity classes.
+
+🔴 **Not** by calling `reports.balanceSheet(as_of)` per point — that was the
+obvious build and it is the one this section exists to reject. `analyticsService.trend`
+folds a single pre-aggregated query instead, and a test pins that its points
+**agree with `balanceSheet(as_of)`** for the same dates: two computations of one
+fact, held together deliberately (the M13 AR-agreement pattern), because a trend
+that disagreed with the balance sheet it charts would be meta-finding #9 again.
 
 ### 🔴 MEASURED, and the naive implementation is too slow
 
@@ -186,6 +191,34 @@ existing one.
 Rejected alternatives: a materialised monthly-balance table (invalidation
 machinery for a problem one query solves), and caching (hides the cost rather
 than removing it, and the first load is the one a user judges).
+
+### ✅ BUILT AND RE-MEASURED (M19.1)
+
+Three alternating runs of each implementation, same tenant, 6,000 GL lines,
+12 points:
+
+| | run 1 | run 2 | run 3 | median |
+| --- | --- | --- | --- | --- |
+| Loop over `balanceSheet` ×12 | 22,846 | 22,202 | 23,054 | **22,846 ms** |
+| **Single-pass fold** | 1,080 | 1,032 | 1,041 | **1,041 ms** |
+
+**≈22× faster**, and — the part that matters more than the ratio — the growth
+curve changed. The fold still reads from the beginning of time (a balance is
+cumulative; it must), but it reads **once**, pre-aggregated by (month, account)
+in Postgres. Cost is now **linear in history** instead of quadratic.
+
+⚠️ **Two honest caveats.**
+
+1. **~1 second is better, not good.** It is acceptable for v1 and it is what a
+   user will feel on first load. If it grows, the next lever is a narrower
+   default window (12 months, not all history), not a cache.
+2. **The absolute numbers move with TOTAL table size, not just this tenant's.**
+   An earlier measurement of the same tenant shape gave 4,612 ms for the loop;
+   after more test data accumulated across other tenants it gave 22,846 ms. The
+   comparison above is trustworthy because both implementations ran
+   back-to-back against identical data — but a single absolute figure from a
+   shared table is not a stable benchmark, and in a multi-tenant database one
+   tenant's growth is felt by everyone.
 
 ### 6.3 Long-term: solvency (A12 — new, the hub does not do this)
 
@@ -278,7 +311,7 @@ visualization guidance; the decisions that belong in *this* document:
 | # | Milestone | Content | Gate |
 | --- | --- | --- | --- |
 | **M19.0** | Budget actuals fix | ✅ **done** — sign-aware actuals by account type (§7 prerequisite 1). | — |
-| **M19.1** | Trend read model | Per-period cash, liquidity and solvency series with per-point `claimable` (§3). 🔴 **Single-pass fold, not a loop over `balanceSheet`** — measured at 4.6s for 12 points (§6.2). | M18.2 ✅ |
+| **M19.1** | Trend read model | ✅ **done** — single-pass fold with per-point `claimable`; agrees with `balanceSheet(as_of)` by test, ≈22× faster and now linear in history (§6.2). | — |
 | **M19.2** | Decomposition | Ranked contributors by category / customer / vendor (§5). | M19.1 |
 | **M19.3** | The Analytics page | Charts, table views, gaps, the withheld summary. | M19.1 |
 | **M19.4** | Absorb the Cockpit | Move the four cards in; `/` becomes a router (§8). | M19.3 |
