@@ -3,7 +3,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
-import { useGetTrend, useGetDecomposition } from "@workspace/api-client-react";
+import { useGetTrend, useGetDecomposition, useGetSummary } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -73,6 +73,28 @@ export default function Analytics() {
   const decompWindow = useMemo(() => currentMonthRange(), []);
 
   const { data: trend } = useGetTrend({ from: window_.from, to: window_.to });
+
+  /**
+   * M19.4 — absorbed from the old "Financial Cockpit" (owner decision A11).
+   *
+   * 🔴 And fixed on the way in: the Cockpit called `getSummary()` with NO date
+   * range at all, so its "Total Income" was every transaction since the tenant
+   * began, shown on a page with no period control. Here it is bounded by the
+   * window the charts already use, so the figure and the charts describe the
+   * same span.
+   *
+   * Net VAT and the transaction counts did NOT come with it — the Finance Hub
+   * already reports both, and duplicating them is how two destinations become
+   * two answers.
+   */
+  const summaryRange = useMemo(() => {
+    const [ty, tm] = window_.to.split("-").map(Number);
+    return {
+      date_from: `${window_.from}-01`,
+      date_to: new Date(Date.UTC(ty, tm, 0)).toISOString().slice(0, 10),
+    };
+  }, [window_]);
+  const { data: summary } = useGetSummary(summaryRange);
   const { data: decomp } = useGetDecomposition({
     dimension,
     from: decompWindow.from,
@@ -142,6 +164,24 @@ export default function Analytics() {
             )}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Absorbed from the Cockpit (A11), now bounded by the chart window. */}
+      {summary && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: t("Income", "الدخل"), value: summary.totalIncome },
+            { label: t("Expenses", "المصروفات"), value: summary.totalExpenses },
+            { label: t("Net", "الصافي"), value: summary.netPosition },
+          ].map((s) => (
+            <div key={s.label} className="rounded-md border border-border bg-secondary/20 p-3">
+              <p className="text-[11px] text-muted-foreground">
+                {s.label} · {window_.from} → {window_.to}
+              </p>
+              <p className="text-sm font-mono mt-0.5">{formatCurrency(s.value)}</p>
+            </div>
+          ))}
+        </div>
       )}
 
       {sparse && (

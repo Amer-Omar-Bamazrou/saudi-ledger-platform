@@ -1,162 +1,156 @@
+import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useGetSummary, useListTransactions } from "@workspace/api-client-react";
-import { formatCurrency } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  TrendingUp, ShieldCheck, ListChecks, FileText, FileInput, BarChart3, ChevronRight,
+} from "lucide-react";
 
-export default function Dashboard() {
+/**
+ * The landing page (M19.4 — owner decision A11).
+ *
+ * 🔴 THIS USED TO BE THE "FINANCIAL COCKPIT", and it was the third surface
+ * answering a question two destinations already own. Three surfaces answering
+ * adjacent questions is how the hub/Analytics split fails, so the Cockpit was
+ * not moved — it was TAKEN APART, each piece going to whichever destination
+ * already owned that question:
+ *
+ *   Income / expenses / net position  → Analytics (how is the business doing)
+ *   Net VAT                           → the Finance Hub's Tax & Compliance
+ *                                       block, which already reports it (M18.5)
+ *   Transaction + uncategorised counts → the hub's "are your books current"
+ *                                       block, which already reports them
+ *   Recent transactions               → /transactions, which is that page
+ *
+ * Three pieces were DELETED rather than rehomed, because they were wrong:
+ *
+ *   - a card titled "Cash Flow Overview" that charted income, expenses and net
+ *     VAT as three bars. It was not cash flow by any reading — /cash-flow is,
+ *     and Analytics now charts the real thing;
+ *   - "VAT Rate 15%" presented under "System Status", which is a hardcoded
+ *     constant wearing the costume of a live reading;
+ *   - hardcoded chart colours (#2D3748, #A0AEC0, #1A202C) that assumed a dark
+ *     theme and ignored the token system entirely.
+ *
+ * What remains is a router: where to go, not another set of figures. It states
+ * no numbers on purpose — a landing that computes is a fourth surface.
+ */
+
+interface Destination {
+  href: string;
+  icon: React.ElementType;
+  en: string;
+  ar: string;
+  enDesc: string;
+  arDesc: string;
+}
+
+const PRIMARY: Destination[] = [
+  {
+    href: "/analytics",
+    icon: TrendingUp,
+    en: "Analytics",
+    ar: "التحليلات",
+    enDesc: "How the business is doing over time, and where the change came from.",
+    arDesc: "كيف يسير أداء المنشأة عبر الزمن، ومن أين جاء التغيّر.",
+  },
+  {
+    href: "/finance-hub",
+    icon: ShieldCheck,
+    en: "Finance Hub",
+    ar: "لوحة المالية",
+    enDesc: "Whether your books are right, current and closed — and whether you can pay what you owe.",
+    arDesc: "ما إذا كانت دفاترك صحيحة ومحدَّثة ومقفلة — وما إذا كان بإمكانك سداد ما عليك.",
+  },
+];
+
+const WORK: Destination[] = [
+  {
+    href: "/review",
+    icon: ListChecks,
+    en: "Review",
+    ar: "المراجعة",
+    enDesc: "Imported transactions waiting for a decision.",
+    arDesc: "معاملات مستوردة بانتظار قرار.",
+  },
+  {
+    href: "/invoices",
+    icon: FileText,
+    en: "Invoices",
+    ar: "الفواتير",
+    enDesc: "Bill your customers.",
+    arDesc: "إصدار فواتير العملاء.",
+  },
+  {
+    href: "/bills",
+    icon: FileInput,
+    en: "Bills",
+    ar: "فواتير الموردين",
+    enDesc: "What your suppliers have charged you.",
+    arDesc: "ما طالبك به موردوك.",
+  },
+  {
+    href: "/reports",
+    icon: BarChart3,
+    en: "Reports",
+    ar: "التقارير",
+    enDesc: "The statements, in full.",
+    arDesc: "القوائم المالية كاملة.",
+  },
+];
+
+function DestinationCard({ d, prominent }: { d: Destination; prominent?: boolean }) {
   const { t } = useLanguage();
-  const { data: summary, isLoading: loadingSummary } = useGetSummary();
-  const { data: txList, isLoading: loadingTx } = useListTransactions({ limit: 5 });
-
-  const chartData = [
-    { name: t("Income", "الدخل"), amount: summary?.totalIncome || 0 },
-    { name: t("Expenses", "المصروفات"), amount: summary?.totalExpenses || 0 },
-    { name: t("Net VAT", "صافي الضريبة"), amount: summary?.netVat || 0 },
-  ];
-
+  const Icon = d.icon;
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">{t("Financial Cockpit", "لوحة التحكم المالية")}</h1>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title={t("Net Position", "صافي المركز المالي")} amount={summary?.netPosition} loading={loadingSummary} />
-        <StatCard title={t("Total Income", "إجمالي الدخل")} amount={summary?.totalIncome} loading={loadingSummary} />
-        <StatCard title={t("Total Expenses", "إجمالي المصروفات")} amount={summary?.totalExpenses} loading={loadingSummary} />
-        <StatCard title={t("Net VAT Position", "صافي موقف ضريبة القيمة المضافة")} amount={summary?.netVat} loading={loadingSummary} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>{t("Cash Flow Overview", "نظرة عامة على التدفق النقدي")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingSummary ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" vertical={false} />
-                    <XAxis dataKey="name" stroke="#A0AEC0" tick={{fill: '#A0AEC0'}} />
-                    <YAxis stroke="#A0AEC0" tick={{fill: '#A0AEC0'}} tickFormatter={(val) => `SAR ${val / 1000}k`} />
-                    <Tooltip 
-                      cursor={{fill: '#2D3748'}} 
-                      contentStyle={{ backgroundColor: '#1A202C', borderColor: '#2D3748' }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    <Bar dataKey="amount" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("System Status", "حالة النظام")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loadingSummary ? (
-              <Skeleton className="h-24 w-full" />
-            ) : (
-              <div className="space-y-4 font-mono text-sm">
-                <div className="flex justify-between items-center p-3 rounded bg-secondary">
-                  <span className="text-muted-foreground">{t("Total Transactions", "إجمالي المعاملات")}</span>
-                  <span className="text-white font-bold">{summary?.transactionCount || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 rounded bg-secondary border border-destructive/50">
-                  <span className="text-muted-foreground">{t("Uncategorized", "غير مصنف")}</span>
-                  <span className="text-destructive font-bold">{summary?.uncategorizedCount || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 rounded bg-secondary">
-                  <span className="text-muted-foreground">{t("VAT Rate", "نسبة ضريبة القيمة المضافة")}</span>
-                  <span className="text-white font-bold">15%</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("Recent Transactions", "أحدث المعاملات")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingTx ? (
-            <Skeleton className="h-[200px] w-full" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
-                  <tr>
-                    <th className="px-4 py-3">{t("Date", "التاريخ")}</th>
-                    <th className="px-4 py-3">{t("Description", "الوصف")}</th>
-                    <th className="px-4 py-3">{t("Category", "الفئة")}</th>
-                    <th className="px-4 py-3 text-right">{t("Amount", "المبلغ")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {txList?.transactions.map(tx => (
-                    <tr key={tx.id} className="hover:bg-secondary/30 transition-colors">
-                      <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">{tx.date}</td>
-                      <td className="px-4 py-3 text-white truncate max-w-[300px]">
-                        {tx.description}
-                        {tx.descriptionAr && <span className="ml-2 text-muted-foreground block text-xs" dir="rtl">{tx.descriptionAr}</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        {tx.categoryName ? (
-                          <Badge variant="outline" className="border-primary/30 text-primary/90 bg-primary/5">
-                            {tx.categoryName}
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="bg-destructive/20 text-destructive border-transparent">
-                            {t("Uncategorized", "غير مصنف")}
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-white whitespace-nowrap">
-                        {tx.type === 'debit' ? '-' : '+'}{formatCurrency(tx.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                  {txList?.transactions.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                        {t("No transactions found.", "لا توجد بيانات.")}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+    <Link href={d.href}>
+      <Card className="hover:border-primary/40 transition-colors cursor-pointer h-full">
+        <CardContent className={prominent ? "p-5" : "p-4"}>
+          <div className="flex items-start gap-3">
+            <Icon className={`${prominent ? "w-5 h-5" : "w-4 h-4"} text-muted-foreground shrink-0 mt-0.5`} />
+            <div className="min-w-0">
+              <p className={`font-semibold ${prominent ? "text-base" : "text-sm"} flex items-center gap-1`}>
+                {t(d.en, d.ar)}
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t(d.enDesc, d.arDesc)}</p>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
-    </div>
+    </Link>
   );
 }
 
-function StatCard({ title, amount, loading }: { title: string, amount?: number, loading: boolean }) {
+export default function Dashboard() {
+  const { t } = useLanguage();
   return (
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <p className={`text-2xl font-bold font-mono tracking-tight ${(amount || 0) < 0 ? 'text-destructive' : 'text-white'}`}>
-            {formatCurrency(amount || 0)}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-8 max-w-4xl">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">{t("Where would you like to go?", "إلى أين تريد الذهاب؟")}</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {t(
+            "The two places that answer a question, and the places where the work happens.",
+            "المكانان اللذان يجيبان عن سؤال، والأماكن التي يجري فيها العمل.",
+          )}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {PRIMARY.map((d) => (
+          <DestinationCard key={d.href} d={d} prominent />
+        ))}
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-3">
+          {t("Where the work happens", "حيث يجري العمل")}
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {WORK.map((d) => (
+            <DestinationCard key={d.href} d={d} />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -306,14 +306,20 @@ quarterly views. The owner has ruled out the easy path:
 > and it would render as a variance — a guess about seasonality presented as a
 > fact about performance.
 
-So one of:
+### ✅ DECIDED 2026-08-15 — (b) annual only, and say so
 
-- **(a) Periodise budgets properly** — a schema change, plus a UI to enter them.
-- **(b) Restrict budget comparison to ANNUAL and say so** — monthly and
-  quarterly views simply carry no budget line.
+- ~~**(a) Periodise budgets properly**~~ — a schema change **plus a UI for
+  entering twelve numbers per category**, and **nobody has asked for it**.
+  Rejected as speculative work with a real interface cost.
+- **(b) Restrict budget comparison to ANNUAL and say so** ✅ **CHOSEN.**
+  Monthly and quarterly views carry **no budget line at all**, and the UI states
+  why rather than leaving an empty axis to be read as "no budget set".
 
-**To be decided when Analytics is specced to build-depth, not after.** (b) is
-cheap and honest; (a) is what a user with seasonal budgets will eventually want.
+**Honest and small beats complete and speculative.** The limitation is stated in
+the product, so a user who wants monthly budgets finds out by being told, not by
+seeing a wrong variance — which is what apportioning would have given them.
+
+**Revisit trigger:** a real user asking for monthly budgets. Not before.
 
 Also open, and tied to §4: **are budget actuals cash or accrual?** Pick the one
 that matches whatever series shares the screen, or the two will disagree in
@@ -361,8 +367,8 @@ visualization guidance; the decisions that belong in *this* document:
 | **M19.1** | Trend read model | ✅ **done** — single-pass fold with per-point `claimable`; agrees with `balanceSheet(as_of)` by test, ≈22× faster and now linear in history (§6.2). | — |
 | **M19.2** | Decomposition | ✅ **done** — ranked contributors by category / customer / vendor, with share NULL on offsetting movements and arrivals/departures kept (§5). Budget variance and the invoiced-vs-collected bridge remain held. | — |
 | **M19.3** | The Analytics page | ✅ **done** — two separate charts (ratios / money, never dual-axis), decomposition bars, a table view, gaps at unclaimable points and the withheld summary. Palette validated in both modes. | — |
-| **M19.4** | Absorb the Cockpit | Move the four cards in; `/` becomes a router (§8). | M19.3 |
-| **M19.5** | Budgets | Blocked on §7's periodisation fork. | Owner decision |
+| **M19.4** | Absorb the Cockpit | ✅ **done** — the Cockpit was taken APART, not moved: each piece went to whichever destination already owned that question, three wrong pieces were deleted, and `/` is now a router that states no figures (§8). | — |
+| **M19.5** | Budgets | Annual-only comparison, with the limitation stated in the product (§7 — decided). | Ready |
 
 ⏳ **§4's "Collected" series is specified but not started** until the accountant
 answers the cash-basis-vs-AR question.
