@@ -248,7 +248,7 @@ at all).
 | **M18.1** | **Liquidity classification** | §3 — `liquidity_class` on the chart of accounts, seeded for the 14 system accounts, tenant-overridable in the COA UI; the cash-flow name-sniff replaced. | ✅ decided (§3.2) |
 | **M18.2** | Balance-sheet breakout | Current vs non-current sections in `reports.balanceSheet`, totals reconciling as before. | M18.1 |
 | **M18.3** | The hub, blocks 4.1 + 4.2 | The landing page: liquidity in plain language, the books-current signals. | M18.2 |
-| **M18.4** | Period lock control | Q5 — the first UI for a capability built long ago. | None (parallel) |
+| **M18.4** | Period lock control | Q5 — the first UI for a capability built long ago. Creates the `/finance-hub` page (its first block) and closes the `/period-locks` known-gap entry. | ✅ done — §9 |
 | **M18.5** | Tax & Compliance | Q6 — VAT return moves; ZATCA status surfaces. | M18.3 |
 
 ---
@@ -294,3 +294,56 @@ greyed-out row is a claim about *the roadmap*. Both were invented by whoever
 laid out the page, and neither had an owner. When a screen implies a fact about
 the business — a price, a tier, a forthcoming feature — that fact needs a
 decision behind it, exactly as a tax figure does.
+
+---
+
+## 9. M18.4 as built — and a gate we cannot implement on the client
+
+The Finance Hub page now exists at `/finance-hub`, holding **one** block:
+closing the books. M18.3 adds the liquidity block and the books-current signals
+above it. The page was created now rather than at M18.3 because the lock control
+belongs here (§4.3), and building it standalone would have meant moving it a
+milestone later.
+
+**What it closes.** `/period-locks` had sat in the route-reachability guard's
+known-gap list since that guard was written: the API, the company-scoped route
+fix (M14) and the posting-path guard were all real and tested, but a tenant
+could not close a period from the product. It was the most core accounting
+function the platform did not expose.
+
+**The route predated the OpenAPI-first rule** and had no spec entry at all —
+nothing typed the client, and the controller read `req.body` raw. It is now
+specced (`listPeriodLocks` / `lockPeriod` / `unlockPeriod`), generated, and
+validated at the edge. The service's own format check stays: it is the
+write-boundary guard, and the edge check is for a readable error.
+
+### 🔴 The control is NOT gated on the client's role, deliberately
+
+`AuthContext.user.role` comes from `GET /auth/me`, which returns `users.role` —
+the field CLAUDE.md §4 states is **vestigial and must never gate access**,
+because the `organization_memberships` role governs. That endpoint does not
+return the membership role, so **the frontend cannot know the governing role
+today.**
+
+Gating on the field it does have would be wrong in both directions: hiding the
+control from a real org admin whose `users.role` says otherwise, or offering it
+to someone the server will refuse. So the server stays the authority
+(`requirePermission("period_locks")` — read for every role, create/delete
+admin-only) and a 403 is surfaced as a plain sentence rather than pre-empted by
+a guess.
+
+**Recorded as a gap, not a preference:** any future UI needing to know "is this
+user an admin of this org?" hits the same wall. The fix is for `/auth/me` (or a
+sibling) to return the *membership* role for the active organization. Worth
+doing before the hub grows admin-only blocks.
+
+### The M14 regression finally has a test
+
+The company-scoping fix — where one company's unlock **deleted every other
+company's lock for that period**, silently reopening closed books across a
+multi-company organization — was fixed in M14 with no permanent test. RLS does
+not prevent it (both rows belong to the same organization); only the explicit
+`company_id` filter does. M18.4 is the milestone that puts the button in front
+of a user, so the regression is now pinned: two companies, same month, one
+reopens, and the other's lock must survive — asserted through the service and
+again directly against the table.

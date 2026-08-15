@@ -47,6 +47,8 @@ import type {
   ListTransactionsParams,
   PayrollRun,
   PendingReviewTransaction,
+  PeriodLock,
+  PeriodLockInput,
   RecurringRule,
   RecurringRun,
   SendBackInput,
@@ -1724,6 +1726,231 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRunCategorizationMutationOptions(options));
+    }
+
+export const getListPeriodLocksUrl = () => {
+
+
+
+
+  return `/api/period-locks`
+}
+
+/**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+export const listPeriodLocks = async ( options?: RequestInit): Promise<PeriodLock[]> => {
+
+  return customFetch<PeriodLock[]>(getListPeriodLocksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPeriodLocksQueryKey = () => {
+    return [
+    `/api/period-locks`
+    ] as const;
+    }
+
+
+export const getListPeriodLocksQueryOptions = <TData = Awaited<ReturnType<typeof listPeriodLocks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPeriodLocksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPeriodLocks>>> = ({ signal }) => listPeriodLocks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPeriodLocksQueryResult = NonNullable<Awaited<ReturnType<typeof listPeriodLocks>>>
+export type ListPeriodLocksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+
+export function useListPeriodLocks<TData = Awaited<ReturnType<typeof listPeriodLocks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPeriodLocksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLockPeriodUrl = () => {
+
+
+
+
+  return `/api/period-locks`
+}
+
+/**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const lockPeriod = async (periodLockInput: PeriodLockInput, options?: RequestInit): Promise<PeriodLock> => {
+
+  return customFetch<PeriodLock>(getLockPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(periodLockInput)
+  }
+);}
+
+
+
+
+
+export const getLockPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext> => {
+
+const mutationKey = ['lockPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lockPeriod>>, {data: BodyType<PeriodLockInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  lockPeriod(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LockPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof lockPeriod>>>
+    export type LockPeriodMutationBody = BodyType<PeriodLockInput>
+    export type LockPeriodMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const useLockPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPeriod>>, TError,{data: BodyType<PeriodLockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lockPeriod>>,
+        TError,
+        {data: BodyType<PeriodLockInput>},
+        TContext
+      > => {
+      return useMutation(getLockPeriodMutationOptions(options));
+    }
+
+export const getUnlockPeriodUrl = (period: string,) => {
+
+
+
+
+  return `/api/period-locks/${period}`
+}
+
+/**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const unlockPeriod = async (period: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUnlockPeriodUrl(period),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlockPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext> => {
+
+const mutationKey = ['unlockPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlockPeriod>>, {period: string}> = (props) => {
+          const {period} = props ?? {};
+
+          return  unlockPeriod(period,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlockPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof unlockPeriod>>>
+
+    export type UnlockPeriodMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const useUnlockPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlockPeriod>>,
+        TError,
+        {period: string},
+        TContext
+      > => {
+      return useMutation(getUnlockPeriodMutationOptions(options));
     }
 
 export const getListFiscalYearsUrl = () => {

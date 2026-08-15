@@ -25,6 +25,8 @@ tags:
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
   - name: payroll
     description: Payroll runs and the draft/approval workflow
+  - name: period_locks
+    description: Closing and reopening accounting periods
 
 paths:
   /healthz:
@@ -469,6 +471,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
+
+  /period-locks:
+    get:
+      operationId: listPeriodLocks
+      tags: [period_locks]
+      summary: >
+        Accounting periods this company has closed (M18.4). Readable by every
+        role; only an organization admin may close or reopen one.
+      responses:
+        "200":
+          description: Closed periods, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PeriodLock"
+    post:
+      operationId: lockPeriod
+      tags: [period_locks]
+      summary: >
+        Close an accounting period. Nothing may afterwards be posted into it —
+        a correction posts in the current open period instead, never re-dated
+        backwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeriodLockInput"
+      responses:
+        "201":
+          description: The period is now closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodLock"
+
+  /period-locks/{period}:
+    delete:
+      operationId: unlockPeriod
+      tags: [period_locks]
+      summary: >
+        Reopen a closed period (admin only). Company-scoped — reopening one
+        company's period leaves every other company's locks untouched.
+      parameters:
+        - name: period
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Reopened
 
   /companies/current/fiscal-years:
     get:
@@ -1432,6 +1488,33 @@ components:
           description: A window around the current period, newest first.
           items:
             $ref: "#/components/schemas/FiscalPeriod"
+
+    PeriodLock:
+      type: object
+      required: [id, period, lockedAt, lockedBy, notes]
+      properties:
+        id:
+          type: integer
+        period:
+          type: string
+          description: The closed month, `YYYY-MM`.
+        lockedAt:
+          type: string
+        lockedBy:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    PeriodLockInput:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: string
+          pattern: "^\\d{4}-\\d{2}$"
+          description: The month to close, `YYYY-MM` (e.g. 2026-06).
+        notes:
+          type: ["string", "null"]
 
     Category:
       type: object

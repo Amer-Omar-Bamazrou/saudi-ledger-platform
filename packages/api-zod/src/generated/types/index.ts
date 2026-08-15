@@ -61,6 +61,8 @@ export * from './pendingReviewTransactionKind';
 export * from './pendingReviewTransactionTaxTreatment';
 export * from './pendingReviewTransactionType';
 export * from './pendingReviewTransactionVatBasis';
+export * from './periodLock';
+export * from './periodLockInput';
 export * from './recurringRule';
 export * from './recurringRuleEntity';
 export * from './recurringRuleFrequency';

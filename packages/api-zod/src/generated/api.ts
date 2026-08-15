@@ -589,6 +589,52 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
+
+ */
+export const ListPeriodLocksResponseItem = zod.object({
+  "id": zod.number(),
+  "period": zod.string().describe('The closed month, `YYYY-MM`.'),
+  "lockedAt": zod.string(),
+  "lockedBy": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})
+export const ListPeriodLocksResponse = zod.array(ListPeriodLocksResponseItem)
+
+
+/**
+ * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
+
+ */
+export const lockPeriodBodyPeriodRegExp = new RegExp('^\\d{4}-\\d{2}$');
+
+
+export const LockPeriodBody = zod.object({
+  "period": zod.string().regex(lockPeriodBodyPeriodRegExp).describe('The month to close, `YYYY-MM` (e.g. 2026-06).'),
+  "notes": zod.string().nullish()
+})
+
+export const LockPeriodResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string().describe('The closed month, `YYYY-MM`.'),
+  "lockedAt": zod.string(),
+  "lockedBy": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})
+
+
+/**
+ * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+
+ */
+export const UnlockPeriodParams = zod.object({
+  "period": zod.coerce.string()
+})
+
+export const UnlockPeriodResponse = zod.void()
+
+
+/**
  * @summary The active company's fiscal years, resolved to real date ranges (M17.2). The production consumer `companies.fiscal_year_start` never had — it was stored from M11.6 and applied by nothing until now.
 
  */

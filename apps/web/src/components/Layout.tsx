@@ -62,8 +62,13 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     ],
   },
   {
+    // Hub decision Q3: the Finance Hub SITS BESIDE Reports rather than
+    // replacing it — replacing is a large reorganisation with no user feedback
+    // yet. It leads the section because it states conditions, where everything
+    // below it is a document you go and read.
     label: "Reports", labelAr: "التقارير",
     items: [
+      { href: "/finance-hub",       label: "Finance Hub",      labelAr: "لوحة المالية",            icon: ShieldCheck },
       { href: "/reports",           label: "Reports Hub",      labelAr: "مركز التقارير",           icon: BarChart3 },
       { href: "/income-statement",  label: "Income Statement", labelAr: "قائمة الدخل",              icon: TrendingUp },
       { href: "/balance-sheet",     label: "Balance Sheet",    labelAr: "الميزانية العمومية",        icon: BarChart3 },

@@ -234,6 +234,27 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
+export interface PeriodLock {
+  id: number;
+  /** The closed month, `YYYY-MM`. */
+  period: string;
+  lockedAt: string;
+  /** @nullable */
+  lockedBy: number | null;
+  /** @nullable */
+  notes: string | null;
+}
+
+export interface PeriodLockInput {
+  /**
+     * The month to close, `YYYY-MM` (e.g. 2026-06).
+     * @pattern ^\d{4}-\d{2}$
+     */
+  period: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
 
 
