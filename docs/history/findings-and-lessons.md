@@ -1167,3 +1167,78 @@ Three assertions, and the third is what makes the first two trustworthy:
 the live database and the guard failed with an actionable message each time —
 the added case reported `probe_col`, the dropped case reported `zakat_relevant`
 by name. A guard that has never been seen to fail is an assumption.
+
+---
+
+### 🔴 NAMED LESSON (M18.4.1): COUNT THE CONSUMERS, NOT THE AGREEMENT
+
+The rule "which organization is this request acting in?" was written twice:
+
+    lib/tenant.ts    memberships.find(m => m.organizationId === requested) ?? memberships[0]
+    routes/orgs.ts   req.session.activeOrgId ?? organizations[0]?.id
+
+They agree whenever the session's chosen org is still a live membership — which
+is every ordinary request. They diverge only after a revoked membership, a
+deleted org, or a session outliving its access: `resolveTenant` then puts the
+request in the user's FIRST real org while `/orgs` echoes the STALE id back, so
+the switcher, the user-admin page and every role check describe a different
+organization from the one being acted in.
+
+**Nobody had noticed, and the reason is the lesson.** Two copies that agree in
+the common case do not look like a defect. They look like duplication — a
+tidiness issue, the kind of thing you leave alone because it works. The
+divergence needs an uncommon precondition to appear at all.
+
+What exposed it was **adding a third consumer**. `/auth/me` needed the same
+fact, and at three call sites the question stops being "are these two copies in
+sync?" and becomes "who owns this rule?" — and the answer was nobody.
+
+> **The signal is the NUMBER of consumers, not whether they currently agree.**
+> Agreement is what a latent divergence looks like from the outside. Two
+> implementations of one rule are a defect waiting for a precondition; the
+> third consumer is just when you find out.
+
+Adjacent to **count the lists, not the pairs**: the cost is combinatorial in
+the number of places a rule lives, and each new consumer multiplies it rather
+than adding to it. The fix is the same either way — extract one owner
+(`lib/activeOrg.ts`) before adding the consumer, not after.
+
+**A shape detail worth copying:** the selector returns the whole membership,
+not an id. A caller therefore cannot pair one organization's id with another's
+role — the two facts travel together or not at all. Splitting a compound answer
+into separate getters is how the next divergence would have started.
+
+---
+
+### 🔴 NAMED LESSON (M18.2): MAKE THE WEAKER REQUIREMENT STRUCTURALLY LOAD-BEARING
+
+Two requirements landed on the balance-sheet breakout:
+
+1. it must keep `balanced` reconciling;
+2. unclassified accounts must surface in the totals rather than vanish.
+
+The obvious build asserts each separately: compute the sections, then add a test
+that unclassified items appear. That leaves (2) as a **cosmetic** check — one a
+future refactor can delete, or quietly satisfy while folding unclassified into
+`current`, without (1) noticing.
+
+Instead the buckets were built as a **partition of the existing item list**:
+
+    current.total + nonCurrent.total + unclassified.total === total
+
+Now (2) cannot be violated without breaking (1). Folding unclassified into
+`current` double-counts and the partition fails; dropping it under-counts and
+the partition fails. Verified by injecting exactly that change — **both** tests
+went red, including the arithmetic one.
+
+> **When two requirements are related, prefer a construction where violating
+> one BREAKS the other over checking both independently.**
+
+The general move: find the arithmetic or type-level relationship that already
+couples them, and express the design in those terms. A separately-asserted
+requirement is only as durable as the test that remembers it; a structurally
+coupled one is enforced by the thing nobody dares break.
+
+Same family as the ArchiveStore lesson — there, deleting was made
+*inexpressible*; here, hiding is made *unbalanced*. Both replace a rule someone
+must remember with a shape that cannot express the violation.
