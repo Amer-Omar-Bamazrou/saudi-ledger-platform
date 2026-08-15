@@ -3,9 +3,17 @@
  * zero-movement standard.
  *
  * The invariant: a `pending_review` transaction moves NOTHING — not the VAT
- * position, not the Zakat base, not cash flow, not the dashboard summary, not
- * budget actuals — until a human accepts it. Verified through the REAL report
- * services, never asserted from the schema.
+ * position, not cash flow, not the dashboard summary, not budget actuals —
+ * until a human accepts it. Verified through the REAL report services, never
+ * asserted from the schema.
+ *
+ * M17.0 — a Zakat probe used to sit alongside these. It called
+ * `summaryService.getZakat()`, which summed rows flagged `is_zakat_relevant`,
+ * and almost nothing wrote that flag — one rule (Tadawul/investment), which
+ * no fixture here creates. The probe compared 0 to 0 on every run.
+ * Removed rather than kept as green cover. The Zakat working paper (M17.4)
+ * reads the general ledger, which acceptance now posts to, so the invariant
+ * will hold transitively and gets its own guard there.
  *
  * Why this mechanism and not the M10 engine (owner decision): M10 models
  * documents with individual legal significance. A bank line is not a document —
@@ -86,15 +94,13 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
 
   /** Every tax-facing figure in one read, through the REAL services. */
   async function taxFigures() {
-    const [vat, zakat, cash, summary] = await Promise.all([
+    const [vat, cash, summary] = await Promise.all([
       inTenant(() => summaryService.getVat({ dateFrom: "2026-01-01", dateTo: "2026-12-31" })),
-      inTenant(() => summaryService.getZakat()),
       inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       inTenant(() => summaryService.getSummary({ dateFrom: "2026-01-01", dateTo: "2026-12-31" })),
     ]);
     return {
       outputVat: (vat as { outputVat?: number }).outputVat ?? (vat as { totalVat?: number }).totalVat ?? 0,
-      zakatBase: (zakat as { totalZakatableAssets?: number }).totalZakatableAssets ?? 0,
       cashNet: (cash as { netChange: number }).netChange,
       income: (summary as { totalIncome?: number }).totalIncome ?? 0,
       expenses: (summary as { totalExpenses?: number }).totalExpenses ?? 0,
@@ -122,8 +128,8 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
     expect(result.inserted).toBe(5);
 
     const after = await taxFigures();
-    // 🔴 The invariant. These rows carry VAT amounts, Zakat relevance and cash
-    // movements — and none of it may reach a figure while pending.
+    // 🔴 The invariant. These rows carry VAT amounts and cash movements — and
+    // none of it may reach a figure while pending.
     expect(after).toEqual(before);
 
     // And the rows ARE there, visible, awaiting review — held, not lost.

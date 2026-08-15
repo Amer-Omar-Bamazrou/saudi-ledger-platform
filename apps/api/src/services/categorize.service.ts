@@ -62,7 +62,6 @@ export const categorizeService = {
           taxTreatment: null,
           vatBasis: null,
           confidenceScore: String(match.confidence),
-          isZakatRelevant: false,
           vatAmount: null,
           vatRate: null,
         });
@@ -119,7 +118,6 @@ export const categorizeService = {
       await categorizeRepository.updateCategory(tx.id, {
         categoryId: resolvedId,
         confidenceScore: String(match.confidence),
-        isZakatRelevant: match.isZakatRelevant,
         vatAmount,
         vatRate,
         taxTreatment: resolved.defaultTaxTreatment,

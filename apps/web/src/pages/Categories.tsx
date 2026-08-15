@@ -48,7 +48,6 @@ export default function Categories() {
         nameAr: formData.get("nameAr") as string,
         type: formData.get("type") as CategoryInputType,
         vatApplicable: formData.get("vatApplicable") === "on",
-        zakatRelevant: formData.get("zakatRelevant") === "on",
         description: formData.get("description") as string,
       }
     });
@@ -62,7 +61,7 @@ export default function Categories() {
             <Tags className="w-8 h-8 text-primary" />
             {t("Chart of Accounts", "دليل الحسابات")}
           </h1>
-          <p className="text-muted-foreground mt-1">{t("Manage categories, tax rules, and Zakat relevance.", "إدارة الفئات وقواعد الضرائب وصلة الزكاة.")}</p>
+          <p className="text-muted-foreground mt-1">{t("Manage categories and tax rules.", "إدارة الفئات وقواعد الضرائب.")}</p>
         </div>
         
         <Dialog open={open} onOpenChange={setOpen}>
@@ -117,14 +116,15 @@ export default function Categories() {
                   </div>
                   <Switch name="vatApplicable" defaultChecked />
                 </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-md bg-secondary/20">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">{t("Zakat Relevant", "ذات صلة بالزكاة")}</Label>
-                    <p className="text-xs text-muted-foreground">{t("Include in the end-of-year Zakat assessment.", "تضمين في تقييم الزكاة في نهاية العام.")}</p>
-                  </div>
-                  <Switch name="zakatRelevant" />
-                </div>
+                {/*
+                  M17.0 — the "Zakat Relevant" toggle was removed. It wrote a
+                  flag whose only reader was a report that returned SAR 0.00
+                  for almost every tenant, so the switch did nothing a user
+                  could observe.
+                  Zakat classification returns in M17.3 as a chart-of-accounts
+                  mapping (which worksheet line this account feeds), not a
+                  boolean. See docs/product/design-zakat-module.md.
+                */}
               </div>
 
               <DialogFooter className="pt-4">
@@ -171,8 +171,7 @@ export default function Categories() {
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       {cat.vatApplicable && <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 text-[10px]">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Badge>}
-                      {cat.zakatRelevant && <Badge variant="outline" className="border-amber-500/30 text-amber-500 text-[10px]">{t("ZAKAT", "زكاة")}</Badge>}
-                      {!cat.vatApplicable && !cat.zakatRelevant && <span className="text-muted-foreground text-xs italic">{t("Standard", "قياسي")}</span>}
+                      {!cat.vatApplicable && <span className="text-muted-foreground text-xs italic">{t("Standard", "قياسي")}</span>}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-muted-foreground max-w-[250px] truncate">

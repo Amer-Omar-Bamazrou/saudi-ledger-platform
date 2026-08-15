@@ -12,8 +12,6 @@ export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
   /** @nullable */
-  isZakatRelevant?: boolean | null;
-  /** @nullable */
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;

@@ -185,7 +185,6 @@ export async function categorizeWithLlm(
     confidence: parsed.confidence,
     matchedRule: `LLM (${LLM_MODEL})`,
     vatApplicable: cat.vatApplicable,
-    isZakatRelevant: cat.zakatRelevant,
     suggestedVatRate: cat.vatApplicable ? 15 : 0,
     source: "llm",
     llmModel: LLM_MODEL,
@@ -198,6 +197,6 @@ function deterministicFallback(type: "debit" | "credit"): CategorizationMatch {
   // longer falls back (it returns null and the row goes to review). At 0.3 this
   // sits below AUTO_ASSIGN_CONFIDENCE, so even here it can never assign.
   return type === "credit"
-    ? { systemCode: "OTHER_INCOME", categoryName: "Other Income", categoryNameAr: "إيرادات أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null }
-    : { systemCode: "OTHER_EXPENSES", categoryName: "Other Expenses", categoryNameAr: "مصاريف أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, isZakatRelevant: false, suggestedVatRate: null };
+    ? { systemCode: "OTHER_INCOME", categoryName: "Other Income", categoryNameAr: "إيرادات أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, suggestedVatRate: null }
+    : { systemCode: "OTHER_EXPENSES", categoryName: "Other Expenses", categoryNameAr: "مصاريف أخرى", confidence: 0.3, matchedRule: "Fallback", vatApplicable: false, suggestedVatRate: null };
 }

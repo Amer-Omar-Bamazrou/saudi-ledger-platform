@@ -51,10 +51,6 @@ paths:
           in: query
           schema:
             type: ["integer", "null"]
-        - name: is_zakat_relevant
-          in: query
-          schema:
-            type: ["boolean", "null"]
         - name: is_manually_overridden
           in: query
           schema:
@@ -583,18 +579,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/VatSummary"
 
-  /summary/zakat:
-    get:
-      operationId: getZakatSummary
-      tags: [summary]
-      summary: Get Zakat-eligible asset summary
-      responses:
-        "200":
-          description: Zakat summary
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ZakatSummary"
+  # `/summary/zakat` was REMOVED in M17.0. It summed transactions flagged
+  # `is_zakat_relevant` — a flag only one categorization rule ever wrote — so it
+  # returned a computed-looking SAR 0.00 for almost every tenant, against a
+  # nisab threshold hardcoded from a 2024 gold price. Zakat returns in M17.4 as
+  # a GL-derived working paper, not a summary endpoint.
+  # See docs/product/design-zakat-module.md.
 
   /summary/by-category:
     get:
@@ -1349,7 +1339,7 @@ components:
 
     Category:
       type: object
-      required: [id, name, nameAr, type, vatApplicable, zakatRelevant]
+      required: [id, name, nameAr, type, vatApplicable]
       properties:
         id:
           type: integer
@@ -1362,14 +1352,12 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
-        zakatRelevant:
-          type: boolean
         description:
           type: ["string", "null"]
 
     CategoryInput:
       type: object
-      required: [name, nameAr, type, vatApplicable, zakatRelevant]
+      required: [name, nameAr, type, vatApplicable]
       properties:
         name:
           type: string
@@ -1379,8 +1367,6 @@ components:
           type: string
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
-          type: boolean
-        zakatRelevant:
           type: boolean
         description:
           type: ["string", "null"]
@@ -1394,7 +1380,6 @@ components:
         - amount
         - currency
         - type
-        - isZakatRelevant
         - isManuallyOverridden
         - createdAt
       properties:
@@ -1423,8 +1408,6 @@ components:
           type: ["number", "null"]
         vatRate:
           type: ["number", "null"]
-        isZakatRelevant:
-          type: boolean
         confidenceScore:
           type: ["number", "null"]
         isManuallyOverridden:
@@ -1617,8 +1600,6 @@ components:
           type: ["number", "null"]
           minimum: 0
           maximum: 100
-        isZakatRelevant:
-          type: boolean
         notes:
           type: ["string", "null"]
           maxLength: 1000
@@ -1630,8 +1611,6 @@ components:
       properties:
         categoryId:
           type: ["integer", "null"]
-        isZakatRelevant:
-          type: ["boolean", "null"]
         vatAmount:
           type: ["number", "null"]
         vatRate:
@@ -1878,21 +1857,6 @@ components:
           type: number
         type:
           type: string
-
-    ZakatSummary:
-      type: object
-      required: [totalZakatableAssets, nisabThresholdSAR, zakatDue, eligibleTransactions]
-      properties:
-        totalZakatableAssets:
-          type: number
-        nisabThresholdSAR:
-          type: number
-        zakatDue:
-          type: number
-        eligibleTransactions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Transaction"
 
     CategoryBreakdown:
       type: object

@@ -12,7 +12,6 @@ export interface CategoryInput {
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }

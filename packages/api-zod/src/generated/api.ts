@@ -22,7 +22,6 @@ export const HealthCheckResponse = zod.object({
  */
 export const ListTransactionsQueryParams = zod.object({
   "category_id": zod.coerce.number().nullish(),
-  "is_zakat_relevant": zod.coerce.boolean().nullish(),
   "is_manually_overridden": zod.coerce.boolean().nullish(),
   "type": zod.union([zod.literal('debit'),zod.literal('credit'),zod.literal(null)]).nullish(),
   "search": zod.coerce.string().nullish(),
@@ -44,7 +43,6 @@ export const ListTransactionsResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -97,7 +95,6 @@ export const CreateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
   "vatAmount": zod.number().min(createTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(createTransactionBodyVatRateMin).max(createTransactionBodyVatRateMax).nullish(),
-  "isZakatRelevant": zod.boolean().optional(),
   "notes": zod.string().max(createTransactionBodyNotesMax).nullish(),
   "source": zod.string().nullish()
 })
@@ -115,7 +112,6 @@ export const CreateTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -206,7 +202,6 @@ export const SettleTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -423,7 +418,6 @@ export const UploadTransactionsBody = zod.object({
   "categoryId": zod.number().nullish(),
   "vatAmount": zod.number().min(uploadTransactionsBodyRowsItemVatAmountMin).nullish(),
   "vatRate": zod.number().min(uploadTransactionsBodyRowsItemVatRateMin).max(uploadTransactionsBodyRowsItemVatRateMax).nullish(),
-  "isZakatRelevant": zod.boolean().optional(),
   "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
   "source": zod.string().nullish()
 })),
@@ -464,7 +458,6 @@ export const GetTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -489,7 +482,6 @@ export const UpdateTransactionParams = zod.object({
 
 export const UpdateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
@@ -511,7 +503,6 @@ export const UpdateTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -546,7 +537,6 @@ export const ListCategoriesResponseItem = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -560,7 +550,6 @@ export const CreateCategoryBody = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 
@@ -570,7 +559,6 @@ export const CreateCategoryResponse = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 
@@ -735,43 +723,6 @@ export const GetVatSummaryResponse = zod.object({
   "amount": zod.number(),
   "vatAmount": zod.number(),
   "type": zod.string()
-}))
-})
-
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-export const GetZakatSummaryResponse = zod.object({
-  "totalZakatableAssets": zod.number(),
-  "nisabThresholdSAR": zod.number(),
-  "zakatDue": zod.number(),
-  "eligibleTransactions": zod.array(zod.object({
-  "id": zod.number(),
-  "date": zod.string(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().nullish(),
-  "amount": zod.number(),
-  "currency": zod.string(),
-  "type": zod.enum(['debit', 'credit']),
-  "categoryId": zod.number().nullish(),
-  "categoryName": zod.string().nullish(),
-  "categoryNameAr": zod.string().nullish(),
-  "vatAmount": zod.number().nullish(),
-  "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
-  "confidenceScore": zod.number().nullish(),
-  "isManuallyOverridden": zod.boolean(),
-  "source": zod.string().nullish(),
-  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
-  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
-  "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
-  "bankAccountId": zod.number().nullish(),
-  "settlesInvoiceId": zod.number().nullish().describe('M16.3: the invoice this credit settled (kind=settlement).'),
-  "settlesBillId": zod.number().nullish().describe('M16.3: the bill this debit paid (kind=settlement).'),
-  "notes": zod.string().nullish(),
-  "createdAt": zod.string()
 }))
 })
 

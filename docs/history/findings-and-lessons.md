@@ -876,3 +876,124 @@ did not. Plus five Arabic probes that previously returned NULL.
 **Where else to look:** any regex over non-Latin text (``, `\w`, `\d` are
 all ASCII-centric under default flags), and any bidirectional string literal —
 identifiers, file paths, and test fixtures included.
+
+---
+
+### 🔴 FINDING #8 CLOSED (M17.0, 2026-08-15): A CONSUMER WITH NO PRODUCER — the Zakat page that always answered SAR 0.00
+
+**What was there.** A "Zakat Assessment" page with three stat cards, an included-
+transactions table, a nav entry, an OpenAPI schema, a route, a controller, a
+service, a repository query, two UI toggles that wrote the input, and four test
+files asserting the figure did not move. By every structural measure, a finished
+feature.
+
+**What was almost entirely missing.** Anything that set the input. The endpoint
+selected `WHERE is_zakat_relevant = true`; of the engine's ~40 categorization
+rules, exactly **one** wrote it true — "Saudi investment / Tadawul" →
+`INVESTMENT_INCOME`, which is also the only seeded account row carrying
+`zakat_relevant = true`. Everything else emitted `false`. The only other writer
+was a UI switch a user had to find and flip by hand, on a page whose sole effect
+was this report.
+
+**So the page did not fail — it answered.** For almost every tenant:
+`totalZakatableAssets: 0`, `zakatDue: 0`, "BELOW NISAB THRESHOLD", rendered in
+the same confident typography as a real figure.
+
+🔴 **And the one thing that COULD populate it made the answer worse, not
+better.** Investment *income* was the sole automatic input to a total labelled
+"Zakatable Assets" — and since the sum added credits and subtracted debits, a
+tenant with Tadawul activity got their investment income reported as an asset,
+reduced by every unrelated debit in their history. The single producer fed the
+consumer a number of the wrong sign, the wrong kind and the wrong grain. A
+feature that is merely absent is recoverable; this one was answering.
+
+#### Three defects, not one
+
+1. **The (near-)empty input set, and its one poisonous member** (above).
+2. **Nisab is personal-Zakat reasoning applied to a company.** The threshold was
+   `const NISAB_SAR = 19550` — "approx. 85g gold at ~230 SAR/g as of 2024",
+   hardcoded, and stale the year it was written. Corporate Zakat is assessed on
+   a Zakat base, not against a gold-derived nisab.
+3. **It summed the wrong quantity anyway.** Credits minus debits over all time —
+   a flow — presented as an asset balance.
+
+Any one of the three would have made the number wrong. Having all three meant no
+single fix would have surfaced the others.
+
+#### The named lesson: **a consumer with no producer is worse than a shape with no consumer**
+
+The catalogued failure mode is *a shape without a consumer* — a column or
+interface declared and never read. This is its mirror, and it is the more
+dangerous polarity:
+
+| | Shape without a consumer | Consumer without a producer |
+| --- | --- | --- |
+| What exists | The declaration | Everything except a meaningful write |
+| What the user sees | Nothing | **A confident zero** |
+| How it is found | Someone greps for readers | **Nobody reports it — it looks like an answer** |
+
+A dead column is inert. A live report over an empty input is *actively
+misleading*, and it is specifically the failure that survives a demo, a code
+review and a passing test suite. Standing-check **part 2** ("every field has a
+production WRITER — grep for writes, not references") is the countermeasure, and
+it is the part most often skipped, because the surface it guards looks complete.
+
+#### The absence claim needed the same check as everything else
+
+The first pass of this fix recorded — in the migration, the schema comments, the
+service, the spec and this file — that **nothing** ever wrote the flag. Running
+standing-check **part 5** against that conclusion (grep the pre-change file;
+state what would falsify it) found the Tadawul rule and forced a rewrite of all
+of them.
+
+That correction was not cosmetic. "Nothing writes it, so the report is always
+0" describes a **missing feature**. "One rule writes it, and that rule files
+income as an asset" describes a **wrong number**. The overstated version was
+the more comfortable finding, and it would have been preserved verbatim in six
+durable records — including a migration comment written specifically to stop a
+future session from reintroducing the column.
+
+**An absence claim is a finding.** It carries the same burden of proof as a
+presence claim, and it is more tempting to skip, because nothing fails when it
+is wrong.
+
+#### The tests were the loudest part of the failure
+
+Four files asserted "the Zakat figure does not move" across settlement,
+transfer, GL-only posting and review-acceptance. Every one compared **0 to 0**.
+They were green from the day they were written and would have stayed green
+through any defect they claimed to guard — *assert the property, not the number*
+in its purest form: the fixtures never supplied a Zakat-relevant row, so the
+property was never exercised.
+
+They were removed, not repaired. Two reasons, and the second matters more:
+
+- Repairing them would mean seeding the flag the milestone deletes.
+- **The property they asserted is now intentionally false.** Owner decision Q4
+  derives the Zakat base *from the general ledger*. A "Zakat must not move when
+  the GL moves" assertion would encode the opposite of the spec — an obsolete
+  assertion in the making, caught before it was written rather than after it had
+  spent a year certifying a defect.
+
+#### What was removed, and the one trap in removing it
+
+`transactions.is_zakat_relevant`, `categories.zakat_relevant`,
+`system_account_templates.zakat_relevant`, `GET /summary/zakat`, `ZakatSummary`,
+`summaryService.getZakat`, `summaryRepository.zakatRows`, the Categories and
+Transactions toggles, the transaction list filter and badge, and 61 field
+literals in `categorizer.ts` (scripted, per the §10b tooling hazard).
+
+🔴 **The trap:** `seed_org_chart_of_accounts()` — the trigger that seeds a new
+organization's chart of accounts — SELECTed `zakat_relevant` from the templates.
+plpgsql resolves column names at **execution** time, so dropping the columns
+first would have raised nothing during the migration and then failed **every
+future signup**, at a call site nowhere near the change. Migration 0038
+redefines the function before it drops anything. Verified after applying: the
+columns are absent from `information_schema`, `pg_proc.prosrc` no longer names
+them, and the full 620-test suite passes against the real database — every DB
+test creates an organization, so the trigger is exercised on every one.
+
+**The general shape:** when dropping a column, grep the **database** for readers
+too, not only the application. Trigger bodies, views, RLS policies, generated
+columns and CHECK constraints are all consumers that a TypeScript-wide search
+cannot see, and the plpgsql ones fail late.

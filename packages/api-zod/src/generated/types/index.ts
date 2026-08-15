@@ -86,7 +86,6 @@ export * from './vatReturnPurchasesSection';
 export * from './vatReturnSalesSection';
 export * from './vatSummary';
 export * from './vatTransaction';
-export * from './zakatSummary';
 export * from './zatcaComplianceDocumentResult';
 export * from './zatcaComplianceDocumentResultErrorsItem';
 export * from './zatcaComplianceDocumentResultWarningsItem';

@@ -147,7 +147,6 @@ export interface Category {
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -168,7 +167,6 @@ export interface CategoryInput {
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -254,7 +252,6 @@ export interface Transaction {
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;
-  isZakatRelevant: boolean;
   /** @nullable */
   confidenceScore?: number | null;
   isManuallyOverridden: boolean;
@@ -503,7 +500,6 @@ export interface TransactionInput {
      * @nullable
      */
   vatRate?: number | null;
-  isZakatRelevant?: boolean;
   /**
      * @maxLength 1000
      * @nullable
@@ -549,8 +545,6 @@ export const TransactionUpdateVatBasis = {
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
-  /** @nullable */
-  isZakatRelevant?: boolean | null;
   /** @nullable */
   vatAmount?: number | null;
   /** @nullable */
@@ -690,13 +684,6 @@ export interface VatSummary {
   netVatPosition: number;
   vatRate: number;
   transactions: VatTransaction[];
-}
-
-export interface ZakatSummary {
-  totalZakatableAssets: number;
-  nisabThresholdSAR: number;
-  zakatDue: number;
-  eligibleTransactions: Transaction[];
 }
 
 export interface CategoryBreakdown {
@@ -1087,10 +1074,6 @@ export type ListTransactionsParams = {
  * @nullable
  */
 category_id?: number | null;
-/**
- * @nullable
- */
-is_zakat_relevant?: boolean | null;
 /**
  * @nullable
  */

@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-14 (post-audit fixes, Tiers 1–3 merged).**
+**Last updated: 2026-08-15 (M17.0 — the Zakat surface retired; Q1–Q8 decided).**
 
 **Audit close-out (2026-08-14):** two owner-approved read-only audits
 (accounting correctness under adversarial input; disconnection sweep M13→A3)
@@ -56,6 +56,19 @@ If this block disagrees with reality, fix it first.
 | **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
 | **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
 | **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
+| **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. **M17.1–M17.5 are specced, not built.** | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
+
+**Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
+platform produces an **auditable working paper**, never a ZATCA submission;
+**100% Saudi/GCC-owned entities only** in v1; **Hijri and Gregorian** fiscal
+years (fiscal-year support is a stated **prerequisite** — `fiscalYearStart` is
+stored today and applied by no report); the base is derived **from the GL**;
+the worksheet is an **interactive, period-locked input surface**; it lands as an
+annual report generator under **Tax & Compliance**. 🔴 **The tax content itself
+is UNVERIFIED against a primary source** — base composition, the Gregorian rate
+divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
+all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
+ask with the C7/C8 advisor).
 
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
 two destinations (Finance Hub, Analytics), Automation and AI woven into existing
@@ -163,6 +176,17 @@ These are short forms; the rules are binding, the history explains why.
 - **A shape without a consumer.** Declaring a column/table/interface/flag looks
   exactly like progress and ships unbuilt; endemic in a schema-first codebase —
   the standing check is the countermeasure.
+- **A CONSUMER with no producer is the same failure, and it is worse** (M17.0,
+  flaw #8). The Zakat page had a column, an endpoint, a route, a nav entry, a
+  UI and four tests — everything except a writer for the flag it read (one rule
+  out of ~40). A missing consumer yields a dead column nobody sees; a missing
+  producer yields **a confident zero**, which reads as an answer, so nobody
+  reports it. Check writers as well as readers — standing-check part 2 is the
+  half that catches this, and it is the half most often skipped because the
+  feature demos fine. **Corollary: "nothing writes it" is itself a claim that
+  needs part 5's search shape.** The first pass of this very fix asserted the
+  flag had *no* writer; grepping the pre-change file found one, and that one
+  turned the finding from "always 0" into "wrong in a specific, worse way".
 - **An obsolete assertion** (a test that became a guard for the bug): a
   correct-when-written absence assertion stays green while certifying the
   defect. Prefer presence assertions.
@@ -411,11 +435,18 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   the review UI makes it overridable in both directions. 🔴 **The supplier list
   is itself an ASSUMPTION** (several platforms have since registered for KSA
   VAT on some product lines) — see C9.
-- **Flaw-report item still open: #8** — the Zakat base reads
-  `is_zakat_relevant`, which almost nothing sets, so it renders a
-  computed-looking **0** for essentially every tenant. Deferred to the Finance
-  Hub interview, where Zakat belongs as a defined capability rather than a
-  summary endpoint quietly returning zero.
+- **✅ Flaw-report item #8 — CLOSED by M17.0 (2026-08-15).** The Zakat base read
+  `is_zakat_relevant`, which **one rule out of ~40** set (Tadawul/investment),
+  so it rendered a computed-looking **0** for almost every tenant beside a nisab
+  threshold hardcoded from a 2024 gold price — and for a tenant who *did* trade,
+  something worse: investment **income** reported as a zakatable **asset**, less
+  every debit. The owner interview (Q1–Q8) defined the capability, and M17.0 removed
+  the fake one: `transactions.is_zakat_relevant`, `categories.zakat_relevant`,
+  `system_account_templates.zakat_relevant` (migration 0038, org-seed trigger
+  redefined FIRST), `GET /summary/zakat` and its schema, both UI toggles, and
+  four **vacuous** test probes that compared 0 to 0. The page now states it is
+  not implemented. Decisions + build order:
+  [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md).
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
@@ -535,7 +566,8 @@ Operating references:
   `fileParallelism: false` or by raising rate limits.
 - [`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md),
   [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md),
-  [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md)
+  [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
+  [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md)
   — product decisions in force.
 - `docs/zatca/` — README (environments), `m12-status.md` (what is proven,
   where), `spec-vs-implementation-divergences.md` (all 13, with evidence),

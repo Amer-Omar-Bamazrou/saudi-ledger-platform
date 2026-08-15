@@ -59,7 +59,6 @@ import type {
   UploadResult,
   VatReturn,
   VatSummary,
-  ZakatSummary,
   ZatcaOnboardInput,
   ZatcaOnboardResult,
   ZatcaOnboardingStatus
@@ -2178,83 +2177,6 @@ export function useGetVatSummary<TData = Awaited<ReturnType<typeof getVatSummary
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVatSummaryQueryOptions(params,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getGetZakatSummaryUrl = () => {
-
-
-
-
-  return `/api/summary/zakat`
-}
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-export const getZakatSummary = async ( options?: RequestInit): Promise<ZakatSummary> => {
-
-  return customFetch<ZakatSummary>(getGetZakatSummaryUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getGetZakatSummaryQueryKey = () => {
-    return [
-    `/api/summary/zakat`
-    ] as const;
-    }
-
-
-export const getGetZakatSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getZakatSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetZakatSummaryQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getZakatSummary>>> = ({ signal }) => getZakatSummary({ signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetZakatSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getZakatSummary>>>
-export type GetZakatSummaryQueryError = ErrorType<unknown>
-
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-
-export function useGetZakatSummary<TData = Awaited<ReturnType<typeof getZakatSummary>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetZakatSummaryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -100,10 +100,13 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
 
   afterAll(cleanup);
 
+  // M17.0 — the `zakat` probe was dropped: `getZakat()` summed rows flagged
+  // `is_zakat_relevant`, which only the Tadawul/investment rule ever wrote and
+  // no fixture here triggers, so it returned an empty result on both sides of
+  // every comparison. The remaining probes carry signal.
   async function taxFigures() {
-    const [vat, zakat, cash, summary, byCat] = await Promise.all([
+    const [vat, cash, summary, byCat] = await Promise.all([
       inTenant(() => summaryService.getVat({ dateFrom: "2026-01-01", dateTo: "2026-12-31" })),
-      inTenant(() => summaryService.getZakat()),
       inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       inTenant(() => summaryService.getSummary({ dateFrom: "2026-01-01", dateTo: "2026-12-31" })),
       inTenant(() => summaryService.getByCategory({ dateFrom: "2026-01-01", dateTo: "2026-12-31" })),
@@ -111,7 +114,6 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
     return {
       vatPaid: (vat as { vatPaid: number }).vatPaid,
       netVat: (vat as { netVatPosition: number }).netVatPosition,
-      zakatBase: (zakat as { totalZakatableAssets?: number }).totalZakatableAssets ?? 0,
       cashNet: (cash as { netChange: number }).netChange,
       income: (summary as { totalIncome?: number }).totalIncome ?? 0,
       expenses: (summary as { totalExpenses?: number }).totalExpenses ?? 0,
@@ -187,7 +189,6 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
     const after = await taxFigures();
     expect(after.vatPaid).toBe(before.vatPaid);
     expect(after.netVat).toBe(before.netVat);
-    expect(after.zakatBase).toBe(before.zakatBase);
     expect(after.income).toBe(before.income);
     expect(after.expenses).toBe(before.expenses);
     expect(after.categoryRows).toBe(before.categoryRows);
