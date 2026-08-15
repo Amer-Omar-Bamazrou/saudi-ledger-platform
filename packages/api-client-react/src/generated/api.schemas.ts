@@ -245,12 +245,31 @@ export const CategoryType = {
   equity: 'equity',
 } as const;
 
+/**
+ * M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income/expense/equity accounts, where the distinction is meaningless.
+ * @nullable
+ */
+export type CategoryLiquidityClass = typeof CategoryLiquidityClass[keyof typeof CategoryLiquidityClass] | null;
+
+
+export const CategoryLiquidityClass = {
+  cash: 'cash',
+  quick: 'quick',
+  current: 'current',
+  non_current: 'non_current',
+} as const;
+
 export interface Category {
   id: number;
   name: string;
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
+  /**
+     * M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income/expense/equity accounts, where the distinction is meaningless.
+     * @nullable
+     */
+  liquidityClass?: CategoryLiquidityClass;
   /** @nullable */
   description?: string | null;
 }
@@ -266,11 +285,30 @@ export const CategoryInputType = {
   equity: 'equity',
 } as const;
 
+/**
+ * Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).
+ * @nullable
+ */
+export type CategoryInputLiquidityClass = typeof CategoryInputLiquidityClass[keyof typeof CategoryInputLiquidityClass] | null;
+
+
+export const CategoryInputLiquidityClass = {
+  cash: 'cash',
+  quick: 'quick',
+  current: 'current',
+  non_current: 'non_current',
+} as const;
+
 export interface CategoryInput {
   name: string;
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
+  /**
+     * Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).
+     * @nullable
+     */
+  liquidityClass?: CategoryInputLiquidityClass;
   /** @nullable */
   description?: string | null;
 }

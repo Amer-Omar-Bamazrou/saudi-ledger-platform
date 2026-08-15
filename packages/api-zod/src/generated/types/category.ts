@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CategoryLiquidityClass } from './categoryLiquidityClass';
 import type { CategoryType } from './categoryType';
 
 export interface Category {
@@ -13,6 +14,11 @@ export interface Category {
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
+  /**
+     * M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income/expense/equity accounts, where the distinction is meaningless.
+     * @nullable
+     */
+  liquidityClass?: CategoryLiquidityClass;
   /** @nullable */
   description?: string | null;
 }

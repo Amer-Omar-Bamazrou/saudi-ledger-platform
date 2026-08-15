@@ -201,7 +201,23 @@ export const reportsService = {
       }
       const catName = cat?.name ?? "Uncategorized";
       const catType = cat?.type ?? "expense";
-      if (catType === "asset" && (cat?.name ?? "").toLowerCase().includes("fixed")) {
+      // 🔴 M18.1 — INVESTING is decided by the account's liquidity class, not by
+      // sniffing its NAME.
+      //
+      // This branch used to read:
+      //     catType === "asset" && cat.name.toLowerCase().includes("fixed")
+      // which is the bug class M13 removed from the posting path: resolve by
+      // CODE, never by a label the tenant owns. A tenant who renamed "Fixed
+      // Assets" to "Equipment" — or who runs the product in Arabic, where the
+      // English literal never appears — silently moved every fixed-asset
+      // purchase into OPERATING cash flow, and nothing reported it.
+      //
+      // `non_current` is the honest test: investing activity is the acquisition
+      // and disposal of non-current assets. An UNCLASSIFIED asset account
+      // (liquidity_class NULL) deliberately does NOT land here — it falls
+      // through to operating exactly as before, and the Finance Hub reports it
+      // as an unclassified account rather than this report guessing.
+      if (catType === "asset" && cat?.liquidityClass === "non_current") {
         investing += amount;
         investingItems.push({ name: catName, amount });
       } else if (catType === "liability") {

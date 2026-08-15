@@ -1448,6 +1448,16 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
+        liquidityClass:
+          type: ["string", "null"]
+          enum: [cash, quick, current, non_current, null]
+          description: >
+            M18.1 — where a BALANCE-SHEET account sits on the liquidity scale,
+            for the Finance Hub. Current assets are everything but
+            `non_current`; quick assets are `cash` + `quick`. NULL on an asset
+            or liability means UNCLASSIFIED and is surfaced as such, never
+            silently treated as current. Always NULL on income/expense/equity
+            accounts, where the distinction is meaningless.
         description:
           type: ["string", "null"]
 
@@ -1464,6 +1474,12 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
+        liquidityClass:
+          type: ["string", "null"]
+          enum: [cash, quick, current, non_current, null]
+          description: >
+            Only meaningful when `type` is `asset` or `liability`; the server
+            rejects it on any other account type (and a DB CHECK backs that up).
         description:
           type: ["string", "null"]
 

@@ -68,42 +68,48 @@ being meaningful.
 | `VAT_INPUT` | asset | quick | ✅ |
 | `INVENTORY` | asset | current (not quick) | ✅ |
 | `FIXED_ASSETS` | asset | non-current | ✅ |
-| `SUSPENSE` | asset | — | 🔴 **see §5.1** |
-| `INVESTMENTS` | asset | non-current | ⚠️ **ambiguous** |
+| `SUSPENSE` | asset | **current** (not quick) | ✅ decided — §5.1 |
+| `INVESTMENTS` | asset | **non_current** | ✅ decided — §3.2 |
 | `AP` | liability | current | ✅ |
 | `VAT_OUTPUT` | liability | current | ✅ |
 | `VAT_PAYMENT` | liability | current | ✅ |
 | `ZAKAT_PAYMENT` | liability | current | ✅ |
 | `SALARIES_PAYABLE` | liability | current | ✅ |
 | `GOSI_PAYABLE` | liability | current | ✅ |
-| `LOANS` | liability | non-current | 🔴 **ambiguous — and structurally so** |
+| `LOANS` | liability | **current** | ✅ decided — deliberately conservative, §3.2 |
 
 **Also found: no `equity` accounts are seeded at all.** Equity on the balance
 sheet is retained earnings (computed) plus whatever the tenant creates. It does
 not affect liquidity ratios, but it means "from the balance sheet" is thinner
 than it sounds.
 
-### 3.2 The two ambiguous accounts
+### 3.2 The two ambiguous accounts — DECIDED (owner, 2026-08-15)
 
-**`INVESTMENTS`** — IAS 1 classifies by intent and maturity: marketable
-securities held for trading are current (and quick); a strategic holding is
-non-current. One account cannot know which. **Proposed default: non-current**,
-because that *understates* liquidity, and for a ratio whose whole purpose is
-"can I pay what I owe", erring toward "less liquid than you think" is the safe
-direction. Tenant-overridable.
+**`INVESTMENTS` → `non_current`.** IAS 1 classifies by intent and maturity:
+marketable securities held for trading are current (and quick); a strategic
+holding is non-current. One account cannot know which. Non-current *understates*
+liquidity, and for a ratio whose whole purpose is "can I pay what I owe", erring
+toward "less liquid than you think" is the safe direction. Tenant-overridable.
 
-**`LOANS`** — 🔴 not merely ambiguous, **structurally unrepresentable**. Under
-IAS 1 a loan splits: the portion due within 12 months is a *current* liability,
-the remainder *non-current*. A single account holds one balance and cannot carry
-a split. Options, needing an owner decision:
+**`LOANS` → `current`. Deliberately conservative, and knowingly crude.**
 
-- **(a)** Classify the whole account non-current. Understates current
-  liabilities → **overstates** the ratio. Wrong in the dangerous direction.
-- **(b)** Classify the whole account current. Overstates current liabilities →
-  understates the ratio. Safe direction, but crude for a long mortgage.
-- **(c)** Seed a second account (`LOANS_CURRENT` / `LOANS_NON_CURRENT`) and let
-  the tenant post the split. Correct, but asks an SME owner to do amortisation
-  splitting — which Q4 (owner-legible) argues against.
+Under IAS 1 a loan splits: the portion due within 12 months is a *current*
+liability, the remainder *non-current*. A single account holds one balance and
+cannot carry a split — this is structural, not an oversight. Three options were
+costed:
+
+- **(a) All non-current** — understates current liabilities, **overstates the
+  ratio**. Rejected: wrong in the dangerous direction, on the one figure whose
+  purpose is to warn.
+- **(b) All current** ✅ **CHOSEN** — overstates current liabilities, so
+  understates the ratio. Crude for a long mortgage: a tenant with a ten-year
+  loan will see a worse liquidity position than they have. Accepted because the
+  error runs toward caution, and because a hub that says "you look tighter than
+  you are" fails safely where the reverse does not.
+- **(c) Split accounts** (`LOANS_CURRENT` / `LOANS_NON_CURRENT`) — correct, and
+  **recorded as the upgrade path** for when a real user needs it. Not now: it
+  asks an SME owner to do amortisation splitting, which Q4 (owner-legible)
+  rules out. Revisit at the first tenant with material long-term debt.
 
 ### 3.3 Proposed mechanism
 

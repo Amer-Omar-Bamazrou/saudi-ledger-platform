@@ -17,11 +17,29 @@ import { Tags, Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+/** M18.1 — the liquidity class is meaningful only on these two account types. */
+const isBalanceSheet = (type: string) => type === "asset" || type === "liability";
+
+/**
+ * Owner-legible labels (Finance Hub Q4). "Quick asset" is jargon; "cash within
+ * 12 months" is the same fact in words the reader already has. The stored
+ * VALUES stay the accounting terms — it is the label that translates.
+ */
+const LIQUIDITY_OPTIONS = [
+  { value: "cash",        en: "Cash or bank",                     ar: "نقد أو بنك" },
+  { value: "quick",       en: "Expected as cash within 12 months", ar: "يُتوقع تحصيله نقداً خلال 12 شهراً" },
+  { value: "current",     en: "Used or owed within 12 months",     ar: "يُستخدم أو يُستحق خلال 12 شهراً" },
+  { value: "non_current", en: "Longer than 12 months",             ar: "أطول من 12 شهراً" },
+];
+
 export default function Categories() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
+  // Drives whether the liquidity selector is shown — it must react to the
+  // account-type choice, so the form needs this one piece of state.
+  const [newType, setNewType] = useState<string>("expense");
 
   const { data: categories, isLoading } = useListCategories();
 
@@ -41,13 +59,19 @@ export default function Categories() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+    const type = formData.get("type") as CategoryInputType;
+    const liquidityClass = formData.get("liquidityClass") as string;
+
     createMutation.mutate({
       data: {
         name: formData.get("name") as string,
         nameAr: formData.get("nameAr") as string,
-        type: formData.get("type") as CategoryInputType,
+        type,
         vatApplicable: formData.get("vatApplicable") === "on",
+        // M18.1 — only sent for balance-sheet accounts; the server refuses it
+        // on any other type, so sending a stale value from a switched form
+        // would 400 rather than silently store nonsense.
+        liquidityClass: isBalanceSheet(type) && liquidityClass ? (liquidityClass as never) : null,
         description: formData.get("description") as string,
       }
     });
@@ -89,7 +113,7 @@ export default function Categories() {
 
               <div className="space-y-2">
                 <Label>{t("Account Type", "نوع الحساب")}</Label>
-                <Select name="type" defaultValue="expense">
+                <Select name="type" defaultValue="expense" onValueChange={setNewType}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -102,6 +126,34 @@ export default function Categories() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/*
+                M18.1 — shown ONLY for asset and liability accounts, because the
+                distinction is meaningless elsewhere and the server refuses it
+                there. Asking every account "how liquid is this?" would teach
+                the user that the answer does not matter.
+              */}
+              {isBalanceSheet(newType) && (
+                <div className="space-y-2">
+                  <Label>{t("When does this turn into cash?", "متى يتحول هذا إلى نقد؟")}</Label>
+                  <Select name="liquidityClass" defaultValue="current">
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LIQUIDITY_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{t(o.en, o.ar)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "Used by the Finance Hub to work out whether you can cover your short-term obligations.",
+                      "تستخدمه لوحة المالية لتحديد ما إذا كان بإمكانك تغطية التزاماتك قصيرة الأجل.",
+                    )}
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>{t("Description (Optional)", "الوصف (اختياري)")}</Label>
@@ -146,6 +198,7 @@ export default function Categories() {
               <tr>
                 <th className="px-6 py-4 font-semibold">{t("Name", "الاسم")}</th>
                 <th className="px-6 py-4 font-semibold">{t("Type", "النوع")}</th>
+                <th className="px-6 py-4 font-semibold">{t("Turns into cash", "يتحول إلى نقد")}</th>
                 <th className="px-6 py-4 font-semibold">{t("Tax & Compliance", "الضريبة والامتثال")}</th>
                 <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
               </tr>
@@ -153,7 +206,7 @@ export default function Categories() {
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">{t("Loading categories...", "جارٍ تحميل الفئات...")}</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">{t("Loading categories...", "جارٍ تحميل الفئات...")}</td>
                 </tr>
               ) : categories?.map((cat) => (
                 <tr key={cat.id} className="hover:bg-secondary/30 transition-colors">
@@ -167,6 +220,29 @@ export default function Categories() {
                     {cat.type === 'asset' && <span className="text-primary">{t("Asset", "أصل")}</span>}
                     {cat.type === 'liability' && <span className="text-amber-500">{t("Liability", "التزام")}</span>}
                     {cat.type === 'equity' && <span className="text-purple-400">{t("Equity", "حقوق الملكية")}</span>}
+                  </td>
+                  {/*
+                    M18.1 — 🔴 an UNCLASSIFIED balance-sheet account is shown as
+                    such, not left blank. A blank cell reads as "nothing to say
+                    here"; this account is in fact excluded from the Finance
+                    Hub's liquidity figures, and the user is the only one who
+                    can fix that.
+                  */}
+                  <td className="px-6 py-4 text-xs">
+                    {!isBalanceSheet(cat.type) ? (
+                      <span className="text-muted-foreground/40">—</span>
+                    ) : cat.liquidityClass ? (
+                      <span className="text-muted-foreground">
+                        {t(
+                          LIQUIDITY_OPTIONS.find((o) => o.value === cat.liquidityClass)?.en ?? cat.liquidityClass,
+                          LIQUIDITY_OPTIONS.find((o) => o.value === cat.liquidityClass)?.ar ?? cat.liquidityClass,
+                        )}
+                      </span>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-500/40 text-amber-500 text-[10px]">
+                        {t("Not set", "غير محدد")}
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">

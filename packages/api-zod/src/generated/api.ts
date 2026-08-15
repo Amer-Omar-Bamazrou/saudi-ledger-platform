@@ -537,6 +537,7 @@ export const ListCategoriesResponseItem = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -550,6 +551,7 @@ export const CreateCategoryBody = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('Only meaningful when `type` is `asset` or `liability`; the server rejects it on any other account type (and a DB CHECK backs that up).\n'),
   "description": zod.string().nullish()
 })
 
@@ -559,6 +561,7 @@ export const CreateCategoryResponse = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
+  "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
   "description": zod.string().nullish()
 })
 

@@ -46,12 +46,24 @@ export const SYSTEM_ACCOUNTS = {
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
 
+/**
+ * M18.1 — where an account sits on the liquidity scale, for the Finance Hub.
+ * Balance-sheet accounts only; a DB CHECK refuses it on income/expense/equity.
+ */
+export type LiquidityClass = "cash" | "quick" | "current" | "non_current";
+
 export interface SystemAccountDef {
   code: SystemAccountCode;
   name: string;
   nameAr: string;
   type: "asset" | "liability" | "equity" | "income" | "expense";
   vatApplicable?: boolean;
+  /**
+   * Required on assets and liabilities, omitted elsewhere. Kept here rather
+   * than only in SQL so the seeded chart and the migration cannot drift — the
+   * two-id-spaces lesson applied to a classification.
+   */
+  liquidityClass?: LiquidityClass;
   /**
    * The `journal_entry_lines.account_name` literals our own code has posted
    * since before M13. Used ONLY by the backfill, which is deterministic because
@@ -61,21 +73,21 @@ export interface SystemAccountDef {
 }
 
 export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
-  { code: "AR", name: "Accounts Receivable", nameAr: "الذمم المدينة", type: "asset", legacyNames: ["Accounts Receivable"] },
-  { code: "CASH", name: "Cash and Bank", nameAr: "النقد والبنك", type: "asset", legacyNames: ["Cash and Bank", "Cash"] },
+  { code: "AR", name: "Accounts Receivable", nameAr: "الذمم المدينة", type: "asset", liquidityClass: "quick", legacyNames: ["Accounts Receivable"] },
+  { code: "CASH", name: "Cash and Bank", nameAr: "النقد والبنك", type: "asset", liquidityClass: "cash", legacyNames: ["Cash and Bank", "Cash"] },
   // 🔴 Flaw #1 (Option A): where an ACCEPTED but UNCATEGORISED bank line
   // posts. Double entry needs two accounts, and the alternative — refusing to
   // accept an uncategorised row — would strand the review queue. Posting it to
   // suspense keeps the books balanced and turns "I do not know what this is"
   // into a VISIBLE BALANCE somebody must clear, instead of a silent expense
   // (which is exactly what the dashboard used to do with it).
-  { code: "SUSPENSE", name: "Suspense (unclassified)", nameAr: "حساب معلق", type: "asset", legacyNames: ["Suspense"] },
-  { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", legacyNames: ["Input VAT Receivable"] },
+  { code: "SUSPENSE", name: "Suspense (unclassified)", nameAr: "حساب معلق", type: "asset", liquidityClass: "current", legacyNames: ["Suspense"] },
+  { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
 
-  { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", legacyNames: ["Accounts Payable"] },
-  { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", legacyNames: ["VAT Payable"] },
-  { code: "SALARIES_PAYABLE", name: "Salaries Payable", nameAr: "الرواتب المستحقة", type: "liability", legacyNames: ["Salaries Payable"] },
-  { code: "GOSI_PAYABLE", name: "GOSI Payable", nameAr: "التأمينات الاجتماعية المستحقة", type: "liability", legacyNames: ["GOSI Payable"] },
+  { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", liquidityClass: "current", legacyNames: ["Accounts Payable"] },
+  { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["VAT Payable"] },
+  { code: "SALARIES_PAYABLE", name: "Salaries Payable", nameAr: "الرواتب المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["Salaries Payable"] },
+  { code: "GOSI_PAYABLE", name: "GOSI Payable", nameAr: "التأمينات الاجتماعية المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["GOSI Payable"] },
 
   { code: "SALES", name: "Sales Revenue", nameAr: "إيرادات المبيعات", type: "income", vatApplicable: true, legacyNames: ["Sales Revenue"] },
 
@@ -122,6 +134,11 @@ export async function seedChartOfAccounts(
     systemCode: a.code,
     isSystem: true,
     vatApplicable: a.vatApplicable ?? false,
+    // M18.1 — must travel with the row. This function is the CODE path that
+    // seeds a new org; the DB trigger is the other. A column added to one and
+    // not the other is how a tenant ends up with an unclassifiable balance
+    // sheet depending on which door they came in through.
+    liquidityClass: a.liquidityClass ?? null,
   }));
 
   const inserted = await client
