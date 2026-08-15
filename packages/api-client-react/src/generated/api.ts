@@ -35,12 +35,15 @@ import type {
   CategoryInput,
   Company,
   CreateRecurringRuleInput,
+  Decomposition,
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
+  GetDecompositionParams,
   GetLiquidityParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
+  GetTrendParams,
   GetVatReturnParams,
   GetVatSummaryParams,
   HealthStatus,
@@ -62,6 +65,7 @@ import type {
   TransactionList,
   TransactionUpdate,
   TransactionUpload,
+  TrendPoint,
   UpdateCompanyInput,
   UploadResult,
   VatReturn,
@@ -1731,6 +1735,178 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRunCategorizationMutationOptions(options));
     }
+
+export const getGetTrendUrl = (params: GetTrendParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/trend?${stringifiedParams}` : `/api/analytics/trend`
+}
+
+/**
+ * @summary Liquidity and solvency per month end (M19.1). Each point carries its own `claimable` — the Finance Hub withholding propagates PER POINT, since a blocker is a fact about a moment and an earlier month may be clean.
+
+ */
+export const getTrend = async (params: GetTrendParams, options?: RequestInit): Promise<TrendPoint[]> => {
+
+  return customFetch<TrendPoint[]>(getGetTrendUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrendQueryKey = (params?: GetTrendParams,) => {
+    return [
+    `/api/analytics/trend`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrendQueryOptions = <TData = Awaited<ReturnType<typeof getTrend>>, TError = ErrorType<unknown>>(params: GetTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrendQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrend>>> = ({ signal }) => getTrend(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrend>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrendQueryResult = NonNullable<Awaited<ReturnType<typeof getTrend>>>
+export type GetTrendQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Liquidity and solvency per month end (M19.1). Each point carries its own `claimable` — the Finance Hub withholding propagates PER POINT, since a blocker is a fact about a moment and an earlier month may be clean.
+
+ */
+
+export function useGetTrend<TData = Awaited<ReturnType<typeof getTrend>>, TError = ErrorType<unknown>>(
+ params: GetTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrendQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDecompositionUrl = (params: GetDecompositionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/decomposition?${stringifiedParams}` : `/api/analytics/decomposition`
+}
+
+/**
+ * @summary WHERE a change came from (M19.2) — ranked contributors between a window and the equal-length window before it. Never why.
+
+ */
+export const getDecomposition = async (params: GetDecompositionParams, options?: RequestInit): Promise<Decomposition> => {
+
+  return customFetch<Decomposition>(getGetDecompositionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDecompositionQueryKey = (params?: GetDecompositionParams,) => {
+    return [
+    `/api/analytics/decomposition`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDecompositionQueryOptions = <TData = Awaited<ReturnType<typeof getDecomposition>>, TError = ErrorType<unknown>>(params: GetDecompositionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDecomposition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDecompositionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDecomposition>>> = ({ signal }) => getDecomposition(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDecomposition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDecompositionQueryResult = NonNullable<Awaited<ReturnType<typeof getDecomposition>>>
+export type GetDecompositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary WHERE a change came from (M19.2) — ranked contributors between a window and the equal-length window before it. Never why.
+
+ */
+
+export function useGetDecomposition<TData = Awaited<ReturnType<typeof getDecomposition>>, TError = ErrorType<unknown>>(
+ params: GetDecompositionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDecomposition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDecompositionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetLiquidityUrl = (params?: GetLiquidityParams,) => {
   const normalizedParams = new URLSearchParams();

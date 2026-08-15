@@ -234,6 +234,92 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
+export type TrendPointBlockersItemCode = typeof TrendPointBlockersItemCode[keyof typeof TrendPointBlockersItemCode];
+
+
+export const TrendPointBlockersItemCode = {
+  suspense_balance: 'suspense_balance',
+  unclassified_accounts: 'unclassified_accounts',
+} as const;
+
+export type TrendPointBlockersItem = {
+  code: TrendPointBlockersItemCode;
+  amount: number;
+  /** @nullable */
+  count?: number | null;
+};
+
+export interface TrendPoint {
+  period: string;
+  currentAssets: number;
+  quickAssets: number;
+  currentLiabilities: number;
+  workingCapital: number;
+  /** @nullable */
+  currentRatio: number | null;
+  /** @nullable */
+  quickRatio: number | null;
+  /** @nullable */
+  debtToEquity: number | null;
+  netWorth: number;
+  /** False means this point must NOT be drawn as an ordinary segment. The line breaks, visibly, rather than running through a month we cannot stand behind. */
+  claimable: boolean;
+  blockers: TrendPointBlockersItem[];
+}
+
+export type DecompositionDimension = typeof DecompositionDimension[keyof typeof DecompositionDimension];
+
+
+export const DecompositionDimension = {
+  category: 'category',
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+export type DecompositionCurrent = {
+  from: string;
+  to: string;
+  total: number;
+};
+
+export type DecompositionPrior = {
+  from: string;
+  to: string;
+  total: number;
+};
+
+export type DecompositionContributorsItem = {
+  id: string;
+  name: string;
+  nameAr: string;
+  current: number;
+  prior: number;
+  change: number;
+  /**
+     * NULL when the NET change is about zero. Offsetting movements are real, and a share of "nothing changed" is undefined rather than infinite. The movers stay ranked.
+     * @nullable
+     */
+  shareOfChange: number | null;
+};
+
+/**
+ * @nullable
+ */
+export type DecompositionConcentration = {
+  count: number;
+  share: number;
+} | null;
+
+export interface Decomposition {
+  dimension: DecompositionDimension;
+  current: DecompositionCurrent;
+  prior: DecompositionPrior;
+  change: number;
+  contributors: DecompositionContributorsItem[];
+  /** @nullable */
+  concentration: DecompositionConcentration;
+}
+
 export type LiquidityBlockersItemCode = typeof LiquidityBlockersItemCode[keyof typeof LiquidityBlockersItemCode];
 
 
@@ -1356,6 +1442,26 @@ export type ListTransactionsType = typeof ListTransactionsType[keyof typeof List
 export const ListTransactionsType = {
   debit: 'debit',
   credit: 'credit',
+} as const;
+
+export type GetTrendParams = {
+from: string;
+to: string;
+};
+
+export type GetDecompositionParams = {
+dimension: GetDecompositionDimension;
+from: string;
+to: string;
+};
+
+export type GetDecompositionDimension = typeof GetDecompositionDimension[keyof typeof GetDecompositionDimension];
+
+
+export const GetDecompositionDimension = {
+  category: 'category',
+  customer: 'customer',
+  vendor: 'vendor',
 } as const;
 
 export type GetLiquidityParams = {

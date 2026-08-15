@@ -589,6 +589,74 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary Liquidity and solvency per month end (M19.1). Each point carries its own `claimable` — the Finance Hub withholding propagates PER POINT, since a blocker is a fact about a moment and an earlier month may be clean.
+
+ */
+export const GetTrendQueryParams = zod.object({
+  "from": zod.coerce.string(),
+  "to": zod.coerce.string()
+})
+
+export const GetTrendResponseItem = zod.object({
+  "period": zod.string(),
+  "currentAssets": zod.number(),
+  "quickAssets": zod.number(),
+  "currentLiabilities": zod.number(),
+  "workingCapital": zod.number(),
+  "currentRatio": zod.number().nullable(),
+  "quickRatio": zod.number().nullable(),
+  "debtToEquity": zod.number().nullable(),
+  "netWorth": zod.number(),
+  "claimable": zod.boolean().describe('False means this point must NOT be drawn as an ordinary segment. The line breaks, visibly, rather than running through a month we cannot stand behind.\n'),
+  "blockers": zod.array(zod.object({
+  "code": zod.enum(['suspense_balance', 'unclassified_accounts']),
+  "amount": zod.number(),
+  "count": zod.number().nullish()
+}))
+})
+export const GetTrendResponse = zod.array(GetTrendResponseItem)
+
+
+/**
+ * @summary WHERE a change came from (M19.2) — ranked contributors between a window and the equal-length window before it. Never why.
+
+ */
+export const GetDecompositionQueryParams = zod.object({
+  "dimension": zod.enum(['category', 'customer', 'vendor']),
+  "from": zod.coerce.string(),
+  "to": zod.coerce.string()
+})
+
+export const GetDecompositionResponse = zod.object({
+  "dimension": zod.enum(['category', 'customer', 'vendor']),
+  "current": zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "total": zod.number()
+}),
+  "prior": zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "total": zod.number()
+}),
+  "change": zod.number(),
+  "contributors": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "current": zod.number(),
+  "prior": zod.number(),
+  "change": zod.number(),
+  "shareOfChange": zod.number().nullable().describe('NULL when the NET change is about zero. Offsetting movements are real, and a share of \"nothing changed\" is undefined rather than infinite. The movers stay ranked.\n')
+})),
+  "concentration": zod.object({
+  "count": zod.number(),
+  "share": zod.number()
+}).nullable()
+})
+
+
+/**
  * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
 
  */

@@ -29,6 +29,8 @@ tags:
     description: Closing and reopening accounting periods
   - name: finance_hub
     description: The Finance Hub control surface
+  - name: analytics
+    description: Trends and decomposition
 
 paths:
   /healthz:
@@ -473,6 +475,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
+
+  /analytics/trend:
+    get:
+      operationId: getTrend
+      tags: [analytics]
+      summary: >
+        Liquidity and solvency per month end (M19.1). Each point carries its own
+        `claimable` — the Finance Hub withholding propagates PER POINT, since a
+        blocker is a fact about a moment and an earlier month may be clean.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string } }
+        - { name: to, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: One point per month, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /analytics/decomposition:
+    get:
+      operationId: getDecomposition
+      tags: [analytics]
+      summary: >
+        WHERE a change came from (M19.2) — ranked contributors between a window
+        and the equal-length window before it. Never why.
+      parameters:
+        - { name: dimension, in: query, required: true, schema: { type: string, enum: [category, customer, vendor] } }
+        - { name: from, in: query, required: true, schema: { type: string } }
+        - { name: to, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Ranked contributors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decomposition"
 
   /finance-hub/liquidity:
     get:
@@ -1542,6 +1584,81 @@ components:
           description: A window around the current period, newest first.
           items:
             $ref: "#/components/schemas/FiscalPeriod"
+
+    TrendPoint:
+      type: object
+      required: [period, currentAssets, quickAssets, currentLiabilities, workingCapital,
+                 currentRatio, quickRatio, debtToEquity, netWorth, claimable, blockers]
+      properties:
+        period: { type: string }
+        currentAssets: { type: number }
+        quickAssets: { type: number }
+        currentLiabilities: { type: number }
+        workingCapital: { type: number }
+        currentRatio: { type: ["number", "null"] }
+        quickRatio: { type: ["number", "null"] }
+        debtToEquity: { type: ["number", "null"] }
+        netWorth: { type: number }
+        claimable:
+          type: boolean
+          description: >
+            False means this point must NOT be drawn as an ordinary segment. The
+            line breaks, visibly, rather than running through a month we cannot
+            stand behind.
+        blockers:
+          type: array
+          items:
+            type: object
+            required: [code, amount]
+            properties:
+              code: { type: string, enum: [suspense_balance, unclassified_accounts] }
+              amount: { type: number }
+              count: { type: ["integer", "null"] }
+
+    Decomposition:
+      type: object
+      required: [dimension, current, prior, change, contributors, concentration]
+      properties:
+        dimension: { type: string, enum: [category, customer, vendor] }
+        current:
+          type: object
+          required: [from, to, total]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            total: { type: number }
+        prior:
+          type: object
+          required: [from, to, total]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            total: { type: number }
+        change: { type: number }
+        contributors:
+          type: array
+          items:
+            type: object
+            required: [id, name, nameAr, current, prior, change, shareOfChange]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              nameAr: { type: string }
+              current: { type: number }
+              prior: { type: number }
+              change: { type: number }
+              shareOfChange:
+                type: ["number", "null"]
+                description: >
+                  NULL when the NET change is about zero. Offsetting movements
+                  are real, and a share of "nothing changed" is undefined rather
+                  than infinite. The movers stay ranked.
+        concentration:
+          type: ["object", "null"]
+          required: [count, share]
+          properties:
+            count: { type: integer }
+            share: { type: number }
 
     Liquidity:
       type: object

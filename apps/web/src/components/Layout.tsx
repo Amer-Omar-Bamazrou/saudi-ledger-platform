@@ -69,6 +69,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     label: "Reports", labelAr: "التقارير",
     items: [
       { href: "/finance-hub",       label: "Finance Hub",      labelAr: "لوحة المالية",            icon: ShieldCheck },
+      { href: "/analytics",         label: "Analytics",        labelAr: "التحليلات",                 icon: TrendingUp },
       { href: "/reports",           label: "Reports Hub",      labelAr: "مركز التقارير",           icon: BarChart3 },
       { href: "/income-statement",  label: "Income Statement", labelAr: "قائمة الدخل",              icon: TrendingUp },
       { href: "/balance-sheet",     label: "Balance Sheet",    labelAr: "الميزانية العمومية",        icon: BarChart3 },

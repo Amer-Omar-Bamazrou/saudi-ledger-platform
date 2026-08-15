@@ -64,6 +64,7 @@ import ScanReview from '@/pages/ScanReview';
 // Reports Hub + new report pages
 import ReportsHub from '@/pages/ReportsHub';
 import FinanceHub from '@/pages/FinanceHub';
+import Analytics from '@/pages/Analytics';
 import JournalReport from '@/pages/reports/JournalReport';
 import AccountStatement from '@/pages/reports/AccountStatement';
 import AccountSummary from '@/pages/reports/AccountSummary';
@@ -164,6 +165,7 @@ function Router() {
               {/* Reports Hub */}
               <Route path="/reports" component={ReportsHub} />
               <Route path="/finance-hub" component={FinanceHub} />
+              <Route path="/analytics" component={Analytics} />
               {/* New report pages under /reports/* */}
               <Route path="/reports/journal-report" component={JournalReport} />
               <Route path="/reports/account-statement" component={AccountStatement} />

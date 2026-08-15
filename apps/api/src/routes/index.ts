@@ -31,6 +31,7 @@ import budgets from "./budgets.js";
 import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
 import financeHub from "./financeHub.js";
+import analytics from "./analytics.js";
 import llm from "./llm.js";
 import capture from "./capture.js";
 import recurring from "./recurring.js";
@@ -98,6 +99,7 @@ router.use("/reports", requirePermission("reports"), reports);
 router.use("/period-locks", requirePermission("period_locks"), periodLocks);
 // M18.3 — read-only derived figures; gated on reports, which every role may read.
 router.use("/finance-hub", requirePermission("reports"), financeHub);
+router.use("/analytics", requirePermission("reports"), analytics);
 router.use("/llm", requirePermission("llm"), llm);
 // A capture becomes a vendor bill, so it carries the bills authority — one
 // answer to "who may enter a purchase", not two.

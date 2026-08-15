@@ -232,3 +232,37 @@ describeMaybe("M19.2 — decomposition", () => {
     expect(d.concentration).toBeNull();
   });
 });
+
+/**
+ * M19.3 — the edge validates, so a malformed period is an ERROR not an empty
+ * chart. An empty chart reads as "your business had no activity", which is a
+ * false statement about the tenant rather than about the request.
+ */
+describe("M19.3 — the analytics endpoints validate their periods", () => {
+  it("rejects a malformed trend period rather than returning nothing", async () => {
+    const { analyticsController } = await import("../controllers/analytics.controller");
+    const res = { json: () => undefined } as never;
+    for (const q of [{ from: "2026", to: "2026-06" }, { from: "2026-06", to: "june" }, {}]) {
+      await expect(
+        analyticsController.trend({ query: q } as never, res),
+      ).rejects.toThrow(/YYYY-MM/);
+    }
+  });
+
+  it("rejects a reversed window", async () => {
+    const { analyticsController } = await import("../controllers/analytics.controller");
+    await expect(
+      analyticsController.trend({ query: { from: "2026-09", to: "2026-03" } } as never, {} as never),
+    ).rejects.toThrow(/must not be after/);
+  });
+
+  it("rejects an unknown dimension", async () => {
+    const { analyticsController } = await import("../controllers/analytics.controller");
+    await expect(
+      analyticsController.decomposition(
+        { query: { dimension: "product", from: "2026-06-01", to: "2026-06-30" } } as never,
+        {} as never,
+      ),
+    ).rejects.toThrow(/category, customer or vendor/);
+  });
+});

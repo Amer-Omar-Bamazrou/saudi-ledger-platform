@@ -104,14 +104,61 @@ invoice, not the payment (M16 Q0 — documents file, transactions reconcile). So
 cash-basis series near a VAT number invites a reconciliation that *should* fail.
 It must read unmistakably as a management view, never a tax view.
 
-### ⏳ OUTSTANDING — a clarifying question the owner is asking
+### ✅ RESOLVED 2026-08-15 — it was accrual all along, and the risk is gone
 
-*Did he mean cash-basis revenue **timing**, or was he describing the
-balance-sheet treatment of receivables (an asset that converts to cash)?*
+The accountant clarified: *"when not paid the revenue increases and trade
+receivable increases; when paid, receivable decreases and bank increases"* —
+and then, unambiguously: *"when paid, it's a balance sheet **asset swap** —
+Accounts Receivable converts into Cash/Bank."*
 
-The second is what the platform already does correctly, and needs no new view at
-all. **These are different builds**, so §6.1's "Collected" series is specified
-but **not started** until the answer comes back.
+That is **exactly what the ledger already does**: Dr AR / Cr Sales at issuance,
+then Dr Bank / Cr AR at payment — revenue recognised once, at issuance, and
+payment moving nothing but the composition of assets. He was describing the
+**balance-sheet movement**; his first phrasing ("revenue up when paid") was
+loose, not a different model.
+
+**The lesson worth keeping from the detour:** the ambiguity was not in the
+ledger, it was in a sentence. "Revenue increases when paid" and "receivables
+convert to cash" describe the same postings under two readings, one of which
+would have had us build a second revenue figure. Asking rather than inferring
+cost one round trip and avoided a meta-finding #9 of our own making.
+
+**Consequences, all of them simplifying:**
+
+- There is **no second revenue figure** to build. The meta-finding #9 risk this
+  section was written to contain does not exist.
+- The naming rule above is now **precautionary rather than load-bearing** — but
+  it stays, because the next person to want a "cash revenue" chart will meet the
+  same trap.
+- Everything in §4 about a cash-basis series near an accrual VAT figure is
+  **moot**. Kept as the record of a question asked and answered, not as a
+  constraint in force.
+
+### Does the invoiced-vs-collected bridge survive on its own merits?
+
+**Yes, but reframed — and it is no longer about revenue.**
+
+It dies as an *alternative revenue recognition*. It survives as a **receivables
+bridge**, which answers a question nothing else does:
+
+> Opening receivables **+ invoiced − collected − credited = closing
+> receivables.**
+
+The "receivables outstanding over time" series (§6.1) already shows the gap as a
+**stock**. The bridge shows it as a **flow**, and that difference is the whole
+value: a rising AR balance does not say whether you invoiced more or collected
+less, and those call for opposite responses. "Receivables rose SAR 40,000: you
+invoiced 100,000 and collected 60,000" is the WHERE-not-WHY rule applied to
+cash timing.
+
+It also has the property this codebase keeps reaching for: **it is an identity,
+so it can be asserted.** The five terms must reconcile exactly, the same way the
+trend is pinned to agree with the balance sheet.
+
+**Recommendation: keep it, build it with the cash section (§6.1), not before.**
+It is genuinely useful and cheap once the trend read model exists — but it was
+never the urgent thing, and the question that made it urgent has now been
+answered in the other direction.
 
 ---
 
@@ -313,7 +360,7 @@ visualization guidance; the decisions that belong in *this* document:
 | **M19.0** | Budget actuals fix | ✅ **done** — sign-aware actuals by account type (§7 prerequisite 1). | — |
 | **M19.1** | Trend read model | ✅ **done** — single-pass fold with per-point `claimable`; agrees with `balanceSheet(as_of)` by test, ≈22× faster and now linear in history (§6.2). | — |
 | **M19.2** | Decomposition | ✅ **done** — ranked contributors by category / customer / vendor, with share NULL on offsetting movements and arrivals/departures kept (§5). Budget variance and the invoiced-vs-collected bridge remain held. | — |
-| **M19.3** | The Analytics page | Charts, table views, gaps, the withheld summary. | M19.1 |
+| **M19.3** | The Analytics page | ✅ **done** — two separate charts (ratios / money, never dual-axis), decomposition bars, a table view, gaps at unclaimable points and the withheld summary. Palette validated in both modes. | — |
 | **M19.4** | Absorb the Cockpit | Move the four cards in; `/` becomes a router (§8). | M19.3 |
 | **M19.5** | Budgets | Blocked on §7's periodisation fork. | Owner decision |
 
