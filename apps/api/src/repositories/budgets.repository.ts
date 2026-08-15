@@ -12,9 +12,27 @@ export const budgetsRepository = {
       .orderBy(categoriesTable.type, categoriesTable.name);
   },
 
+  /**
+   * 🔴 M19.0 — returns DEBIT and CREDIT totals separately, never a bare
+   * `sum(amount)`.
+   *
+   * Amounts are stored POSITIVE and the direction lives in `type` (CLAUDE.md
+   * §4), so summing the column alone treats every movement as if it went the
+   * same way. On an expense budget that meant a REFUND INCREASED "spent": a
+   * 5,000 purchase followed by a 5,000 refund reported 10,000 of spending
+   * against the budget instead of nothing.
+   *
+   * The direction cannot be resolved here, because it depends on the ACCOUNT
+   * TYPE — spending is debits on an expense account and credits on an income
+   * one. So this returns both sides and the service applies the sign, which is
+   * the same split the income statement already uses.
+   */
   sumTransactions(categoryId: number, periodStart: string, periodEnd: string) {
     return db
-      .select({ amount: sql<string>`sum(amount)` })
+      .select({
+        debit: sql<string>`coalesce(sum(case when ${transactionsTable.type} = 'debit' then ${transactionsTable.amount}::numeric else 0 end), 0)`,
+        credit: sql<string>`coalesce(sum(case when ${transactionsTable.type} = 'credit' then ${transactionsTable.amount}::numeric else 0 end), 0)`,
+      })
       .from(transactionsTable)
       .where(
         and(

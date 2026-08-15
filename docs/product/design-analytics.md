@@ -161,8 +161,31 @@ Current ratio and quick ratio per period end, computed from
 `reports.balanceSheet(as_of)` — which already accepts an as-of date and, since
 M18.2, returns the current / non-current / unclassified partition.
 
-⚠️ **Cost note:** one balance-sheet computation per point. Twelve months is
-twelve full GL passes; that needs measuring before it is charted, not after.
+### 🔴 MEASURED, and the naive implementation is too slow
+
+Owner instruction was to measure before charting rather than discover it in the
+UI. Measured 2026-08-15 against a synthetic year:
+
+| GL lines | 12 balance sheets | per point (min / median / max) |
+| --- | --- | --- |
+| 61 (dev org) | 138 ms | 8 / 9 / 37 ms |
+| **6,000 (a busy SME year)** | **4,612 ms** | **87 / 578 / 694 ms** |
+
+**4.6 seconds is not chartable**, and it gets worse in the obvious direction:
+`balanceSheet(as_of)` re-reads **every GL line from the beginning of time** up
+to that date, so twelve points read roughly 6.5× the year, plus twelve redundant
+category fetches. Year two doubles the lines *and* the per-point cost — the
+growth is quadratic in history, not linear.
+
+**Consequence for M19.1: the trend read model must NOT call `balanceSheet` per
+point.** It needs a single pass — fetch the period's lines once, ordered by
+date, and fold forward accumulating month-end snapshots in one sweep: O(lines)
+instead of O(points × lines). That is a different query, not a loop around the
+existing one.
+
+Rejected alternatives: a materialised monthly-balance table (invalidation
+machinery for a problem one query solves), and caching (hides the cost rather
+than removing it, and the first load is the one a user judges).
 
 ### 6.3 Long-term: solvency (A12 — new, the hub does not do this)
 
@@ -254,8 +277,8 @@ visualization guidance; the decisions that belong in *this* document:
 
 | # | Milestone | Content | Gate |
 | --- | --- | --- | --- |
-| **M19.0** | Budget actuals fix | Sign-aware actuals (§7 prerequisite 1). Independent, and a real bug regardless of Analytics. | None |
-| **M19.1** | Trend read model | Per-period cash, liquidity and solvency series with per-point `claimable` (§3). Measure the balance-sheet-per-point cost. | M18.2 ✅ |
+| **M19.0** | Budget actuals fix | ✅ **done** — sign-aware actuals by account type (§7 prerequisite 1). | — |
+| **M19.1** | Trend read model | Per-period cash, liquidity and solvency series with per-point `claimable` (§3). 🔴 **Single-pass fold, not a loop over `balanceSheet`** — measured at 4.6s for 12 points (§6.2). | M18.2 ✅ |
 | **M19.2** | Decomposition | Ranked contributors by category / customer / vendor (§5). | M19.1 |
 | **M19.3** | The Analytics page | Charts, table views, gaps, the withheld summary. | M19.1 |
 | **M19.4** | Absorb the Cockpit | Move the four cards in; `/` becomes a router (§8). | M19.3 |

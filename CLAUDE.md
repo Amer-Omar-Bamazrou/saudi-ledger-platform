@@ -312,6 +312,19 @@ These are short forms; the rules are binding, the history explains why.
   to a closed period posts in the current open period — never re-date into a
   closed period, and never silently skip (a blocked run must fail loudly and
   be recorded).
+- **🔴 The status palette is reserved for real STATES — never for a rule of
+  thumb.** good/warning/serious/critical describe something that IS the case
+  (an outbox is stuck, a certificate expired). A heuristic threshold — "quick
+  ratio below 1", a solvency ratio, a budget variance — is a **judgment**, and
+  colouring it with a status renders it as a verdict the platform cannot
+  support. Those get a neutral treatment plus words. Corollary already in force:
+  the liquidity observations are typed `"watch"` and nothing else, so no UI
+  *can* render a compliance failure from a number no standard sets.
+- **🔴 No dual-axis charts where the two series have different units.** Money and
+  a ratio on one canvas invents a relationship the reader will believe — two
+  y-scales can be slid until any two lines appear to track. Different units ⇒
+  **separate charts**, small multiples, or index both to a common base. (The
+  single most common charting mistake, and the Analytics design walked at it.)
 - **Accepting the match IS the review** (M16 principle): one user act both
   accepts a held row and records its effect. A second nested confirmation of
   the same fact is a design defect, not extra safety.
