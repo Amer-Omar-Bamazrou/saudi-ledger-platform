@@ -312,7 +312,7 @@ visualization guidance; the decisions that belong in *this* document:
 | --- | --- | --- | --- |
 | **M19.0** | Budget actuals fix | ✅ **done** — sign-aware actuals by account type (§7 prerequisite 1). | — |
 | **M19.1** | Trend read model | ✅ **done** — single-pass fold with per-point `claimable`; agrees with `balanceSheet(as_of)` by test, ≈22× faster and now linear in history (§6.2). | — |
-| **M19.2** | Decomposition | Ranked contributors by category / customer / vendor (§5). | M19.1 |
+| **M19.2** | Decomposition | ✅ **done** — ranked contributors by category / customer / vendor, with share NULL on offsetting movements and arrivals/departures kept (§5). Budget variance and the invoiced-vs-collected bridge remain held. | — |
 | **M19.3** | The Analytics page | Charts, table views, gaps, the withheld summary. | M19.1 |
 | **M19.4** | Absorb the Cockpit | Move the four cards in; `/` becomes a router (§8). | M19.3 |
 | **M19.5** | Budgets | Blocked on §7's periodisation fork. | Owner decision |

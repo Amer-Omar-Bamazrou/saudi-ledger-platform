@@ -168,6 +168,58 @@ function snapshot(period: string, accounts: Map<number | string, AccountState>):
   };
 }
 
+export type Dimension = "category" | "customer" | "vendor";
+
+export interface Contributor {
+  id: string;
+  name: string;
+  nameAr: string;
+  current: number;
+  prior: number;
+  change: number;
+  /**
+   * This contributor's share of the NET change, 0–1.
+   *
+   * 🔴 NULL when the net change is ~zero. That is not an edge case to tidy
+   * away — offsetting movements are the interesting case: one customer up
+   * 50,000 and another down 50,000 is a real thing that happened, and dividing
+   * by a net of zero would report each as an infinite or absurd share of
+   * "nothing changed". The movers are still listed and still ranked; only the
+   * SHARE is undefined, and the caller must say "these moved" rather than
+   * "these caused the change".
+   */
+  shareOfChange: number | null;
+}
+
+export interface Decomposition {
+  dimension: Dimension;
+  current: { from: string; to: string; total: number };
+  prior: { from: string; to: string; total: number };
+  change: number;
+  /** Ranked by ABSOLUTE change — the biggest movers, in either direction. */
+  contributors: Contributor[];
+  /**
+   * How concentrated the movement is: the fewest contributors whose absolute
+   * changes cover ≥80% of the total absolute movement. Answers "is this three
+   * customers, or everyone a little?" without asserting a cause.
+   */
+  concentration: { count: number; share: number } | null;
+}
+
+/** The window of equal length immediately before [from, to]. */
+function priorWindow(from: string, to: string): { from: string; to: string } {
+  const MS = 86_400_000;
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  const lengthDays = Math.round((end - start) / MS) + 1;
+  const priorEnd = start - MS;
+  const priorStart = priorEnd - (lengthDays - 1) * MS;
+  return {
+    from: new Date(priorStart).toISOString().slice(0, 10),
+    to: new Date(priorEnd).toISOString().slice(0, 10),
+  };
+}
+
 export const analyticsService = {
   /**
    * The liquidity and solvency trend, one point per month end.
@@ -218,5 +270,106 @@ export const analyticsService = {
     }
 
     return out;
+  },
+
+  /**
+   * ── M19.2: WHERE a change came from ───────────────────────────────────────
+   *
+   * 🔴 THE RULE (design-analytics.md §5, and hub-structure-decision.md §4):
+   *
+   *   > State WHERE a change came from, never WHY it happened.
+   *   > Decomposition is arithmetic; causation is inference.
+   *
+   * So this returns ranked contributors and their arithmetic shares. It returns
+   * no sentence, no cause, no recommendation, and it never says "because".
+   * That is what keeps it outside the parked-AI trigger: it computes over rows
+   * we already store, and a better model could not make it more correct.
+   *
+   * `prior` defaults to the equal-length window immediately before `from`. It
+   * is derived rather than guessed at from intent — a caller wanting
+   * year-over-year passes the window explicitly.
+   */
+  async decompose(
+    dimension: Dimension,
+    from: string,
+    to: string,
+    prior = priorWindow(from, to),
+  ): Promise<Decomposition> {
+    const fetch = (f: string, t: string) =>
+      dimension === "category"
+        ? analyticsRepository.categoryTotals(f, t)
+        : dimension === "customer"
+          ? analyticsRepository.customerTotals(f, t)
+          : analyticsRepository.vendorTotals(f, t);
+
+    const [currentRows, priorRows] = await Promise.all([fetch(from, to), fetch(prior.from, prior.to)]);
+
+    /**
+     * 🔴 A UNION of both windows, never an inner join. A customer who appeared
+     * this period (prior 0) or disappeared (current 0) is precisely the kind of
+     * mover worth reporting — joining would drop exactly the largest changes.
+     */
+    const merged = new Map<string, Contributor>();
+    const put = (
+      rows: Array<{ id: string; name: string; nameAr: string; total: string }>,
+      side: "current" | "prior",
+    ) => {
+      for (const r of rows) {
+        const c =
+          merged.get(r.id) ??
+          ({ id: r.id, name: r.name, nameAr: r.nameAr, current: 0, prior: 0, change: 0, shareOfChange: null } as Contributor);
+        c[side] = round2(Number(r.total));
+        // Keep whichever window has a name — a deleted customer still has one
+        // in the older window.
+        if (!c.name && r.name) c.name = r.name;
+        merged.set(r.id, c);
+      }
+    };
+    put(currentRows, "current");
+    put(priorRows, "prior");
+
+    const contributors = [...merged.values()].map((c) => ({
+      ...c,
+      change: round2(c.current - c.prior),
+    }));
+
+    const currentTotal = round2(contributors.reduce((s, c) => s + c.current, 0));
+    const priorTotal = round2(contributors.reduce((s, c) => s + c.prior, 0));
+    const netChange = round2(currentTotal - priorTotal);
+
+    // Share of the NET change — undefined when the net is ~zero (see Contributor).
+    const shareDenominator = Math.abs(netChange) >= 0.01 ? netChange : null;
+    for (const c of contributors) {
+      c.shareOfChange = shareDenominator === null ? null : round2(c.change / shareDenominator);
+    }
+
+    contributors.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+
+    /**
+     * Concentration uses ABSOLUTE movement, not the net, so it still answers
+     * "is this a few names or everyone?" when the net is zero — which is when
+     * the question matters most.
+     */
+    const totalAbs = contributors.reduce((s, c) => s + Math.abs(c.change), 0);
+    let concentration: Decomposition["concentration"] = null;
+    if (totalAbs >= 0.01) {
+      let running = 0;
+      let count = 0;
+      for (const c of contributors) {
+        running += Math.abs(c.change);
+        count += 1;
+        if (running / totalAbs >= 0.8) break;
+      }
+      concentration = { count, share: round2(running / totalAbs) };
+    }
+
+    return {
+      dimension,
+      current: { from, to, total: currentTotal },
+      prior: { from: prior.from, to: prior.to, total: priorTotal },
+      change: netChange,
+      contributors: contributors.filter((c) => Math.abs(c.change) >= 0.01),
+      concentration,
+    };
   },
 };

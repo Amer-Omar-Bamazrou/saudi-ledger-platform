@@ -19,8 +19,19 @@
  * entries only, `date <= as_of`. A trend that disagreed with the balance sheet
  * it is charting would be meta-finding #9 in a new costume.
  */
-import { db, journalEntriesTable, journalEntryLinesTable, categoriesTable } from "@workspace/db";
-import { and, eq, lte, sql } from "drizzle-orm";
+import {
+  db,
+  journalEntriesTable,
+  journalEntryLinesTable,
+  categoriesTable,
+  transactionsTable,
+  invoicesTable,
+  billsTable,
+  customersTable,
+  vendorsTable,
+} from "@workspace/db";
+import { and, eq, gte, lte, notInArray, sql } from "drizzle-orm";
+import { taxVisible } from "./summary.repository";
 
 export interface MonthlyAccountMovement {
   /** `YYYY-MM` — the month the movement fell in. */
@@ -70,5 +81,89 @@ export const analyticsRepository = {
         categoriesTable.systemCode,
       )
       .orderBy(sql`to_char(${journalEntriesTable.date}::date, 'YYYY-MM')`);
+  },
+
+  /**
+   * ── M19.2: per-dimension totals for one window ────────────────────────────
+   *
+   * 🔴 Each of these reuses the SAME filter every other money report uses, so a
+   * decomposition can never disagree with the report it is explaining:
+   *
+   *   transactions  `taxVisible()` — accepted AND operating (M15 + M16.2)
+   *   invoices      approved only, with `documentSign` applied per row so a
+   *                 credit note SUBTRACTS (M12.1b)
+   *   bills         approved only
+   *
+   * Signing invoices is done in SQL rather than in the service because the
+   * grouping has to happen after the sign — summing magnitudes and negating
+   * afterwards would make a credited customer look like their biggest month.
+   */
+  categoryTotals(from: string, to: string) {
+    return db
+      .select({
+        id: sql<string>`coalesce(${transactionsTable.categoryId}::text, 'uncategorised')`,
+        name: sql<string>`coalesce(max(${categoriesTable.name}), 'Uncategorised')`,
+        nameAr: sql<string>`coalesce(max(${categoriesTable.nameAr}), 'غير مصنف')`,
+        total: sql<string>`coalesce(sum(
+          case when ${transactionsTable.type} = 'debit'
+               then ${transactionsTable.amount}::numeric
+               else -${transactionsTable.amount}::numeric end), 0)`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(transactionsTable)
+      .leftJoin(categoriesTable, eq(categoriesTable.id, transactionsTable.categoryId))
+      .where(
+        and(
+          taxVisible(),
+          gte(transactionsTable.date, from),
+          lte(transactionsTable.date, to),
+        ),
+      )
+      .groupBy(transactionsTable.categoryId);
+  },
+
+  customerTotals(from: string, to: string) {
+    return db
+      .select({
+        id: sql<string>`coalesce(${invoicesTable.customerId}::text, 'none')`,
+        name: sql<string>`coalesce(max(${customersTable.name}), 'No customer')`,
+        nameAr: sql<string>`coalesce(max(${customersTable.nameAr}), '')`,
+        total: sql<string>`coalesce(sum(
+          case when ${invoicesTable.documentType} = 'credit_note'
+               then -${invoicesTable.total}::numeric
+               else ${invoicesTable.total}::numeric end), 0)`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(invoicesTable)
+      .leftJoin(customersTable, eq(customersTable.id, invoicesTable.customerId))
+      .where(
+        and(
+          notInArray(invoicesTable.status, ["draft", "submitted"]),
+          gte(invoicesTable.date, from),
+          lte(invoicesTable.date, to),
+        ),
+      )
+      .groupBy(invoicesTable.customerId);
+  },
+
+  vendorTotals(from: string, to: string) {
+    return db
+      .select({
+        id: sql<string>`coalesce(${billsTable.vendorId}::text, 'none')`,
+        name: sql<string>`coalesce(max(${vendorsTable.name}), 'No vendor')`,
+        nameAr: sql<string>`coalesce(max(${vendorsTable.nameAr}), '')`,
+        total: sql<string>`coalesce(sum(${billsTable.total}::numeric), 0)`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(billsTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
+      .where(
+        and(
+          notInArray(billsTable.status, ["draft", "submitted"]),
+          gte(billsTable.date, from),
+          lte(billsTable.date, to),
+        ),
+      )
+      .groupBy(billsTable.vendorId);
   },
 };
