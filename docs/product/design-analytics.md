@@ -15,7 +15,7 @@ not defined".
 | # | Question | Decision |
 | --- | --- | --- |
 | **A1** | What decision does it lead to? | **Cash flow, and the ability to pay short-term AND long-term debts.** |
-| **A2** | Cash or accrual? | **Cash-basis presentation** — but it is called **"Cash collected" / "Collections"**, 🔴 **never "revenue"**. The ledger stays accrual and is not touched. |
+| **A2** | Cash or accrual? | **ACCRUAL — settled, see §4.** The accountant's model turned out to be what the ledger already does (payment is an asset swap, revenue recognised once at issuance), so there is **no second revenue figure and nothing to build**. The "never call it revenue" rule survives as a *precaution*, not a live constraint. |
 | **A3** | Periods | **Monthly, quarterly, yearly.** |
 | **A4** | Budgets | **In scope.** The actuals defect must be fixed first. 🔴 **Do not apportion** an annual budget across months. |
 | **A5** | Dimensions | **Category, customer and vendor.** None ignored. |
