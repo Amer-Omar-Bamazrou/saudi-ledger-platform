@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import { classifyChartState, type EmptyReason } from "@/lib/chartState";
 import { TrendingUp, TriangleAlert, Table as TableIcon } from "lucide-react";
 
 /**
@@ -65,7 +66,13 @@ function currentMonthRange(): { from: string; to: string } {
 
 export default function Analytics() {
   const { t } = useLanguage();
-  const [months, setMonths] = useState(12);
+  /**
+   * 6 months by default, not 12 or 24. A long window on a young or quiet tenant
+   * is mostly empty months, and an empty month is not informative — it is just
+   * a wider axis. The longer ranges stay one click away for anyone who has the
+   * history to fill them.
+   */
+  const [months, setMonths] = useState(6);
   const [dimension, setDimension] = useState<Dim>("category");
   const [showTable, setShowTable] = useState(false);
 
@@ -120,6 +127,59 @@ export default function Analytics() {
   const withheldCount = (trend ?? []).filter((p) => !p.claimable).length;
   const sparse = (trend ?? []).length > 0 && (trend ?? []).length < 3;
 
+  const ratioState = classifyChartState(
+    trend,
+    series.flatMap((s) => [s.currentRatio, s.quickRatio]),
+    { ratio: true },
+  );
+  const moneyState = classifyChartState(
+    trend,
+    series.flatMap((s) => [s.currentAssets, s.currentLiabilities]),
+  );
+
+  /** The message a chart shows INSTEAD of an empty or flat frame. */
+  const emptyMessage = (reason: Exclude<EmptyReason, null>) => {
+    switch (reason) {
+      case "loading":
+        return t("Loading…", "جارٍ التحميل…");
+      case "all_withheld":
+        return t(
+          `Every month in this range has figures we cannot stand behind, so there is nothing to chart. ${withheldCount} month(s) are affected — clear the unidentified money or classify the accounts, and this fills in.`,
+          `كل شهر في هذا النطاق يحتوي أرقاماً لا يمكننا الاعتماد عليها، فلا يوجد ما يُرسم. ${withheldCount} شهراً متأثرة — صنّف الحسابات أو عالج المبالغ غير المحددة، وسيظهر الرسم.`,
+        );
+      /*
+        🔴 Both remaining cases must mention the withheld months when there are
+        any. "You had no short-term obligations in this period" is FALSE if two
+        of the six months had obligations we simply could not stand behind —
+        it would describe a data-quality problem as a fact about the business,
+        which is the exact error this whole mechanism exists to avoid.
+      */
+      case "undefined_ratio":
+        return (
+          t(
+            "You had no short-term obligations in the months we can rely on, so there is no ratio to show — not a ratio of zero.",
+            "لم تكن عليك التزامات قصيرة الأجل في الأشهر التي يمكن الاعتماد عليها، لذا لا توجد نسبة تُعرض — وليست نسبة صفر.",
+          ) + withheldSuffix()
+        );
+      case "no_activity":
+        return (
+          t(
+            "Nothing was recorded in the months we can rely on. Try a longer range, or import your transactions.",
+            "لم يُسجَّل شيء في الأشهر التي يمكن الاعتماد عليها. جرّب نطاقاً أطول، أو استورد معاملاتك.",
+          ) + withheldSuffix()
+        );
+    }
+  };
+
+  /** Names the withheld months so a message never describes only half the window. */
+  const withheldSuffix = () =>
+    withheldCount === 0
+      ? ""
+      : t(
+          ` ${withheldCount} other month(s) in this range are withheld because their figures cannot be relied on.`,
+          ` وهناك ${withheldCount} شهراً آخر في هذا النطاق محجوبة لأن أرقامها غير موثوقة.`,
+        );
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -136,7 +196,7 @@ export default function Analytics() {
           </p>
         </div>
         <div className="flex gap-1">
-          {[6, 12, 24].map((n) => (
+          {[3, 6, 12, 24].map((n) => (
             <Button
               key={n}
               size="sm"
@@ -205,25 +265,31 @@ export default function Analytics() {
           </CardDescription>
         </CardHeader>
         <CardContent className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} width={44} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              {/* The rule-of-thumb line — neutral, never a status colour. */}
-              <ReferenceLine y={1} stroke="currentColor" strokeDasharray="4 4" opacity={0.35} />
-              <Line
-                type="monotone" dataKey="currentRatio" name={t("Current ratio", "النسبة المتداولة")}
-                stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
-              />
-              <Line
-                type="monotone" dataKey="quickRatio" name={t("Quick ratio", "النسبة السريعة")}
-                stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {ratioState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">{emptyMessage(ratioState)}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={44} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {/* The rule-of-thumb line — neutral, never a status colour. */}
+                <ReferenceLine y={1} stroke="currentColor" strokeDasharray="4 4" opacity={0.35} />
+                <Line
+                  type="monotone" dataKey="currentRatio" name={t("Current ratio", "النسبة المتداولة")}
+                  stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
+                />
+                <Line
+                  type="monotone" dataKey="quickRatio" name={t("Quick ratio", "النسبة السريعة")}
+                  stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -236,23 +302,29 @@ export default function Analytics() {
           </CardDescription>
         </CardHeader>
         <CardContent className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} width={64} />
-              <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line
-                type="monotone" dataKey="currentAssets" name={t("Current assets", "الأصول المتداولة")}
-                stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
-              />
-              <Line
-                type="monotone" dataKey="currentLiabilities" name={t("Due within a year", "المستحق خلال سنة")}
-                stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {moneyState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">{emptyMessage(moneyState)}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={64} tickFormatter={(v) => formatCurrency(Number(v))} />
+                <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone" dataKey="currentAssets" name={t("Current assets", "الأصول المتداولة")}
+                  stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
+                />
+                <Line
+                  type="monotone" dataKey="currentLiabilities" name={t("Due within a year", "المستحق خلال سنة")}
+                  stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
