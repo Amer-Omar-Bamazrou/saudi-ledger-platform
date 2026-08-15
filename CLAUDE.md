@@ -500,8 +500,11 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
   adjacent; fields worth adding); sub-cent amounts via raw API can mark a
   document paid with a 1-halala GL residual (round `paid` at the validation
-  gate — unreachable from UI/settlement); budget actuals `sum(amount)` ignores
-  debit/credit so a refund increases "spent"; the income-statement
+  gate — unreachable from UI/settlement); ~~budget actuals `sum(amount)` ignores
+  debit/credit so a refund increases "spent"~~ **✅ FIXED in M19.0** — actuals
+  are now signed by account type (expense/asset debit-natural, income/liability/
+  equity credit-natural), and a negative actual is reported rather than clamped;
+  the income-statement
   transactions-FALLBACK (zero journal lines only) reports gross incl. VAT;
   settlement links are readable from the transaction side only (no invoice/
   bill-side surface, design said "either side"); the Categories UI cannot mark
