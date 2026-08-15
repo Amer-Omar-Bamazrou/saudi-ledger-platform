@@ -61,8 +61,8 @@ Each row is a separate PR with one concern, per §11 of CLAUDE.md.
 | **M17.0** | **Retire the fake surface** | Q7 + Q6: under-construction page; delete `transactions.is_zakat_relevant`, `categories.zakat_relevant`, `GET /summary/zakat` and everything downstream. | ✅ this PR |
 | **M17.1** | **Ownership scope** | Q2: `companies.ownership_type`, Company Settings field, the out-of-scope notice for FOREIGN/MIXED. | Next |
 | **M17.2** | **Fiscal year + calendar** | Q3: the stated prerequisite. Apply `fiscalYearStart` (stored since M11.6, applied nowhere), add the calendar basis, build the fiscal-period resolver, Hijri↔Gregorian conversion. | Blocked by nothing |
-| **M17.3** | **COA Zakat classification** | Q4 + Q6: `zakat_classification` on chart-of-accounts entries — the replacement for the deleted flag, at the grain Q6 chose. Seeded for system accounts, editable per tenant. | After M17.2 |
-| **M17.4** | **Worksheet engine + adjustments** | Q4 + Q5: the base computation, the income-statement cross-check, `zakat_worksheets` + lines + adjustments, lock semantics. | After M17.3 |
+| **M17.3** | **COA Zakat classification** | Q4 + Q6: `zakat_classification` on chart-of-accounts entries — the replacement for the deleted flag, at the grain Q6 chose. Seeded for system accounts, editable per tenant. | After M17.2 — **needs advisor answer C2** (what composes the base defines what this must express) |
+| **M17.4** | **Worksheet engine + adjustments** | Q4 + Q5: the base computation, the income-statement cross-check, `zakat_worksheets` + lines + adjustments, lock semantics. | 🔴 **HELD** on §4 / advisor Block C — especially C1, the minimum-base rule |
 | **M17.5** | **Finance Hub surface** | Q8: the annual report generator under Tax & Compliance, plus export. | After M17.4 |
 
 **Why fiscal year comes before the worksheet, not with it:** a Zakat base is a
@@ -94,12 +94,26 @@ tenant sees.
 | **Adjusted net profit** | The income statement is a *cross-check* (Q4), not an input to the base. | If the minimum-base rule above exists, net profit becomes a computational input and Q4's "cross-verify" understates the integration. |
 | **Mixed ownership** | Out of scope (Q2). | The real rule apportions between Zakat (Saudi/GCC share) and income tax (foreign share). v1 declines rather than approximates — correct, and the reason the notice must name the limitation rather than hide the page. |
 
-**How to close this:** the same advisor engagement already queued for C7/C8
-(retention + PDPL) is the natural place to ask, and the questions are cheap to
-add. Until then M17.4 must not ship a figure to a tenant. A worksheet that
-computes confidently from unverified rules is exactly the failure the Zakat
-page already committed once (§6) — with better arithmetic and the same
-epistemic problem.
+**How to close this.** 🔴 **M17.4 IS HELD until it is closed** (owner
+instruction, 2026-08-15) — not "should be careful", held. A worksheet that
+computes confidently from unverified rules is exactly the failure the Zakat page
+already committed once (§6), with better arithmetic and the same epistemic
+problem.
+
+The questions are written up as **Block C of
+[`advisor-questions.md`](./advisor-questions.md)** and go in the **same
+conversation** as the C7/C8 retention and PDPL questions — one engagement, not
+three. Two sequencing notes:
+
+- **Ask the minimum-base question (C1) first.** It is the only one that changes
+  the architecture rather than the arithmetic: if a rule ties the base to
+  adjusted net profit, the income statement stops being Q4's *cross-check* and
+  becomes a computed *input*, with its own adjustments and audit trail. Knowing
+  that before the derivation is built is the difference between designing it and
+  retrofitting it.
+- **The base-composition answer (C2) is needed before M17.3, not M17.4.** It
+  defines what the chart-of-accounts classification has to be able to express,
+  and M17.3 builds that classification.
 
 ---
 
