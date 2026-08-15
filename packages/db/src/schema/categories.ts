@@ -38,7 +38,19 @@ export const categoriesTable = pgTable(
      */
     isSystem: boolean("is_system").notNull().default(false),
     vatApplicable: boolean("vat_applicable").notNull().default(false),
-    zakatRelevant: boolean("zakat_relevant").notNull().default(false),
+    //
+    // 🔴 `zakat_relevant` was REMOVED in M17.0 (migration 0038), together with
+    // `transactions.is_zakat_relevant`.
+    //
+    // Owner decision Q6: Zakat classification moves to this table, but as a
+    // real chart-of-accounts mapping (which worksheet line does this GL account
+    // feed — capital, retained earnings, a provision, a long-term liability, a
+    // deductible long-term asset), NOT as a boolean. A yes/no flag cannot
+    // express a working paper's structure, and this one barely expressed
+    // anything: of the seeded accounts only INVESTMENT_INCOME carried `true`,
+    // and its sole reader (`GET /summary/zakat`) has also been deleted.
+    //
+    // The replacement lands in M17.3. See docs/product/design-zakat-module.md.
     /**
      * M16.2 — the category's default VAT treatment for TRANSACTIONS categorized
      * under it: 'S' | 'Z' | 'E' | 'O', or NULL where no honest default exists

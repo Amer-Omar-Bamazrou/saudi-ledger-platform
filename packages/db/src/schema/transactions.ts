@@ -44,7 +44,21 @@ export const transactionsTable = pgTable(
     }),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }),
     vatRate: numeric("vat_rate", { precision: 5, scale: 2 }),
-    isZakatRelevant: boolean("is_zakat_relevant").notNull().default(false),
+    //
+    // 🔴 `is_zakat_relevant` was REMOVED in M17.0 (migration 0038).
+    //
+    // A per-row boolean almost nothing wrote. Exactly ONE categorization rule
+    // out of ~40 set it true — "Saudi investment / Tadawul" → INVESTMENT_INCOME
+    // — so the one reader (`GET /summary/zakat`) summed an empty set and
+    // returned a computed-looking SAR 0.00 for almost every tenant. For a
+    // tenant who DID trade it was worse than zero: an INCOME row counted as a
+    // zakatable ASSET, with every debit subtracted from it. Owner decision Q6:
+    // Zakat line-item
+    // classification belongs at the CHART-OF-ACCOUNTS / GL account level — set
+    // once, in one place, read by the one report that needs it — not as a flag
+    // every write path must remember to populate and none did.
+    //
+    // Do not reintroduce it. See docs/product/design-zakat-module.md §6.
     confidenceScore: numeric("confidence_score", { precision: 5, scale: 4 }),
     isManuallyOverridden: boolean("is_manually_overridden")
       .notNull()
@@ -54,8 +68,10 @@ export const transactionsTable = pgTable(
      * The M15 holding area — the status column M10 deferred.
      *
      * `pending_review` — imported (upload / future bank feed): visible in the
-     *   Transactions list but contributes to NO tax-facing figure. VAT, Zakat,
-     *   cash flow, the dashboard and budget actuals all filter to `accepted`.
+     *   Transactions list but contributes to NO tax-facing figure. VAT, cash
+     *   flow, the dashboard and budget actuals all filter to `accepted` — and
+     *   since Flaw #1 (Option A) acceptance is also what POSTS to the ledger,
+     *   so nothing GL-derived sees a pending row either.
      * `accepted` — a human has taken responsibility for it.
      *
      * Why a column and not the M10 `Approvable` engine (owner decision): M10
@@ -77,8 +93,8 @@ export const transactionsTable = pgTable(
      * M16.2 — what KIND of money movement this is (design Q2):
      *
      * `operating`  — a real income/expense event. The only kind that reaches
-     *                income, expense, VAT, Zakat, per-category and budget
-     *                aggregates.
+     *                income, expense, VAT, per-category and budget aggregates,
+     *                and the only kind that posts to the ledger.
      * `transfer`   — money moving between the business's own pockets (ATM
      *                withdrawal, own-account transfer, credit-card settlement).
      *                An asset movement: NO P&L or tax figure may read it. It

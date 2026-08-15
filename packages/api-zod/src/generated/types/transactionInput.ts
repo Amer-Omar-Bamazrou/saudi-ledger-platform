@@ -44,7 +44,6 @@ export interface TransactionInput {
      * @nullable
      */
   vatRate?: number | null;
-  isZakatRelevant?: boolean;
   /**
      * @maxLength 1000
      * @nullable

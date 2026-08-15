@@ -78,6 +78,30 @@ export interface ZatcaOnboardResult {
 }
 
 /**
+ * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
+ */
+export type CompanyFiscalCalendar = typeof CompanyFiscalCalendar[keyof typeof CompanyFiscalCalendar];
+
+
+export const CompanyFiscalCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+ * @nullable
+ */
+export type CompanyOwnershipType = typeof CompanyOwnershipType[keyof typeof CompanyOwnershipType] | null;
+
+
+export const CompanyOwnershipType = {
+  SAUDI_GCC: 'SAUDI_GCC',
+  FOREIGN: 'FOREIGN',
+  MIXED: 'MIXED',
+} as const;
+
+/**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
  */
 export interface Company {
@@ -89,7 +113,19 @@ export interface Company {
   crNumber: string | null;
   /** @nullable */
   vatNumber: string | null;
+  /**
+     * Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.
+     * @minimum 1
+     * @maximum 12
+     */
   fiscalYearStart: number;
+  /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
+  fiscalCalendar: CompanyFiscalCalendar;
+  /**
+     * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+     * @nullable
+     */
+  ownershipType: CompanyOwnershipType;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */
@@ -101,6 +137,26 @@ export interface Company {
   /** @nullable */
   postalCode: string | null;
 }
+
+export type UpdateCompanyInputFiscalCalendar = typeof UpdateCompanyInputFiscalCalendar[keyof typeof UpdateCompanyInputFiscalCalendar];
+
+
+export const UpdateCompanyInputFiscalCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateCompanyInputOwnershipType = typeof UpdateCompanyInputOwnershipType[keyof typeof UpdateCompanyInputOwnershipType] | null;
+
+
+export const UpdateCompanyInputOwnershipType = {
+  SAUDI_GCC: 'SAUDI_GCC',
+  FOREIGN: 'FOREIGN',
+  MIXED: 'MIXED',
+} as const;
 
 /**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
@@ -118,6 +174,9 @@ export interface UpdateCompanyInput {
      * @maximum 12
      */
   fiscalYearStart?: number;
+  fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
+  /** @nullable */
+  ownershipType?: UpdateCompanyInputOwnershipType;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */
@@ -128,6 +187,51 @@ export interface UpdateCompanyInput {
   city?: string | null;
   /** @nullable */
   postalCode?: string | null;
+}
+
+export type FiscalPeriodCalendar = typeof FiscalPeriodCalendar[keyof typeof FiscalPeriodCalendar];
+
+
+export const FiscalPeriodCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company's own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.
+ */
+export interface FiscalPeriod {
+  /** Year the period starts in, in the company's own calendar (AH for hijri). */
+  label: number;
+  /** Year the period ends in — so a consumer may label by either end. */
+  endYear: number;
+  calendar: FiscalPeriodCalendar;
+  /** Inclusive, YYYY-MM-DD (Gregorian, the platform's storage format). */
+  startDate: string;
+  /** Inclusive — the day before the next fiscal year begins. */
+  endDate: string;
+  /** Inclusive day count: 365/366 Gregorian, 354/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3). */
+  days: number;
+}
+
+export type FiscalYearsCalendar = typeof FiscalYearsCalendar[keyof typeof FiscalYearsCalendar];
+
+
+export const FiscalYearsCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+export interface FiscalYears {
+  calendar: FiscalYearsCalendar;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  fiscalYearStart: number;
+  current: FiscalPeriod;
+  /** A window around the current period, newest first. */
+  periods: FiscalPeriod[];
 }
 
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
@@ -147,7 +251,6 @@ export interface Category {
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -168,7 +271,6 @@ export interface CategoryInput {
   nameAr: string;
   type: CategoryInputType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -254,7 +356,6 @@ export interface Transaction {
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;
-  isZakatRelevant: boolean;
   /** @nullable */
   confidenceScore?: number | null;
   isManuallyOverridden: boolean;
@@ -503,7 +604,6 @@ export interface TransactionInput {
      * @nullable
      */
   vatRate?: number | null;
-  isZakatRelevant?: boolean;
   /**
      * @maxLength 1000
      * @nullable
@@ -549,8 +649,6 @@ export const TransactionUpdateVatBasis = {
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
-  /** @nullable */
-  isZakatRelevant?: boolean | null;
   /** @nullable */
   vatAmount?: number | null;
   /** @nullable */
@@ -690,13 +788,6 @@ export interface VatSummary {
   netVatPosition: number;
   vatRate: number;
   transactions: VatTransaction[];
-}
-
-export interface ZakatSummary {
-  totalZakatableAssets: number;
-  nisabThresholdSAR: number;
-  zakatDue: number;
-  eligibleTransactions: Transaction[];
 }
 
 export interface CategoryBreakdown {
@@ -1087,10 +1178,6 @@ export type ListTransactionsParams = {
  * @nullable
  */
 category_id?: number | null;
-/**
- * @nullable
- */
-is_zakat_relevant?: boolean | null;
 /**
  * @nullable
  */

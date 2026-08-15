@@ -4,7 +4,6 @@ import { and, desc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
 
 export interface TransactionFilter {
   categoryId?: number | null;
-  isZakatRelevant?: boolean | null;
   isManuallyOverridden?: boolean | null;
   type?: string | null;
   search?: string | null;
@@ -15,7 +14,6 @@ export interface TransactionFilter {
 function whereFor(f: TransactionFilter) {
   const conditions = [];
   if (f.categoryId != null) conditions.push(eq(transactionsTable.categoryId, f.categoryId));
-  if (f.isZakatRelevant != null) conditions.push(eq(transactionsTable.isZakatRelevant, f.isZakatRelevant));
   if (f.isManuallyOverridden != null)
     conditions.push(eq(transactionsTable.isManuallyOverridden, f.isManuallyOverridden));
   if (f.type != null) conditions.push(eq(transactionsTable.type, f.type));

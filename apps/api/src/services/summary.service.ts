@@ -1,19 +1,16 @@
 /**
- * Summary service — income/expense, VAT, Zakat, and by-category rollups.
- * All arithmetic (incl. Nisab threshold + 2.5% Zakat rate) preserved from pre-M6.
+ * Summary service — income/expense, VAT and by-category rollups.
+ *
+ * The Zakat rollup was removed in M17.0 along with its hardcoded nisab
+ * threshold and 2.5% rate; see the note above `getByCategory`.
  */
 import {
   GetSummaryResponse,
   GetVatSummaryResponse,
-  GetZakatSummaryResponse,
   GetSummaryByCategoryResponse,
 } from "@workspace/api-zod";
 import { reportsService } from "./reports.service";
 import { summaryRepository, type DateRange } from "../repositories/summary.repository";
-
-// Nisab threshold in SAR (approx. 85g gold at ~230 SAR/g as of 2024).
-const NISAB_SAR = 19550;
-const ZAKAT_RATE = 0.025; // 2.5%
 
 export const summaryService = {
   /**
@@ -86,45 +83,27 @@ export const summaryService = {
     });
   },
 
-  async getZakat() {
-    const rows = await summaryRepository.zakatRows();
-    let totalZakatableAssets = 0;
-    const eligibleTransactions = rows.map((r) => {
-      const amt = Number(r.tx.amount);
-      if (r.tx.type === "credit") totalZakatableAssets += amt;
-      else totalZakatableAssets -= amt;
-      return {
-        id: r.tx.id,
-        date: r.tx.date,
-        description: r.tx.description,
-        descriptionAr: r.tx.descriptionAr ?? null,
-        amount: amt,
-        currency: r.tx.currency,
-        type: r.tx.type as "debit" | "credit",
-        categoryId: r.tx.categoryId ?? null,
-        categoryName: r.cat?.name ?? null,
-        categoryNameAr: r.cat?.nameAr ?? null,
-        vatAmount: r.tx.vatAmount != null ? Number(r.tx.vatAmount) : null,
-        vatRate: r.tx.vatRate != null ? Number(r.tx.vatRate) : null,
-        isZakatRelevant: r.tx.isZakatRelevant,
-        confidenceScore: r.tx.confidenceScore != null ? Number(r.tx.confidenceScore) : null,
-        isManuallyOverridden: r.tx.isManuallyOverridden,
-        source: r.tx.source ?? null,
-        notes: r.tx.notes ?? null,
-        createdAt: r.tx.createdAt.toISOString(),
-      };
-    });
-
-    const zakatablePositive = Math.max(totalZakatableAssets, 0);
-    const zakatDue = zakatablePositive >= NISAB_SAR ? zakatablePositive * ZAKAT_RATE : 0;
-
-    return GetZakatSummaryResponse.parse({
-      totalZakatableAssets: zakatablePositive,
-      nisabThresholdSAR: NISAB_SAR,
-      zakatDue,
-      eligibleTransactions,
-    });
-  },
+  /**
+   * 🔴 `getZakat` was REMOVED in M17.0 (owner decision Q6/Q7). It is recorded
+   * here rather than deleted silently, because the next person to notice the
+   * platform has no Zakat figure should find out WHY before rebuilding this.
+   *
+   * It summed `transactions` flagged `is_zakat_relevant`. Almost nothing wrote
+   * that flag: exactly ONE categorization rule out of ~40 set it true ("Saudi
+   * investment / Tadawul" → INVESTMENT_INCOME), the rest emitted `false`. So
+   * the input set was empty for almost every tenant and the endpoint returned a
+   * computed-looking SAR 0.00 — and for a tenant who DID trade, something worse
+   * than zero: investment INCOME counted as a zakatable ASSET, since the sum
+   * added credits and subtracted debits (a flow over all time, presented as a
+   * balance). It then compared the result to a nisab threshold hardcoded from a
+   * 2024 gold price (`NISAB_SAR = 19550`), which is PERSONAL-Zakat reasoning
+   * applied to a company.
+   *
+   * Zakat returns in M17.4 as a GL-derived working paper: balance-sheet
+   * accounts, a real fiscal year, tenant adjustments, and a lock. It is not a
+   * summary endpoint and must not be rebuilt as one.
+   * See docs/product/design-zakat-module.md.
+   */
 
   async getByCategory(range: DateRange) {
     const rows = await summaryRepository.byCategoryRows(range);

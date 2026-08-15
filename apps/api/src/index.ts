@@ -9,6 +9,17 @@ import { logger } from "./lib/logger";
 // aggregated error listing every problem.
 const env = loadEnv();
 
+// M17.2 — refuse to boot on a runtime that cannot do Umm al-Qura.
+//
+// 🔴 This is a fail-CLOSED check, matching the posture loadEnv takes with the
+// mailer and alerter. A small-ICU Node does not throw when asked for the
+// islamic-umalqura calendar — it silently falls back to Gregorian, so every
+// Hijri fiscal-year boundary would be confidently wrong rather than missing.
+// A Zakat base is a balance measured ON A DATE, so a boundary that is wrong by
+// days is a wrong filing figure, and nothing downstream could detect it.
+const { assertHijriCalendarAvailable } = await import("./lib/hijriCalendar");
+assertHijriCalendarAvailable();
+
 // Import the app only after config has validated, so any boot failure surfaces
 // as the config error rather than a downstream module-load error.
 const { default: app } = await import("./app");

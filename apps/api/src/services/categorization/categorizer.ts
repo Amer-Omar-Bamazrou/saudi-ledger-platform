@@ -6,7 +6,6 @@
  *  - ZATCA (Zakat, Tax and Customs Authority) VAT guidelines
  *  - Common Saudi merchant names in English and Arabic
  *  - GAZT category conventions
- *  - Standard Zakat-eligible asset classes per Hanbali fiqh
  */
 
 export interface CategorizationMatch {
@@ -27,7 +26,6 @@ export interface CategorizationMatch {
   confidence: number; // 0.0 – 1.0
   matchedRule: string;
   vatApplicable: boolean;
-  isZakatRelevant: boolean;
   suggestedVatRate: number | null; // 15 for standard, 0 for exempt, null for unknown
   /**
    * M16.2 — set to "transfer" when this movement is money between the
@@ -62,7 +60,6 @@ export interface SeedCategory {
   nameAr: string;
   type: "income" | "expense" | "asset" | "liability" | "equity";
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   description?: string;
 }
 
@@ -78,7 +75,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "إيرادات المبيعات",
     type: "income",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Revenue from sale of goods or services",
   },
   {
@@ -88,7 +84,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "إيرادات الخدمات",
     type: "income",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Income from professional or consulting services",
   },
   {
@@ -98,7 +93,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "إيرادات الإيجار",
     type: "income",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Income from property rentals",
   },
   {
@@ -108,7 +102,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "عوائد الاستثمار",
     type: "income",
     vatApplicable: false,
-    zakatRelevant: true,
     description: "Dividends, profit shares, investment gains",
   },
   {
@@ -118,7 +111,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "المنح الحكومية",
     type: "income",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Grants from Saudi government bodies",
   },
   {
@@ -128,7 +120,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "إيرادات أخرى",
     type: "income",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Miscellaneous income",
   },
 
@@ -140,7 +131,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الرواتب والأجور",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Employee salaries, wages, bonuses",
   },
   {
@@ -155,7 +145,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "التأمينات الاجتماعية",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Employer social-insurance (GOSI) contributions",
   },
   {
@@ -165,7 +154,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الإيجار والمرافق",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Office/shop rent, electricity, water, internet",
   },
   {
@@ -175,7 +163,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الاتصالات",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Mobile, internet, telephone bills",
   },
   {
@@ -185,7 +172,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الوقود والمواصلات",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Vehicle fuel, taxis, delivery costs",
   },
   {
@@ -195,7 +181,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الطعام والوجبات",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Business meals, restaurant visits, catering",
   },
   {
@@ -205,7 +190,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "التسويق والإعلان",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Digital ads, print, promotions",
   },
   {
@@ -215,7 +199,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "اللوازم المكتبية",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Stationery, printing, office consumables",
   },
   {
@@ -225,7 +208,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الخدمات المهنية",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Legal, accounting, consulting fees",
   },
   {
@@ -235,7 +217,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الرسوم البنكية",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Bank fees, transfer charges, SADAD fees",
   },
   {
@@ -245,7 +226,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الرسوم الحكومية",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Ministry of Commerce, MOI, municipality fees",
   },
   {
@@ -255,7 +235,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "التأمين",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Business insurance premiums (exempt from VAT)",
   },
   {
@@ -265,7 +244,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "السفر والإقامة",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Business travel, hotels, airline tickets",
   },
   {
@@ -275,7 +253,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "تقنية المعلومات والبرمجيات",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "SaaS subscriptions, hardware, IT services",
   },
   {
@@ -285,7 +262,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الإصلاح والصيانة",
     type: "expense",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Building, equipment, vehicle maintenance",
   },
   {
@@ -295,7 +271,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الزكاة",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Annual Zakat obligation payment to GAZT/ZATCA",
   },
   {
@@ -305,7 +280,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "ضريبة القيمة المضافة",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "VAT remittance to ZATCA",
   },
   {
@@ -315,7 +289,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "مصاريف أخرى",
     type: "expense",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Miscellaneous uncategorized expenses",
   },
 
@@ -327,7 +300,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "النقد والبنك",
     type: "asset",
     vatApplicable: false,
-    zakatRelevant: true,
     description: "Bank account balances and cash on hand",
   },
   {
@@ -337,7 +309,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الذمم المدينة",
     type: "asset",
     vatApplicable: false,
-    zakatRelevant: true,
     description: "Amounts owed by customers",
   },
   {
@@ -347,7 +318,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "المخزون",
     type: "asset",
     vatApplicable: false,
-    zakatRelevant: true,
     description: "Stock of goods for sale",
   },
   {
@@ -357,7 +327,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الأصول الثابتة",
     type: "asset",
     vatApplicable: true,
-    zakatRelevant: false,
     description: "Equipment, vehicles, property purchases",
   },
   {
@@ -367,7 +336,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الاستثمارات",
     type: "asset",
     vatApplicable: false,
-    zakatRelevant: true,
     description: "Shares, sukuk, real estate investments",
   },
 
@@ -379,7 +347,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "الذمم الدائنة",
     type: "liability",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Amounts owed to suppliers",
   },
   {
@@ -389,7 +356,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     nameAr: "القروض والتمويل",
     type: "liability",
     vatApplicable: false,
-    zakatRelevant: false,
     description: "Bank loans, murabaha, Islamic financing",
   },
 ];
@@ -404,7 +370,6 @@ interface CategorizationRule {
   confidence: number;
   ruleName: string;
   vatApplicable: boolean;
-  isZakatRelevant: boolean;
   suggestedVatRate: number | null;
 }
 
@@ -456,7 +421,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.98,
     ruleName: "Zakat payment to ZATCA",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
   {
@@ -465,7 +429,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.98,
     ruleName: "VAT remittance",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
   {
@@ -493,7 +456,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.95,
     ruleName: "Government fee/ministry payment",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
   {
@@ -507,7 +469,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.93,
     ruleName: "Municipal license fee",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
 
@@ -538,7 +499,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.9,
     ruleName: "Bank fee/charge (fee-word required)",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
   // Same correction for fintech: a bare gateway name (STCPay, Tamara, Tabby…)
@@ -553,7 +513,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.88,
     ruleName: "Payment-gateway fee (fee-word required)",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -579,7 +538,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.93,
     ruleName: "Saudi telecom provider",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -597,7 +555,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.96,
     ruleName: "Saudi Electricity Company",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
   {
@@ -612,7 +569,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.95,
     ruleName: "National Water Company",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -635,7 +591,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.9,
     ruleName: "Fuel purchase",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
   {
@@ -664,7 +619,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.88,
     ruleName: "Transport / ride-hailing",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
   {
@@ -686,7 +640,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.87,
     ruleName: "Shipping / courier",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -746,7 +699,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.85,
     ruleName: "Food / restaurant / grocery",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -775,7 +727,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.9,
     ruleName: "Hotel / accommodation",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -821,7 +772,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.88,
     ruleName: "IT / SaaS / software",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -847,7 +797,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.9,
     ruleName: "Digital / online advertising",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -875,7 +824,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.87,
     ruleName: "Professional / legal / consulting services",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -900,7 +848,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.95,
     ruleName: "GOSI / social insurance contribution",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
 
@@ -924,7 +871,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.92,
     ruleName: "Salary / payroll",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
 
@@ -945,7 +891,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.93,
     ruleName: "Insurance / Takaful",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
 
@@ -967,7 +912,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.88,
     ruleName: "Office / shop rent",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -994,7 +938,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.88,
     ruleName: "Saudi investment / Tadawul",
     vatApplicable: false,
-    isZakatRelevant: true,
     suggestedVatRate: 0,
   },
   {
@@ -1010,7 +953,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.85,
     ruleName: "Islamic financing / loan repayment",
     vatApplicable: false,
-    isZakatRelevant: false,
     suggestedVatRate: 0,
   },
 
@@ -1034,7 +976,6 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     confidence: 0.83,
     ruleName: "Fixed asset / capital purchase",
     vatApplicable: true,
-    isZakatRelevant: false,
     suggestedVatRate: 15,
   },
 
@@ -1171,7 +1112,6 @@ export function categorizeTransaction(
         confidence: rule.confidence,
         matchedRule: rule.ruleName,
         vatApplicable: false,
-        isZakatRelevant: false,
         suggestedVatRate: 0,
       };
     }
@@ -1192,7 +1132,6 @@ export function categorizeTransaction(
       confidence: 0.72,
       matchedRule: "Amount-based salary heuristic",
       vatApplicable: false,
-      isZakatRelevant: false,
       suggestedVatRate: 0,
     };
   }
@@ -1215,7 +1154,6 @@ export function categorizeTransaction(
             confidence: rule.confidence,
             matchedRule: rule.ruleName,
             vatApplicable: rule.vatApplicable,
-            isZakatRelevant: rule.isZakatRelevant,
             suggestedVatRate: rule.suggestedVatRate,
             ruleIdx: i,
           };

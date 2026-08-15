@@ -51,10 +51,6 @@ paths:
           in: query
           schema:
             type: ["integer", "null"]
-        - name: is_zakat_relevant
-          in: query
-          schema:
-            type: ["boolean", "null"]
         - name: is_manually_overridden
           in: query
           schema:
@@ -474,6 +470,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
 
+  /companies/current/fiscal-years:
+    get:
+      operationId: listFiscalYears
+      tags: [companies]
+      summary: >
+        The active company's fiscal years, resolved to real date ranges (M17.2).
+        The production consumer `companies.fiscal_year_start` never had — it was
+        stored from M11.6 and applied by nothing until now.
+      responses:
+        "200":
+          description: The current fiscal period plus a window either side
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FiscalYears"
+
   /companies/current:
     get:
       operationId: getCurrentCompany
@@ -583,18 +595,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/VatSummary"
 
-  /summary/zakat:
-    get:
-      operationId: getZakatSummary
-      tags: [summary]
-      summary: Get Zakat-eligible asset summary
-      responses:
-        "200":
-          description: Zakat summary
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ZakatSummary"
+  # `/summary/zakat` was REMOVED in M17.0. It summed transactions flagged
+  # `is_zakat_relevant` — a flag only one categorization rule ever wrote — so it
+  # returned a computed-looking SAR 0.00 for almost every tenant, against a
+  # nisab threshold hardcoded from a 2024 gold price. Zakat returns in M17.4 as
+  # a GL-derived working paper, not a summary endpoint.
+  # See docs/product/design-zakat-module.md.
 
   /summary/by-category:
     get:
@@ -1288,6 +1294,8 @@ components:
           crNumber,
           vatNumber,
           fiscalYearStart,
+          fiscalCalendar,
+          ownershipType,
           buildingNumber,
           street,
           district,
@@ -1307,6 +1315,27 @@ components:
           type: ["string", "null"]
         fiscalYearStart:
           type: integer
+          description: >
+            Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under
+            `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two
+            fields together — the calendar changes what this number means.
+          minimum: 1
+          maximum: 12
+        fiscalCalendar:
+          type: string
+          enum: [gregorian, hijri]
+          description: >
+            Which calendar the fiscal year is expressed in (M17.2). `hijri`
+            means the Umm al-Qura (Saudi civil) calendar specifically.
+        ownershipType:
+          type: ["string", "null"]
+          enum: [SAUDI_GCC, FOREIGN, MIXED, null]
+          description: >
+            Ownership structure (M17.1). NULL means NOT DECLARED and is a
+            first-class state — there is no default, because defaulting would
+            have the platform assert the tenant ownership nobody supplied, and
+            that assertion decides whether a Zakat surface is shown. Zakat v1
+            covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -1336,6 +1365,12 @@ components:
           type: integer
           minimum: 1
           maximum: 12
+        fiscalCalendar:
+          type: string
+          enum: [gregorian, hijri]
+        ownershipType:
+          type: ["string", "null"]
+          enum: [SAUDI_GCC, FOREIGN, MIXED, null]
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -1347,9 +1382,60 @@ components:
         postalCode:
           type: ["string", "null"]
 
+    FiscalPeriod:
+      type: object
+      description: >
+        One fiscal year resolved to concrete dates (M17.2). `label` is the year
+        the period STARTS in, in the company's own calendar — a display
+        convention, not a fact, which is why `startDate`, `endDate` and
+        `endYear` are all returned and the UI shows the range beside the label.
+      required: [label, endYear, calendar, startDate, endDate, days]
+      properties:
+        label:
+          type: integer
+          description: Year the period starts in, in the company's own calendar (AH for hijri).
+        endYear:
+          type: integer
+          description: Year the period ends in — so a consumer may label by either end.
+        calendar:
+          type: string
+          enum: [gregorian, hijri]
+        startDate:
+          type: string
+          description: Inclusive, YYYY-MM-DD (Gregorian, the platform's storage format).
+        endDate:
+          type: string
+          description: Inclusive — the day before the next fiscal year begins.
+        days:
+          type: integer
+          description: >
+            Inclusive day count: 365/366 Gregorian, 354/355 Hijri. Computed from
+            the real boundaries, never assumed. It is the input to the Gregorian
+            Zakat rate adjustment — but the RATE is not computed here, because
+            its divisor is unverified (advisor Block C, question C3).
+
+    FiscalYears:
+      type: object
+      required: [calendar, fiscalYearStart, current, periods]
+      properties:
+        calendar:
+          type: string
+          enum: [gregorian, hijri]
+        fiscalYearStart:
+          type: integer
+          minimum: 1
+          maximum: 12
+        current:
+          $ref: "#/components/schemas/FiscalPeriod"
+        periods:
+          type: array
+          description: A window around the current period, newest first.
+          items:
+            $ref: "#/components/schemas/FiscalPeriod"
+
     Category:
       type: object
-      required: [id, name, nameAr, type, vatApplicable, zakatRelevant]
+      required: [id, name, nameAr, type, vatApplicable]
       properties:
         id:
           type: integer
@@ -1362,14 +1448,12 @@ components:
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
           type: boolean
-        zakatRelevant:
-          type: boolean
         description:
           type: ["string", "null"]
 
     CategoryInput:
       type: object
-      required: [name, nameAr, type, vatApplicable, zakatRelevant]
+      required: [name, nameAr, type, vatApplicable]
       properties:
         name:
           type: string
@@ -1379,8 +1463,6 @@ components:
           type: string
           enum: [income, expense, asset, liability, equity]
         vatApplicable:
-          type: boolean
-        zakatRelevant:
           type: boolean
         description:
           type: ["string", "null"]
@@ -1394,7 +1476,6 @@ components:
         - amount
         - currency
         - type
-        - isZakatRelevant
         - isManuallyOverridden
         - createdAt
       properties:
@@ -1423,8 +1504,6 @@ components:
           type: ["number", "null"]
         vatRate:
           type: ["number", "null"]
-        isZakatRelevant:
-          type: boolean
         confidenceScore:
           type: ["number", "null"]
         isManuallyOverridden:
@@ -1617,8 +1696,6 @@ components:
           type: ["number", "null"]
           minimum: 0
           maximum: 100
-        isZakatRelevant:
-          type: boolean
         notes:
           type: ["string", "null"]
           maxLength: 1000
@@ -1630,8 +1707,6 @@ components:
       properties:
         categoryId:
           type: ["integer", "null"]
-        isZakatRelevant:
-          type: ["boolean", "null"]
         vatAmount:
           type: ["number", "null"]
         vatRate:
@@ -1878,21 +1953,6 @@ components:
           type: number
         type:
           type: string
-
-    ZakatSummary:
-      type: object
-      required: [totalZakatableAssets, nisabThresholdSAR, zakatDue, eligibleTransactions]
-      properties:
-        totalZakatableAssets:
-          type: number
-        nisabThresholdSAR:
-          type: number
-        zakatDue:
-          type: number
-        eligibleTransactions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Transaction"
 
     CategoryBreakdown:
       type: object

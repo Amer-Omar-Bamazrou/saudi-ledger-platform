@@ -36,6 +36,7 @@ import type {
   CreateRecurringRuleInput,
   ErrorResponse,
   FinancialSummary,
+  FiscalYears,
   GetSummaryByCategoryParams,
   GetSummaryParams,
   GetVatReturnParams,
@@ -59,7 +60,6 @@ import type {
   UploadResult,
   VatReturn,
   VatSummary,
-  ZakatSummary,
   ZatcaOnboardInput,
   ZatcaOnboardResult,
   ZatcaOnboardingStatus
@@ -1726,6 +1726,85 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
       return useMutation(getRunCategorizationMutationOptions(options));
     }
 
+export const getListFiscalYearsUrl = () => {
+
+
+
+
+  return `/api/companies/current/fiscal-years`
+}
+
+/**
+ * @summary The active company's fiscal years, resolved to real date ranges (M17.2). The production consumer `companies.fiscal_year_start` never had — it was stored from M11.6 and applied by nothing until now.
+
+ */
+export const listFiscalYears = async ( options?: RequestInit): Promise<FiscalYears> => {
+
+  return customFetch<FiscalYears>(getListFiscalYearsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFiscalYearsQueryKey = () => {
+    return [
+    `/api/companies/current/fiscal-years`
+    ] as const;
+    }
+
+
+export const getListFiscalYearsQueryOptions = <TData = Awaited<ReturnType<typeof listFiscalYears>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFiscalYears>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFiscalYearsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFiscalYears>>> = ({ signal }) => listFiscalYears({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFiscalYears>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFiscalYearsQueryResult = NonNullable<Awaited<ReturnType<typeof listFiscalYears>>>
+export type ListFiscalYearsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The active company's fiscal years, resolved to real date ranges (M17.2). The production consumer `companies.fiscal_year_start` never had — it was stored from M11.6 and applied by nothing until now.
+
+ */
+
+export function useListFiscalYears<TData = Awaited<ReturnType<typeof listFiscalYears>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFiscalYears>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFiscalYearsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetCurrentCompanyUrl = () => {
 
 
@@ -2178,83 +2257,6 @@ export function useGetVatSummary<TData = Awaited<ReturnType<typeof getVatSummary
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVatSummaryQueryOptions(params,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getGetZakatSummaryUrl = () => {
-
-
-
-
-  return `/api/summary/zakat`
-}
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-export const getZakatSummary = async ( options?: RequestInit): Promise<ZakatSummary> => {
-
-  return customFetch<ZakatSummary>(getGetZakatSummaryUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getGetZakatSummaryQueryKey = () => {
-    return [
-    `/api/summary/zakat`
-    ] as const;
-    }
-
-
-export const getGetZakatSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getZakatSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetZakatSummaryQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getZakatSummary>>> = ({ signal }) => getZakatSummary({ signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetZakatSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getZakatSummary>>>
-export type GetZakatSummaryQueryError = ErrorType<unknown>
-
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-
-export function useGetZakatSummary<TData = Awaited<ReturnType<typeof getZakatSummary>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZakatSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetZakatSummaryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

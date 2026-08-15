@@ -30,7 +30,6 @@ export interface Transaction {
   vatAmount?: number | null;
   /** @nullable */
   vatRate?: number | null;
-  isZakatRelevant: boolean;
   /** @nullable */
   confidenceScore?: number | null;
   isManuallyOverridden: boolean;

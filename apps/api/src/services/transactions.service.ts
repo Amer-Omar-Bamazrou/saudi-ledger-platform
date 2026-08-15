@@ -54,7 +54,6 @@ function buildTransactionRow(tx: Tx, cat?: Cat | null) {
     categoryNameAr: cat?.nameAr ?? null,
     vatAmount: tx.vatAmount != null ? Number(tx.vatAmount) : null,
     vatRate: tx.vatRate != null ? Number(tx.vatRate) : null,
-    isZakatRelevant: tx.isZakatRelevant,
     confidenceScore: tx.confidenceScore != null ? Number(tx.confidenceScore) : null,
     isManuallyOverridden: tx.isManuallyOverridden,
     source: tx.source ?? null,
@@ -164,7 +163,6 @@ export const transactionsService = {
         let catId: number | null = row.categoryId ?? null;
         let vatAmount: string | null = row.vatAmount != null ? String(row.vatAmount) : null;
         let vatRate: string | null = row.vatRate != null ? String(row.vatRate) : null;
-        let isZakatRelevant = row.isZakatRelevant ?? false;
         let confidenceScore: string | null = null;
         let kind: string = "operating";
         let taxTreatment: string | null = null;
@@ -206,7 +204,6 @@ export const transactionsService = {
             if (resolved != null) {
               catId = resolved.id;
               confidenceScore = String(match.confidence);
-              isZakatRelevant = match.isZakatRelevant;
               // M16.2 — the treatment comes from the CATEGORY's default, and
               // VAT is extracted ONLY for 'S'. 'Z'/'E'/'O' record zero VAT AND
               // say why; null stays honest-unknown (no VAT guessed).
@@ -263,7 +260,6 @@ export const transactionsService = {
           categoryId: catId,
           vatAmount,
           vatRate,
-          isZakatRelevant,
           confidenceScore,
           isManuallyOverridden: false,
           kind,
@@ -416,7 +412,6 @@ export const transactionsService = {
       categoryId: d.categoryId ?? null,
       vatAmount: d.vatAmount != null ? String(d.vatAmount) : null,
       vatRate: d.vatRate != null ? String(d.vatRate) : null,
-      isZakatRelevant: d.isZakatRelevant ?? false,
       confidenceScore: null,
       isManuallyOverridden: false,
       source: d.source ?? "manual",
@@ -447,7 +442,7 @@ export const transactionsService = {
     if (
       existing.tx.kind === "settlement" &&
       (data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
-        data.taxTreatment !== undefined || data.vatBasis !== undefined || data.isZakatRelevant !== undefined)
+        data.taxTreatment !== undefined || data.vatBasis !== undefined)
     ) {
       throw new ConflictError(
         "This transaction settles an invoice/bill — its tax facts live on the settled document and cannot be edited here.",
@@ -475,7 +470,7 @@ export const transactionsService = {
     // eligibility, and a notes-only edit asserts neither.
     const touchesTaxFacts =
       data.categoryId !== undefined || data.vatAmount !== undefined || data.vatRate !== undefined ||
-      data.taxTreatment !== undefined || data.vatBasis !== undefined || data.isZakatRelevant !== undefined;
+      data.taxTreatment !== undefined || data.vatBasis !== undefined;
     const updates: Partial<typeof transactionsTable.$inferInsert> = touchesTaxFacts
       ? { isManuallyOverridden: true }
       : {};
@@ -548,7 +543,6 @@ export const transactionsService = {
       }
     }
 
-    if (data.isZakatRelevant !== undefined) updates.isZakatRelevant = data.isZakatRelevant ?? false;
     if (data.vatAmount !== undefined) updates.vatAmount = data.vatAmount != null ? String(data.vatAmount) : null;
     if (data.vatRate !== undefined) updates.vatRate = data.vatRate != null ? String(data.vatRate) : null;
     // M16.3.1 — per-row treatment override (the export-sale case; correcting an

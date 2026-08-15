@@ -267,6 +267,27 @@
       "when": 1786655845608,
       "tag": "0037_flaw6_vat_basis",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786655845609,
+      "tag": "0038_m17_0_drop_zakat_relevant",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786655845610,
+      "tag": "0039_m17_2_fiscal_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786655845611,
+      "tag": "0040_m17_1_ownership_type",
+      "breakpoints": true
     }
   ]
 }

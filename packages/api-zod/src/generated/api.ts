@@ -22,7 +22,6 @@ export const HealthCheckResponse = zod.object({
  */
 export const ListTransactionsQueryParams = zod.object({
   "category_id": zod.coerce.number().nullish(),
-  "is_zakat_relevant": zod.coerce.boolean().nullish(),
   "is_manually_overridden": zod.coerce.boolean().nullish(),
   "type": zod.union([zod.literal('debit'),zod.literal('credit'),zod.literal(null)]).nullish(),
   "search": zod.coerce.string().nullish(),
@@ -44,7 +43,6 @@ export const ListTransactionsResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -97,7 +95,6 @@ export const CreateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
   "vatAmount": zod.number().min(createTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(createTransactionBodyVatRateMin).max(createTransactionBodyVatRateMax).nullish(),
-  "isZakatRelevant": zod.boolean().optional(),
   "notes": zod.string().max(createTransactionBodyNotesMax).nullish(),
   "source": zod.string().nullish()
 })
@@ -115,7 +112,6 @@ export const CreateTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -206,7 +202,6 @@ export const SettleTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -423,7 +418,6 @@ export const UploadTransactionsBody = zod.object({
   "categoryId": zod.number().nullish(),
   "vatAmount": zod.number().min(uploadTransactionsBodyRowsItemVatAmountMin).nullish(),
   "vatRate": zod.number().min(uploadTransactionsBodyRowsItemVatRateMin).max(uploadTransactionsBodyRowsItemVatRateMax).nullish(),
-  "isZakatRelevant": zod.boolean().optional(),
   "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
   "source": zod.string().nullish()
 })),
@@ -464,7 +458,6 @@ export const GetTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -489,7 +482,6 @@ export const UpdateTransactionParams = zod.object({
 
 export const UpdateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
@@ -511,7 +503,6 @@ export const UpdateTransactionResponse = zod.object({
   "categoryNameAr": zod.string().nullish(),
   "vatAmount": zod.number().nullish(),
   "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
   "confidenceScore": zod.number().nullish(),
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
@@ -546,7 +537,6 @@ export const ListCategoriesResponseItem = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -560,7 +550,6 @@ export const CreateCategoryBody = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 
@@ -570,7 +559,6 @@ export const CreateCategoryResponse = zod.object({
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
-  "zakatRelevant": zod.boolean(),
   "description": zod.string().nullish()
 })
 
@@ -598,15 +586,51 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary The active company's fiscal years, resolved to real date ranges (M17.2). The production consumer `companies.fiscal_year_start` never had — it was stored from M11.6 and applied by nothing until now.
+
+ */
+export const listFiscalYearsResponseFiscalYearStartMax = 12;
+
+
+
+export const ListFiscalYearsResponse = zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "fiscalYearStart": zod.number().min(1).max(listFiscalYearsResponseFiscalYearStartMax),
+  "current": zod.object({
+  "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
+  "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startDate": zod.string().describe('Inclusive, YYYY-MM-DD (Gregorian, the platform\'s storage format).'),
+  "endDate": zod.string().describe('Inclusive — the day before the next fiscal year begins.'),
+  "days": zod.number().describe('Inclusive day count: 365\/366 Gregorian, 354\/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3).\n')
+}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n'),
+  "periods": zod.array(zod.object({
+  "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
+  "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startDate": zod.string().describe('Inclusive, YYYY-MM-DD (Gregorian, the platform\'s storage format).'),
+  "endDate": zod.string().describe('Inclusive — the day before the next fiscal year begins.'),
+  "days": zod.number().describe('Inclusive day count: 365\/366 Gregorian, 354\/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3).\n')
+}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n')).describe('A window around the current period, newest first.')
+})
+
+
+/**
  * @summary Get the active company's profile (legal identity + address)
  */
+export const getCurrentCompanyResponseFiscalYearStartMax = 12;
+
+
+
 export const GetCurrentCompanyResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number(),
+  "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
+  "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),
@@ -628,6 +652,8 @@ export const UpdateCurrentCompanyBody = zod.object({
   "crNumber": zod.string().nullish(),
   "vatNumber": zod.string().nullish(),
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).optional(),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).optional(),
+  "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullish(),
   "buildingNumber": zod.string().nullish(),
   "street": zod.string().nullish(),
   "district": zod.string().nullish(),
@@ -635,13 +661,19 @@ export const UpdateCurrentCompanyBody = zod.object({
   "postalCode": zod.string().nullish()
 }).describe('Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.\n')
 
+export const updateCurrentCompanyResponseFiscalYearStartMax = 12;
+
+
+
 export const UpdateCurrentCompanyResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number(),
+  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
+  "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),
@@ -735,43 +767,6 @@ export const GetVatSummaryResponse = zod.object({
   "amount": zod.number(),
   "vatAmount": zod.number(),
   "type": zod.string()
-}))
-})
-
-
-/**
- * @summary Get Zakat-eligible asset summary
- */
-export const GetZakatSummaryResponse = zod.object({
-  "totalZakatableAssets": zod.number(),
-  "nisabThresholdSAR": zod.number(),
-  "zakatDue": zod.number(),
-  "eligibleTransactions": zod.array(zod.object({
-  "id": zod.number(),
-  "date": zod.string(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().nullish(),
-  "amount": zod.number(),
-  "currency": zod.string(),
-  "type": zod.enum(['debit', 'credit']),
-  "categoryId": zod.number().nullish(),
-  "categoryName": zod.string().nullish(),
-  "categoryNameAr": zod.string().nullish(),
-  "vatAmount": zod.number().nullish(),
-  "vatRate": zod.number().nullish(),
-  "isZakatRelevant": zod.boolean(),
-  "confidenceScore": zod.number().nullish(),
-  "isManuallyOverridden": zod.boolean(),
-  "source": zod.string().nullish(),
-  "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
-  "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
-  "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
-  "bankAccountId": zod.number().nullish(),
-  "settlesInvoiceId": zod.number().nullish().describe('M16.3: the invoice this credit settled (kind=settlement).'),
-  "settlesBillId": zod.number().nullish().describe('M16.3: the bill this debit paid (kind=settlement).'),
-  "notes": zod.string().nullish(),
-  "createdAt": zod.string()
 }))
 })
 

@@ -11,6 +11,10 @@ import { companiesController } from "../controllers/companies.controller";
 
 const router = Router();
 
+// M17.2 — declared BEFORE `/current` so Express does not treat "fiscal-years"
+// as part of a looser match later; both are literal paths today, but the
+// ordering keeps that true if `/current/:section` is ever added.
+router.get("/current/fiscal-years", companiesController.fiscalYears);
 router.get("/current", companiesController.getCurrent);
 router.patch("/current", companiesController.updateCurrent);
 

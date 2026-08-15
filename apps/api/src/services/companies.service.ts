@@ -9,6 +9,7 @@
  */
 import {
   GetCurrentCompanyResponse,
+  ListFiscalYearsResponse,
   UpdateCurrentCompanyBody,
   UpdateCurrentCompanyResponse,
 } from "@workspace/api-zod";
@@ -19,6 +20,13 @@ import {
 } from "../lib/saudiIdentifiers";
 import { companiesRepository } from "../repositories/companies.repository";
 import { auditService } from "./audit.service";
+import {
+  isFiscalCalendar,
+  recentFiscalYears,
+  fiscalYearContaining,
+  type FiscalCalendar,
+} from "../lib/fiscalYear";
+import { isOwnershipType } from "../lib/zakatScope";
 import type { companiesTable } from "@workspace/db";
 
 type Company = typeof companiesTable.$inferSelect;
@@ -32,6 +40,8 @@ function buildCompanyOut(c: Company) {
     crNumber: c.crNumber ?? null,
     vatNumber: c.vatNumber ?? null,
     fiscalYearStart: c.fiscalYearStart,
+    fiscalCalendar: c.fiscalCalendar,
+    ownershipType: c.ownershipType ?? null,
     buildingNumber: c.buildingNumber ?? null,
     street: c.street ?? null,
     district: c.district ?? null,
@@ -64,6 +74,34 @@ export const companiesService = {
     return GetCurrentCompanyResponse.parse(buildCompanyOut(company));
   },
 
+  /**
+   * The active company's fiscal years, resolved to real date ranges (M17.2).
+   *
+   * This is the production consumer that `fiscal_year_start` never had. It
+   * returns the CURRENT period plus a window either side, each with concrete
+   * `startDate`/`endDate`/`days` — so a caller never re-derives boundaries, and
+   * the settings page can show the user what their configuration actually
+   * means instead of promising it is "stored for future use".
+   */
+  async fiscalYears() {
+    const company = await companiesRepository.findActive();
+    if (!company) throw new NotFoundError("No company is configured for this organization.");
+
+    const settings = {
+      fiscalYearStart: company.fiscalYearStart,
+      calendar: (isFiscalCalendar(company.fiscalCalendar)
+        ? company.fiscalCalendar
+        : "gregorian") as FiscalCalendar,
+    };
+
+    return ListFiscalYearsResponse.parse({
+      calendar: settings.calendar,
+      fiscalYearStart: settings.fiscalYearStart,
+      current: fiscalYearContaining(settings),
+      periods: recentFiscalYears(settings),
+    });
+  },
+
   async updateCurrent(input: UpdateCompanyInput) {
     const company = await companiesRepository.findActive();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
@@ -94,6 +132,29 @@ export const companiesService = {
         throw new BadRequestError("fiscalYearStart must be a month number between 1 and 12.");
       }
       updates.fiscalYearStart = m;
+    }
+
+    // M17.2 — changing this REINTERPRETS `fiscalYearStart` (1 = January under
+    // gregorian, 1 = Muharram under hijri), so it is validated here for a
+    // readable 400 and by a DB CHECK for every other writer.
+    if (input.fiscalCalendar !== undefined) {
+      if (!isFiscalCalendar(input.fiscalCalendar)) {
+        throw new BadRequestError("fiscalCalendar must be 'gregorian' or 'hijri'.");
+      }
+      updates.fiscalCalendar = input.fiscalCalendar;
+    }
+
+    // M17.1 — ownership structure (Q2). An empty string clears it back to NOT
+    // DECLARED, which is a legitimate state a tenant may return to: it is
+    // better for a company that no longer knows to say so than to leave a
+    // stale claim standing, because that claim gates the Zakat surface.
+    if (input.ownershipType !== undefined) {
+      const raw = input.ownershipType === null ? null : String(input.ownershipType).trim();
+      const value = raw === "" ? null : raw;
+      if (value !== null && !isOwnershipType(value)) {
+        throw new BadRequestError("ownershipType must be 'SAUDI_GCC', 'FOREIGN' or 'MIXED'.");
+      }
+      updates.ownershipType = value;
     }
 
     // Address block (ZATCA Phase 2 / printed invoices) — free text except the

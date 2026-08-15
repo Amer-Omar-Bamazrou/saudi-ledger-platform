@@ -13,7 +13,6 @@ export interface Category {
   nameAr: string;
   type: CategoryType;
   vatApplicable: boolean;
-  zakatRelevant: boolean;
   /** @nullable */
   description?: string | null;
 }

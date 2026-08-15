@@ -8,6 +8,10 @@ export const companiesController = {
     res.json(await companiesService.getCurrent());
   },
 
+  async fiscalYears(_req: Request, res: Response) {
+    res.json(await companiesService.fiscalYears());
+  },
+
   async updateCurrent(req: Request, res: Response) {
     const body = UpdateCurrentCompanyBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);

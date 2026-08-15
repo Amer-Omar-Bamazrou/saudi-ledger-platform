@@ -19,8 +19,7 @@ export const categoriesService = {
         nameAr: r.nameAr,
         type: r.type,
         vatApplicable: r.vatApplicable,
-        zakatRelevant: r.zakatRelevant,
-        description: r.description ?? null,
+          description: r.description ?? null,
       })),
     );
   },
@@ -31,7 +30,6 @@ export const categoriesService = {
       nameAr: data.nameAr,
       type: data.type,
       vatApplicable: data.vatApplicable,
-      zakatRelevant: data.zakatRelevant,
       description: data.description ?? null,
     });
     await auditService.created("category", inserted.id, inserted);
@@ -41,7 +39,6 @@ export const categoriesService = {
       nameAr: inserted.nameAr,
       type: inserted.type,
       vatApplicable: inserted.vatApplicable,
-      zakatRelevant: inserted.zakatRelevant,
       description: inserted.description ?? null,
     });
   },

@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-14 (post-audit fixes, Tiers 1–3 merged).**
+**Last updated: 2026-08-15 (M17.0 — the Zakat surface retired; Q1–Q8 decided).**
 
 **Audit close-out (2026-08-14):** two owner-approved read-only audits
 (accounting correctness under adversarial input; disconnection sweep M13→A3)
@@ -56,6 +56,21 @@ If this block disagrees with reality, fix it first.
 | **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
 | **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
 | **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
+| **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
+| **M17.1** — Zakat ownership scope | ✅ Q2: `companies.ownership_type` (`SAUDI_GCC\|FOREIGN\|MIXED`, migration 0040), **nullable with NO default** — NULL = not declared is a first-class state, because a default would have the platform assert the tenant's ownership and that assertion gates the Zakat surface. The page branches **three** ways (ask / module / out-of-scope-see-your-advisor); a declaration can be withdrawn. Rule lives in `lib/zakatScope.ts` — 🔴 **M17.4's endpoint must call it and refuse non-`eligible`.** | same design doc §5b |
+| **M17.2** — Fiscal year + calendar | ✅ Q3's stated prerequisite, and it closes a five-milestone gap: `fiscalYearStart` is finally resolved. `fiscal_calendar` (gregorian \| **Umm al-Qura** hijri, migration 0039 + two CHECKs), a pure resolver (`lib/fiscalYear.ts`), Hijri conversion by **binary search over the ICU tables** (`lib/hijriCalendar.ts` — an arithmetic estimate was tried and is wrong, months are tabulated), a **boot assertion** that refuses to start on a small-ICU runtime, `GET /companies/current/fiscal-years`, and Company Settings showing real boundaries. **Reports still take explicit dates** — see the known-issue note. | same design doc §3 |
+
+**Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
+platform produces an **auditable working paper**, never a ZATCA submission;
+**100% Saudi/GCC-owned entities only** in v1; **Hijri and Gregorian** fiscal
+years (fiscal-year support is a stated **prerequisite** — `fiscalYearStart` is
+stored today and applied by no report); the base is derived **from the GL**;
+the worksheet is an **interactive, period-locked input surface**; it lands as an
+annual report generator under **Tax & Compliance**. 🔴 **The tax content itself
+is UNVERIFIED against a primary source** — base composition, the Gregorian rate
+divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
+all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
+ask with the C7/C8 advisor).
 
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
 two destinations (Finance Hub, Analytics), Automation and AI woven into existing
@@ -163,6 +178,17 @@ These are short forms; the rules are binding, the history explains why.
 - **A shape without a consumer.** Declaring a column/table/interface/flag looks
   exactly like progress and ships unbuilt; endemic in a schema-first codebase —
   the standing check is the countermeasure.
+- **A CONSUMER with no producer is the same failure, and it is worse** (M17.0,
+  flaw #8). The Zakat page had a column, an endpoint, a route, a nav entry, a
+  UI and four tests — everything except a writer for the flag it read (one rule
+  out of ~40). A missing consumer yields a dead column nobody sees; a missing
+  producer yields **a confident zero**, which reads as an answer, so nobody
+  reports it. Check writers as well as readers — standing-check part 2 is the
+  half that catches this, and it is the half most often skipped because the
+  feature demos fine. **Corollary: "nothing writes it" is itself a claim that
+  needs part 5's search shape.** The first pass of this very fix asserted the
+  flag had *no* writer; grepping the pre-change file found one, and that one
+  turned the finding from "always 0" into "wrong in a specific, worse way".
 - **An obsolete assertion** (a test that became a guard for the bug): a
   correct-when-written absence assertion stays green while certifying the
   defect. Prefer presence assertions.
@@ -197,6 +223,16 @@ These are short forms; the rules are binding, the history explains why.
 - **External validators check the weakest property they plausibly could** (the
   PIH/base64 lesson). Validate meaning locally; never infer correctness from an
   accepted submission.
+- **🔴 A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT**
+  (M17.2's small-ICU finding; second instance of the shape). A small-ICU Node
+  accepts `islamic-umalqura` and silently returns **Gregorian** dates — no
+  error, no missing output, just a plausible wrong answer. Same shape as the
+  ASCII `\b` that made sixty Arabic patterns match nothing: the API took the
+  input and quietly did something else. **The countermeasure generalises: when
+  a dependency can silently substitute different behaviour, probe an
+  EXTERNALLY CHECKABLE FACT at boot** — a value verifiable against a source
+  outside the dependency (1 Muharram 1447 AH = 26 June 2025), not a round-trip
+  through the thing you are testing. "It didn't throw" is not evidence.
 - **Sources rank LIVE API > SDK > PDF > secondary sources** — and an unread
   primary source is not a licence to trust a secondary one (the residency
   claim was the opposite of what §5.5 actually says).
@@ -355,9 +391,10 @@ blocks ordinary platform work.
 | C4 | **AV scanning** on uploaded verification documents before untrusted-tenant growth (magic-byte sniff is header-only — M-5). Seam: `documents.service.upload`. | M11.4 follow-up |
 | C5 | **Fail-closed diagnosability** — confirm a blocked issuance surfaces an actionable message (which field, which company, what to fix), not an opaque 500. | M12.8 decision |
 | C6 | **Data residency / hosting region** — ZATCA permits cloud (the "must be in KSA" claim was a secondary-source error); NCA / sector rules are **unverified legal questions**. Choose host and KMS region together. No hosted Supabase project exists yet — this is a deployment decision, not a migration. | Residency correction, phase-2 history |
-| C7 | **TAX ADVICE — retention of INBOUND supplier documents.** A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. **Answer together with C8, same advisor.**<br><br>**Sharpened 2026-08-14 (audit):** `retain_until` now has a real production writer (set at promotion, `capture.service.ts:166-173`) — and **still no reader: nothing expires, enforces, or refuses deletion based on it** (the purge job selects on `status` + `captured_at` only, `capturedDocuments.repository.ts:109-118`, and never sees promoted rows). So the "conservative default" is a **stored intention, not a retention policy**. Two consequences for the advice: (a) whatever duration comes back, an ENFORCER has to be built — the value is decorative today; (b) 🔴 **an answer SHORTER than the outbound standard is currently not implementable at all**, because promoted captures live in a store with no delete. Ask the advisor for the duration AND whether inbound evidence may be destroyed on schedule; if it may, that is a B3-shaped build, not a config change. | A1 (Q4) |
+| C7 | **TAX ADVICE — retention of INBOUND supplier documents.** A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. **Answer together with C8 AND the Zakat questions — one package: [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md), Block A.**<br><br>**Sharpened 2026-08-14 (audit):** `retain_until` now has a real production writer (set at promotion, `capture.service.ts:166-173`) — and **still no reader: nothing expires, enforces, or refuses deletion based on it** (the purge job selects on `status` + `captured_at` only, `capturedDocuments.repository.ts:109-118`, and never sees promoted rows). So the "conservative default" is a **stored intention, not a retention policy**. Two consequences for the advice: (a) whatever duration comes back, an ENFORCER has to be built — the value is decorative today; (b) 🔴 **an answer SHORTER than the outbound standard is currently not implementable at all**, because promoted captures live in a store with no delete. Ask the advisor for the duration AND whether inbound evidence may be destroyed on schedule; if it may, that is a B3-shaped build, not a config change. | A1 (Q4) |
 | C9 | **Verify the remaining tax-treatment defaults against KSA VAT rules.** Only `BANK_CHARGES` and `INSURANCE` have been checked (M16.2); every other seeded default is an assumed majority-'S' or a reasoned-but-unresearched O/E. The distinction is DATA (`treatment_verified`, M16.3.1) and assumed treatments surface as overridable-with-a-hint — but the flags only flip on an actual rule lookup. **Check FIRST (owner-prioritised — these hit most tenants):** (1) `FOOD_MEALS` — KSA blocks input-VAT recovery on meals/entertainment, so 'S' extraction overstates recoverable input VAT for nearly every SME; (2) **reverse-charge foreign digital services** (Google/Meta ads under `MARKETING`/`IT_SOFTWARE`) — the bank debit contains no VAT, so extraction invents input VAT never paid. Then: residential rent E (`RENTAL_INCOME`, `RENT_UTILITIES`), international transport Z (`FUEL_TRANSPORT`), exports Z (`SALES`), loan interest E vs principal O. 🔴 **Also unverified: the foreign-digital-supplier list** behind `vat_basis = reverse_charge` (flaw #6). Several of those platforms have registered for KSA VAT on some product lines, so the flag is a likelihood, not a fact — verify per supplier against an actual invoice, and note that being wrong in this direction UNDER-claims recoverable input VAT rather than inventing it. Reconcile-grade only — but a user-visible guess until closed. | Design doc §1 verification-status flag |
-| C8 | 🔴 **PDPL — higher priority than C7 and answered with it.** Phone photographs will eventually contain third-party personal data; PDPL grants erasure rights that may conflict with retention. **PDPL has never been considered anywhere in this project** — scope it to the platform (audit logs hold IPs append-only; the archive holds names/addresses 6–11 years; `users`/`customers`/`employees` have no retention policy), not just document capture.<br><br>**Sharpened 2026-08-14 (audit) — the question stopped being hypothetical.** The product now accepts phone photographs from ordinary users, and **posting a bill promotes that photograph into a store that by interface design can never delete it**. So the irreversible act is performed by ordinary users in the ordinary flow, **before the legal question has been answered**, and an erasure request for a promoted capture is today not "hard" but *impossible by construction*. The advisor question that the wiring surfaces: 🔴 **ZATCA §5.5 immutability covers invoices WE GENERATED — a supplier's invoice photographed by our user is a different class of document, and we currently give both the identical no-delete guarantee.** Ask whether inbound third-party captures may be made erasable-with-audit without touching the outbound guarantee. If yes, the archive needs a class distinction (not a `delete` on `ArchiveStore`); if no, capture needs a consent/data-minimisation story instead. Either way it is a design change, so ask before more tenants photograph more documents. | A1 |
+| C8 | 🔴 **PDPL — higher priority than C7 and answered with it. Questions written up as Block B of [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md).** Phone photographs will eventually contain third-party personal data; PDPL grants erasure rights that may conflict with retention. **PDPL has never been considered anywhere in this project** — scope it to the platform (audit logs hold IPs append-only; the archive holds names/addresses 6–11 years; `users`/`customers`/`employees` have no retention policy), not just document capture.<br><br>**Sharpened 2026-08-14 (audit) — the question stopped being hypothetical.** The product now accepts phone photographs from ordinary users, and **posting a bill promotes that photograph into a store that by interface design can never delete it**. So the irreversible act is performed by ordinary users in the ordinary flow, **before the legal question has been answered**, and an erasure request for a promoted capture is today not "hard" but *impossible by construction*. The advisor question that the wiring surfaces: 🔴 **ZATCA §5.5 immutability covers invoices WE GENERATED — a supplier's invoice photographed by our user is a different class of document, and we currently give both the identical no-delete guarantee.** Ask whether inbound third-party captures may be made erasable-with-audit without touching the outbound guarantee. If yes, the archive needs a class distinction (not a `delete` on `ArchiveStore`); if no, capture needs a consent/data-minimisation story instead. Either way it is a design change, so ask before more tenants photograph more documents. | A1 |
+| C10 | 🔴 **ZAKAT TAX ADVICE — the base computation itself. M17.4 IS HELD ON THIS** (owner instruction, 2026-08-15). Q1–Q8 decided the MECHANISM (working paper, GL-derived, Saudi/GCC-only, Hijri+Gregorian); the TAX CONTENT has never been checked against the Zakat Collection Regulations. Written up as **Block C of [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md)**, asked in the SAME conversation as C7/C8. 🔴 **Ask C1 (the minimum-base rule) first — it is the only one that changes architecture rather than arithmetic:** if a rule ties the Zakat base to adjusted net profit, the income statement stops being Q4's cross-check and becomes a computed INPUT, so the worksheet needs an adjusted-net-profit derivation with its own adjustments and audit trail. Also open: exact base composition and which provisions qualify (needed before **M17.3**, not just M17.4), the Gregorian divisor (354 vs 354.367) and rounding convention, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and confirmation that declining mixed/foreign ownership is the right v1 posture. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) §4 |
 
 Re-check the hosted project's default privileges when it exists — they may
 differ from the local Supabase CLI stack where all of this was measured.
@@ -373,7 +410,17 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **L-2**: signup 409 leaks account existence (accepted; document inline).
 - **L-3**: primary-membership tie-break is non-deterministic (`createdAt` only; add `id`).
 - **L-4**: the operator queue list is unaudited (accepted trade-off).
-- **`companies.fiscalYearStart` is stored but not applied** — reports use calendar periods; the Company Settings UI says so.
+- **🟡 `companies.fiscalYearStart` is now RESOLVED but reports still take explicit
+  dates** (M17.2). The column was stored from M11.6 and applied by nothing for
+  five milestones. It now has a real resolver (`lib/fiscalYear.ts`), a calendar
+  basis (`fiscal_calendar`: gregorian | hijri/Umm al-Qura), an endpoint
+  (`GET /companies/current/fiscal-years`) and a UI consumer (Company Settings
+  shows the resolved boundaries and day count). 🔴 **What is NOT done, stated so
+  nobody reads more into it:** the twelve report pages still take `date_from` /
+  `date_to` and know nothing about fiscal years. Wiring a fiscal-period picker
+  into them is a separate UI change (no shared date-range component exists —
+  each page rolls its own). The resolver exists because **Zakat** needs it, and
+  its consumers today are the settings page and M17.3/M17.4.
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
 - **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,
@@ -411,11 +458,18 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   the review UI makes it overridable in both directions. 🔴 **The supplier list
   is itself an ASSUMPTION** (several platforms have since registered for KSA
   VAT on some product lines) — see C9.
-- **Flaw-report item still open: #8** — the Zakat base reads
-  `is_zakat_relevant`, which almost nothing sets, so it renders a
-  computed-looking **0** for essentially every tenant. Deferred to the Finance
-  Hub interview, where Zakat belongs as a defined capability rather than a
-  summary endpoint quietly returning zero.
+- **✅ Flaw-report item #8 — CLOSED by M17.0 (2026-08-15).** The Zakat base read
+  `is_zakat_relevant`, which **one rule out of ~40** set (Tadawul/investment),
+  so it rendered a computed-looking **0** for almost every tenant beside a nisab
+  threshold hardcoded from a 2024 gold price — and for a tenant who *did* trade,
+  something worse: investment **income** reported as a zakatable **asset**, less
+  every debit. The owner interview (Q1–Q8) defined the capability, and M17.0 removed
+  the fake one: `transactions.is_zakat_relevant`, `categories.zakat_relevant`,
+  `system_account_templates.zakat_relevant` (migration 0038, org-seed trigger
+  redefined FIRST), `GET /summary/zakat` and its schema, both UI toggles, and
+  four **vacuous** test probes that compared 0 to 0. The page now states it is
+  not implemented. Decisions + build order:
+  [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md).
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
@@ -535,7 +589,8 @@ Operating references:
   `fileParallelism: false` or by raising rate limits.
 - [`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md),
   [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md),
-  [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md)
+  [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
+  [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md)
   — product decisions in force.
 - `docs/zatca/` — README (environments), `m12-status.md` (what is proven,
   where), `spec-vs-implementation-divergences.md` (all 13, with evidence),

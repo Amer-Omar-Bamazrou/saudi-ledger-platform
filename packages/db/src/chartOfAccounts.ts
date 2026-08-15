@@ -122,7 +122,6 @@ export async function seedChartOfAccounts(
     systemCode: a.code,
     isSystem: true,
     vatApplicable: a.vatApplicable ?? false,
-    zakatRelevant: false,
   }));
 
   const inserted = await client

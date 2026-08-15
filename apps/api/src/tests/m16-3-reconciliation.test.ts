@@ -15,9 +15,9 @@
  *    posting path). The row becomes `kind: settlement`.
  *
  *  - THE PROPERTY (the double-count the milestone exists to kill): settling a
- *    receipt moves NO income, NO VAT, NO Zakat figure — the income was
- *    recognised at issuance — while cash flow and the invoice's paid state DO
- *    move (so the check cannot pass vacuously).
+ *    receipt moves NO income and NO VAT figure — the income was recognised at
+ *    issuance — while cash flow and the invoice's paid state DO move (so the
+ *    check cannot pass vacuously).
  *
  *  - PARTIAL PAYMENTS ACCUMULATE and keep the document open — a partly-paid
  *    invoice must stay in AR aging (pre-M16.3, any payment flipped status to
@@ -254,13 +254,17 @@ describeMaybe("M16.3 — bank reconciliation", () => {
 
   // ── The one act, and the property ─────────────────────────────────────────
 
-  it("🔴 THE PROPERTY: settling moves NO income/VAT/Zakat figure; cash flow and the invoice DO move", async () => {
+  // M17.0 — the `zakat` probe was dropped from this test. It called
+  // `summaryService.getZakat()`, which summed rows flagged `is_zakat_relevant`;
+  // almost nothing wrote that flag (one rule, Tadawul/investment, absent from these fixtures), so before and after were both an empty result
+  // and the assertion compared 0 to 0. The income/VAT/cash/AR probes below do
+  // carry signal and are unchanged.
+  it("🔴 THE PROPERTY: settling moves NO income/VAT figure; cash flow and the invoice DO move", async () => {
     const range = { dateFrom: "2026-01-01", dateTo: "2026-12-31" };
     const before = {
       income: await inTenant(() => reportsService.incomeStatement("2026-01-01", "2026-12-31")),
       vat: await inTenant(() => summaryService.getVat(range)),
       vatReturn: await inTenant(() => reportsService.vatReturn("2026-01", "2026-12")),
-      zakat: await inTenant(() => summaryService.getZakat()),
       summary: await inTenant(() => summaryService.getSummary(range)),
       cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       bs: await inTenant(() => reportsService.balanceSheet("2026-12-31")),
@@ -280,7 +284,6 @@ describeMaybe("M16.3 — bank reconciliation", () => {
       income: await inTenant(() => reportsService.incomeStatement("2026-01-01", "2026-12-31")),
       vat: await inTenant(() => summaryService.getVat(range)),
       vatReturn: await inTenant(() => reportsService.vatReturn("2026-01", "2026-12")),
-      zakat: await inTenant(() => summaryService.getZakat()),
       summary: await inTenant(() => summaryService.getSummary(range)),
       cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       bs: await inTenant(() => reportsService.balanceSheet("2026-12-31")),
@@ -290,7 +293,6 @@ describeMaybe("M16.3 — bank reconciliation", () => {
     expect(after.income).toEqual(before.income);
     expect(after.vat).toEqual(before.vat);
     expect(after.vatReturn).toEqual(before.vatReturn);
-    expect(after.zakat).toEqual(before.zakat);
     expect((after.summary as { totalIncome: number }).totalIncome).toBe((before.summary as { totalIncome: number }).totalIncome);
     expect((after.summary as { totalExpenses: number }).totalExpenses).toBe((before.summary as { totalExpenses: number }).totalExpenses);
 

@@ -15,10 +15,6 @@ category_id?: number | null;
 /**
  * @nullable
  */
-is_zakat_relevant?: boolean | null;
-/**
- * @nullable
- */
 is_manually_overridden?: boolean | null;
 /**
  * @nullable

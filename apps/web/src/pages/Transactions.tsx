@@ -38,7 +38,6 @@ export default function Transactions() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ListTransactionsType | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [zakatFilter, setZakatFilter] = useState<"all" | "true" | "false">("all");
 
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
@@ -52,7 +51,6 @@ export default function Transactions() {
     search: debouncedSearch || undefined,
     type: typeFilter !== "all" ? typeFilter : undefined,
     category_id: categoryFilter !== "all" ? Number(categoryFilter) : undefined,
-    is_zakat_relevant: zakatFilter !== "all" ? zakatFilter === "true" : undefined,
     limit: 50,
   });
 
@@ -76,13 +74,11 @@ export default function Transactions() {
     if (!editTx) return;
     const formData = new FormData(e.currentTarget);
     const categoryId = formData.get("category_id") as string;
-    const isZakat = formData.get("is_zakat") === "on";
 
     updateMutation.mutate({
       id: editTx.id,
       data: {
         categoryId: categoryId ? Number(categoryId) : null,
-        isZakatRelevant: isZakat,
       }
     });
   };
@@ -131,16 +127,6 @@ export default function Transactions() {
           </SelectContent>
         </Select>
 
-        <Select value={zakatFilter} onValueChange={(v: any) => setZakatFilter(v)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder={t("Zakat", "زكاة")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("Zakat: All", "زكاة: الكل")}</SelectItem>
-            <SelectItem value="true">{t("Zakat: Yes", "زكاة: نعم")}</SelectItem>
-            <SelectItem value="false">{t("Zakat: No", "زكاة: لا")}</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
@@ -216,9 +202,6 @@ export default function Transactions() {
                         {tx.isManuallyOverridden && (
                           <Badge variant="secondary" className="text-[10px] uppercase">{t("Manual", "يدوي")}</Badge>
                         )}
-                        {tx.isZakatRelevant && (
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase">{t("Zakat", "زكاة")}</Badge>
-                        )}
                         {(tx.vatAmount || 0) > 0 && (
                           <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 text-[10px] uppercase">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
                         )}
@@ -277,14 +260,6 @@ export default function Transactions() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">{t("This will mark the transaction as manually overridden.", "سيتم تحديد المعاملة كمعدّلة يدوياً.")}</p>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-md border border-border bg-secondary/30">
-                <div className="space-y-0.5">
-                  <Label>{t("Zakat Relevant", "متعلق بالزكاة")}</Label>
-                  <p className="text-xs text-muted-foreground">{t("Mark if this transaction impacts Zakat calculation.", "حدّد إذا كانت هذه المعاملة تؤثر على حساب الزكاة.")}</p>
-                </div>
-                <Switch name="is_zakat" defaultChecked={editTx.isZakatRelevant} />
               </div>
 
               <DialogFooter>

@@ -310,23 +310,39 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
     /**
      * ══════════════════════════════════════════════════════════════════════
      * M13 is a PRESENTATION fix. A tax figure moving inside it would be the
-     * worst possible outcome of this milestone: the VAT return and the Zakat
-     * base are filed with ZATCA, and a silent shift in either is a filing
-     * error the tenant carries, not us.
+     * worst possible outcome of this milestone: the VAT return is filed with
+     * ZATCA, and a silent shift in it is a filing error the tenant carries,
+     * not us.
      *
-     * None of them reads the general ledger: the VAT return is computed from
-     * INVOICES and BILLS, the Zakat base and cash flow from TRANSACTIONS. (The
-     * M13 design note said "all three read transactions" — that was wrong about
-     * the VAT return, and the correction is exactly why this is asserted rather
-     * than argued.) If a future change moves any tax report onto the GL, this
-     * fails, and that is the point.
+     * Neither reads the general ledger: the VAT return is computed from
+     * INVOICES and BILLS, cash flow from TRANSACTIONS. (The M13 design note
+     * said "all three read transactions" — that was wrong about the VAT return,
+     * and the correction is exactly why this is asserted rather than argued.)
+     * If a future change moves either onto the GL, this fails, and that is the
+     * point.
+     *
+     * 🔴 M17.0 — the Zakat probe was REMOVED from this test, and its absence is
+     * deliberate in BOTH directions:
+     *
+     *   1. It was vacuous. It compared `summaryService.getZakat()` before and
+     *      after, and that endpoint summed rows flagged `is_zakat_relevant` —
+     *      a flag only ONE rule ever wrote (Tadawul/investment), which no
+     *      fixture here creates. Both sides were 0, so the assertion would have
+     *      stayed green through any defect it claimed to guard.
+     *   2. The property it asserted is now INTENTIONALLY FALSE. Owner decision
+     *      Q4: the Zakat working paper (M17.4) is derived FROM THE GENERAL
+     *      LEDGER, by design. Re-adding a "Zakat must not move when the GL
+     *      moves" assertion here would encode the opposite of the spec.
+     *
+     * So do not restore it. The Zakat module gets its own guards, asserting
+     * that the base DOES track the balance sheet.
      *
      * If you are here because this test is in your way: it is not in your way.
-     * It is telling you that a change to GL classification has reached a tax
-     * figure, which needs a decision, not a deletion.
+     * It is telling you that a change to GL classification has reached the VAT
+     * return or cash flow, which needs a decision, not a deletion.
      * ══════════════════════════════════════════════════════════════════════
      */
-    it("🔴 a GL-ONLY entry moves NO tax figure — VAT, Zakat or cash flow", async () => {
+    it("🔴 a GL-ONLY entry moves NO tax figure — VAT or cash flow", async () => {
       // The strongest available form of this assertion.
       //
       // We post a journal entry that credits SALES and VAT_OUTPUT with NO
@@ -338,7 +354,6 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       // for exactly one reason — a tax report started reading the ledger.
       const before = {
         vat: await inTenant(() => reportsService.vatReturn("2026-01-01", "2026-12-31")),
-        zakat: await inTenant(() => summaryService.getZakat()),
         cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       };
 
@@ -357,17 +372,12 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
 
       const after = {
         vat: await inTenant(() => reportsService.vatReturn("2026-01-01", "2026-12-31")),
-        zakat: await inTenant(() => summaryService.getZakat()),
         cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       };
 
       // 🔴 Every box of the VAT return, unchanged.
       expect(after.vat.salesSection).toEqual(before.vat.salesSection);
       expect(after.vat.purchasesSection).toEqual(before.vat.purchasesSection);
-
-      // 🔴 The Zakat base, unchanged.
-      expect(after.zakat.zakatDue).toBe(before.zakat.zakatDue);
-      expect(after.zakat.totalZakatableAssets).toBe(before.zakat.totalZakatableAssets);
 
       // 🔴 Cash flow, unchanged.
       expect(after.cash.netChange).toBe(before.cash.netChange);

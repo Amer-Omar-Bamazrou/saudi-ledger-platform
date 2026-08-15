@@ -20,7 +20,6 @@ export const transactionsController = {
     res.json(
       await transactionsService.list({
         categoryId: p.category_id,
-        isZakatRelevant: p.is_zakat_relevant,
         isManuallyOverridden: p.is_manually_overridden,
         type: p.type,
         search: p.search,

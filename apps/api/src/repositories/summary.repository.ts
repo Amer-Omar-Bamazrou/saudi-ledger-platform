@@ -4,15 +4,15 @@ import { db, transactionsTable, categoriesTable } from "@workspace/db";
 /**
  * 🔴 THE M15 HOLDING-AREA FILTER. Every tax-facing read of `transactions` MUST
  * carry this: a `pending_review` row is visible in the Transactions list but
- * moves NOTHING — not VAT, not Zakat, not cash flow, not the dashboard, not
- * budget actuals — until a human accepts it. Proven by the zero-movement test
+ * moves NOTHING — not VAT, not cash flow, not the dashboard, not budget
+ * actuals — until a human accepts it. Proven by the zero-movement test
  * (`transaction-review.test.ts`) through the real report services, to the
  * M10.3/10.4 standard.
  */
 export const acceptedOnly = () => eq(transactionsTable.reviewStatus, "accepted");
 /**
- * M16.2 — only OPERATING rows reach income, expense, VAT, Zakat, per-category
- * and budget aggregates. A `transfer` (ATM withdrawal, own-account move,
+ * M16.2 — only OPERATING rows reach income, expense, VAT, per-category and
+ * budget aggregates. A `transfer` (ATM withdrawal, own-account move,
  * credit-card settlement) is an asset movement — money changing pockets — and a
  * `settlement` (M16.3) re-collects income already recognised at issuance.
  * Neither may appear in a P&L-type or tax figure. Both remain visible in the
@@ -52,14 +52,7 @@ export const summaryRepository = {
     return db.select().from(transactionsTable).where(and(...conditions)).orderBy(transactionsTable.date);
   },
 
-  zakatRows() {
-    return db
-      .select({ tx: transactionsTable, cat: categoriesTable })
-      .from(transactionsTable)
-      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
-      .where(and(eq(transactionsTable.isZakatRelevant, true), taxVisible()))
-      .orderBy(transactionsTable.date);
-  },
+  // `zakatRows` was REMOVED in M17.0 — see routes/summary.ts.
 
   byCategoryRows(range: DateRange) {
     const conditions = [isNotNull(transactionsTable.categoryId), taxVisible()];
