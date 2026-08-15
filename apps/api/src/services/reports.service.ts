@@ -165,6 +165,17 @@ export const reportsService = {
     const apKey = systemIdByCode.has("AP") ? String(systemIdByCode.get("AP")) : null;
     const arBalance = fmt2(arKey && assets[arKey] ? assets[arKey].amount : 0);
     const apBalance = fmt2(apKey && liabilities[apKey] ? liabilities[apKey].amount : 0);
+    /**
+     * M18.3 — the SUSPENSE balance, by system code like AR/AP above.
+     *
+     * Since flaw #1, an accepted-but-uncategorised bank line posts here. The
+     * Finance Hub needs the figure not as an asset but as a DATA-QUALITY
+     * signal: money the platform could not identify is not money you can pay
+     * with, and a non-zero balance blocks the hub's plain-language liquidity
+     * claim entirely (design §5.1, owner decision).
+     */
+    const suspenseKey = systemIdByCode.has("SUSPENSE") ? String(systemIdByCode.get("SUSPENSE")) : null;
+    const suspenseBalance = fmt2(suspenseKey && assets[suspenseKey] ? assets[suspenseKey].amount : 0);
 
     const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
     const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
@@ -222,6 +233,7 @@ export const reportsService = {
         nonCurrent: bucket(assetItems, isNonCurrent),
         unclassified: bucket(assetItems, isUnclassified),
         quickTotal,
+        suspenseBalance,
       },
       liabilities: {
         items: liabItems,

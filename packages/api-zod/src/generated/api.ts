@@ -589,6 +589,46 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+export const GetLiquidityQueryParams = zod.object({
+  "as_of": zod.coerce.string().nullish()
+})
+
+export const GetLiquidityResponse = zod.object({
+  "asOf": zod.string(),
+  "currentAssets": zod.number(),
+  "quickAssets": zod.number().describe('Cash + quick — the acid-test numerator.'),
+  "currentLiabilities": zod.number(),
+  "workingCapital": zod.number(),
+  "currentRatio": zod.number().nullable().describe('NULL when there are no current liabilities — undefined, not zero.'),
+  "quickRatio": zod.number().nullable(),
+  "claimable": zod.boolean(),
+  "blockers": zod.array(zod.object({
+  "code": zod.enum(['suspense_balance', 'unclassified_accounts']),
+  "amount": zod.number(),
+  "count": zod.number().nullish()
+})),
+  "observations": zod.array(zod.object({
+  "code": zod.string(),
+  "severity": zod.enum(['watch']),
+  "ratio": zod.number()
+}))
+}).describe('🔴 `claimable` is the field that matters. When false the UI must NOT state the plain-language claim (\"you can cover your short-term debts 1.8x over\") — the figures are still returned so the breakdown and the blocker can be shown, but the CLAIM is withheld. `observations` are RULES OF THUMB, never compliance: no severity above \"watch\" exists.\n')
+
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+export const GetBooksStatusResponse = zod.object({
+  "unreviewedCount": zod.number(),
+  "needsAttentionCount": zod.number()
+})
+
+
+/**
  * @summary Accounting periods this company has closed (M18.4). Readable by every role; only an organization admin may close or reopen one.
 
  */

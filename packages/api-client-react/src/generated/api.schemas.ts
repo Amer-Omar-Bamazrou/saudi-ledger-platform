@@ -234,6 +234,61 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
+export type LiquidityBlockersItemCode = typeof LiquidityBlockersItemCode[keyof typeof LiquidityBlockersItemCode];
+
+
+export const LiquidityBlockersItemCode = {
+  suspense_balance: 'suspense_balance',
+  unclassified_accounts: 'unclassified_accounts',
+} as const;
+
+export type LiquidityBlockersItem = {
+  code: LiquidityBlockersItemCode;
+  amount: number;
+  /** @nullable */
+  count?: number | null;
+};
+
+export type LiquidityObservationsItemSeverity = typeof LiquidityObservationsItemSeverity[keyof typeof LiquidityObservationsItemSeverity];
+
+
+export const LiquidityObservationsItemSeverity = {
+  watch: 'watch',
+} as const;
+
+export type LiquidityObservationsItem = {
+  code: string;
+  severity: LiquidityObservationsItemSeverity;
+  ratio: number;
+};
+
+/**
+ * 🔴 `claimable` is the field that matters. When false the UI must NOT state the plain-language claim ("you can cover your short-term debts 1.8x over") — the figures are still returned so the breakdown and the blocker can be shown, but the CLAIM is withheld. `observations` are RULES OF THUMB, never compliance: no severity above "watch" exists.
+ */
+export interface Liquidity {
+  asOf: string;
+  currentAssets: number;
+  /** Cash + quick — the acid-test numerator. */
+  quickAssets: number;
+  currentLiabilities: number;
+  workingCapital: number;
+  /**
+     * NULL when there are no current liabilities — undefined, not zero.
+     * @nullable
+     */
+  currentRatio: number | null;
+  /** @nullable */
+  quickRatio: number | null;
+  claimable: boolean;
+  blockers: LiquidityBlockersItem[];
+  observations: LiquidityObservationsItem[];
+}
+
+export interface BooksStatus {
+  unreviewedCount: number;
+  needsAttentionCount: number;
+}
+
 export interface PeriodLock {
   id: number;
   /** The closed month, `YYYY-MM`. */
@@ -1266,6 +1321,13 @@ export const ListTransactionsType = {
   debit: 'debit',
   credit: 'credit',
 } as const;
+
+export type GetLiquidityParams = {
+/**
+ * @nullable
+ */
+as_of?: string | null;
+};
 
 export type GetSummaryParams = {
 /**

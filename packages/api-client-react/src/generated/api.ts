@@ -24,6 +24,7 @@ import type {
   AcceptPendingResult,
   Bill,
   BillApproveInput,
+  BooksStatus,
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
@@ -37,6 +38,7 @@ import type {
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
+  GetLiquidityParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
   GetVatReturnParams,
@@ -44,6 +46,7 @@ import type {
   HealthStatus,
   Invoice,
   JournalEntry,
+  Liquidity,
   ListTransactionsParams,
   PayrollRun,
   PendingReviewTransaction,
@@ -1727,6 +1730,171 @@ export const useRunCategorization = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRunCategorizationMutationOptions(options));
     }
+
+export const getGetLiquidityUrl = (params?: GetLiquidityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/finance-hub/liquidity?${stringifiedParams}` : `/api/finance-hub/liquidity`
+}
+
+/**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+export const getLiquidity = async (params?: GetLiquidityParams, options?: RequestInit): Promise<Liquidity> => {
+
+  return customFetch<Liquidity>(getGetLiquidityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiquidityQueryKey = (params?: GetLiquidityParams,) => {
+    return [
+    `/api/finance-hub/liquidity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLiquidityQueryOptions = <TData = Awaited<ReturnType<typeof getLiquidity>>, TError = ErrorType<unknown>>(params?: GetLiquidityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiquidityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiquidity>>> = ({ signal }) => getLiquidity(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiquidityQueryResult = NonNullable<Awaited<ReturnType<typeof getLiquidity>>>
+export type GetLiquidityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary "Can I pay what I owe?" (M18.3) — current/quick assets, current liabilities, working capital and the two ratios, from the GL.
+
+ */
+
+export function useGetLiquidity<TData = Awaited<ReturnType<typeof getLiquidity>>, TError = ErrorType<unknown>>(
+ params?: GetLiquidityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiquidity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiquidityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBooksStatusUrl = () => {
+
+
+
+
+  return `/api/finance-hub/books-status`
+}
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+export const getBooksStatus = async ( options?: RequestInit): Promise<BooksStatus> => {
+
+  return customFetch<BooksStatus>(getGetBooksStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBooksStatusQueryKey = () => {
+    return [
+    `/api/finance-hub/books-status`
+    ] as const;
+    }
+
+
+export const getGetBooksStatusQueryOptions = <TData = Awaited<ReturnType<typeof getBooksStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBooksStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBooksStatus>>> = ({ signal }) => getBooksStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBooksStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getBooksStatus>>>
+export type GetBooksStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary "Are my books current?" — the unreviewed-transaction signal, mirrored from the Banking review surface rather than duplicated (design Q7).
+
+ */
+
+export function useGetBooksStatus<TData = Awaited<ReturnType<typeof getBooksStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBooksStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBooksStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListPeriodLocksUrl = () => {
 

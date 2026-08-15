@@ -4,8 +4,12 @@ import {
   useListPeriodLocks,
   useLockPeriod,
   useUnlockPeriod,
+  useGetLiquidity,
+  useGetBooksStatus,
   getListPeriodLocksQueryKey,
 } from "@workspace/api-client-react";
+import { Link } from "wouter";
+import { formatCurrency } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -19,7 +23,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, LockOpen, ShieldCheck, Loader2 } from "lucide-react";
+import { Lock, LockOpen, ShieldCheck, Loader2, Wallet, TriangleAlert, ListChecks, ChevronRight } from "lucide-react";
 
 /**
  * Finance Hub (M18.4 — the first block).
@@ -84,6 +88,8 @@ export default function FinanceHub() {
   const [reopening, setReopening] = useState<string | null>(null);
 
   const { data: locks, isLoading } = useListPeriodLocks();
+  const { data: liq } = useGetLiquidity();
+  const { data: books } = useGetBooksStatus();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListPeriodLocksQueryKey() });
 
@@ -132,6 +138,124 @@ export default function FinanceHub() {
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      )}
+
+      {/* ── Block 1 (M18.3): can I pay what I owe? ───────────────────────── */}
+      {liq && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-muted-foreground" />
+              {t("Can you pay what you owe?", "هل تستطيع سداد ما عليك؟")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/*
+              🔴 The claim is WITHHELD, not caveated. When the platform cannot
+              stand behind the ratios it says so instead of printing them with
+              a footnote — a plain-language sentence removes the reader's
+              ability to sanity-check, so publishing one over bad inputs is
+              worse than publishing nothing (design §2, §5.1).
+            */}
+            {liq.claimable ? (
+              <p className="text-sm">
+                {liq.quickRatio === null
+                  ? t(
+                      "You have no short-term obligations right now.",
+                      "ليس عليك التزامات قصيرة الأجل حالياً.",
+                    )
+                  : liq.quickRatio >= 1
+                    ? t(
+                        `Your liquid assets cover your short-term debts ${liq.quickRatio}× over.`,
+                        `أصولك السائلة تغطي التزاماتك قصيرة الأجل ${liq.quickRatio} مرة.`,
+                      )
+                    : t(
+                        `Your short-term obligations are larger than your liquid assets — you hold about ${liq.quickRatio} of what you owe within the year.`,
+                        `التزاماتك قصيرة الأجل أكبر من أصولك السائلة — لديك نحو ${liq.quickRatio} مما عليك خلال السنة.`,
+                      )}
+              </p>
+            ) : (
+              <Alert>
+                <TriangleAlert className="h-4 w-4" />
+                <AlertDescription className="space-y-1">
+                  <p className="font-medium">
+                    {t(
+                      "These figures are not reliable yet, so we are not drawing a conclusion from them.",
+                      "هذه الأرقام غير موثوقة بعد، لذلك لا نستخلص منها نتيجة.",
+                    )}
+                  </p>
+                  {liq.blockers.map((b) => (
+                    <p key={b.code} className="text-xs">
+                      {b.code === "suspense_balance"
+                        ? t(
+                            `${formatCurrency(Math.abs(b.amount))} of money we could not identify is sitting unclassified. Money you cannot identify is not money you can pay with.`,
+                            `${formatCurrency(Math.abs(b.amount))} من المبالغ التي تعذّر تحديدها ما زالت غير مصنفة. والمال الذي لا تعرف مصدره ليس مالاً يمكنك السداد به.`,
+                          )
+                        : t(
+                            `${b.count} account(s) have no "turns into cash" setting, so ${formatCurrency(Math.abs(b.amount))} is excluded from these figures.`,
+                            `${b.count} حساب/حسابات بدون إعداد "يتحول إلى نقد"، لذا استُبعد ${formatCurrency(Math.abs(b.amount))} من هذه الأرقام.`,
+                          )}
+                    </p>
+                  ))}
+                  <Link
+                    href={liq.blockers.some((b) => b.code === "suspense_balance") ? "/review" : "/categories"}
+                    className="text-xs underline inline-flex items-center gap-1"
+                  >
+                    {t("Fix this", "إصلاح ذلك")} <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: t("Current assets", "الأصول المتداولة"), value: liq.currentAssets },
+                { label: t("Liquid assets", "الأصول السائلة"), value: liq.quickAssets },
+                { label: t("Due within a year", "المستحق خلال سنة"), value: liq.currentLiabilities },
+                { label: t("Working capital", "رأس المال العامل"), value: liq.workingCapital },
+              ].map((s) => (
+                <div key={s.label} className="rounded-md border border-border bg-secondary/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                  <p className="text-sm font-mono mt-0.5">{formatCurrency(s.value)}</p>
+                </div>
+              ))}
+            </div>
+
+            {/*
+              Rules of thumb, rendered as observations. No FAIL styling and no
+              language implying a rule was broken — no standard sets these
+              numbers (design §5.2).
+            */}
+            {liq.observations.length > 0 && (
+              <p className="text-xs text-amber-500">
+                {t(
+                  "As a rule of thumb a ratio below 1 is worth watching — it varies a lot by industry, so treat it as a prompt to look, not a verdict.",
+                  "كقاعدة عامة، النسبة الأقل من 1 تستحق المتابعة — وهي تختلف كثيراً حسب القطاع، فاعتبرها دعوة للمراجعة لا حكماً نهائياً.",
+                )}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Block 2: are my books current? (Q7 — mirror the signal) ──────── */}
+      {books && books.unreviewedCount > 0 && (
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <ListChecks className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-sm">
+                {t(
+                  `${books.unreviewedCount} imported transaction(s) are waiting for review, ${books.needsAttentionCount} of which need a decision. Until they are accepted they change none of the figures above.`,
+                  `${books.unreviewedCount} معاملة مستوردة بانتظار المراجعة، منها ${books.needsAttentionCount} تحتاج قراراً. ولا تؤثر على الأرقام أعلاه حتى تُقبل.`,
+                )}
+              </p>
+            </div>
+            <Link href="/review">
+              <Button variant="outline" size="sm">{t("Review", "مراجعة")}</Button>
+            </Link>
+          </CardContent>
+        </Card>
       )}
 
       <Card className="border-border bg-card">

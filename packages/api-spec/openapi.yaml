@@ -27,6 +27,8 @@ tags:
     description: Payroll runs and the draft/approval workflow
   - name: period_locks
     description: Closing and reopening accounting periods
+  - name: finance_hub
+    description: The Finance Hub control surface
 
 paths:
   /healthz:
@@ -471,6 +473,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategorizationResult"
+
+  /finance-hub/liquidity:
+    get:
+      operationId: getLiquidity
+      tags: [finance_hub]
+      summary: >
+        "Can I pay what I owe?" (M18.3) — current/quick assets, current
+        liabilities, working capital and the two ratios, from the GL.
+      parameters:
+        - name: as_of
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: The liquidity position, and whether it may be claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Liquidity"
+
+  /finance-hub/books-status:
+    get:
+      operationId: getBooksStatus
+      tags: [finance_hub]
+      summary: >
+        "Are my books current?" — the unreviewed-transaction signal, mirrored
+        from the Banking review surface rather than duplicated (design Q7).
+      responses:
+        "200":
+          description: Counts only; the work happens on /review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooksStatus"
 
   /period-locks:
     get:
@@ -1488,6 +1525,72 @@ components:
           description: A window around the current period, newest first.
           items:
             $ref: "#/components/schemas/FiscalPeriod"
+
+    Liquidity:
+      type: object
+      description: >
+        🔴 `claimable` is the field that matters. When false the UI must NOT
+        state the plain-language claim ("you can cover your short-term debts
+        1.8x over") — the figures are still returned so the breakdown and the
+        blocker can be shown, but the CLAIM is withheld. `observations` are
+        RULES OF THUMB, never compliance: no severity above "watch" exists.
+      required:
+        [asOf, currentAssets, quickAssets, currentLiabilities, workingCapital,
+         currentRatio, quickRatio, claimable, blockers, observations]
+      properties:
+        asOf:
+          type: string
+        currentAssets:
+          type: number
+        quickAssets:
+          type: number
+          description: Cash + quick — the acid-test numerator.
+        currentLiabilities:
+          type: number
+        workingCapital:
+          type: number
+        currentRatio:
+          type: ["number", "null"]
+          description: NULL when there are no current liabilities — undefined, not zero.
+        quickRatio:
+          type: ["number", "null"]
+        claimable:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            type: object
+            required: [code, amount]
+            properties:
+              code:
+                type: string
+                enum: [suspense_balance, unclassified_accounts]
+              amount:
+                type: number
+              count:
+                type: ["integer", "null"]
+        observations:
+          type: array
+          items:
+            type: object
+            required: [code, severity, ratio]
+            properties:
+              code:
+                type: string
+              severity:
+                type: string
+                enum: [watch]
+              ratio:
+                type: number
+
+    BooksStatus:
+      type: object
+      required: [unreviewedCount, needsAttentionCount]
+      properties:
+        unreviewedCount:
+          type: integer
+        needsAttentionCount:
+          type: integer
 
     PeriodLock:
       type: object
