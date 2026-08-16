@@ -327,6 +327,44 @@ export interface BridgePoint {
   closing: number;
 }
 
+export type CashReconciliationItemsItemCode = typeof CashReconciliationItemsItemCode[keyof typeof CashReconciliationItemsItemCode];
+
+
+export const CashReconciliationItemsItemCode = {
+  transfers: 'transfers',
+  settlements: 'settlements',
+  unposted_legacy: 'unposted_legacy',
+  ledger_only: 'ledger_only',
+} as const;
+
+export type CashReconciliationItemsItem = {
+  code: CashReconciliationItemsItemCode;
+  amount: number;
+};
+
+export interface CashPoint {
+  period: string;
+  bankMovement: number;
+  ledgerCash: number;
+  gap: number;
+}
+
+export interface CashReconciliation {
+  from: string;
+  to: string;
+  /** Every accepted transaction, all kinds — what the bank shows. */
+  bankMovement: number;
+  /** Movement on cash-classified GL accounts — what the books say. */
+  ledgerCash: number;
+  /** bankMovement − ledgerCash. Zero when the two stores agree. */
+  gap: number;
+  /** Each entry is a NAMED reason the two differ, and they sum to the gap exactly. A gap merely displayed is a discrepancy; a gap itemised is a reconciliation. */
+  items: CashReconciliationItemsItem[];
+  /** 🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile. */
+  unexplained: number;
+  points: CashPoint[];
+}
+
 export type DecompositionDimension = typeof DecompositionDimension[keyof typeof DecompositionDimension];
 
 
@@ -1514,6 +1552,17 @@ to: string;
 };
 
 export type GetReceivablesBridgeParams = {
+/**
+ * YYYY-MM
+ */
+from: string;
+/**
+ * YYYY-MM
+ */
+to: string;
+};
+
+export type GetCashReconciliationParams = {
 /**
  * YYYY-MM
  */

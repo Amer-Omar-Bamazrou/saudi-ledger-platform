@@ -377,7 +377,22 @@ Two of §6.1's three bullets shipped. The other two items are held for reasons
 that are findings in their own right — recorded here rather than left as an
 empty space someone later fills in by guessing.
 
-**1. Net cash movement per period — HELD on a source question.**
+**1. Net cash movement per period — ✅ SHIPPED AS OPTION C (M19.7), and it is an
+INTERIM the page says is one.** Both figures are shown, named so they cannot be
+confused — **Bank movement** (what the statement shows: every accepted
+transaction, including transfers and settlements) beside **Ledger cash** (what
+the books record) — with the difference itemised to a remainder of zero. The
+M16 Q0 discipline: two numbers are tolerable when each states its question and
+the gap is accounted for line by line. Live on the dev org: −83,243.40 vs
+−84,993.40, gap 1,750 = transfers −7,000 + ledger-only 8,750, `unexplained` 0.
+
+🔴 **What C does NOT do**, and the page says so in words: it makes the
+disagreement legible, not resolved. Neither figure can be *correct* about
+transfers, because the fact that would settle it — whether the money left the
+business — is not recorded (queue **B5**). Owner's sequence: **C now, then D
+(record the destination), then A (the GL owns cash).**
+
+**The original finding, kept:**
 Measured on real rows: `reports.cashFlow` reports **−113,744.15** for the dev
 org while the GL's cash-classified accounts moved **−102,944.15**. Both are
 "correct" for what they read. The report is TRANSACTION-derived; the ledger is

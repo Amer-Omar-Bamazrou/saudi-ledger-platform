@@ -30,6 +30,7 @@ import type {
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
+  CashReconciliation,
   CategorizationRequest,
   CategorizationResult,
   Category,
@@ -43,6 +44,7 @@ import type {
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
+  GetCashReconciliationParams,
   GetDecompositionParams,
   GetLiquidityParams,
   GetReceivablesBridgeParams,
@@ -2070,6 +2072,94 @@ export function useGetReceivablesBridge<TData = Awaited<ReturnType<typeof getRec
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetReceivablesBridgeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCashReconciliationUrl = (params: GetCashReconciliationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/cash?${stringifiedParams}` : `/api/analytics/cash`
+}
+
+/**
+ * 🔴 TWO FIGURES, DELIBERATELY. The transaction store and the general ledger disagree about cash, and each is right about the question it answers: "Bank movement" is what the bank statement shows (every accepted transaction, including transfers and settlements); "Ledger cash" is what the double-entry books say (excluding transfers and settlements, which never post, and including payments recorded on a document, which create no transaction).
+ * Following the M16 Q0 precedent — documents FILE, transactions RECONCILE — two figures are tolerable only when each says which question it answers and the gap between them is accounted for line by line. `unexplained` must be zero; anything else means a cause nobody has named.
+ * @summary Bank movement and ledger cash side by side, with the gap itemised (M19.7).
+
+ */
+export const getCashReconciliation = async (params: GetCashReconciliationParams, options?: RequestInit): Promise<CashReconciliation> => {
+
+  return customFetch<CashReconciliation>(getGetCashReconciliationUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCashReconciliationQueryKey = (params?: GetCashReconciliationParams,) => {
+    return [
+    `/api/analytics/cash`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCashReconciliationQueryOptions = <TData = Awaited<ReturnType<typeof getCashReconciliation>>, TError = ErrorType<unknown>>(params: GetCashReconciliationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCashReconciliationQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCashReconciliation>>> = ({ signal }) => getCashReconciliation(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCashReconciliation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCashReconciliationQueryResult = NonNullable<Awaited<ReturnType<typeof getCashReconciliation>>>
+export type GetCashReconciliationQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Bank movement and ledger cash side by side, with the gap itemised (M19.7).
+
+ */
+
+export function useGetCashReconciliation<TData = Awaited<ReturnType<typeof getCashReconciliation>>, TError = ErrorType<unknown>>(
+ params: GetCashReconciliationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCashReconciliationQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
