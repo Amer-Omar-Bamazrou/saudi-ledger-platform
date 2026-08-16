@@ -166,4 +166,95 @@ export const analyticsRepository = {
       )
       .groupBy(billsTable.vendorId);
   },
+  /**
+   * The RECEIVABLES BRIDGE, per month — every movement on the AR account,
+   * split by what the other side of the entry was (design §4).
+   *
+   * ── 🔴 Why all five terms come from ONE account's journal lines ───────────
+   * The bridge is an identity:
+   *
+   *     opening + invoiced − collected − credited − other = closing
+   *
+   * It holds **by construction** here, because every term is a debit or a
+   * credit on the SAME account: the sum of debits less the sum of credits IS
+   * the change in the balance, however the credits are labelled. Taking
+   * `invoiced` from `invoices.total` and `closing` from the GL would produce
+   * five numbers from two stores that agree only by luck — meta-finding #9 in a
+   * new costume, and an identity that "usually reconciles" is worth nothing.
+   *
+   * So the split is a LABELLING of the credit side, never a second computation.
+   *
+   * ── How the label is decided ──────────────────────────────────────────────
+   * By the contra lines of the same entry, matching what the posting path
+   * actually writes (`invoices.approvable.ts`, `invoices.service.pay`):
+   *
+   *   Dr AR                          → invoiced   (invoice or DEBIT note —
+   *                                                 a debit note posts like an
+   *                                                 invoice, it does not reverse)
+   *   Cr AR, entry debits cash       → collected
+   *   Cr AR, entry debits income     → credited   (credit note reverses revenue)
+   *   Cr AR, anything else           → other
+   *
+   * `other` is deliberately reported rather than folded into `credited`: a
+   * write-off or an offset is neither a payment nor a credit note, and a bridge
+   * that silently mislabels it would be describing a movement it did not
+   * understand. Zero in ordinary use; visible the moment it is not.
+   *
+   * Returns from the beginning of time, like `monthlyMovements` — the opening
+   * balance of the first charted month is the sum of everything before it.
+   */
+  async monthlyReceivables(asOf: string) {
+    const res = await db.execute<{
+      month: string;
+      invoiced: string;
+      collected: string;
+      credited: string;
+      other: string;
+    }>(sql`
+      WITH ar AS (
+        SELECT e.id AS entry_id,
+               to_char(e.date::date, 'YYYY-MM') AS month,
+               l.debit_amount  AS dr,
+               l.credit_amount AS cr
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.journal_entry_id
+          JOIN categories c      ON c.id = l.account_id
+         WHERE e.status = 'posted'
+           AND e.date <= ${asOf}
+           AND c.system_code = 'AR'
+      ),
+      contra AS (
+        SELECT ar.entry_id,
+               bool_or(c2.liquidity_class = 'cash')       AS has_cash,
+               bool_or(c2.type IN ('income', 'revenue'))  AS has_income
+          FROM ar
+          JOIN journal_entry_lines l2 ON l2.journal_entry_id = ar.entry_id
+          LEFT JOIN categories c2     ON c2.id = l2.account_id
+         WHERE coalesce(c2.system_code, '') <> 'AR'
+         GROUP BY ar.entry_id
+      )
+      SELECT ar.month,
+             coalesce(sum(ar.dr), 0)::text AS invoiced,
+             -- 🔴 coalesce, not a bare boolean: a NULL from either the LEFT JOIN
+             -- or an unresolved contra account makes every FILTER predicate
+             -- NULL, so the credit would fall into NO bucket and silently
+             -- break the identity. Every credit must land in exactly one.
+             coalesce(sum(ar.cr) FILTER (WHERE coalesce(contra.has_cash, false)), 0)::text AS collected,
+             coalesce(sum(ar.cr) FILTER (WHERE NOT coalesce(contra.has_cash, false)
+                                           AND coalesce(contra.has_income, false)), 0)::text AS credited,
+             coalesce(sum(ar.cr) FILTER (WHERE NOT coalesce(contra.has_cash, false)
+                                           AND NOT coalesce(contra.has_income, false)), 0)::text AS other
+        FROM ar
+        LEFT JOIN contra ON contra.entry_id = ar.entry_id
+       GROUP BY ar.month
+       ORDER BY ar.month
+    `);
+    return ((res as unknown as { rows: unknown[] }).rows ?? []) as {
+      month: string;
+      invoiced: string;
+      collected: string;
+      credited: string;
+      other: string;
+    }[];
+  },
 };

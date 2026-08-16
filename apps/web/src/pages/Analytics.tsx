@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import {
   useGetTrend, useGetDecomposition, useGetSummary, useListBudgets,
+  useGetReceivablesBridge,
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,6 +83,47 @@ export default function Analytics() {
   const decompWindow = useMemo(() => currentMonthRange(), []);
 
   const { data: trend } = useGetTrend({ from: window_.from, to: window_.to });
+
+  /**
+   * M19.6 — the receivables bridge (design §4, §6.1).
+   *
+   * 🔴 It answers what the outstanding BALANCE cannot. Receivables rising does
+   * not say whether you invoiced more or collected less, and those call for
+   * opposite responses. The balance is the stock; this is the flow.
+   *
+   * Same window as everything else on the page, so the charts describe one span.
+   */
+  const { data: bridge } = useGetReceivablesBridge({ from: window_.from, to: window_.to });
+
+  const bridgeSeries = (bridge ?? []).map((p) => ({
+    period: p.period,
+    invoiced: p.invoiced,
+    collected: p.collected,
+    outstanding: p.closing,
+  }));
+
+  /**
+   * 🔴 No per-point `claimable` here, deliberately — and the reason matters.
+   *
+   * The liquidity trend is withheld when the platform cannot classify accounts
+   * or has unidentified money in suspense, because those defeat the CLAIM it
+   * makes. The bridge makes no such claim: every term is a debit or a credit on
+   * the receivables account, so it is true whatever else is unclassified. A
+   * suspense balance does not make "you invoiced 40,000 and collected 25,000"
+   * any less accurate. Withholding it anyway would be cargo-culting the
+   * mechanism rather than applying it.
+   */
+  const allClaimable = bridge?.map(() => ({ claimable: true }));
+  const flowsState = classifyChartState(
+    allClaimable,
+    bridgeSeries.flatMap((b) => [b.invoiced, b.collected]),
+  );
+  const outstandingState = classifyChartState(
+    allClaimable,
+    bridgeSeries.map((b) => b.outstanding),
+  );
+  /** Non-zero means AR moved by something that was neither a payment nor a credit note. */
+  const bridgeOther = (bridge ?? []).reduce((sum, p) => sum + p.other, 0);
 
   /**
    * M19.4 — absorbed from the old "Financial Cockpit" (owner decision A11).
@@ -345,6 +387,189 @@ export default function Analytics() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Chart 3: RECEIVABLES FLOWS — invoiced vs collected (M19.6) ─────
+           Two series, ONE axis: both are money, so a single scale is honest
+           and the gap between the lines is the point. ────────────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {t("Invoiced against collected", "المفوتر مقابل المحصّل")}
+          </CardTitle>
+          <CardDescription>
+            {t(
+              "What you billed each month, and what actually came in. The gap is work done but not yet paid for — it is timing, not a loss.",
+              "ما فوترته كل شهر وما تم تحصيله فعلياً. الفارق هو عمل أُنجز ولم يُدفع بعد — توقيت وليس خسارة.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[260px]">
+          {flowsState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">
+                {flowsState === "loading"
+                  ? t("Loading…", "جارٍ التحميل…")
+                  : t(
+                      "No invoices were raised or settled in this range. Approve an invoice, or try a longer range.",
+                      "لم تُصدر أو تُسوَّ أي فواتير في هذا النطاق. اعتمد فاتورة، أو جرّب نطاقاً أطول.",
+                    )}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={bridgeSeries} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={64} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone" dataKey="invoiced" name={t("Invoiced", "المفوتر")}
+                  stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }}
+                />
+                {/*
+                  🔴 "Collected", never "revenue" (design §4). A cash figure and
+                  an accrual figure both called revenue disagree for as long as
+                  any invoice is unpaid — two numbers with one name in two places
+                  is meta-finding #9 restated. The income statement keeps sole
+                  ownership of the word.
+                */}
+                <Line
+                  type="monotone" dataKey="collected" name={t("Collected", "المحصّل")}
+                  stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Chart 4: RECEIVABLES OUTSTANDING — the STOCK, on its own canvas ──
+           Deliberately not overlaid on the flows above. A stock and a flow
+           share a unit but not a meaning, and drawing them together invites the
+           reader to compare a balance with a monthly movement. ───────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {t("Owed to you, month by month", "المستحق لك، شهراً بشهر")}
+          </CardTitle>
+          <CardDescription>
+            {t(
+              "The receivables balance at each month end — the same figure the balance sheet shows for that date.",
+              "رصيد الذمم المدينة في نهاية كل شهر — نفس الرقم الذي تعرضه الميزانية العمومية لذلك التاريخ.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[220px]">
+          {outstandingState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">
+                {outstandingState === "loading"
+                  ? t("Loading…", "جارٍ التحميل…")
+                  : t(
+                      "Nothing is owed to you in this range — every invoice raised was settled.",
+                      "لا توجد مبالغ مستحقة لك في هذا النطاق — كل فاتورة صدرت تم تحصيلها.",
+                    )}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={bridgeSeries} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={64} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                {/* One series — the title names it, so no legend box (dataviz). */}
+                <Line
+                  type="monotone" dataKey="outstanding" name={t("Outstanding", "المستحق")}
+                  stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── The bridge itself: the identity, as numbers ────────────────────── */}
+      {bridge && bridge.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {t("Why the balance moved", "لماذا تغيّر الرصيد")}
+            </CardTitle>
+            <CardDescription>
+              {t(
+                "Opening + invoiced − collected − credited = closing. Every figure is a movement on the receivables account, so the row always adds up.",
+                "الافتتاحي + المفوتر − المحصّل − إشعارات الدائن = الختامي. كل رقم حركة على حساب الذمم المدينة، لذا يتوازن السطر دائماً.",
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-border">
+                  <th className="py-2 pr-3 font-medium">{t("Month", "الشهر")}</th>
+                  <th className="py-2 px-3 font-medium text-right">{t("Opening", "الافتتاحي")}</th>
+                  <th className="py-2 px-3 font-medium text-right">{t("Invoiced", "المفوتر")}</th>
+                  <th className="py-2 px-3 font-medium text-right">{t("Collected", "المحصّل")}</th>
+                  <th className="py-2 px-3 font-medium text-right">{t("Credited", "إشعارات دائن")}</th>
+                  {bridgeOther !== 0 && (
+                    <th className="py-2 px-3 font-medium text-right">{t("Other", "أخرى")}</th>
+                  )}
+                  <th className="py-2 pl-3 font-medium text-right">{t("Closing", "الختامي")}</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono text-xs">
+                {bridge.map((p) => (
+                  <tr key={p.period} className="border-b border-border/50">
+                    <td className="py-1.5 pr-3 font-sans">{p.period}</td>
+                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.opening)}</td>
+                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.invoiced)}</td>
+                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.collected)}</td>
+                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.credited)}</td>
+                    {bridgeOther !== 0 && (
+                      <td className="py-1.5 px-3 text-right">{formatCurrency(p.other)}</td>
+                    )}
+                    <td className="py-1.5 pl-3 text-right font-semibold">
+                      {formatCurrency(p.closing)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/*
+              🔴 Shown ONLY when non-zero, and named rather than absorbed. A
+              write-off or an offset is neither a payment nor a credit note;
+              folding it into "credited" would describe a movement the platform
+              did not understand as one it did.
+            */}
+            {bridgeOther !== 0 && (
+              <p className="text-xs text-muted-foreground mt-3">
+                {t(
+                  "Other is a movement on receivables that was neither a payment nor a credit note — a write-off or an offset. It is listed separately rather than assumed.",
+                  "«أخرى» حركة على الذمم المدينة ليست دفعة ولا إشعار دائن — شطب أو مقاصة. تُعرض منفصلة بدلاً من افتراضها.",
+                )}
+              </p>
+            )}
+
+            {/*
+              🔴 Stating an absence, because the alternative is inventing it.
+              An overdue split needs each invoice's outstanding balance AS AT
+              each past month end, and partial payments are stored as a running
+              `paid_amount` with no dated history — so it is not derivable for
+              any month but today. Approximating it would put a number under
+              "overdue" that the ledger cannot support.
+            */}
+            <p className="text-xs text-muted-foreground mt-2">
+              {t(
+                "How much of this is overdue is shown for today on the AR Aging report. Historically it cannot be derived, because payment dates are not kept per instalment.",
+                "نسبة المتأخر من هذا تظهر لليوم في تقرير أعمار الذمم المدينة. أما تاريخياً فلا يمكن اشتقاقها، لأن تواريخ الدفعات الجزئية غير محفوظة.",
+              )}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Decomposition: WHERE, never WHY ────────────────────────────────── */}
       <Card>

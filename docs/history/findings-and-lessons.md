@@ -1299,3 +1299,63 @@ than removing it — and the first load is the one a user judges the product by)
 **Where else to look:** any report that takes an `as_of` and might be charted
 over time. A balance sheet, a trial balance, an aging snapshot, a stock
 position, a running customer balance — all cumulative, all tempting to loop.
+
+---
+
+### 🔴 NAMED LESSON (B3, 2026-08-16): A STUB IS THE PART THAT NEEDED TESTING
+
+**The incident.** `stagingStore.remove` was implemented for `local-fs` and was a
+**silent no-op for `supabase-storage`**. Every test of the capture purge ran on
+`local-fs`, because that is what a test harness naturally configures. So the
+suite exercised the one backend where the code worked, and reported green about
+a capability that did nothing on the backend a cloud deployment would use.
+
+Downstream, `purgeOnce` trusted the success it was handed and deleted the
+metadata row — orphaning the bytes **and destroying the only index to them**.
+The tests could not have caught that either: on `local-fs` the bytes really were
+gone, so deleting the row was correct.
+
+#### The rule
+
+> **When a capability is implemented for one backend and stubbed for the others,
+> the passing tests prove nothing — because the stub is the part that needed
+> testing.** Test the branch you did not write.
+
+The cheap countermeasure is the one used here: **inject a backend that fails**
+and assert on what survives. It reproduces the cloud case with no cloud, and it
+is the only way the "silently does nothing" branch is ever executed.
+
+The second countermeasure is at the interface, not the test: **a method that
+cannot do the thing must throw, never return.** A no-op that reports success is
+worse than an unimplemented method — the second is a gap someone will notice,
+the first is a false statement the caller builds on. `StagingBackend.remove`
+now raises `StagingDeleteFailed`, so the same missing implementation becomes a
+loud failure instead of a quiet lie.
+
+#### It is the same family as the SDK differential
+
+The M12.3 ZATCA SDK differential passed byte-for-byte while the live API
+rejected the QR: it proved only that **we matched a stale writer**. Both are the
+same shape —
+
+> **a test whose oracle shares the defect it is meant to detect.**
+
+The SDK differential compared our output against a reference that was itself out
+of date; the purge tests compared behaviour against the one backend that already
+worked. In both cases the test agreed with the code because they were wrong
+together, and in both cases the green result was read as evidence about the
+thing that had never been exercised.
+
+The general form, worth checking on any new suite: **ask what the test would
+have to be measured against for a failure to show up, and whether that thing is
+independent of the code under test.** A reference implementation, a second
+backend, a live endpoint, a hand-computed figure — independence is the property
+that makes green mean something. (Related: *external validators check the
+weakest property they plausibly could* — same reason, one layer out.)
+
+**Where else to look:** every `resolve*Store` / `get*Provider` seam in this
+repo. `ArchiveStore` (`local-fs` vs `supabase-storage`), `KeyWrapper`
+(`local-dev` vs `aws-kms` — and the AWS SDK is **lazily loaded**, so its branch
+has never executed at all), `MailProvider`, the alerter. Each is a place where
+the tested path and the deployed path can differ, and only one of them is
+watched.

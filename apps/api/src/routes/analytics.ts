@@ -12,5 +12,6 @@ const router = Router();
 
 router.get("/trend", analyticsController.trend);
 router.get("/decomposition", analyticsController.decomposition);
+router.get("/receivables-bridge", analyticsController.receivablesBridge);
 
 export default router;

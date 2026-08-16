@@ -168,6 +168,36 @@ function snapshot(period: string, accounts: Map<number | string, AccountState>):
   };
 }
 
+/**
+ * One month of the RECEIVABLES BRIDGE (design §4).
+ *
+ * 🔴 The bridge exists because a rising AR balance does not say whether you
+ * invoiced more or collected less, and those call for opposite responses. The
+ * "receivables outstanding" series shows the gap as a STOCK; this shows it as a
+ * FLOW. It is the WHERE-not-WHY rule applied to cash timing — it states what
+ * moved, never why.
+ */
+export interface BridgePoint {
+  /** `YYYY-MM`. */
+  period: string;
+  /** Receivables at the START of the month. */
+  opening: number;
+  /** Debits to AR — invoices AND debit notes (a debit note does not reverse). */
+  invoiced: number;
+  /** Credits to AR settled in cash. */
+  collected: number;
+  /** Credits to AR that reversed revenue — credit notes. */
+  credited: number;
+  /**
+   * Credits to AR that were neither. A write-off or an offset is not a payment
+   * and not a credit note; reporting it separately is the difference between a
+   * bridge that understands the movement and one that mislabels it. Normally 0.
+   */
+  other: number;
+  /** Receivables at the END of the month. Equals the balance-sheet AR figure. */
+  closing: number;
+}
+
 export type Dimension = "category" | "customer" | "vendor";
 
 export interface Contributor {
@@ -269,6 +299,68 @@ export const analyticsService = {
       if (wanted.has(month)) out.push(snapshot(month, accounts));
     }
 
+    return out;
+  },
+
+  /**
+   * The receivables bridge, one point per month (design §4, §6.1).
+   *
+   *     opening + invoiced − collected − credited − other = closing
+   *
+   * 🔴 THE IDENTITY IS STRUCTURAL, NOT CHECKED-AND-HOPED. Every term is a debit
+   * or a credit on the SAME GL account, so the arithmetic cannot drift: the
+   * sums of debits and credits ARE the change in the balance, whatever the
+   * credits are labelled. That is why the split is a labelling of the credit
+   * side rather than a second computation from the invoice tables — five
+   * numbers taken from two stores would reconcile only by luck, and an identity
+   * that "usually holds" is worth nothing.
+   *
+   * It also means `closing` is the balance-sheet AR figure by construction, not
+   * by agreement — the M13 AR-agreement pattern, obtained for free rather than
+   * pinned by a test. (A test pins it anyway: free is not the same as proven.)
+   *
+   * Single pass, like `trend`, and for the same reason — a per-month AR balance
+   * query would re-read from the beginning of time per point (M19.1).
+   */
+  async receivablesBridge(from: string, to: string): Promise<BridgePoint[]> {
+    const periods = monthsBetween(from, to);
+    if (periods.length === 0) return [];
+
+    const rows = await analyticsRepository.monthlyReceivables(
+      endOfMonth(periods[periods.length - 1]!),
+    );
+    const byMonth = new Map(rows.map((r) => [r.month, r]));
+
+    // Everything before the window start is the first point's opening balance.
+    // A bridge that started from zero would report the whole history as this
+    // month's invoicing.
+    const first = periods[0]!;
+    let balance = 0;
+    for (const r of rows) {
+      if (r.month < first) {
+        balance += Number(r.invoiced) - Number(r.collected) - Number(r.credited) - Number(r.other);
+      }
+    }
+
+    const out: BridgePoint[] = [];
+    for (const period of periods) {
+      const r = byMonth.get(period);
+      const invoiced = Number(r?.invoiced ?? 0);
+      const collected = Number(r?.collected ?? 0);
+      const credited = Number(r?.credited ?? 0);
+      const other = Number(r?.other ?? 0);
+      const opening = balance;
+      balance = opening + invoiced - collected - credited - other;
+      out.push({
+        period,
+        opening: round2(opening),
+        invoiced: round2(invoiced),
+        collected: round2(collected),
+        credited: round2(credited),
+        other: round2(other),
+        closing: round2(balance),
+      });
+    }
     return out;
   },
 
