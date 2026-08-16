@@ -87,15 +87,29 @@ export const companiesService = {
     const company = await companiesRepository.findActive();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
 
-    const settings = {
-      fiscalYearStart: company.fiscalYearStart,
-      calendar: (isFiscalCalendar(company.fiscalCalendar)
-        ? company.fiscalCalendar
-        : "gregorian") as FiscalCalendar,
-    };
+    const calendar = (isFiscalCalendar(company.fiscalCalendar)
+      ? company.fiscalCalendar
+      : "gregorian") as FiscalCalendar;
+
+    // M20.0 — NULL means NOT DECLARED (F8). The endpoint says so instead of
+    // resolving a year nobody chose: `declared: false` with no periods, so
+    // every consumer must handle the state explicitly rather than receiving a
+    // January year that looks like an answer.
+    if (company.fiscalYearStart == null) {
+      return ListFiscalYearsResponse.parse({
+        declared: false,
+        calendar,
+        fiscalYearStart: null,
+        current: null,
+        periods: [],
+      });
+    }
+
+    const settings = { fiscalYearStart: company.fiscalYearStart, calendar };
 
     return ListFiscalYearsResponse.parse({
-      calendar: settings.calendar,
+      declared: true,
+      calendar,
       fiscalYearStart: settings.fiscalYearStart,
       current: fiscalYearContaining(settings),
       periods: recentFiscalYears(settings),
@@ -127,11 +141,19 @@ export const companiesService = {
     if (vatNumber !== undefined) updates.vatNumber = vatNumber;
 
     if (input.fiscalYearStart !== undefined) {
-      const m = Number(input.fiscalYearStart);
-      if (!Number.isInteger(m) || m < 1 || m > 12) {
-        throw new BadRequestError("fiscalYearStart must be a month number between 1 and 12.");
+      // M20.0 — null WITHDRAWS the declaration (the M17.1 ownership pattern:
+      // a tenant who no longer knows may say so, and a withdrawn declaration
+      // returns reports to the rolling-window fallback rather than leaving a
+      // stale claim steering them).
+      if (input.fiscalYearStart === null) {
+        updates.fiscalYearStart = null;
+      } else {
+        const m = Number(input.fiscalYearStart);
+        if (!Number.isInteger(m) || m < 1 || m > 12) {
+          throw new BadRequestError("fiscalYearStart must be a month number between 1 and 12.");
+        }
+        updates.fiscalYearStart = m;
       }
-      updates.fiscalYearStart = m;
     }
 
     // M17.2 — changing this REINTERPRETS `fiscalYearStart` (1 = January under

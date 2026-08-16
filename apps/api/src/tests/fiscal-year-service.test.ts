@@ -76,27 +76,54 @@ describeMaybe("M17.2 — fiscal years resolved for a real company", () => {
 
   afterAll(cleanup);
 
-  it("🔴 a fresh company defaults to a Gregorian January year — the behaviour every existing tenant already had", async () => {
+  /**
+   * 🔴 M20.0 REVERSED the first assertion this file made. It used to pin "a
+   * fresh company defaults to a Gregorian January year — the behaviour every
+   * existing tenant already had". That behaviour WAS the defect: NOT NULL
+   * DEFAULT 1 recorded a declaration nobody made, and this test was its guard
+   * (the obsolete-assertion failure mode, caught by standing-check part 6
+   * rather than by a surprise). The pinned behaviour is now the opposite.
+   */
+  it("🔴 a fresh company is UNDECLARED — not January", async () => {
     const fy = await inTenant(() => companiesService.fiscalYears());
-    expect(fy.calendar).toBe("gregorian");
-    expect(fy.fiscalYearStart).toBe(1);
-    expect(fy.current.startDate.endsWith("-01-01")).toBe(true);
-    expect(fy.current.endDate.endsWith("-12-31")).toBe(true);
-    // The response satisfies the generated schema — `fiscalYears()` parses it,
-    // so reaching this line at all is the assertion.
+    expect(fy.declared).toBe(false);
+    expect(fy.fiscalYearStart).toBeNull();
+    // No resolved period: a consumer cannot receive a January year that looks
+    // like an answer nobody gave.
+    expect(fy.current).toBeNull();
+    expect(fy.periods).toEqual([]);
+  });
+
+  it("declaring a start month through the real write path resolves real boundaries", async () => {
+    await inTenant(() => companiesService.updateCurrent({ fiscalYearStart: 1 } as never));
+    const fy = await inTenant(() => companiesService.fiscalYears());
+    expect(fy.declared).toBe(true);
+    expect(fy.current!.startDate.endsWith("-01-01")).toBe(true);
+    expect(fy.current!.endDate.endsWith("-12-31")).toBe(true);
     expect(fy.periods.length).toBeGreaterThan(1);
   });
 
-  it("🔴 changing the start month through the real write path MOVES the boundaries", async () => {
+  it("🔴 changing the start month MOVES the boundaries", async () => {
     const before = await inTenant(() => companiesService.fiscalYears());
     await inTenant(() => companiesService.updateCurrent({ fiscalYearStart: 4 } as never));
     const after = await inTenant(() => companiesService.fiscalYears());
 
     expect(after.fiscalYearStart).toBe(4);
-    expect(after.current.startDate.slice(5)).toBe("04-01");
-    expect(after.current.endDate.slice(5)).toBe("03-31");
+    expect(after.current!.startDate.slice(5)).toBe("04-01");
+    expect(after.current!.endDate.slice(5)).toBe("03-31");
     // Not vacuous — the period genuinely moved.
-    expect(after.current.startDate).not.toBe(before.current.startDate);
+    expect(after.current!.startDate).not.toBe(before.current!.startDate);
+  });
+
+  it("🔴 null WITHDRAWS the declaration — back to undeclared, not to January", async () => {
+    // The M17.1 pattern: a tenant who no longer knows may say so, and reports
+    // return to the rolling-window fallback rather than a stale claim.
+    await inTenant(() => companiesService.updateCurrent({ fiscalYearStart: null } as never));
+    const fy = await inTenant(() => companiesService.fiscalYears());
+    expect(fy.declared).toBe(false);
+    expect(fy.current).toBeNull();
+    // Re-declare for the tests that follow.
+    await inTenant(() => companiesService.updateCurrent({ fiscalYearStart: 4 } as never));
   });
 
   it("🔴 switching to Hijri produces a ~354-day year and REINTERPRETS the start month", async () => {
@@ -108,12 +135,12 @@ describeMaybe("M17.2 — fiscal years resolved for a real company", () => {
     expect(fy.calendar).toBe("hijri");
     // The label is an AH year, not a Gregorian one — proof the calendar is read
     // and not merely stored.
-    expect(fy.current.label).toBeGreaterThan(1400);
-    expect(fy.current.label).toBeLessThan(1500);
-    expect(fy.current.days).toBeGreaterThanOrEqual(354);
-    expect(fy.current.days).toBeLessThanOrEqual(355);
+    expect(fy.current!.label).toBeGreaterThan(1400);
+    expect(fy.current!.label).toBeLessThan(1500);
+    expect(fy.current!.days).toBeGreaterThanOrEqual(354);
+    expect(fy.current!.days).toBeLessThanOrEqual(355);
     // Boundaries are still Gregorian ISO dates — the storage format never changes.
-    expect(fy.current.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(fy.current!.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("the company profile reports the calendar back, so the UI is not guessing", async () => {

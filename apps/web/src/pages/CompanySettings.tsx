@@ -23,7 +23,7 @@ interface Company {
   nameAr: string | null;
   crNumber: string | null;
   vatNumber: string | null;
-  fiscalYearStart: number;
+  fiscalYearStart: number | null;
   fiscalCalendar: "gregorian" | "hijri";
   /** M17.1 — null means NOT DECLARED, and the Zakat page asks rather than assumes. */
   ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
@@ -44,8 +44,9 @@ interface FiscalPeriod {
   days: number;
 }
 interface FiscalYears {
+  declared: boolean;
   calendar: "gregorian" | "hijri";
-  fiscalYearStart: number;
+  fiscalYearStart: number | null;
   current: FiscalPeriod;
   periods: FiscalPeriod[];
 }
@@ -120,7 +121,11 @@ export default function CompanySettings() {
       nameAr: form.nameAr ?? "",
       crNumber: form.crNumber ?? "",
       vatNumber: form.vatNumber ?? "",
-      fiscalYearStart: Number(form.fiscalYearStart ?? 1),
+      // 🔴 M20.0 — NO ?? 1. That coercion was the old default reasserting
+      // itself one layer up: an undeclared tenant saving their address would
+      // have silently "declared" January. Undeclared stays null until the
+      // tenant actually picks a month.
+      fiscalYearStart: form.fiscalYearStart ?? null,
       fiscalCalendar: form.fiscalCalendar ?? "gregorian",
       // null clears it back to NOT DECLARED — a state a tenant may legitimately
       // return to, rather than leaving a stale claim that gates Zakat standing.
@@ -221,9 +226,17 @@ export default function CompanySettings() {
                 <select
                   id="fiscalYearStart"
                   className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
-                  value={form.fiscalYearStart ?? 1}
-                  onChange={(e) => setForm((p) => ({ ...p, fiscalYearStart: Number(e.target.value) }))}
+                  value={form.fiscalYearStart ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      fiscalYearStart: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
                 >
+                  {/* M20.0 — the ownership pattern: "not declared" is a choice
+                      the tenant can make and return to, not a blank slot. */}
+                  <option value="">{t("Not declared", "غير محددة")}</option>
                   {(form.fiscalCalendar ?? "gregorian") === "hijri"
                     ? HIJRI_MONTHS.map((m, i) => (
                         <option key={m} value={i + 1}>{t(m, HIJRI_MONTHS_AR[i])}</option>
@@ -268,7 +281,23 @@ export default function CompanySettings() {
               </p>
             </div>
 
-            {fiscalYears && (
+            {fiscalYears && !fiscalYears.declared && (
+              /*
+                M20.0/F13 — THE ASK, in the place declarations are made. Specific
+                enough to act on (F11's wording rule): what is not set, what the
+                platform does meanwhile, and what setting it changes.
+              */
+              <div className="rounded-md border border-amber-300/40 bg-amber-500/5 p-3 max-w-lg">
+                <p className="text-xs text-foreground">
+                  {t(
+                    "Your financial year hasn't been set. Reports show the last 12 months until it is — choose the month it starts above, and they will follow your year instead.",
+                    "لم تُحدَّد سنتك المالية. تعرض التقارير آخر 12 شهراً إلى أن تُحدَّد — اختر شهر بدايتها أعلاه لتتبع التقارير سنتك.",
+                  )}
+                </p>
+              </div>
+            )}
+
+            {fiscalYears && fiscalYears.declared && fiscalYears.current && (
               <div className="rounded-md border border-border bg-secondary/20 p-3 max-w-lg space-y-1">
                 <p className="text-xs font-medium text-foreground">
                   {t("Current fiscal year", "السنة المالية الحالية")}

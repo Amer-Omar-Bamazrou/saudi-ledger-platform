@@ -20,10 +20,12 @@ export interface UpdateCompanyInput {
   /** @nullable */
   vatNumber?: string | null;
   /**
+     * null withdraws the declaration (M20.0).
      * @minimum 1
      * @maximum 12
+     * @nullable
      */
-  fiscalYearStart?: number;
+  fiscalYearStart?: number | null;
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   ownershipType?: UpdateCompanyInputOwnershipType;
