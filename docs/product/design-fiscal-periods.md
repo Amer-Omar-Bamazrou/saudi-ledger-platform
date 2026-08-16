@@ -1,7 +1,11 @@
 # Fiscal periods in reports — DECISION RECORD
 
 **Decided 2026-08-16 with the owner, by interview.** Round 4, after Zakat,
-the Finance Hub and Analytics.
+the Finance Hub and Analytics. **Revised the same day after the owner's
+accountant answered** — the first user research this product has had. F4 was
+corrected; F3 and F7 were REOPENED as validated requirements. The earlier
+answers are kept below, marked superseded, because a silently-overwritten
+decision reads later as though the research never happened.
 
 This closes the gap M17.2 opened deliberately: `fiscalYearStart` gained a
 resolver, a calendar basis, an endpoint and a settings page — and **no report
@@ -15,16 +19,16 @@ consumer**. The producer has existed for five milestones with one reader.
 | --- | --- | --- |
 | **F1** | Default window, or picker? | **Both — the DEFAULT FIRST, and it is a BUG, not a feature gap.** |
 | **F2** | Which pages keep arbitrary dates? | **All of them.** Free dates *plus* period shortcuts everywhere; nothing becomes period-only. Balance Sheet gets "as at FY-end" as a shortcut. |
-| **F3** | What a Hijri tenant sees | **Labels and boundaries: yes. Dates inside reports: NO** — explicitly out, and kept separated so it cannot be absorbed later. |
-| **F4** | Does "FY 2026" mean anything to an SME owner? | **Assumption, not knowledge:** they think in months and quarters, with the annual filing handed to an accountant. The picker is largely **for the accountant**. 🔴 Recorded as UNVALIDATED. |
+| **F3** | What a Hijri tenant sees | 🔄 **REOPENED by accountant research (2026-08-16).** ~~Labels and boundaries yes; dates inside reports NO~~ *(superseded — the owner ruled in-table dates out as too expensive for unclear benefit; the accountant says clients want both Hijri and Gregorian dates, so the benefit is real)*. **Not building yet:** owner wants the COST first — every table? headers only? a toggle? — before deciding where the line falls. Labels and boundaries remain in scope regardless. |
+| **F4** | Does "FY 2026" mean anything to an SME owner? | ✏️ **CORRECTED by accountant research (2026-08-16).** ~~Months and quarters only; the fiscal picker is the accountant's~~ *(superseded)*. Clients think in **monthly, quarterly AND yearly** terms — the yearly shortcut is a first-class need, not an accountant's tool. And fiscal years genuinely vary: some clients start in January, some in other months, so the Jan–Dec default defect (§2) harms real clients, not hypothetical ones. |
 | **F5** | Twenty bespoke date controls | **Accept the duplication.** Add period support where needed; revisit only if a third pattern appears. |
 | **F6** | Period vs custom dates | **A shortcut, never a mode.** Picking a period sets the dates; they stay editable; the label reverts to "Custom" when touched. |
-| **F7** | Prior-period comparison | **OUT OF SCOPE.** Two-column layouts across every report is its own milestone. |
+| **F7** | Prior-period comparison | 🔄 **REOPENED by accountant research (2026-08-16).** ~~Out of scope~~ *(superseded — ruled out as its own milestone before anyone had asked a user)*. The accountant wants **this-year-vs-last-year and quarterly comparison**. Now a **validated requirement awaiting an estimate and a decision on where it sits** — not scheduled, and still not part of M20. |
 | **F8** | Undeclared fiscal year | **NULL is a first-class state** — ask, never silently assume January. Historical periods **keep their original boundaries**; no recomputation. |
 | **F9** | Scope | **Reports only** for now. Analytics stays month-based. |
 | **F10** | Existing `fiscal_year_start` rows | **NULL them all.** `NOT NULL DEFAULT 1` means nobody declared January — the schema asserted it for them. Preserving the value preserves a fiction; an undeclared fact must not look declared. Same call as M17.1's ownership. |
 | **F11** | Default while undeclared | **Rolling last-12-months**, and the page says so — a rolling window asserts nothing about the tenant's year. 🔴 The message must be **specific enough to act on** ("your financial year hasn't been set — showing the last 12 months"), never a passive caveat. |
-| **F12** | Shortcut list and order | **This month / Last month / This quarter / Last quarter / This fiscal year / Last fiscal year.** Fiscal shortcuts go LAST because they are the accountant's, not the owner's (F4). **"Fiscal year to date" is dropped** — it is the one an accountant asks for, and it is expressible with custom dates. |
+| **F12** | Shortcut list and order | **This month / Last month / This quarter / Last quarter / This fiscal year / Last fiscal year.** ⚠️ The original rationale for fiscal-last ("the accountant's, not the owner's") was F4's superseded assumption; the corrected research says yearly is first-class for clients too. The LIST survives — all six are wanted — but the ORDER is now a presentation choice, not a research finding. "Fiscal year to date" stays dropped (expressible with custom dates). |
 | **F13** | Where the undeclared prompt appears | **Company Settings, and inline on a report that is using the rolling window** — on that report, saying why. **Not a session-wide banner:** a persistent nag is noise. |
 
 ---
@@ -102,7 +106,18 @@ every report table in the product.
 
 ---
 
-## 5. F4 — an assumption, flagged as one
+## 5. F4 — an assumption, flagged as one — ✏️ AND THEN CHECKED (2026-08-16)
+
+**The flag worked.** This section recorded F4 as unvalidated; the owner's
+accountant then provided the first actual user input this product has had, and
+the assumption was WRONG in one half: clients do think in yearly terms, not only
+months and quarters — and their fiscal years genuinely vary (some January, some
+not). The consequences are folded into F3/F4/F7/F12 above. The original
+reasoning is kept below as written, because "we assumed X, flagged it, checked
+it, and it was half-wrong" is exactly the record a flagged assumption should
+leave behind.
+
+---
 
 The owner's answer, in their words: *"Assumption, not knowledge: they think in
 months and quarters, with the annual filing handed to an accountant."*
@@ -140,6 +155,57 @@ shortcuts to the pages that need them, leave the controls where they are.**
 **The reversal condition, stated now so it is a decision and not a drift:** if a
 *third* pattern appears — or if the same period logic has been pasted into more
 than about five pages — extract then, with the shapes already known.
+
+---
+
+## 6b. F3 and F7 — costs, measured not guessed (2026-08-16)
+
+**Estimates, not decisions.** The owner asked for costs before deciding; these
+are recorded so the numbers survive the conversation. Grounded in counts, per
+the cost-an-option-after-verifying-inputs lesson.
+
+### F3 — Hijri dates inside reports
+
+**The inputs exist.** Browsers ship full ICU, so
+`Intl.DateTimeFormat('…-u-ca-islamic-umalqura')` renders Umm al-Qura
+client-side with no API change (probed: 1 Muharram 1447 = 26 Jun 2025 — the
+same externally-checkable fact as the M17.2 boot assertion, because "it didn't
+throw" is not evidence).
+
+**The cost driver is call sites, counted:** 35 date renders already route
+through the two shared formatters (`formatDate` / `fmtDate`, 27 pages); 16 more
+are raw `{tx.date}` interpolations (14 pages) that would need converting to the
+formatter first. ≈ 50 touch points, almost all mechanical.
+
+| Line | What it is | Cost | What it does NOT give |
+| --- | --- | --- | --- |
+| **Headers/period labels only** | Already the M20.3 plan | ~free (in M20.3) | Not what the accountant asked for — tables stay Gregorian. |
+| **Dual display via the shared formatters** | Make the formatters calendar-aware (company `fiscal_calendar` via a hook/context); convert the 16 raw sites; render Hijri as a secondary small line/tooltip so columns do not double in width | **~3–5 days** | Date INPUTS stay Gregorian — only display converts. |
+| **A toggle (one calendar at a time)** | Same plumbing + a persisted preference | +~1 day on the above | The accountant said **both**, which argues dual display, not a toggle. |
+
+**Where the line sensibly falls (proposal):** headers ship with M20.3 as
+planned; dual display in tables is its own milestone after M20, at the shared
+formatters — never per-page. The 16 raw interpolations get converted to the
+formatter regardless, because 16 bespoke date renders is the same disease as
+20 bespoke date pickers.
+
+### F7 — prior-period comparison (validated requirement, per the accountant)
+
+**Backend: ~zero.** Every report service already takes explicit dates; a
+comparison is two calls with two windows. No API change needed for v1.
+
+**Frontend is the whole cost, and it scales with report count.** Each page
+rolls its own table, so a side-by-side + variance column is per-page work
+(~0.5–1 day each, incl. the dataviz rules: diverging palette for variance,
+no status colours, table view).
+
+| Scope | Cost |
+| --- | --- |
+| The three financial statements (income statement, balance sheet, cash flow) — this-year-vs-last-year and quarter-vs-quarter | **~1 milestone (3–5 days)** |
+| All ~20 report pages | 3–4× that, and probably not what anyone asked for |
+
+**Where it sits is the open decision** — the owner ruled it out of M20, and the
+accountant's ask reads as the three statements, not all twenty.
 
 ---
 

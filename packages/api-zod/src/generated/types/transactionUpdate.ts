@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TransactionUpdateTaxTreatment } from './transactionUpdateTaxTreatment';
+import type { TransactionUpdateTransferDirection } from './transactionUpdateTransferDirection';
 import type { TransactionUpdateVatBasis } from './transactionUpdateVatBasis';
 
 export interface TransactionUpdate {
@@ -31,6 +32,23 @@ export interface TransactionUpdate {
      * @nullable
      */
   vatBasis?: TransactionUpdateVatBasis;
+  /**
+     * B5 — where a transfer went. `own_account` = between accounts of this
+     * business (business cash unchanged, so the ledger is right to be
+     * silent); `external` = it left the business (cash fell, and the
+     * ledger is understating it). `null` means NOT DECLARED — never
+     * "external". Only a transfer may carry it.
+     * @nullable
+     */
+  transferDirection?: TransactionUpdateTransferDirection;
+  /**
+     * The destination account, when it is one this product tracks.
+     * Optional even for `own_account` — the other account may not be in
+     * the system, and requiring it would block the tenant from declaring
+     * the fact that matters.
+     * @nullable
+     */
+  counterpartyBankAccountId?: number | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

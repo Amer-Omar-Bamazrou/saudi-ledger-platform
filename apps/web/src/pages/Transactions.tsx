@@ -168,9 +168,43 @@ export default function Transactions() {
                           "Uncategorized" error badge for them read as unfinished
                           work and invited the user to "fix" a correct row. */}
                       {tx.kind === "transfer" ? (
-                        <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/5">
-                          {t("Transfer", "تحويل داخلي")}
-                        </Badge>
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/5">
+                            {t("Transfer", "تحويل")}
+                          </Badge>
+                          {/*
+                            🔴 B5 — WHERE the money went, asked at the only time
+                            anyone knows. A transfer between the business's own
+                            accounts leaves total cash unchanged (so the ledger
+                            is right to stay silent); money leaving the business
+                            reduces cash (so the ledger is understating it).
+                            Nothing on the row distinguishes them, and the fact
+                            is not recoverable later — which is why this is a
+                            control on the list rather than a setting somewhere.
+
+                            "Not declared" is a real option and the default. It
+                            must never quietly resolve to either answer.
+                          */}
+                          <select
+                            aria-label={t("Where did this money go?", "إلى أين ذهب هذا المبلغ؟")}
+                            className="text-[11px] bg-transparent border border-border rounded px-1 py-0.5 text-muted-foreground max-w-[190px]"
+                            value={tx.transferDirection ?? ""}
+                            onChange={(e) =>
+                              updateMutation.mutate({
+                                id: tx.id,
+                                data: { transferDirection: (e.target.value || null) as never },
+                              })
+                            }
+                          >
+                            <option value="">{t("Where did it go?", "إلى أين ذهب؟")}</option>
+                            <option value="own_account">
+                              {t("My own account", "حساب آخر لي")}
+                            </option>
+                            <option value="external">
+                              {t("Left the business", "خرج من المنشأة")}
+                            </option>
+                          </select>
+                        </div>
                       ) : tx.kind === "settlement" ? (
                         <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
                           {t("Settlement", "تسوية")}

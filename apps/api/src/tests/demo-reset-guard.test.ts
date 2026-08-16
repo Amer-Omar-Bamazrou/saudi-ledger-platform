@@ -78,7 +78,12 @@ describeMaybe("demo reset — refuses to touch a database with real tenants", ()
     // The message must NAME what it found — a refusal nobody can diagnose is a
     // refusal somebody overrides.
     expect(out.detail).toContain("Refusing to reset");
-    expect(out.detail).toContain(FOREIGN_SLUG);
+    // The message NAMES foreign tenants but truncates to the first five — and
+    // in a full parallel run, other suites' orgs exist concurrently, so OUR
+    // slug may not make the cut (the "passes alone, fails in the full run"
+    // class from test-suite-notes). Assert the naming behaviour, not that this
+    // particular slug won the race to be listed.
+    expect(out.detail).toMatch(/that are not the demo tenant \([^)]+\)/);
   });
 
   it("🔴 and the real tenant is still there", async () => {

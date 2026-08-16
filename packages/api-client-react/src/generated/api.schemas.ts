@@ -331,7 +331,9 @@ export type CashReconciliationItemsItemCode = typeof CashReconciliationItemsItem
 
 
 export const CashReconciliationItemsItemCode = {
-  transfers: 'transfers',
+  transfers_own_account: 'transfers_own_account',
+  transfers_external: 'transfers_external',
+  transfers_undeclared: 'transfers_undeclared',
   settlements: 'settlements',
   unposted_legacy: 'unposted_legacy',
   ledger_only: 'ledger_only',
@@ -362,6 +364,8 @@ export interface CashReconciliation {
   items: CashReconciliationItemsItem[];
   /** 🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile. */
   unexplained: number;
+  /** B5 — transfer movement nobody has classified. Distinct from `unexplained`: the itemisation SUCCEEDED and one of its lines is "we do not know", which is a different problem with a different fix (somebody has to say). Surfaced separately so the page can ask for the declaration rather than burying it in a list. */
+  undeclaredTransfers: number;
   points: CashPoint[];
 }
 
@@ -671,6 +675,21 @@ export const TransactionVatBasis = {
   supplier_unregistered: 'supplier_unregistered',
 } as const;
 
+/**
+ * B5 — where a transfer went: `own_account`, `external`, or `null` for
+ * NOT DECLARED. Null is a real state, not a default: only the person
+ * who entered the row knows, and the cash reconciliation reports
+ * undeclared transfers as unknown rather than assuming either way.
+ * @nullable
+ */
+export type TransactionTransferDirection = typeof TransactionTransferDirection[keyof typeof TransactionTransferDirection] | null;
+
+
+export const TransactionTransferDirection = {
+  own_account: 'own_account',
+  external: 'external',
+} as const;
+
 export interface Transaction {
   id: number;
   date: string;
@@ -719,6 +738,16 @@ export interface Transaction {
   vatBasis?: TransactionVatBasis;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * B5 — where a transfer went: `own_account`, `external`, or `null` for
+     * NOT DECLARED. Null is a real state, not a default: only the person
+     * who entered the row knows, and the cash reconciliation reports
+     * undeclared transfers as unknown rather than assuming either way.
+     * @nullable
+     */
+  transferDirection?: TransactionTransferDirection;
+  /** @nullable */
+  counterpartyBankAccountId?: number | null;
   /**
      * M16.3: the invoice this credit settled (kind=settlement).
      * @nullable
@@ -980,6 +1009,22 @@ export const TransactionUpdateVatBasis = {
   supplier_unregistered: 'supplier_unregistered',
 } as const;
 
+/**
+ * B5 — where a transfer went. `own_account` = between accounts of this
+ * business (business cash unchanged, so the ledger is right to be
+ * silent); `external` = it left the business (cash fell, and the
+ * ledger is understating it). `null` means NOT DECLARED — never
+ * "external". Only a transfer may carry it.
+ * @nullable
+ */
+export type TransactionUpdateTransferDirection = typeof TransactionUpdateTransferDirection[keyof typeof TransactionUpdateTransferDirection] | null;
+
+
+export const TransactionUpdateTransferDirection = {
+  own_account: 'own_account',
+  external: 'external',
+} as const;
+
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
@@ -1003,6 +1048,23 @@ export interface TransactionUpdate {
      * @nullable
      */
   vatBasis?: TransactionUpdateVatBasis;
+  /**
+     * B5 — where a transfer went. `own_account` = between accounts of this
+     * business (business cash unchanged, so the ledger is right to be
+     * silent); `external` = it left the business (cash fell, and the
+     * ledger is understating it). `null` means NOT DECLARED — never
+     * "external". Only a transfer may carry it.
+     * @nullable
+     */
+  transferDirection?: TransactionUpdateTransferDirection;
+  /**
+     * The destination account, when it is one this product tracks.
+     * Optional even for `own_account` — the other account may not be in
+     * the system, and requiring it would block the tenant from declaring
+     * the fact that matters.
+     * @nullable
+     */
+  counterpartyBankAccountId?: number | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
