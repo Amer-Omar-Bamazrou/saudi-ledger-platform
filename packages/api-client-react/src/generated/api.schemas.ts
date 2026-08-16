@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface DiscardResult {
+  status: string;
+  /** False means the bytes are still in storage and the capture's row is retained so they remain findable and retryable. Never reported as true unless the backend confirmed the deletion. */
+  imageDeleted: boolean;
+}
+
 /**
  * `demoMode: false` on a normal deployment, and the frontend renders nothing. Both languages are returned together because the banner is a claim about the DEPLOYMENT, not a UI string — it must read identically whichever language the viewer has selected.
  */

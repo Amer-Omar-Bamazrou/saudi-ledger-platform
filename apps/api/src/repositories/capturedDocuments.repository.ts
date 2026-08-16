@@ -62,6 +62,21 @@ export const capturedDocumentsRepository = {
       .returning();
     return row ?? null;
   },
+
+  /**
+   * The staged image is confirmed gone — drop the pointer (B3).
+   *
+   * Tenant-scoped twin of the job repository's method: discard happens inside a
+   * request, so it goes through RLS rather than the job's owner connection.
+   * 🔴 Only ever called AFTER the backend confirms the delete; a non-null
+   * `staging_path` is the record of bytes that still exist.
+   */
+  async clearStagingPath(id: string) {
+    await db
+      .update(capturedDocumentsTable)
+      .set({ stagingPath: null })
+      .where(eq(capturedDocumentsTable.id, id));
+  },
 };
 
 export const capturedDocumentsJobRepository = {
@@ -90,13 +105,50 @@ export const capturedDocumentsJobRepository = {
     }[];
   },
 
+  /**
+   * 🔴 `staging_path` is deliberately LEFT SET here (B3).
+   *
+   * It used to be nulled in this same statement, which meant a failed staged-copy
+   * deletion left bytes in storage with no row pointing at them — unfindable,
+   * unretryable, unprovable. The pointer is now cleared only once the bytes are
+   * confirmed gone ({@link clearStagingPath}), so a promoted row that still
+   * carries a `staging_path` IS the backlog: it enumerates exactly what was left
+   * behind, and `listPromotedWithStagedCopy` retries it.
+   *
+   * Consumers must therefore choose the object path by STATUS, never by which
+   * column happens to be non-null.
+   */
   async markPromoted(id: string, archivePath: string) {
     await pool.query(
       `UPDATE captured_documents
-          SET status = 'promoted', archive_path = $2, staging_path = NULL, promoted_at = now()
+          SET status = 'promoted', archive_path = $2, promoted_at = now()
         WHERE id = $1`,
       [id, archivePath],
     );
+  },
+
+  /** The staged copy is confirmed gone — drop the pointer to it. */
+  async clearStagingPath(id: string) {
+    await pool.query(`UPDATE captured_documents SET staging_path = NULL WHERE id = $1`, [id]);
+  },
+
+  /**
+   * Promoted captures whose staged duplicate was NOT successfully deleted.
+   *
+   * The archive copy is authoritative, so nothing is at risk of being lost —
+   * what is at risk is a pile of undeleted photographs nobody can enumerate,
+   * which is the PDPL-shaped half of the problem (queue C8).
+   */
+  async listPromotedWithStagedCopy(limit = 100) {
+    const { rows } = await pool.query(
+      `SELECT id, staging_path AS "stagingPath"
+         FROM captured_documents
+        WHERE status = 'promoted' AND staging_path IS NOT NULL
+        ORDER BY promoted_at
+        LIMIT $1`,
+      [limit],
+    );
+    return rows as { id: string; stagingPath: string }[];
   },
 
   /**

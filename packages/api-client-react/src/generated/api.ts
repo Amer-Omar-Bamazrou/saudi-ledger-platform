@@ -38,6 +38,7 @@ import type {
   CreateRecurringRuleInput,
   Decomposition,
   DeploymentBanner,
+  DiscardResult,
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
@@ -803,11 +804,13 @@ export const getDiscardCapturedDocumentUrl = (id: string,) => {
 }
 
 /**
- * @summary Abandon a staged capture; the purge job removes its bytes.
+ * Deletes the stored image IMMEDIATELY rather than leaving it for the purge window. Discard is an explicit instruction — most often "I photographed the wrong thing", sometimes "my ID card was in frame" — and waiting up to 30 days to act on it is not what the word means.
+ * `imageDeleted` is false when the storage backend could not remove the bytes. The discard itself still stands (the instruction is recorded and the capture can no longer be attached to a bill), and the image is retried by the purge job — but the caller is told, because reporting a deletion that did not happen is the defect this endpoint was part of.
+ * @summary Discard a staged capture and delete its image
  */
-export const discardCapturedDocument = async (id: string, options?: RequestInit): Promise<void> => {
+export const discardCapturedDocument = async (id: string, options?: RequestInit): Promise<DiscardResult> => {
 
-  return customFetch<void>(getDiscardCapturedDocumentUrl(id),
+  return customFetch<DiscardResult>(getDiscardCapturedDocumentUrl(id),
   {
     ...options,
     method: 'POST'
@@ -852,7 +855,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DiscardCapturedDocumentMutationError = ErrorType<unknown>
 
     /**
- * @summary Abandon a staged capture; the purge job removes its bytes.
+ * @summary Discard a staged capture and delete its image
  */
 export const useDiscardCapturedDocument = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardCapturedDocument>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}

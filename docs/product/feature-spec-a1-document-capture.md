@@ -325,19 +325,46 @@ Same pattern as M12.6. Both wrong states are covered, and both are tested:
 evidence for a bill that does not exist **rolls back with the bill**, and a bill
 whose evidence never promoted is **visible as `promotion_pending`** and retried.
 
-### 🔴 KNOWN GAP — staged-object purge is local-fs only
+### ✅ CLOSED 2026-08-16 — staged-object purge works on every backend
 
-`ArchiveStore` deliberately has **no `delete` method**, so `stagingStore.remove`
-reaches past the interface for the `local-fs` backend and is a **no-op for
-`supabase-storage`**. On a cloud deployment the metadata row is purged and the
-staged bytes are left behind.
+**What the gap was.** `ArchiveStore` deliberately has no `delete`, so
+`stagingStore.remove` reached past the interface for `local-fs` and **returned
+silently for `supabase-storage`**. On a cloud deployment `purgeOnce` then
+deleted the metadata row anyway, so the bytes were orphaned *and the only index
+to them destroyed* — nothing to enumerate, nothing to retry. The same shape ran
+through promotion, where `markPromoted` nulled `staging_path` in the very
+statement that recorded the archive copy.
 
-Recorded rather than hidden. **This must be closed before a cloud deployment**,
-and it is not merely housekeeping: it is exactly the PDPL question in C8 — an
-abandoned photograph that cannot be deleted is the problem staging exists to
-avoid. The fix is a separate deletable-staging interface (not a `delete` on
-`ArchiveStore`, which would hand every implementation the power to destroy a
-legally-retained invoice).
+🔴 **Every part of this was invisible in a local-fs test run**, because local-fs
+was the one backend that worked. The lesson generalises past this bug: when a
+capability is implemented for one backend and stubbed for the others, the tests
+that pass are the ones that prove nothing.
+
+**The fix, as the queue entry itself prescribed.** Deletion moved to its own
+`StagingBackend` contract (`services/capture/stagingBackend.ts`) with a real
+`supabase-storage` implementation. `ArchiveStore` still has no `delete` and a
+test asserts it never gains one — that guarantee is what the seam exists to
+protect, not to work around.
+
+Everything else follows from one invariant: **a row must never outlive its
+bytes.**
+
+- Purge deletes **bytes first**, and **keeps the row** if they survive
+  (`retained`, logged at error). The retained row is the index.
+- `markPromoted` leaves `staging_path` set until the staged copy is confirmed
+  gone, so **a promoted row carrying a staging path IS the backlog** —
+  `sweepStagedLeftovers` drains it on every promotion pass.
+- `POST /capture/:id/discard` deletes the image **immediately** rather than up
+  to thirty days later, and returns `imageDeleted`. Discard is an instruction,
+  usually about a photograph that should not have been taken.
+
+The regression tests were verified to **fail against the old code** (the
+previous ordering re-injected; 6 of 10 went red), so they guard the behaviour
+rather than describe it.
+
+🔴 **What this does NOT close:** whether a **promoted** capture may ever be
+erased. That is C8's legal question about a store designed never to delete, and
+it does not gate the staging mechanism, which now does what it was built for.
 
 ### Still not built: the OCR bake-off — and WHY it is sequenced last
 

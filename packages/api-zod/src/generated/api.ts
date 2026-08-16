@@ -262,13 +262,18 @@ export const GetCapturedDocumentResponse = zod.object({
 
 
 /**
- * @summary Abandon a staged capture; the purge job removes its bytes.
+ * Deletes the stored image IMMEDIATELY rather than leaving it for the purge window. Discard is an explicit instruction — most often "I photographed the wrong thing", sometimes "my ID card was in frame" — and waiting up to 30 days to act on it is not what the word means.
+ * `imageDeleted` is false when the storage backend could not remove the bytes. The discard itself still stands (the instruction is recorded and the capture can no longer be attached to a bill), and the image is retried by the purge job — but the caller is told, because reporting a deletion that did not happen is the defect this endpoint was part of.
+ * @summary Discard a staged capture and delete its image
  */
 export const DiscardCapturedDocumentParams = zod.object({
   "id": zod.coerce.string()
 })
 
-export const DiscardCapturedDocumentResponse = zod.void()
+export const DiscardCapturedDocumentResponse = zod.object({
+  "status": zod.string(),
+  "imageDeleted": zod.boolean().describe('False means the bytes are still in storage and the capture\'s row is retained so they remain findable and retryable. Never reported as true unless the backend confirmed the deletion.\n')
+})
 
 
 /**

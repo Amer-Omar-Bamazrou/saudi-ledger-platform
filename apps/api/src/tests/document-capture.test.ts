@@ -20,6 +20,7 @@ import { captureService } from "../services/capture/capture.service";
 import { capturePromotionService } from "../services/capture/promotion.service";
 import { verifyQrSignature } from "../services/capture/signatureVerification";
 import { resetArchiveStoreForTests } from "../services/einvoice/archive/resolveArchiveStore";
+import { resetStagingBackendForTests } from "../services/capture/stagingBackend";
 import { resetEnvCache } from "@workspace/config";
 
 const url = process.env.DATABASE_URL;
@@ -79,6 +80,9 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
     process.env.ZATCA_ARCHIVE_DIR = archiveDir;
     resetEnvCache();
     resetArchiveStoreForTests();
+    // B3: the staging backend memoizes its root too — a stale one would point
+    // this suite at another test's temp directory.
+    resetStagingBackendForTests();
 
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Capture Org','${SLUG}') RETURNING id`)).rows[0].id;
@@ -109,6 +113,7 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
     delete process.env.ZATCA_ARCHIVE_DIR;
     resetEnvCache();
     resetArchiveStoreForTests();
+    resetStagingBackendForTests();
   });
 
   const capture = (over: Partial<Parameters<typeof captureService.capture>[0]> = {}) =>
