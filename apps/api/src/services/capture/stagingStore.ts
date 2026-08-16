@@ -25,11 +25,8 @@
  * Backed by the same swappable `ArchiveStore` implementations under a separate
  * prefix, so hosting/region decisions apply to both without a second provider.
  */
-import { loadEnv } from "@workspace/config";
 import { resolveArchiveStore } from "../einvoice/archive/resolveArchiveStore";
-import { LocalFsArchiveStore } from "../einvoice/archive/localFsArchiveStore";
-import { rm } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { resolveStagingBackend } from "./stagingBackend";
 
 const STAGING_PREFIX = "staging";
 
@@ -53,30 +50,20 @@ export const stagingStore = {
   },
 
   /**
-   * Delete a staged object.
+   * Delete a staged object. Idempotent; **throws** if the bytes might survive.
    *
-   * 🔴 `ArchiveStore` has no `delete`, deliberately — so this reaches past the
-   * interface for the `local-fs` backend and is a no-op elsewhere. That is
-   * ugly on purpose: **deletion must never become part of the ArchiveStore
-   * contract**, because every implementation would then be capable of
-   * destroying a legally-retained invoice.
+   * 🔴 It used to return silently on every backend except `local-fs`, so on
+   * cloud storage the caller was told the bytes were gone when they were not —
+   * and `purgeOnce` then deleted the metadata row, orphaning the objects and
+   * destroying the only index to them (queue B3). Deletion now lives on its own
+   * `StagingBackend` contract with a real cloud implementation, and a failure
+   * is raised rather than swallowed.
    *
-   * ⚠️ For the `supabase-storage` backend, purging staged objects is therefore
-   * NOT yet implemented — the metadata row is removed and the bytes are left.
-   * That is recorded rather than hidden: it must be closed before a cloud
-   * deployment, and it is listed in the A1 spec's remaining work.
+   * `ArchiveStore` still has no `delete` and must never gain one — that
+   * guarantee is what this seam exists to protect, not to work around.
    */
   async remove(path: string): Promise<void> {
-    const store = resolveArchiveStore();
-    if (!(store instanceof LocalFsArchiveStore)) return;
-
-    const env = loadEnv();
-    const root = resolve(env.ZATCA_ARCHIVE_DIR);
-    const target = resolve(join(root, stagedPath(path)));
-    // Never delete outside the archive root — the path segment derives from a
-    // user-supplied filename.
-    if (target !== root && !target.startsWith(root + sep)) return;
-    await rm(target, { force: true });
+    await resolveStagingBackend().remove(stagedPath(path));
   },
 
   /** Copy a staged object into the immutable archive. Idempotent by the archive's own conflict rule. */

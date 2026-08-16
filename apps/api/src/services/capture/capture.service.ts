@@ -142,7 +142,14 @@ export const captureService = {
   async image(captureId: string): Promise<{ bytes: Buffer; contentType: string; fileName: string }> {
     const row = await capturedDocumentsRepository.findById(captureId);
     if (!row) throw new NotFoundError("Captured document not found");
-    const path = row.stagingPath ?? row.archivePath;
+    // 🔴 By STATUS, not by which column happens to be set (B3). This used to be
+    // `stagingPath ?? archivePath`, which was only ever correct because
+    // `markPromoted` nulled the staging path in the same statement. It no
+    // longer does — a promoted row keeps the pointer until the staged copy is
+    // confirmed deleted — so preferring `stagingPath` would now read a promoted
+    // capture from the wrong prefix. An implicit coupling between two modules,
+    // removed rather than re-established.
+    const path = row.status === "promoted" ? row.archivePath : row.stagingPath;
     if (!path) throw new NotFoundError("This capture has no stored document");
     const { bytes } = await stagingStore.get(path, row.status);
     return { bytes, contentType: row.contentType, fileName: `capture-${row.id}` };
@@ -178,9 +185,42 @@ export const captureService = {
     }
   },
 
-  async discard(captureId: string): Promise<void> {
+  /**
+   * Discard a capture AND delete its image now (B3).
+   *
+   * 🔴 The status flip comes first and is never rolled back: it is the user's
+   * INSTRUCTION, and losing it would leave a capture they meant to abandon
+   * still attachable to a bill. The bytes go immediately after — waiting up to
+   * thirty days for the purge job is not what "discard" means to the person who
+   * just realised their ID card was in frame.
+   *
+   * If the backend cannot delete, the staging pointer is KEPT so the object
+   * stays findable and the purge job retries it, and the caller is told
+   * `imageDeleted: false`. Reporting a deletion that did not happen is exactly
+   * the defect this endpoint was half of.
+   */
+  async discard(captureId: string): Promise<{ status: string; imageDeleted: boolean }> {
     const row = await capturedDocumentsRepository.discard(captureId);
     if (!row) throw new BadRequestError("That capture cannot be discarded.");
-    await auditService.deleted("captured_document", captureId, { status: "discarded" });
+
+    let imageDeleted = true;
+    if (row.stagingPath) {
+      try {
+        await stagingStore.remove(row.stagingPath);
+        await capturedDocumentsRepository.clearStagingPath(captureId);
+      } catch (err) {
+        imageDeleted = false;
+        logger.error(
+          { err, captureId },
+          "capture discarded but its image could NOT be deleted — the row is kept so the purge job retries it",
+        );
+      }
+    }
+
+    await auditService.deleted("captured_document", captureId, {
+      status: "discarded",
+      imageDeleted,
+    });
+    return { status: "discarded", imageDeleted };
   },
 };

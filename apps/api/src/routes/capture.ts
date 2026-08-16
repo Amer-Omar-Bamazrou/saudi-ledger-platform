@@ -91,10 +91,15 @@ router.get("/:id/image", async (req, res) => {
   res.send(doc.bytes);
 });
 
-/** POST /api/capture/:id/discard — abandon a capture; the purge job removes it. */
+/**
+ * POST /api/capture/:id/discard — discard a capture and delete its image NOW.
+ *
+ * Returns `imageDeleted` rather than a bare 204: if the backend could not
+ * remove the bytes, the caller is told instead of being handed a success that
+ * describes something that did not happen (B3).
+ */
 router.post("/:id/discard", async (req, res) => {
-  await captureService.discard(req.params.id);
-  res.status(204).end();
+  res.json(await captureService.discard(req.params.id));
 });
 
 export default router;
