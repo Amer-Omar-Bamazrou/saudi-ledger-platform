@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Languages, Info } from "lucide-react";
+import { useDeployment } from "@/hooks/useDeployment";
 
 type Tab = "login" | "forgot";
 
@@ -16,6 +17,7 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { t, lang, setLang } = useLanguage();
   const [tab, setTab] = useState<Tab>("login");
+  const { demoMode } = useDeployment();
 
   // Login state
   const [email, setEmail] = useState("");
@@ -99,12 +101,20 @@ export default function Login() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? t("Signing in…", "جارٍ تسجيل الدخول…") : t("Sign in", "تسجيل الدخول")}
                 </Button>
-                <p className="text-center text-xs text-muted-foreground">
-                  {t("New organization?", "مؤسسة جديدة؟")}{" "}
-                  <Link href="/signup" className="text-primary hover:underline">
-                    {t("Create an account", "إنشاء حساب")}
-                  </Link>
-                </p>
+                {/*
+                  Hidden on the demo, where the server refuses POST /auth/signup
+                  outright (D4). Showing a link to a route that 403s would make a
+                  deliberate restriction look like a bug — and this is the first
+                  screen the reviewer sees.
+                */}
+                {!demoMode && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    {t("New organization?", "مؤسسة جديدة؟")}{" "}
+                    <Link href="/signup" className="text-primary hover:underline">
+                      {t("Create an account", "إنشاء حساب")}
+                    </Link>
+                  </p>
+                )}
               </form>
             </CardContent>
           </Card>

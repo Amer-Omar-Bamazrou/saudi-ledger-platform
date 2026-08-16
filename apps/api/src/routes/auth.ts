@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { usersTable, organizationMembershipsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { refuseSignupInDemo } from "../lib/demoMode";
 import { selectActiveMembership } from "../lib/activeOrg";
 import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
@@ -131,7 +132,7 @@ router.post("/register", userAdminRateLimiter, requireAuth, async (req, res) => 
  * AppErrors thrown by the service (400 invalid, 409 duplicate email) are mapped
  * by the app-level errorHandler (Express 5 forwards async rejections).
  */
-router.post("/signup", signupRateLimiter, async (req, res) => {
+router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) => {
   const created = await signupService.signup(req.body ?? {}, { ipAddress: req.ip ?? null });
 
   // Rotate the session id on the anonymous → authenticated transition, then sign

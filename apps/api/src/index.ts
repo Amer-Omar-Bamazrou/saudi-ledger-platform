@@ -39,6 +39,35 @@ const server = app.listen(env.PORT, (err) => {
 const { startBackgroundJobs, getScheduler } = await import("./jobs");
 startBackgroundJobs();
 
+// DEMO ONLY — provision the demo tenant on first boot (D2).
+//
+// 🔴 Deliberately at BOOT rather than as a deploy-time shell command: the demo
+// runs on a platform where the ordinary way to get a shell is to add one, and a
+// seed step someone has to remember is a seed step that gets skipped after the
+// database is recreated. `seedDemoTenant` is idempotent — it short-circuits
+// when the tenant already has documents — so every subsequent boot is a no-op.
+//
+// It cannot affect a normal deployment: the whole block is behind DEMO_MODE,
+// and even inside it the seed only ever writes the `demo` organization.
+if (env.DEMO_MODE) {
+  const { seedDemoTenant } = await import("./services/demo/demoSeed.service");
+  seedDemoTenant({
+    adminEmail: env.DEMO_ADMIN_EMAIL!,
+    adminPassword: env.DEMO_ADMIN_PASSWORD!,
+    adminName: "Demo Reviewer",
+  })
+    .then((r) =>
+      logger.info(
+        { organizationId: r.organizationId, invoices: r.invoices, bills: r.bills },
+        "[demo] tenant ready",
+      ),
+    )
+    // A failed seed must be loud but must not take the API down — the banner
+    // and the login page still need to serve, and the reset job records and
+    // alarms on the same condition.
+    .catch((err) => logger.error({ err }, "[demo] seeding FAILED — the demo has no data"));
+}
+
 // Stop polling before the process goes away, so an in-flight ZATCA submission
 // is not abandoned mid-flight by a scheduled tick firing during shutdown.
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

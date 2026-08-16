@@ -6,6 +6,7 @@ import { requirePlatformOperator } from "../lib/operator";
 
 // Route modules
 import health from "./health.js";
+import deployment from "./deployment.js";
 import auth from "./auth.js";
 import orgs from "./orgs.js";
 import onboarding from "./onboarding.js";
@@ -34,6 +35,7 @@ import financeHub from "./financeHub.js";
 import analytics from "./analytics.js";
 import llm from "./llm.js";
 import capture from "./capture.js";
+import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMode.js";
 import recurring from "./recurring.js";
 import auditLogs from "./auditLogs.js";
 
@@ -41,6 +43,8 @@ const router = Router();
 
 // ── Public ──────────────────────────────────────────────────────────────────
 router.use("/healthz", health);
+// PUBLIC: the demo banner must render on the login page, before any session.
+router.use("/deployment", deployment);
 router.use("/auth", auth);
 // Invitation preview/accept: PUBLIC + token-authenticated — the invitee may have
 // no account and no tenant yet. All checks live in invitationsService.
@@ -80,7 +84,12 @@ router.use(resolveTenant);
 // against the seeded role→resource→action mapping. Fail-closed. This replaces
 // the old blanket method guard and the ad-hoc requireTenantRole guards.
 router.use("/companies", requirePermission("companies"), companies);
-router.use("/zatca/onboarding", requirePermission("zatca_onboarding"), zatcaOnboarding);
+router.use(
+  "/zatca/onboarding",
+  refuseZatcaOnboardingInDemo,
+  requirePermission("zatca_onboarding"),
+  zatcaOnboarding,
+);
 router.use("/transactions", requirePermission("transactions"), transactions);
 router.use("/categories", requirePermission("categories"), categories);
 router.use("/summary", requirePermission("summary"), summary);
@@ -103,7 +112,7 @@ router.use("/analytics", requirePermission("reports"), analytics);
 router.use("/llm", requirePermission("llm"), llm);
 // A capture becomes a vendor bill, so it carries the bills authority — one
 // answer to "who may enter a purchase", not two.
-router.use("/capture", requirePermission("bills"), capture);
+router.use("/capture", refuseCaptureInDemo, requirePermission("bills"), capture);
 router.use("/recurring", requirePermission("recurring"), recurring);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);
 router.use("/categorize", requirePermission("categorize"), categorize);

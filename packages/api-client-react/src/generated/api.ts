@@ -37,6 +37,7 @@ import type {
   Company,
   CreateRecurringRuleInput,
   Decomposition,
+  DeploymentBanner,
   ErrorResponse,
   FinancialSummary,
   FiscalYears,
@@ -170,6 +171,84 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDeploymentBannerUrl = () => {
+
+
+
+
+  return `/api/deployment`
+}
+
+/**
+ * PUBLIC and unauthenticated on purpose: the demo banner has to appear on the LOGIN page, before anyone has a session. Server-driven so the claim cannot drift from the deployment that makes it — a banner compiled into the frontend would keep saying "demo" on a build promoted elsewhere.
+ * @summary What kind of deployment is this
+ */
+export const getDeploymentBanner = async ( options?: RequestInit): Promise<DeploymentBanner> => {
+
+  return customFetch<DeploymentBanner>(getGetDeploymentBannerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeploymentBannerQueryKey = () => {
+    return [
+    `/api/deployment`
+    ] as const;
+    }
+
+
+export const getGetDeploymentBannerQueryOptions = <TData = Awaited<ReturnType<typeof getDeploymentBanner>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeploymentBanner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeploymentBannerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeploymentBanner>>> = ({ signal }) => getDeploymentBanner({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeploymentBanner>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeploymentBannerQueryResult = NonNullable<Awaited<ReturnType<typeof getDeploymentBanner>>>
+export type GetDeploymentBannerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What kind of deployment is this
+ */
+
+export function useGetDeploymentBanner<TData = Awaited<ReturnType<typeof getDeploymentBanner>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeploymentBanner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeploymentBannerQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

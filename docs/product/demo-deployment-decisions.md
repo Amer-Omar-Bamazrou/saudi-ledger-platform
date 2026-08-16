@@ -1,7 +1,23 @@
-# Railway DEMO deployment — DECISION RECORD (parked)
+# Railway DEMO deployment — DECISION RECORD
 
-**Decided 2026-08-15 with the owner. PARKED — not built.** Recorded so none of
-it needs re-deciding when it is picked back up.
+**Decided 2026-08-15 with the owner. ✅ BUILT 2026-08-16** — the codebase is
+demo-ready; nothing is deployed. Operational steps:
+[`demo-deployment-runbook.md`](demo-deployment-runbook.md).
+
+**Two decisions the build settled, both owner calls:**
+
+- **One login, ADMIN role** (2026-08-16, superseding the earlier "viewer + admin"
+  option). Owner: *"He's a reviewer I trust, the weekly reset makes any mess
+  temporary, and I'd rather he can click everything than have to explain why
+  half the product is hidden."* The acts that must not happen are refused at the
+  **route for every role** — so authority-by-grade was never what was protecting
+  them.
+- **One origin, two services** (API serving the SPA + Postgres), not the three
+  sketched below. 🔴 Chosen for **security, not cost**: auth is an httpOnly
+  session cookie with `sameSite: strict`, and a separate static host forces
+  `SameSite=None` plus a credentialed CORS allow-list — two cookie protections
+  relaxed to solve a hosting-layout problem. Implemented as `SERVE_WEB_DIST`
+  (default unset; no existing deployment changes).
 
 **What this is:** a demo so an accountant can look at the product. **Not a
 launch.** No real business data, no customers. The pre-production queue is
@@ -114,13 +130,23 @@ Concretely:
 
 ---
 
-## Deployment shape (as assessed, unverified)
+## Deployment shape
 
-Three services: API (Node), web (static build), Postgres. 🔴 **The API does not
-serve the frontend** — there is no `express.static` — so the web build needs its
-own service or a small change to serve it. Railway Postgres replaces Supabase,
-so `SUPABASE_*` is unset and Supabase Storage is unavailable; D3 removes the
-only feature that needed it.
+**As assessed (superseded):** three services — API (Node), web (static build),
+Postgres — because the API had no `express.static`.
+
+**As built:** ✅ **two services.** The API serves the SPA from the same origin
+via `SERVE_WEB_DIST`, for the cookie reasons in the header note. Railway
+Postgres replaces Supabase, so `SUPABASE_*` is unset and Supabase Storage is
+unavailable; D3 removes the only feature that needed it.
+
+🔴 **One finding worth carrying forward.** The `aws-kms` guard is a **boot-time
+config check**, and the AWS SDK is loaded lazily — the demo never wraps a key,
+so a *placeholder* key id would pass boot and nothing would detect it. The
+runbook therefore says: create a real key (~$1/mo) because a configuration that
+is merely sufficient-to-boot is the exact shape D1 was meant to rule out — and
+says equally plainly that a green demo is **no evidence** the KMS path works
+(queue C3 is untouched).
 
 **Cost: roughly $10–20/month** (Railway Hobby $5 including usage; AWS KMS ~$1;
 Resend and Slack free tiers). ⚠️ **Verify Railway's current pricing when this is

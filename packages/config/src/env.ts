@@ -131,6 +131,65 @@ const EnvSchema = z.object({
    */
   ZATCA_WORKER_ENABLED: booleanFlag.default("false"),
 
+  // ── DEMO deployment (docs/product/demo-deployment-decisions.md) ────────────
+  /**
+   * 🔴 A DEMO IS A DEPLOYMENT THAT REMOVES CAPABILITIES — never one that
+   * silences guards.
+   *
+   * This flag does not relax a single production check. `NODE_ENV=production`
+   * still refuses `local-dev` KMS, `MAIL_PROVIDER=none` and
+   * `ALERT_PROVIDER=none`, and the demo satisfies all three truthfully
+   * (decision D1/D2). What `DEMO_MODE` does is switch things OFF:
+   *
+   *   - the banner appears on every page, in both languages (D7);
+   *   - document capture is refused (D3) — PDPL is unanswered and a promoted
+   *     capture is undeletable, so this is the one place a demo could do
+   *     IRREVERSIBLE harm;
+   *   - public signup is refused (D4) — one shared login, no invitations;
+   *   - the weekly reset job schedules (D6/D9).
+   *
+   * 🔴 And it is REFUSED alongside ZATCA (see the refinement below): a demo
+   * that could transmit to a government API is not a demo. That refusal ADDS a
+   * constraint; it removes none.
+   */
+  DEMO_MODE: booleanFlag.default("false"),
+
+  /**
+   * The demo's single login. Required when `DEMO_MODE` is on (refinement
+   * below) — a demo with no credentials is a login screen, and the weekly reset
+   * would re-create the tenant with no way in.
+   *
+   * The membership role is ADMIN by owner decision: the reviewer is trusted,
+   * the weekly reset makes any mess temporary, and half a hidden product is a
+   * worse review than a fully clickable one. The capabilities that must not be
+   * exercised are refused at the ROUTE for every role, not withheld by grade.
+   */
+  DEMO_ADMIN_EMAIL: z.string().email().optional(),
+  DEMO_ADMIN_PASSWORD: z.string().min(12).optional(),
+
+  /**
+   * How often the demo wipes and re-seeds itself, in days.
+   *
+   * 🔴 The banner does NOT quote this number as a fact about the past — it
+   * reports the last run that actually SUCCEEDED, from `demo_reset_runs`. This
+   * value only decides when the next attempt is due, and how long an overdue
+   * reset may go before it pages someone.
+   */
+  DEMO_RESET_INTERVAL_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+
+  /**
+   * Absolute path to a built frontend (`apps/web/dist`) for this process to
+   * serve. Unset — the default, and the state of every existing deployment —
+   * means the API serves only `/api` and nothing else changes.
+   *
+   * 🔴 This is a DEPLOYMENT SHAPE option, not a demo flag, and the reason to
+   * reach for it is security rather than convenience: auth is an httpOnly
+   * session cookie, so putting the frontend on its own origin requires
+   * `SameSite=None` and a credentialed CORS entry — two cookie protections
+   * loosened to solve a hosting-layout problem. Same origin needs neither.
+   */
+  SERVE_WEB_DIST: z.string().min(1).optional(),
+
   // ── Email delivery (queue item B1) ─────────────────────────────────────────
   /**
    * Which mail provider actually sends. `none` is the dev/CI default and is
@@ -253,6 +312,42 @@ const EnvSchema = z.object({
           "ALERT_PROVIDER must be set in production (queue item B2). A stuck e-invoice outbox " +
           "and an expiring PCSID both fail by quiet neglect — an operator panel only helps " +
           "someone already looking at it.",
+      });
+    }
+    /**
+     * 🔴 A demo must not be able to transmit to ZATCA.
+     *
+     * The e-invoice outbox submits real documents to a real government API. In
+     * a demo the documents are fictional and the company's VAT number is
+     * deliberately invalid, so a submission is at best rejected and at worst a
+     * fictional filing against someone's registration. Refused rather than
+     * defaulted, because a default can be overridden by a stray env var and a
+     * refusal cannot.
+     *
+     * This is a constraint ADDED by demo mode. Nothing here relaxes a
+     * production guard — see the note on DEMO_MODE above.
+     */
+    if (env.DEMO_MODE && env.ZATCA_WORKER_ENABLED) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZATCA_WORKER_ENABLED"],
+        message:
+          "ZATCA_WORKER_ENABLED must be false when DEMO_MODE is on. A demo submits fictional " +
+          "documents from a company with a deliberately invalid VAT number; it must never " +
+          "reach a government API.",
+      });
+    }
+    // A demo whose login does not exist is a login screen. Fail at BOOT, not at
+    // the first attempt to sign in — and not at the first weekly reset, which
+    // would destroy the tenant and then be unable to re-create it.
+    if (env.DEMO_MODE && (!env.DEMO_ADMIN_EMAIL || !env.DEMO_ADMIN_PASSWORD)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["DEMO_ADMIN_EMAIL"],
+        message:
+          "DEMO_ADMIN_EMAIL and DEMO_ADMIN_PASSWORD (min 12 chars) are required when DEMO_MODE " +
+          "is on — the weekly reset re-creates the tenant from them, so without them a reset " +
+          "leaves a demo nobody can log into.",
       });
     }
     if (env.ZATCA_KMS_PROVIDER === "aws-kms" && !env.ZATCA_KMS_KEY_ID) {
