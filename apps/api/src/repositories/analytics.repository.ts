@@ -257,4 +257,79 @@ export const analyticsRepository = {
       other: string;
     }[];
   },
+  /**
+   * CASH RECONCILIATION inputs, per month (M19.7 / design §6.1 option C).
+   *
+   * 🔴 TWO STORES ANSWER "WHAT HAPPENED TO CASH", AND THEY DISAGREE. Measured on
+   * the dev org: the transaction-derived figure moved −113,744.15 where the GL's
+   * cash accounts moved −102,944.15. Neither is a bug in the other's arithmetic;
+   * they are counting different things, for reasons that are each individually
+   * deliberate:
+   *
+   *   • `kind: transfer` and `kind: settlement` rows NEVER post to the ledger
+   *     (one writer per effect — a settlement's cash was already posted by
+   *     `invoicesService.pay`), yet the bank genuinely moved.
+   *   • Payments recorded on a DOCUMENT post Dr Cash / Cr AR and create no
+   *     transaction row, so the transaction side never sees them.
+   *   • Rows accepted before flaw #1's Option A landed have no journal entry.
+   *
+   * So this returns the INPUTS both figures are built from, split finely enough
+   * that the difference can be ITEMISED rather than merely displayed — the M16
+   * Q0 discipline: two numbers are tolerable only when each says which question
+   * it answers and the gap between them is accounted for line by line.
+   *
+   * 🔴 `accepted` only. A pending row is un-reviewed evidence, not a fact, and
+   * M15's rule is that it contributes to no figure.
+   */
+  async monthlyTransactionCash(from: string, to: string) {
+    const res = await db.execute<{
+      month: string;
+      kind: string;
+      posted: boolean;
+      net: string;
+    }>(sql`
+      SELECT to_char(date::date, 'YYYY-MM') AS month,
+             kind,
+             (journal_entry_id IS NOT NULL) AS posted,
+             coalesce(sum(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0)::text AS net
+        FROM transactions
+       WHERE review_status = 'accepted'
+         AND date >= ${from}
+         AND date <= ${to}
+       GROUP BY 1, 2, 3
+    `);
+    return ((res as unknown as { rows: unknown[] }).rows ?? []) as {
+      month: string;
+      kind: string;
+      posted: boolean;
+      net: string;
+    }[];
+  },
+
+  /**
+   * Movement on the CASH-classified GL accounts per month — the ledger's answer.
+   *
+   * By `liquidity_class = 'cash'`, not by the `CASH` system code, so a
+   * tenant-created bank account classified as cash is included. (Today the
+   * posting path writes one aggregate `CASH` account, which is why the ledger
+   * cannot break cash down per bank account — see queue B5.)
+   */
+  async monthlyLedgerCash(from: string, to: string) {
+    const res = await db.execute<{ month: string; net: string }>(sql`
+      SELECT to_char(e.date::date, 'YYYY-MM') AS month,
+             coalesce(sum(l.debit_amount - l.credit_amount), 0)::text AS net
+        FROM journal_entry_lines l
+        JOIN journal_entries e ON e.id = l.journal_entry_id
+        JOIN categories c      ON c.id = l.account_id
+       WHERE e.status = 'posted'
+         AND e.date >= ${from}
+         AND e.date <= ${to}
+         AND c.liquidity_class = 'cash'
+       GROUP BY 1
+    `);
+    return ((res as unknown as { rows: unknown[] }).rows ?? []) as {
+      month: string;
+      net: string;
+    }[];
+  },
 };

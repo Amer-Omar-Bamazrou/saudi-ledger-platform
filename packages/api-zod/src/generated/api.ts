@@ -683,6 +683,37 @@ export const GetReceivablesBridgeResponse = zod.array(GetReceivablesBridgeRespon
 
 
 /**
+ * 🔴 TWO FIGURES, DELIBERATELY. The transaction store and the general ledger disagree about cash, and each is right about the question it answers: "Bank movement" is what the bank statement shows (every accepted transaction, including transfers and settlements); "Ledger cash" is what the double-entry books say (excluding transfers and settlements, which never post, and including payments recorded on a document, which create no transaction).
+ * Following the M16 Q0 precedent — documents FILE, transactions RECONCILE — two figures are tolerable only when each says which question it answers and the gap between them is accounted for line by line. `unexplained` must be zero; anything else means a cause nobody has named.
+ * @summary Bank movement and ledger cash side by side, with the gap itemised (M19.7).
+
+ */
+export const GetCashReconciliationQueryParams = zod.object({
+  "from": zod.coerce.string().describe('YYYY-MM'),
+  "to": zod.coerce.string().describe('YYYY-MM')
+})
+
+export const GetCashReconciliationResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "bankMovement": zod.number().describe('Every accepted transaction, all kinds — what the bank shows.'),
+  "ledgerCash": zod.number().describe('Movement on cash-classified GL accounts — what the books say.'),
+  "gap": zod.number().describe('bankMovement − ledgerCash. Zero when the two stores agree.'),
+  "items": zod.array(zod.object({
+  "code": zod.enum(['transfers', 'settlements', 'unposted_legacy', 'ledger_only']),
+  "amount": zod.number()
+})).describe('Each entry is a NAMED reason the two differ, and they sum to the gap exactly. A gap merely displayed is a discrepancy; a gap itemised is a reconciliation.\n'),
+  "unexplained": zod.number().describe('🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile.\n'),
+  "points": zod.array(zod.object({
+  "period": zod.string(),
+  "bankMovement": zod.number(),
+  "ledgerCash": zod.number(),
+  "gap": zod.number()
+}))
+})
+
+
+/**
  * @summary WHERE a change came from (M19.2) — ranked contributors between a window and the equal-length window before it. Never why.
 
  */

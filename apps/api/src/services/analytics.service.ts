@@ -59,7 +59,7 @@ interface AccountState {
 }
 
 /** The `YYYY-MM` labels from `from` to `to` inclusive. */
-function monthsBetween(from: string, to: string): string[] {
+export function monthsBetween(from: string, to: string): string[] {
   const out: string[] = [];
   let [y, m] = from.split("-").map(Number);
   const [ey, em] = to.split("-").map(Number);

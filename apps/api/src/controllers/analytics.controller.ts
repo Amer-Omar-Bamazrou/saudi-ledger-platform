@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { BadRequestError } from "../lib/errors";
-import { analyticsService, type Dimension } from "../services/analytics.service";
+import { analyticsService, monthsBetween, type Dimension } from "../services/analytics.service";
+import { cashService } from "../services/cash.service";
 
 const MONTH = /^\d{4}-\d{2}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,6 +21,17 @@ export const analyticsController = {
     }
     if (from > to) throw new BadRequestError("from must not be after to");
     res.json(await analyticsService.trend(from, to));
+  },
+
+  async cash(req: Request, res: Response) {
+    const from = String(req.query.from ?? "");
+    const to = String(req.query.to ?? "");
+    if (!MONTH.test(from) || !MONTH.test(to)) {
+      throw new BadRequestError("from and to must be YYYY-MM");
+    }
+    if (from > to) throw new BadRequestError("from must not be after to");
+    const { points, summary } = await cashService.reconciliation(from, to, monthsBetween(from, to));
+    res.json({ ...summary, points });
   },
 
   async receivablesBridge(req: Request, res: Response) {

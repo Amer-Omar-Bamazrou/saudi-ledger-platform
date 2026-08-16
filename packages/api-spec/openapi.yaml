@@ -581,6 +581,38 @@ paths:
                 items:
                   $ref: "#/components/schemas/BridgePoint"
 
+  /analytics/cash:
+    get:
+      operationId: getCashReconciliation
+      tags: [analytics]
+      summary: >
+        Bank movement and ledger cash side by side, with the gap itemised
+        (M19.7).
+      description: >
+        🔴 TWO FIGURES, DELIBERATELY. The transaction store and the general
+        ledger disagree about cash, and each is right about the question it
+        answers: "Bank movement" is what the bank statement shows (every
+        accepted transaction, including transfers and settlements); "Ledger
+        cash" is what the double-entry books say (excluding transfers and
+        settlements, which never post, and including payments recorded on a
+        document, which create no transaction).
+
+        Following the M16 Q0 precedent — documents FILE, transactions RECONCILE
+        — two figures are tolerable only when each says which question it
+        answers and the gap between them is accounted for line by line.
+        `unexplained` must be zero; anything else means a cause nobody has
+        named.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+        - { name: to, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+      responses:
+        "200":
+          description: Both series per month, plus the itemised reconciliation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashReconciliation"
+
   /analytics/decomposition:
     get:
       operationId: getDecomposition
@@ -1789,6 +1821,55 @@ components:
         closing:
           type: number
           description: Equals the balance-sheet AR figure for the same date.
+
+    CashReconciliation:
+      type: object
+      required: [from, to, bankMovement, ledgerCash, gap, items, unexplained, points]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        bankMovement:
+          type: number
+          description: Every accepted transaction, all kinds — what the bank shows.
+        ledgerCash:
+          type: number
+          description: Movement on cash-classified GL accounts — what the books say.
+        gap:
+          type: number
+          description: bankMovement − ledgerCash. Zero when the two stores agree.
+        items:
+          type: array
+          description: >
+            Each entry is a NAMED reason the two differ, and they sum to the gap
+            exactly. A gap merely displayed is a discrepancy; a gap itemised is
+            a reconciliation.
+          items:
+            type: object
+            required: [code, amount]
+            properties:
+              code:
+                type: string
+                enum: [transfers, settlements, unposted_legacy, ledger_only]
+              amount: { type: number }
+        unexplained:
+          type: number
+          description: >
+            🔴 Must be 0. Non-zero means a difference exists that no named cause
+            accounts for — returned rather than asserted so the page can say so
+            instead of presenting a reconciliation that does not reconcile.
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/CashPoint"
+
+    CashPoint:
+      type: object
+      required: [period, bankMovement, ledgerCash, gap]
+      properties:
+        period: { type: string }
+        bankMovement: { type: number }
+        ledgerCash: { type: number }
+        gap: { type: number }
 
     Decomposition:
       type: object

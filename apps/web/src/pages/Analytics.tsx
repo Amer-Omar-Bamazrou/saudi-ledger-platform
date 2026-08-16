@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   useGetTrend, useGetDecomposition, useGetSummary, useListBudgets,
-  useGetReceivablesBridge,
+  useGetReceivablesBridge, useGetCashReconciliation,
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +94,50 @@ export default function Analytics() {
    * Same window as everything else on the page, so the charts describe one span.
    */
   const { data: bridge } = useGetReceivablesBridge({ from: window_.from, to: window_.to });
+
+  /**
+   * M19.7 — the two cash figures (design §6.1, option C).
+   *
+   * 🔴 Two numbers on one page is normally the defect this codebase spends its
+   * time removing (meta-finding #9). It is allowed HERE, and only because each
+   * says which question it answers and the gap between them is itemised down to
+   * zero — the M16 Q0 discipline, the same one that lets the VAT return sit
+   * beside a transaction-derived reconciliation figure.
+   */
+  const { data: cash } = useGetCashReconciliation({ from: window_.from, to: window_.to });
+
+  const cashState = classifyChartState(
+    cash?.points?.map(() => ({ claimable: true })),
+    (cash?.points ?? []).flatMap((p) => [p.bankMovement, p.ledgerCash]),
+  );
+
+  /** Plain-language name for each reason the two cash figures differ. */
+  const gapLabel = (code: string) => {
+    switch (code) {
+      case "transfers":
+        return t(
+          "Transfers between your own accounts (the bank moved; the books did not)",
+          "تحويلات بين حساباتك (تحرك البنك ولم تتحرك الدفاتر)",
+        );
+      case "settlements":
+        return t(
+          "Bank lines matched to an invoice or bill (already in the books via the document)",
+          "حركات بنكية مطابَقة لفاتورة (مسجّلة في الدفاتر عبر المستند)",
+        );
+      case "unposted_legacy":
+        return t(
+          "Older accepted rows recorded before transactions posted to the ledger",
+          "حركات مقبولة قديمة سُجّلت قبل ترحيل المعاملات إلى الدفاتر",
+        );
+      case "ledger_only":
+        return t(
+          "Payments recorded on an invoice or bill with no matching bank line",
+          "مدفوعات مسجّلة على فاتورة دون حركة بنكية مطابقة",
+        );
+      default:
+        return code;
+    }
+  };
 
   const bridgeSeries = (bridge ?? []).map((p) => ({
     period: p.period,
@@ -386,6 +430,121 @@ export default function Analytics() {
             </ResponsiveContainer>
           )}
         </CardContent>
+      </Card>
+
+      {/* ── Cash: TWO figures, named so they cannot be confused (M19.7) ─────
+           The M16 Q0 discipline applied to cash. Both are money, so one axis
+           is honest — and the gap between the lines is the subject, not an
+           embarrassment to smooth over. ──────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {t("Cash: the bank and the books", "النقد: البنك والدفاتر")}
+          </CardTitle>
+          <CardDescription>
+            {t(
+              "Two figures, because two things are being measured. Bank movement is what your statement shows. Ledger cash is what the books record. Where they differ, the reasons are listed below — none of it is unexplained.",
+              "رقمان، لأن ما يُقاس شيئان. حركة البنك هي ما يظهره كشف حسابك. نقد الدفاتر هو ما تسجله الدفاتر. وحيثما اختلفا، الأسباب مذكورة أدناه — ولا شيء منها غير مُفسَّر.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[260px]">
+          {cashState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">
+                {cashState === "loading"
+                  ? t("Loading…", "جارٍ التحميل…")
+                  : t(
+                      "No cash moved in this range — no accepted transactions and no payments recorded. Try a longer range, or import a bank statement.",
+                      "لم تتحرك أي نقدية في هذا النطاق — لا معاملات مقبولة ولا مدفوعات مسجلة. جرّب نطاقاً أطول، أو استورد كشف حساب.",
+                    )}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={cash?.points ?? []} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={64} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {/* Zero matters here: a month can move cash either way. */}
+                <ReferenceLine y={0} stroke="currentColor" strokeDasharray="4 4" opacity={0.35} />
+                <Line
+                  type="monotone" dataKey="bankMovement"
+                  name={t("Bank movement", "حركة البنك")}
+                  stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }}
+                />
+                <Line
+                  type="monotone" dataKey="ledgerCash"
+                  name={t("Ledger cash", "نقد الدفاتر")}
+                  stroke={SERIES_2} strokeWidth={2} dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+
+        {cash && (cash.gap !== 0 || cash.items.length > 0) && (
+          <CardContent className="pt-0">
+            <div className="rounded-md border border-border bg-secondary/20 p-3 text-sm">
+              <div className="flex items-baseline justify-between gap-4 flex-wrap">
+                <span className="text-muted-foreground text-xs">
+                  {t("Bank movement", "حركة البنك")}
+                </span>
+                <span className="font-mono text-xs">{formatCurrency(cash.bankMovement)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 flex-wrap mt-1">
+                <span className="text-muted-foreground text-xs">
+                  {t("Ledger cash", "نقد الدفاتر")}
+                </span>
+                <span className="font-mono text-xs">{formatCurrency(cash.ledgerCash)}</span>
+              </div>
+
+              <p className="text-xs text-muted-foreground mt-3 mb-1">
+                {t("The difference, in full:", "الفارق، بالكامل:")}
+              </p>
+              <ul className="space-y-1">
+                {cash.items.map((item) => (
+                  <li key={item.code} className="flex items-baseline justify-between gap-4">
+                    <span className="text-xs">{gapLabel(item.code)}</span>
+                    <span className="font-mono text-xs">{formatCurrency(item.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/*
+                🔴 A reconciliation that does not reconcile must SAY SO. The
+                remainder is asserted to be zero by test; if it is ever not, the
+                honest thing is to tell the reader that a cause is missing —
+                not to present a tidy list that quietly fails to add up.
+              */}
+              {Math.abs(cash.unexplained) >= 0.005 && (
+                <Alert variant="destructive" className="mt-3">
+                  <TriangleAlert className="w-4 h-4" />
+                  <AlertDescription className="text-xs">
+                    {t(
+                      `${formatCurrency(cash.unexplained)} of the difference is not accounted for by any known cause. Please report this — the figures above should be treated as unreliable until it is explained.`,
+                      `${formatCurrency(cash.unexplained)} من الفارق لا يفسّره أي سبب معروف. يُرجى الإبلاغ عن ذلك — وتُعامل الأرقام أعلاه كغير موثوقة حتى يُفسَّر.`,
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/*
+                🔴 Says out loud that this is an interim. The gap is legible;
+                neither figure is yet CORRECT about transfers, because whether a
+                transfer left the business is not recorded anywhere (queue B5).
+              */}
+              <p className="text-[11px] text-muted-foreground mt-3">
+                {t(
+                  "A transfer between your own accounts and money leaving the business are recorded the same way today, so neither figure can tell them apart. Until that changes, this comparison shows where they differ rather than which is right.",
+                  "التحويل بين حساباتك وخروج المال من المنشأة يُسجَّلان بالطريقة نفسها اليوم، لذا لا يستطيع أي من الرقمين التمييز بينهما. وإلى أن يتغير ذلك، تُظهر هذه المقارنة أين يختلفان لا أيهما الصحيح.",
+                )}
+              </p>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* ── Chart 3: RECEIVABLES FLOWS — invoiced vs collected (M19.6) ─────
