@@ -1442,3 +1442,46 @@ It was **an estimate of a different feature**.
 An option's cost is only meaningful relative to inputs that exist. A lean stated
 before that check is a preference, not a recommendation — and it will be read as
 a recommendation.
+
+---
+
+### 🔴 M20.0 (2026-08-16): A REMOVED DEFAULT IS AN INVARIANT — CHECK EVERY WRITER, NOT THE LAYER THAT DEFINED IT
+
+Migration 0044 dropped `fiscal_year_start`'s `NOT NULL DEFAULT 1` and NULLed
+every row, so "undeclared" became a first-class state. Complete at the schema —
+and one layer up, Company Settings' submit still read:
+
+```ts
+fiscalYearStart: Number(form.fiscalYearStart ?? 1),
+```
+
+So an undeclared tenant saving their **address** would have silently declared a
+January fiscal year. The migration fixed one layer; another kept re-creating
+the fiction on the next save, and everything downstream (the resolver, M20.1's
+report defaults) would have read the re-created value as a tenant's deliberate
+choice.
+
+This is the write-boundary lesson wearing a new costume: the invariant ("no
+January unless declared") lived in the schema while a second path could still
+set the value. A default is not only a DDL clause — **a default lives wherever
+any writer supplies a fallback**, and each `?? 1`, `|| 1`, `.default(1)` or
+form-initialiser is a write path for it.
+
+#### The rule
+
+> **After removing a default, grep for the VALUE, not just the column.** The
+> DDL default is one writer among several; UI coercions, Zod `.default()`s,
+> service fallbacks and seed values are the others, and any one of them
+> re-asserts what the migration removed. The search shape: the column name AND
+> the old default value, across every layer that can reach the write path.
+
+#### And the countermeasure that DID fire, recorded because they mostly get recorded when they fail
+
+Standing-check part 6 ("grep for tests asserting the old behaviour") caught the
+suite's first test pinning *"a fresh company defaults to a Gregorian January
+year — the behaviour every existing tenant already had"* — a correct-when-
+written assertion that had become a guard for the defect. It was rewritten to
+pin the opposite **before** it could fail confusingly in CI or, worse, pressure
+the new behaviour back toward the old one. The checks earn their keep on the
+runs where nothing goes wrong BECAUSE they ran; noting only their misses would
+be survivorship in reverse.

@@ -281,7 +281,13 @@ These are short forms; the rules are binding, the history explains why.
   a shared gate, not in per-path code — per-path enforcement is per-path
   review, and a new path starts at zero. Corollary: **when line-level truth
   exists, header-level arithmetic is a second computation of the same fact**
-  and will drift — classify/derive from the finer grain.
+  and will drift — classify/derive from the finer grain. Second corollary
+  (M20.0): **a REMOVED default is an invariant too — after dropping it, check
+  every path that can write the column, not just the layer that defined it.**
+  The schema stopped asserting January while Company Settings' submit still
+  coerced `?? 1`, so saving an ADDRESS would have re-declared January: the
+  migration fixed one layer and another kept re-creating the fiction. Defaults
+  live wherever a writer supplies a fallback, and each is a write path.
 - **A flag's scope drifts past its name** when the thing it gates becomes
   shared infrastructure (ZATCA_WORKER_ENABLED silently disabled every
   non-ZATCA job). Move the gate WITH the thing the flag names.
