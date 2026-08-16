@@ -74,6 +74,20 @@ divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
 all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
 ask with the C7/C8 advisor).
 
+**Fiscal periods in reports are DECIDED but NOT BUILT** — 2026-08-16, by owner
+interview (F1–F9). Free dates **plus** period shortcuts on every report (nothing
+period-only); the shortcut **sets** the dates and they stay editable; Hijri gets
+**labels and boundaries but NOT in-table date conversion** (kept explicitly out so
+it cannot be absorbed); prior-period comparison and Analytics are out of scope;
+the twenty bespoke date controls stay duplicated until a third pattern appears.
+🔴 **Two things this surfaced.** (1) The hardcoded `Jan-01 → Dec-31` default on
+every report is a **defect**, not a gap — it actively asserts a calendar year, so
+an April-year tenant reads the wrong twelve months with nothing saying so (owner:
+"same family as the SAR 0.00 Zakat"). (2) `companies.fiscal_year_start` is
+`NOT NULL DEFAULT 1`, so the column **already** records every untouched tenant as
+declaring January — F8's "NULL is first-class" needs a migration, not a UI
+change. See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md).
+
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
 two destinations (Finance Hub, Analytics), Automation and AI woven into existing
 pages, Automation is the wedge. See
