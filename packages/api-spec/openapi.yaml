@@ -553,6 +553,34 @@ paths:
                 items:
                   $ref: "#/components/schemas/TrendPoint"
 
+  /analytics/receivables-bridge:
+    get:
+      operationId: getReceivablesBridge
+      tags: [analytics]
+      summary: >
+        The receivables bridge per month (M19.6): opening + invoiced − collected
+        − credited − other = closing.
+      description: >
+        Answers what the "receivables outstanding" stock cannot: a rising AR
+        balance does not say whether you invoiced more or collected less, and
+        those call for opposite responses.
+
+        Every term is a debit or a credit on the SAME GL account, so the
+        identity holds by construction rather than by agreement — and `closing`
+        is the balance-sheet AR figure for the same date, for the same reason.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+        - { name: to, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+      responses:
+        "200":
+          description: One point per month, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BridgePoint"
+
   /analytics/decomposition:
     get:
       operationId: getDecomposition
@@ -1733,6 +1761,34 @@ components:
               code: { type: string, enum: [suspense_balance, unclassified_accounts] }
               amount: { type: number }
               count: { type: ["integer", "null"] }
+
+    BridgePoint:
+      type: object
+      required: [period, opening, invoiced, collected, credited, other, closing]
+      properties:
+        period: { type: string }
+        opening: { type: number }
+        invoiced:
+          type: number
+          description: >
+            Debits to AR — invoices AND debit notes. A debit note posts like an
+            invoice; it does not reverse.
+        collected:
+          type: number
+          description: Credits to AR settled in cash.
+        credited:
+          type: number
+          description: Credits to AR that reversed revenue — credit notes.
+        other:
+          type: number
+          description: >
+            Credits to AR that were neither. A write-off or an offset is not a
+            payment and not a credit note; reporting it separately is the
+            difference between a bridge that understands the movement and one
+            that mislabels it. Normally zero.
+        closing:
+          type: number
+          description: Equals the balance-sheet AR figure for the same date.
 
     Decomposition:
       type: object

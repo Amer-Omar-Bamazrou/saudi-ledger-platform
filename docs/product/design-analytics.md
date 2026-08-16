@@ -369,14 +369,37 @@ visualization guidance; the decisions that belong in *this* document:
 | **M19.3** | The Analytics page | ✅ **done** — two separate charts (ratios / money, never dual-axis), decomposition bars, a table view, gaps at unclaimable points and the withheld summary. Palette validated in both modes. | — |
 | **M19.4** | Absorb the Cockpit | ✅ **done** — the Cockpit was taken APART, not moved: each piece went to whichever destination already owned that question, three wrong pieces were deleted, and `/` is now a router that states no figures (§8). | — |
 | **M19.5** | Budgets | ✅ **done** — annual-only comparison on Analytics, with the limitation stated in the card itself rather than implied by an empty axis. | — |
+| **M19.6** | Receivables | ✅ **done** — the invoiced-vs-collected bridge and the receivables stock (§4, §6.1). The identity is STRUCTURAL: every term is a debit or a credit on one GL account, so `closing` is the balance-sheet AR figure by construction, not by agreement. Pinned by test anyway. | — |
 
-🔴 **§6.1 (Cash) is the one section of this design still unbuilt** — net cash
-movement per period, Invoiced vs Collected, and receivables outstanding with the
-overdue share.
+### 🔴 What §6.1 still does NOT contain, and why
 
-Its gate is **CLOSED**: the accountant answered the cash-basis-vs-AR question on
-2026-08-15 (§4), and the answer removed the risk rather than adding work — it is
-accrual, which is what the ledger already does, so no second revenue figure is
-needed. The ⏳ that stood here outlived its condition by a milestone, which is
-the *obsolete assertion* failure mode: a correct-when-written statement of
-absence that keeps certifying a gap after the gap is gone.
+Two of §6.1's three bullets shipped. The other two items are held for reasons
+that are findings in their own right — recorded here rather than left as an
+empty space someone later fills in by guessing.
+
+**1. Net cash movement per period — HELD on a source question.**
+Measured on real rows: `reports.cashFlow` reports **−113,744.15** for the dev
+org while the GL's cash-classified accounts moved **−102,944.15**. Both are
+"correct" for what they read. The report is TRANSACTION-derived; the ledger is
+not, and they diverge for two structural reasons:
+
+- `kind: transfer` rows **move the bank and never post to the GL** (one writer
+  per effect). So **GL cash is not the bank balance, by design** — a
+  consequence of two rules that are each individually right and have never been
+  stated together.
+- Invoice and bill payments recorded on the document (`invoicesService.pay`)
+  post Dr Cash / Cr AR and create **no transaction row**, so the cash-flow
+  report never sees them.
+
+Charting a GL-derived cash series would therefore disagree with the Cash Flow
+page — meta-finding #9 in a third costume. The fix is a decision about which
+store owns "cash", not a chart. **Ask before building it.**
+
+**2. The overdue share over time — NOT DERIVABLE, and it must not be
+approximated.** It needs each invoice's outstanding balance *as at* every past
+month end. Partial payments are stored as a running `invoices.paid_amount` with
+`paid_at` holding only the LAST payment date — there is no dated payment
+history, so the figure cannot be reconstructed for any month but today. The
+page says so and points at AR Aging for the current split. Making it derivable
+is a schema change (an `invoice_payments` table), cheap while there are no
+customers.

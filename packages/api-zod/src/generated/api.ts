@@ -660,6 +660,29 @@ export const GetTrendResponse = zod.array(GetTrendResponseItem)
 
 
 /**
+ * Answers what the "receivables outstanding" stock cannot: a rising AR balance does not say whether you invoiced more or collected less, and those call for opposite responses.
+ * Every term is a debit or a credit on the SAME GL account, so the identity holds by construction rather than by agreement — and `closing` is the balance-sheet AR figure for the same date, for the same reason.
+ * @summary The receivables bridge per month (M19.6): opening + invoiced − collected − credited − other = closing.
+
+ */
+export const GetReceivablesBridgeQueryParams = zod.object({
+  "from": zod.coerce.string().describe('YYYY-MM'),
+  "to": zod.coerce.string().describe('YYYY-MM')
+})
+
+export const GetReceivablesBridgeResponseItem = zod.object({
+  "period": zod.string(),
+  "opening": zod.number(),
+  "invoiced": zod.number().describe('Debits to AR — invoices AND debit notes. A debit note posts like an invoice; it does not reverse.\n'),
+  "collected": zod.number().describe('Credits to AR settled in cash.'),
+  "credited": zod.number().describe('Credits to AR that reversed revenue — credit notes.'),
+  "other": zod.number().describe('Credits to AR that were neither. A write-off or an offset is not a payment and not a credit note; reporting it separately is the difference between a bridge that understands the movement and one that mislabels it. Normally zero.\n'),
+  "closing": zod.number().describe('Equals the balance-sheet AR figure for the same date.')
+})
+export const GetReceivablesBridgeResponse = zod.array(GetReceivablesBridgeResponseItem)
+
+
+/**
  * @summary WHERE a change came from (M19.2) — ranked contributors between a window and the equal-length window before it. Never why.
 
  */

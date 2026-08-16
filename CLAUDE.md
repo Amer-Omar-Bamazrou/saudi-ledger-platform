@@ -56,6 +56,7 @@ If this block disagrees with reality, fix it first.
 | **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
 | **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
 | **Demo deployment** | ✅ **Codebase demo-ready; nothing deployed.** `DEMO_MODE` REMOVES capabilities and weakens no guard: capture, signup and ZATCA onboarding are refused **at the route**, ZATCA transmission is refused **at boot**, a server-driven bilingual banner runs on every page incl. login, and a weekly reset wipes + re-seeds in one transaction. 🔴 The reset's safety is **structural, not the flag**: it refuses unless the database holds exactly one organization and it is the demo. Seed data is posted through the product's own write paths and starts **claimable**, so uploading a statement demonstrates the liquidity claim being withheld. Also new: `SERVE_WEB_DIST` (default unset) lets the API serve the SPA same-origin — a cookie decision, not a cost one. | [`docs/product/demo-deployment-decisions.md`](docs/product/demo-deployment-decisions.md) + [runbook](docs/product/demo-deployment-runbook.md) |
+| **M19.6** — receivables bridge | ✅ Analytics now shows **Invoiced vs Collected** (flows) and **receivables outstanding** (stock) on separate canvases, plus the bridge as numbers: `opening + invoiced − collected − credited − other = closing`. 🔴 The identity is **structural, not checked** — every term is a debit or credit on ONE GL account, so `closing` IS the balance-sheet AR figure rather than agreeing with it. **Two items of §6.1 are deliberately NOT built:** net cash per period is HELD on a source question (`reports.cashFlow` is transaction-derived and disagrees with GL cash by a measured 10,800 on the dev org — transfers never post, and document payments create no transaction), and the historical overdue share is **not derivable** at all (no dated payment history). | [`docs/product/design-analytics.md`](docs/product/design-analytics.md) §6.1 |
 | **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
 | **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
 | **M17.1** — Zakat ownership scope | ✅ Q2: `companies.ownership_type` (`SAUDI_GCC\|FOREIGN\|MIXED`, migration 0040), **nullable with NO default** — NULL = not declared is a first-class state, because a default would have the platform assert the tenant's ownership and that assertion gates the Zakat surface. The page branches **three** ways (ask / module / out-of-scope-see-your-advisor); a declaration can be withdrawn. Rule lives in `lib/zakatScope.ts` — 🔴 **M17.4's endpoint must call it and refuse non-`eligible`.** | same design doc §5b |
@@ -224,6 +225,19 @@ These are short forms; the rules are binding, the history explains why.
 - **External validators check the weakest property they plausibly could** (the
   PIH/base64 lesson). Validate meaning locally; never infer correctness from an
   accepted submission.
+- **🔴 A STUB IS THE PART THAT NEEDED TESTING** (B3). When a capability is
+  implemented for one backend and stubbed for the others, the passing tests
+  prove nothing — the suite ran on the backend that worked. Test the branch you
+  did NOT write: inject a failing implementation and assert on what survives.
+  And at the interface, **a method that cannot do the thing must throw, never
+  return** — a no-op reporting success is a false statement the caller builds
+  on, where an unimplemented method is merely a gap. Same family as the SDK
+  differential that proved only that we matched a stale writer: **a test whose
+  oracle shares the defect it is meant to detect.** Ask what a failure would
+  have to be measured against, and whether that thing is independent of the code
+  under test. **Where to look:** every `resolve*Store` / `get*Provider` seam —
+  `ArchiveStore`, `KeyWrapper` (the AWS branch is lazily loaded and has never
+  executed), the mailer, the alerter.
 - **🔴 A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT**
   (M17.2's small-ICU finding; second instance of the shape). A small-ICU Node
   accepts `islamic-umalqura` and silently returns **Gregorian** dates — no

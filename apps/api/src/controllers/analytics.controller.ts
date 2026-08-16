@@ -22,6 +22,16 @@ export const analyticsController = {
     res.json(await analyticsService.trend(from, to));
   },
 
+  async receivablesBridge(req: Request, res: Response) {
+    const from = String(req.query.from ?? "");
+    const to = String(req.query.to ?? "");
+    if (!MONTH.test(from) || !MONTH.test(to)) {
+      throw new BadRequestError("from and to must be YYYY-MM");
+    }
+    if (from > to) throw new BadRequestError("from must not be after to");
+    res.json(await analyticsService.receivablesBridge(from, to));
+  },
+
   async decomposition(req: Request, res: Response) {
     const dimension = String(req.query.dimension ?? "") as Dimension;
     if (!DIMENSIONS.includes(dimension)) {

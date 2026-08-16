@@ -312,6 +312,21 @@ export interface TrendPoint {
   blockers: TrendPointBlockersItem[];
 }
 
+export interface BridgePoint {
+  period: string;
+  opening: number;
+  /** Debits to AR — invoices AND debit notes. A debit note posts like an invoice; it does not reverse. */
+  invoiced: number;
+  /** Credits to AR settled in cash. */
+  collected: number;
+  /** Credits to AR that reversed revenue — credit notes. */
+  credited: number;
+  /** Credits to AR that were neither. A write-off or an offset is not a payment and not a credit note; reporting it separately is the difference between a bridge that understands the movement and one that mislabels it. Normally zero. */
+  other: number;
+  /** Equals the balance-sheet AR figure for the same date. */
+  closing: number;
+}
+
 export type DecompositionDimension = typeof DecompositionDimension[keyof typeof DecompositionDimension];
 
 
@@ -1495,6 +1510,17 @@ period?: string;
 
 export type GetTrendParams = {
 from: string;
+to: string;
+};
+
+export type GetReceivablesBridgeParams = {
+/**
+ * YYYY-MM
+ */
+from: string;
+/**
+ * YYYY-MM
+ */
 to: string;
 };
 

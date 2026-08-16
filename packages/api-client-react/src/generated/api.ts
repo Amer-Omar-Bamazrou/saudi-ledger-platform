@@ -25,6 +25,7 @@ import type {
   Bill,
   BillApproveInput,
   BooksStatus,
+  BridgePoint,
   BudgetLine,
   CaptureResult,
   CaptureUpload,
@@ -44,6 +45,7 @@ import type {
   FiscalYears,
   GetDecompositionParams,
   GetLiquidityParams,
+  GetReceivablesBridgeParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
   GetTrendParams,
@@ -1980,6 +1982,94 @@ export function useGetTrend<TData = Awaited<ReturnType<typeof getTrend>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTrendQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetReceivablesBridgeUrl = (params: GetReceivablesBridgeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/receivables-bridge?${stringifiedParams}` : `/api/analytics/receivables-bridge`
+}
+
+/**
+ * Answers what the "receivables outstanding" stock cannot: a rising AR balance does not say whether you invoiced more or collected less, and those call for opposite responses.
+ * Every term is a debit or a credit on the SAME GL account, so the identity holds by construction rather than by agreement — and `closing` is the balance-sheet AR figure for the same date, for the same reason.
+ * @summary The receivables bridge per month (M19.6): opening + invoiced − collected − credited − other = closing.
+
+ */
+export const getReceivablesBridge = async (params: GetReceivablesBridgeParams, options?: RequestInit): Promise<BridgePoint[]> => {
+
+  return customFetch<BridgePoint[]>(getGetReceivablesBridgeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReceivablesBridgeQueryKey = (params?: GetReceivablesBridgeParams,) => {
+    return [
+    `/api/analytics/receivables-bridge`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetReceivablesBridgeQueryOptions = <TData = Awaited<ReturnType<typeof getReceivablesBridge>>, TError = ErrorType<unknown>>(params: GetReceivablesBridgeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReceivablesBridge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReceivablesBridgeQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReceivablesBridge>>> = ({ signal }) => getReceivablesBridge(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReceivablesBridge>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReceivablesBridgeQueryResult = NonNullable<Awaited<ReturnType<typeof getReceivablesBridge>>>
+export type GetReceivablesBridgeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The receivables bridge per month (M19.6): opening + invoiced − collected − credited − other = closing.
+
+ */
+
+export function useGetReceivablesBridge<TData = Awaited<ReturnType<typeof getReceivablesBridge>>, TError = ErrorType<unknown>>(
+ params: GetReceivablesBridgeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReceivablesBridge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReceivablesBridgeQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
