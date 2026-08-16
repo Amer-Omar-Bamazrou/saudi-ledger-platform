@@ -21,5 +21,7 @@ export interface CashReconciliation {
   items: CashReconciliationItemsItem[];
   /** 🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile. */
   unexplained: number;
+  /** B5 — transfer movement nobody has classified. Distinct from `unexplained`: the itemisation SUCCEEDED and one of its lines is "we do not know", which is a different problem with a different fix (somebody has to say). Surfaced separately so the page can ask for the declaration rather than burying it in a list. */
+  undeclaredTransfers: number;
   points: CashPoint[];
 }

@@ -8,6 +8,7 @@
 import type { TransactionKind } from './transactionKind';
 import type { TransactionReviewStatus } from './transactionReviewStatus';
 import type { TransactionTaxTreatment } from './transactionTaxTreatment';
+import type { TransactionTransferDirection } from './transactionTransferDirection';
 import type { TransactionType } from './transactionType';
 import type { TransactionVatBasis } from './transactionVatBasis';
 
@@ -59,6 +60,16 @@ export interface Transaction {
   vatBasis?: TransactionVatBasis;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * B5 — where a transfer went: `own_account`, `external`, or `null` for
+     * NOT DECLARED. Null is a real state, not a default: only the person
+     * who entered the row knows, and the cash reconciliation reports
+     * undeclared transfers as unknown rather than assuming either way.
+     * @nullable
+     */
+  transferDirection?: TransactionTransferDirection;
+  /** @nullable */
+  counterpartyBankAccountId?: number | null;
   /**
      * M16.3: the invoice this credit settled (kind=settlement).
      * @nullable

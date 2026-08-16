@@ -10,7 +10,9 @@ export type CashReconciliationItemsItemCode = typeof CashReconciliationItemsItem
 
 
 export const CashReconciliationItemsItemCode = {
-  transfers: 'transfers',
+  transfers_own_account: 'transfers_own_account',
+  transfers_external: 'transfers_external',
+  transfers_undeclared: 'transfers_undeclared',
   settlements: 'settlements',
   unposted_legacy: 'unposted_legacy',
   ledger_only: 'ledger_only',

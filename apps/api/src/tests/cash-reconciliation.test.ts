@@ -154,18 +154,54 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     expect(summary.unexplained).toBe(0);
   });
 
-  it("🔴 a TRANSFER moves the bank and not the ledger — named, and the remainder stays 0", async () => {
-    // Deliberate: transfers never post (one writer per effect). The bank
-    // genuinely moved, so the two figures must differ and the difference must
-    // carry this name.
+  it("🔴 an UNDECLARED transfer is reported as undeclared — not assumed either way", async () => {
+    // 🔴 B5's whole point. A transfer with no declared direction must NOT be
+    // silently treated as internal (which would say the ledger is fine) or as
+    // external (which would say the ledger is wrong). Both are assertions
+    // nobody made. It gets its own line, and its own number on the summary.
     await tx({ date: "2026-01-10", amount: 5_000, type: "debit", kind: "transfer" });
 
     const { summary } = await recon();
     expect(summary.bankMovement).toBe(-5_000);
     expect(summary.ledgerCash).toBe(0);
     expect(summary.gap).toBe(-5_000);
-    expect(summary.items.find((i) => i.code === "transfers")?.amount).toBe(-5_000);
+    expect(summary.items.find((i) => i.code === "transfers_undeclared")?.amount).toBe(-5_000);
+    expect(summary.items.find((i) => i.code === "transfers_own_account")).toBeUndefined();
+    expect(summary.items.find((i) => i.code === "transfers_external")).toBeUndefined();
+    expect(summary.undeclaredTransfers, "surfaced so the page can ASK").toBe(-5_000);
     expect(summary.unexplained, "the gap is fully attributed").toBe(0);
+  });
+
+  it("🔴 declaring OWN ACCOUNT says the ledger was right all along", async () => {
+    // Money between the business's own pockets: business cash did not change,
+    // so the ledger's silence is correct and the gap has an innocent cause.
+    await pool.query(
+      `INSERT INTO transactions
+         (organization_id, company_id, date, description, amount, type, kind,
+          review_status, transfer_direction)
+       VALUES ($1,$2,'2026-01-15','own move','2000.00','debit','transfer','accepted','own_account')`,
+      [orgId, companyId],
+    );
+    const { summary } = await recon();
+    expect(summary.items.find((i) => i.code === "transfers_own_account")?.amount).toBe(-2_000);
+    expect(summary.undeclaredTransfers, "unchanged — this one was declared").toBe(-5_000);
+    expect(summary.unexplained).toBe(0);
+  });
+
+  it("🔴 declaring EXTERNAL says the ledger is genuinely understating cash", async () => {
+    // Owner drawings, cash withdrawn and kept: business cash really fell, and
+    // the ledger has no entry for it. Same arithmetic as own_account, opposite
+    // meaning — which is exactly why they cannot share a line.
+    await pool.query(
+      `INSERT INTO transactions
+         (organization_id, company_id, date, description, amount, type, kind,
+          review_status, transfer_direction)
+       VALUES ($1,$2,'2026-01-20','drawings','1000.00','debit','transfer','accepted','external')`,
+      [orgId, companyId],
+    );
+    const { summary } = await recon();
+    expect(summary.items.find((i) => i.code === "transfers_external")?.amount).toBe(-1_000);
+    expect(summary.unexplained).toBe(0);
   });
 
   it("🔴 a SETTLEMENT does the same, under its own name", async () => {
@@ -259,7 +295,8 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
       [orgId, companyId],
     );
     const { summary } = await recon();
-    expect(summary.bankMovement).toBe(-2_000); // −5,000 transfer + 3,000 settlement
+    // −5,000 undeclared − 2,000 own-account − 1,000 external + 3,000 settlement
+    expect(summary.bankMovement).toBe(-5_000);
     expect(summary.unexplained).toBe(0);
   });
 });

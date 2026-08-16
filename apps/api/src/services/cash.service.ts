@@ -55,7 +55,13 @@ export interface CashReconciliation {
   ledgerCash: number;
   gap: number;
   items: Array<{
-    code: "transfers" | "settlements" | "unposted_legacy" | "ledger_only";
+    code:
+      | "transfers_own_account"
+      | "transfers_external"
+      | "transfers_undeclared"
+      | "settlements"
+      | "unposted_legacy"
+      | "ledger_only";
     amount: number;
   }>;
   /**
@@ -65,6 +71,16 @@ export interface CashReconciliation {
    * not reconcile.
    */
   unexplained: number;
+  /**
+   * 🔴 How much transfer movement nobody has classified (B5).
+   *
+   * Separate from `unexplained`, which means the ITEMISATION failed. This means
+   * the itemisation succeeded and one of its lines is "we do not know" — a
+   * different problem with a different fix: somebody has to say. Surfaced as
+   * its own number so the page can ask for the declaration rather than burying
+   * it in a list.
+   */
+  undeclaredTransfers: number;
 }
 
 export const cashService = {
@@ -88,7 +104,13 @@ export const cashService = {
 
     const bankByMonth = new Map<string, number>();
     const postedOperatingByMonth = new Map<string, number>();
-    let transfers = 0;
+    // B5 — transfers split THREE ways, because the three mean different things:
+    //   own_account  the ledger's silence is CORRECT; nothing is wrong here
+    //   external     the ledger is genuinely understating cash movement
+    //   undeclared   nobody has said, and the platform must not guess
+    let transfersOwnAccount = 0;
+    let transfersExternal = 0;
+    let transfersUndeclared = 0;
     let settlements = 0;
     let unpostedLegacy = 0;
     let postedOperating = 0;
@@ -98,7 +120,9 @@ export const cashService = {
       bankByMonth.set(r.month, (bankByMonth.get(r.month) ?? 0) + net);
 
       if (r.kind === "transfer") {
-        transfers += net;
+        if (r.transfer_direction === "own_account") transfersOwnAccount += net;
+        else if (r.transfer_direction === "external") transfersExternal += net;
+        else transfersUndeclared += net;
       } else if (r.kind === "settlement") {
         settlements += net;
       } else if (r.posted) {
@@ -140,7 +164,9 @@ export const cashService = {
 
     const items = (
       [
-        { code: "transfers", amount: round2(transfers) },
+        { code: "transfers_own_account", amount: round2(transfersOwnAccount) },
+        { code: "transfers_external", amount: round2(transfersExternal) },
+        { code: "transfers_undeclared", amount: round2(transfersUndeclared) },
         { code: "settlements", amount: round2(settlements) },
         { code: "unposted_legacy", amount: round2(unpostedLegacy) },
         { code: "ledger_only", amount: round2(-ledgerOnly) },
@@ -148,7 +174,13 @@ export const cashService = {
     ).filter((i) => Math.abs(i.amount) >= 0.005);
 
     const gap = bankMovement - ledgerCash;
-    const explained = transfers + settlements + unpostedLegacy - ledgerOnly;
+    const explained =
+      transfersOwnAccount +
+      transfersExternal +
+      transfersUndeclared +
+      settlements +
+      unpostedLegacy -
+      ledgerOnly;
 
     return {
       points,
@@ -160,6 +192,7 @@ export const cashService = {
         gap: round2(gap),
         items,
         unexplained: round2(gap - explained),
+        undeclaredTransfers: round2(transfersUndeclared),
       },
     };
   },

@@ -114,10 +114,24 @@ export default function Analytics() {
   /** Plain-language name for each reason the two cash figures differ. */
   const gapLabel = (code: string) => {
     switch (code) {
-      case "transfers":
+      // 🔴 B5 — three lines, not one, because they mean three different things.
+      // Own-account says the books are RIGHT; external says the books are
+      // UNDERSTATING cash; undeclared says nobody knows and the platform will
+      // not guess. Collapsing them would hide which of those is the case.
+      case "transfers_own_account":
         return t(
-          "Transfers between your own accounts (the bank moved; the books did not)",
-          "تحويلات بين حساباتك (تحرك البنك ولم تتحرك الدفاتر)",
+          "Moved between your own accounts — your cash did not change, so the books are right",
+          "نُقِل بين حساباتك — لم تتغير نقديتك، فالدفاتر صحيحة",
+        );
+      case "transfers_external":
+        return t(
+          "Left the business — your cash fell, and the books do not show it",
+          "خرج من المنشأة — انخفضت نقديتك، والدفاتر لا تظهر ذلك",
+        );
+      case "transfers_undeclared":
+        return t(
+          "Transfers nobody has classified yet — we cannot tell whether this money left the business",
+          "تحويلات لم يُصنّفها أحد بعد — لا نعرف إن كان هذا المبلغ قد خرج من المنشأة",
         );
       case "settlements":
         return t(
@@ -536,9 +550,24 @@ export default function Analytics() {
                 neither figure is yet CORRECT about transfers, because whether a
                 transfer left the business is not recorded anywhere (queue B5).
               */}
+              {/*
+                🔴 The ASK. An undeclared transfer is not a defect in the
+                figures — it is a question only the tenant can answer, and it is
+                answerable on the Transactions list in one click. Saying so is
+                what turns a caveat into something actionable.
+              */}
+              {Math.abs(cash.undeclaredTransfers) >= 0.005 && (
+                <p className="text-xs mt-3">
+                  {t(
+                    `${formatCurrency(cash.undeclaredTransfers)} of transfers have not been classified. Say whether each moved between your own accounts or left the business, on the Transactions page, and this difference resolves.`,
+                    `لم يُصنّف ${formatCurrency(cash.undeclaredTransfers)} من التحويلات. حدّد لكل منها إن كان انتقل بين حساباتك أم خرج من المنشأة، من صفحة المعاملات، وسيُحلّ هذا الفارق.`,
+                  )}
+                </p>
+              )}
+
               <p className="text-[11px] text-muted-foreground mt-3">
                 {t(
-                  "A transfer between your own accounts and money leaving the business are recorded the same way today, so neither figure can tell them apart. Until that changes, this comparison shows where they differ rather than which is right.",
+                  "Once every transfer says where it went, this comparison can say which figure is right — not just where they differ.",
                   "التحويل بين حساباتك وخروج المال من المنشأة يُسجَّلان بالطريقة نفسها اليوم، لذا لا يستطيع أي من الرقمين التمييز بينهما. وإلى أن يتغير ذلك، تُظهر هذه المقارنة أين يختلفان لا أيهما الصحيح.",
                 )}
               </p>

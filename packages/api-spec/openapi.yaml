@@ -1824,7 +1824,7 @@ components:
 
     CashReconciliation:
       type: object
-      required: [from, to, bankMovement, ledgerCash, gap, items, unexplained, points]
+      required: [from, to, bankMovement, ledgerCash, gap, items, unexplained, undeclaredTransfers, points]
       properties:
         from: { type: string }
         to: { type: string }
@@ -1849,7 +1849,13 @@ components:
             properties:
               code:
                 type: string
-                enum: [transfers, settlements, unposted_legacy, ledger_only]
+                enum:
+                  - transfers_own_account
+                  - transfers_external
+                  - transfers_undeclared
+                  - settlements
+                  - unposted_legacy
+                  - ledger_only
               amount: { type: number }
         unexplained:
           type: number
@@ -1857,6 +1863,14 @@ components:
             🔴 Must be 0. Non-zero means a difference exists that no named cause
             accounts for — returned rather than asserted so the page can say so
             instead of presenting a reconciliation that does not reconcile.
+        undeclaredTransfers:
+          type: number
+          description: >
+            B5 — transfer movement nobody has classified. Distinct from
+            `unexplained`: the itemisation SUCCEEDED and one of its lines is "we
+            do not know", which is a different problem with a different fix
+            (somebody has to say). Surfaced separately so the page can ask for
+            the declaration rather than burying it in a list.
         points:
           type: array
           items:
@@ -2159,6 +2173,16 @@ components:
           enum: [charged, reverse_charge, supplier_unregistered, null]
         bankAccountId:
           type: ["integer", "null"]
+        transferDirection:
+          description: |
+            B5 — where a transfer went: `own_account`, `external`, or `null` for
+            NOT DECLARED. Null is a real state, not a default: only the person
+            who entered the row knows, and the cash reconciliation reports
+            undeclared transfers as unknown rather than assuming either way.
+          type: ["string", "null"]
+          enum: [own_account, external, null]
+        counterpartyBankAccountId:
+          type: ["integer", "null"]
         settlesInvoiceId:
           description: "M16.3: the invoice this credit settled (kind=settlement)."
           type: ["integer", "null"]
@@ -2350,6 +2374,22 @@ components:
             `charged` on a standard-rated row re-extracts it from the gross.
           type: ["string", "null"]
           enum: [charged, reverse_charge, supplier_unregistered, null]
+        transferDirection:
+          description: |
+            B5 — where a transfer went. `own_account` = between accounts of this
+            business (business cash unchanged, so the ledger is right to be
+            silent); `external` = it left the business (cash fell, and the
+            ledger is understating it). `null` means NOT DECLARED — never
+            "external". Only a transfer may carry it.
+          type: ["string", "null"]
+          enum: [own_account, external, null]
+        counterpartyBankAccountId:
+          description: |
+            The destination account, when it is one this product tracks.
+            Optional even for `own_account` — the other account may not be in
+            the system, and requiring it would block the tenant from declaring
+            the fact that matters.
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
         descriptionAr:

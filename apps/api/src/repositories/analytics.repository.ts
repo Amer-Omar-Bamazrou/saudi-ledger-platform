@@ -286,22 +286,27 @@ export const analyticsRepository = {
       month: string;
       kind: string;
       posted: boolean;
+      transfer_direction: string | null;
       net: string;
     }>(sql`
       SELECT to_char(date::date, 'YYYY-MM') AS month,
              kind,
              (journal_entry_id IS NOT NULL) AS posted,
+             -- B5: NULL stays NULL. 'undeclared' is a real answer and must not
+             -- be collapsed into either declared value on its way out.
+             transfer_direction,
              coalesce(sum(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0)::text AS net
         FROM transactions
        WHERE review_status = 'accepted'
          AND date >= ${from}
          AND date <= ${to}
-       GROUP BY 1, 2, 3
+       GROUP BY 1, 2, 3, 4
     `);
     return ((res as unknown as { rows: unknown[] }).rows ?? []) as {
       month: string;
       kind: string;
       posted: boolean;
+      transfer_direction: string | null;
       net: string;
     }[];
   },

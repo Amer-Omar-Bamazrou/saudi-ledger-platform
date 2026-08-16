@@ -62,6 +62,8 @@ function buildTransactionRow(tx: Tx, cat?: Cat | null) {
     taxTreatment: tx.taxTreatment ?? null,
     vatBasis: tx.vatBasis ?? null,
     bankAccountId: tx.bankAccountId ?? null,
+    transferDirection: tx.transferDirection ?? null,
+    counterpartyBankAccountId: tx.counterpartyBankAccountId ?? null,
     settlesInvoiceId: tx.settlesInvoiceId ?? null,
     settlesBillId: tx.settlesBillId ?? null,
     notes: tx.notes ?? null,
@@ -583,6 +585,47 @@ export const transactionsService = {
       }
       // Explicit null = honest-unknown: existing/asserted VAT is kept — a user
       // clearing the classification is not asserting the VAT was wrong.
+    }
+    /**
+     * B5 — the human declaring WHERE a transfer went.
+     *
+     * 🔴 Only a transfer may carry it, and clearing it returns the row to
+     * UNDECLARED rather than to a default. `null` here means "I do not know" —
+     * the same first-class unknown as M17.1's ownership and the fiscal year.
+     * The DB CHECKs (migration 0043) are the real boundary; these are the
+     * named 400s so a mistake is diagnosable instead of a raw constraint error.
+     */
+    if (data.transferDirection !== undefined) {
+      const dir = data.transferDirection ?? null;
+      if (existing.tx.kind !== "transfer") {
+        throw new BadRequestError(
+          "Only a transfer can say where the money went. Change the row's kind first.",
+        );
+      }
+      if (dir !== null && dir !== "own_account" && dir !== "external") {
+        throw new BadRequestError("transferDirection must be own_account, external or null.");
+      }
+      updates.transferDirection = dir;
+      // A counterparty means nothing once the money is declared to have left,
+      // so it goes with the declaration rather than being left to contradict it.
+      if (dir !== "own_account") updates.counterpartyBankAccountId = null;
+    }
+    if (data.counterpartyBankAccountId !== undefined) {
+      const accountId = data.counterpartyBankAccountId ?? null;
+      if (accountId != null) {
+        const declared = data.transferDirection ?? existing.tx.transferDirection;
+        if (declared !== "own_account") {
+          throw new BadRequestError(
+            "A destination account can only be recorded for a transfer between your own accounts.",
+          );
+        }
+        if (accountId === existing.tx.bankAccountId) {
+          throw new BadRequestError("A transfer's destination cannot be the account it left.");
+        }
+        const [account] = await bankAccountsRepository.findById(accountId);
+        if (!account) throw new BadRequestError("That bank account does not exist.");
+      }
+      updates.counterpartyBankAccountId = accountId;
     }
     if (data.notes !== undefined) updates.notes = data.notes ?? null;
     if (data.descriptionAr !== undefined) updates.descriptionAr = data.descriptionAr ?? null;

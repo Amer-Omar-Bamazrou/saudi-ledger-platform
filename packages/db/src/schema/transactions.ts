@@ -178,6 +178,27 @@ export const transactionsTable = pgTable(
     journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, {
       onDelete: "set null",
     }),
+    /**
+     * B5 — WHERE a transfer went. Only meaningful when `kind = 'transfer'`.
+     *
+     * 🔴 `own_account` = between accounts of this business (total business cash
+     * unchanged, so the ledger's silence is correct). `external` = it left the
+     * business (cash fell, and the ledger is understating it). **NULL means NOT
+     * DECLARED** — never "external". The distinction is not derivable from the
+     * amount or the description; only the person entering the row knows, and
+     * only on the day. Enforced by CHECKs in migration 0043, because three
+     * paths write transactions and per-path enforcement is per-path review.
+     */
+    transferDirection: text("transfer_direction"),
+    /**
+     * The destination account, when it is one this product tracks. OPTIONAL
+     * even for `own_account`: the other account may not be in the system, and
+     * requiring it would block the tenant from declaring the fact that actually
+     * matters — whether the money left the business.
+     */
+    counterpartyBankAccountId: integer("counterparty_bank_account_id").references(
+      () => bankAccountsTable.id,
+    ),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
