@@ -138,11 +138,12 @@ export interface Company {
   /** @nullable */
   vatNumber: string | null;
   /**
-     * Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.
+     * Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.
      * @minimum 1
      * @maximum 12
+     * @nullable
      */
-  fiscalYearStart: number;
+  fiscalYearStart: number | null;
   /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
   fiscalCalendar: CompanyFiscalCalendar;
   /**
@@ -194,10 +195,12 @@ export interface UpdateCompanyInput {
   /** @nullable */
   vatNumber?: string | null;
   /**
+     * null withdraws the declaration (M20.0).
      * @minimum 1
      * @maximum 12
+     * @nullable
      */
-  fiscalYearStart?: number;
+  fiscalYearStart?: number | null;
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   ownershipType?: UpdateCompanyInputOwnershipType;
@@ -247,13 +250,16 @@ export const FiscalYearsCalendar = {
 } as const;
 
 export interface FiscalYears {
+  /** M20.0 — false means the tenant has never said when their fiscal year starts. `current` is null and `periods` is empty, so a consumer cannot receive a resolved January year that looks like an answer nobody gave. Reports use a rolling last-12-months in this state, and say so (F11/F13). */
+  declared: boolean;
   calendar: FiscalYearsCalendar;
   /**
      * @minimum 1
      * @maximum 12
+     * @nullable
      */
-  fiscalYearStart: number;
-  current: FiscalPeriod;
+  fiscalYearStart: number | null;
+  current: FiscalPeriod | null;
   /** A window around the current period, newest first. */
   periods: FiscalPeriod[];
 }

@@ -30,7 +30,15 @@ export const companiesTable = pgTable("companies", {
    * Settings page said so out loud. It is now resolved by
    * `lib/fiscalYear.ts` and surfaced per company.
    */
-  fiscalYearStart: integer("fiscal_year_start").notNull().default(1),
+  /**
+     * M20.0 — NULLABLE WITH NO DEFAULT (F8/F10). NULL = the tenant has not
+     * declared a fiscal year, and that is a first-class state: the old
+     * `NOT NULL DEFAULT 1` recorded every untouched company as having chosen
+     * January, which is the schema speaking for the tenant (the M17.1
+     * `ownership_type` lesson). Reports fall back to a rolling last-12-months
+     * while NULL, saying so (F11). Month 1–12 IN `fiscal_calendar`.
+     */
+    fiscalYearStart: integer("fiscal_year_start"),
   /**
    * Which calendar the fiscal year is expressed in — `gregorian` | `hijri`
    * (M17.2, owner decision Q3: both are supported, and robust fiscal-year

@@ -883,16 +883,17 @@ export const listFiscalYearsResponseFiscalYearStartMax = 12;
 
 
 export const ListFiscalYearsResponse = zod.object({
+  "declared": zod.boolean().describe('M20.0 — false means the tenant has never said when their fiscal year starts. `current` is null and `periods` is empty, so a consumer cannot receive a resolved January year that looks like an answer nobody gave. Reports use a rolling last-12-months in this state, and say so (F11\/F13).\n'),
   "calendar": zod.enum(['gregorian', 'hijri']),
-  "fiscalYearStart": zod.number().min(1).max(listFiscalYearsResponseFiscalYearStartMax),
-  "current": zod.object({
+  "fiscalYearStart": zod.number().min(1).max(listFiscalYearsResponseFiscalYearStartMax).nullable(),
+  "current": zod.union([zod.object({
   "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
   "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
   "calendar": zod.enum(['gregorian', 'hijri']),
   "startDate": zod.string().describe('Inclusive, YYYY-MM-DD (Gregorian, the platform\'s storage format).'),
   "endDate": zod.string().describe('Inclusive — the day before the next fiscal year begins.'),
   "days": zod.number().describe('Inclusive day count: 365\/366 Gregorian, 354\/355 Hijri. Computed from the real boundaries, never assumed. It is the input to the Gregorian Zakat rate adjustment — but the RATE is not computed here, because its divisor is unverified (advisor Block C, question C3).\n')
-}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n'),
+}).describe('One fiscal year resolved to concrete dates (M17.2). `label` is the year the period STARTS in, in the company\'s own calendar — a display convention, not a fact, which is why `startDate`, `endDate` and `endYear` are all returned and the UI shows the range beside the label.\n'),zod.null()]),
   "periods": zod.array(zod.object({
   "label": zod.number().describe('Year the period starts in, in the company\'s own calendar (AH for hijri).'),
   "endYear": zod.number().describe('Year the period ends in — so a consumer may label by either end.'),
@@ -917,7 +918,7 @@ export const GetCurrentCompanyResponse = zod.object({
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "buildingNumber": zod.string().nullable(),
@@ -940,7 +941,7 @@ export const UpdateCurrentCompanyBody = zod.object({
   "nameAr": zod.string().nullish(),
   "crNumber": zod.string().nullish(),
   "vatNumber": zod.string().nullish(),
-  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).optional(),
+  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).nullish().describe('null withdraws the declaration (M20.0).'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).optional(),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullish(),
   "buildingNumber": zod.string().nullish(),
@@ -960,7 +961,7 @@ export const UpdateCurrentCompanyResponse = zod.object({
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
   "vatNumber": zod.string().nullable(),
-  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar`. Under `gregorian` 1 = January; under `hijri` 1 = Muharram. Read the two fields together — the calendar changes what this number means.\n'),
+  "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "buildingNumber": zod.string().nullable(),

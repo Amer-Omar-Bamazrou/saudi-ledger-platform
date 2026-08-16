@@ -19,11 +19,11 @@ consumer**. The producer has existed for five milestones with one reader.
 | --- | --- | --- |
 | **F1** | Default window, or picker? | **Both — the DEFAULT FIRST, and it is a BUG, not a feature gap.** |
 | **F2** | Which pages keep arbitrary dates? | **All of them.** Free dates *plus* period shortcuts everywhere; nothing becomes period-only. Balance Sheet gets "as at FY-end" as a shortcut. |
-| **F3** | What a Hijri tenant sees | 🔄 **REOPENED by accountant research (2026-08-16).** ~~Labels and boundaries yes; dates inside reports NO~~ *(superseded — the owner ruled in-table dates out as too expensive for unclear benefit; the accountant says clients want both Hijri and Gregorian dates, so the benefit is real)*. **Not building yet:** owner wants the COST first — every table? headers only? a toggle? — before deciding where the line falls. Labels and boundaries remain in scope regardless. |
+| **F3** | What a Hijri tenant sees | ✅ **DECIDED (2026-08-16, validated by user research).** Headers/period labels with M20.3; **dual display in tables as its own milestone after M20 — at the shared formatters, never per-page**. Dual display over a toggle because the accountant said *both* — a toggle forces choosing one at a time, which is not the ask. Hijri as a secondary line; columns do not double; date INPUTS stay Gregorian. The 16 raw date interpolations get converted to the shared formatter **regardless** — 16 bespoke date renders is the same disease as 20 bespoke date pickers. *(The original "too expensive, out of scope" call was wrong — see the note under §6b.)* |
 | **F4** | Does "FY 2026" mean anything to an SME owner? | ✏️ **CORRECTED by accountant research (2026-08-16).** ~~Months and quarters only; the fiscal picker is the accountant's~~ *(superseded)*. Clients think in **monthly, quarterly AND yearly** terms — the yearly shortcut is a first-class need, not an accountant's tool. And fiscal years genuinely vary: some clients start in January, some in other months, so the Jan–Dec default defect (§2) harms real clients, not hypothetical ones. |
 | **F5** | Twenty bespoke date controls | **Accept the duplication.** Add period support where needed; revisit only if a third pattern appears. |
 | **F6** | Period vs custom dates | **A shortcut, never a mode.** Picking a period sets the dates; they stay editable; the label reverts to "Custom" when touched. |
-| **F7** | Prior-period comparison | 🔄 **REOPENED by accountant research (2026-08-16).** ~~Out of scope~~ *(superseded — ruled out as its own milestone before anyone had asked a user)*. The accountant wants **this-year-vs-last-year and quarterly comparison**. Now a **validated requirement awaiting an estimate and a decision on where it sits** — not scheduled, and still not part of M20. |
+| **F7** | Prior-period comparison | ✅ **DECIDED (2026-08-16, validated by user research).** **The three financial statements only** (income statement, balance sheet, cash flow), this-year-vs-last-year and quarter-vs-quarter, as **one milestone after F3's dual display**. All twenty pages is 3–4× the cost for pages nobody named; if more are wanted later, the pattern will exist. *(The original "out of scope" call was wrong — see the note under §6b.)* |
 | **F8** | Undeclared fiscal year | **NULL is a first-class state** — ask, never silently assume January. Historical periods **keep their original boundaries**; no recomputation. |
 | **F9** | Scope | **Reports only** for now. Analytics stays month-based. |
 | **F10** | Existing `fiscal_year_start` rows | **NULL them all.** `NOT NULL DEFAULT 1` means nobody declared January — the schema asserted it for them. Preserving the value preserves a fiction; an undeclared fact must not look declared. Same call as M17.1's ownership. |
@@ -189,6 +189,13 @@ formatters — never per-page. The 16 raw interpolations get converted to the
 formatter regardless, because 16 bespoke date renders is the same disease as
 20 bespoke date pickers.
 
+**Both estimates were accepted 2026-08-16 and both features are now scheduled
+(see §7). Owner's note, recorded because it is the operating lesson:** the
+original "too expensive" (F3) and "out of scope" (F7) calls **were wrong**, and
+they were made before anyone had asked a user. *"Asking cost less than assuming
+would have."* The same shape as costing an option before verifying its inputs —
+a scoping decision is only as good as the user fact it rests on.
+
 ### F7 — prior-period comparison (validated requirement, per the accountant)
 
 **Backend: ~zero.** Every report service already takes explicit dates; a
@@ -209,21 +216,22 @@ accountant's ask reads as the three statements, not all twenty.
 
 ---
 
-## 7. Build order — 🔴 NOT DECIDED
+## 7. Build order — ✅ APPROVED 2026-08-16 (proposed by Claude, approved with D-first amendment; F3/F7 appended after the accountant research)
 
-**A build order is proposed, not recorded.** The owner's instruction, 2026-08-16:
+The full sequence, in the owner's words: **"M20.0 → M20.3, then F3 dual
+display, then F7 statements, then A, then B4."** (B5/D preceded M20 — expiring
+facts outrank a defect nobody is currently reading.)
 
-> *"Build order is yours to propose, mine to approve — send it as a proposal and
-> I'll say yes or adjust. Don't record a proposal as a decision."*
-
-An earlier revision of this file listed M20.0–M20.3 here as though settled. It
-was not; it was mine. It has been removed rather than annotated, because a
-proposal sitting in a decision record is read later as an agreed decision —
-which is the same failure as closing an interview by deciding the questions the
-owner never answered.
-
-The sequence goes to the owner in conversation. When one is approved, it is
-recorded here **with the date it was approved**.
+| # | Milestone | Content | Gate |
+| --- | --- | --- | --- |
+| **M20.0** | The lying column | `fiscal_year_start` nullable, no default, existing rows NULLed (F10); resolver and endpoint handle NULL; Company Settings asks. | — |
+| **M20.1** | The default (F1) | Every report opens on the tenant's current fiscal year, or a rolling 12 months when undeclared — the report says which (F11, F13). 🔴 Release note required: reports change on open with no user action behind it. | M20.0 |
+| **M20.2** | The shortcuts (F2, F6, F12) | Six shortcuts that SET the dates and stay editable; "Custom" when touched; Balance Sheet gets "as at FY-end". | M20.1 |
+| **M20.3** | Hijri labels (F3, first half) | `FY 1447 (Jun 2025 – Jun 2026)` wherever a period is named. | M20.2 |
+| **F3-dual** | Hijri in tables | Dual display at the shared formatters; the 16 raw interpolations converted first. | M20.3 |
+| **F7-cmp** | Statement comparison | Income statement, balance sheet, cash flow: year-vs-year and quarter-vs-quarter. | F3-dual |
+| **A** | GL owns cash | Transfers post through a contra, built on DECLARED transfer directions (B5). | — |
+| **B4** | `invoice_payments` | Each payment its own dated row, on the existing pay path. | — |
 
 Out of scope regardless (decided): prior-period comparison (F7), Analytics (F9),
 in-table Hijri date conversion (F3).

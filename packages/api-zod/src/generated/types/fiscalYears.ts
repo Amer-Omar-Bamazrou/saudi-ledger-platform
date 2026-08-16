@@ -9,13 +9,16 @@ import type { FiscalPeriod } from './fiscalPeriod';
 import type { FiscalYearsCalendar } from './fiscalYearsCalendar';
 
 export interface FiscalYears {
+  /** M20.0 — false means the tenant has never said when their fiscal year starts. `current` is null and `periods` is empty, so a consumer cannot receive a resolved January year that looks like an answer nobody gave. Reports use a rolling last-12-months in this state, and say so (F11/F13). */
+  declared: boolean;
   calendar: FiscalYearsCalendar;
   /**
      * @minimum 1
      * @maximum 12
+     * @nullable
      */
-  fiscalYearStart: number;
-  current: FiscalPeriod;
+  fiscalYearStart: number | null;
+  current: FiscalPeriod | null;
   /** A window around the current period, newest first. */
   periods: FiscalPeriod[];
 }
