@@ -239,6 +239,16 @@ These are short forms; the rules are binding, the history explains why.
 - **External validators check the weakest property they plausibly could** (the
   PIH/base64 lesson). Validate meaning locally; never infer correctness from an
   accepted submission.
+- **🔴 COST AN OPTION AFTER VERIFYING ITS INPUTS EXIST, NOT BEFORE** (the cash
+  decision, 2026-08-16). "GL owns cash; transfers post through a contra account"
+  was offered as a lean and costed as moderate — before anyone checked whether
+  the platform records **where a transfer went**. It does not. Built on today's
+  data that option would manufacture a clearing balance for every transfer,
+  including the genuinely internal ones it was meant to leave alone. The cost
+  estimate was not slightly low; it was **about a different feature**. Before
+  recommending an approach, name the inputs it consumes and grep for each —
+  the same discipline standing-check part 2 applies to a milestone, applied to
+  a PROPOSAL.
 - **🔴 A STUB IS THE PART THAT NEEDED TESTING** (B3). When a capability is
   implemented for one backend and stubbed for the others, the passing tests
   prove nothing — the suite ran on the backend that worked. Test the branch you
@@ -445,6 +455,7 @@ not, and an unwired alarm is the thing B2 exists to prevent.
 | # | Item | Why it cannot wait |
 | --- | --- | --- |
 | **B4** | 🔴 **`invoice_payments` — payment history is being LOST PERMANENTLY, right now.** A payment writes `invoices.paid_amount` (a running total) and `invoices.paid_at` (only the LAST payment's date). A second partial payment overwrites the first one's date and leaves no trace of it. The GL keeps the movement, but nothing ties it to the instalment. **Add a `invoice_payments` table (and the AP twin) that records each payment as its own dated row**, written by `invoicesService.pay` / `billsService.pay` on the existing path — not a second posting path. | 🔴 **This is not "important", it is EXPIRING.** Every other queue item describes a state that can be fixed whenever it is reached; this one describes information that stops existing the moment a second payment lands. A running total with one date is **not reconstructible** — no migration, no backfill, no amount of later care recovers which instalment arrived when. It is cheap today (no customers, no migration burden, §2's "reversals are cheap right now") and **impossible after the first tenant onboards**. Every day of delay is a permanent, silent loss.<br><br>**What it unblocks once it exists:** the overdue share over time (M19.6 could not build it — see design-analytics §6.1), collection-speed and days-sales-outstanding trends, and any audit question of the form "when was this actually paid". |
+| **B5** | 🔴 **A TRANSFER DOES NOT RECORD WHERE THE MONEY WENT — and that is the fact that decides whether it is cash.** `transactions.bank_account_id` records which account a transfer LEFT; there is no destination field and no pairing. So the platform cannot distinguish **money moving between two of my own accounts** (total cash unchanged — not posting is correct) from **money leaving the tracked estate** (owner drawings, cash withdrawn and kept — total cash fell, and not posting is WRONG). Both are `kind: transfer`. **Add a nullable `counterparty_bank_account_id`:** set ⇒ own-account transfer, a true no-op; NULL ⇒ it left, and it can post correctly. | 🔴 **Same expiring shape as B4.** Whether a past transfer was internal is knowable only to the person entering it, on the day — it is not derivable from the amount, the description, or anything else the row holds. The dev org's transfers net **−28,300**, which says they were not own-account pairs, but only because someone can still be asked.<br><br>**This is the input the cash-ownership decision needs** (design-analytics §6.1): option A — GL owns cash, transfers post through a contra — was costed *before* checking this, and on today's data would manufacture a clearing balance for every transfer, including the genuinely internal ones. **D (this) before A.** |
 
 **C. Verification and coverage gaps:**
 

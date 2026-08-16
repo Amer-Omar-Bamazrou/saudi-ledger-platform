@@ -1359,3 +1359,86 @@ repo. `ArchiveStore` (`local-fs` vs `supabase-storage`), `KeyWrapper`
 has never executed at all), `MailProvider`, the alerter. Each is a place where
 the tested path and the deployed path can differ, and only one of them is
 watched.
+
+---
+
+### 🔴 NAMED PATTERN (2026-08-16, after the second instance): FACTS ABOUT INTENT EXPIRE AT ENTRY
+
+Two queue items (**B4**, **B5**) turned out to share a shape that no other item
+in the pre-production queue has, and it is worth naming because the response to
+it is different.
+
+> **A fact about what the user MEANT is knowable only while they are recording
+> the transaction. If the schema has no column for it, it is not "missing" — it
+> is DESTROYED, and no migration, backfill or later care recovers it.**
+
+**B4 — `invoice_payments`.** A payment writes `invoices.paid_amount` (a running
+total) and `invoices.paid_at` (only the LAST payment's date). A second partial
+payment overwrites the first one's date and leaves no trace of it. The GL keeps
+the movement; nothing ties it to the instalment.
+
+**B5 — a transfer's destination.** `transactions.bank_account_id` records which
+account a transfer LEFT. There is no destination field. So "money between two of
+my own accounts" (total cash unchanged) and "money that left the tracked estate"
+(total cash fell) are the same row, and only the person who entered it knows
+which.
+
+#### Why this is a different KIND of queue item
+
+Every other entry in the pre-production queue describes a **state**: a missing
+guard, an unverified assumption, an unwired alarm. States wait. You can fix
+them in any order, and the cost of waiting is risk, not loss.
+
+These describe **information**, and it is being destroyed at a rate proportional
+to use. Waiting does not preserve the option to fix it later — it removes the
+option, one transaction at a time. The distinction matters because the queue's
+own framing ("nothing here blocks ordinary platform work") is true of every
+other item and **false of these two**.
+
+#### The rule
+
+> **When a column stores a RESULT where the user knew a REASON, ask what the
+> reason was and whether it is recoverable. If it is not, the schema change is
+> urgent in a way that has nothing to do with how important the feature is.**
+
+Search shape for a third instance — a running total that replaced its own
+history, a status that replaced the event that set it, a classification that
+replaced the choice behind it, a "kind" that names a category but not the
+distinction WITHIN it that changes the accounting.
+
+**Why it is cheap right now, and only right now:** §2's standing note — there
+are no customers, so schema changes carry no migration burden and no one to
+notify. That note was written to justify *renames and reversals*. It applies
+with far more force here, because the alternative is not a harder migration
+later; it is no migration at all.
+
+---
+
+### 🔴 NAMED LESSON (2026-08-16): COST AN OPTION AFTER VERIFYING ITS INPUTS EXIST
+
+While presenting cash-ownership options I offered a lean — *"the GL owns cash,
+with transfers posting through a contra account"* — and costed it as moderate:
+a migration, a change to the posting path, a rewrite of one report.
+
+Costing it properly meant reading the posting service, which says plainly why
+transfers do not post: *"a transfer between own accounts is Dr Cash / Cr Cash
+under a single cash account — a no-op that would only add noise."* Correct — for
+an own-account transfer. And then the question that had not been asked: **how
+does the platform know it is an own-account transfer?** It does not. There is no
+destination field (B5).
+
+So the recommended option, built on the data that exists, would have created a
+clearing balance for **every** transfer — including the genuinely internal ones
+it was specifically designed to leave alone. The estimate was not slightly low.
+It was **an estimate of a different feature**.
+
+#### The rule
+
+> **Before recommending an approach, name the inputs it consumes and grep for
+> each one.** Standing-check part 2 asks whether every field a MILESTONE depends
+> on has a real writer. The same question belongs on a PROPOSAL, before the
+> number attached to it becomes the thing being compared.
+
+An option's cost is only meaningful relative to inputs that exist. A lean stated
+before that check is a preference, not a recommendation — and it will be read as
+a recommendation.
