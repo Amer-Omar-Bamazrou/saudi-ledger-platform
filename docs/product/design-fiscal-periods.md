@@ -22,6 +22,10 @@ consumer**. The producer has existed for five milestones with one reader.
 | **F7** | Prior-period comparison | **OUT OF SCOPE.** Two-column layouts across every report is its own milestone. |
 | **F8** | Undeclared fiscal year | **NULL is a first-class state** — ask, never silently assume January. Historical periods **keep their original boundaries**; no recomputation. |
 | **F9** | Scope | **Reports only** for now. Analytics stays month-based. |
+| **F10** | Existing `fiscal_year_start` rows | **NULL them all.** `NOT NULL DEFAULT 1` means nobody declared January — the schema asserted it for them. Preserving the value preserves a fiction; an undeclared fact must not look declared. Same call as M17.1's ownership. |
+| **F11** | Default while undeclared | **Rolling last-12-months**, and the page says so — a rolling window asserts nothing about the tenant's year. 🔴 The message must be **specific enough to act on** ("your financial year hasn't been set — showing the last 12 months"), never a passive caveat. |
+| **F12** | Shortcut list and order | **This month / Last month / This quarter / Last quarter / This fiscal year / Last fiscal year.** Fiscal shortcuts go LAST because they are the accountant's, not the owner's (F4). **"Fiscal year to date" is dropped** — it is the one an accountant asks for, and it is expressible with custom dates. |
+| **F13** | Where the undeclared prompt appears | **Company Settings, and inline on a report that is using the rolling window** — on that report, saying why. **Not a session-wide banner:** a persistent nag is noise. |
 
 ---
 
@@ -60,18 +64,21 @@ asserting the thing F8 says the platform must not assert.
 `ownership_type` treatment:
 
 - make `fiscal_year_start` **nullable with NO default**,
-- 🔴 decide what happens to existing rows. Every current row holds `1`, and
-  that `1` is indistinguishable from a deliberate January declaration. There are
-  no customers, so the honest move is to **NULL them all** and let the (two)
-  real tenants re-declare — a backfill that preserves the value would preserve a
-  fiction.
+- **NULL every existing row (F10, owner-decided).** Each holds `1`, and that
+  `1` is indistinguishable from a deliberate January declaration — so it is not
+  data, it is the schema having spoken for the tenant. A backfill preserving the
+  value would preserve a fiction.
 - treat NULL as "not declared" everywhere the resolver is called.
 
 **What reports do while it is NULL** — the decision F8 forces, stated so it is
 not resolved by drift later:
 
-> The default window falls back to a **rolling last-12-months**, and the page
-> says the fiscal year has not been declared, with a link to Company Settings.
+> The default window falls back to a **rolling last-12-months** (F11), and the
+> report **using** that window says so, in words specific enough to act on —
+> *"your financial year hasn't been set — showing the last 12 months"* — with a
+> link to Company Settings. Not a passive caveat, and not a session-wide banner
+> (F13): a persistent nag is noise, and the place to say it is the report whose
+> figures the choice is shaping.
 
 A rolling window asserts nothing about anyone's fiscal year, which is the whole
 point. Defaulting to January "just for the default" would reintroduce §2's
@@ -136,13 +143,21 @@ than about five pages — extract then, with the shapes already known.
 
 ---
 
-## 7. Build order (not started)
+## 7. Build order — 🔴 NOT DECIDED
 
-| # | Milestone | Content | Gate |
-| --- | --- | --- | --- |
-| **M20.0** | The lying column | `fiscal_year_start` nullable, no default, existing rows NULLed; resolver and endpoint handle NULL; Company Settings asks. | — |
-| **M20.1** | The default (F1) | Every report opens on the tenant's **current fiscal year**, or a rolling 12 months when undeclared — with the page saying which. | M20.0 |
-| **M20.2** | The shortcut (F2, F6) | Period shortcuts that SET the dates and leave them editable; "Custom" when touched. Balance Sheet gets "as at FY-end". | M20.1 |
-| **M20.3** | Hijri labels (F3) | `FY 1447 (Jun 2025 – Jun 2026)` where a period is named. Dates inside tables unchanged. | M20.2 |
+**A build order is proposed, not recorded.** The owner's instruction, 2026-08-16:
 
-Out: prior-period comparison (F7), Analytics (F9), in-table date conversion (F3).
+> *"Build order is yours to propose, mine to approve — send it as a proposal and
+> I'll say yes or adjust. Don't record a proposal as a decision."*
+
+An earlier revision of this file listed M20.0–M20.3 here as though settled. It
+was not; it was mine. It has been removed rather than annotated, because a
+proposal sitting in a decision record is read later as an agreed decision —
+which is the same failure as closing an interview by deciding the questions the
+owner never answered.
+
+The sequence goes to the owner in conversation. When one is approved, it is
+recorded here **with the date it was approved**.
+
+Out of scope regardless (decided): prior-period comparison (F7), Analytics (F9),
+in-table Hijri date conversion (F3).
