@@ -43,6 +43,7 @@ export * from './decompositionContributorsItem';
 export * from './decompositionCurrent';
 export * from './decompositionDimension';
 export * from './decompositionPrior';
+export * from './deploymentBanner';
 export * from './errorResponse';
 export * from './financialSummary';
 export * from './fiscalPeriod';

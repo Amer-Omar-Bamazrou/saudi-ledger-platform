@@ -49,6 +49,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /deployment:
+    get:
+      operationId: getDeploymentBanner
+      tags: [health]
+      summary: What kind of deployment is this
+      description: >
+        PUBLIC and unauthenticated on purpose: the demo banner has to appear on
+        the LOGIN page, before anyone has a session. Server-driven so the claim
+        cannot drift from the deployment that makes it — a banner compiled into
+        the frontend would keep saying "demo" on a build promoted elsewhere.
+      responses:
+        "200":
+          description: Deployment descriptor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentBanner"
+
   /transactions:
     get:
       operationId: listTransactions
@@ -1376,6 +1394,34 @@ components:
           type: string
       required:
         - status
+
+    DeploymentBanner:
+      type: object
+      description: >
+        `demoMode: false` on a normal deployment, and the frontend renders
+        nothing. Both languages are returned together because the banner is a
+        claim about the DEPLOYMENT, not a UI string — it must read identically
+        whichever language the viewer has selected.
+      properties:
+        demoMode:
+          type: boolean
+        messageEn:
+          type: ["string", "null"]
+        messageAr:
+          type: ["string", "null"]
+        lastResetAt:
+          type: ["string", "null"]
+          format: date-time
+          description: >
+            When the weekly wipe last SUCCEEDED. Null means it has not run since
+            this deployment started. The banner shows it because "data is wiped
+            weekly" is a promise, and an unverifiable promise about data
+            deletion is the kind of claim that should not be made at all.
+        nextResetAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - demoMode
 
     ErrorResponse:
       type: object

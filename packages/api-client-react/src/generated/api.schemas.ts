@@ -9,6 +9,24 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * `demoMode: false` on a normal deployment, and the frontend renders nothing. Both languages are returned together because the banner is a claim about the DEPLOYMENT, not a UI string — it must read identically whichever language the viewer has selected.
+ */
+export interface DeploymentBanner {
+  demoMode: boolean;
+  /** @nullable */
+  messageEn?: string | null;
+  /** @nullable */
+  messageAr?: string | null;
+  /**
+     * When the weekly wipe last SUCCEEDED. Null means it has not run since this deployment started. The banner shows it because "data is wiped weekly" is a promise, and an unverifiable promise about data deletion is the kind of claim that should not be made at all.
+     * @nullable
+     */
+  lastResetAt?: string | null;
+  /** @nullable */
+  nextResetAt?: string | null;
+}
+
 export interface ErrorResponse {
   error: string;
 }

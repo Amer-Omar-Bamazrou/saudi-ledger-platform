@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { storeScanData } from "@/lib/scanReviewStore";
+import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -98,6 +99,7 @@ export default function Bills() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const { demoMode } = useDeployment();
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [postReviewOpen, setPostReviewOpen] = useState<Bill | null>(null);
   const [postDebitAccount, setPostDebitAccount] = useState<string>(DEFAULT_EXPENSE_ACCOUNT);
@@ -243,10 +245,18 @@ export default function Bills() {
           <p className="text-muted-foreground text-sm mt-1">{t("Vendor bills · Accounts Payable", "فواتير الموردين · الذمم الدائنة")}</p>
         </div>
         <div className="flex gap-2">
-          {/* Scan Receipt button */}
-          <Button variant="outline" className="gap-2" onClick={() => setScanOpen(true)}>
-            <ScanLine className="w-4 h-4" /> {t("Scan Receipt", "مسح الإيصال")}
-          </Button>
+          {/*
+            Scan Receipt — hidden on the demo, where POST /capture is refused
+            at the route (D3). Capture is the one act a demo could make
+            IRREVERSIBLE: a promoted photograph lands in an archive with no
+            delete by design, and PDPL is still unanswered (queue C8). The
+            button goes with the capability, not instead of it.
+          */}
+          {!demoMode && (
+            <Button variant="outline" className="gap-2" onClick={() => setScanOpen(true)}>
+              <ScanLine className="w-4 h-4" /> {t("Scan Receipt", "مسح الإيصال")}
+            </Button>
+          )}
 
           {/* New Bill dialog */}
           <Dialog open={open} onOpenChange={setOpen}>

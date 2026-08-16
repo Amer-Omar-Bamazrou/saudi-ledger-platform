@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
+import { DemoBanner } from '@/components/DemoBanner';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
@@ -217,6 +218,15 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <LanguageProvider>
+            {/*
+              OUTSIDE AuthProvider and above the Router, so the banner renders
+              on the login page too (D7 — "every page including login"). Placing
+              it inside Layout would have covered only authenticated pages,
+              which is exactly where a demo notice is least needed: the person
+              deciding whether to trust these numbers sees the login screen
+              first.
+            */}
+            <DemoBanner />
             <AuthProvider>
               <Router />
             </AuthProvider>

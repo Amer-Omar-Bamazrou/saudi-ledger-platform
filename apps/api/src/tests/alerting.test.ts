@@ -22,7 +22,12 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ownerDb, pool } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { __setAlerterForTests, webhookAlerter, type Alert } from "../lib/alerter";
-import { alarmsService, ALARM_OUTBOX_OVERDUE, ALARM_PCSID_EXPIRING } from "../services/alerting/alarms.service";
+import {
+  alarmsService,
+  ALL_ALARM_KEYS,
+  ALARM_OUTBOX_OVERDUE,
+  ALARM_PCSID_EXPIRING,
+} from "../services/alerting/alarms.service";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -146,7 +151,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   it("a quiet platform pages nobody", async () => {
     await pool.query(`UPDATE einvoice_documents SET status = 'accepted' WHERE status IN ('pending','failed','submitting')`);
     const r = await alarmsService.runOnce();
-    expect(r.evaluated).toBe(2);
+    expect(r.evaluated).toBe(ALL_ALARM_KEYS.length);
     expect(r.paged).toEqual([]);
     expect(fired).toEqual([]);
   });
@@ -201,10 +206,12 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   });
 
   it("an alarm whose evaluation throws does not stop the other alarms", async () => {
-    // Both alarms are always evaluated; the count proves the loop completed
-    // even though this database may have no ZATCA credentials at all.
+    // EVERY alarm is always evaluated; the count proves the loop completed
+    // even though this database may have no ZATCA credentials at all. Asserted
+    // against the exported key list, not a literal — a hard-coded 2 silently
+    // became wrong the day a third alarm was added.
     const r = await alarmsService.runOnce();
-    expect(r.evaluated).toBe(2);
+    expect(r.evaluated).toBe(ALL_ALARM_KEYS.length);
   });
 
   it("the certificate alarm key exists and is distinct from the outbox one", () => {

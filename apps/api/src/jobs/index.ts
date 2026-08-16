@@ -15,6 +15,7 @@ import { renewalService } from "../services/einvoice/renewal/renewal.service";
 import { capturePromotionService } from "../services/capture/promotion.service";
 import { recurringGenerationService } from "../services/recurring/generation.service";
 import { alarmsService } from "../services/alerting/alarms.service";
+import { demoResetJob } from "../services/demo/demoResetJob.service";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
@@ -23,6 +24,7 @@ export const JOB_CAPTURE_PROMOTION = "capture-promotion";
 export const JOB_CAPTURE_PURGE = "capture-purge";
 export const JOB_RECURRING = "recurring-documents";
 export const JOB_ALARMS = "platform-alarms";
+export const JOB_DEMO_RESET = "demo-reset";
 
 let scheduler: JobScheduler | null = null;
 
@@ -103,6 +105,21 @@ export function buildScheduler(): JobScheduler {
       name: JOB_ALARMS,
       intervalMs: 5 * 60_000,
       runOnce: () => alarmsService.runOnce(),
+    },
+    {
+      // DEMO ONLY (D6/D9). Hourly, and `scheduled` only under DEMO_MODE — the
+      // job is registered unconditionally so `runNow` works for a manual reset
+      // and so a test can exercise it, but its timer never starts on a normal
+      // deployment.
+      //
+      // Hourly rather than weekly because DUE-NESS is read from the recorded
+      // runs, not counted by this interval: the job asks "has a full interval
+      // passed since the last SUCCESSFUL reset?" and hourly only decides how
+      // soon after that moment the answer is acted on.
+      name: JOB_DEMO_RESET,
+      intervalMs: 60 * 60_000,
+      runOnce: () => demoResetJob.runOnce(),
+      scheduled: env.DEMO_MODE,
     },
   ];
 

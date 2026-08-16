@@ -30,9 +30,34 @@ import { alerter, type Alert } from "../../lib/alerter";
 import { logger } from "../../lib/logger";
 import { einvoiceOutboxRepository } from "../../repositories/einvoiceOutbox.repository";
 import { renewalService, REMINDER_THRESHOLDS_DAYS } from "../einvoice/renewal/renewal.service";
+import { lastSuccessfulReset, demoTenantCreatedAt } from "../demo/demoReset.service";
 
 export const ALARM_OUTBOX_OVERDUE = "outbox-overdue";
 export const ALARM_PCSID_EXPIRING = "pcsid-expiring";
+/**
+ * DEMO ONLY (D9). Evaluated to a no-op unless `DEMO_MODE`, and it is here
+ * rather than in the demo code because this is where quiet neglect gets a voice
+ * — and a stalled demo reset is exactly that shape: nothing errors, the page
+ * keeps loading, and the banner keeps promising a weekly wipe that stopped
+ * happening. The alarm is what turns "we schedule a reset" into "the reset
+ * happened", which is the difference between a claim and a fact.
+ */
+export const ALARM_DEMO_RESET_OVERDUE = "demo-reset-overdue";
+
+/**
+ * Every condition this service evaluates.
+ *
+ * Exported so tests assert "the loop completed" against THIS LIST rather than
+ * against a literal 2 — a hard-coded count is a figure derived from reasoning,
+ * and it went stale the moment a third alarm was added (which is exactly how it
+ * was found). The list is still hand-maintained alongside the array below; what
+ * it removes is the count drifting silently in two files at once.
+ */
+export const ALL_ALARM_KEYS = [
+  ALARM_OUTBOX_OVERDUE,
+  ALARM_PCSID_EXPIRING,
+  ALARM_DEMO_RESET_OVERDUE,
+] as const;
 
 export interface AlarmRunResult {
   evaluated: number;
@@ -172,6 +197,71 @@ export const alarmsService = {
           env.ALERT_REPEAT_HOURS,
         );
         if (paged) result.paged.push(ALARM_PCSID_EXPIRING);
+      },
+
+      // ── 3. Demo reset overdue (DEMO_MODE only) ─────────────────────────
+      async () => {
+        if (!env.DEMO_MODE) {
+          // Not a demo: make sure a stale row from a previous configuration
+          // does not keep paging. Clearing is cheap and no-ops when absent.
+          if (await clearIfPresent(ALARM_DEMO_RESET_OVERDUE, "Not a demo deployment")) {
+            result.resolved.push(ALARM_DEMO_RESET_OVERDUE);
+          }
+          return;
+        }
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const last = await lastSuccessfulReset();
+        const intervalDays = env.DEMO_RESET_INTERVAL_DAYS;
+        // One interval to fall due, plus a full day of grace before paging —
+        // the job runs hourly, so a day late means it is not running at all,
+        // not that it is running slightly behind.
+        const overdueAfterDays = intervalDays + 1;
+        const ageDays =
+          last === null ? null : Math.floor((Date.now() - last.getTime()) / DAY_MS);
+
+        // "Never reset" is NOT an alarm on its own — a demo deployed today has
+        // legitimately never reset. The clock starts when the demo TENANT was
+        // created, which is the moment the banner started making the claim.
+        // (Deriving it from the tenant rather than from a recorded attempt also
+        // catches the worst case: a job that never ran even once, and so left
+        // no attempt behind to measure.)
+        const tenantAge = await demoTenantCreatedAt();
+        const neverButOverdue =
+          last === null &&
+          tenantAge !== null &&
+          Date.now() - tenantAge.getTime() > overdueAfterDays * DAY_MS;
+
+        if (!neverButOverdue && (ageDays === null || ageDays < overdueAfterDays)) {
+          if (
+            await clearIfPresent(ALARM_DEMO_RESET_OVERDUE, "Demo reset is running on schedule")
+          ) {
+            result.resolved.push(ALARM_DEMO_RESET_OVERDUE);
+          }
+          return;
+        }
+
+        result.firing.push(ALARM_DEMO_RESET_OVERDUE);
+        const paged = await fireIfDue(
+          {
+            key: ALARM_DEMO_RESET_OVERDUE,
+            severity: "warning",
+            title:
+              last === null
+                ? "Demo reset has NEVER succeeded"
+                : `Demo reset is ${ageDays} days old (interval ${intervalDays}d)`,
+            detail:
+              `The demo banner tells every viewer the sample data is wiped every ${intervalDays} days. ` +
+              `That claim is now false: ` +
+              (last === null
+                ? `no reset has ever completed successfully.`
+                : `the last successful reset was ${ageDays} days ago.`) +
+              ` Check demo_reset_runs for the failing run's detail — a refusal means DEMO_MODE is set ` +
+              `on a database holding tenants that are not the demo, which is the more serious case.`,
+            context: { lastSuccessfulReset: last?.toISOString() ?? null, intervalDays },
+          },
+          env.ALERT_REPEAT_HOURS,
+        );
+        if (paged) result.paged.push(ALARM_DEMO_RESET_OVERDUE);
       },
     ];
 

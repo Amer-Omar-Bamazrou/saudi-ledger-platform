@@ -57,6 +57,14 @@ const IDENTITY_LAYER = [
   // operational metadata (onboarding state, certificate expiry) and never a
   // tenant's financial data — the M11.3 boundary.
   join("services", "operatorZatca.service.ts"),
+  // PROVISIONING, the same layer `packages/db/seed.ts` and the signup service
+  // work at: it CREATES the demo organization, its company, its user and the
+  // membership, before any of them exist to be scoped by. It runs on the base
+  // connection outside any request, and it writes exactly one organization —
+  // the demo, keyed by slug. The business half of the seed (invoices, bills,
+  // budgets) runs inside `beginTenantConnection` through the ordinary services
+  // and touches none of these tables.
+  join("services", "demo", "demoSeed.service.ts"),
 ];
 
 const FORBIDDEN = ["organizationsTable", "usersTable", "organizationMembershipsTable"];

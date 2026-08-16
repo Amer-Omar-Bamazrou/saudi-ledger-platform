@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDeployment } from "@/hooks/useDeployment";
 import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import {
@@ -125,6 +126,13 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
   },
 ];
 
+/**
+ * Routes the demo refuses at the server, so their nav entries go too.
+ * `/zatca` — onboarding would take real taxpayer credentials (D5).
+ * Document capture has no nav entry of its own; its button lives on Bills.
+ */
+const DEMO_HIDDEN = new Set(["/zatca"]);
+
 const ROLE_COLOR: Record<string, string> = {
   admin:      "bg-amber-500/20 text-amber-400 border-amber-500/30",
   accountant: "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -191,6 +199,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLanguage();
+  const { demoMode } = useDeployment();
+
+  /**
+   * On the demo, drop the nav entries whose routes the server refuses (D3/D5).
+   * The refusal is the real control — this only keeps the sidebar honest, so a
+   * deliberately narrowed demo does not read as a product full of dead links.
+   */
+  const visible = (i: NavItem) => !i.href || !DEMO_HIDDEN.has(i.href);
+  const navGroups = demoMode
+    ? navGroupsData
+        .map((g) => ({
+          ...g,
+          // Nested items too: a hidden route inside a collapsible group is
+          // still a dead link.
+          items: g.items
+            .filter(visible)
+            .map((i) => (i.children ? { ...i, children: i.children.filter(visible) } : i)),
+        }))
+        .filter((g) => g.items.length > 0)
+    : navGroupsData;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -213,7 +241,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto">
-          {navGroupsData.map(g => (
+          {navGroups.map(g => (
             <NavGroup key={g.label} group={g} location={location} lang={lang} />
           ))}
         </nav>

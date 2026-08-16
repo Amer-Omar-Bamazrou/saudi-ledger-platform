@@ -18,6 +18,19 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * PUBLIC and unauthenticated on purpose: the demo banner has to appear on the LOGIN page, before anyone has a session. Server-driven so the claim cannot drift from the deployment that makes it — a banner compiled into the frontend would keep saying "demo" on a build promoted elsewhere.
+ * @summary What kind of deployment is this
+ */
+export const GetDeploymentBannerResponse = zod.object({
+  "demoMode": zod.boolean(),
+  "messageEn": zod.string().nullish(),
+  "messageAr": zod.string().nullish(),
+  "lastResetAt": zod.coerce.date().nullish().describe('When the weekly wipe last SUCCEEDED. Null means it has not run since this deployment started. The banner shows it because \"data is wiped weekly\" is a promise, and an unverifiable promise about data deletion is the kind of claim that should not be made at all.\n'),
+  "nextResetAt": zod.coerce.date().nullish()
+}).describe('`demoMode: false` on a normal deployment, and the frontend renders nothing. Both languages are returned together because the banner is a claim about the DEPLOYMENT, not a UI string — it must read identically whichever language the viewer has selected.\n')
+
+
+/**
  * @summary List all transactions
  */
 export const ListTransactionsQueryParams = zod.object({

@@ -75,6 +75,32 @@ app.use(
 
 app.use("/api", router);
 
+/**
+ * OPTIONALLY serve the built frontend from this process (`SERVE_WEB_DIST`).
+ *
+ * 🔴 Default OFF, and unset everywhere today — this changes nothing for any
+ * existing deployment. It exists because a single-origin deployment is
+ * materially SAFER for this app than a split one, not merely cheaper: auth is
+ * an httpOnly session cookie, and splitting the frontend onto its own origin
+ * forces `SameSite=None` plus a credentialed CORS allow-list — loosening two
+ * cookie protections to solve a hosting-layout problem. Same origin keeps
+ * `sameSite: strict` and needs no CORS entry at all.
+ *
+ * Mounted AFTER `/api` so a route can never be shadowed by a file, and the SPA
+ * fallback deliberately excludes `/api` so an unknown endpoint still returns
+ * the API's 404 JSON rather than an HTML page a fetch caller cannot parse.
+ */
+if (env.SERVE_WEB_DIST) {
+  const dist = env.SERVE_WEB_DIST;
+  app.use(express.static(dist, { index: false }));
+  app.get(/^(?!\/api\/).*/, (_req, res, next) => {
+    res.sendFile("index.html", { root: dist }, (err) => {
+      if (err) next(err);
+    });
+  });
+  logger.info({ dist }, "serving the web build from this process");
+}
+
 // Centralized error handler — must be registered last, after the router.
 app.use(errorHandler);
 
