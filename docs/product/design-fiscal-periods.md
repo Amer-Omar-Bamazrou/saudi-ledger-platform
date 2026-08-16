@@ -158,6 +158,57 @@ than about five pages — extract then, with the shapes already known.
 
 ---
 
+## 6b. F3 and F7 — costs, measured not guessed (2026-08-16)
+
+**Estimates, not decisions.** The owner asked for costs before deciding; these
+are recorded so the numbers survive the conversation. Grounded in counts, per
+the cost-an-option-after-verifying-inputs lesson.
+
+### F3 — Hijri dates inside reports
+
+**The inputs exist.** Browsers ship full ICU, so
+`Intl.DateTimeFormat('…-u-ca-islamic-umalqura')` renders Umm al-Qura
+client-side with no API change (probed: 1 Muharram 1447 = 26 Jun 2025 — the
+same externally-checkable fact as the M17.2 boot assertion, because "it didn't
+throw" is not evidence).
+
+**The cost driver is call sites, counted:** 35 date renders already route
+through the two shared formatters (`formatDate` / `fmtDate`, 27 pages); 16 more
+are raw `{tx.date}` interpolations (14 pages) that would need converting to the
+formatter first. ≈ 50 touch points, almost all mechanical.
+
+| Line | What it is | Cost | What it does NOT give |
+| --- | --- | --- | --- |
+| **Headers/period labels only** | Already the M20.3 plan | ~free (in M20.3) | Not what the accountant asked for — tables stay Gregorian. |
+| **Dual display via the shared formatters** | Make the formatters calendar-aware (company `fiscal_calendar` via a hook/context); convert the 16 raw sites; render Hijri as a secondary small line/tooltip so columns do not double in width | **~3–5 days** | Date INPUTS stay Gregorian — only display converts. |
+| **A toggle (one calendar at a time)** | Same plumbing + a persisted preference | +~1 day on the above | The accountant said **both**, which argues dual display, not a toggle. |
+
+**Where the line sensibly falls (proposal):** headers ship with M20.3 as
+planned; dual display in tables is its own milestone after M20, at the shared
+formatters — never per-page. The 16 raw interpolations get converted to the
+formatter regardless, because 16 bespoke date renders is the same disease as
+20 bespoke date pickers.
+
+### F7 — prior-period comparison (validated requirement, per the accountant)
+
+**Backend: ~zero.** Every report service already takes explicit dates; a
+comparison is two calls with two windows. No API change needed for v1.
+
+**Frontend is the whole cost, and it scales with report count.** Each page
+rolls its own table, so a side-by-side + variance column is per-page work
+(~0.5–1 day each, incl. the dataviz rules: diverging palette for variance,
+no status colours, table view).
+
+| Scope | Cost |
+| --- | --- |
+| The three financial statements (income statement, balance sheet, cash flow) — this-year-vs-last-year and quarter-vs-quarter | **~1 milestone (3–5 days)** |
+| All ~20 report pages | 3–4× that, and probably not what anyone asked for |
+
+**Where it sits is the open decision** — the owner ruled it out of M20, and the
+accountant's ask reads as the three statements, not all twenty.
+
+---
+
 ## 7. Build order — 🔴 NOT DECIDED
 
 **A build order is proposed, not recorded.** The owner's instruction, 2026-08-16:
