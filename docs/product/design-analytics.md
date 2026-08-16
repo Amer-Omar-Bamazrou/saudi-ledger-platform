@@ -370,5 +370,13 @@ visualization guidance; the decisions that belong in *this* document:
 | **M19.4** | Absorb the Cockpit | ✅ **done** — the Cockpit was taken APART, not moved: each piece went to whichever destination already owned that question, three wrong pieces were deleted, and `/` is now a router that states no figures (§8). | — |
 | **M19.5** | Budgets | ✅ **done** — annual-only comparison on Analytics, with the limitation stated in the card itself rather than implied by an empty axis. | — |
 
-⏳ **§4's "Collected" series is specified but not started** until the accountant
-answers the cash-basis-vs-AR question.
+🔴 **§6.1 (Cash) is the one section of this design still unbuilt** — net cash
+movement per period, Invoiced vs Collected, and receivables outstanding with the
+overdue share.
+
+Its gate is **CLOSED**: the accountant answered the cash-basis-vs-AR question on
+2026-08-15 (§4), and the answer removed the risk rather than adding work — it is
+accrual, which is what the ledger already does, so no second revenue figure is
+needed. The ⏳ that stood here outlived its condition by a milestone, which is
+the *obsolete assertion* failure mode: a correct-when-written statement of
+absence that keeps certifying a gap after the gap is gone.
