@@ -11,13 +11,14 @@
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface RecurringRule {
   id: string;
@@ -136,7 +137,7 @@ export default function Recurring() {
                   rule.id.slice(0, 8)}
               </span>
               <span className="text-sm font-normal text-muted-foreground">
-                {rule.frequency} · {t("day", "يوم")} {rule.dayOfMonth} · {t("next", "التالي")} {fmtDate(rule.nextRunOn)}
+                {rule.frequency} · {t("day", "يوم")} {rule.dayOfMonth} · {t("next", "التالي")} <DualDate date={rule.nextRunOn} inline />
               </span>
               {rule.status === "paused" ? (
                 <Badge variant="secondary">{t("Paused", "متوقفة")}</Badge>

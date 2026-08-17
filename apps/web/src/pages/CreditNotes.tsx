@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileMinus, FilePlus, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DualDate } from "@/components/DualDate";
 
 /**
  * Credit & debit notes (M12.1b).
@@ -305,7 +306,7 @@ export default function CreditNotes() {
                           {n.documentType === "credit_note" ? "Credit" : "Debit"}
                         </Badge>
                       </td>
-                      <td>{fmtDate(n.date)}</td>
+                      <td><DualDate date={n.date} /></td>
                       <td>{n.customerName ?? "—"}</td>
                       <td className="max-w-[16rem] truncate">{n.noteReason ?? "—"}</td>
                       <td>

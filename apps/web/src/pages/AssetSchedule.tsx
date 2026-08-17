@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Download } from "lucide-react";
+import { DualDate } from "@/components/DualDate";
 
 interface AssetRow {
   id: number; name: string; category: string; purchaseDate: string; cost: number;
@@ -73,7 +74,7 @@ export default function AssetSchedule() {
                   <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pr-3 font-medium text-xs">{a.name}</td>
                     <td className="py-2 pr-3 text-muted-foreground text-xs">{a.category}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs">{fmtDate(a.purchaseDate)}</td>
+                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
                     <td className="py-2 pr-3 font-mono text-xs">{fmtNum(a.cost)}</td>
                     <td className="py-2 pr-3 font-mono text-xs">{a.usefulLife}y</td>
                     <td className="py-2 pr-3 text-xs text-muted-foreground">{a.depreciation}</td>

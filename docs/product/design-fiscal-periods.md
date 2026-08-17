@@ -177,6 +177,15 @@ through the two shared formatters (`formatDate` / `fmtDate`, 27 pages); 16 more
 are raw `{tx.date}` interpolations (14 pages) that would need converting to the
 formatter first. ≈ 50 touch points, almost all mechanical.
 
+> ✏️ **Count corrected at build time (F3-dual, 2026-08-17):** the "16 raw
+> interpolations" measurement swept `<Input type="date" value={form.date}>`
+> BINDINGS in with renders — inputs stay Gregorian by design and were never
+> conversion targets. The real raw-render count was **2** table cells
+> (`Transactions`, `VatReport`) plus **4** stray `toLocaleDateString`/
+> `slice(0,10)` sites on operational pages. The estimate was high, not low —
+> recorded because a count that sweeps the wrong shape is the same failure as
+> costing an option before verifying its inputs, just in the lucky direction.
+
 | Line | What it is | Cost | What it does NOT give |
 | --- | --- | --- | --- |
 | **Headers/period labels only** | Already the M20.3 plan | ~free (in M20.3) | Not what the accountant asked for — tables stay Gregorian. |
@@ -332,3 +341,30 @@ milestone (F3-dual); in-table date conversion stays out.
 
 **M20 is complete.** Next in the owner-approved order (§7): F3-dual, then
 F7-cmp, then A (GL owns cash), then B4.
+
+### F3-dual — Hijri beside every ledger date (built 2026-08-17)
+
+For a tenant whose DECLARED fiscal calendar is hijri, every ledger-date
+render shows the Gregorian primary with the Umm al-Qura date beneath it —
+or as a tooltip in running text, where a second line would break the
+sentence. Dual display, not a toggle (the accountant said *both*); columns
+do not double; date INPUTS stay Gregorian; in-table CONVERSION stays out.
+
+**The mechanism is the M17.2 posture, client-side.** The browser cannot
+refuse to boot on a small-ICU runtime the way the API does, so it refuses to
+RENDER instead: `lib/hijriDate.ts` probes the same externally checkable fact
+(1 Muharram 1447 AH = 26 Jun 2025) before producing any Hijri string, and on
+a runtime that silently substitutes Gregorian every formatter returns `null`
+— the fallback in every failure direction is "Gregorian only", never a wrong
+Hijri date. The refusing branch is tested by INJECTION (the B3 lesson): a
+fake formatter returning the Gregorian parts, which is what a small-ICU
+`Intl` actually does.
+
+One shared component (`components/DualDate.tsx`, reading the same
+fiscal-years query as the default-window hook), applied by script across
+**42 render sites in 33 pages**: the 36 `fmtDate` sites, the 2 bare
+`{tx.date}` cells, and 4 stray raw renders (`FinanceHub` lock dates — dual;
+`OperatorZatcaPanel`, `UserManagement`, `ZatcaOnboarding` certificate/invite
+expiries — formatter only, they are not ledger dates and the operator surface
+has no tenant calendar). Gregorian and undeclared tenants see byte-identical
+output to before.

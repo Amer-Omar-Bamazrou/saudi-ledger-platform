@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
+import { DualDate } from "@/components/DualDate";
 
 interface AgingData {
   buckets: { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number };
@@ -109,7 +110,7 @@ export default function ArAging() {
                     <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                       <td className="py-3 pr-4 font-mono text-xs text-primary">{item.invoiceNumber}</td>
                       <td className="py-3 pr-4 font-medium">{item.customerName}</td>
-                      <td className="py-3 pr-4 text-xs text-muted-foreground">{item.dueDate ? fmtDate(item.dueDate) : "—"}</td>
+                      <td className="py-3 pr-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
                       <td className="py-3 pr-4">
                         <span className={`font-mono font-bold ${BUCKET_COLORS[bucket]}`}>
                           {item.daysPastDue <= 0 ? "Current" : `${item.daysPastDue}d`}

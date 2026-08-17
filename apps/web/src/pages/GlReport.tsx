@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Download } from "lucide-react";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface GlEntry {
   id: number; date: string; journalNumber: string; description: string;
@@ -91,7 +92,7 @@ export default function GlReport() {
               <tbody>
                 {entries.map(e => (
                   <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pr-4 text-xs text-muted-foreground">{fmtDate(e.date)}</td>
+                    <td className="py-2 pr-4 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
                     <td className="py-2 pr-4 font-mono text-xs text-primary">{e.journalNumber}</td>
                     <td className="py-2 pr-4 text-xs">{e.accountCode} · {e.accountName}</td>
                     <td className="py-2 pr-4 text-xs text-muted-foreground">{e.description}</td>

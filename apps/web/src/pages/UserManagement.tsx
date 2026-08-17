@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fmtDate } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -423,7 +423,7 @@ export default function UserManagement() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    {inv.role} · {t("expires", "تنتهي")} {new Date(inv.expiresAt).toLocaleDateString()}
+                    {inv.role} · {t("expires", "تنتهي")} {fmtDate(inv.expiresAt)}
                   </p>
                 </div>
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground uppercase">

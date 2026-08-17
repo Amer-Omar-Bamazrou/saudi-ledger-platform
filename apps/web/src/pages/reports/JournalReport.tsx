@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { BookOpen, CheckCircle, XCircle, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface JournalLine { id: number; accountName: string; accountId: number | null; description: string | null; debit: number; credit: number; }
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lines: JournalLine[]; totalDebit: number; totalCredit: number; balanced: boolean; }
@@ -99,7 +100,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                     {entry.reference && <span className="text-xs text-muted-foreground">· {entry.reference}</span>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{fmtDate(entry.date)}</span>
+                    <span className="text-xs text-muted-foreground"><DualDate date={entry.date} /></span>
                     <Badge variant="outline" className={`text-xs ${entry.balanced ? "border-emerald-500/30 text-emerald-400" : "border-red-500/30 text-red-400"}`}>
                       {entry.balanced ? "✓ Balanced" : "✗ Unbalanced"}
                     </Badge>

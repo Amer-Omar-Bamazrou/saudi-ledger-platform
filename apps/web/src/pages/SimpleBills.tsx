@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Plus, FileText, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
+import { DualDate } from "@/components/DualDate";
 
 /**
  * Simple Bills — quick single-line expense capture without full AP workflow.
@@ -188,7 +189,7 @@ export default function SimpleBills() {
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-3 pr-4 font-medium">{b.description}</td>
                     <td className="py-3 pr-4 text-muted-foreground text-xs">{b.category}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(b.date)}</td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
                     <td className="py-3 pr-4 font-mono">{fmtNum(b.amount)}</td>
                     <td className="py-3 pr-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
                     <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(b.total)}</td>

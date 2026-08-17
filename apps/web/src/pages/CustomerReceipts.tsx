@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Plus, ReceiptText, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
+import { DualDate } from "@/components/DualDate";
 
 interface CustomerReceipt {
   id: number; receiptNumber: string; customerId: number; customerName: string;
@@ -184,7 +185,7 @@ export default function CustomerReceipts() {
                     <td className="py-3 pr-4 font-mono text-xs text-primary">{r.receiptNumber}</td>
                     <td className="py-3 pr-4 font-medium">{r.customerName}</td>
                     <td className="py-3 pr-4 text-muted-foreground text-xs">{r.invoiceReference || "—"}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(r.date)}</td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={r.date} /></td>
                     <td className="py-3 pr-4"><Badge className={`text-xs ${METHOD_STYLES[r.method] ?? ""}`}>{r.method.replace("_", " ")}</Badge></td>
                     <td className="py-3 font-mono font-semibold text-emerald-400">{fmtNum(r.amount)}</td>
                   </tr>

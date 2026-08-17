@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Building2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DualDate } from "@/components/DualDate";
 
 interface AgingItem { id: number; date: string; dueDate: string; outstanding: number; daysPastDue: number; }
 interface ArItem extends AgingItem { invoiceNumber: string; customerName: string; customerNameAr?: string; }
@@ -64,7 +65,7 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
                 <tr key={item.id} className="border-b border-border/30 hover:bg-secondary/10">
                   <td className="py-2.5 pr-4 font-mono text-xs text-primary">{item[numKey]}</td>
                   <td className="py-2.5 pr-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
-                  <td className="py-2.5 pr-4 text-xs text-muted-foreground">{item.dueDate ? fmtDate(item.dueDate) : "—"}</td>
+                  <td className="py-2.5 pr-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
                   <td className="py-2.5 pr-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
                   <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
                 </tr>

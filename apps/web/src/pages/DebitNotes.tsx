@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FilePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DualDate } from "@/components/DualDate";
 
 interface DebitNote {
   id: number; debitNoteNumber: string; vendorId: number; vendorName: string;
@@ -171,7 +172,7 @@ export default function DebitNotes() {
                     <td className="py-3 pr-4 font-mono text-xs text-primary">{n.debitNoteNumber}</td>
                     <td className="py-3 pr-4 font-medium">{n.vendorName}</td>
                     <td className="py-3 pr-4 text-muted-foreground text-xs">{n.billReference || "—"}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(n.date)}</td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={n.date} /></td>
                     <td className="py-3 pr-4 font-mono font-semibold text-amber-400">{fmtNum(n.amount)}</td>
                     <td className="py-3"><Badge className={`text-xs ${STATUS_STYLES[n.status] ?? ""}`}>{n.status}</Badge></td>
                   </tr>

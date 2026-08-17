@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface Bill {
   id: number; billNumber: string; vendorReference: string; date: string;
@@ -435,8 +436,8 @@ export default function Bills() {
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                     <td className="py-3 pr-4 font-mono text-xs text-primary">{b.billNumber}</td>
                     <td className="py-3 pr-4 font-medium">{b.vendorName ?? "—"}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(b.date)}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{b.dueDate ? fmtDate(b.dueDate) : "—"}</td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={b.dueDate} /></td>
                     <td className="py-3 pr-4 font-mono">{fmtNum(b.subtotal)}</td>
                     <td className="py-3 pr-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
                     <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(b.total)}</td>

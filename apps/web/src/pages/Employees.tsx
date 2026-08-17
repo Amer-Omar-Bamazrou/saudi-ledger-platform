@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, UserCheck, Users, TrendingUp, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface Employee { id: number; employeeNumber: string; name: string; nameAr: string; nationality: string; jobTitle: string; department: string; basicSalary: number; grossSalary: number; gosiEmployee: number; gosiEmployer: number; status: string; joiningDate: string; }
 
@@ -109,7 +110,7 @@ export default function Employees() {
                   <td className="py-3 pr-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
                   <td className="py-3 pr-3 font-mono text-xs text-amber-400">{fmtNum(e.gosiEmployee)}</td>
                   <td className="py-3 pr-3 font-mono text-xs text-red-400">{fmtNum(e.gosiEmployer)}</td>
-                  <td className="py-3 pr-3 text-xs text-muted-foreground">{e.joiningDate ? fmtDate(e.joiningDate) : "—"}</td>
+                  <td className="py-3 pr-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
                   <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-emerald-500/20 text-emerald-400":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
                 </tr>
               ))}</tbody>

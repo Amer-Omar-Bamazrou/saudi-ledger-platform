@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DualDate } from "@/components/DualDate";
 
 export default function VatReport() {
   const { t } = useLanguage();
@@ -271,7 +272,7 @@ export default function VatReport() {
                 <tbody className="divide-y divide-border">
                   {bankVat?.transactions?.map((tx) => (
                     <tr key={tx.id} className="hover:bg-secondary/30 transition-colors">
-                      <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap">{tx.date}</td>
+                      <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
                       <td className="px-6 py-4 text-white font-medium">{tx.description}</td>
                       <td className="px-6 py-4">
                         <Badge

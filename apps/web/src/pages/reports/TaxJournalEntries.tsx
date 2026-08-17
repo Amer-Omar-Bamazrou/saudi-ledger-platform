@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface TaxLine { accountName: string; debit: number; credit: number; isTaxLine: boolean; }
 interface TaxEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; lines: TaxLine[]; totalVatDebit: number; totalVatCredit: number; }
@@ -103,7 +104,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
                     <span className="text-sm font-medium text-foreground">{entry.description}</span>
                     {entry.reference && <span className="text-xs text-muted-foreground">· {entry.reference}</span>}
                   </div>
-                  <span className="text-xs text-muted-foreground">{fmtDate(entry.date)}</span>
+                  <span className="text-xs text-muted-foreground"><DualDate date={entry.date} /></span>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">

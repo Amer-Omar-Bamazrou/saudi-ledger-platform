@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Lock, LockOpen, ShieldCheck, Loader2, Wallet, TriangleAlert, ListChecks, ChevronRight, Receipt } from "lucide-react";
+import { DualDate } from "@/components/DualDate";
 
 /**
  * Finance Hub — the control surface (design Q2).
@@ -407,7 +408,7 @@ export default function FinanceHub() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="font-mono text-[11px]">{l.period}</Badge>
                         <span className="text-xs text-muted-foreground">
-                          {t("closed", "أُقفل")} {String(l.lockedAt).slice(0, 10)}
+                          {t("closed", "أُقفل")} <DualDate date={String(l.lockedAt)} inline />
                         </span>
                       </div>
                       {l.notes && <p className="text-xs text-muted-foreground mt-1 truncate">{l.notes}</p>}

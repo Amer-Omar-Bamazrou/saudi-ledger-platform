@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface PurchaseOrder {
   id: number; poNumber: string; vendorId: number; vendorName: string;
@@ -179,8 +180,8 @@ export default function PurchaseOrders() {
                   <tr key={o.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-3 pr-4 font-mono text-xs text-primary">{o.poNumber}</td>
                     <td className="py-3 pr-4 font-medium">{o.vendorName}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(o.date)}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{o.expectedDate ? fmtDate(o.expectedDate) : "—"}</td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={o.date} /></td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={o.expectedDate} /></td>
                     <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(o.total)}</td>
                     <td className="py-3"><Badge className={`text-xs ${STATUS_STYLES[o.status] ?? ""}`}>{o.status}</Badge></td>
                   </tr>

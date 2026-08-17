@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { FileText, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface Category { id: number; name: string; nameAr: string; type: string; }
 interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
@@ -129,7 +130,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                 </tr>
                 {data.movements.map((m, i) => (
                   <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2 pr-4 text-xs text-muted-foreground">{fmtDate(m.date)}</td>
+                    <td className="py-2 pr-4 text-xs text-muted-foreground"><DualDate date={m.date} /></td>
                     <td className="py-2 pr-4 font-mono text-xs text-primary">{m.entryNumber}</td>
                     <td className="py-2 pr-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
                     <td className="py-2 pr-4 text-xs">{m.description}</td>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
 interface Customer { id: number; name: string; }
@@ -181,8 +182,8 @@ export default function Invoices() {
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pr-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
                   <td className="py-3 pr-4 font-medium">{inv.customerName ?? "—"}</td>
-                  <td className="py-3 pr-4 text-muted-foreground text-xs">{fmtDate(inv.date)}</td>
-                  <td className="py-3 pr-4 text-muted-foreground text-xs">{inv.dueDate ? fmtDate(inv.dueDate) : "—"}</td>
+                  <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
+                  <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
                   <td className="py-3 pr-4 font-mono">{fmtNum(inv.subtotal)}</td>
                   <td className="py-3 pr-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
                   <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(inv.total)}</td>

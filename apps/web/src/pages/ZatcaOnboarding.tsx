@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fmtDate } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -136,7 +136,7 @@ export default function ZatcaOnboarding() {
                 <Clock className="h-4 w-4" />
                 Expires:{" "}
                 <span className="font-medium">
-                  {cert.notAfter ? new Date(cert.notAfter).toLocaleDateString() : "unknown"}
+                  {cert.notAfter ? fmtDate(cert.notAfter) : "unknown"}
                 </span>
                 <span className={tone.className}>({tone.label})</span>
               </div>

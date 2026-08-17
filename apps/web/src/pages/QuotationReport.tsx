@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { ClipboardList, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface QuoteRow {
   id: number; quoteNumber: string; customerName: string; date: string;
@@ -109,8 +110,8 @@ function QuotationReportInner({ range }: { range: ReportDefaultRange }) {
                   <tr key={q.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pr-4 font-mono text-xs text-primary">{q.quoteNumber}</td>
                     <td className="py-2 pr-4 font-medium text-xs">{q.customerName}</td>
-                    <td className="py-2 pr-4 text-muted-foreground text-xs">{fmtDate(q.date)}</td>
-                    <td className="py-2 pr-4 text-muted-foreground text-xs">{q.expiryDate ? fmtDate(q.expiryDate) : "—"}</td>
+                    <td className="py-2 pr-4 text-muted-foreground text-xs"><DualDate date={q.date} /></td>
+                    <td className="py-2 pr-4 text-muted-foreground text-xs"><DualDate date={q.expiryDate} /></td>
                     <td className="py-2 pr-4 font-mono text-xs font-semibold">{fmtNum(q.total)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[q.status] ?? ""}`}>{q.status}</Badge></td>
                   </tr>

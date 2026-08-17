@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Activity, Download } from "lucide-react";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface ActivityRow { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lineCount: number; totalDebit: number; accounts: string[]; }
 interface ActivityData { activities: ActivityRow[]; count: number; hasPosted: number; hasDraft: number; }
@@ -90,7 +91,7 @@ export default function ActivityReport() {
                 {data.activities.map(a => (
                   <tr key={a.id} className="border-b border-border/30 hover:bg-secondary/10">
                     <td className="py-2.5 pr-4 font-mono text-xs text-primary">{a.entryNumber}</td>
-                    <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(a.date)}</td>
+                    <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
                     <td className="py-2.5 pr-4 text-xs max-w-48 truncate">{a.description}</td>
                     <td className="py-2.5 pr-4 text-xs text-muted-foreground">{a.reference ?? "—"}</td>
                     <td className="py-2.5 pr-4 text-xs font-mono">{a.lineCount}</td>
