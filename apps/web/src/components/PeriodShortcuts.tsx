@@ -19,24 +19,28 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { type DateRange, lastMonth, lastQuarter, thisMonth, thisQuarter } from "@/lib/reportRange";
+import { fiscalPeriodLabel, type FiscalPeriodLike } from "@/lib/fiscalLabel";
 import { useFiscalYearsQuery } from "@/hooks/useReportDefaultRange";
 
 interface Shortcut {
   key: string;
   label: string;
   range: DateRange;
+  /** M20.3 — the concrete period the chip means, e.g. "FY 1447 (Jun 2025 – Jun 2026)". */
+  title?: string;
 }
 
 /** The tenant's current and immediately preceding fiscal periods, if declared. */
-function useFiscalPair(): { current: DateRange | null; previous: DateRange | null } {
+function useFiscalPair(): { current: FiscalPeriodLike | null; previous: FiscalPeriodLike | null } {
   const { data } = useFiscalYearsQuery();
   if (!data?.declared || !data.current) return { current: null, previous: null };
-  const cur = { from: data.current.startDate, to: data.current.endDate };
   // `periods` is newest first, a window either side of current — the first
   // entry ending before the current period starts is the one just before it.
   const prev = data.periods.find((p) => p.endDate < data.current!.startDate);
-  return { current: cur, previous: prev ? { from: prev.startDate, to: prev.endDate } : null };
+  return { current: data.current, previous: prev ?? null };
 }
+
+const rangeOf = (p: FiscalPeriodLike): DateRange => ({ from: p.startDate, to: p.endDate });
 
 export function PeriodShortcuts({
   from,
@@ -50,11 +54,16 @@ export function PeriodShortcuts({
   /** "month" trims ranges to YYYY-MM for the VAT page's month inputs. */
   granularity?: "day" | "month";
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const fiscal = useFiscalPair();
 
   const trim = (r: DateRange): DateRange =>
     granularity === "month" ? { from: r.from.slice(0, 7), to: r.to.slice(0, 7) } : r;
+
+  // M20.3 — the chip keeps F12's name; its tooltip names the CONCRETE period,
+  // so a Hijri tenant hovering "This fiscal year" reads FY 1447 with its
+  // Gregorian span rather than having to know which year that is.
+  const fyTitle = (p: FiscalPeriodLike) => fiscalPeriodLabel(p, lang);
 
   const shortcuts: Shortcut[] = [
     { key: "this-month", label: t("This month", "هذا الشهر"), range: trim(thisMonth()) },
@@ -62,10 +71,10 @@ export function PeriodShortcuts({
     { key: "this-quarter", label: t("This quarter", "هذا الربع"), range: trim(thisQuarter()) },
     { key: "last-quarter", label: t("Last quarter", "الربع الماضي"), range: trim(lastQuarter()) },
     ...(fiscal.current
-      ? [{ key: "this-fy", label: t("This fiscal year", "السنة المالية الحالية"), range: trim(fiscal.current) }]
+      ? [{ key: "this-fy", label: t("This fiscal year", "السنة المالية الحالية"), range: trim(rangeOf(fiscal.current)), title: fyTitle(fiscal.current) }]
       : []),
     ...(fiscal.previous
-      ? [{ key: "last-fy", label: t("Last fiscal year", "السنة المالية الماضية"), range: trim(fiscal.previous) }]
+      ? [{ key: "last-fy", label: t("Last fiscal year", "السنة المالية الماضية"), range: trim(rangeOf(fiscal.previous)), title: fyTitle(fiscal.previous) }]
       : []),
   ];
 
@@ -79,6 +88,7 @@ export function PeriodShortcuts({
           size="sm"
           variant={s.key === activeKey ? "secondary" : "ghost"}
           className="h-7 px-2 text-xs"
+          title={s.title}
           onClick={() => onSelect(s.range)}
         >
           {s.label}
@@ -100,12 +110,16 @@ export function PeriodShortcuts({
  * there is no fiscal fact to offer.
  */
 export function AsOfShortcuts({ value, onSelect }: { value: string; onSelect: (date: string) => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const fiscal = useFiscalPair();
 
   const shortcuts = [
-    ...(fiscal.current ? [{ key: "fy-end", label: t("This FY-end", "نهاية السنة المالية الحالية"), date: fiscal.current.to }] : []),
-    ...(fiscal.previous ? [{ key: "last-fy-end", label: t("Last FY-end", "نهاية السنة المالية الماضية"), date: fiscal.previous.to }] : []),
+    ...(fiscal.current
+      ? [{ key: "fy-end", label: t("This FY-end", "نهاية السنة المالية الحالية"), date: fiscal.current.endDate, title: fiscalPeriodLabel(fiscal.current, lang) }]
+      : []),
+    ...(fiscal.previous
+      ? [{ key: "last-fy-end", label: t("Last FY-end", "نهاية السنة المالية الماضية"), date: fiscal.previous.endDate, title: fiscalPeriodLabel(fiscal.previous, lang) }]
+      : []),
   ];
   if (shortcuts.length === 0) return null;
 
@@ -117,6 +131,7 @@ export function AsOfShortcuts({ value, onSelect }: { value: string; onSelect: (d
           size="sm"
           variant={s.date === value ? "secondary" : "ghost"}
           className="h-7 px-2 text-xs"
+          title={s.title}
           onClick={() => onSelect(s.date)}
         >
           {s.label}
