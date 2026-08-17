@@ -1485,3 +1485,63 @@ pin the opposite **before** it could fail confusingly in CI or, worse, pressure
 the new behaviour back toward the old one. The checks earn their keep on the
 runs where nothing goes wrong BECAUSE they ran; noting only their misses would
 be survivorship in reverse.
+
+---
+
+### 🔴 THE FLAKE INVESTIGATION (2026-08-17): AN UNSCOPED WRITE IN A TEST IS A WRITE INTO EVERY PARALLEL SUITE — CAUGHT IN THE ACT, NOT INFERRED
+
+The M20.1 commit noted two intermittent test failures "creeping up" and named
+two tests. Three full runs reproduced three DIFFERENT flakes — none of them
+the named two — which was the finding: the class is *any suite driving a
+platform-global path against the shared test database*, and its frequency
+crept because every added suite raises both collision probability and load.
+Full mechanics: `docs/test-suite-notes.md` fragilities #4/#5; fixed in PR #49
+by applying the outbox worker's `organizationId` escape hatch uniformly.
+
+#### The loudest instance (owner-flagged): the only unscoped write in the tree
+
+`alerting.test.ts`'s "quiet platform" test made the whole DATABASE quiet:
+
+```ts
+await pool.query(`UPDATE einvoice_documents SET status = 'accepted'
+                   WHERE status IN ('pending','failed','submitting')`);
+```
+
+No `organization_id` filter — the **only** unscoped write in the entire test
+directory (every other test write is org- or id-scoped), and it flipped
+parallel suites' freshly-approved `pending` documents mid-assertion. That IS
+the einvoice-enqueue flake the M20.1 commit named, established by catching
+the actor in the act rather than by inference. Two lessons carried forward:
+
+> **A test may not run an unscoped read OR write against a shared table.**
+> A count-sensitive assertion (`toHaveLength`, `toBe(1)`) against a global
+> listing is a claim about the whole database, which no suite controls.
+
+> **One unscoped write took three full runs to catch in the act** — and it
+> had sat in the tree since B2. The countermeasure is the grep, not the
+> reproduction: `UPDATE|DELETE` in `src/tests/**` without an
+> `organization_id` predicate is reviewable in seconds.
+
+#### And flake #1: B3's exact disease, reachable by a SECOND ROUTE (owner-flagged — remember this when trusting B3's fix)
+
+The capture-purge flake was not a new failure mode. A parallel suite's
+promotion pass swept the staged-leftover backlog **globally**, resolved the
+relative `staging_path` under ITS OWN storage root (each fork mounts its own
+`ZATCA_ARCHIVE_DIR`), found nothing there, and `rm(path, { force: true })`
+reported success — so it **nulled the pointer while the bytes survived**
+under the owning suite's root. That is byte-for-byte the B3 defect: a delete
+that reports success without the bytes being gone, followed by destruction of
+the only index to them.
+
+B3's fix hardened one route to that state (a backend that cannot delete now
+throws). The test topology built a SECOND route: a deleter whose root simply
+does not contain the file, to whom "missing" is honestly "already gone".
+`force: true` is CORRECT for a single-rooted deployment — but any future
+topology where two processes with different storage roots share the
+`captured_documents` table (horizontal scaling on `local-fs`, a
+staging/production split against one database) re-creates the orphaning
+without any code being wrong in isolation. The invariant "a nulled
+staging_path means the bytes are gone" is only as strong as the assumption
+that every sweeper sees the same filesystem — that assumption is now stated
+here rather than being silent, and the org-scoping fix removes the only
+in-repo violator (the test fleet).

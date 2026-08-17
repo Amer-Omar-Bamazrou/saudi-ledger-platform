@@ -292,7 +292,8 @@ applies them; the inputs stay editable; the lit chip is **derived** by
 comparing the inputs against each shortcut's range, so "Custom when touched"
 is equality, not state.
 
-Two decisions the design left open, made and flagged in PR #50 for review:
+Two decisions the design left open, made in PR #50 and ✅ **owner-approved
+2026-08-17**:
 
 - **Month/quarter shortcuts are CALENDAR periods, not fiscal quarters.** The
   month/quarter rhythm F4's research surfaced is the filing rhythm (KSA VAT
@@ -303,7 +304,8 @@ Two decisions the design left open, made and flagged in PR #50 for review:
   absent while undeclared (the F13 notice on the page already says why).
 - **Balance Sheet's "as at FY-end" is offered for BOTH the current and the
   previous fiscal year** — the design named one shortcut and the year it
-  meant is genuinely ambiguous mid-year.
+  meant is genuinely ambiguous mid-year. (Owner, approving: "genuinely
+  ambiguous" confirmed.)
 
 Structure kept M20.1's split: F5's twenty bespoke date CONTROLS stay; the
 `PeriodShortcuts` bar is a single-purpose strip beside them; calendar math is
