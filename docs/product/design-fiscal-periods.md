@@ -368,3 +368,43 @@ fiscal-years query as the default-window hook), applied by script across
 expiries — formatter only, they are not ledger dates and the operator surface
 has no tenant calendar). Gregorian and undeclared tenants see byte-identical
 output to before.
+
+### F7-cmp — prior-period comparison, three statements (built 2026-08-17; design owner-approved same day)
+
+Income statement, balance sheet, cash flow. One selector — **Off / Same
+period last year (default when on) / Previous period** — both readings of
+"quarter-vs-quarter" offered since the machinery is identical
+(owner-approved).
+
+**The prior window is DERIVED from what the current dates ARE** (the M20.2
+equality principle, in `lib/priorPeriod.ts`, pure and pinned):
+
+- window == a resolver fiscal period → prior = the resolver's PRECEDING
+  period, exact boundaries. 🔴 The Hijri answer: FY 1447 minus one calendar
+  year is ~11 days off FY 1446 — a window that is no one's fiscal year — so
+  fiscal windows never shift arithmetically, and both modes mean the same
+  thing for them. `null` (comparison refuses, stating why) when no earlier
+  period is known.
+- calendar month/quarter/year → exact shift (safe for Hijri tenants because
+  M20.2 made those shortcuts calendar); "prev" is sequential, "yoy" seasonal.
+- anything else → calendar-year shift ("yoy") or contiguous same-length
+  window ("prev"), clamped at month ends, and the page LABELS the prior
+  window explicitly (M20.3's formatter when fiscal) — nothing asserted
+  silently. Balance-sheet as-of: fiscal year-end → preceding year-end;
+  month-end stays a month-end (31 Mar → 28 Feb, never 1 Mar).
+
+**Honesty rules:** an all-empty prior renders as a NAMED fact ("no recorded
+activity between X and Y" / "no balances as at X"), never zero columns
+(flaw-#8 family); per-line Δ% is "—" against a zero base; variance carries
+no status colours (the palette rule). 🔴 **The source-mismatch refusal:**
+the income statement's transactions fallback means two windows can answer
+from different sources (gross-incl-VAT vs net) — when `source` differs the
+comparison refuses with a stated reason. Recorded as a prevented #9
+instance in [`findings-and-lessons.md`](../history/findings-and-lessons.md).
+
+**Line merge is by KEY, never display name** — the income-statement and
+balance-sheet responses now carry each row's account id as `key`
+(owner-directed: a name join breaks silently on a rename). Cash flow
+compares at the SECTION level — its item lists are per-transaction, so a
+line merge would compare individual bank movements, not a question anyone
+asks.
