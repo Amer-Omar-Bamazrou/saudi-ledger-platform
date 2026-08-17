@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, BookOpen, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface JELine { accountId?: number; accountName: string; description?: string; debitAmount: number; creditAmount: number; }
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string; status: string; totalDebit: number; totalCredit: number; lines: JELine[]; }
@@ -146,7 +147,7 @@ export default function JournalEntries() {
                 <tbody>{entries.map(e=>(
                   <tr key={e.id} className={`border-b border-border/50 transition-colors cursor-pointer ${selectedId===e.id?"bg-primary/5":"hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===e.id?null:e.id)}>
                     <td className="py-2 pr-3 font-mono text-xs text-primary">{e.entryNumber}</td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground">{fmtDate(e.date)}</td>
+                    <td className="py-2 pr-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
                     <td className="py-2 pr-3 max-w-[140px] truncate">{e.description}</td>
                     <td className="py-2 pr-3 font-mono text-xs text-emerald-400">{fmtNum(e.totalDebit)}</td>
                     <td className="py-2 pr-3 font-mono text-xs text-red-400">{fmtNum(e.totalCredit)}</td>

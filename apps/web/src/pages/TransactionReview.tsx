@@ -11,13 +11,14 @@
  * path. Nothing here is ever automatic; the human clicks.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCheck, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface Suggestion {
   documentKind: "invoice" | "bill";
@@ -144,7 +145,7 @@ export default function TransactionReview() {
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{r.description}</div>
         <div className="text-xs text-muted-foreground">
-          {fmtDate(r.date)} · {r.type} · {fmtNum(r.amount)}
+          <DualDate date={r.date} inline /> · {r.type} · {fmtNum(r.amount)}
           {r.kind !== "operating" && <Badge className="ml-2" variant="outline">{r.kind}</Badge>}
           {r.categoryName && <span className="ml-2">{r.categoryName}</span>}
           {r.kind === "operating" && (

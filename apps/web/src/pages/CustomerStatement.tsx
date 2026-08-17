@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Users, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface Customer { id: number; name: string; }
 interface StatementRow {
@@ -121,7 +122,7 @@ function CustomerStatementInner({ range }: { range: ReportDefaultRange }) {
           ) : (
             <>
               {selectedCustomer && (
-                <div className="mb-4 text-sm font-semibold text-foreground">{selectedCustomer.name} — Statement {fmtDate(from)} to {fmtDate(to)}</div>
+                <div className="mb-4 text-sm font-semibold text-foreground">{selectedCustomer.name} — Statement <DualDate date={from} inline /> to <DualDate date={to} inline /></div>
               )}
               <table className="w-full text-sm">
                 <thead>
@@ -134,7 +135,7 @@ function CustomerStatementInner({ range }: { range: ReportDefaultRange }) {
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={i} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-2 pr-4 text-xs text-muted-foreground">{fmtDate(r.date)}</td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground"><DualDate date={r.date} /></td>
                       <td className="py-2 pr-4 font-mono text-xs text-primary">{r.reference}</td>
                       <td className="py-2 pr-4"><Badge className={`text-xs ${TYPE_STYLES[r.type] ?? ""}`}>{r.type}</Badge></td>
                       <td className="py-2 pr-4 text-xs text-muted-foreground">{r.description}</td>

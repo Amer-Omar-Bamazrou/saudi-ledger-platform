@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 export default function Transactions() {
   const queryClient = useQueryClient();
@@ -152,7 +153,7 @@ export default function Transactions() {
               <tbody className="divide-y divide-border">
                 {txList?.transactions.map(tx => (
                   <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
-                    <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap">{tx.date}</td>
+                    <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
                     <td className="px-6 py-4 text-white max-w-[300px]">
                       <div className="truncate font-medium">{tx.description}</div>
                       {tx.descriptionAr && <div className="text-xs text-muted-foreground mt-1" dir="rtl">{tx.descriptionAr}</div>}

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fmtDate } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -208,7 +208,7 @@ export default function OperatorZatcaPanel() {
                   <div>
                     <div className="text-sm font-medium">{c.companyName ?? c.companyId}</div>
                     <div className="text-xs text-muted-foreground">
-                      {c.environment} · {c.notAfter ? new Date(c.notAfter).toISOString().slice(0, 10) : "—"}
+                      {c.environment} · {c.notAfter ? fmtDate(c.notAfter) : "—"}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

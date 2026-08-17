@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { FileText, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { DualDate } from "@/components/DualDate";
 
 interface InvoiceSummaryRow {
   id: number; invoiceNumber: string; customerName: string; date: string;
@@ -109,8 +110,8 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
                   <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pr-3 font-mono text-xs text-primary">{i.invoiceNumber}</td>
                     <td className="py-2 pr-3 font-medium text-xs">{i.customerName}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs">{fmtDate(i.date)}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs">{i.dueDate ? fmtDate(i.dueDate) : "—"}</td>
+                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
+                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
                     <td className="py-2 pr-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>
                     <td className="py-2 pr-3 font-mono text-xs text-amber-400">{fmtNum(i.vatAmount)}</td>
                     <td className="py-2 pr-3 font-mono text-xs font-semibold">{fmtNum(i.total)}</td>

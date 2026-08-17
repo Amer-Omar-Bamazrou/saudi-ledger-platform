@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Package, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { DualDate } from "@/components/DualDate";
 
 interface Asset { id: number; assetNumber: string; name: string; nameAr?: string; purchaseDate: string; purchaseCost: number; salvageValue: number; usefulLifeYears: number; accumulatedDepreciation: number; currentBookValue: number; annualDepreciation: number; monthlyDepreciation: number; depreciationMethod: string; status: string; location?: string; }
 
@@ -96,7 +97,7 @@ export default function Assets() {
               <tbody>{assets.map(a=>(
                 <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pr-3"><div className="font-medium">{a.name}</div><div className="text-xs text-muted-foreground font-mono">{a.assetNumber}</div></td>
-                  <td className="py-3 pr-3 text-xs text-muted-foreground">{fmtDate(a.purchaseDate)}</td>
+                  <td className="py-3 pr-3 text-xs text-muted-foreground"><DualDate date={a.purchaseDate} /></td>
                   <td className="py-3 pr-3 font-mono">{fmtNum(a.purchaseCost)}</td>
                   <td className="py-3 pr-3 font-mono font-semibold text-amber-400">{fmtNum(a.currentBookValue)}</td>
                   <td className="py-3 pr-3 font-mono text-muted-foreground">{fmtNum(a.accumulatedDepreciation)}</td>
