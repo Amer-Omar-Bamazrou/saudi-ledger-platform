@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface Category { id: number; name: string; nameAr: string; type: string; }
 interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
@@ -73,6 +74,9 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>Generate</Button>
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);if(accountId)setApplied({accountId,from:r.from,to:r.to});}} />
           </div>
         </CardContent>
       </Card>

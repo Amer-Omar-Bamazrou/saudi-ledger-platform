@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface ISData {
   revenue: { name: string; nameAr?: string; amount: number }[];
@@ -57,6 +58,9 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Generate", "إنشاء")}</Button>
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
         </CardContent>
       </Card>

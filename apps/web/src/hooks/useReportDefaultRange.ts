@@ -39,8 +39,14 @@ export interface ReportDefaultRange {
 }
 
 
-export function useReportDefaultRange(): ReportDefaultRange {
-  const { data, isLoading, isError } = useListFiscalYears({
+/**
+ * The one fiscal-years query every report-window consumer shares (M20.2) —
+ * this hook and `PeriodShortcuts` must read the SAME cache entry under the
+ * SAME policy, or the shortcut bar and the default window could disagree
+ * about whether a year is declared.
+ */
+export function useFiscalYearsQuery() {
+  return useListFiscalYears({
     query: {
       queryKey: getListFiscalYearsQueryKey(),
       // Static between Settings edits; CompanySettings invalidates THIS key
@@ -51,6 +57,10 @@ export function useReportDefaultRange(): ReportDefaultRange {
       retry: 1,
     },
   });
+}
+
+export function useReportDefaultRange(): ReportDefaultRange {
+  const { data, isLoading, isError } = useFiscalYearsQuery();
 
   if (isLoading) return { ready: false, from: "", to: "", source: "rolling-unknown" };
 

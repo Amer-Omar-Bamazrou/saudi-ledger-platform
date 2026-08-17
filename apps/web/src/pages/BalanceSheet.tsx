@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle } from "lucide-react";
+import { AsOfShortcuts } from "@/components/PeriodShortcuts";
 
 interface BSItem { name: string; nameAr?: string; amount: number; }
 interface BSData {
@@ -69,6 +70,7 @@ export default function BalanceSheet() {
           <div className="flex items-end gap-4">
             <div><Label className="text-xs text-muted-foreground">{t("As of Date", "بتاريخ")}</Label><Input type="date" value={asOf} onChange={e=>setAsOf(e.target.value)} className="mt-1 h-8 text-sm w-44" /></div>
             <Button size="sm" className="h-8" onClick={()=>setApplied(asOf)}>{t("Generate", "إنشاء")}</Button>
+            <AsOfShortcuts value={asOf} onSelect={(d)=>{setAsOf(d);setApplied(d);}} />
             {data && (
               <div className={`flex items-center gap-2 ml-auto px-4 py-2 rounded-lg border ${balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
                 {balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}

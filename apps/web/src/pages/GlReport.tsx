@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Download } from "lucide-react";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface GlEntry {
   id: number; date: string; journalNumber: string; description: string;
@@ -48,6 +49,9 @@ export default function GlReport() {
               <Label className="text-xs text-muted-foreground">To</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" />
             </div>
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
           </div>
         </CardContent>
       </Card>

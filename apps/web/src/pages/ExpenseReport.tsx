@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { PieChart, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface ExpenseRow {
   category: string; count: number; subtotal: number; vat: number; total: number; percentage: number;
@@ -54,6 +55,9 @@ function ExpenseReportInner({ range }: { range: ReportDefaultRange }) {
               <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">To</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
           </div>
         </CardContent>
       </Card>
