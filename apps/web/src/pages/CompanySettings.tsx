@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
+import { getListFiscalYearsQueryKey } from "@workspace/api-client-react";
 
 /**
  * Company Settings (M11.6) — the tenant's legal identity.
@@ -102,6 +103,11 @@ export default function CompanySettings() {
       // Invalidates the fiscal-years query too (same key prefix) — changing the
       // start month or the calendar changes every resolved boundary.
       qc.invalidateQueries({ queryKey: ["company"] });
+      // M20.1 — the report pages' default window reads the GENERATED client's
+      // cache, whose key is NOT ["company"]-prefixed. Without this line a
+      // tenant who declares their fiscal year would keep seeing the rolling
+      // window on every report for up to an hour.
+      qc.invalidateQueries({ queryKey: getListFiscalYearsQueryKey() });
       toast({ title: t("Company settings saved", "تم حفظ إعدادات الشركة") });
     },
     onError: (e: Error) => setError(e.message),

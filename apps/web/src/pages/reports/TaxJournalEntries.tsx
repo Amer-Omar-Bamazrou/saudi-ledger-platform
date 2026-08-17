@@ -7,16 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Receipt, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface TaxLine { accountName: string; debit: number; credit: number; isTaxLine: boolean; }
 interface TaxEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; lines: TaxLine[]; totalVatDebit: number; totalVatCredit: number; }
 interface TaxJEData { entries: TaxEntry[]; count: number; }
 
 export default function TaxJournalEntries() {
-  const thisYear = new Date().getFullYear();
-  const [dateFrom, setDateFrom] = useState(`${thisYear}-01-01`);
-  const [dateTo,   setDateTo]   = useState(`${thisYear}-12-31`);
-  const [applied,  setApplied]  = useState({ from: `${thisYear}-01-01`, to: `${thisYear}-12-31` });
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <TaxJournalEntriesInner range={range} />;
+}
+
+function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo,   setDateTo]   = useState(range.to);
+  const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
 
   const { data, isLoading } = useQuery<TaxJEData>({
     queryKey: ["tax-journal-entries", applied.from, applied.to],
@@ -38,6 +48,8 @@ export default function TaxJournalEntries() {
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">

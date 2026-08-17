@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle } from "lucide-react";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface TrialBalanceRow { id: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
 interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; totalCredit: number; balanced: boolean; }
@@ -15,11 +17,19 @@ interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; to
 const TYPE_STYLES: Record<string, string> = { income: "text-emerald-400", expense: "text-red-400", asset: "text-blue-400", liability: "text-amber-400", equity: "text-purple-400" };
 
 export default function TrialBalance() {
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <TrialBalanceInner range={range} />;
+}
+
+function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
   const { n, lang, t } = useLanguage();
-  const thisYear = new Date().getFullYear();
-  const [dateFrom, setDateFrom] = useState(`${thisYear}-01-01`);
-  const [dateTo, setDateTo] = useState(`${thisYear}-12-31`);
-  const [applied, setApplied] = useState({ from: `${thisYear}-01-01`, to: `${thisYear}-12-31` });
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo, setDateTo] = useState(range.to);
+  const [applied, setApplied] = useState({ from: range.from, to: range.to });
 
   const { data, isLoading } = useQuery<TrialBalanceData>({
     queryKey: ["trial-balance", applied.from, applied.to],
@@ -43,6 +53,8 @@ export default function TrialBalance() {
           <p className="text-muted-foreground text-sm mt-1">{t("All ledger account balances — debits must equal credits", "جميع أرصدة الحسابات — المدين يجب أن يساوي الدائن")}</p>
         </div>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">

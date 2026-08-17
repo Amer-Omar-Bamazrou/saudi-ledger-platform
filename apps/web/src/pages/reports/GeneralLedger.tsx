@@ -9,17 +9,27 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface Category { id: number; name: string; type: string; }
 interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
 interface GLData { accountId: number | null; accountName: string; accountNameAr?: string; openingBalance: number; movements: Movement[]; closingBalance: number; totalDebit: number; totalCredit: number; }
 
 export default function GeneralLedger() {
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <GeneralLedgerInner range={range} />;
+}
+
+function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
   const { n, t } = useLanguage();
-  const thisYear = new Date().getFullYear();
   const [accountId, setAccountId] = useState("all");
-  const [dateFrom,  setDateFrom]  = useState(`${thisYear}-01-01`);
-  const [dateTo,    setDateTo]    = useState(`${thisYear}-12-31`);
+  const [dateFrom,  setDateFrom]  = useState(range.from);
+  const [dateTo,    setDateTo]    = useState(range.to);
   const [applied,   setApplied]   = useState<{ accountId: string; from: string; to: string } | null>(null);
 
   const { data: cats = [] } = useQuery<Category[]>({
@@ -47,6 +57,8 @@ export default function GeneralLedger() {
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> {t("Export", "تصدير")}</Button>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">

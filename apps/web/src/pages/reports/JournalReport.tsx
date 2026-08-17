@@ -7,16 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, CheckCircle, XCircle, Download } from "lucide-react";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface JournalLine { id: number; accountName: string; accountId: number | null; description: string | null; debit: number; credit: number; }
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lines: JournalLine[]; totalDebit: number; totalCredit: number; balanced: boolean; }
 interface JournalReportData { entries: JournalEntry[]; count: number; grandDebit: number; grandCredit: number; balanced: boolean; }
 
 export default function JournalReport() {
-  const thisYear = new Date().getFullYear();
-  const [dateFrom, setDateFrom] = useState(`${thisYear}-01-01`);
-  const [dateTo,   setDateTo]   = useState(`${thisYear}-12-31`);
-  const [applied,  setApplied]  = useState({ from: `${thisYear}-01-01`, to: `${thisYear}-12-31` });
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <JournalReportInner range={range} />;
+}
+
+function JournalReportInner({ range }: { range: ReportDefaultRange }) {
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo,   setDateTo]   = useState(range.to);
+  const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
 
   const { data, isLoading } = useQuery<JournalReportData>({
     queryKey: ["journal-report", applied.from, applied.to],
@@ -32,6 +42,8 @@ export default function JournalReport() {
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">

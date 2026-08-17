@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Users, Download } from "lucide-react";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface Customer { id: number; name: string; }
 interface StatementRow {
@@ -22,11 +24,18 @@ const TYPE_STYLES: Record<string, string> = {
 };
 
 export default function CustomerStatement() {
-  const today = new Date().toISOString().split("T")[0];
-  const firstOfYear = `${new Date().getFullYear()}-01-01`;
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <CustomerStatementInner range={range} />;
+}
+
+function CustomerStatementInner({ range }: { range: ReportDefaultRange }) {
   const [customerId, setCustomerId] = useState("");
-  const [from, setFrom] = useState(firstOfYear);
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(range.from);
+  const [to, setTo] = useState(range.to);
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers"],
@@ -54,6 +63,8 @@ export default function CustomerStatement() {
         </div>
         <Button variant="outline" className="gap-2" disabled={!customerId}><Download className="w-4 h-4" /> Export PDF</Button>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
