@@ -472,11 +472,11 @@ export const signingService = {
    * Metadata for the M12.8 renewal reminders. Returns NO key material — the
    * 5-year PCSID expiry has no grace period, so this drives T-90/T-30/T-7 alerts.
    */
-  async listExpiring(withinDays: number): Promise<
+  async listExpiring(withinDays: number, organizationId?: string): Promise<
     { credentialId: string; companyId: string; environment: string; notAfter: Date | null }[]
   > {
     const cutoff = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000);
-    const rows = await vaultRepository.listExpiringBefore(cutoff);
+    const rows = await vaultRepository.listExpiringBefore(cutoff, organizationId);
     return rows.map((r) => ({
       credentialId: r.id,
       companyId: r.companyId,

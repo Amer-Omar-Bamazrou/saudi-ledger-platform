@@ -125,15 +125,22 @@ export const alarmsService = {
   /**
    * Evaluate every alarm once. Never throws: a monitoring pass that dies takes
    * the monitoring with it, which is worse than the condition it was watching.
+   *
+   * `organizationId` restricts evaluation to ONE organization. Omitted in
+   * production, where this is a platform job watching every tenant. It exists
+   * because evaluation is deliberately CROSS-TENANT and global — the same
+   * escape hatch as the outbox worker's, for the same reason: in the test
+   * suite, one suite's aged documents or expiring credentials fire another
+   * suite's alarm assertions.
    */
-  async runOnce(): Promise<AlarmRunResult> {
+  async runOnce(opts: { organizationId?: string } = {}): Promise<AlarmRunResult> {
     const env = loadEnv();
     const result: AlarmRunResult = { evaluated: 0, firing: [], paged: [], resolved: [] };
 
     const alarms: Array<() => Promise<void>> = [
       // ── 1. Outbox age ──────────────────────────────────────────────────
       async () => {
-        const overdue = await einvoiceOutboxRepository.listOverdue(env.ZATCA_OVERDUE_MINUTES, 500);
+        const overdue = await einvoiceOutboxRepository.listOverdue(env.ZATCA_OVERDUE_MINUTES, 500, opts.organizationId);
         if (overdue.length === 0) {
           if (await clearIfPresent(ALARM_OUTBOX_OVERDUE, "E-invoice outbox is draining again")) {
             result.resolved.push(ALARM_OUTBOX_OVERDUE);
@@ -169,7 +176,7 @@ export const alarmsService = {
         // `listExpiring` returns everything inside the window; an already-
         // EXPIRED certificate is included deliberately — silence after expiry
         // is the worst case, since that is exactly when signing has stopped.
-        const expiring = (await renewalService.listExpiring(CRITICAL_EXPIRY_DAYS))
+        const expiring = (await renewalService.listExpiring(CRITICAL_EXPIRY_DAYS, opts.organizationId))
           .filter((c) => c.notAfter != null)
           .map((c) => ({ ...c, daysRemaining: Math.floor((c.notAfter!.getTime() - now) / DAY_MS) }));
         if (expiring.length === 0) {

@@ -16,8 +16,9 @@
  * This layer returns ENCRYPTED bytes only. Nothing here decrypts — that is the
  * signing service's sole job.
  */
-import { and, eq, isNotNull, lte, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte, ne } from "drizzle-orm";
 import {
+  companiesTable,
   ownerDb,
   zatcaCredentialsTable,
   type ZatcaCredentialRow,
@@ -162,7 +163,13 @@ export const vaultRepository = {
    * T-90/T-30/T-7 renewal reminders. Returns metadata only; no key material is
    * decrypted to answer it.
    */
-  async listExpiringBefore(cutoff: Date): Promise<ZatcaCredentialRow[]> {
+  async listExpiringBefore(cutoff: Date, organizationId?: string): Promise<ZatcaCredentialRow[]> {
+    // `zatca_credentials` is per COMPANY (no organization_id — see the schema),
+    // so an organization scope is a hop through `companies` on the owner
+    // connection, like the renewal service's recipient resolution. Optional for
+    // the same reason as the outbox worker's: global in production, scoped in
+    // the test suite so one suite's synthetic expiry dates cannot fire another
+    // suite's alarm.
     return ownerDb
       .select()
       .from(zatcaCredentialsTable)
@@ -171,6 +178,15 @@ export const vaultRepository = {
           eq(zatcaCredentialsTable.status, "active"),
           isNotNull(zatcaCredentialsTable.notAfter),
           lte(zatcaCredentialsTable.notAfter, cutoff),
+          organizationId === undefined
+            ? undefined
+            : inArray(
+                zatcaCredentialsTable.companyId,
+                ownerDb
+                  .select({ id: companiesTable.id })
+                  .from(companiesTable)
+                  .where(eq(companiesTable.organizationId, organizationId)),
+              ),
         ),
       );
   },
