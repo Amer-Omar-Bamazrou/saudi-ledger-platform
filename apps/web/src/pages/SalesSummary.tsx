@@ -6,15 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShoppingBag, Download } from "lucide-react";
+import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
+import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 
 interface SalesSummaryRow {
   month: string; invoiceCount: number; subtotal: number; vat: number; total: number; collected: number; outstanding: number;
 }
 
 export default function SalesSummary() {
-  const year = new Date().getFullYear();
-  const [from, setFrom] = useState(`${year}-01-01`);
-  const [to, setTo] = useState(`${year}-12-31`);
+  // M20.1 — the report does not mount until its default window is known, so a
+  // wrong window (the old hardcoded Jan–Dec) is never queried or rendered,
+  // even for a frame.
+  const range = useReportDefaultRange();
+  if (!range.ready) return <ReportRangeLoading />;
+  return <SalesSummaryInner range={range} />;
+}
+
+function SalesSummaryInner({ range }: { range: ReportDefaultRange }) {
+  const [from, setFrom] = useState(range.from);
+  const [to, setTo] = useState(range.to);
 
   const { data: rows = [], isLoading } = useQuery<SalesSummaryRow[]>({
     queryKey: ["sales-summary", from, to],
@@ -35,6 +45,8 @@ export default function SalesSummary() {
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
+
+      <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
