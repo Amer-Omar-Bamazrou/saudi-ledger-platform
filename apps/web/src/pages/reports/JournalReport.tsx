@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookOpen, CheckCircle, XCircle, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface JournalLine { id: number; accountName: string; accountId: number | null; description: string | null; debit: number; credit: number; }
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lines: JournalLine[]; totalDebit: number; totalCredit: number; balanced: boolean; }
@@ -57,6 +58,9 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                 <span className={`text-xs font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? "Balanced" : "Out of Balance"}</span>
               </div>
             )}
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
         </CardContent>
       </Card>

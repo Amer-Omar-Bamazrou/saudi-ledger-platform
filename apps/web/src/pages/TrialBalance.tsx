@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 interface TrialBalanceRow { id: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
 interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; totalCredit: number; balanced: boolean; }
@@ -68,6 +69,9 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                 <span className={`text-sm font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}</span>
               </div>
             )}
+          </div>
+          <div className="mt-3">
+            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
         </CardContent>
       </Card>

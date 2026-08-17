@@ -13,6 +13,7 @@
  */
 import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { useGetVatReturn, useGetVatSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
@@ -78,15 +79,18 @@ export default function VatReport() {
           </p>
         </div>
 
-        <div className="flex gap-4 items-end bg-card p-3 rounded-lg border shadow-sm">
-          <div className="space-y-1">
-            <Label className="text-xs">{t("Period from", "الفترة من")}</Label>
-            <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-8" />
+        <div className="space-y-2 bg-card p-3 rounded-lg border shadow-sm">
+          <div className="flex gap-4 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">{t("Period from", "الفترة من")}</Label>
+              <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t("Period to", "الفترة إلى")}</Label>
+              <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-8" />
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{t("Period to", "الفترة إلى")}</Label>
-            <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-8" />
-          </div>
+          <PeriodShortcuts granularity="month" from={periodFrom} to={periodTo} onSelect={(r)=>{setPeriodFrom(r.from);setPeriodTo(r.to);}} />
         </div>
       </div>
 
