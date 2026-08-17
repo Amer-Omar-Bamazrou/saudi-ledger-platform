@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { getListFiscalYearsQueryKey } from "@workspace/api-client-react";
+import { fiscalPeriodLabel } from "@/lib/fiscalLabel";
 
 /**
  * Company Settings (M11.6) — the tenant's legal identity.
@@ -72,7 +73,7 @@ const HIJRI_MONTHS_AR = [
 ];
 
 export default function CompanySettings() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<Partial<Company>>({});
@@ -308,7 +309,10 @@ export default function CompanySettings() {
                 <p className="text-xs font-medium text-foreground">
                   {t("Current fiscal year", "السنة المالية الحالية")}
                   {" · "}
-                  <span className="font-mono">{fiscalYears.current.label}</span>
+                  {/* M20.3 — the AH (or Gregorian) year, placed by its Gregorian
+                      span. A bare Hijri number was a fact only one reader could
+                      place. */}
+                  <span className="font-mono">{fiscalPeriodLabel(fiscalYears.current, lang)}</span>
                 </p>
                 <p className="text-[11px] text-muted-foreground font-mono">
                   {fiscalYears.current.startDate} → {fiscalYears.current.endDate}
