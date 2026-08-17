@@ -54,7 +54,7 @@
  *     accepting a row dated into one fails closed like every other posting.
  */
 import { db, transactionsTable, categoriesTable, type SystemAccountCode } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
@@ -194,12 +194,17 @@ export const transactionPostingService = {
    * nothing. Skips rows whose period is locked and reports them rather than
    * failing the run.
    */
-  async backfill(limit = 5000): Promise<{ posted: number; skipped: number; failed: Array<{ id: number; reason: string }> }> {
+  async backfill(limit = 5000, companyId?: string): Promise<{ posted: number; skipped: number; failed: Array<{ id: number; reason: string }> }> {
+    // `companyId` matters when an org has several companies: the journal
+    // entry's company resolves from the tenant GUC, so a backfill pass must
+    // only touch rows belonging to the company its connection is scoped to.
     const rows = await db
       .select({ id: transactionsTable.id })
       .from(transactionsTable)
       .where(
-        inArray(transactionsTable.reviewStatus, ["accepted"]),
+        companyId
+          ? and(inArray(transactionsTable.reviewStatus, ["accepted"]), eq(transactionsTable.companyId, companyId))
+          : inArray(transactionsTable.reviewStatus, ["accepted"]),
       )
       .limit(limit);
 

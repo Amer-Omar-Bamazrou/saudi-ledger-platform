@@ -392,6 +392,52 @@ transfers, because the fact that would settle it — whether the money left the
 business — is not recorded (queue **B5**). Owner's sequence: **C now, then D
 (record the destination), then A (the GL owns cash).**
 
+### ✅ A — THE GL OWNS CASH (built 2026-08-17; the sequence C → D → A is complete)
+
+Transfers post, by B5's declared direction: `own_account` through **Transfer
+clearing** (nets to zero when both legs are uploaded; a residual is money in
+an untracked own account — real and visible), `external` through **External
+transfers** (equity — the reasoning is recorded on the account in
+`chartOfAccounts.ts`), and `undeclared` through **Transfers awaiting
+declaration**, which posts (the bank genuinely moved) but blocks the Finance
+Hub liquidity claim like SUSPENSE. The cash card's framing changed from "two
+numbers, neither authoritative" to **"the ledger is cash; here is where the
+bank statement differs and why"** — remaining items: settlements (pay-path
+owns their posting), unposted_legacy (locked-period skips, should stay zero),
+ledger_only (document payments with no bank row).
+
+**The LIVE VERIFICATION PASS (standing rule 3), dev org, real HTTP, observed:**
+
+| Figure | Before A (old code) | After the reversal fix | After backfill |
+| --- | --- | --- | --- |
+| Balance-sheet CASH | −102,944.15 | −94,194.15 | **−122,494.15** |
+| Transfer suspense | — | 0 | **+28,300** |
+| Total assets | | −91,858.90 | **−91,858.90 (unchanged)** |
+| Reconciliation gap | | −19,550 (transfers −28,300 + ledger-only +8,750) | **+8,750 (ledger_only alone)** |
+| `unexplained` | | 0 | **0** |
+| Liquidity blockers | suspense only | suspense only | **suspense + undeclared_transfers 28,300** |
+
+Then observed live: declaring one 2,000 transfer `own_account` via PATCH
+moved exactly 2,000 from Transfer suspense (28,300 → 26,300) into Transfer
+clearing, books balanced throughout; the September income statement was
+untouched by any of it (transfers write no P&L lines, asserted by test).
+
+🔴 **The +8,750 reversal correction is its own finding**: `reverse()` posts a
+mirror AND flips the original to `reversed`, and posted-only report filters
+double-negated every reversal — the dev org's books were off by CASH −8,750 /
+SUSPENSE +8,750 from one M16.2-era repost, hiding inside this section's
+measured gap. Fixed (reports read `posted`+`reversed`; `JE_IN_BOOKS`); full
+record in [`findings-and-lessons.md`](../history/findings-and-lessons.md).
+
+**B4 shipped alongside** (`invoice_payments` / `bill_payments`): each payment
+a dated row, written by the pay paths, append-only at the grants. Live pass:
+two payments on one invoice (1,000 on Aug 5, 1,300 on Aug 17) → two rows,
+both dates preserved. 🔴 **For every consumer this unblocks — the overdue
+share over time (item 2 below), days-sales-outstanding, collection-speed
+trends — filter `backfilled = false`:** a backfilled row is an AGGREGATE of
+pre-B4 payments carrying only the LAST payment's date, and treating it as a
+single dated payment fabricates precision the data never had.
+
 **The original finding, kept:**
 Measured on real rows: `reports.cashFlow` reports **−113,744.15** for the dev
 org while the GL's cash-classified accounts moved **−102,944.15**. Both are

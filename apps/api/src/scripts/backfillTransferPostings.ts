@@ -15,20 +15,22 @@ import { transactionPostingService } from "../services/transactionPosting.servic
 import { auditContext } from "../lib/auditContext";
 
 async function main() {
+  // Per (org, company): journal entries carry a NOT NULL company_id resolved
+  // from the tenant GUC, so the scope must name the company the rows belong to.
   const { rows: orgs } = await pool.query(
-    `SELECT DISTINCT o.id, o.slug FROM organizations o
+    `SELECT DISTINCT o.id, o.slug, t.company_id FROM organizations o
        JOIN transactions t ON t.organization_id = o.id
       WHERE t.review_status = 'accepted' AND t.journal_entry_id IS NULL
         AND t.kind IN ('operating', 'transfer')`,
   );
-  console.log(`${orgs.length} organization(s) with unposted accepted rows`);
+  console.log(`${orgs.length} organization/company pair(s) with unposted accepted rows`);
 
   for (const org of orgs) {
-    const conn = await beginTenantConnection({ organizationId: org.id, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org.id, companyId: org.company_id, role: "authenticated" });
     try {
       const result = await conn.run(() =>
         auditContext.run({ userId: null, organizationId: org.id, ipAddress: null }, () =>
-          transactionPostingService.backfill(),
+          transactionPostingService.backfill(5000, org.company_id),
         ),
       );
       await conn.commit();
