@@ -330,6 +330,13 @@
    "when": 1786655845617,
    "tag": "0046_b4_payment_history",
    "breakpoints": true
+  },
+  {
+   "idx": 47,
+   "version": "7",
+   "when": 1786655845618,
+   "tag": "0047_b4_payment_sequences_grant",
+   "breakpoints": true
   }
  ]
 }
