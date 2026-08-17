@@ -235,3 +235,52 @@ facts outrank a defect nobody is currently reading.)
 
 Out of scope regardless (decided): prior-period comparison (F7), Analytics (F9),
 in-table Hijri date conversion (F3).
+
+## 8. As built
+
+### M20.0 — the lying column (✅ merged 2026-08-16, PR #47)
+
+Migration 0044: `fiscal_year_start` nullable, default dropped, **every
+untouched row NULLed** (F10 — the stored January declarations were the
+migration's own artifact, not tenant statements).
+`GET /companies/current/fiscal-years` returns `declared: false` with
+`current: null` and `periods: []` when undeclared — a consumer cannot receive
+a resolved January year nobody declared. The resolver keeps its non-null
+contract; "undeclared" is handled by its caller and never reaches it.
+`fiscalYearStart: null` on the update path WITHDRAWS a declaration, and
+Company Settings asks ("Not declared" is an explicit option — the M17.1
+ownership posture) instead of showing a January it invented.
+
+🔴 **What the milestone surfaced** (recorded in
+[`findings-and-lessons.md`](../history/findings-and-lessons.md)): the
+Company Settings submit still coerced `?? 1`, so saving an unrelated field
+would have re-declared January — the write-boundary corollary ("a removed
+default is an invariant; check every writer, not just the DDL"). And
+standing-check part 6 fired correctly: the fiscal-year suite's first test
+pinned "a fresh company defaults to a Gregorian January year" — correct when
+written, a guard for the defect ever since — rewritten to pin the opposite,
+plus a withdrawal test.
+
+### M20.1 — the default window (✅ merged 2026-08-17, PR #48)
+
+Sixteen report pages open on the tenant's **current fiscal year** when
+declared (the resolver's boundaries — Gregorian or Hijri, never recomputed),
+or a **rolling last 12 months** when undeclared (F11) with the inline notice
+on the report itself (F13) linking to Company Settings. One data hook,
+`useReportDefaultRange`, owns the decision; the twenty bespoke date controls
+stay (F5 barred a shared component, not a shared decision). Pages gate
+mounting on the resolved range so the wrong window is never queried, even
+for a frame.
+
+Honesty details: a FAILED settings fetch falls back to rolling with **no
+notice** (claiming "your year isn't set" would assert something unknown);
+the rolling window is pure and tested with a pinned January case (a January
+'now' must reach into the previous year); Company Settings invalidates the
+generated fiscal-years query key, so declaring a year updates reports
+immediately instead of after cache expiry. `VatReport` was verified OUT of
+the defect class — it opens on empty month pickers and asserted nothing.
+
+Release note: [`m20-1-report-default-windows.md`](../release-notes/m20-1-report-default-windows.md)
+(reports change what they show on open, with no user action behind it).
+
+Remaining in M20: **M20.2** (shortcuts) and **M20.3** (Hijri labels).

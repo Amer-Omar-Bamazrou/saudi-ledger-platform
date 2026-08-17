@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-15 (M17.0 — the Zakat surface retired; Q1–Q8 decided).**
+**Last updated: 2026-08-17 (M20.1 — reports open on the tenant's fiscal year; M20.2 shortcuts next).**
 
 **Audit close-out (2026-08-14):** two owner-approved read-only audits
 (accounting correctness under adversarial input; disconnection sweep M13→A3)
@@ -62,6 +62,8 @@ If this block disagrees with reality, fix it first.
 | **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
 | **M17.1** — Zakat ownership scope | ✅ Q2: `companies.ownership_type` (`SAUDI_GCC\|FOREIGN\|MIXED`, migration 0040), **nullable with NO default** — NULL = not declared is a first-class state, because a default would have the platform assert the tenant's ownership and that assertion gates the Zakat surface. The page branches **three** ways (ask / module / out-of-scope-see-your-advisor); a declaration can be withdrawn. Rule lives in `lib/zakatScope.ts` — 🔴 **M17.4's endpoint must call it and refuse non-`eligible`.** | same design doc §5b |
 | **M17.2** — Fiscal year + calendar | ✅ Q3's stated prerequisite, and it closes a five-milestone gap: `fiscalYearStart` is finally resolved. `fiscal_calendar` (gregorian \| **Umm al-Qura** hijri, migration 0039 + two CHECKs), a pure resolver (`lib/fiscalYear.ts`), Hijri conversion by **binary search over the ICU tables** (`lib/hijriCalendar.ts` — an arithmetic estimate was tried and is wrong, months are tabulated), a **boot assertion** that refuses to start on a small-ICU runtime, `GET /companies/current/fiscal-years`, and Company Settings showing real boundaries. **Reports still take explicit dates** — see the known-issue note. | same design doc §3 |
+| **M20.0** — the lying column | ✅ Migration 0044: `fiscal_year_start` nullable, NO default, **existing rows NULLed** (the 1s were the old default, not data). `GET /companies/current/fiscal-years` returns `declared: false` when undeclared; `null` on update WITHDRAWS. 🔴 Also fixed: Company Settings' submit coerced `?? 1`, so saving an ADDRESS would have re-declared January — the write-boundary corollary (§3). Part 6 fired: the suite's first test guarded the defect; rewritten. (PR #47) | [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md) §8 |
+| **M20.1** — report default windows | ✅ Sixteen report pages open on the tenant's **current fiscal year** (resolver boundaries, Gregorian or Hijri) or a **rolling last 12 months** when undeclared, with the F13 inline notice on the report itself. One data hook (`useReportDefaultRange`) owns the decision; the bespoke date controls stay (F5). A failed settings fetch falls back with NO notice — the page won't assert what it doesn't know. Release note shipped (reports change on open with no user action). `VatReport` verified OUT of the class (opens empty, asserts nothing). (PR #48) | same design doc §8 + [release note](docs/release-notes/m20-1-report-default-windows.md) |
 
 **Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
 platform produces an **auditable working paper**, never a ZATCA submission;
@@ -75,19 +77,17 @@ divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
 all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
 ask with the C7/C8 advisor).
 
-**Fiscal periods in reports are DECIDED but NOT BUILT** — 2026-08-16, by owner
-interview (F1–F9). Free dates **plus** period shortcuts on every report (nothing
-period-only); the shortcut **sets** the dates and they stay editable; Hijri gets
-**labels and boundaries but NOT in-table date conversion** (kept explicitly out so
-it cannot be absorbed); prior-period comparison and Analytics are out of scope;
+**Fiscal periods in reports — DECIDED (F1–F13), HALF BUILT.** The two defects
+F1–F9 surfaced are both FIXED: the lying `NOT NULL DEFAULT 1` column (M20.0)
+and the hardcoded Jan–Dec default window on every report (M20.1). Still to
+build, in the owner-approved order: **M20.2** (six shortcuts that SET the
+dates and stay editable; Balance Sheet gets "as at FY-end"), **M20.3** (Hijri
+period labels), then F3-dual and F7-cmp. Standing decisions: free dates plus
+shortcuts (nothing period-only); Hijri gets labels and boundaries but NOT
+in-table date conversion; prior-period comparison and Analytics out of scope;
 the twenty bespoke date controls stay duplicated until a third pattern appears.
-🔴 **Two things this surfaced.** (1) The hardcoded `Jan-01 → Dec-31` default on
-every report is a **defect**, not a gap — it actively asserts a calendar year, so
-an April-year tenant reads the wrong twelve months with nothing saying so (owner:
-"same family as the SAR 0.00 Zakat"). (2) `companies.fiscal_year_start` is
-`NOT NULL DEFAULT 1`, so the column **already** records every untouched tenant as
-declaring January — F8's "NULL is first-class" needs a migration, not a UI
-change. See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md).
+See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
+(§7 build order, §8 as built).
 
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
 two destinations (Finance Hub, Analytics), Automation and AI woven into existing
@@ -493,17 +493,12 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **L-2**: signup 409 leaks account existence (accepted; document inline).
 - **L-3**: primary-membership tie-break is non-deterministic (`createdAt` only; add `id`).
 - **L-4**: the operator queue list is unaudited (accepted trade-off).
-- **🟡 `companies.fiscalYearStart` is now RESOLVED but reports still take explicit
-  dates** (M17.2). The column was stored from M11.6 and applied by nothing for
-  five milestones. It now has a real resolver (`lib/fiscalYear.ts`), a calendar
-  basis (`fiscal_calendar`: gregorian | hijri/Umm al-Qura), an endpoint
-  (`GET /companies/current/fiscal-years`) and a UI consumer (Company Settings
-  shows the resolved boundaries and day count). 🔴 **What is NOT done, stated so
-  nobody reads more into it:** the twelve report pages still take `date_from` /
-  `date_to` and know nothing about fiscal years. Wiring a fiscal-period picker
-  into them is a separate UI change (no shared date-range component exists —
-  each page rolls its own). The resolver exists because **Zakat** needs it, and
-  its consumers today are the settings page and M17.3/M17.4.
+- **✅ `companies.fiscalYearStart` — fully closed by M20.0 + M20.1** (was: stored
+  from M11.6, applied by nothing for five milestones). Resolver (`lib/fiscalYear.ts`),
+  calendar basis, endpoint, Company Settings display (M17.2); NULL = not declared
+  as a first-class state (M20.0); every report page opens on the resolved fiscal
+  year or a labelled rolling 12 months (M20.1). Remaining fiscal-period work is
+  feature work, not a gap — tracked in §2 (M20.2/M20.3).
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
 - **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,
