@@ -8,6 +8,7 @@
 import type { CashReconciliationItemsItemCode } from './cashReconciliationItemsItemCode';
 
 export type CashReconciliationItemsItem = {
+  /** A — GL owns cash (2026-08-17): transfers now POST, so the three transfer codes are gone. What remains is deliberate (settlements post via the pay path), historical (unposted_legacy — locked-period skips, should stay zero), or ledger-side (document payments with no bank row). */
   code: CashReconciliationItemsItemCode;
   amount: number;
 };

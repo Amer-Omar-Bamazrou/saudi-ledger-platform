@@ -291,6 +291,7 @@ export type TrendPointBlockersItemCode = typeof TrendPointBlockersItemCode[keyof
 export const TrendPointBlockersItemCode = {
   suspense_balance: 'suspense_balance',
   unclassified_accounts: 'unclassified_accounts',
+  undeclared_transfers: 'undeclared_transfers',
 } as const;
 
 export type TrendPointBlockersItem = {
@@ -333,19 +334,20 @@ export interface BridgePoint {
   closing: number;
 }
 
+/**
+ * A — GL owns cash (2026-08-17): transfers now POST, so the three transfer codes are gone. What remains is deliberate (settlements post via the pay path), historical (unposted_legacy — locked-period skips, should stay zero), or ledger-side (document payments with no bank row).
+ */
 export type CashReconciliationItemsItemCode = typeof CashReconciliationItemsItemCode[keyof typeof CashReconciliationItemsItemCode];
 
 
 export const CashReconciliationItemsItemCode = {
-  transfers_own_account: 'transfers_own_account',
-  transfers_external: 'transfers_external',
-  transfers_undeclared: 'transfers_undeclared',
   settlements: 'settlements',
   unposted_legacy: 'unposted_legacy',
   ledger_only: 'ledger_only',
 } as const;
 
 export type CashReconciliationItemsItem = {
+  /** A — GL owns cash (2026-08-17): transfers now POST, so the three transfer codes are gone. What remains is deliberate (settlements post via the pay path), historical (unposted_legacy — locked-period skips, should stay zero), or ledger-side (document payments with no bank row). */
   code: CashReconciliationItemsItemCode;
   amount: number;
 };
@@ -370,7 +372,7 @@ export interface CashReconciliation {
   items: CashReconciliationItemsItem[];
   /** 🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile. */
   unexplained: number;
-  /** B5 — transfer movement nobody has classified. Distinct from `unexplained`: the itemisation SUCCEEDED and one of its lines is "we do not know", which is a different problem with a different fix (somebody has to say). Surfaced separately so the page can ask for the declaration rather than burying it in a list. */
+  /** Transfer movement nobody has classified (B5). No longer a GAP component — an undeclared transfer posts, into Transfer suspense — but still a question only the tenant can answer, surfaced so the page can ask for the declaration. The same money the Finance Hub's liquidity claim is withheld over. */
   undeclaredTransfers: number;
   points: CashPoint[];
 }
@@ -428,15 +430,20 @@ export interface Decomposition {
   concentration: DecompositionConcentration;
 }
 
+/**
+ * undeclared_transfers (A, 2026-08-17) — money in Transfer suspense: cash whose destination nobody has declared, which is exactly the case the withholding exists for.
+ */
 export type LiquidityBlockersItemCode = typeof LiquidityBlockersItemCode[keyof typeof LiquidityBlockersItemCode];
 
 
 export const LiquidityBlockersItemCode = {
   suspense_balance: 'suspense_balance',
   unclassified_accounts: 'unclassified_accounts',
+  undeclared_transfers: 'undeclared_transfers',
 } as const;
 
 export type LiquidityBlockersItem = {
+  /** undeclared_transfers (A, 2026-08-17) — money in Transfer suspense: cash whose destination nobody has declared, which is exactly the case the withholding exists for. */
   code: LiquidityBlockersItemCode;
   amount: number;
   /** @nullable */

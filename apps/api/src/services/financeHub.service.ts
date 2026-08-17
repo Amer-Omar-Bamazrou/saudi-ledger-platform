@@ -34,7 +34,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const RULE_OF_THUMB_RATIO = 1;
 
 export interface LiquidityBlocker {
-  code: "suspense_balance" | "unclassified_accounts";
+  code: "suspense_balance" | "unclassified_accounts" | "undeclared_transfers";
   /** How much money the problem covers, so the user can judge its size. */
   amount: number;
   count?: number;
@@ -89,6 +89,13 @@ export const financeHubService = {
     const suspenseBalance = round2(bs.assets.suspenseBalance);
     if (Math.abs(suspenseBalance) >= 0.01) {
       blockers.push({ code: "suspense_balance", amount: suspenseBalance });
+    }
+    // A — GL owns cash: an undeclared transfer's balance is cash the platform
+    // cannot classify — exactly the case the withholding exists for (owner
+    // decision, 2026-08-17). Same treatment as SUSPENSE.
+    const transferSuspenseBalance = round2(bs.assets.transferSuspenseBalance);
+    if (Math.abs(transferSuspenseBalance) >= 0.01) {
+      blockers.push({ code: "undeclared_transfers", amount: transferSuspenseBalance });
     }
     const unclassifiedAmount = round2(
       bs.assets.unclassified.total + bs.liabilities.unclassified.total,

@@ -1,321 +1,335 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1785182825736,
-      "tag": "0000_brown_steve_rogers",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1785187813559,
-      "tag": "0001_backfill_tenancy",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1785189123859,
-      "tag": "0002_enforce_tenancy",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1785189151331,
-      "tag": "0003_rls_policies",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1785267986835,
-      "tag": "0004_m4_rls_enforcement",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1785275787645,
-      "tag": "0005_session_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1785278594997,
-      "tag": "0006_audit_append_only",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1785356926410,
-      "tag": "0007_m10_3_bill_review_note",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1785358435001,
-      "tag": "0008_m10_4_invoice_review_note",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1785359459939,
-      "tag": "0009_m10_5_payroll_review_note",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1785689442251,
-      "tag": "0010_opposite_jack_murdock",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1785691009431,
-      "tag": "0011_yellow_jamie_braddock",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1785693038761,
-      "tag": "0012_luxuriant_big_bertha",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1785763377474,
-      "tag": "0013_cultured_adam_warlock",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1785792144954,
-      "tag": "0014_glamorous_penance",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1785793694997,
-      "tag": "0015_calm_veda",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1785851856629,
-      "tag": "0016_m12_1a_zatca_phase2_fields",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1785856243921,
-      "tag": "0017_m12_2_national_address_fields",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1786060640652,
-      "tag": "0018_m12_6_outbox_claiming",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "7",
-      "when": 1786282617077,
-      "tag": "0019_m12_5_zatca_credentials",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1786287237648,
-      "tag": "0020_m12_1b_credit_debit_notes",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1786287804908,
-      "tag": "0021_m12_1b_customer_national_id",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1786472609261,
-      "tag": "0022_m12_8_archive_and_reminders",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1786476327297,
-      "tag": "0023_s1_einvoice_zatca_uuid",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1786478650070,
-      "tag": "0024_m13_chart_of_accounts",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1786478650071,
-      "tag": "0025_m13_coa_template_and_trigger",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "7",
-      "when": 1786478650072,
-      "tag": "0026_m14_revoke_destructive_grants",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "7",
-      "when": 1786488240276,
-      "tag": "0027_a1_captured_documents",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1786497033809,
-      "tag": "0028_a3_recurring",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1786497033810,
-      "tag": "0029_m15_default_categories",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1786500446612,
-      "tag": "0030_m15_transaction_review_status",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1786538399475,
-      "tag": "0031_m16_2_kind_treatment_account",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1786653477687,
-      "tag": "0032_m16_3_settlement_links",
-      "breakpoints": true
-    },
-    {
-      "idx": 33,
-      "version": "7",
-      "when": 1786655845604,
-      "tag": "0033_m16_3_1_treatment_verified",
-      "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1786655845605,
-      "tag": "0034_audit_write_boundary_checks",
-      "breakpoints": true
-    },
-    {
-      "idx": 35,
-      "version": "7",
-      "when": 1786655845606,
-      "tag": "0035_b2_alert_state",
-      "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "7",
-      "when": 1786655845607,
-      "tag": "0036_flaw1_transactions_to_ledger",
-      "breakpoints": true
-    },
-    {
-      "idx": 37,
-      "version": "7",
-      "when": 1786655845608,
-      "tag": "0037_flaw6_vat_basis",
-      "breakpoints": true
-    },
-    {
-      "idx": 38,
-      "version": "7",
-      "when": 1786655845609,
-      "tag": "0038_m17_0_drop_zakat_relevant",
-      "breakpoints": true
-    },
-    {
-      "idx": 39,
-      "version": "7",
-      "when": 1786655845610,
-      "tag": "0039_m17_2_fiscal_calendar",
-      "breakpoints": true
-    },
-    {
-      "idx": 40,
-      "version": "7",
-      "when": 1786655845611,
-      "tag": "0040_m17_1_ownership_type",
-      "breakpoints": true
-    },
-    {
-      "idx": 41,
-      "version": "7",
-      "when": 1786655845612,
-      "tag": "0041_m18_1_liquidity_class",
-      "breakpoints": true
-    },
-    {
-      "idx": 42,
-      "version": "7",
-      "when": 1786655845613,
-      "tag": "0042_demo_reset_runs",
-      "breakpoints": true
-    },
-    {
-      "idx": 43,
-      "version": "7",
-      "when": 1786655845614,
-      "tag": "0043_b5_transfer_destination",
-      "breakpoints": true
-    },
-    {
-      "idx": 44,
-      "version": "7",
-      "when": 1786655845615,
-      "tag": "0044_m20_0_fiscal_year_start_nullable",
-      "breakpoints": true
-    }
-  ]
+ "version": "7",
+ "dialect": "postgresql",
+ "entries": [
+  {
+   "idx": 0,
+   "version": "7",
+   "when": 1785182825736,
+   "tag": "0000_brown_steve_rogers",
+   "breakpoints": true
+  },
+  {
+   "idx": 1,
+   "version": "7",
+   "when": 1785187813559,
+   "tag": "0001_backfill_tenancy",
+   "breakpoints": true
+  },
+  {
+   "idx": 2,
+   "version": "7",
+   "when": 1785189123859,
+   "tag": "0002_enforce_tenancy",
+   "breakpoints": true
+  },
+  {
+   "idx": 3,
+   "version": "7",
+   "when": 1785189151331,
+   "tag": "0003_rls_policies",
+   "breakpoints": true
+  },
+  {
+   "idx": 4,
+   "version": "7",
+   "when": 1785267986835,
+   "tag": "0004_m4_rls_enforcement",
+   "breakpoints": true
+  },
+  {
+   "idx": 5,
+   "version": "7",
+   "when": 1785275787645,
+   "tag": "0005_session_table",
+   "breakpoints": true
+  },
+  {
+   "idx": 6,
+   "version": "7",
+   "when": 1785278594997,
+   "tag": "0006_audit_append_only",
+   "breakpoints": true
+  },
+  {
+   "idx": 7,
+   "version": "7",
+   "when": 1785356926410,
+   "tag": "0007_m10_3_bill_review_note",
+   "breakpoints": true
+  },
+  {
+   "idx": 8,
+   "version": "7",
+   "when": 1785358435001,
+   "tag": "0008_m10_4_invoice_review_note",
+   "breakpoints": true
+  },
+  {
+   "idx": 9,
+   "version": "7",
+   "when": 1785359459939,
+   "tag": "0009_m10_5_payroll_review_note",
+   "breakpoints": true
+  },
+  {
+   "idx": 10,
+   "version": "7",
+   "when": 1785689442251,
+   "tag": "0010_opposite_jack_murdock",
+   "breakpoints": true
+  },
+  {
+   "idx": 11,
+   "version": "7",
+   "when": 1785691009431,
+   "tag": "0011_yellow_jamie_braddock",
+   "breakpoints": true
+  },
+  {
+   "idx": 12,
+   "version": "7",
+   "when": 1785693038761,
+   "tag": "0012_luxuriant_big_bertha",
+   "breakpoints": true
+  },
+  {
+   "idx": 13,
+   "version": "7",
+   "when": 1785763377474,
+   "tag": "0013_cultured_adam_warlock",
+   "breakpoints": true
+  },
+  {
+   "idx": 14,
+   "version": "7",
+   "when": 1785792144954,
+   "tag": "0014_glamorous_penance",
+   "breakpoints": true
+  },
+  {
+   "idx": 15,
+   "version": "7",
+   "when": 1785793694997,
+   "tag": "0015_calm_veda",
+   "breakpoints": true
+  },
+  {
+   "idx": 16,
+   "version": "7",
+   "when": 1785851856629,
+   "tag": "0016_m12_1a_zatca_phase2_fields",
+   "breakpoints": true
+  },
+  {
+   "idx": 17,
+   "version": "7",
+   "when": 1785856243921,
+   "tag": "0017_m12_2_national_address_fields",
+   "breakpoints": true
+  },
+  {
+   "idx": 18,
+   "version": "7",
+   "when": 1786060640652,
+   "tag": "0018_m12_6_outbox_claiming",
+   "breakpoints": true
+  },
+  {
+   "idx": 19,
+   "version": "7",
+   "when": 1786282617077,
+   "tag": "0019_m12_5_zatca_credentials",
+   "breakpoints": true
+  },
+  {
+   "idx": 20,
+   "version": "7",
+   "when": 1786287237648,
+   "tag": "0020_m12_1b_credit_debit_notes",
+   "breakpoints": true
+  },
+  {
+   "idx": 21,
+   "version": "7",
+   "when": 1786287804908,
+   "tag": "0021_m12_1b_customer_national_id",
+   "breakpoints": true
+  },
+  {
+   "idx": 22,
+   "version": "7",
+   "when": 1786472609261,
+   "tag": "0022_m12_8_archive_and_reminders",
+   "breakpoints": true
+  },
+  {
+   "idx": 23,
+   "version": "7",
+   "when": 1786476327297,
+   "tag": "0023_s1_einvoice_zatca_uuid",
+   "breakpoints": true
+  },
+  {
+   "idx": 24,
+   "version": "7",
+   "when": 1786478650070,
+   "tag": "0024_m13_chart_of_accounts",
+   "breakpoints": true
+  },
+  {
+   "idx": 25,
+   "version": "7",
+   "when": 1786478650071,
+   "tag": "0025_m13_coa_template_and_trigger",
+   "breakpoints": true
+  },
+  {
+   "idx": 26,
+   "version": "7",
+   "when": 1786478650072,
+   "tag": "0026_m14_revoke_destructive_grants",
+   "breakpoints": true
+  },
+  {
+   "idx": 27,
+   "version": "7",
+   "when": 1786488240276,
+   "tag": "0027_a1_captured_documents",
+   "breakpoints": true
+  },
+  {
+   "idx": 28,
+   "version": "7",
+   "when": 1786497033809,
+   "tag": "0028_a3_recurring",
+   "breakpoints": true
+  },
+  {
+   "idx": 29,
+   "version": "7",
+   "when": 1786497033810,
+   "tag": "0029_m15_default_categories",
+   "breakpoints": true
+  },
+  {
+   "idx": 30,
+   "version": "7",
+   "when": 1786500446612,
+   "tag": "0030_m15_transaction_review_status",
+   "breakpoints": true
+  },
+  {
+   "idx": 31,
+   "version": "7",
+   "when": 1786538399475,
+   "tag": "0031_m16_2_kind_treatment_account",
+   "breakpoints": true
+  },
+  {
+   "idx": 32,
+   "version": "7",
+   "when": 1786653477687,
+   "tag": "0032_m16_3_settlement_links",
+   "breakpoints": true
+  },
+  {
+   "idx": 33,
+   "version": "7",
+   "when": 1786655845604,
+   "tag": "0033_m16_3_1_treatment_verified",
+   "breakpoints": true
+  },
+  {
+   "idx": 34,
+   "version": "7",
+   "when": 1786655845605,
+   "tag": "0034_audit_write_boundary_checks",
+   "breakpoints": true
+  },
+  {
+   "idx": 35,
+   "version": "7",
+   "when": 1786655845606,
+   "tag": "0035_b2_alert_state",
+   "breakpoints": true
+  },
+  {
+   "idx": 36,
+   "version": "7",
+   "when": 1786655845607,
+   "tag": "0036_flaw1_transactions_to_ledger",
+   "breakpoints": true
+  },
+  {
+   "idx": 37,
+   "version": "7",
+   "when": 1786655845608,
+   "tag": "0037_flaw6_vat_basis",
+   "breakpoints": true
+  },
+  {
+   "idx": 38,
+   "version": "7",
+   "when": 1786655845609,
+   "tag": "0038_m17_0_drop_zakat_relevant",
+   "breakpoints": true
+  },
+  {
+   "idx": 39,
+   "version": "7",
+   "when": 1786655845610,
+   "tag": "0039_m17_2_fiscal_calendar",
+   "breakpoints": true
+  },
+  {
+   "idx": 40,
+   "version": "7",
+   "when": 1786655845611,
+   "tag": "0040_m17_1_ownership_type",
+   "breakpoints": true
+  },
+  {
+   "idx": 41,
+   "version": "7",
+   "when": 1786655845612,
+   "tag": "0041_m18_1_liquidity_class",
+   "breakpoints": true
+  },
+  {
+   "idx": 42,
+   "version": "7",
+   "when": 1786655845613,
+   "tag": "0042_demo_reset_runs",
+   "breakpoints": true
+  },
+  {
+   "idx": 43,
+   "version": "7",
+   "when": 1786655845614,
+   "tag": "0043_b5_transfer_destination",
+   "breakpoints": true
+  },
+  {
+   "idx": 44,
+   "version": "7",
+   "when": 1786655845615,
+   "tag": "0044_m20_0_fiscal_year_start_nullable",
+   "breakpoints": true
+  },
+  {
+   "idx": 45,
+   "version": "7",
+   "when": 1786655845616,
+   "tag": "0045_a_gl_owns_cash_accounts",
+   "breakpoints": true
+  },
+  {
+   "idx": 46,
+   "version": "7",
+   "when": 1786655845617,
+   "tag": "0046_b4_payment_history",
+   "breakpoints": true
+  }
+ ]
 }

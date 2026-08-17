@@ -22,6 +22,7 @@ import { auditContext } from "../lib/auditContext";
 import { cashService } from "../services/cash.service";
 import { monthsBetween } from "../services/analytics.service";
 import { invoicesService } from "../services/invoices.service";
+import { transactionPostingService } from "../services/transactionPosting.service";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -66,6 +67,8 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
       "journal_entry_lines",
       "journal_entries",
       "invoice_items",
+      "invoice_payments",
+
       "invoices",
       "customers",
       "categories",
@@ -154,27 +157,25 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     expect(summary.unexplained).toBe(0);
   });
 
-  it("🔴 an UNDECLARED transfer is reported as undeclared — not assumed either way", async () => {
-    // 🔴 B5's whole point. A transfer with no declared direction must NOT be
-    // silently treated as internal (which would say the ledger is fine) or as
-    // external (which would say the ledger is wrong). Both are assertions
-    // nobody made. It gets its own line, and its own number on the summary.
+  it("🔴 A — a LEGACY unposted transfer is named legacy; the undeclared ASK survives it", async () => {
+    // Rewritten for A (GL owns cash): pre-A this pinned "an undeclared
+    // transfer is a gap line of its own". Transfers post now, so an accepted
+    // transfer with NO journal entry is a HISTORY artefact — named
+    // unposted_legacy, expected to shrink to zero — while the undeclared ASK
+    // is orthogonal: it is surfaced whether or not the row posted, because it
+    // is a question only the tenant can answer.
     await tx({ date: "2026-01-10", amount: 5_000, type: "debit", kind: "transfer" });
 
     const { summary } = await recon();
     expect(summary.bankMovement).toBe(-5_000);
     expect(summary.ledgerCash).toBe(0);
     expect(summary.gap).toBe(-5_000);
-    expect(summary.items.find((i) => i.code === "transfers_undeclared")?.amount).toBe(-5_000);
-    expect(summary.items.find((i) => i.code === "transfers_own_account")).toBeUndefined();
-    expect(summary.items.find((i) => i.code === "transfers_external")).toBeUndefined();
+    expect(summary.items.find((i) => i.code === "unposted_legacy")?.amount).toBe(-5_000);
     expect(summary.undeclaredTransfers, "surfaced so the page can ASK").toBe(-5_000);
     expect(summary.unexplained, "the gap is fully attributed").toBe(0);
   });
 
-  it("🔴 declaring OWN ACCOUNT says the ledger was right all along", async () => {
-    // Money between the business's own pockets: business cash did not change,
-    // so the ledger's silence is correct and the gap has an innocent cause.
+  it("🔴 A — a POSTED own-account transfer closes its own gap: the ledger moved with the bank", async () => {
     await pool.query(
       `INSERT INTO transactions
          (organization_id, company_id, date, description, amount, type, kind,
@@ -182,16 +183,22 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
        VALUES ($1,$2,'2026-01-15','own move','2000.00','debit','transfer','accepted','own_account')`,
       [orgId, companyId],
     );
+    const { rows: [row] } = await pool.query(
+      `SELECT id FROM transactions WHERE organization_id = $1 AND description = 'own move'`,
+      [orgId],
+    );
+    await inTenant(() => transactionPostingService.post(Number(row.id)));
+
     const { summary } = await recon();
-    expect(summary.items.find((i) => i.code === "transfers_own_account")?.amount).toBe(-2_000);
+    // Bank −2,000 AND ledger cash −2,000: no gap contribution at all — the
+    // money sits in Transfer clearing, visible on the balance sheet.
+    expect(summary.bankMovement).toBe(-7_000);
+    expect(summary.ledgerCash).toBe(-2_000);
     expect(summary.undeclaredTransfers, "unchanged — this one was declared").toBe(-5_000);
     expect(summary.unexplained).toBe(0);
   });
 
-  it("🔴 declaring EXTERNAL says the ledger is genuinely understating cash", async () => {
-    // Owner drawings, cash withdrawn and kept: business cash really fell, and
-    // the ledger has no entry for it. Same arithmetic as own_account, opposite
-    // meaning — which is exactly why they cannot share a line.
+  it("🔴 A — a POSTED external transfer likewise: cash falls in BOTH views, equity records the distribution", async () => {
     await pool.query(
       `INSERT INTO transactions
          (organization_id, company_id, date, description, amount, type, kind,
@@ -199,8 +206,14 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
        VALUES ($1,$2,'2026-01-20','drawings','1000.00','debit','transfer','accepted','external')`,
       [orgId, companyId],
     );
+    const { rows: [row] } = await pool.query(
+      `SELECT id FROM transactions WHERE organization_id = $1 AND description = 'drawings'`,
+      [orgId],
+    );
+    await inTenant(() => transactionPostingService.post(Number(row.id)));
+
     const { summary } = await recon();
-    expect(summary.items.find((i) => i.code === "transfers_external")?.amount).toBe(-1_000);
+    expect(summary.ledgerCash).toBe(-3_000);
     expect(summary.unexplained).toBe(0);
   });
 
@@ -258,7 +271,8 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     );
 
     const { summary } = await recon();
-    expect(summary.ledgerCash).toBe(1_150);
+    // −3,000 of posted transfer cash + 1,150 of document-payment cash.
+    expect(summary.ledgerCash).toBe(-1_850);
     const ledgerOnly = summary.items.find((i) => i.code === "ledger_only");
     expect(ledgerOnly?.amount, "ledger-only cash REDUCES bank minus ledger").toBe(-1_150);
     expect(summary.unexplained).toBe(0);

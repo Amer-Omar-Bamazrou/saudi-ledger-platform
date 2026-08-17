@@ -12,6 +12,7 @@ import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat } from
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import { PaymentHistory } from "@/components/PaymentHistory";
 
 interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
 interface Customer { id: number; name: string; }
@@ -219,6 +220,7 @@ export default function Invoices() {
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
             <div><Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+            <PaymentHistory entity="invoices" id={payOpen} />
           </div>
           <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>payOpen&&payMut.mutate({id:payOpen,amount:Number(payAmount)})} disabled={!payAmount||payMut.isPending}>
             {payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record Payment", "تسجيل الدفعة")}

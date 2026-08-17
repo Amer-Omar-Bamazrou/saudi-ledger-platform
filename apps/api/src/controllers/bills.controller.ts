@@ -41,6 +41,10 @@ export const billsController = {
   async pay(req: Request, res: Response) {
     res.json(await billsService.pay(Number(req.params.id), req.body, req.session?.userId ?? null));
   },
+  /** B4 — the dated payment history; backfilled rows are aggregates. */
+  async payments(req: Request, res: Response) {
+    res.json(await billsService.payments(Number(req.params.id)));
+  },
   async remove(req: Request, res: Response) {
     await billsService.remove(Number(req.params.id));
     res.status(204).send();

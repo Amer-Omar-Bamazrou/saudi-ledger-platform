@@ -19,6 +19,7 @@ import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import { PaymentHistory } from "@/components/PaymentHistory";
 
 interface Bill {
   id: number; billNumber: string; vendorReference: string; date: string;
@@ -515,6 +516,7 @@ export default function Bills() {
             <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
             <Input type="number" value={payAmount}
               onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" />
+            <PaymentHistory entity="bills" id={payOpen} />
           </div>
           <Button
             className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"

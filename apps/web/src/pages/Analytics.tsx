@@ -111,28 +111,13 @@ export default function Analytics() {
     (cash?.points ?? []).flatMap((p) => [p.bankMovement, p.ledgerCash]),
   );
 
-  /** Plain-language name for each reason the two cash figures differ. */
+  /**
+   * Plain-language name for each reason the ledger and the statement differ.
+   * A — GL owns cash: transfers POST now, so the three transfer lines are
+   * gone; what remains is deliberate, historical, or ledger-side.
+   */
   const gapLabel = (code: string) => {
     switch (code) {
-      // 🔴 B5 — three lines, not one, because they mean three different things.
-      // Own-account says the books are RIGHT; external says the books are
-      // UNDERSTATING cash; undeclared says nobody knows and the platform will
-      // not guess. Collapsing them would hide which of those is the case.
-      case "transfers_own_account":
-        return t(
-          "Moved between your own accounts — your cash did not change, so the books are right",
-          "نُقِل بين حساباتك — لم تتغير نقديتك، فالدفاتر صحيحة",
-        );
-      case "transfers_external":
-        return t(
-          "Left the business — your cash fell, and the books do not show it",
-          "خرج من المنشأة — انخفضت نقديتك، والدفاتر لا تظهر ذلك",
-        );
-      case "transfers_undeclared":
-        return t(
-          "Transfers nobody has classified yet — we cannot tell whether this money left the business",
-          "تحويلات لم يُصنّفها أحد بعد — لا نعرف إن كان هذا المبلغ قد خرج من المنشأة",
-        );
       case "settlements":
         return t(
           "Bank lines matched to an invoice or bill (already in the books via the document)",
@@ -446,19 +431,20 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      {/* ── Cash: TWO figures, named so they cannot be confused (M19.7) ─────
-           The M16 Q0 discipline applied to cash. Both are money, so one axis
-           is honest — and the gap between the lines is the subject, not an
-           embarrassment to smooth over. ──────────────────────────────────── */}
+      {/* ── Cash: the ledger is cash; the statement is the reconciliation ───
+           A — GL owns cash (2026-08-17): transfers post now, so this stopped
+           being "two numbers, neither authoritative". Both are money, so one
+           axis is honest — and each remaining difference is a stated,
+           deliberate reason, not a disagreement. ─────────────────────────── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
-            {t("Cash: the bank and the books", "النقد: البنك والدفاتر")}
+            {t("Cash: the books, reconciled to the bank", "النقد: الدفاتر مطابَقةً مع البنك")}
           </CardTitle>
           <CardDescription>
             {t(
-              "Two figures, because two things are being measured. Bank movement is what your statement shows. Ledger cash is what the books record. Where they differ, the reasons are listed below — none of it is unexplained.",
-              "رقمان، لأن ما يُقاس شيئان. حركة البنك هي ما يظهره كشف حسابك. نقد الدفاتر هو ما تسجله الدفاتر. وحيثما اختلفا، الأسباب مذكورة أدناه — ولا شيء منها غير مُفسَّر.",
+              "Ledger cash is your cash figure — every accepted bank line and every recorded payment posts to it. Bank movement is what your statement shows, and where the two differ, each reason is listed below.",
+              "نقد الدفاتر هو رقم نقديتك — كل حركة بنكية مقبولة وكل دفعة مسجلة تُرحَّل إليه. حركة البنك هي ما يظهره كشف حسابك، وحيثما اختلفا فالأسباب مذكورة أدناه.",
             )}
           </CardDescription>
         </CardHeader>
@@ -546,29 +532,26 @@ export default function Analytics() {
               )}
 
               {/*
-                🔴 Says out loud that this is an interim. The gap is legible;
-                neither figure is yet CORRECT about transfers, because whether a
-                transfer left the business is not recorded anywhere (queue B5).
-              */}
-              {/*
-                🔴 The ASK. An undeclared transfer is not a defect in the
-                figures — it is a question only the tenant can answer, and it is
-                answerable on the Transactions list in one click. Saying so is
-                what turns a caveat into something actionable.
+                🔴 The ASK. An undeclared transfer no longer distorts the cash
+                figure — it posts, into "Transfers awaiting declaration" — but
+                it is still a question only the tenant can answer, and until
+                they do, that money sits unclassified on the balance sheet and
+                the liquidity claim is withheld. Answerable on the Transactions
+                list in one click.
               */}
               {Math.abs(cash.undeclaredTransfers) >= 0.005 && (
                 <p className="text-xs mt-3">
                   {t(
-                    `${formatCurrency(cash.undeclaredTransfers)} of transfers have not been classified. Say whether each moved between your own accounts or left the business, on the Transactions page, and this difference resolves.`,
-                    `لم يُصنّف ${formatCurrency(cash.undeclaredTransfers)} من التحويلات. حدّد لكل منها إن كان انتقل بين حساباتك أم خرج من المنشأة، من صفحة المعاملات، وسيُحلّ هذا الفارق.`,
+                    `${formatCurrency(cash.undeclaredTransfers)} of transfers have not been classified. They are in your books under "Transfers awaiting declaration" — say whether each moved between your own accounts or left the business, on the Transactions page.`,
+                    `لم يُصنّف ${formatCurrency(cash.undeclaredTransfers)} من التحويلات. وهي مسجلة في دفاترك تحت «تحويلات بانتظار الإقرار» — حدّد لكل منها إن كان انتقل بين حساباتك أم خرج من المنشأة، من صفحة المعاملات.`,
                   )}
                 </p>
               )}
 
               <p className="text-[11px] text-muted-foreground mt-3">
                 {t(
-                  "Once every transfer says where it went, this comparison can say which figure is right — not just where they differ.",
-                  "التحويل بين حساباتك وخروج المال من المنشأة يُسجَّلان بالطريقة نفسها اليوم، لذا لا يستطيع أي من الرقمين التمييز بينهما. وإلى أن يتغير ذلك، تُظهر هذه المقارنة أين يختلفان لا أيهما الصحيح.",
+                  "The books are the cash figure. This comparison shows where the bank statement differs, and why.",
+                  "الدفاتر هي رقم النقدية. تُظهر هذه المقارنة أين يختلف كشف الحساب البنكي عنها، ولماذا.",
                 )}
               </p>
             </div>

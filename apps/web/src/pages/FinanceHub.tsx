@@ -195,14 +195,25 @@ export default function FinanceHub() {
                             `${formatCurrency(Math.abs(b.amount))} of money we could not identify is sitting unclassified. Money you cannot identify is not money you can pay with.`,
                             `${formatCurrency(Math.abs(b.amount))} من المبالغ التي تعذّر تحديدها ما زالت غير مصنفة. والمال الذي لا تعرف مصدره ليس مالاً يمكنك السداد به.`,
                           )
-                        : t(
-                            `${b.count} account(s) have no "turns into cash" setting, so ${formatCurrency(Math.abs(b.amount))} is excluded from these figures.`,
-                            `${b.count} حساب/حسابات بدون إعداد "يتحول إلى نقد"، لذا استُبعد ${formatCurrency(Math.abs(b.amount))} من هذه الأرقام.`,
-                          )}
+                        : b.code === "undeclared_transfers"
+                          ? t(
+                              `${formatCurrency(Math.abs(b.amount))} of transfers have not said where the money went. Until each is declared, we cannot say whether it is still yours to pay with.`,
+                              `${formatCurrency(Math.abs(b.amount))} من التحويلات لم يُحدَّد وجهتها. وحتى يُقرَّر ذلك لكل منها، لا يمكننا القول إن كانت لا تزال مالاً يمكنك السداد به.`,
+                            )
+                          : t(
+                              `${b.count} account(s) have no "turns into cash" setting, so ${formatCurrency(Math.abs(b.amount))} is excluded from these figures.`,
+                              `${b.count} حساب/حسابات بدون إعداد "يتحول إلى نقد"، لذا استُبعد ${formatCurrency(Math.abs(b.amount))} من هذه الأرقام.`,
+                            )}
                     </p>
                   ))}
                   <Link
-                    href={liq.blockers.some((b) => b.code === "suspense_balance") ? "/review" : "/categories"}
+                    href={
+                      liq.blockers.some((b) => b.code === "suspense_balance")
+                        ? "/review"
+                        : liq.blockers.some((b) => b.code === "undeclared_transfers")
+                          ? "/transactions"
+                          : "/categories"
+                    }
                     className="text-xs underline inline-flex items-center gap-1"
                   >
                     {t("Fix this", "إصلاح ذلك")} <ChevronRight className="w-3 h-3" />

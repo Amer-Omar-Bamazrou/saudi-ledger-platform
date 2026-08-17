@@ -1574,3 +1574,43 @@ line-merge joins on a response-carried KEY (account id), never the display
 name — a name join breaks silently on a rename, and the two id spaces
 (journal path keys by account, fallback keys by category) never meet
 precisely BECAUSE mismatched sources refuse before merging.
+
+---
+
+### 🔴 A (2026-08-17): EVERY REVERSAL DOUBLE-NEGATED IN EVERY REPORT — TWO CANCELLATION MECHANISMS, EACH ASSUMING IT WAS THE ONLY ONE
+
+Found while building A (GL owns cash), live on the dev org: `reverse()` does
+TWO things — it posts a mirror entry (debits and credits swapped) AND flips
+the original's status to `reversed`. Every report filtered journal entries to
+`status = 'posted'`. So a reversed entry's effect VANISHED (original
+excluded) while its mirror's opposite effect REMAINED (mirror included):
+each reversal moved every aggregate by −2× the original, net −1× after the
+re-post that usually follows. Observed: the one M16.2-era Tamara repost left
+the dev org's books off by **CASH −8,750 / SUSPENSE +8,750** — sitting
+inside M19.7's measured 10,800 "gap" and misattributed to the
+transfers-never-post story.
+
+The shape is two id-spaces wearing a new costume: **two cancellation
+mechanisms, each sufficient alone, each built assuming it was the only
+one.** The mirror entry cancels by ARITHMETIC (both sides in the books sum
+to zero); the status flip cancels by EXCLUSION. Either alone is correct.
+Both together double-cancel — and nothing forced them to agree, because the
+writer (`reverse()`) and the readers (nine report filters across two
+repositories) were changed at different times by different milestones.
+
+**The fix:** `'reversed'` is a MARKER that a cancelling twin exists, not an
+eraser — the original entry HAPPENED. Reports now read
+`status IN ('posted','reversed')` (`JE_IN_BOOKS`, exported from
+reports.repository with the incident recorded beside it); only drafts are
+not the books. Nine filter sites swept across reports and analytics
+repositories.
+
+**Why no test caught it:** the flaw-#1 suite asserted the P&L after a
+reverse-and-repost — and the P&L was RIGHT, because the double-negation
+landed in the two balance-sheet accounts (cash and suspense) the edit moved
+between, which no assertion covered. The `balanced()` check passed too:
+double-entry stays balanced when you delete a balanced entry. A defect can
+sit exactly in the blind spot between "the figure we asserted" and "the
+invariant we asserted" — the new transfer tests assert the ACCOUNT BALANCES
+on both sides of a reversal, which is the assertion that would have caught
+this.

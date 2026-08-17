@@ -86,6 +86,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
     await pool.query(
       `DELETE FROM invoices WHERE organization_id IN ${org} AND document_type <> 'invoice'`,
     );
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
     // audit_logs references BOTH the org and the user — clear by either, or the

@@ -38,6 +38,9 @@ export const SYSTEM_ACCOUNTS = {
   PURCHASES: "PURCHASES",
   CASH: "CASH",
   SUSPENSE: "SUSPENSE",
+  TRANSFER_CLEARING: "TRANSFER_CLEARING",
+  TRANSFER_SUSPENSE: "TRANSFER_SUSPENSE",
+  EXTERNAL_TRANSFERS: "EXTERNAL_TRANSFERS",
   SALARIES: "SALARIES",
   SALARIES_PAYABLE: "SALARIES_PAYABLE",
   GOSI_EXPENSE: "GOSI_EXPENSE",
@@ -82,12 +85,37 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // into a VISIBLE BALANCE somebody must clear, instead of a silent expense
   // (which is exactly what the dashboard used to do with it).
   { code: "SUSPENSE", name: "Suspense (unclassified)", nameAr: "حساب معلق", type: "asset", liquidityClass: "current", legacyNames: ["Suspense"] },
+  // 🔴 A — GL owns cash. A DECLARED own-account transfer posts through here:
+  // when both legs are uploaded the account nets to zero; a residual balance
+  // is the tenant's money sitting in an own account the platform does not
+  // track — a real, visible figure (liquid, hence `quick`), not noise. Only
+  // declared own-account transfers touch it (B5), which is what retired the
+  // "manufactures a clearing balance for every transfer" objection.
+  { code: "TRANSFER_CLEARING", name: "Transfer clearing (own accounts)", nameAr: "تسوية التحويلات (حسابات خاصة)", type: "asset", liquidityClass: "quick", legacyNames: [] },
+  // 🔴 An UNDECLARED transfer's offset. It posts — the bank genuinely moved,
+  // so ledger cash must be right — but the offset is a visible balance
+  // demanding a declaration, and like SUSPENSE a non-zero balance BLOCKS the
+  // Finance Hub's liquidity claim: cash the platform cannot classify is
+  // exactly what the withholding exists for (owner decision, 2026-08-17).
+  { code: "TRANSFER_SUSPENSE", name: "Transfers awaiting declaration", nameAr: "تحويلات بانتظار الإقرار", type: "asset", liquidityClass: "current", legacyNames: [] },
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
 
   { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", liquidityClass: "current", legacyNames: ["Accounts Payable"] },
   { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["VAT Payable"] },
   { code: "SALARIES_PAYABLE", name: "Salaries Payable", nameAr: "الرواتب المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["Salaries Payable"] },
   { code: "GOSI_PAYABLE", name: "GOSI Payable", nameAr: "التأمينات الاجتماعية المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["GOSI Payable"] },
+
+  // 🔴 WHY THIS IS EQUITY (owner-approved 2026-08-17, recorded so nobody
+  // re-litigates it as "why is this in equity"): the tenant DECLARED the
+  // money left the business (B5's `external`), and a declared reduction of
+  // net assets with no expense is definitionally a distribution in
+  // double-entry. An EXPENSE would be a P&L claim the platform cannot
+  // support (nothing says what was bought); an ASSET would say the money is
+  // still the business's, contradicting the declaration the tenant made.
+  // Drawings-shaped; an incoming external transfer symmetrically posts as a
+  // contribution (credit here). Reclassifiable per-row later by changing the
+  // declaration, which reverses and re-posts.
+  { code: "EXTERNAL_TRANSFERS", name: "External transfers (money leaving the business)", nameAr: "تحويلات خارجية (أموال خرجت من المنشأة)", type: "equity", legacyNames: [] },
 
   { code: "SALES", name: "Sales Revenue", nameAr: "إيرادات المبيعات", type: "income", vatApplicable: true, legacyNames: ["Sales Revenue"] },
 

@@ -644,8 +644,14 @@ export const transactionsService = {
      * user correcting a miscategorised expense would fix the dashboard and
      * leave the P&L wrong, which is the very divergence this milestone closes.
      */
-    const postingChanged = data.categoryId !== undefined;
-    if (postingChanged && existing.tx.journalEntryId != null) {
+    // A — GL owns cash: a transfer's DIRECTION now decides its posting (the
+    // clearing / external / transfer-suspense offset), so a declaration is a
+    // posting change too. And no `journalEntryId != null` guard: `repost`
+    // reverses only when an entry exists and then re-checks `shouldPost`, so
+    // it both moves a posted balance (suspense → clearing on declaration)
+    // and posts a row that had never posted.
+    const postingChanged = data.categoryId !== undefined || data.transferDirection !== undefined;
+    if (postingChanged) {
       await transactionPostingService.repost(id);
     }
 

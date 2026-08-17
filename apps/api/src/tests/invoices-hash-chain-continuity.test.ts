@@ -57,6 +57,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM invoice_items WHERE organization_id = $1`, [orgId]);
+      await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM customers WHERE organization_id = $1`, [orgId]);
