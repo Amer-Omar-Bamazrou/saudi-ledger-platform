@@ -41,8 +41,12 @@ export const reportsService = {
     const cats = await reportsRepository.allCategories();
     const catMap = new Map(cats.map((c) => [c.id, c]));
 
-    const revenue: Record<string, { name: string; nameAr: string; amount: number }> = {};
-    const expenses: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    // `key` travels to the RESPONSE (F7-cmp): the prior-period comparison
+    // merges lines across two windows, and joining on the display name breaks
+    // silently the day someone renames an account — the kind of defect nobody
+    // would trace back. The key is the account id where one exists.
+    const revenue: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
+    const expenses: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
 
     for (const l of lines) {
       const cat = l.accountId ? catMap.get(l.accountId) : undefined;
@@ -51,10 +55,10 @@ export const reportsService = {
       const nameAr = cat?.nameAr ?? "";
       const key = l.accountId != null ? String(l.accountId) : name;
       if (type === "income" || type === "revenue") {
-        if (!revenue[key]) revenue[key] = { name, nameAr, amount: 0 };
+        if (!revenue[key]) revenue[key] = { key, name, nameAr, amount: 0 };
         revenue[key].amount += toNum(l.credit) - toNum(l.debit);
       } else if (type === "expense") {
-        if (!expenses[key]) expenses[key] = { name, nameAr, amount: 0 };
+        if (!expenses[key]) expenses[key] = { key, name, nameAr, amount: 0 };
         expenses[key].amount += toNum(l.debit) - toNum(l.credit);
       }
     }
@@ -68,10 +72,10 @@ export const reportsService = {
         const name = cat?.name ?? "Uncategorized";
         const nameAr = cat?.nameAr ?? "غير مصنف";
         if (tx.type === "credit" || catType === "income") {
-          if (!revenue[key]) revenue[key] = { name, nameAr, amount: 0 };
+          if (!revenue[key]) revenue[key] = { key, name, nameAr, amount: 0 };
           revenue[key].amount += amount;
         } else {
-          if (!expenses[key]) expenses[key] = { name, nameAr, amount: 0 };
+          if (!expenses[key]) expenses[key] = { key, name, nameAr, amount: 0 };
           expenses[key].amount += amount;
         }
       }
@@ -107,10 +111,13 @@ export const reportsService = {
      * assertion below meaningful: the sections cannot drift from the total,
      * because they are partitions of it.
      */
-    type BsItem = { name: string; nameAr: string; amount: number; liquidityClass: string | null };
+    // `key` travels to the response for the same reason as the income
+    // statement's (F7-cmp): the comparison merges lines across two as-of
+    // dates, and a name join breaks silently on a rename.
+    type BsItem = { key: string; name: string; nameAr: string; amount: number; liquidityClass: string | null };
     const assets: Record<string, BsItem> = {};
     const liabilities: Record<string, BsItem> = {};
-    const equityAccounts: Record<string, { name: string; nameAr: string; amount: number }> = {};
+    const equityAccounts: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
     let retainedEarnings = 0;
 
     for (const l of lines) {
@@ -125,13 +132,13 @@ export const reportsService = {
       const liquidityClass = cat?.liquidityClass ?? null;
       const net = toNum(l.debit) - toNum(l.credit);
       if (type === "asset") {
-        if (!assets[key]) assets[key] = { name, nameAr, amount: 0, liquidityClass };
+        if (!assets[key]) assets[key] = { key, name, nameAr, amount: 0, liquidityClass };
         assets[key].amount += net;
       } else if (type === "liability") {
-        if (!liabilities[key]) liabilities[key] = { name, nameAr, amount: 0, liquidityClass };
+        if (!liabilities[key]) liabilities[key] = { key, name, nameAr, amount: 0, liquidityClass };
         liabilities[key].amount += -net;
       } else if (type === "equity") {
-        if (!equityAccounts[key]) equityAccounts[key] = { name, nameAr, amount: 0 };
+        if (!equityAccounts[key]) equityAccounts[key] = { key, name, nameAr, amount: 0 };
         equityAccounts[key].amount += -net;
       } else if (type === "income" || type === "revenue") {
         retainedEarnings += toNum(l.credit) - toNum(l.debit);

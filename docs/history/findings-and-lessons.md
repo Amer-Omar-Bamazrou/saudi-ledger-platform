@@ -1545,3 +1545,32 @@ staging_path means the bytes are gone" is only as strong as the assumption
 that every sweeper sees the same filesystem — that assumption is now stated
 here rather than being silent, and the org-scoping fix removes the only
 in-repo violator (the test fleet).
+
+---
+
+### 🔴 F7-CMP (2026-08-17): A #9 INSTANCE PREVENTED AT DESIGN TIME — THE COMPARISON CREATED A NEW PLACE FOR TWO SOURCES TO ANSWER ONE QUESTION
+
+Meta-finding #9's shape: two stores answering the same question with
+different figures, side by side, with nothing saying so (the 0.00-expenses
+income statement beside the 45,063.25 dashboard). Flaw #1 closed the
+original by making acceptance POST to the ledger — but the income statement
+kept its transactions FALLBACK for windows with zero journal lines, and that
+fallback reports **gross incl. VAT** where the journal path reports net.
+
+Prior-period comparison (F7) put those two sources one table apart: the
+CURRENT window answering from journal entries while the PRIOR window — old
+enough to predate posting, or simply empty of entries — answers from the
+fallback. Two incommensurable figures in one comparison row, invisibly. The
+fourth costume, had it shipped.
+
+**The countermeasure is a refusal, not a reconciliation:** the response
+already carries `source`, and the comparison REFUSES with a stated reason
+("the two periods answered from different sources") whenever the windows'
+sources differ. Owner-flagged for the record: when a feature juxtaposes two
+figures, ask what SOURCE each answers from — a comparison is a new
+consumer of the old two-sources problem, and every new juxtaposition
+re-opens it. Corollary applied in the same milestone: the two windows'
+line-merge joins on a response-carried KEY (account id), never the display
+name — a name join breaks silently on a rename, and the two id spaces
+(journal path keys by account, fallback keys by category) never meet
+precisely BECAUSE mismatched sources refuse before merging.
