@@ -79,17 +79,20 @@ divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
 all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
 ask with the C7/C8 advisor).
 
-**Fiscal periods in reports — DECIDED (F1–F13), M20 COMPLETE (M20.0–M20.3,
-2026-08-17).** Both defects F1–F9 surfaced are FIXED (the lying
+**Fiscal periods in reports — DECIDED (F1–F13), M20 COMPLETE + F3-dual BUILT
+(2026-08-17).** Both defects F1–F9 surfaced are FIXED (the lying
 `NOT NULL DEFAULT 1` column, M20.0; the hardcoded Jan–Dec default window,
 M20.1); six period shortcuts are on every report (M20.2); fiscal years are
-named by their span (M20.3). Next in the owner-approved order (§7):
-**F3-dual** (Hijri dual display in tables, at the shared formatters — the 16
-raw date interpolations convert first), then **F7-cmp** (statement
-comparison), then A (GL owns cash), then B4. Standing decisions: free dates
-plus shortcuts (nothing period-only); NO in-table Hijri date conversion;
-Analytics out of scope; the twenty bespoke date controls stay duplicated
-until a third pattern appears.
+named by their span (M20.3); and a Hijri tenant reads BOTH calendars on
+every ledger date (**F3-dual**, PR #52 — one shared `DualDate` component
+over 42 render sites, with a client-side probe of the M17.2 fact that
+REFUSES to render Hijri on a runtime that would silently substitute
+Gregorian; fallback in every failure direction is Gregorian-only). Next in
+the owner-approved order (§7): **F7-cmp** (statement comparison), then A
+(GL owns cash), then B4. Standing decisions: free dates plus shortcuts
+(nothing period-only); NO in-table Hijri date conversion (dual display is
+alongside, never instead); Analytics out of scope; the twenty bespoke date
+controls stay duplicated until a third pattern appears.
 See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
 (§7 build order, §8 as built).
 
