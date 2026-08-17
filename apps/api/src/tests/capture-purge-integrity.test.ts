@@ -314,16 +314,22 @@ describeMaybe("B3 — the row never outlives the bytes", () => {
       expect(row!.archivePath, "the evidence is safely archived").toBeTruthy();
       expect(row!.stagingPath, "and the leftover copy is still enumerable").toBeTruthy();
 
-      const backlog = await capturedDocumentsJobRepository.listPromotedWithStagedCopy();
+      // Scoped to this suite's org: the backlog listing is global by design
+      // (a job drains every tenant), and a parallel suite's promotion pass used
+      // to sweep THIS suite's row — resolving the relative path under its own
+      // storage root, "deleting" a file it could not see, and nulling the
+      // pointer while the bytes stayed on disk here. B3's disease exactly,
+      // re-created between test forks.
+      const backlog = await capturedDocumentsJobRepository.listPromotedWithStagedCopy(100, orgId);
       expect(backlog.map((r) => r.id)).toContain(captureId);
     });
 
     it("🔴 the sweep drains that backlog once deletion works again", async () => {
       resetStagingBackendForTests();
-      const swept = await capturePromotionService.sweepStagedLeftovers();
+      const swept = await capturePromotionService.sweepStagedLeftovers(orgId);
 
       expect(swept.cleared).toBeGreaterThan(0);
-      expect(await capturedDocumentsJobRepository.listPromotedWithStagedCopy()).toEqual([]);
+      expect(await capturedDocumentsJobRepository.listPromotedWithStagedCopy(100, orgId)).toEqual([]);
       expect(await stagedFileCount()).toBe(0);
     });
 

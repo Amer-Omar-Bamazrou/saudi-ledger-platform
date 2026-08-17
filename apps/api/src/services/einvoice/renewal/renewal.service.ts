@@ -67,11 +67,16 @@ export const renewalService = {
    * scheduling assumption — two API instances running this job must not send
    * duplicate warnings about a certificate that stops signing, or the tenant
    * learns to ignore them.
+   *
+   * `organizationId` restricts the pass to one organization — omitted in
+   * production (the job watches every tenant), passed by tests so one suite's
+   * synthetic expiry dates do not raise reminders inside another suite's run.
+   * The same escape hatch as the outbox worker's, for the same reason.
    */
-  async runOnce(now: Date = new Date()): Promise<RenewalCheckResult> {
+  async runOnce(now: Date = new Date(), organizationId?: string): Promise<RenewalCheckResult> {
     // One query at the widest threshold; the buckets are decided in memory.
     const widest = Math.max(...REMINDER_THRESHOLDS_DAYS);
-    const expiring = await signingService.listExpiring(widest);
+    const expiring = await signingService.listExpiring(widest, organizationId);
 
     const result: RenewalCheckResult = {
       expiringCredentials: expiring.length,
@@ -130,8 +135,8 @@ export const renewalService = {
   },
 
   /** Everything expiring inside `days`, whether or not a reminder was raised. */
-  listExpiring(days = 90) {
-    return signingService.listExpiring(days);
+  listExpiring(days = 90, organizationId?: string) {
+    return signingService.listExpiring(days, organizationId);
   },
 };
 

@@ -139,14 +139,22 @@ export const capturedDocumentsJobRepository = {
    * what is at risk is a pile of undeleted photographs nobody can enumerate,
    * which is the PDPL-shaped half of the problem (queue C8).
    */
-  async listPromotedWithStagedCopy(limit = 100) {
+  async listPromotedWithStagedCopy(limit = 100, organizationId?: string) {
+    // Scoped for the same reason as the outbox's `claimDue`/`reclaimStale`:
+    // the sweep is global by design (a job drains every tenant's backlog), but
+    // parallel test suites each mount their OWN staging root against ONE shared
+    // database — so one suite's sweep resolves another suite's relative path
+    // under the wrong root, "succeeds" (missing file), and nulls the pointer
+    // while the bytes still exist. Exactly the disease B3 fixed, re-created by
+    // the test topology.
     const { rows } = await pool.query(
       `SELECT id, staging_path AS "stagingPath"
          FROM captured_documents
         WHERE status = 'promoted' AND staging_path IS NOT NULL
+          AND ($2::uuid IS NULL OR organization_id = $2::uuid)
         ORDER BY promoted_at
         LIMIT $1`,
-      [limit],
+      [limit, organizationId ?? null],
     );
     return rows as { id: string; stagingPath: string }[];
   },

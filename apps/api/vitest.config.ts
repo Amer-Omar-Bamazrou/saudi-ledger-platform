@@ -17,6 +17,17 @@ export default defineConfig({
     // other's leftover state — `operator.test.ts` fails under that ordering
     // while passing in isolation.
     hookTimeout: 60_000,
+    // Same contention, applied to the TESTS: a band of async DB tests measures
+    // 1–3.6s under full parallel load (16 forks + the JVM launches above), so
+    // the 5s default intermittently kills the slowest of them — measured at
+    // 3.3s PASSING, i.e. a 1.5x load spike from green to dead. The sync
+    // Java-shelling tests never showed this because a blocked event loop
+    // cannot be interrupted — 16s sync tests "passed" while 4s async ones
+    // died, which is why the flakes clustered on the invoice-approval suites.
+    // A timeout is a harness bound, not an assertion: raising it weakens no
+    // correctness property (unlike raising a rate limit, which deletes the
+    // thing under test — see the note below).
+    testTimeout: 30_000,
     // Provide a placeholder DATABASE_URL so importing @workspace/db (which
     // constructs a lazy pg Pool at module load) doesn't throw. The RBAC tests
     // never open a connection — they prime the permission cache directly — so a

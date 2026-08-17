@@ -173,13 +173,17 @@ export const einvoiceOutboxRepository = {
    * simplified invoice silently missing ZATCA's 24-hour reporting deadline is
    * legal exposure for the tenant, and nothing about it looks broken.
    */
-  async listOverdue(olderThanMinutes: number, limit = 100): Promise<OutboxRow[]> {
+  async listOverdue(olderThanMinutes: number, limit = 100, organizationId?: string): Promise<OutboxRow[]> {
+    // Scoped for the same reason as `claimDue`/`reclaimStale`: evaluation is
+    // global by design (one alarm pass watches every tenant), and in the test
+    // suite that means one suite's aged documents fire another suite's alarm.
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLS} FROM einvoice_documents
         WHERE status IN ('pending', 'failed', 'submitting')
           AND created_at < now() - ($1 || ' minutes')::interval
+          AND ($3::uuid IS NULL OR organization_id = $3::uuid)
         ORDER BY created_at LIMIT $2`,
-      [String(olderThanMinutes), limit],
+      [String(olderThanMinutes), limit, organizationId ?? null],
     );
     return rows;
   },

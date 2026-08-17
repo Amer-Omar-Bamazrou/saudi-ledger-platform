@@ -107,6 +107,25 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   });
 
   /**
+   * The fixture organization — created up front so every `runOnce` call can be
+   * SCOPED to it. Evaluation is global by design (a platform job watches every
+   * tenant), which on the shared test database means another suite's aged
+   * outbox documents or synthetic near-expiry credentials fire THIS suite's
+   * assertions: `fired` counted 2 alerts where the fixture built one. Scoping
+   * makes the assertions about the condition this suite constructed, which is
+   * all they ever claimed to test.
+   */
+  const fixtureOrg = async (): Promise<string> =>
+    (
+      await pool.query(
+        `INSERT INTO organizations (name, slug) VALUES ('Alarm Org','${FIXTURE_SLUG}')
+         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
+      )
+    ).rows[0].id;
+
+  const scoped = async () => alarmsService.runOnce({ organizationId: await fixtureOrg() });
+
+  /**
    * Force a firing outbox condition by BUILDING one — never by hoping the
    * database happens to contain a document.
    *
@@ -118,12 +137,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
    * fails loudly if it cannot.
    */
   const stuckDocument = async (): Promise<string> => {
-    const org = (
-      await pool.query(
-        `INSERT INTO organizations (name, slug) VALUES ('Alarm Org','${FIXTURE_SLUG}')
-         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
-      )
-    ).rows[0].id;
+    const org = await fixtureOrg();
     const company = (
       await pool.query(
         `INSERT INTO companies (organization_id, name, cr_number, vat_number)
@@ -149,8 +163,12 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   };
 
   it("a quiet platform pages nobody", async () => {
-    await pool.query(`UPDATE einvoice_documents SET status = 'accepted' WHERE status IN ('pending','failed','submitting')`);
-    const r = await alarmsService.runOnce();
+    // Quiet by construction: the fixture org is freshly cleaned, and the run is
+    // scoped to it. The previous version made the WHOLE database quiet with a
+    // global UPDATE flipping every pending document to 'accepted' — which, on
+    // the shared test database, rewrote parallel suites' documents under their
+    // assertions (einvoice-enqueue's freshly approved 'pending' rows included).
+    const r = await scoped();
     expect(r.evaluated).toBe(ALL_ALARM_KEYS.length);
     expect(r.paged).toEqual([]);
     expect(fired).toEqual([]);
@@ -159,7 +177,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   it("🔴 a stuck outbox pages ONCE, then stays quiet for the cooldown", async () => {
     const id = await stuckDocument();
 
-    const first = await alarmsService.runOnce();
+    const first = await scoped();
     expect(first.firing).toContain(ALARM_OUTBOX_OVERDUE);
     expect(first.paged).toContain(ALARM_OUTBOX_OVERDUE);
     expect(fired).toHaveLength(1);
@@ -168,7 +186,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
     expect(fired[0].title).toMatch(/oldest document 1[34]h old/);
     expect(fired[0].detail).toContain("24 hours");
 
-    const second = await alarmsService.runOnce();
+    const second = await scoped();
     expect(second.firing).toContain(ALARM_OUTBOX_OVERDUE); // still broken…
     expect(second.paged).toEqual([]); // …and deliberately silent
     expect(fired).toHaveLength(1);
@@ -176,7 +194,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
 
   it("🔴 the cooldown is a ROW, not a timer — it survives a restart", async () => {
     const id = await stuckDocument();
-    await alarmsService.runOnce();
+    await scoped();
     expect(fired).toHaveLength(1);
 
     // Simulate a process restart: nothing in memory, the row is all there is.
@@ -184,18 +202,18 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
       sql`SELECT key, fire_count FROM alert_state WHERE key = ${ALARM_OUTBOX_OVERDUE}`,
     );
     expect(rows).toHaveLength(1);
-    await alarmsService.runOnce();
+    await scoped();
     expect(fired).toHaveLength(1); // still suppressed after "restart"
   });
 
   it("🔴 a cleared condition sends a RESOLVE — a channel that never says clear gets ignored", async () => {
     const id = await stuckDocument();
-    await alarmsService.runOnce();
+    await scoped();
     expect(fired).toHaveLength(1);
 
     // The queue drains.
     await pool.query(`UPDATE einvoice_documents SET status = 'accepted' WHERE id = $1`, [id]);
-    const r = await alarmsService.runOnce();
+    const r = await scoped();
     expect(r.resolved).toContain(ALARM_OUTBOX_OVERDUE);
     expect(resolved).toContain(ALARM_OUTBOX_OVERDUE);
 
@@ -210,7 +228,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
     // even though this database may have no ZATCA credentials at all. Asserted
     // against the exported key list, not a literal — a hard-coded 2 silently
     // became wrong the day a third alarm was added.
-    const r = await alarmsService.runOnce();
+    const r = await scoped();
     expect(r.evaluated).toBe(ALL_ALARM_KEYS.length);
   });
 

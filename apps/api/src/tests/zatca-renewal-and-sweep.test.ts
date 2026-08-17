@@ -154,7 +154,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
   describe("renewal reminders", () => {
     it("raises nothing for a certificate outside every window", async () => {
       await onboard(200); // ~6.5 months out — beyond T-90
-      const result = await renewalService.runOnce();
+      const result = await renewalService.runOnce(new Date(), orgId);
       const raised = await remindersFor();
       expect(raised).toHaveLength(0);
       expect(result.remindersRaised).toBe(0);
@@ -164,14 +164,14 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
       await revokeAll();
       await onboard(60); // inside 90, outside 30
 
-      const first = await renewalService.runOnce();
+      const first = await renewalService.runOnce(new Date(), orgId);
       expect(first.remindersRaised).toBe(1);
       expect((await remindersFor()).map((r) => r.threshold_days)).toEqual([90]);
 
       // 🔴 The second pass must add nothing. Duplicate warnings about a
       // certificate that stops signing train the tenant to ignore them, and the
       // guarantee is a UNIQUE INDEX rather than a scheduling assumption.
-      const second = await renewalService.runOnce();
+      const second = await renewalService.runOnce(new Date(), orgId);
       expect(second.remindersRaised).toBe(0);
       expect(second.alreadyRaised).toBe(1);
       expect(await remindersFor()).toHaveLength(1);
@@ -181,7 +181,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
       await revokeAll();
       const credentialId = await onboard(5); // inside all three
 
-      await renewalService.runOnce();
+      await renewalService.runOnce(new Date(), orgId);
       // The TIGHTEST crossed window is announced — 7, not 90.
       expect((await remindersFor()).map((r) => r.threshold_days)).toEqual([7]);
 
@@ -193,11 +193,11 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
       await revokeAll();
       await onboard(-3); // expired three days ago
 
-      const result = await renewalService.runOnce();
+      const result = await renewalService.runOnce(new Date(), orgId);
       expect(result.remindersRaised).toBe(1);
       expect((await remindersFor()).map((r) => r.threshold_days)).toEqual([7]);
 
-      const expiring = await renewalService.listExpiring(90);
+      const expiring = await renewalService.listExpiring(90, orgId);
       expect(expiring.length).toBeGreaterThan(0);
     });
 

@@ -120,7 +120,10 @@ export const capturePromotionService = {
     // Retry anything an earlier pass promoted but could not un-stage. Runs on
     // every pass so the backlog drains by itself once the backend can delete
     // again — a leftover list nothing sweeps is the same disease one step on.
-    const swept = await this.sweepStagedLeftovers();
+    // Inherits this pass's scope: the production job passes no organizationId
+    // and sweeps globally; a scoped pass (tests) must not touch other orgs'
+    // backlogs, whose staged bytes live under a DIFFERENT storage root.
+    const swept = await this.sweepStagedLeftovers(organizationId);
     result.leftoversCleared = swept.cleared;
 
     if (result.promoted > 0 || result.failed > 0 || swept.scanned > 0) {
@@ -191,8 +194,8 @@ export const capturePromotionService = {
    * copy is authoritative and must never be touched. Only the redundant staged
    * copy is deleted, and only its pointer is cleared.
    */
-  async sweepStagedLeftovers(): Promise<{ scanned: number; cleared: number }> {
-    const rows = await capturedDocumentsJobRepository.listPromotedWithStagedCopy(100);
+  async sweepStagedLeftovers(organizationId?: string): Promise<{ scanned: number; cleared: number }> {
+    const rows = await capturedDocumentsJobRepository.listPromotedWithStagedCopy(100, organizationId);
     let cleared = 0;
     for (const row of rows) {
       try {
