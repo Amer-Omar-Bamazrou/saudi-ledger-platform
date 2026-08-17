@@ -8,6 +8,7 @@
 import type { LiquidityBlockersItemCode } from './liquidityBlockersItemCode';
 
 export type LiquidityBlockersItem = {
+  /** undeclared_transfers (A, 2026-08-17) — money in Transfer suspense: cash whose destination nobody has declared, which is exactly the case the withholding exists for. */
   code: LiquidityBlockersItemCode;
   amount: number;
   /** @nullable */

@@ -6,10 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * undeclared_transfers (A, 2026-08-17) — money in Transfer suspense: cash whose destination nobody has declared, which is exactly the case the withholding exists for.
+ */
 export type LiquidityBlockersItemCode = typeof LiquidityBlockersItemCode[keyof typeof LiquidityBlockersItemCode];
 
 
 export const LiquidityBlockersItemCode = {
   suspense_balance: 'suspense_balance',
   unclassified_accounts: 'unclassified_accounts',
+  undeclared_transfers: 'undeclared_transfers',
 } as const;

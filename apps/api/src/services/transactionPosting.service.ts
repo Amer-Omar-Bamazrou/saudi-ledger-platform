@@ -30,11 +30,22 @@
  *     acceptance would strand the review queue; posting to expenses is the
  *     defect. Suspense keeps the books balanced and makes "unknown" a visible
  *     balance somebody must clear.
- *  4. **Transfers and settlements never post.** A transfer between own
- *     accounts is Dr Cash / Cr Cash under a single cash account — a no-op that
- *     would only add noise. A settlement's ledger effect was already posted by
- *     `invoicesService.pay` / `billsService.pay`; posting again would
- *     double-count the cash and the receivable. One writer per effect.
+ *  4. **Transfers POST (A — GL owns cash, 2026-08-17); settlements never do.**
+ *     A settlement's ledger effect was already posted by `invoicesService.pay`
+ *     / `billsService.pay`; posting again would double-count the cash and the
+ *     receivable. One writer per effect. Transfers post by DECLARED direction
+ *     (B5), which is what made this safe to build:
+ *       own_account → TRANSFER_CLEARING — both legs uploaded nets to zero;
+ *                     a residual is the tenant's money in an own account the
+ *                     platform does not track. Real, visible, not noise.
+ *       external    → EXTERNAL_TRANSFERS (equity) — the tenant declared the
+ *                     money left the business; see the reasoning recorded on
+ *                     the account in chartOfAccounts.ts.
+ *       undeclared  → TRANSFER_SUSPENSE — it still posts (the bank genuinely
+ *                     moved, so ledger cash must be right), but the offset is
+ *                     a visible balance demanding a declaration, and it
+ *                     blocks the Finance Hub liquidity claim like SUSPENSE.
+ *                     Declaring later reverses and re-posts.
  *  5. **The category's TYPE decides the statement it lands in**, which is what
  *     makes the classification corrections real: `VAT_PAYMENT` and
  *     `ZAKAT_PAYMENT` are liabilities (migration 0036), so paying them debits
@@ -42,8 +53,8 @@
  *  6. **Period locks apply** — `postJournalEntry` refuses a closed period, so
  *     accepting a row dated into one fails closed like every other posting.
  */
-import { db, transactionsTable, categoriesTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { db, transactionsTable, categoriesTable, type SystemAccountCode } from "@workspace/db";
+import { and, eq, inArray } from "drizzle-orm";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
@@ -51,18 +62,33 @@ import { logger } from "../lib/logger";
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
 
+/** The transfer offset by DECLARED direction — see the file header and chartOfAccounts.ts. */
+function transferOffset(tx: Tx): { accountName: string; systemCode: SystemAccountCode } {
+  if (tx.transferDirection === "own_account") {
+    return { accountName: "Transfer clearing (own accounts)", systemCode: "TRANSFER_CLEARING" };
+  }
+  if (tx.transferDirection === "external") {
+    return { accountName: "External transfers (money leaving the business)", systemCode: "EXTERNAL_TRANSFERS" };
+  }
+  return { accountName: "Transfers awaiting declaration", systemCode: "TRANSFER_SUSPENSE" };
+}
+
 /** Money out of the bank is a debit to something and a credit to cash. */
 function linesFor(tx: Tx, cat: Cat | null): GLLine[] {
   const amount = Math.round(Number(tx.amount) * 100) / 100;
   const label = tx.description.slice(0, 120);
 
   // The account this movement belongs to. A system account resolves by CODE
-  // (rename-proof, M13); a tenant's own category resolves by id.
+  // (rename-proof, M13); a tenant's own category resolves by id. A transfer
+  // carries no category BY DESIGN — its offset is decided by the declared
+  // direction alone.
   const account: Pick<GLLine, "accountName"> &
     ({ systemCode: never } | { accountId: number }) =
-    cat && cat.id
-      ? ({ accountName: cat.name, accountId: cat.id } as never)
-      : ({ accountName: "Suspense (unclassified)", systemCode: "SUSPENSE" } as never);
+    tx.kind === "transfer"
+      ? (transferOffset(tx) as never)
+      : cat && cat.id
+        ? ({ accountName: cat.name, accountId: cat.id } as never)
+        : ({ accountName: "Suspense (unclassified)", systemCode: "SUSPENSE" } as never);
 
   const cash = { accountName: "Cash and Bank", systemCode: "CASH" as const };
 
@@ -77,9 +103,17 @@ function linesFor(tx: Tx, cat: Cat | null): GLLine[] {
       ];
 }
 
-/** A transaction posts only if it is accepted, operating, and not already posted. */
+/**
+ * A transaction posts only if it is accepted, operating OR a transfer (A —
+ * GL owns cash), and not already posted. Settlements stay out: their ledger
+ * effect belongs to the pay paths.
+ */
 export function shouldPost(tx: Pick<Tx, "reviewStatus" | "kind" | "journalEntryId">): boolean {
-  return tx.reviewStatus === "accepted" && tx.kind === "operating" && tx.journalEntryId == null;
+  return (
+    tx.reviewStatus === "accepted" &&
+    (tx.kind === "operating" || tx.kind === "transfer") &&
+    tx.journalEntryId == null
+  );
 }
 
 export const transactionPostingService = {
@@ -101,7 +135,7 @@ export const transactionPostingService = {
     const je = await postJournalEntry({
       entryNumber: `TXN-${row.tx.id}`,
       date: row.tx.date,
-      description: `Bank ${row.tx.type === "debit" ? "payment" : "receipt"}: ${row.tx.description.slice(0, 80)}`,
+      description: `Bank ${row.tx.kind === "transfer" ? "transfer" : row.tx.type === "debit" ? "payment" : "receipt"}: ${row.tx.description.slice(0, 80)}`,
       reference: `TXN-${row.tx.id}`,
       lines: linesFor(row.tx, row.cat),
     });
@@ -160,12 +194,17 @@ export const transactionPostingService = {
    * nothing. Skips rows whose period is locked and reports them rather than
    * failing the run.
    */
-  async backfill(limit = 5000): Promise<{ posted: number; skipped: number; failed: Array<{ id: number; reason: string }> }> {
+  async backfill(limit = 5000, companyId?: string): Promise<{ posted: number; skipped: number; failed: Array<{ id: number; reason: string }> }> {
+    // `companyId` matters when an org has several companies: the journal
+    // entry's company resolves from the tenant GUC, so a backfill pass must
+    // only touch rows belonging to the company its connection is scoped to.
     const rows = await db
       .select({ id: transactionsTable.id })
       .from(transactionsTable)
       .where(
-        inArray(transactionsTable.reviewStatus, ["accepted"]),
+        companyId
+          ? and(inArray(transactionsTable.reviewStatus, ["accepted"]), eq(transactionsTable.companyId, companyId))
+          : inArray(transactionsTable.reviewStatus, ["accepted"]),
       )
       .limit(limit);
 

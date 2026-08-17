@@ -18,10 +18,27 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
 
-/** Posted-JE conditions used by most reports (status + optional date range). */
+/**
+ * 🔴 Journal-entry statuses that ARE the books (fixed 2026-08-17, found
+ * during A's build).
+ *
+ * `reverse()` does TWO things: it posts a mirror entry AND flips the
+ * original's status to 'reversed'. Filtering reports to 'posted' alone
+ * therefore DOUBLE-NEGATED every reversal: the original's effect vanished
+ * (excluded) while the mirror's opposite effect stayed (included), so a
+ * reverse-and-repost left the books off by the original amount — observed
+ * live as CASH −8,750 / SUSPENSE +8,750 on the dev org, from one M16.2-era
+ * repost. The original entry HAPPENED; 'reversed' is a marker that it has a
+ * cancelling twin, not an eraser. Both sides are in the books; only drafts
+ * are not.
+ */
+export const JE_IN_BOOKS = ["posted", "reversed"];
+const inBooks = () => inArray(journalEntriesTable.status, JE_IN_BOOKS);
+
+/** In-books JE conditions used by most reports (status + optional date range). */
 function jeConditions(date_from?: string, date_to?: string, statusFilter = true) {
   const conds: any[] = [];
-  if (statusFilter) conds.push(eq(journalEntriesTable.status, "posted"));
+  if (statusFilter) conds.push(inBooks());
   if (date_from) conds.push(gte(journalEntriesTable.date, date_from));
   if (date_to) conds.push(lte(journalEntriesTable.date, date_to));
   return conds;
@@ -113,7 +130,7 @@ export const reportsRepository = {
 
   // balance-sheet: posted lines as-of a date
   bsLines(as_of?: string) {
-    const conds: any[] = [eq(journalEntriesTable.status, "posted")];
+    const conds: any[] = [inBooks()];
     if (as_of) conds.push(lte(journalEntriesTable.date, as_of));
     return lineJoin().where(and(...conds));
   },
@@ -143,7 +160,7 @@ export const reportsRepository = {
 
   // general-ledger
   glPreLines(date_from: string, account_id?: string, account_name?: string) {
-    const preConds: any[] = [eq(journalEntriesTable.status, "posted"), sql`${journalEntriesTable.date} < ${date_from}`];
+    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
     if (account_id) preConds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
     else if (account_name) preConds.push(eq(journalEntryLinesTable.accountName, account_name));
     return db
@@ -178,7 +195,7 @@ export const reportsRepository = {
 
   // account-statement
   acctStmtPre(date_from: string, account_id?: string, account_name?: string) {
-    const preConds: any[] = [eq(journalEntriesTable.status, "posted"), sql`${journalEntriesTable.date} < ${date_from}`];
+    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
     if (account_id) preConds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
     else preConds.push(eq(journalEntryLinesTable.accountName, account_name as string));
     return db
@@ -209,7 +226,7 @@ export const reportsRepository = {
 
   // account-summary
   acctSummaryPre(date_from: string) {
-    return lineJoin().where(and(eq(journalEntriesTable.status, "posted"), sql`${journalEntriesTable.date} < ${date_from}`));
+    return lineJoin().where(and(inBooks(), sql`${journalEntriesTable.date} < ${date_from}`));
   },
   acctSummaryPeriod(date_from?: string, date_to?: string) {
     return lineJoin().where(and(...jeConditions(date_from, date_to)));
@@ -231,7 +248,7 @@ export const reportsRepository = {
 
   // owner-equity
   ownerEquityPre(date_from: string) {
-    const preConds: any[] = [eq(journalEntriesTable.status, "posted"), sql`${journalEntriesTable.date} < ${date_from}`];
+    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
     return db
       .select({
         d: journalEntryLinesTable.debitAmount,

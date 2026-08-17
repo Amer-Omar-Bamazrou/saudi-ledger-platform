@@ -30,8 +30,9 @@ import {
   customersTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, eq, gte, lte, notInArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, notInArray, sql } from "drizzle-orm";
 import { taxVisible } from "./summary.repository";
+import { JE_IN_BOOKS } from "./reports.repository";
 
 export interface MonthlyAccountMovement {
   /** `YYYY-MM` — the month the movement fell in. */
@@ -72,7 +73,7 @@ export const analyticsRepository = {
         eq(journalEntriesTable.id, journalEntryLinesTable.journalEntryId),
       )
       .leftJoin(categoriesTable, eq(categoriesTable.id, journalEntryLinesTable.accountId))
-      .where(and(eq(journalEntriesTable.status, "posted"), lte(journalEntriesTable.date, asOf)))
+      .where(and(inArray(journalEntriesTable.status, JE_IN_BOOKS), lte(journalEntriesTable.date, asOf)))
       .groupBy(
         sql`to_char(${journalEntriesTable.date}::date, 'YYYY-MM')`,
         journalEntryLinesTable.accountId,
@@ -219,7 +220,7 @@ export const analyticsRepository = {
           FROM journal_entry_lines l
           JOIN journal_entries e ON e.id = l.journal_entry_id
           JOIN categories c      ON c.id = l.account_id
-         WHERE e.status = 'posted'
+         WHERE e.status IN ('posted','reversed')
            AND e.date <= ${asOf}
            AND c.system_code = 'AR'
       ),
@@ -326,7 +327,7 @@ export const analyticsRepository = {
         FROM journal_entry_lines l
         JOIN journal_entries e ON e.id = l.journal_entry_id
         JOIN categories c      ON c.id = l.account_id
-       WHERE e.status = 'posted'
+       WHERE e.status IN ('posted','reversed')
          AND e.date >= ${from}
          AND e.date <= ${to}
          AND c.liquidity_class = 'cash'

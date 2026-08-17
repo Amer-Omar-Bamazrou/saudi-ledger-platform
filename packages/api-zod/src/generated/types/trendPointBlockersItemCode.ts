@@ -12,4 +12,5 @@ export type TrendPointBlockersItemCode = typeof TrendPointBlockersItemCode[keyof
 export const TrendPointBlockersItemCode = {
   suspense_balance: 'suspense_balance',
   unclassified_accounts: 'unclassified_accounts',
+  undeclared_transfers: 'undeclared_transfers',
 } as const;

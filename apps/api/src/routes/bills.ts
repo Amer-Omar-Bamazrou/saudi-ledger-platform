@@ -16,6 +16,7 @@ router.post("/:id/approve", billsController.approve);
 router.post("/:id/post", billsController.post);
 router.patch("/:id", billsController.update);
 router.post("/:id/pay", billsController.pay);
+router.get("/:id/payments", billsController.payments);
 router.delete("/:id", billsController.remove);
 
 export default router;

@@ -57,6 +57,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_items WHERE organization_id = $1`, [orgId]);
+      await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM bills WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM vendors WHERE organization_id = $1`, [orgId]);

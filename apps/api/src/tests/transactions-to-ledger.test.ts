@@ -56,6 +56,7 @@ describeMaybe("flaw #1 — acceptance posts to the ledger", () => {
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
@@ -165,7 +166,12 @@ describeMaybe("flaw #1 — acceptance posts to the ledger", () => {
     await balanced();
   });
 
-  it("transfers and settlements never post — one writer per effect", async () => {
+  it("🔴 A — a transfer POSTS (cash is right, P&L untouched); a settlement still never does", async () => {
+    // Rewritten for A (GL owns cash): the old assertion here — "transfers and
+    // settlements never post", pinned as journal_entry_id IS NULL for both —
+    // became a guard for the retired behaviour the day transfers started
+    // posting. The properties that MATTER survive unchanged: no P&L movement
+    // from either row, and one writer per effect for the settlement.
     await upload([{ date: "2026-11-10", description: "ATM CASH WITHDRAWAL - ANB", amount: 2000, currency: "SAR", type: "debit" }]);
     const transferId = await idOf("ATM CASH%");
 
@@ -180,19 +186,68 @@ describeMaybe("flaw #1 — acceptance posts to the ledger", () => {
     await upload([{ date: "2026-11-12", description: "INCOMING TL-INV-1 PAYMENT", amount: 1150, currency: "SAR", type: "credit" }], false);
     const settleId = await idOf("INCOMING TL-INV-1%");
 
-    const before = (await inTenant(() => reportsService.incomeStatement(FROM, TO))) as { totalRevenue: number };
+    const before = (await inTenant(() => reportsService.incomeStatement(FROM, TO))) as { totalRevenue: number; totalExpenses: number };
     await inTenant(() => transactionsService.acceptPending([transferId]));
     await inTenant(() => transactionsService.settle(settleId, { invoiceId: inv.id }, userId));
-    const after = (await inTenant(() => reportsService.incomeStatement(FROM, TO))) as { totalRevenue: number };
+    const after = (await inTenant(() => reportsService.incomeStatement(FROM, TO))) as { totalRevenue: number; totalExpenses: number };
 
     // The invoice already recognised the revenue; neither the transfer nor the
-    // settlement may add more.
+    // settlement may add more — and the transfer is not an expense either.
     expect(after.totalRevenue).toBe(before.totalRevenue);
-    const { rows } = await pool.query(
-      `SELECT journal_entry_id FROM transactions WHERE id IN ($1,$2)`,
-      [transferId, settleId],
+    expect(after.totalExpenses).toBe(before.totalExpenses);
+
+    // The transfer POSTED: undeclared, so Cr Cash / Dr Transfers-awaiting-
+    // declaration — the bank genuinely moved, and the offset demands a
+    // declaration rather than being guessed at.
+    const { rows: [tf] } = await pool.query(`SELECT journal_entry_id FROM transactions WHERE id = $1`, [transferId]);
+    expect(tf.journal_entry_id).not.toBeNull();
+    const { rows: lines } = await pool.query(
+      `SELECT c.system_code, l.debit_amount::numeric AS debit, l.credit_amount::numeric AS credit
+         FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
+        WHERE l.journal_entry_id = $1 ORDER BY c.system_code`,
+      [tf.journal_entry_id],
     );
-    expect(rows.every((r: { journal_entry_id: number | null }) => r.journal_entry_id === null)).toBe(true);
+    expect(lines).toEqual([
+      expect.objectContaining({ system_code: "CASH", credit: "2000.00" }),
+      expect.objectContaining({ system_code: "TRANSFER_SUSPENSE", debit: "2000.00" }),
+    ]);
+
+    // The settlement did NOT post — its cash effect belongs to the pay path.
+    const { rows: [st] } = await pool.query(`SELECT journal_entry_id FROM transactions WHERE id = $1`, [settleId]);
+    expect(st.journal_entry_id).toBeNull();
+    await balanced();
+  });
+
+  it("🔴 A — declaring a direction MOVES the posted balance: suspense → clearing, or → equity for external", async () => {
+    const id = await idOf("ATM CASH%"); // posted to TRANSFER_SUSPENSE above
+
+    await inTenant(() => transactionsService.update(id, { transferDirection: "own_account" } as never));
+    const balances = async () => {
+      const { rows } = await pool.query(
+        `SELECT c.system_code, COALESCE(SUM(l.debit_amount::numeric - l.credit_amount::numeric), 0) AS bal
+           FROM journal_entry_lines l
+           JOIN categories c ON c.id = l.account_id
+           JOIN journal_entries je ON je.id = l.journal_entry_id
+          -- 'reversed' is IN the books (its mirror cancels it) — the same
+          -- rule the report filters follow; posted-only here would see only
+          -- the mirror and double-negate, the very defect this build fixed.
+          WHERE l.organization_id = $1 AND je.status IN ('posted', 'reversed')
+            AND c.system_code IN ('TRANSFER_SUSPENSE', 'TRANSFER_CLEARING', 'EXTERNAL_TRANSFERS')
+          GROUP BY c.system_code`,
+        [orgId],
+      );
+      return Object.fromEntries(rows.map((r: { system_code: string; bal: string }) => [r.system_code, Number(r.bal)]));
+    };
+
+    let b = await balances();
+    expect(b.TRANSFER_SUSPENSE ?? 0).toBe(0); // reversed out
+    expect(b.TRANSFER_CLEARING).toBe(2000); // the money sits in an own account we do not track
+
+    // Re-declared external: clearing empties, equity records the distribution.
+    await inTenant(() => transactionsService.update(id, { transferDirection: "external" } as never));
+    b = await balances();
+    expect(b.TRANSFER_CLEARING ?? 0).toBe(0);
+    expect(b.EXTERNAL_TRANSFERS).toBe(2000); // Dr equity — a declared distribution
     await balanced();
   });
 

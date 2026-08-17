@@ -68,6 +68,8 @@ describeMaybe("M19.6 — the receivables bridge", () => {
       "journal_entry_lines",
       "journal_entries",
       "invoice_items",
+      "invoice_payments",
+
       "invoices",
       "customers",
       "categories",

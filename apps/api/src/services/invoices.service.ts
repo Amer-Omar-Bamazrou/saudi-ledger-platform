@@ -27,6 +27,7 @@ import { invoiceApprovable } from "./invoices.approvable";
 import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
+import { paymentsRepository } from "../repositories/payments.repository";
 
 // Seller identity comes from the ACTIVE COMPANY (services/sellerIdentity.ts).
 // The former DEFAULT_SELLER_* constants were a ZATCA SANDBOX placeholder,
@@ -265,8 +266,25 @@ export const invoicesService = {
       ],
     });
 
+    // B4 — the dated record of THIS payment. `paid_amount` is a running total
+    // and `paid_at` only ever holds the last date, so without this row a
+    // second instalment permanently destroys the first one's date.
+    await paymentsRepository.recordInvoicePayment(id, paid, payDate);
+
     await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: existing, after: inv });
     return buildInvoiceOut(inv, null);
+  },
+
+  /** B4 — the payment history, newest first. Backfilled rows are aggregates. */
+  async payments(id: number) {
+    const [existing] = await invoicesRepository.findById(id);
+    if (!existing) throw new NotFoundError("Not found");
+    return (await paymentsRepository.listForInvoice(id)).map((p) => ({
+      id: p.id,
+      amount: Number(p.amount),
+      paidAt: p.paidAt,
+      backfilled: p.backfilled,
+    }));
   },
 
   async remove(id: number) {

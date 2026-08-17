@@ -6,13 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A — GL owns cash (2026-08-17): transfers now POST, so the three transfer codes are gone. What remains is deliberate (settlements post via the pay path), historical (unposted_legacy — locked-period skips, should stay zero), or ledger-side (document payments with no bank row).
+ */
 export type CashReconciliationItemsItemCode = typeof CashReconciliationItemsItemCode[keyof typeof CashReconciliationItemsItemCode];
 
 
 export const CashReconciliationItemsItemCode = {
-  transfers_own_account: 'transfers_own_account',
-  transfers_external: 'transfers_external',
-  transfers_undeclared: 'transfers_undeclared',
   settlements: 'settlements',
   unposted_legacy: 'unposted_legacy',
   ledger_only: 'ledger_only',

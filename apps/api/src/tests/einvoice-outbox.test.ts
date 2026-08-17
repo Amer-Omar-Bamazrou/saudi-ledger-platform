@@ -72,6 +72,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);

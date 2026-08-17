@@ -1804,7 +1804,7 @@ components:
             type: object
             required: [code, amount]
             properties:
-              code: { type: string, enum: [suspense_balance, unclassified_accounts] }
+              code: { type: string, enum: [suspense_balance, unclassified_accounts, undeclared_transfers] }
               amount: { type: number }
               count: { type: ["integer", "null"] }
 
@@ -1863,10 +1863,13 @@ components:
             properties:
               code:
                 type: string
+                description: >
+                  A — GL owns cash (2026-08-17): transfers now POST, so the
+                  three transfer codes are gone. What remains is deliberate
+                  (settlements post via the pay path), historical
+                  (unposted_legacy — locked-period skips, should stay zero),
+                  or ledger-side (document payments with no bank row).
                 enum:
-                  - transfers_own_account
-                  - transfers_external
-                  - transfers_undeclared
                   - settlements
                   - unposted_legacy
                   - ledger_only
@@ -1880,11 +1883,11 @@ components:
         undeclaredTransfers:
           type: number
           description: >
-            B5 — transfer movement nobody has classified. Distinct from
-            `unexplained`: the itemisation SUCCEEDED and one of its lines is "we
-            do not know", which is a different problem with a different fix
-            (somebody has to say). Surfaced separately so the page can ask for
-            the declaration rather than burying it in a list.
+            Transfer movement nobody has classified (B5). No longer a GAP
+            component — an undeclared transfer posts, into Transfer suspense —
+            but still a question only the tenant can answer, surfaced so the
+            page can ask for the declaration. The same money the Finance Hub's
+            liquidity claim is withheld over.
         points:
           type: array
           items:
@@ -1982,7 +1985,11 @@ components:
             properties:
               code:
                 type: string
-                enum: [suspense_balance, unclassified_accounts]
+                description: >
+                  undeclared_transfers (A, 2026-08-17) — money in Transfer
+                  suspense: cash whose destination nobody has declared, which
+                  is exactly the case the withholding exists for.
+                enum: [suspense_balance, unclassified_accounts, undeclared_transfers]
               amount:
                 type: number
               count:

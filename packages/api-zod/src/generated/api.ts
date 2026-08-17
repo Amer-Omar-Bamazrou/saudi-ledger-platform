@@ -663,7 +663,7 @@ export const GetTrendResponseItem = zod.object({
   "netWorth": zod.number(),
   "claimable": zod.boolean().describe('False means this point must NOT be drawn as an ordinary segment. The line breaks, visibly, rather than running through a month we cannot stand behind.\n'),
   "blockers": zod.array(zod.object({
-  "code": zod.enum(['suspense_balance', 'unclassified_accounts']),
+  "code": zod.enum(['suspense_balance', 'unclassified_accounts', 'undeclared_transfers']),
   "amount": zod.number(),
   "count": zod.number().nullish()
 }))
@@ -712,11 +712,11 @@ export const GetCashReconciliationResponse = zod.object({
   "ledgerCash": zod.number().describe('Movement on cash-classified GL accounts — what the books say.'),
   "gap": zod.number().describe('bankMovement − ledgerCash. Zero when the two stores agree.'),
   "items": zod.array(zod.object({
-  "code": zod.enum(['transfers_own_account', 'transfers_external', 'transfers_undeclared', 'settlements', 'unposted_legacy', 'ledger_only']),
+  "code": zod.enum(['settlements', 'unposted_legacy', 'ledger_only']).describe('A — GL owns cash (2026-08-17): transfers now POST, so the three transfer codes are gone. What remains is deliberate (settlements post via the pay path), historical (unposted_legacy — locked-period skips, should stay zero), or ledger-side (document payments with no bank row).\n'),
   "amount": zod.number()
 })).describe('Each entry is a NAMED reason the two differ, and they sum to the gap exactly. A gap merely displayed is a discrepancy; a gap itemised is a reconciliation.\n'),
   "unexplained": zod.number().describe('🔴 Must be 0. Non-zero means a difference exists that no named cause accounts for — returned rather than asserted so the page can say so instead of presenting a reconciliation that does not reconcile.\n'),
-  "undeclaredTransfers": zod.number().describe('B5 — transfer movement nobody has classified. Distinct from `unexplained`: the itemisation SUCCEEDED and one of its lines is \"we do not know\", which is a different problem with a different fix (somebody has to say). Surfaced separately so the page can ask for the declaration rather than burying it in a list.\n'),
+  "undeclaredTransfers": zod.number().describe('Transfer movement nobody has classified (B5). No longer a GAP component — an undeclared transfer posts, into Transfer suspense — but still a question only the tenant can answer, surfaced so the page can ask for the declaration. The same money the Finance Hub\'s liquidity claim is withheld over.\n'),
   "points": zod.array(zod.object({
   "period": zod.string(),
   "bankMovement": zod.number(),
@@ -783,7 +783,7 @@ export const GetLiquidityResponse = zod.object({
   "quickRatio": zod.number().nullable(),
   "claimable": zod.boolean(),
   "blockers": zod.array(zod.object({
-  "code": zod.enum(['suspense_balance', 'unclassified_accounts']),
+  "code": zod.enum(['suspense_balance', 'unclassified_accounts', 'undeclared_transfers']).describe('undeclared_transfers (A, 2026-08-17) — money in Transfer suspense: cash whose destination nobody has declared, which is exactly the case the withholding exists for.\n'),
   "amount": zod.number(),
   "count": zod.number().nullish()
 })),

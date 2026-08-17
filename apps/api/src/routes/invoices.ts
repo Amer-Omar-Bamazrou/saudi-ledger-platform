@@ -15,6 +15,7 @@ router.post("/:id/reject", invoicesController.reject);
 router.post("/:id/approve", invoicesController.approve);
 router.patch("/:id", invoicesController.update);
 router.post("/:id/pay", invoicesController.pay);
+router.get("/:id/payments", invoicesController.payments);
 router.delete("/:id", invoicesController.remove);
 
 export default router;

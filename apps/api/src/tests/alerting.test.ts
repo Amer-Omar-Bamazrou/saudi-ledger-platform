@@ -92,6 +92,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   const cleanupFixture = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${FIXTURE_SLUG}')`;
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);

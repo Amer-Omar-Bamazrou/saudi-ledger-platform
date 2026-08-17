@@ -61,7 +61,9 @@ describeMaybe("B5 — where a transfer went", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
-    for (const t of ["transactions", "bank_accounts", "categories"]) {
+    // journal tables too: transfers POST since A (GL owns cash), so this
+    // suite's accepted fixtures now leave entries referencing the categories.
+    for (const t of ["transactions", "journal_entry_lines", "journal_entries", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);

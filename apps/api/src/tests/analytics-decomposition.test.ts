@@ -87,6 +87,7 @@ describeMaybe("M19.2 — decomposition", () => {
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${O}`);
@@ -149,6 +150,7 @@ describeMaybe("M19.2 — decomposition", () => {
   });
 
   it("🔴 ARRIVALS AND DEPARTURES are the biggest movers — never dropped by a join", async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
     await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
     const leaving = await customer("Left Us");
     const arriving = await customer("Just Arrived");
@@ -169,6 +171,7 @@ describeMaybe("M19.2 — decomposition", () => {
   });
 
   it("🔴 OFFSETTING MOVEMENTS: net zero ⇒ share is NULL, but the movers are still listed", async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
     await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
     const up = await customer("Grew");
     const down = await customer("Shrank");
@@ -192,6 +195,7 @@ describeMaybe("M19.2 — decomposition", () => {
   });
 
   it("🔴 a credit note SUBTRACTS — a credited customer is not their biggest month", async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
     await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
     const c = await customer("Credited Co");
     const original = await invoice(c, "2026-06-10", 50000);
@@ -205,6 +209,7 @@ describeMaybe("M19.2 — decomposition", () => {
   });
 
   it("drafts are excluded — they are not in the books", async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
     await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
     const c = await customer("Draft Co");
     await invoice(c, "2026-06-10", 1000);
@@ -223,6 +228,7 @@ describeMaybe("M19.2 — decomposition", () => {
   });
 
   it("an unchanged period reports no contributors and no concentration", async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
     await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
     const d = await inTenant(() =>
       analyticsService.decompose("customer", CUR.from, CUR.to, PRIOR),

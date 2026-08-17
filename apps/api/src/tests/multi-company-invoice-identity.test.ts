@@ -61,6 +61,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U}`);

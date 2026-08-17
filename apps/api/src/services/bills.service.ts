@@ -21,6 +21,7 @@ import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
 import { buildBillOut } from "./bills.presenter";
 import { billsRepository, type BillListFilter } from "../repositories/bills.repository";
+import { paymentsRepository } from "../repositories/payments.repository";
 
 export const billsService = {
   async list(filter: BillListFilter) {
@@ -171,8 +172,23 @@ export const billsService = {
       ],
     });
 
+    // B4 — the dated record of THIS payment (see invoices.service.pay).
+    await paymentsRepository.recordBillPayment(id, paid, payDate);
+
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
     return buildBillOut(bill, null);
+  },
+
+  /** B4 — the payment history, newest first. Backfilled rows are aggregates. */
+  async payments(id: number) {
+    const [existing] = await billsRepository.findById(id);
+    if (!existing) throw new NotFoundError("Not found");
+    return (await paymentsRepository.listForBill(id)).map((p) => ({
+      id: p.id,
+      amount: Number(p.amount),
+      paidAt: p.paidAt,
+      backfilled: p.backfilled,
+    }));
   },
 
   async remove(id: number) {

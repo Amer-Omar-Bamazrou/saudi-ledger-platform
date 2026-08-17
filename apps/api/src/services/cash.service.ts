@@ -1,29 +1,23 @@
 /**
- * CASH: two figures, named so they cannot be confused (M19.7, design §6.1 C).
+ * CASH: the ledger is cash; the bank statement differs for stated reasons.
  *
- * 🔴 WHY THERE ARE TWO, AND WHY THAT IS NOT A BUG TO HIDE.
+ * ── The framing changed with A (GL owns cash, 2026-08-17) ──────────────────
+ * Under M19.7 this was "two numbers, neither authoritative": transfers never
+ * posted, so ledger cash was silent about movements the bank plainly showed
+ * (measured at 10,800 on the dev org). Transfers now POST — through clearing
+ * (own account), external transfers (declared gone), or transfer suspense
+ * (undeclared, visible, blocking the liquidity claim) — so:
  *
- * The transaction store and the general ledger disagree about cash — measured
- * at 10,800 on the dev org — and each is right about the question it answers:
+ *   • **Ledger cash** is the authoritative figure: movement on
+ *     cash-classified GL accounts, which now sees every accepted bank row's
+ *     cash leg plus every document payment.
+ *   • **Bank movement** stays what the statement shows, and the difference is
+ *     no longer a disagreement about transfers — it is the RECONCILIATION:
+ *     each remaining item is a stated, deliberate reason the two views differ.
  *
- *   • **Bank movement** — what the bank statement shows. Every accepted
- *     transaction, INCLUDING transfers and settlements, because the bank
- *     balance moved whether or not anything was earned or spent.
- *   • **Ledger cash** — what the double-entry books say happened to cash. It
- *     excludes transfers and settlements (which deliberately never post) and
- *     INCLUDES payments recorded on a document, which create no transaction.
- *
- * The M16 Q0 precedent decides the treatment: *documents FILE, transactions
- * RECONCILE.* Two figures are tolerable only when each states which question it
- * answers and **the gap between them is accounted for line by line**. A gap
- * that is merely displayed is a discrepancy; a gap that is itemised is a
- * reconciliation.
- *
- * 🔴 THIS IS AN INTERIM (owner decision, 2026-08-16). It makes the disagreement
- * legible; it does not make either figure correct about transfers, because the
- * fact that would settle it — whether a transfer left the tracked estate — is
- * not recorded at all (queue B5). Naming the two figures is what stops the
- * interim from silently becoming the answer.
+ * The M16 Q0 discipline is unchanged: the gap is itemised line by line and
+ * `unexplained` is returned, not asserted, so the page can say a
+ * reconciliation FAILED rather than present a tidy list that does not add up.
  */
 import { analyticsRepository } from "../repositories/analytics.repository";
 
@@ -35,18 +29,22 @@ export interface CashPoint {
   period: string;
   /** Every accepted transaction, all kinds — what the bank shows. */
   bankMovement: number;
-  /** Movement on cash-classified GL accounts — what the books say. */
+  /** Movement on cash-classified GL accounts — the authoritative figure. */
   ledgerCash: number;
-  /** `bankMovement − ledgerCash`. Zero when the two stores agree. */
+  /** `bankMovement − ledgerCash`. */
   gap: number;
 }
 
 /**
- * The gap for the whole window, attributed to causes.
+ * The gap for the whole window, attributed to causes. After A the causes are:
  *
- * Every field is a REASON the two figures differ, and they sum to the gap
- * exactly — an unexplained remainder would mean a cause nobody has named, which
- * is precisely what this is built to rule out.
+ *   settlements     Deliberate: a settlement row's cash effect is posted by
+ *                   the PAY path (one writer per effect), so the bank row
+ *                   itself never posts.
+ *   unposted_legacy Accepted rows that never posted — locked-period skips
+ *                   and pre-backfill history. Should shrink to zero and stay.
+ *   ledger_only     Cash the LEDGER has that no bank row shows: document
+ *                   payments recorded with no matching statement line.
  */
 export interface CashReconciliation {
   from: string;
@@ -55,13 +53,7 @@ export interface CashReconciliation {
   ledgerCash: number;
   gap: number;
   items: Array<{
-    code:
-      | "transfers_own_account"
-      | "transfers_external"
-      | "transfers_undeclared"
-      | "settlements"
-      | "unposted_legacy"
-      | "ledger_only";
+    code: "settlements" | "unposted_legacy" | "ledger_only";
     amount: number;
   }>;
   /**
@@ -72,13 +64,11 @@ export interface CashReconciliation {
    */
   unexplained: number;
   /**
-   * 🔴 How much transfer movement nobody has classified (B5).
-   *
-   * Separate from `unexplained`, which means the ITEMISATION failed. This means
-   * the itemisation succeeded and one of its lines is "we do not know" — a
-   * different problem with a different fix: somebody has to say. Surfaced as
-   * its own number so the page can ask for the declaration rather than burying
-   * it in a list.
+   * 🔴 Transfer movement nobody has classified (B5). No longer a GAP
+   * component — an undeclared transfer POSTS, into Transfer suspense — but
+   * still a question only the tenant can answer, surfaced so the page can ask
+   * for the declaration. It is the same money the Finance Hub's liquidity
+   * claim is withheld over.
    */
   undeclaredTransfers: number;
 }
@@ -103,37 +93,28 @@ export const cashService = {
     ]);
 
     const bankByMonth = new Map<string, number>();
-    const postedOperatingByMonth = new Map<string, number>();
-    // B5 — transfers split THREE ways, because the three mean different things:
-    //   own_account  the ledger's silence is CORRECT; nothing is wrong here
-    //   external     the ledger is genuinely understating cash movement
-    //   undeclared   nobody has said, and the platform must not guess
-    let transfersOwnAccount = 0;
-    let transfersExternal = 0;
-    let transfersUndeclared = 0;
     let settlements = 0;
     let unpostedLegacy = 0;
-    let postedOperating = 0;
+    let postedCash = 0;
+    let transfersUndeclared = 0;
 
     for (const r of txRows) {
       const net = Number(r.net);
       bankByMonth.set(r.month, (bankByMonth.get(r.month) ?? 0) + net);
 
-      if (r.kind === "transfer") {
-        if (r.transfer_direction === "own_account") transfersOwnAccount += net;
-        else if (r.transfer_direction === "external") transfersExternal += net;
-        else transfersUndeclared += net;
-      } else if (r.kind === "settlement") {
+      // The ASK is orthogonal to the gap now: an undeclared transfer posts
+      // (into Transfer suspense), so it appears in postedCash below — but it
+      // is still a question only the tenant can answer.
+      if (r.kind === "transfer" && !r.transfer_direction) transfersUndeclared += net;
+
+      if (r.kind === "settlement") {
         settlements += net;
       } else if (r.posted) {
-        postedOperating += net;
-        postedOperatingByMonth.set(r.month, (postedOperatingByMonth.get(r.month) ?? 0) + net);
+        postedCash += net;
       } else {
-        // Accepted, operating, and never posted: rows from before flaw #1's
-        // Option A wired acceptance to the ledger. Named rather than lumped —
-        // it is a history artefact, not an ongoing behaviour, and conflating it
-        // with the deliberate exclusions would hide that it should shrink to
-        // zero and stay there.
+        // Accepted, postable (operating or transfer), and never posted:
+        // locked-period skips and pre-backfill history. Named rather than
+        // lumped — it should shrink to zero and stay there.
         unpostedLegacy += net;
       }
     }
@@ -155,18 +136,15 @@ export const cashService = {
     const ledgerCash = [...ledgerByMonth.values()].reduce((a, b) => a + b, 0);
 
     /**
-     * Cash the LEDGER has and the transactions do not: payments recorded on an
-     * invoice or bill, which post Dr Cash / Cr AR and create no transaction row.
-     * Derived as a residual — everything in ledger cash that did not arrive via
-     * a posted operating transaction.
+     * Cash the LEDGER has and the bank rows do not: payments recorded on an
+     * invoice or bill (Dr/Cr Cash via the pay path) with no matching statement
+     * line. Derived as a residual — everything in ledger cash that did not
+     * arrive via a posted transaction's cash leg.
      */
-    const ledgerOnly = ledgerCash - postedOperating;
+    const ledgerOnly = ledgerCash - postedCash;
 
     const items = (
       [
-        { code: "transfers_own_account", amount: round2(transfersOwnAccount) },
-        { code: "transfers_external", amount: round2(transfersExternal) },
-        { code: "transfers_undeclared", amount: round2(transfersUndeclared) },
         { code: "settlements", amount: round2(settlements) },
         { code: "unposted_legacy", amount: round2(unpostedLegacy) },
         { code: "ledger_only", amount: round2(-ledgerOnly) },
@@ -174,13 +152,7 @@ export const cashService = {
     ).filter((i) => Math.abs(i.amount) >= 0.005);
 
     const gap = bankMovement - ledgerCash;
-    const explained =
-      transfersOwnAccount +
-      transfersExternal +
-      transfersUndeclared +
-      settlements +
-      unpostedLegacy -
-      ledgerOnly;
+    const explained = settlements + unpostedLegacy - ledgerOnly;
 
     return {
       points,

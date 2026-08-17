@@ -183,6 +183,13 @@ export const reportsService = {
      */
     const suspenseKey = systemIdByCode.has("SUSPENSE") ? String(systemIdByCode.get("SUSPENSE")) : null;
     const suspenseBalance = fmt2(suspenseKey && assets[suspenseKey] ? assets[suspenseKey].amount : 0);
+    /**
+     * A — GL owns cash: undeclared transfers post here. Same rationale as
+     * SUSPENSE, same consequence: cash the platform cannot classify blocks
+     * the Finance Hub's liquidity claim (owner decision, 2026-08-17).
+     */
+    const transferSuspenseKey = systemIdByCode.has("TRANSFER_SUSPENSE") ? String(systemIdByCode.get("TRANSFER_SUSPENSE")) : null;
+    const transferSuspenseBalance = fmt2(transferSuspenseKey && assets[transferSuspenseKey] ? assets[transferSuspenseKey].amount : 0);
 
     const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
     const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
@@ -241,6 +248,7 @@ export const reportsService = {
         unclassified: bucket(assetItems, isUnclassified),
         quickTotal,
         suspenseBalance,
+        transferSuspenseBalance,
       },
       liabilities: {
         items: liabItems,
