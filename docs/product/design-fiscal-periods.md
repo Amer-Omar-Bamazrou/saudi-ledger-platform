@@ -315,4 +315,18 @@ ActivityReport and GlReport (rolling defaults — correctly outside M20.1's
 defect class, but F2 says every report), BalanceSheet, and VatReport (month
 granularity for its `YYYY-MM` inputs).
 
-Remaining in M20: **M20.3** (Hijri labels).
+### M20.3 — the labels (✅ merged 2026-08-17, PR #51)
+
+`FY 1447 (Jun 2025 – Jun 2026)` wherever a period is named, from one pure
+formatter (`src/lib/fiscalLabel.ts`) tested against this design's own example
+verbatim. A bare Hijri year label is a fact only one reader can place — the
+Gregorian span is what makes it readable to everyone. NO client-side calendar
+math: everything the label needs is already in the API payload (client Hijri
+arithmetic would reintroduce the silent-substitution hazard M17.2's boot
+assertion catches on the server). Applied at Company Settings'
+current-fiscal-year card and as tooltips on M20.2's fiscal chips, which keep
+F12's names. The F3 boundary held: dual display in tables stays its own
+milestone (F3-dual); in-table date conversion stays out.
+
+**M20 is complete.** Next in the owner-approved order (§7): F3-dual, then
+F7-cmp, then A (GL owns cash), then B4.
