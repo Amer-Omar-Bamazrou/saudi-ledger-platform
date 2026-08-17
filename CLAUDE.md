@@ -64,6 +64,7 @@ If this block disagrees with reality, fix it first.
 | **M17.2** — Fiscal year + calendar | ✅ Q3's stated prerequisite, and it closes a five-milestone gap: `fiscalYearStart` is finally resolved. `fiscal_calendar` (gregorian \| **Umm al-Qura** hijri, migration 0039 + two CHECKs), a pure resolver (`lib/fiscalYear.ts`), Hijri conversion by **binary search over the ICU tables** (`lib/hijriCalendar.ts` — an arithmetic estimate was tried and is wrong, months are tabulated), a **boot assertion** that refuses to start on a small-ICU runtime, `GET /companies/current/fiscal-years`, and Company Settings showing real boundaries. **Reports still take explicit dates** — see the known-issue note. | same design doc §3 |
 | **M20.0** — the lying column | ✅ Migration 0044: `fiscal_year_start` nullable, NO default, **existing rows NULLed** (the 1s were the old default, not data). `GET /companies/current/fiscal-years` returns `declared: false` when undeclared; `null` on update WITHDRAWS. 🔴 Also fixed: Company Settings' submit coerced `?? 1`, so saving an ADDRESS would have re-declared January — the write-boundary corollary (§3). Part 6 fired: the suite's first test guarded the defect; rewritten. (PR #47) | [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md) §8 |
 | **M20.1** — report default windows | ✅ Sixteen report pages open on the tenant's **current fiscal year** (resolver boundaries, Gregorian or Hijri) or a **rolling last 12 months** when undeclared, with the F13 inline notice on the report itself. One data hook (`useReportDefaultRange`) owns the decision; the bespoke date controls stay (F5). A failed settings fetch falls back with NO notice — the page won't assert what it doesn't know. Release note shipped (reports change on open with no user action). `VatReport` verified OUT of the class (opens empty, asserts nothing). (PR #48) | same design doc §8 + [release note](docs/release-notes/m20-1-report-default-windows.md) |
+| **M20.2** — period shortcuts | ✅ Six shortcuts on all **twenty** report pages (F12), F6 as stated: a shortcut SETS the dates and applies them, inputs stay editable, the lit chip is **derived by equality** so "Custom when touched" needs no state. Month/quarter = **CALENDAR** periods (the filing rhythm; the only definition an undeclared tenant has); the fiscal pair uses API boundaries and is absent while undeclared; Balance Sheet gets both FY-ends. Beyond M20.1's sixteen: ActivityReport, GlReport, BalanceSheet, VatReport (month granularity). (PR #50) | same design doc §8 |
 
 **Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
 platform produces an **auditable working paper**, never a ZATCA submission;
@@ -77,15 +78,16 @@ divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
 all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
 ask with the C7/C8 advisor).
 
-**Fiscal periods in reports — DECIDED (F1–F13), HALF BUILT.** The two defects
-F1–F9 surfaced are both FIXED: the lying `NOT NULL DEFAULT 1` column (M20.0)
-and the hardcoded Jan–Dec default window on every report (M20.1). Still to
-build, in the owner-approved order: **M20.2** (six shortcuts that SET the
-dates and stay editable; Balance Sheet gets "as at FY-end"), **M20.3** (Hijri
-period labels), then F3-dual and F7-cmp. Standing decisions: free dates plus
-shortcuts (nothing period-only); Hijri gets labels and boundaries but NOT
-in-table date conversion; prior-period comparison and Analytics out of scope;
-the twenty bespoke date controls stay duplicated until a third pattern appears.
+**Fiscal periods in reports — DECIDED (F1–F13), M20.0–M20.2 BUILT.** The two
+defects F1–F9 surfaced are both FIXED (the lying `NOT NULL DEFAULT 1` column,
+M20.0; the hardcoded Jan–Dec default window, M20.1), and the six period
+shortcuts are on every report (M20.2). Still to build, in the owner-approved
+order: **M20.3** (Hijri period labels — `FY 1447 (Jun 2025 – Jun 2026)`
+wherever a period is named), then F3-dual and F7-cmp. Standing decisions:
+free dates plus shortcuts (nothing period-only); Hijri gets labels and
+boundaries but NOT in-table date conversion; prior-period comparison and
+Analytics out of scope; the twenty bespoke date controls stay duplicated
+until a third pattern appears.
 See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
 (§7 build order, §8 as built).
 

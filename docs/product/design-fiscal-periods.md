@@ -283,4 +283,36 @@ the defect class — it opens on empty month pickers and asserted nothing.
 Release note: [`m20-1-report-default-windows.md`](../release-notes/m20-1-report-default-windows.md)
 (reports change what they show on open, with no user action behind it).
 
-Remaining in M20: **M20.2** (shortcuts) and **M20.3** (Hijri labels).
+### M20.2 — the shortcuts (✅ merged 2026-08-17, PR #50)
+
+Six shortcuts on all twenty report pages (F12): This month / Last month /
+This quarter / Last quarter / This fiscal year / Last fiscal year. F6 as
+stated — a shortcut, never a mode: picking one sets the date inputs AND
+applies them; the inputs stay editable; the lit chip is **derived** by
+comparing the inputs against each shortcut's range, so "Custom when touched"
+is equality, not state.
+
+Two decisions the design left open, made and flagged in PR #50 for review:
+
+- **Month/quarter shortcuts are CALENDAR periods, not fiscal quarters.** The
+  month/quarter rhythm F4's research surfaced is the filing rhythm (KSA VAT
+  periods are calendar regardless of fiscal year), and calendar is the only
+  definition that exists for an undeclared tenant — a fiscal-quarter shortcut
+  would need the January assumption M20.0 removed. The fiscal pair uses the
+  resolver's boundaries via the API, never recomputed client-side, and is
+  absent while undeclared (the F13 notice on the page already says why).
+- **Balance Sheet's "as at FY-end" is offered for BOTH the current and the
+  previous fiscal year** — the design named one shortcut and the year it
+  meant is genuinely ambiguous mid-year.
+
+Structure kept M20.1's split: F5's twenty bespoke date CONTROLS stay; the
+`PeriodShortcuts` bar is a single-purpose strip beside them; calendar math is
+pure in `src/lib/reportRange.ts` (tested at the year boundaries); the fiscal
+pair reads the SAME fiscal-years query as `useReportDefaultRange`
+(`useFiscalYearsQuery`), so the bar and the default window cannot disagree
+about whether a year is declared. Coverage beyond M20.1's sixteen:
+ActivityReport and GlReport (rolling defaults — correctly outside M20.1's
+defect class, but F2 says every report), BalanceSheet, and VatReport (month
+granularity for its `YYYY-MM` inputs).
+
+Remaining in M20: **M20.3** (Hijri labels).
