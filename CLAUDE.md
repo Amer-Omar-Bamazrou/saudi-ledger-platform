@@ -87,9 +87,16 @@ named by their span (M20.3); and a Hijri tenant reads BOTH calendars on
 every ledger date (**F3-dual**, PR #52 — one shared `DualDate` component
 over 42 render sites, with a client-side probe of the M17.2 fact that
 REFUSES to render Hijri on a runtime that would silently substitute
-Gregorian; fallback in every failure direction is Gregorian-only). Next in
-the owner-approved order (§7): **F7-cmp** (statement comparison), then A
-(GL owns cash), then B4. Standing decisions: free dates plus shortcuts
+Gregorian; fallback in every failure direction is Gregorian-only). **F7-cmp
+BUILT** (PR #53): prior-period comparison on the three statements — the
+prior window DERIVED from what the dates are (fiscal → the resolver's
+preceding period, never calendar-minus-one, which is ~11 days off a Hijri
+year; month/quarter → exact shift; custom → labelled calendar shift); an
+empty prior is a NAMED fact, never zero columns; Δ% is "—" on a zero base;
+🔴 mismatched sources (journal vs transactions-fallback) REFUSE with a
+stated reason — a prevented #9 instance, recorded in the findings file;
+line merge by response-carried KEY, never display name. Next in the
+owner-approved order (§7): A (GL owns cash), then B4. Standing decisions: free dates plus shortcuts
 (nothing period-only); NO in-table Hijri date conversion (dual display is
 alongside, never instead); Analytics out of scope; the twenty bespoke date
 controls stay duplicated until a third pattern appears.
