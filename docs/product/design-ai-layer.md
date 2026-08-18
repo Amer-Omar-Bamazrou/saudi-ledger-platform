@@ -18,7 +18,7 @@ a proposal when the open questions close.
 | Constraint ranking | **(a) data residency FIRST, (b) quality second, (c) cost last.** | ✅ Decided. |
 | Data boundary | **Absolute**: "everything is fair game as long as all information stays in our platform and the AI does not send information to a mother company." | ✅ Decided. **Rules out hosted model APIs entirely.** Open-weight, self-hosted models only. |
 | Training on tenant data | Owner said OK. | 🔴 **Owner-preference-PENDING-LEGAL** — a PDPL question; goes to the advisor with C7/C8/C10. Not a decision. Until answered, correction pairs are collected (they already are, as ScanReview provenance) but nothing trains on them. |
-| The three vision names (Accountant / Auditor / CFO) as concrete moments | Not yet answered. | 🔴 **OPEN — being re-asked.** The hub lesson applies: do not build against an inferred reading of the names. |
+| The three vision names as concrete moments | **Accountant**: document → extraction → proposed entry → human review (§2–§6). **CFO**: ON DEMAND — the user asks before making a decision; consulting, never a scheduled report. **Auditor**: BOTH — on demand ("check this for me") AND scheduled, quarterly by default, monthly if the customer opts in. (Answered 2026-08-18.) | ✅ Decided. See §2b for the two consequences the schedule creates. |
 | Arabic | **A LAUNCH requirement, not a fast-follow** (owner, 2026-08-18). Both layers: reading Arabic documents, and answering in Arabic. | ✅ Decided. **A HARD GATE on model selection, not a preference** — see §2a. |
 | Is AI usage metered per tenant and billable? | **Yes — confirmed.** That is why token tracking is in the spec. | ✅ Decided. |
 
@@ -56,6 +56,27 @@ failure shape a model reintroduces at higher stakes: an English-strong
 model DEGRADES on Arabic rather than erroring, which is the
 silent-substitution class (the small-ICU lesson) applied to language.
 "It produced output" is not evidence it read the document.
+
+## 2b. 🔴 The Auditor's SCHEDULE creates two obligations (owner, 2026-08-18)
+
+**1. Scheduled findings arrive UNASKED — the quiet-neglect shape.** A
+quarterly finding nobody opens is worse than no finding, because the system
+believes it told them. The scheduled run uses the existing job
+infrastructure (the M12.8/M18 scheduler) and gets the same treatment as the
+outbox-age alarm: findings are **visible and ideally pushed** (the B1/B2
+posture — a channel, not a panel), never a page waiting to be found. A run
+that produces findings nobody has seen after a stated interval is itself a
+condition worth surfacing.
+
+**2. C9/C10 bites HARDEST here.** A scheduled "audit" arriving quarterly
+with compliance findings, against tax rules we have not verified, is the
+worst version of that risk — **it looks authoritative precisely because it
+arrived on a schedule.** The §5 sequencing rule therefore applies with
+extra force to the scheduled path: internal-consistency findings
+(duplicates, gaps, unreconciled items, violations of the tenant's own
+rules) may ship before C9/C10 close; anything asserting a tax or compliance
+position may not. And the §9 naming correction matters MORE given the
+schedule, not less: findings and review assistance, never "audit".
 
 ## 3. 🔴 Correction 3 — Qwen lives INSIDE A1, not beside it
 
@@ -177,6 +198,70 @@ estimate of scale. In-Kingdom GPU availability (STC, Ezditek/DataVolt,
 HUMAIN-era sovereign offerings, the AWS KSA region) was
 announced-in-various-states as of the spec date — 🔴 **verify against
 providers during C6, not from memory.**
+
+## 12a. 🔴 HOSTING OPTIONS ANNEX (2026-08-18) — costs measured, not guessed; decision is the OWNER'S
+
+Recorded per the §6b-of-fiscal-periods precedent: the numbers must survive
+the conversation. Facts verified against Groq's published docs and press on
+2026-08-18 (sources in the PR); **the choice between the readings below is
+the owner's and is NOT resolved here.**
+
+### The three readings of the Q5 data-boundary answer
+
+The owner's words support more than one reading, and the options split on
+which was meant:
+
+- **Reading A — "no one keeps or learns from our data."** Satisfied by
+  Groq with Zero Data Retention: no training on inputs/outputs by default,
+  no retention with ZDR enabled (self-serve, org-wide or per-feature).
+- **Reading B — "our data is never processed on infrastructure we don't
+  control."** During inference the ledger context exists in plaintext in
+  the provider's memory, ZDR or not — ZDR governs what is KEPT, not what is
+  SEEN. No hosted API satisfies B; only self-hosting does.
+- **Reading B′ — "our data never leaves the Kingdom."** Groq operates a
+  production region in **Dammam** (built with Aramco Digital, operational
+  since Feb 2025, ~19,000 LPUs, HUMAIN's inference backbone).
+  Region-pinned inference satisfies B′ while failing B. 🔴 Pinning is an
+  **Enterprise-tier arrangement negotiated with Groq** — standard tiers
+  route globally (in practice, the US; Groq's retained-data buckets are US
+  GCP).
+
+### The options and their real costs
+
+| # | Option | Satisfies | Cost shape |
+| --- | --- | --- | --- |
+| 1 | **The hybrid we already have** — deterministic engines local (zero cost, always available); a model only for escalations + reasoning. True under every option below. | — (shrinks the exposed surface; the surface is still ledger content) | $0 for the floor |
+| 2 | **Groq Dammam Enterprise + ZDR + minimization-redaction** (strip VAT numbers / IBANs / person names before any call — worth doing regardless; see the redaction verdict below) | A + B′, not B | gpt-oss-120b at **$0.15 / $0.60 per 1M tokens** (halved by caching and batch; ~500 tok/s). At generous SME volumes (~2M tokens/tenant/month): **~$0.50–1 per tenant per month**. No idle cost, no cold starts, no GPU ops. Enterprise premium for pinning: UNKNOWN — C6 verify item. |
+| 3 | **Small local GPU for document IMAGES + hosted (ZDR) for structured text** — a ~30B vision model on one 48 GB card keeps raw receipts fully in-platform; only extracted, minimized text leaves. | A + "nobody else ever sees our customers' actual receipts" | **~$1–1.5k/month** for the vision card + option 2's per-token costs for reasoning. The middle ground if the emotional core of the constraint is the images. |
+| 4 | **Full self-hosting** (§12) | A + B + B′ | **~$3,000–4,500/month floor**, one replica, no redundancy, bursty-idle shape; ~$0.50/tenant on Groq vs this floor puts API/self-host parity somewhere past **1,000–6,000 tenants**. |
+
+### Redaction verdict (asked 2026-08-18)
+
+Redaction meaningful enough to matter destroys the signal: the document
+layer's input IS the raw image; classification depends on the identifying
+token ("SADAD PAYMENT — STC" classifies *because* it says STC); and the
+sensitive thing is not the PII but the ledger itself — amounts, dates and
+counterparty patterns are both what Q5 protects and what the reasoning
+layer exists to reason over. Redaction is a useful MINIMIZATION layer,
+never a mechanism that turns a hosted API into "data stayed within our
+organisation."
+
+### Advisor questions this adds (joins the C7/C8/C10 package)
+
+PDPL Art. 29 + SDAIA Transfer Regulations make cross-border transfer a
+regulated path, not a prohibition. For the advisor: (a) is ZDR-transient
+processing abroad a "transfer" in the regulation's sense? (b) does
+Dammam-pinned processing by a US company's KSA region raise a transfer
+question at all, plus NCA/sector overlays? (c) note the tension already on
+file: "training on tenant data is OK" (owner-pref-pending-legal) and ZDR
+are mutually exclusive — ZDR leaves nothing retained to train on.
+
+### 🔴 Two things to VERIFY inside C6 (owner-directed)
+
+1. **Groq Enterprise terms and pricing for Dammam region pinning.**
+2. **Whether a vision model with acceptable ARABIC is available in that
+   region** — the Groq path likely means Llama 4 vision rather than Qwen,
+   and §2a's Arabic gate decides either way, on measured numbers.
 
 ## 13. The eval harness gates shipping (folded in)
 
