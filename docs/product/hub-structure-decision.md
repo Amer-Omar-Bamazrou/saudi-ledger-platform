@@ -116,6 +116,16 @@ first.
 
 ### 🔴 When parking AI hosting stops being safe
 
+> ✏️ **THE TRIGGER TRIPPED 2026-08-18.** The AI interview's first answer —
+> ask-your-books, analysis, findings — specs whole-ledger reasoning by
+> definition, and the owner's data-boundary answer (absolute; no hosted
+> APIs) plus constraint ranking (residency > quality > cost) resolve the
+> DIRECTION: open-weight, self-hosted. The LOCATION is now the same
+> decision as queue **C6** (region + KMS + in-Kingdom GPU availability are
+> one choice). See
+> [`design-ai-layer.md`](design-ai-layer.md) §10/§12. The section below is
+> kept as the record of the parking condition that governed until then.
+
 Today's code assumes a local Ollama model (`LLM_MODEL=none` by default) at
 `/llm/{status,categorize,compare,demo}` — an evaluation harness, not a shipped
 feature. That is fine to leave alone. Parking the hosting decision **stops being
