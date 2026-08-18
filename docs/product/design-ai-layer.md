@@ -163,7 +163,7 @@ submission" decision.
 
 | Open | Blocks |
 | --- | --- |
-| **Hosting location** — now the same decision as queue **C6** (region + KMS + GPU availability in-Kingdom are one choice). Open-weight is necessary for the residency answer, not sufficient. | Any deployment; the cost model in §12. |
+| ~~Hosting~~ → ✅ **DECIDED-PENDING-ENTERPRISE-TERMS** (§12a): Groq, Reading A, Dammam. What remains open is the COMMERCIAL half — Enterprise terms/pricing for Dammam pinning + ZDR, and an Arabic-acceptable vision model in that region. | 🔴 **Tenant data reaching Groq is BLOCKED until the Enterprise agreement is signed.** Model development proceeds on fixture/dev data behind the seam. |
 | ~~Arabic~~ → ✅ DECIDED (launch requirement, hard gate — §2a). What remains open is the **measurement**: the Arabic benchmark itself, built from correction pairs plus a curated Arabic receipt/statement set. | Model pinning stays blocked until the Arabic numbers exist. |
 | **Q2 re-ask** — the Auditor and CFO *moments*. | The findings surface's shape; the entire ask-your-books/conversational surface, which Q1 promises and this spec deliberately does NOT spec yet. When it is specced: grounded tool-use only — the model queries our deterministic endpoints and narrates THEIR numbers, never its own. |
 | **Exact Qwen model ID** (draft's identifier unverifiable). | The document layer. |
@@ -199,12 +199,23 @@ HUMAIN-era sovereign offerings, the AWS KSA region) was
 announced-in-various-states as of the spec date — 🔴 **verify against
 providers during C6, not from memory.**
 
-## 12a. 🔴 HOSTING OPTIONS ANNEX (2026-08-18) — costs measured, not guessed; decision is the OWNER'S
+## 12a. HOSTING OPTIONS ANNEX — ✅ DECIDED 2026-08-18 (owner): GROQ, READING A — **PENDING-ENTERPRISE-TERMS**
 
-Recorded per the §6b-of-fiscal-periods precedent: the numbers must survive
-the conversation. Facts verified against Groq's published docs and press on
-2026-08-18 (sources in the PR); **the choice between the readings below is
-the owner's and is NOT resolved here.**
+**The decision:** Groq under Reading A — contractual Zero Data Retention,
+no training on our data, **Dammam-region processing**. The provider seam
+(§7) keeps it reversible.
+
+🔴 **Recorded honestly alongside it (owner instruction):** Dammam pinning
+is an **Enterprise arrangement, not a configuration flag** — standard tiers
+route globally. The residency half of this decision is therefore contingent
+on a commercial agreement that does not yet exist. Status:
+**decided-pending-Enterprise-terms**, and 🔴 **the signed
+Enterprise/Dammam+ZDR agreement is a BLOCKING item before any tenant data
+reaches Groq** — until it exists, model calls carry fixture/dev data only.
+
+The analysis that produced the decision is kept below, per the
+§6b-of-fiscal-periods precedent: the numbers must survive the conversation.
+Facts verified against Groq's published docs and press on 2026-08-18.
 
 ### The three readings of the Q5 data-boundary answer
 
