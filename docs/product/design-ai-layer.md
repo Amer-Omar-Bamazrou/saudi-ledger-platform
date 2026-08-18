@@ -19,7 +19,7 @@ a proposal when the open questions close.
 | Data boundary | **Absolute**: "everything is fair game as long as all information stays in our platform and the AI does not send information to a mother company." | ✅ Decided. **Rules out hosted model APIs entirely.** Open-weight, self-hosted models only. |
 | Training on tenant data | Owner said OK. | 🔴 **Owner-preference-PENDING-LEGAL** — a PDPL question; goes to the advisor with C7/C8/C10. Not a decision. Until answered, correction pairs are collected (they already are, as ScanReview provenance) but nothing trains on them. |
 | The three vision names (Accountant / Auditor / CFO) as concrete moments | Not yet answered. | 🔴 **OPEN — being re-asked.** The hub lesson applies: do not build against an inferred reading of the names. |
-| Arabic | Not yet asked. | 🔴 **OPEN.** Load-bearing for model verification, both layers. |
+| Arabic | **A LAUNCH requirement, not a fast-follow** (owner, 2026-08-18). Both layers: reading Arabic documents, and answering in Arabic. | ✅ Decided. **A HARD GATE on model selection, not a preference** — see §2a. |
 | Is AI usage metered per tenant and billable? | **Yes — confirmed.** That is why token tracking is in the spec. | ✅ Decided. |
 
 **Settled elsewhere and not reopenable here:** AI proposes and never posts;
@@ -37,6 +37,25 @@ AI appears inside the pages where the work happens.
 | Model (today's choice — see §8) | Qwen vision-language class. 🔴 **The draft's "Qwen 3.6-27B" is not a verifiable model identifier — pin the exact ID before anything else**; the layer requires vision, and Arabic strength differs sharply within the family. | `gpt-oss-120b` (117B MoE, ~5.1B active, MXFP4 — fits one 80 GB GPU; open-weight, Apache-2.0). |
 | Input | Image + text — **inside A1's pipeline** (§3). | Text + structured data ONLY. Never raw documents. |
 | Output | Structured extraction (JSON), field-level, with provenance. | Proposed **classifications and document fields** (§5) + plain-language explanation of its own proposal; findings (§9); grounded answers (unspecced — awaits §10). |
+
+## 2a. 🔴 ARABIC IS A HARD GATE ON MODEL SELECTION (owner, 2026-08-18)
+
+We sell to Saudi SMEs: their receipts and bank statements are in Arabic.
+**Whatever models are chosen must be benchmarked on Arabic financial text
+BEFORE selection, using our own correction pairs where they exist** —
+Arabic receipt extraction for the document layer, Arabic answers and
+explanations for the reasoning layer. **A model that reads English receipts
+well and Arabic receipts poorly FAILS the requirement regardless of its
+other scores.** No model is pinned (§2's ID question included) until its
+Arabic numbers are measured.
+
+Why this is a gate and not a preference: the `\b` incident — sixty Arabic
+patterns silently dead for months because an ASCII word-boundary matches
+nothing in Arabic script, found only by accident. That is precisely the
+failure shape a model reintroduces at higher stakes: an English-strong
+model DEGRADES on Arabic rather than erroring, which is the
+silent-substitution class (the small-ICU lesson) applied to language.
+"It produced output" is not evidence it read the document.
 
 ## 3. 🔴 Correction 3 — Qwen lives INSIDE A1, not beside it
 
@@ -124,7 +143,7 @@ submission" decision.
 | Open | Blocks |
 | --- | --- |
 | **Hosting location** — now the same decision as queue **C6** (region + KMS + GPU availability in-Kingdom are one choice). Open-weight is necessary for the residency answer, not sufficient. | Any deployment; the cost model in §12. |
-| **Arabic** (both layers; benchmark, don't assert). | Model pinning; the eval gate in §13. |
+| ~~Arabic~~ → ✅ DECIDED (launch requirement, hard gate — §2a). What remains open is the **measurement**: the Arabic benchmark itself, built from correction pairs plus a curated Arabic receipt/statement set. | Model pinning stays blocked until the Arabic numbers exist. |
 | **Q2 re-ask** — the Auditor and CFO *moments*. | The findings surface's shape; the entire ask-your-books/conversational surface, which Q1 promises and this spec deliberately does NOT spec yet. When it is specced: grounded tool-use only — the model queries our deterministic endpoints and narrates THEIR numbers, never its own. |
 | **Exact Qwen model ID** (draft's identifier unverifiable). | The document layer. |
 | **Training-on-tenant-data** (owner-pref-pending-legal, §1). | Any learning loop; v1 learns nothing from rejections. |
@@ -169,3 +188,9 @@ classification agreement with human-accepted outcomes), record the measured
 floor, and let the number gate the release — the standing live-verification
 rule applied to a model. A model feature shipped without a measured floor
 is a confident zero wearing a demo.
+
+🔴 **The harness reports Arabic and English SEPARATELY, always** (§2a). A
+blended score is how an English-strong model passes while failing the
+customer — the aggregate hiding the segment is the same arithmetic that hid
+sixty dead patterns behind a suite that was mostly green. The Arabic floor
+gates selection; the blended number is not a gate at all.

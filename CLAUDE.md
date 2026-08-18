@@ -116,10 +116,15 @@ positions (C9/C10 stay the single tax gate; **no compliance-asserting AI
 findings before C9/C10 close**); Qwen inside A1's pipeline (QR fields never
 overwritten); the deterministic categorizer stays the brain with the model
 as the below-0.65 second opinion; one writer per effect (no Dr/Cr from the
-model); provider-agnostic seam; **"findings", never "audit"**. 🔴 OPEN:
-hosting (now the SAME decision as C6 — ~$3–4.5k/month self-hosting floor
-stated in the spec), Arabic, the Auditor/CFO moments (Q2 re-ask), the exact
-Qwen model ID, and the eval gate's thresholds. See
+model); provider-agnostic seam; **"findings", never "audit"**. **Arabic is a
+LAUNCH requirement and a HARD GATE on model selection** (2026-08-18): both
+layers, benchmarked on Arabic financial text BEFORE any model is pinned,
+Arabic and English scored separately — an English-strong/Arabic-poor model
+fails regardless of its other scores (the `\b` lesson at model scale). 🔴
+OPEN: hosting (now the SAME decision as C6 — ~$3–4.5k/month self-hosting
+floor stated in the spec), the Arabic benchmark itself, the Auditor/CFO
+moments (Q2 re-ask), the exact Qwen model ID, and the eval gate's
+thresholds. See
 [`docs/product/design-ai-layer.md`](docs/product/design-ai-layer.md).
 
 **Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
