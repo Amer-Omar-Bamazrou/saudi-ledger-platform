@@ -1614,3 +1614,21 @@ sit exactly in the blind spot between "the figure we asserted" and "the
 invariant we asserted" — the new transfer tests assert the ACCOUNT BALANCES
 on both sides of a reversal, which is the assertion that would have caught
 this.
+
+#### 🔴 THE NAMED SHAPE (owner-flagged, 2026-08-17): TWO CORRECT ASSERTIONS WITH A GAP BETWEEN THEM
+
+This is a different failure class from a missing assertion, and it is **not
+caught by adding more of either kind.** The suite asserted a FIGURE (the
+P&L, at the top of the aggregation) and an INVARIANT (debits = credits, at
+the bottom). Both were correct; both stayed green for months. The defect
+lived in the middle layer neither speaks about — WHICH accounts hold the
+value — and every reversal moved 8,750 through that blind spot in every
+report.
+
+More figure-assertions would not have helped (the figures asserted were the
+ones that stayed right); more invariant-assertions would not have helped
+(the invariant genuinely held). What catches this class is an assertion at
+the INTERMEDIATE grain: when an operation moves value BETWEEN accounts,
+assert the balance of BOTH accounts, before and after. The gap between a
+top-line figure and a bottom-line invariant is exactly the space where a
+conservation law can hold while the conserved thing is in the wrong place.

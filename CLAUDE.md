@@ -305,6 +305,14 @@ These are short forms; the rules are binding, the history explains why.
 - **A flag's scope drifts past its name** when the thing it gates becomes
   shared infrastructure (ZATCA_WORKER_ENABLED silently disabled every
   non-ZATCA job). Move the gate WITH the thing the flag names.
+- **🔴 TWO CORRECT ASSERTIONS WITH A GAP BETWEEN THEM** (the reversal
+  double-negation, 2026-08-17). A suite asserted the top-line FIGURE (P&L —
+  right) and the bottom-line INVARIANT (debits = credits — held), and every
+  reversal still moved 8,750 through the layer neither speaks about: WHICH
+  accounts hold the value. A different class from a missing assertion, and
+  not caught by adding more of either kind — when an operation moves value
+  BETWEEN accounts, assert both accounts' balances, before and after. A
+  conservation law can hold while the conserved thing is in the wrong place.
 
 ## 4. Active constraints — do not break these
 
@@ -737,6 +745,18 @@ and absent.
    patch, not the rest of the file.
 3. Prefer a test that fails loudly over an inspection: this class of loss is
    invisible to reading.
+
+**🔴 A CI poll that waits for COMPLETION is not a merge gate (2026-08-17).**
+PR #54 was merged with a RED test check: the polling loop waited for every
+check to reach `status: completed` and the merge step never looked at
+`conclusion`. "The checks finished" and "the checks passed" are different
+facts, and the loop's author had conflated them for four green PRs in a row —
+green outcomes hid the missing predicate (an obsolete-assertion cousin: the
+gate was never tested by a failure until one arrived). The failure was real
+(B4's sequences lacked `USAGE` on CI's plain Postgres — an environment
+difference local Supabase masked; fixed forward as 0047 within minutes).
+**Rule: a merge step must assert every check's `conclusion == success`, and a
+wait-loop is only a wait-loop.**
 
 ## 11. Development Conventions
 
