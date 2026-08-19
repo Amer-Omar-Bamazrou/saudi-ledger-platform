@@ -163,8 +163,14 @@ two checked categories; a row whose treatment came from an unverified default
 surfaces in the review UI as **"assumed"**, with a per-row override
 (`PATCH /transactions/:id { taxTreatment }` — non-'S' clears the VAT, 'S'
 extracts it from gross). Flipping `treatment_verified` records an actual rule
-lookup, never a side effect. Verifying the rest is **pre-production queue item
-C9** in CLAUDE.md.
+lookup, never a side effect.
+
+> ✏️ **C9 SUBSTANTIALLY CLOSED (2026-08-19).** 17 treatments verified against
+> the official VAT Implementing Regulations, read page by page — per-article
+> citations, the remaining assumed set with what-would-settle-each, and the
+> new **`input_vat_blocked` third axis** (Art. 50; the FOOD_MEALS live wrong
+> default) are all in
+> [`docs/tax/vat-treatment-verification.md`](../tax/vat-treatment-verification.md).
 
 ---
 

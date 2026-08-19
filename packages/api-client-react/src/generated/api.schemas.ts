@@ -1193,7 +1193,10 @@ export interface VatTransaction {
 
 export interface VatSummary {
   vatCollected: number;
+  /** The recoverable-input-VAT ESTIMATE. Excludes VAT paid on Art. 50-blocked expenditure classes (entertainment, catering) — that amount is `vatBlocked`, not silently dropped (C9). */
   vatPaid: number;
+  /** VAT actually paid on expenditure whose input VAT is not deductible (VAT Implementing Regulations Art. 50 — e.g. catering, entertainment). A real cost, never a recoverable amount. */
+  vatBlocked: number;
   netVatPosition: number;
   vatRate: number;
   transactions: VatTransaction[];

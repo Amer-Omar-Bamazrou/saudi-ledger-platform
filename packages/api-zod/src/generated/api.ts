@@ -1047,7 +1047,8 @@ export const GetVatSummaryQueryParams = zod.object({
 
 export const GetVatSummaryResponse = zod.object({
   "vatCollected": zod.number(),
-  "vatPaid": zod.number(),
+  "vatPaid": zod.number().describe('The recoverable-input-VAT ESTIMATE. Excludes VAT paid on Art. 50-blocked expenditure classes (entertainment, catering) — that amount is `vatBlocked`, not silently dropped (C9).\n'),
+  "vatBlocked": zod.number().describe('VAT actually paid on expenditure whose input VAT is not deductible (VAT Implementing Regulations Art. 50 — e.g. catering, entertainment). A real cost, never a recoverable amount.\n'),
   "netVatPosition": zod.number(),
   "vatRate": zod.number(),
   "transactions": zod.array(zod.object({
