@@ -263,23 +263,38 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
 
   // ── M16.3.1: checked vs assumed treatment defaults ────────────────────────
   describe("M16.3.1 — an unverified treatment default is visible where it is USED", () => {
-    it("verification is DATA, and exactly the two checked categories carry it", async () => {
+    it("verification is DATA, and exactly the checked categories carry it", async () => {
       // Flipping `treatment_verified` records an actual KSA rule lookup; if
-      // this list grows, the lookup must be recorded in the design doc's
-      // verification-status section (queue C9), or this test fails on purpose.
+      // this list grows, the lookup must be recorded with citations — C9's
+      // record is docs/tax/vat-treatment-verification.md — or this test
+      // fails on purpose. It DID fail on purpose on 2026-08-19 (the C9 pass,
+      // 17 verified against the VAT Implementing Regulations) — exactly the
+      // forcing function it was built to be.
       const { rows } = await pool.query(
         `SELECT code FROM system_account_templates WHERE treatment_verified ORDER BY code`,
       );
-      expect(rows.map((r: { code: string }) => r.code)).toEqual(["BANK_CHARGES", "INSURANCE"]);
+      expect(rows.map((r: { code: string }) => r.code)).toEqual([
+        "BANK_CHARGES", "FIXED_ASSETS", "FOOD_MEALS", "FUEL_TRANSPORT", "INSURANCE", "INVESTMENTS",
+        "IT_SOFTWARE", "MARKETING", "OFFICE_SUPPLIES", "PROFESSIONAL_FEES", "PURCHASES",
+        "RENT_UTILITIES", "REPAIRS", "SALARIES", "SALES", "SERVICE_INCOME", "TELECOM",
+      ]);
+      // And the deliberately-ASSUMED ones stay assumed — verifying them by
+      // reasoning instead of a source is the failure C9's method forbids.
+      const { rows: assumed } = await pool.query(
+        `SELECT code FROM system_account_templates WHERE NOT treatment_verified AND code IN
+           ('RENTAL_INCOME','TRAVEL','LOANS','INVESTMENT_INCOME','GOVT_FEES','GOVT_GRANTS') ORDER BY code`,
+      );
+      expect(assumed).toHaveLength(6);
     });
 
     it("an assumed treatment is flagged in review; a verified one is not", async () => {
       await inTenant(() =>
         transactionsService.upload({
           rows: [
-            // TELECOM → 'S' — a majority-default nobody has verified.
-            { date: "2026-08-01", description: "SADAD PAYMENT - STC 0555000111", amount: 575, currency: "SAR", type: "debit" },
-            // BANK_CHARGES → 'S' — checked against the ZATCA guideline (M16.2).
+            // TRAVEL → 'S' — still assumed (mixes S hotels / Z international
+            // transport / blocked entertainment; C9 doc).
+            { date: "2026-08-01", description: "AGODA HOTEL BOOKING 0555000111", amount: 575, currency: "SAR", type: "debit" },
+            // BANK_CHARGES → 'S' — verified (Art. 29(1) explicit fee).
             { date: "2026-08-02", description: "AL RAJHI BANK MONTHLY ACCOUNT FEE", amount: 57.5, currency: "SAR", type: "debit" },
           ],
           autoCategrize: true,
@@ -287,17 +302,17 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
         } as never),
       );
       const pending = await inTenant(() => transactionsService.pendingReview());
-      const telecom = pending.find((p) => p.description.includes("STC 0555000111"));
+      const travel = pending.find((p) => p.description.includes("AGODA HOTEL BOOKING"));
       const fee = pending.find((p) => p.description.includes("MONTHLY ACCOUNT FEE"));
-      expect(telecom?.taxTreatment).toBe("S");
-      expect(telecom?.treatmentAssumed).toBe(true); // the user sees "assumed", not a confident S
+      expect(travel?.taxTreatment).toBe("S");
+      expect(travel?.treatmentAssumed).toBe(true); // the user sees "assumed", not a confident S
       expect(fee?.taxTreatment).toBe("S");
       expect(fee?.treatmentAssumed).toBe(false); // verified default — no hint needed
     });
 
     it("a per-row override to non-'S' clears the VAT, ends the assumed state, and marks the row overridden", async () => {
       const { rows: [row] } = await pool.query(
-        `SELECT id FROM transactions WHERE organization_id = $1 AND description LIKE '%STC 0555000111%'`,
+        `SELECT id FROM transactions WHERE organization_id = $1 AND description LIKE '%HOTEL BOOKING 0555000111%'`,
         [orgId],
       );
       await inTenant(() => transactionsService.update(Number(row.id), { taxTreatment: "Z" } as never));

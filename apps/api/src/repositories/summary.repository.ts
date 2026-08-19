@@ -40,8 +40,12 @@ export const summaryRepository = {
         amount: transactionsTable.amount,
         vatAmount: transactionsTable.vatAmount,
         categoryId: transactionsTable.categoryId,
+        // C9 — Art. 50-blocked categories: the paid VAT is a fact, the
+        // recoverable-VAT estimate must not count it.
+        inputVatBlocked: categoriesTable.inputVatBlocked,
       })
       .from(transactionsTable)
+      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined);
   },
 
@@ -49,7 +53,12 @@ export const summaryRepository = {
     const conditions = [isNotNull(transactionsTable.vatAmount), taxVisible()];
     if (range.dateFrom) conditions.push(gte(transactionsTable.date, range.dateFrom));
     if (range.dateTo) conditions.push(lte(transactionsTable.date, range.dateTo));
-    return db.select().from(transactionsTable).where(and(...conditions)).orderBy(transactionsTable.date);
+    return db
+      .select({ tx: transactionsTable, inputVatBlocked: categoriesTable.inputVatBlocked })
+      .from(transactionsTable)
+      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
+      .where(and(...conditions))
+      .orderBy(transactionsTable.date);
   },
 
   // `zakatRows` was REMOVED in M17.0 — see routes/summary.ts.

@@ -337,6 +337,13 @@
    "when": 1786655845618,
    "tag": "0047_b4_payment_sequences_grant",
    "breakpoints": true
+  },
+  {
+   "idx": 48,
+   "version": "7",
+   "when": 1786655845619,
+   "tag": "0048_c9_vat_treatment_verification",
+   "breakpoints": true
   }
  ]
 }

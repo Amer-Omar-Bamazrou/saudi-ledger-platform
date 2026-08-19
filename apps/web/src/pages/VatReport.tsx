@@ -238,6 +238,18 @@ export default function VatReport() {
               </div>
             </div>
           )}
+          {/* C9 — Art. 50-blocked input VAT (entertainment, catering). A real
+              cost the business paid; NEVER part of the recoverable estimate.
+              Shown rather than silently excluded — a figure that moves says
+              where the money went. */}
+          {!bankLoading && (bankVat?.vatBlocked ?? 0) > 0.004 && (
+            <p className="text-xs text-muted-foreground mt-4 border-t border-border pt-3">
+              {t(
+                `${formatCurrency(bankVat!.vatBlocked)} of VAT paid on meals and entertainment is excluded from the recoverable figure — KSA VAT rules do not allow deducting it (Implementing Regulations, Art. 50). It is a cost, not a claim.`,
+                `استُبعد ${formatCurrency(bankVat!.vatBlocked)} من الضريبة المدفوعة على الوجبات والضيافة من الرقم القابل للاسترداد — لا تسمح أنظمة ضريبة القيمة المضافة السعودية بخصمها (اللائحة التنفيذية، المادة 50). فهي تكلفة، لا مطالبة.`,
+              )}
+            </p>
+          )}
         </CardContent>
       </Card>
 

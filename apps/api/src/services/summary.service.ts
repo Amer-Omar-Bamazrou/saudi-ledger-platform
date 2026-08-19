@@ -49,7 +49,10 @@ export const summaryService = {
       const vat = r.vatAmount != null ? Number(r.vatAmount) : 0;
       if (r.categoryId == null) uncategorizedCount++;
       if (r.type === "credit") totalVatCollected += vat;
-      else totalVatPaid += vat;
+      // C9 — Art. 50-blocked categories (entertainment, catering): the VAT
+      // was paid, but it is NOT recoverable, so it must not count toward the
+      // input-VAT estimate. Excluded here at the read; the fact stays stored.
+      else if (!r.inputVatBlocked) totalVatPaid += vat;
     }
 
     return GetSummaryResponse.parse({
@@ -68,15 +71,22 @@ export const summaryService = {
     const rows = await summaryRepository.vatRows(range);
     let vatCollected = 0;
     let vatPaid = 0;
-    const transactions = rows.map((r) => {
+    // C9 — VAT paid on Art. 50-blocked expenditure (entertainment, catering).
+    // NOT in `vatPaid`: the recoverable-input-VAT estimate must not count it.
+    // Returned as its own named figure rather than silently vanishing — a
+    // figure that moves must say where the money went (the M16 Q0 discipline).
+    let vatBlocked = 0;
+    const transactions = rows.map(({ tx: r, inputVatBlocked }) => {
       const vat = Number(r.vatAmount ?? 0);
       if (r.type === "credit") vatCollected += vat;
+      else if (inputVatBlocked) vatBlocked += vat;
       else vatPaid += vat;
       return { id: r.id, date: r.date, description: r.description, amount: Number(r.amount), vatAmount: vat, type: r.type };
     });
     return GetVatSummaryResponse.parse({
       vatCollected,
       vatPaid,
+      vatBlocked,
       netVatPosition: vatCollected - vatPaid,
       vatRate: 15,
       transactions,

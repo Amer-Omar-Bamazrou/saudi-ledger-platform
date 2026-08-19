@@ -2606,12 +2606,22 @@ components:
 
     VatSummary:
       type: object
-      required: [vatCollected, vatPaid, netVatPosition, vatRate, transactions]
+      required: [vatCollected, vatPaid, vatBlocked, netVatPosition, vatRate, transactions]
       properties:
         vatCollected:
           type: number
         vatPaid:
           type: number
+          description: >
+            The recoverable-input-VAT ESTIMATE. Excludes VAT paid on Art.
+            50-blocked expenditure classes (entertainment, catering) — that
+            amount is `vatBlocked`, not silently dropped (C9).
+        vatBlocked:
+          type: number
+          description: >
+            VAT actually paid on expenditure whose input VAT is not
+            deductible (VAT Implementing Regulations Art. 50 — e.g. catering,
+            entertainment). A real cost, never a recoverable amount.
         netVatPosition:
           type: number
         vatRate:

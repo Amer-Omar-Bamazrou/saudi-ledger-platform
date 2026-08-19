@@ -72,6 +72,20 @@ export const categoriesTable = pgTable(
      */
     treatmentVerified: boolean("treatment_verified").notNull().default(false),
     /**
+     * C9 (2026-08-19) — input VAT on this expenditure CLASS is not deductible
+     * (VAT Implementing Regulations Art. 50; FOOD_MEALS = 50(1)(a)-(b),
+     * entertainment and catering).
+     *
+     * 🔴 A THIRD AXIS, deliberately — do not fold it into treatment or basis
+     * (owner decision). The supplier CHARGES VAT (treatment 'S' is factually
+     * right), the buyer PAID it (basis 'charged' is right), and the law still
+     * forbids DEDUCTING it. Folding into treatment would falsify the receipt
+     * ('E' on a receipt that shows VAT); folding into basis would falsify the
+     * payment. Readers of the recoverable-input-VAT estimate exclude blocked
+     * categories; the paid-VAT FACT stays stored on the transaction.
+     */
+    inputVatBlocked: boolean("input_vat_blocked").notNull().default(false),
+    /**
      * M18.1 — where this account sits on the liquidity scale, for the Finance
      * Hub's "can I pay what I owe?" block: `cash` | `quick` | `current` |
      * `non_current`. Meaningful for `asset` and `liability` accounts ONLY (a DB

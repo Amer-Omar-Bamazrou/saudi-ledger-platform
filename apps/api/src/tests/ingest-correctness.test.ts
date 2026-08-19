@@ -331,17 +331,19 @@ describeMaybe("statement ingest — currency, whitespace, duplicates, manual cat
       `SELECT id FROM transactions WHERE organization_id = $1 AND description LIKE 'REF 7781%'`,
       [orgId],
     );
-    const { rows: [meals] } = await pool.query(
-      `SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'FOOD_MEALS'`,
+    const { rows: [travel] } = await pool.query(
+      `SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'TRAVEL'`,
       [orgId],
     );
-    await inTenant(() => transactionsService.update(Number(tx.id), { categoryId: Number(meals.id) } as never));
+    await inTenant(() => transactionsService.update(Number(tx.id), { categoryId: Number(travel.id) } as never));
 
     const pending = await inTenant(() => transactionsService.pendingReview());
     const row = pending.find((p) => p.id === Number(tx.id));
-    // FOOD_MEALS is unverified (queue C9), so the treatment is still a guess
-    // even though the human picked the category. Pre-fix the override flag
-    // suppressed this hint and the guess looked authoritative.
+    // TRAVEL stays unverified after C9 (a genuine mix — hotels S, international
+    // transport Z, blocked entertainment; docs/tax/vat-treatment-verification.md),
+    // so the treatment is still a guess even though the human picked the
+    // category. (Was FOOD_MEALS until C9 verified it on 2026-08-19.) Pre-fix
+    // the override flag suppressed this hint and the guess looked authoritative.
     expect(row?.taxTreatment).toBe("S");
     expect(row?.treatmentAssumed).toBe(true);
 
