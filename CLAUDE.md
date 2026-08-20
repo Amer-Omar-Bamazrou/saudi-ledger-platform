@@ -1030,6 +1030,19 @@ wait-loop is only a wait-loop.**
 - **Milestone close-out:** run the standing check (§3, all six parts), update
   §2 Current State here, and put the narrative record in `docs/history/` — not
   in this file.
+- **🔴 Docs never state current status in their own words — they DATE their
+  claims and point at §2 for "now".** Any doc that carries free-standing
+  status prose WILL drift: the README described Phase 0 as the frontier twenty
+  milestones after it stopped being one, precisely because it restated status
+  instead of pointing at it (found 2026-08-21; six more docs had the same
+  disease in milder forms, including a blueprint still recommending Redis for
+  a decision C1 had settled the other way). The rule, applied everywhere:
+  a status line is **"Status (YYYY-MM-DD): <claim>. Current state authority:
+  CLAUDE.md §2."** — the date makes staleness visible instead of silent, and
+  the pointer makes §2 the single writer for "now" (the one-writer-per-effect
+  rule, applied to prose). A header must also never lag its own body: a doc
+  whose §12 says "built" while its title says "building" is the
+  narrower-claim shape in miniature.
 - **pnpm only** (a preinstall guard rejects npm/yarn).
 - **Typecheck** with `pnpm run typecheck` before considering work done.
 

@@ -1,6 +1,6 @@
 # A3 — Recurring documents (DESIGN)
 
-**Status: ✅ BUILT (drafts-only, as decided). Backend complete; UI is the remaining piece — see §8.**
+**Status: ✅ BUILT (drafts-only, as decided), backend and UI (`Recurring.tsx`). Current state authority: CLAUDE.md §2.**
 
 The second half of the wedge. A1 removed typing on the **purchase** side; A3
 removes it on the **sales** side — rent, retainers, subscriptions. *"I stopped

@@ -180,7 +180,7 @@ The current roles are `admin | accountant | viewer`. To change who can do what,
 edit the matrix and re-seed — you don't touch route files. To add a **new
 resource**, add its rows to the matrix (see the cookbook, §7).
 
-> Method-based actions are coarse by design for Phase 0: posting to the GL,
+> Method-based actions are deliberately coarse (a tracked deferral — CLAUDE.md §5 'action-level permissions'): posting to the GL,
 > reversing, paying a bill, and approving payroll all resolve to `create`.
 > Finer, action-level separation-of-duties controls are a deferred feature
 > (`CLAUDE.md`).
@@ -264,7 +264,22 @@ migrations, seeding, login, the session store, and tenant resolution.
 
 ## 7. Cookbook — add a new business domain
 
-Say you're adding a `quotations` resource. Follow the existing shape end to end.
+This section used to walk a hypothetical `quotations` resource — which has
+since been **built for real** (M21), so the working implementation is now the
+cookbook, and it is better than any prose: it carries the approval-workflow
+wiring, the derived-state pattern, the write guards and the zero-movement
+tests a new resource should copy. **Read these files in this order:**
+
+1. `packages/db/src/schema/quotations.ts` — schema + the reasoning comments
+2. `packages/db/migrations/0051_m21_1_quotations.sql` — RLS, CHECKs, grants
+3. `apps/api/src/repositories/quotations.repository.ts`
+4. `apps/api/src/services/quotations.service.ts` (+ `.approvable.ts`, `.presenter.ts`)
+5. `apps/api/src/controllers/quotations.controller.ts` and `routes/quotations.ts`
+6. `PERMISSION_MATRIX` in `packages/db/src/permissions.ts` — the `quotations` entry
+7. `apps/api/src/tests/quotations.test.ts` — the zero-movement + permission tests
+
+The steps below describe the same shape generically — follow them with the
+files above open beside you.
 
 1. **Schema** — add `packages/db/src/schema/quotations.ts` with `organization_id`
    (NOT NULL, FK to `organizations`) and `company_id` if it's ledger/accounting

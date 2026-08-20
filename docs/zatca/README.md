@@ -22,6 +22,19 @@ the date printed inside the PDF, which is often the original release). Verified
 | `Fatoora_Portal_User_Manual_English.pdf` | 2023-06-07 (PDF creation) | `6fec08254aac8f3aab2247f96bd7b4ac2dc3558fb48c2a4b598dde564ad14c52` |
 | `sandbox_Developer_Portal_User_Manual.pdf` | **2026-07-07** ← most recently updated | `5d66f4e4502dba499a1936ac3174ba10041ded87ca0e8d1dc518c5fcbcd26e49` |
 | `QRCodeCreation.pdf` | 2021-11-22 (Phase 1 era) | `a27159ab6f6e7ba024f8bdda41a1e3ddfe232c5738a93076ec7523f719361092` |
+| `KSA_VAT_Implementing_Regulations_EN.pdf` 🔴 **legal text** | **2023-08-30** (Eighth Edition) | `659fb67cc8ed6afcd4bdb5628be81e0b3c70f683b8bd8876c6631770f1215cb3` |
+| `ZATCA_E-Invoicing_Implementation_Resolution_20230519_EN.pdf` 🔴 **legal text** | **2023-05-19** | `06a7ce0a3e113a142554b9293e148fd99eb058e6075f1c4c75c7d99354d16066` |
+
+> 🔴 The two **legal text** rows matter most: C9's VAT-treatment verdicts and
+> C12's invoice-numbering verdicts cite these documents clause by clause
+> (`docs/tax/*.md`), so **a changed checksum here means the LAW our verdicts
+> cite may have moved** — re-read the diff against the verification docs, not
+> just the implementation. They were added to `fetch-specs.sh` on 2026-08-21
+> but left out of this manifest for a day, which meant a ZATCA revision to the
+> VAT Implementing Regulation would have passed silently — the exact failure
+> this manifest exists to catch, and the same shape as a guard that matches
+> nothing. Committed text extractions (`*_EN.txt`) sit beside them so every
+> cited clause is greppable without a download.
 
 **The two that govern our implementation:**
 

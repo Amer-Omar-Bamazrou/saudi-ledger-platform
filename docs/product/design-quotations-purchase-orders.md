@@ -1,10 +1,10 @@
-# Quotations & Purchase Orders (M21) — DECIDED, building
+# Quotations & Purchase Orders (M21) — ✅ BUILT (all three stages merged)
 
-**Status (2026-08-20):** design **APPROVED by the owner**; all five
-load-bearing questions answered and every safe default accepted. §8 records
-each answer with its reasoning as given. Building in reviewable stages, with
-an **owner review gate between quotations and purchase orders** so the second
-is not built on an unreviewed pattern.
+**Status (2026-08-21): M21 is complete** — M21.1/M21.2/M21.3 merged (PRs
+#59–#62), including the owner-review corrections (drafts-only conversion,
+no-undo surfaced, discount rule verified with the accountant). §8 records each
+decision with its reasoning; §10–§12 are the as-built records. Current state
+authority: CLAUDE.md §2.
 
 **Build order (owner-directed):**
 

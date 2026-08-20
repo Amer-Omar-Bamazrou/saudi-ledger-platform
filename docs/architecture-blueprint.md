@@ -326,7 +326,7 @@ An assessment of the current stack against the SaaS target. Default posture:
 | Migrations      | `drizzle-kit push` | **Change**| Move to `drizzle-kit generate` + versioned SQL + runner. `push` is unsafe for tenant data. |
 | Database        | Postgres/Supabase  | **Keep**  | Add RLS. Supabase = managed Postgres only, **not** its Auth. |
 | Auth            | Express sessions   | **Keep + harden** | Explicitly not Supabase Auth. Fix secrets, cookies, tenant binding. |
-| Cache/queue     | Redis              | **Keep / adopt** | Session store option, rate limiting, background job queue for AI/imports. |
+| Cache/queue     | Redis              | **SUPERSEDED — decided against (C1, 2026-08-20)** | Rate limiting is a shared **Postgres** store (`lib/rateLimitStore.ts`); background work is the in-process scheduler. No new failure domain was the point. Revisit only with a measured need. |
 | API contract    | OpenAPI + orval    | **Keep**  | Contract-first is a core principle; extend spec with tenant params. |
 | Validation      | Zod (generated)    | **Keep**  | Already wired through codegen. |
 | Logging         | pino / pino-http   | **Keep + extend** | Add request-id propagation and the audit log. |
@@ -334,8 +334,11 @@ An assessment of the current stack against the SaaS target. Default posture:
 | CI/CD           | (none yet)         | **Add**   | Lint + typecheck + test + migration check on every PR (see plan M8). |
 
 ### Open questions to resolve during Phase 0
-- Session store: keep Postgres-backed (`connect-pg-simple`) or move to Redis for
-  horizontal scale? (Leaning Redis once multi-instance.)
+- ~~Session store: keep Postgres-backed (`connect-pg-simple`) or move to Redis
+  for horizontal scale? (Leaning Redis once multi-instance.)~~ **Answered (C1,
+  2026-08-20): Postgres for both sessions and rate limiting.** The C1 record in
+  CLAUDE.md §5 has the reasoning; multi-instance correctness is tested (two
+  store instances share one counter).
 - Company vs. organization scoping granularity for shared reference data
   (categories/chart of accounts): per-company, or org-level templates?
 - RLS GUC propagation with a pooled `pg` connection — ensure `SET LOCAL` runs
