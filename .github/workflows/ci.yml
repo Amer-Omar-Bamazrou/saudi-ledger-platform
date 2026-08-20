@@ -49,41 +49,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      # ── C2: object storage, so the document path is actually EXERCISED ─────
-      # The M11.4 document tests skipped here for want of a Storage service, so
-      # a green CI proved nothing about upload/download/delete — the same
-      # "green while proving nothing" shape the ZATCA SDK step below exists to
-      # prevent. `storage-api` speaks the same REST surface `lib/storage.ts`
-      # targets (`/storage/v1/object/...` + Bearer service key), so the code
-      # under test is the real client, not a stand-in.
-      storage:
-        image: supabase/storage-api:v1.11.13
-        env:
-          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
-          SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
-          AUTH_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
-          DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
-          PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
-          FILE_SIZE_LIMIT: "52428800"
-          STORAGE_BACKEND: file
-          FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-          TENANT_ID: ci
-          REGION: ci
-          GLOBAL_S3_BUCKET: ci
-        ports:
-          - 5000:5000
-        options: >-
-          --health-cmd "wget -qO- http://localhost:5000/status || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       # C2 — the storage suite gates on the PRESENCE of these two vars (its
       # absence is deliberately how it skips), so setting them here is what
       # turns the suite on. Not a secret: a local throwaway JWT for a
       # throwaway container.
-      SUPABASE_URL: http://localhost:5000
+      SUPABASE_URL: http://localhost:5001
       SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
     steps:
       - uses: actions/checkout@v4
@@ -141,8 +113,71 @@ jobs:
       # privileges to it. A vanilla postgres:16 container has no such role, so
       # create it and make `postgres` a member before applying migrations. The
       # service container is fresh per run, so no idempotency guard is needed.
-      - name: Bootstrap non-owner role (authenticated)
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE authenticated NOLOGIN; GRANT authenticated TO postgres;"
+      # `authenticated` is ours (RLS tests SET LOCAL ROLE to it, migration 0004
+      # grants to it). `anon` and `service_role` exist only because the storage
+      # container's own migrations name them in `REVOKE ... FROM anon,
+      # authenticated` — without them storage-api dies at boot with
+      # `role "anon" does not exist`, which is exactly how the first C2 run
+      # failed. They are created NOLOGIN and granted nothing; they exist to be
+      # revoked from.
+      - name: Bootstrap non-owner roles
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            DO \$\$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+            END \$\$;
+            GRANT authenticated TO postgres;"
+
+      # ── C2: object storage, so the document path is actually EXERCISED ──────
+      # Was the M11.4 coverage gap: `documents.test.ts` skips unless SUPABASE_URL
+      # and SUPABASE_SERVICE_ROLE_KEY are set, so CI proved nothing about upload,
+      # download, sanitization or tenant-prefixed paths.
+      #
+      # 🔴 A STEP, not a `services:` entry — and that is the whole fix. A service
+      # container starts BEFORE the first step runs, so it hit Postgres while the
+      # roles its migrations revoke from did not yet exist. Nothing a later step
+      # does can be early enough. Starting it here orders it after the bootstrap.
+      #
+      # 🔴 nginx is not decoration either: `lib/storage.ts` addresses
+      # `/storage/v1/object/...` because that is the path Kong exposes in a real
+      # Supabase stack. A bare storage-api serves those routes at the ROOT and
+      # would 404 every call. Rewriting the prefix here keeps the test exercising
+      # the SAME URLs production uses — a lib change to suit CI would have made
+      # the suite prove the wrong thing.
+      - name: Start object storage (storage-api + path-rewriting proxy)
+        run: |
+          set -euo pipefail
+          docker run -d --name storage --network host \
+            -e ANON_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+            -e SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+            -e AUTH_JWT_SECRET='super-secret-jwt-token-with-at-least-32-characters-long' \
+            -e PGRST_JWT_SECRET='super-secret-jwt-token-with-at-least-32-characters-long' \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e POSTGREST_URL='http://localhost:3999' \
+            -e FILE_SIZE_LIMIT=52428800 \
+            -e STORAGE_BACKEND=file \
+            -e FILE_STORAGE_BACKEND_PATH=/var/lib/storage \
+            -e TENANT_ID=ci -e REGION=ci -e GLOBAL_S3_BUCKET=ci \
+            supabase/storage-api:v1.11.13
+
+          printf 'server { listen 5001; location /storage/v1/ { proxy_pass http://127.0.0.1:5000/; } }\n' > /tmp/storage-proxy.conf
+          docker run -d --name storage-proxy --network host \
+            -v /tmp/storage-proxy.conf:/etc/nginx/conf.d/default.conf:ro \
+            nginx:1.27-alpine
+
+          # Fail LOUDLY and print the container log. A storage container that
+          # never came up must not degrade into "suite skipped, CI green" —
+          # that silent-skip posture is the gap C2 exists to close.
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:5001/storage/v1/status >/dev/null 2>&1; then
+              echo "::notice title=Storage::up after ${i}s — document tests will RUN"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error title=Storage::storage-api never became healthy"
+          docker logs storage; exit 1
 
       - name: Apply migrations
         run: pnpm --filter @workspace/db run migrate
