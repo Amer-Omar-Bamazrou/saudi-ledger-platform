@@ -131,12 +131,51 @@ Expected output:
 ```
 [seed] default tenant ready: organization=… (created), company=… (created)
 [seed] admin user created: you@example.com (membership created)
-[seed] permissions: 118 inserted, 118 total
+[seed] permissions: 217 inserted, 217 total
 ```
 
 > `SEED_ADMIN_PASSWORD` must be at least 8 characters. If you omit
 > `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`, the admin step is skipped and only the
 > tenant + permissions are seeded (you then won't have a login).
+
+### 5b. Sample data (recommended — otherwise every report is empty)
+
+The base seed gives you a tenant and a login, and **nothing to look at**. This
+step fills the org with a few months of documents so the statements, VAT
+return, aging reports and Analytics have real figures in them:
+
+```bash
+pnpm --filter @workspace/api-server run seed:sample
+```
+
+It reads `apps/api/.env`, so it uses the same database the API does — you do
+**not** need to export `DATABASE_URL` for this one. It needs `SEED_ADMIN_EMAIL`
+to know whose organization to fill; if it is not already in `apps/api/.env`,
+pass it inline:
+
+```bash
+SEED_ADMIN_EMAIL="you@example.com" pnpm --filter @workspace/api-server run seed:sample
+```
+
+You get: 2 customers, 2 vendors, a bank account, **5 issued invoices** (one paid
+in full, one part-paid), **3 approved bills** (one paid), **5 uncategorised bank
+transactions**, an **approved quotation** and an **approved purchase order**.
+
+Three things about it worth knowing:
+
+- **Every figure goes through the product's own write paths.** Invoices and
+  bills are created and approved exactly as your clicks would, so the GL
+  entries, VAT lines and audit rows are real. Nothing is INSERTed into the
+  ledger directly.
+- **It sets the company's VAT and CR numbers.** Without them nothing can be
+  issued at all — issuance fails closed on a missing VAT number, by design.
+  The values are obvious test numbers in the valid format.
+- **The bank transactions are deliberately left uncategorised.** An accepted
+  uncategorised row posts to a visible **SUSPENSE** balance rather than being
+  guessed into a category. Categorising them from `/review` clears it — that is
+  the intended demonstration, not a defect.
+
+Re-running is a no-op. If it fails part-way, it tells you how to recover.
 
 ---
 
@@ -179,6 +218,44 @@ curl -s -c cookies.txt -X POST http://localhost:5173/api/auth/login \
 curl -s -b cookies.txt http://localhost:5173/api/transactions
 # → {"transactions":[],"total":0,"offset":0,"limit":50}   (200, not 403)
 ```
+
+---
+
+## 6b. What your login can and cannot reach
+
+The seeded account is an **`admin` of the default organization**, and the
+organization is seeded **`approved`**, so the M11.2 verification gate does not
+stand in your way. Admin is the highest of the four tenant roles (admin >
+accountant > bookkeeper > viewer) and every business feature — invoices, bills,
+quotations, purchase orders, journal entries, payroll, reports, Analytics,
+company settings, user management — is reachable from the sidebar.
+
+Three exceptions worth knowing before you go looking for them:
+
+**1. The platform-operator surface is a SEPARATE account, not a permission.**
+`/operator` reviews other tenants' signup applications — it is platform-staff
+work, so no amount of tenant admin reaches it. Seed one if you want to see it:
+
+```bash
+SEED_OPERATOR_EMAIL="operator@example.com" SEED_OPERATOR_PASSWORD="choose-a-strong-password"   pnpm --filter @workspace/db run seed
+```
+
+Then log in as that account. It has no organization membership, so it sees the
+operator queue and nothing else — that separation is the point.
+
+**2. Three API routes have no UI at all**, for anyone: `/period-locks` (so a
+period cannot be closed from the product yet — a known gap), `/audit-logs` (the
+trail is written but has no reader screen), and `/llm` (inert, parked with the
+AI work). They are listed as known gaps in
+`apps/api/src/tests/route-reachability.test.ts`; you are not missing a menu.
+
+**3. ZATCA e-invoicing cannot complete locally.** The onboarding screen works
+and will build a CSR, but issuing to ZATCA needs a real Saudi VAT registration
+and ERAD credentials that do not exist yet. Invoices still post to the ledger
+normally — issuance is what is unavailable, and it fails closed with a clear
+message rather than pretending.
+
+Nothing else is gated, hidden, or feature-flagged off.
 
 ---
 
