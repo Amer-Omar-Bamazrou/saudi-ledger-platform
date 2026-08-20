@@ -417,25 +417,31 @@ invoice arrives as a draft so nothing reaches the ledger until approved. The
 button reads **"Create draft invoice"**, not "Convert". Neutral styling — this
 is a fact about what the button does, not a warning that something is wrong.
 
-### 11.3 🔴 OPEN — with the accountant: partial-conversion discount
+### 11.3 ✅ ANSWERED by the accountant (2026-08-20): proportional, and EXACT
 
-**Question asked 2026-08-20; M21.3's conversion half waits on it.** How does a
-LINE-LEVEL discount behave when only part of the line is converted?
+> "the invoice should reflect the exact math on the quotation"
 
-Shipping behaviour is **proportional**: a 100 SAR discount on 10 units carries
-40 SAR when 4 are invoiced. Stated reasoning: the discount was quoted against
-the whole line, so applying it in full to the first partial invoice would
-undercharge that document and overcharge the remainder — the customer's total
-across all conversions still lands right, but every intermediate document is
-wrong, and each of those is a real tax invoice.
+So a line-level discount is **proportional to the quantity converted** — 100
+SAR on 10 units contributes 40 when 4 are invoiced. Recorded as
+**verified-by-accountant, not reasoned**. The alternatives considered and
+rejected: the whole discount on the FIRST conversion, on the LAST, or refusing
+to convert a discounted line partially. Each would make an intermediate tax
+invoice misstate what was agreed, and every one of those documents is real.
 
-Plausible alternatives if the accountant differs: the whole discount on the
-FIRST conversion (a discount is an incentive granted once); on the LAST; or a
-discounted line must convert in full.
+🔴 **The rounding half is the part that would actually have bitten**, and the
+owner flagged it: a scaled discount is exactly where halalas drift between a
+quotation and its invoices. Scaling each conversion independently and rounding
+each result gives, for three equal conversions of a 100.00 discount,
+`33.33 × 3 = 99.99` — the quotation says 100.00 and the invoices in aggregate
+say 99.99, which is precisely the "exact math" the answer rules out.
 
-**The cost of the answer has been made small on purpose.** The rule now lives
-in ONE function — `services/conversionArithmetic.ts` → `scaleLineDiscount` —
-rather than inline in the quotation path where PO→bill would have copied it.
-Whatever comes back changes that function and its tests, and both conversion
-directions follow. That is the "green fixes the case, not the class" lesson
-applied *before* the second case exists.
+`allocateLineDiscount` therefore allocates on the **cumulative** quantity and
+subtracts what was already allocated, so the parts telescope to the quoted
+total by construction (33.33 + 33.34 + 33.33 = 100.00). It is the same
+discipline as `header = Σ rounded lines`: round at the finest grain and derive
+the rest. Both the three-way and a seven-way split are pinned as tests, and
+the naive implementation was re-injected to confirm they go red (99.99 and
+10.01 respectively).
+
+The rule lives in ONE function (`services/conversionArithmetic.ts`) so M21.3's
+PO → bill conversion uses the identical arithmetic rather than a second copy.

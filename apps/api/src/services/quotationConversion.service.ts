@@ -30,7 +30,7 @@ import { assertAmount, assertDateString } from "../lib/writeGuards";
 import { quotationsRepository } from "../repositories/quotations.repository";
 import { invoicesService } from "./invoices.service";
 import { auditService } from "./audit.service";
-import { scaleLineDiscount } from "./conversionArithmetic";
+import { allocateLineDiscount } from "./conversionArithmetic";
 
 export interface ConvertLineInput {
   quotationItemId: number;
@@ -166,13 +166,15 @@ export const quotationConversionService = {
     // category come from the quotation line as quoted. `productId` is carried
     // for reporting, but it is NOT used to re-derive a price.
     //
-    // The per-line discount is scaled by `scaleLineDiscount`, which lives in
-    // its own module because that rule is 🔴 PENDING the owner's accountant
-    // and PO→bill will need the identical answer. One function to change when
-    // it arrives, not two copies to remember.
+    // The per-line discount is allocated by `allocateLineDiscount` (✅ verified
+    // with the accountant: "the invoice should reflect the exact math on the
+    // quotation"). It takes what was ALREADY converted so the allocations
+    // telescope to the quoted discount exactly — scaling each conversion
+    // independently would leave 99.99 against a quoted 100.00 across thirds.
     const invoiceItems = requested.map(({ item, quantity }) => {
-      const scaledDiscount = scaleLineDiscount(
+      const scaledDiscount = allocateLineDiscount(
         Number(item.discount ?? 0),
+        alreadyConverted.get(item.id) ?? 0,
         quantity,
         Number(item.quantity),
       );

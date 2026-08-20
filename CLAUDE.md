@@ -156,10 +156,14 @@ ICV irreversibly and a conversion cannot be undone. There is now no
 `autoApprove` parameter on the convert service at all. **M21.3 inherits this.**
 (2) **No-undo is now stated BEFORE the act** — the convert dialog says the
 conversion cannot be reversed and a mistake is corrected by credit note, and
-the button reads "Create draft invoice". 🔴 **One question OPEN with the
-accountant:** the partial-conversion discount rule (proportional today). It now
-lives in ONE function, `services/conversionArithmetic.ts`, so the answer
-changes one place and both conversion directions follow.
+the button reads "Create draft invoice". ✅ **The discount question is ANSWERED by
+the accountant (2026-08-20): "the invoice should reflect the exact math on the
+quotation"** — proportional, recorded as verified rather than reasoned. 🔴 The
+rounding half is what would have bitten: independent per-conversion scaling
+gives 33.33 × 3 = 99.99 against a quoted 100.00, so `allocateLineDiscount`
+allocates on the CUMULATIVE quantity and subtracts what was already allocated,
+telescoping to the quoted total exactly. One function
+(`services/conversionArithmetic.ts`), used by both conversion directions.
 
 **M21.2 as built:** conversion calls `invoicesService.create` — never a second
 posting path — proven behaviourally: a converted invoice and a hand-typed one
