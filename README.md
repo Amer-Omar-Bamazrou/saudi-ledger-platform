@@ -9,13 +9,18 @@ SaaS foundation: organization scoping enforced end-to-end, database-level
 tenant isolation, permission-based access control, an immutable audit trail, and
 CI on every change.
 
-> **Status — Phase 0 (Platform Foundation): complete.** The project began as a
-> single-tenant bookkeeping app and has been refactored into the foundation of a
-> multi-tenant SaaS platform. The system today is **multi-tenant, RLS-enforced,
-> RBAC-governed, audited, and CI-protected**. New accounting features, billing,
-> and AI features are future phases — the groundwork for them is in place, but
-> they are **not** built yet. See
-> [`docs/phase-0-implementation-plan.md`](./docs/phase-0-implementation-plan.md).
+> **Status (2026-08): the accounting product is built and locally verified;
+> nothing is deployed and there are no customers yet.** Invoicing, bills,
+> journal entries, GL posting, period locks, the VAT return, bank-statement
+> ingestion with review, quotations → invoices and purchase orders → bills
+> (with partial conversion), document capture (OCR + ZATCA QR), recurring
+> documents, fiscal calendars (Gregorian + Umm al-Qura Hijri), and the
+> reporting/analytics surface all work today. **ZATCA Phase 2 e-invoicing is
+> built and sandbox-verified but has never submitted a production invoice** —
+> that waits on a real Saudi VAT registration. Zakat is decided but not built.
+> The AI layer is specced, not commissioned. The authoritative, always-current
+> state lives in [`CLAUDE.md`](./CLAUDE.md) §2; the narrative history is in
+> [`docs/history/`](./docs/history/).
 
 ## Documentation
 
@@ -35,7 +40,34 @@ productive from them alone:
 - **[`docs/architecture-blueprint.md`](./docs/architecture-blueprint.md)** — the
   target technical architecture (the "north star").
 
-## What's built (Phase 0)
+## What's built
+
+The platform foundation (Phase 0), and the accounting product on top of it.
+Highlights of the product layer — each verified by tests that post through the
+real write paths, most with a live verification pass recorded:
+
+- **Documents**: invoices (with credit/debit notes), bills, journal entries,
+  payroll — all through a uniform draft → submit → approve workflow where
+  nothing touches the books before approval.
+- **Commitments**: quotations that convert to invoices and purchase orders that
+  convert to bills, partially and by quantity, with dated conversion history —
+  and no ledger effect until converted.
+- **Banking**: statement upload with a review surface, a deterministic
+  categorizer (uncategorised rows post to a visible SUSPENSE, never guessed),
+  transfers posting by declared direction, reconciliation against the GL.
+- **Tax**: a document-derived VAT return (box-structured, line-level), VAT
+  treatments verified against the primary regulations, reverse-charge handling,
+  input-VAT blocking (Art. 50). Zakat deliberately shows "not implemented"
+  rather than a wrong number.
+- **ZATCA Phase 2**: UBL 2.1 + XAdES signing (secp256k1), ICV/PIH chain, QR,
+  onboarding, outbox — sandbox-verified; production submission awaits a real
+  taxpayer registration.
+- **Fiscal periods**: Gregorian and Umm al-Qura Hijri fiscal years, resolver-
+  driven report windows, dual-calendar dates, prior-period comparison.
+- **Automation**: phone document capture (client-side OCR + ZATCA QR decode)
+  and recurring documents (drafts only, by design).
+
+### The foundation (Phase 0)
 
 - **Multi-tenancy.** An `Organization → Company → Branch` model. Every business
   table carries a non-null `organization_id` (and `company_id` on ledger tables),
@@ -76,9 +108,11 @@ productive from them alone:
 | Logging        | pino / pino-http                                                        |
 | CI             | GitHub Actions (typecheck · test · build)                              |
 
-> **Redis** appears in the architecture blueprint as a future session store / job
-> queue. It is **not wired in yet** — sessions are Postgres-backed and rate
-> limiting is in-process. Treat Redis as planned, not present.
+> **There is no Redis, by decision.** Sessions are Postgres-backed, rate
+> limiting uses a **shared Postgres-backed store** (so limits hold across
+> instances), and background work runs on an in-process scheduler
+> (`apps/api/src/jobs/`). Where the architecture blueprint mentions Redis,
+> read it as superseded.
 
 ## Repository Layout
 
@@ -92,7 +126,7 @@ packages/
   api-zod/            Generated Zod schemas/types           (@workspace/api-zod)
   api-client-react/   Generated React Query client          (@workspace/api-client-react)
   config/             Zod-validated env schema              (@workspace/config)
-  auth/               Auth/RBAC scaffold (reserved)         (@workspace/auth)
+  zatca-tlv/          ZATCA QR TLV codec (server + browser) (@workspace/zatca-tlv)
 scripts/              Workspace scripts
 docs/                 Setup, development, architecture, and feature specs
 ```
@@ -116,6 +150,7 @@ pnpm --filter @workspace/db run migrate        # apply versioned SQL migrations
 SEED_ADMIN_EMAIL=you@example.com \
 SEED_ADMIN_PASSWORD=change-me-8+chars \
   pnpm --filter @workspace/db run seed         # default org + company + admin
+pnpm --filter @workspace/api-server run seed:sample  # sample data — reports are empty without it
 
 pnpm --filter @workspace/api-server run dev    # API  (terminal 1)
 pnpm --filter @workspace/bookkeeping run dev   # web  (terminal 2)
