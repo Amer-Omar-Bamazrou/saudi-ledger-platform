@@ -103,6 +103,20 @@ controls stay duplicated until a third pattern appears.
 See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
 (§7 build order, §8 as built).
 
+**Quotations & Purchase Orders are SPECIFIED, not built** — 2026-08-20, owner
+via his accountant. Both convert (**quotation → invoice** when the customer
+agrees; **PO → bill** when the supplier's bill arrives), **partial conversion
+is explicitly in scope** ("pays the amount or sub amount"), and 🔴 **neither
+touches the ledger until converted** — they are commitments, not transactions,
+so they move NOTHING in any aggregate until conversion produces a real
+document through the EXISTING write path (never a second posting path). The
+two pages exist today as HELD façades that persist nothing — contained by the
+inverse route guard's `KNOWN_UNBACKED`, not hidden. Nine open design questions
+(unit of partial conversion, remainder handling, re-conversion + whether
+conversion history is dated à la B4, price freezing, approval, expiry,
+numbering, ZATCA non-applicability) must be answered before building. See
+[`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
+
 **The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.
 Owner answers: the full generative product is the moat (trips the hosting
 trigger by definition); constraint ranking **residency > quality > cost**;
@@ -549,6 +563,52 @@ not, and an unwired alarm is the thing B2 exists to prevent.
 
 Re-check the hosted project's default privileges when it exists — they may
 differ from the local Supabase CLI stack where all of this was measured.
+
+### 🔴 AUDIT 2026-08-20 — the remaining findings, by severity (NOT yet fixed)
+
+Five parallel read-only auditors (authn/authz, secrets, error handling, input
+validation, test meaningfulness). **CRITICAL + HIGH are CLOSED** — see §2's
+audit row. What follows is everything else, queued deliberately rather than
+fixed in the same pass. Full method and each auditor's stated blind spots are
+in the PR for `fix/audit-critical-high`.
+
+**Verified CLEAN (worth knowing):** no new authz hole (guard order, identity-route
+IDOR checks, operator isolation, session-fixation regeneration, and an
+RLS-bypass sweep all held); no real secret committed, logged or returned (the
+ZATCA vault verified strongly — callback-scoped key access, buffers zeroed,
+throwing `toJSON`, fixed error messages); the generic-500 wall means no SQL,
+stack or path leaks to clients; the job scheduler survives a failing job.
+
+| Sev | Finding | Where |
+| --- | --- | --- |
+| **MED** | **A wrong diagnosis burns outbox attempts.** `catch {} → null` conflates "not onboarded" with ANY failure (KMS outage, DB error), so a transient failure is reported as "no ZATCA credentials for this company; is it onboarded?" | `services/einvoice/zatca/zatcaDirectProvider.ts:71` |
+| **MED** | **A 2xx for a transaction that rolled back.** Commit failure after `res.on("finish")` is logged only — the client already has its success. Structurally hard to fix at that point; nothing alarms on the pattern (L-1 family). | `lib/tenant.ts:144` |
+| **MED** | **The user's OCR silently discarded.** Malformed `extraction`/`fieldSources` JSON → `catch → undefined`; the capture stages with the extraction lost and no signal. | `routes/capture.ts:46` |
+| **MED** | **500-where-4xx cluster** (predictable input → raw 500): nonexistent `customerId`/`vendorId` → FK 23503; manual transaction create with a bad `categoryId` (the BULK path maps PG codes, the single path does not — "green fixed the case, not the class"); a >10 MB phone photo → multer error → 500 (`documentHttp.ts` maps this; `capture.ts` does not). | `invoices.service.ts:148`, `bills.service.ts:67`, `transactions.service.ts:401`, `routes/capture.ts:34` |
+| **MED** | **`taxCategoryCode` accepts any string** into the column the VAT return files from — no enum check at API, service or DB. | `invoices.service.ts:101` |
+| **MED** | **Cross-path inconsistency**: PATCH `/transactions/:id` accepts negative `vatAmount` / unbounded `vatRate` while create+upload bound both. | `api-zod` UpdateTransactionBody vs CreateTransactionBody |
+| **MED** | **`Number(req.params.id)` → NaN reaches queries** on ~9 controllers (22P02 raw 500). Transactions alone coerces properly. | most controllers |
+| **MED** | **The certificate alarm has never been exercised FIRING** — only its key's distinctness is asserted. B2's documented T-7/expired behaviour has no test. | `tests/alerting.test.ts:236` |
+| **MED** | **The QR-signature verifier is tested only on the failing half** — `expect(["failed","error"]).toContain(...)` accepts a verifier that never verifies anything; no validly-signed QR fixture exists. | `tests/document-capture.test.ts:186` |
+| **MED** | **The LEGALLY meaningful ZATCA chain is exercised by no concurrent test** — the concurrency suite's company is never onboarded, so it tests the homegrown chain; the enqueue suite's fork test is deliberately sequential. | `tests/invoice-icv-concurrency.test.ts:140` |
+| **MED** | **`DemoResetRefused` asserted with checks a bare `Error` also passes** (`toBeInstanceOf(Error)`, `.name === "Error"`); no production code consumes the distinction. | `tests/demo-reset-guard.test.ts:112` |
+| **LOW** | **A CSID secret could reach a log line.** `apiError()` attaches the full ZATCA response body to a loggable Error; a malformed 200 carrying `secret` but no `binarySecurityToken` would be logged by pino's err serializer. Strip/allowlist the body before attaching. | `services/einvoice/onboarding/zatcaOnboardingClient.ts:43` |
+| **LOW** | **Cookie `secure` + `trust proxy` gated on exact `NODE_ENV === "production"`** — a "staging" deploy ships auth cookies without Secure. Also: the comment claims `sameSite: strict`, the code sets `lax`. | `app.ts:13,70,71` |
+| **LOW** | `/llm/status` echoes `OLLAMA_URL` (internal infra URL) to any tenant holding the `llm` permission. | `controllers/llm.controller.ts:21` |
+| **LOW** | **The production boot-refusal has no test**: `loadEnv` refusing `MAIL_PROVIDER=none` / `ALERT_PROVIDER=none` in production is what B1/B2 lean on, and `packages/config` has no test files. | `packages/config/src/env.ts:291,307` |
+| **LOW** | Seven entity CRUD families still take raw `req.body` at the CONTROLLER (the services are now whitelisted, so this is depth-in-defence, not exposure); string length caps absent before `varchar` (M-4 family). | controllers |
+| **LOW** | `route-reachability`'s shrink-check uses a narrower parser than the main test (literal paths only), so a route gaining a UI via a generated hook would not be detected as fixed. | `tests/route-reachability.test.ts:205` |
+| **LOW** | The ZATCA vault-boundary test is text-matching (raw SQL slips past) — an undocumented second instance of the tracked identity-boundary limitation. | `tests/zatca-credential-vault.test.ts:109` |
+| **INFO** | `zatca-crypto`'s canonicalisation test claims "exactly the three excluded elements" and proves one (the QR and Signature exclusions cannot be tested from a fixture that contains neither). | `tests/zatca-crypto.test.ts:117` |
+
+🔴 **What the audit could NOT see** (recorded so it is not mistaken for a clean
+bill): RLS *policy* coverage was the biggest gap and is now closed by
+`tests/rls-coverage.test.ts`; still unaudited are the **permission-matrix seed
+grants** (enforcement was audited, the grants were not), **same-org
+cross-company isolation** (`app.current_company_id` at row level), **git
+history entropy-scanning** (prefix/pickaxe only, no gitleaks pass), the
+**accounting core's own throws** (`glPosting`, `periodLock`, approval
+adapters), and **runtime-order test vacuity** (only execution reveals it).
 
 ### Other open findings (small, non-blocking)
 
