@@ -10,8 +10,8 @@ is not built on an unreviewed pattern.
 
 | Stage | Scope | Gate |
 | --- | --- | --- |
-| M21.1 | Quotations: schema, CRUD, approval, numbering, UI. **No conversion.** | — |
-| M21.2 | Quotation → invoice conversion, partial by quantity, dated records. | 🔴 **OWNER REVIEW** before M21.3 |
+| M21.1 | Quotations: schema, CRUD, approval, numbering, UI. **No conversion.** | ✅ **BUILT** (PR #59). |
+| M21.2 | Quotation → invoice conversion, partial by quantity, dated records. | ✅ **BUILT.** 🔴 **OWNER REVIEW** before M21.3 |
 | M21.3 | Purchase orders: the mirror, incl. PO → bill matching. | — |
 
 ## 1. Why this document exists at all
@@ -328,3 +328,50 @@ closed on `tax_category_code`.
 - Standing-check part 6: grep for tests asserting these features are absent
   (`KNOWN_UNBACKED`, the façade notes in `App.tsx`) — each expires the day this
   ships.
+
+
+## 10. M21.2 as built (2026-08-20)
+
+**Conversion is not a posting path.** `quotationConversion.service.ts` builds
+an invoice body and calls `invoicesService.create` — the same function the
+manual form calls — so approval, GL posting, the hash chain, ICV and ZATCA all
+behave identically. There is no `postJournalEntry` in that file and there must
+never be one. Proven behaviourally rather than structurally: a test approves a
+converted invoice and a hand-typed invoice of the same value, and asserts both
+move AR by **exactly 575.00**.
+
+**The conversion record is DATED EVENTS, not a running total** (migration
+0052). `quotation_conversions` + `quotation_conversion_items`, append-only at
+the grants (SELECT + INSERT, verified against `role_table_grants`). Converted
+quantity is `SUM` over the item rows — **no `converted_quantity` column exists
+anywhere**, so there is no aggregate to drift from the lines. A test converts
+4 units in September and 6 later, and asserts BOTH dates survive; a running
+total would have kept only the second.
+
+🔴 **A defect this surfaced, worth keeping in mind for M21.3.** The edit path
+originally replaced lines wholesale (delete all, insert all) — harmless until
+a conversion exists, then fatal twice over: the converted line's delete hits
+the `RESTRICT` FK as a raw 500, and had it succeeded the line would come back
+with a NEW id, orphaning the record of what the customer accepted. Editing now
+**reconciles lines by id**. The old behaviour was re-injected and the
+id-stability test went red, so the guard is known to bite.
+
+**Other decisions as built:**
+
+- **Over-conversion → 409**, the `invoicesService.pay` overpay posture.
+- **Freeze rule**: a line with any conversion cannot be re-priced or removed;
+  untouched lines stay editable. Both directions re-injected and confirmed red
+  without the check.
+- **Discount is SCALED to the converted proportion** — a 100 SAR discount on 10
+  units carries 40 when 4 are invoiced. Not scaling it would undercharge the
+  first conversion and overcharge the rest.
+- **Expiry never blocks** — an expired quotation converts, with a warning.
+- **A converted quotation cannot be deleted** (named 409, not the FK's 500).
+- `autoApprove` is resolved from **`invoices:approve`**, not
+  `quotations:approve`: the document being issued is an invoice, so authority
+  over invoices is what matters. A bookkeeper may convert and gets a draft.
+- Invoice numbers for converted invoices are allocated **server-side**
+  (`INV-{YYYY}-{NNNN}`). 🔴 Honest scope: `invoices.invoice_number` still has
+  no unique constraint (**C12**), so unlike the quotation allocator this one
+  has no backstop — a lost race duplicates rather than failing. It reduces
+  C12's blast radius; it does not close it.

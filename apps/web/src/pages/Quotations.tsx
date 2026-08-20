@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Clock, CheckCircle, XCircle, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Clock, CheckCircle, XCircle, Trash2, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
@@ -146,6 +146,59 @@ export default function Quotations() {
     onSuccess: () => {
       refresh();
       toast({ title: t("Quotation deleted", "تم حذف عرض السعر") });
+    },
+    onError: fail,
+  });
+
+  // ── Conversion (M21.2) ───────────────────────────────────────────────────
+  const [converting, setConverting] = useState<Quotation | null>(null);
+  const [convertQty, setConvertQty] = useState<Record<number, string>>({});
+  const [convertDate, setConvertDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // The dialog needs the LINES, which the list response does not carry.
+  const { data: convertDetail } = useQuery<Quotation>({
+    queryKey: ["quotation", converting?.id],
+    queryFn: () => apiFetch(`/quotations/${converting!.id}`),
+    enabled: !!converting,
+  });
+
+  const { data: conversionHistory = [] } = useQuery<
+    { id: number; convertedOn: string; invoiceId: number; invoiceNumber: string | null; invoiceTotal: number | null }[]
+  >({
+    queryKey: ["quotation-conversions", converting?.id],
+    queryFn: () => apiFetch(`/quotations/${converting!.id}/conversions`),
+    enabled: !!converting,
+  });
+
+  const openConvert = (q: Quotation) => {
+    setConverting(q);
+    setConvertQty({});
+    setConvertDate(new Date().toISOString().split("T")[0]);
+  };
+
+  const convertMut = useMutation({
+    mutationFn: () => {
+      const items = convertDetail?.items ?? [];
+      // An empty/untouched form means "everything outstanding" — the server
+      // treats a missing `lines` as exactly that, so we send nothing rather
+      // than reconstructing the remainder here and risking a different answer.
+      const touched = items.filter((i) => convertQty[i.id!] !== undefined && convertQty[i.id!] !== "");
+      const body: Record<string, unknown> = { date: convertDate };
+      if (touched.length > 0) {
+        body.lines = touched
+          .map((i) => ({ quotationItemId: i.id, quantity: Number(convertQty[i.id!]) }))
+          .filter((l) => l.quantity > 0);
+      }
+      return apiFetch(`/quotations/${converting!.id}/convert`, { method: "POST", body: JSON.stringify(body) });
+    },
+    onSuccess: (res: { invoice: { invoiceNumber: string; status: string } }) => {
+      setConverting(null);
+      refresh();
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      toast({
+        title: t("Converted to invoice", "تم التحويل إلى فاتورة"),
+        description: `${res.invoice.invoiceNumber} — ${res.invoice.status}`,
+      });
     },
     onError: fail,
   });
@@ -318,6 +371,11 @@ export default function Quotations() {
                             {t("Approve", "اعتماد")}
                           </Button>
                         )}
+                        {q.status === "approved" && !q.outcome && q.conversionState !== "converted" && (
+                          <Button size="sm" onClick={() => openConvert(q)}>
+                            <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />{t("Convert", "تحويل")}
+                          </Button>
+                        )}
                         {q.status === "approved" && !q.outcome && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: q.id, action: "decline" })}>
@@ -347,6 +405,89 @@ export default function Quotations() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Convert to invoice (M21.2) ─────────────────────────────────────── */}
+      <Dialog open={!!converting} onOpenChange={(o) => !o && setConverting(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t("Convert to invoice", "التحويل إلى فاتورة")} — {converting?.quotationNumber}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Quantities default to everything still outstanding. Reduce a quantity to invoice part of the line; the rest stays on the quotation. Prices are the ones you quoted.",
+                "الكميات الافتراضية هي كل ما تبقى. قلّل الكمية لفوترة جزء من البند؛ ويبقى الباقي في عرض السعر. الأسعار هي التي عرضتها.",
+              )}
+            </p>
+
+            {converting?.expired && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {t(
+                  "This quotation's validity date has passed. You can still convert it — that is your commercial decision.",
+                  "انتهى تاريخ صلاحية هذا العرض. لا يزال بإمكانك تحويله — وهذا قرارك التجاري.",
+                )}
+              </p>
+            )}
+
+            <div className="space-y-2">
+              {(convertDetail?.items ?? []).map((i) => {
+                const remaining = i.remainingQuantity ?? 0;
+                return (
+                  <div key={i.id} className="grid grid-cols-12 gap-2 items-center text-sm">
+                    <span className="col-span-5 truncate">{i.description}</span>
+                    <span className="col-span-3 text-xs text-muted-foreground">
+                      {t("Remaining", "المتبقي")}: <span className="font-mono">{remaining}</span>
+                    </span>
+                    <Input
+                      className="col-span-2 h-8 text-sm font-mono"
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      max={remaining}
+                      disabled={remaining <= 0}
+                      placeholder={String(remaining)}
+                      value={convertQty[i.id!] ?? ""}
+                      onChange={(e) => setConvertQty((p) => ({ ...p, [i.id!]: e.target.value }))}
+                    />
+                    <span className="col-span-2 text-right font-mono text-xs text-muted-foreground">
+                      {fmtNum(i.unitPrice as number)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground">{t("Invoice date", "تاريخ الفاتورة")}</Label>
+              <Input type="date" value={convertDate} onChange={(e) => setConvertDate(e.target.value)} className="mt-1 h-8 text-sm w-48" />
+            </div>
+
+            {conversionHistory.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  {t("Already invoiced from this quotation", "سبق فوترته من هذا العرض")}
+                </p>
+                <ul className="space-y-1">
+                  {conversionHistory.map((h) => (
+                    <li key={h.id} className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-primary">{h.invoiceNumber ?? `#${h.invoiceId}`}</span>
+                      <DualDate date={h.convertedOn} />
+                      <span className="font-mono">{h.invoiceTotal != null ? fmtNum(h.invoiceTotal) : "—"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Button className="w-full" onClick={() => convertMut.mutate()} disabled={convertMut.isPending}>
+              {convertMut.isPending ? t("Converting…", "جارٍ التحويل…") : t("Create invoice", "إنشاء الفاتورة")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

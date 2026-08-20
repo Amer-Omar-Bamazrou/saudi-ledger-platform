@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { quotationsService } from "../services/quotations.service";
+import { quotationConversionService } from "../services/quotationConversion.service";
 import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
 
@@ -85,6 +86,32 @@ export const quotationsController = {
 
   async reopen(req: Request, res: Response) {
     res.json(await quotationsService.reopen(requireId(req)));
+  },
+
+  /**
+   * Convert part or all of a quotation into an invoice (M21.2).
+   *
+   * 🔴 `autoApprove` is resolved from `invoices:approve`, NOT
+   * `quotations:approve` — the document being issued is an INVOICE, so the
+   * authority that matters is authority over invoices. A bookkeeper may
+   * convert and gets a draft; an approver's conversion issues in one step,
+   * exactly as typing the invoice by hand would.
+   */
+  async convert(req: Request, res: Response) {
+    const role = req.tenant?.role ?? "";
+    const autoApprove = await can(role, "invoices", "approve");
+    const out = await quotationConversionService.convert(
+      requireId(req),
+      req.body ?? {},
+      req.session?.userId ?? null,
+      { autoApprove },
+    );
+    res.status(201).json(out);
+  },
+
+  /** The dated conversion history — what became an invoice, and when. */
+  async conversions(req: Request, res: Response) {
+    res.json(await quotationConversionService.history(requireId(req)));
   },
 
   async remove(req: Request, res: Response) {

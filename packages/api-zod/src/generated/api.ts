@@ -827,6 +827,88 @@ export const ReopenQuotationResponse = zod.object({
 
 
 /**
+ * @summary Convert part or all of a quotation into an invoice (M21.2). Omit lines to take everything still outstanding. Prices are FROZEN at the quoted values. Over-converting a line is refused with 409. The invoice is created through the ordinary invoice path, so it is a DRAFT unless the caller holds invoices:approve.
+
+ */
+export const ConvertQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConvertQuotationBody = zod.object({
+  "lines": zod.array(zod.object({
+  "quotationItemId": zod.number(),
+  "quantity": zod.number().describe('Must be greater than zero and at most what remains.')
+})).optional().describe('Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op.\n'),
+  "date": zod.string().optional().describe('The invoice\'s accounting date. Defaults to today.'),
+  "dueDate": zod.string().optional(),
+  "convertedOn": zod.string().optional().describe('The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date.\n'),
+  "invoiceNumber": zod.string().optional().describe('Optional override; otherwise allocated server-side.'),
+  "notes": zod.string().optional()
+})
+
+export const ConvertQuotationResponse = zod.object({
+  "conversion": zod.object({
+  "id": zod.number().optional(),
+  "convertedOn": zod.string().optional()
+}).optional(),
+  "invoice": zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+}).optional()
+})
+
+
+/**
+ * @summary The DATED conversion history - one entry per event, each naming the invoice it produced. Stored as events rather than a running total so the date of every partial acceptance survives.
+
+ */
+export const ListQuotationConversionsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListQuotationConversionsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "convertedOn": zod.string().optional(),
+  "invoiceId": zod.number().optional(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceStatus": zod.string().nullish(),
+  "invoiceTotal": zod.number().nullish()
+})
+export const ListQuotationConversionsResponse = zod.array(ListQuotationConversionsResponseItem)
+
+
+/**
  * @summary List recurring document rules (A3)
  */
 export const ListRecurringRulesResponseItem = zod.object({

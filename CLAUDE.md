@@ -128,7 +128,7 @@ EXISTING write path, never a second posting path.
 | Stage | State |
 | --- | --- |
 | **M21.1** — quotations: schema, CRUD, approval, numbering, UI | ✅ **BUILT.** |
-| **M21.2** — quotation → invoice conversion (partial, dated) | ⬜ next |
+| **M21.2** — quotation → invoice conversion (partial, dated) | ✅ **BUILT.** |
 | **M21.3** — purchase orders + PO↔bill matching | ⬜ 🔴 gated on OWNER REVIEW of M21.1/M21.2 first, so the pattern is not copied before it is checked |
 
 **M21.1 as built:** two orthogonal axes, deliberately never one column —
@@ -148,6 +148,20 @@ could mean "nothing was measured" (flaw #8's shape). `/quotations` was removed
 from the route guard's `KNOWN_UNBACKED`; `/purchase-orders` stays there until
 M21.3. Nine tests pin the permission grants, including the negative one (a
 bookkeeper may NOT approve — issuing a price is a commitment).
+**M21.2 as built:** conversion calls `invoicesService.create` — never a second
+posting path — proven behaviourally: a converted invoice and a hand-typed one
+of the same value both move AR by exactly 575.00. The record is **dated events**
+(migration 0052, append-only grants), and converted quantity is `SUM`ed from
+them: **no `converted_quantity` column exists**, because a running total keeps
+one date and would destroy the first partial acceptance's — B4's loss, avoided
+in advance. Over-conversion 409s; the freeze rule stops a converted line being
+re-priced or removed while untouched lines stay editable; a per-line discount is
+**scaled to the converted proportion**; expiry warns and never blocks.
+🔴 **Found while building:** the edit path replaced lines wholesale, which once
+a conversion exists both hits the RESTRICT FK as a raw 500 AND (had it
+succeeded) would re-insert the line under a NEW id, orphaning the record of what
+was accepted. Edits now reconcile by id; the old behaviour was re-injected and
+the guard went red, as were both freeze-rule guards.
 See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
 **The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.
