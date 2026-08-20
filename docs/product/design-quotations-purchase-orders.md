@@ -12,7 +12,7 @@ is not built on an unreviewed pattern.
 | --- | --- | --- |
 | M21.1 | Quotations: schema, CRUD, approval, numbering, UI. **No conversion.** | ✅ **BUILT** (PR #59). |
 | M21.2 | Quotation → invoice conversion, partial by quantity, dated records. | ✅ **BUILT.** 🔴 **OWNER REVIEW** before M21.3 |
-| M21.3 | Purchase orders: the mirror, incl. PO → bill matching. | — |
+| M21.3 | Purchase orders: the mirror, incl. PO → bill matching. | ✅ **BUILT.** |
 
 ## 1. Why this document exists at all
 
@@ -445,3 +445,71 @@ the naive implementation was re-injected to confirm they go red (99.99 and
 
 The rule lives in ONE function (`services/conversionArithmetic.ts`) so M21.3's
 PO → bill conversion uses the identical arithmetic rather than a second copy.
+
+
+## 12. M21.3 as built (2026-08-20)
+
+The mirror of M21.1 + M21.2, with the matching half that has no quotation
+equivalent. Everything inherited: two orthogonal axes, derived conversion
+state, dated append-only events, the freeze rule, line reconciliation by id,
+drafts-only conversion, zero movement at every status.
+
+### 🔴 Three differences from the mirror, each VERIFIED not assumed
+
+**1. No discount anywhere on a purchase order.** `bill_items` has no
+`discount` column and neither does `bills` — checked against
+`information_schema`, not inferred from symmetry (invoices have both). A
+discount on a PO would therefore be **silently dropped at conversion**, which
+is the "partial data is not lenient data" failure: never return part of a
+value as the whole value. A supplier discount belongs in the agreed unit
+price.
+
+🔴 **This corrects something stated during M21.2**: the claim that both
+conversion directions need the identical discount rule. They do not. The
+accountant's proportional-allocation answer governs quotation→invoice only.
+`allocateLineDiscount` is therefore used by one caller today — which is still
+the right home for it, but the reason recorded on the module has been narrowed
+to the truth.
+
+**2. No `tax_category_code`.** Same check, same reason: `bill_items` has none.
+Bills carry VAT as rate + amount, and input-VAT treatment is decided by the
+categoriser and `vat_basis`.
+
+**3. `cancelled`, not `declined`.** A quotation is DECLINED by the customer; a
+purchase order is CANCELLED by us. Reusing the quotation's word would assert
+that the supplier refused — a fact we have no way to know. Enforced by DB
+CHECK, and a test proves `'declined'` is rejected at the database.
+
+### The matching rules as built
+
+**THE BILL IS THE TRUTH; THE PO IS THE EXPECTATION** (owner-ratified).
+
+| Case | Behaviour |
+| --- | --- |
+| Supplier's price ≠ ordered price | **Recorded, never refused or reconciled.** The bill carries the supplier's price; the PO keeps the ordered one; the difference is a `priceVariance` with both figures and its date. The billed price is STORED per event, so the variance survives a later bill edit. |
+| Supplier bills less than ordered | Ordinary partial billing; the remainder stays un-billed. |
+| Supplier bills MORE than remains | **409 by default**, with `allowOverBilling` as an explicit override — refusing outright would mean refusing to record a real liability, which the governing principle forbids. |
+| A line that was never ordered | **Allowed** (freight, surcharges, substituted parts). It simply has no conversion row, which is what makes it identifiable as unordered. |
+| No PO at all | Unchanged — ordinary bill entry. POs are optional. |
+
+Variances are reported as neutral facts with both numbers, never as a status
+colour: whether a variance is acceptable is a judgment, and the palette is
+reserved for things that ARE the case.
+
+### 🔴 The two-way limitation is on the screen
+
+There is no goods-receipt concept, so we cannot distinguish "shipped half"
+from "billed half". Per the owner's instruction, that is stated in the UI
+rather than buried: the billing dialog says the platform records what the
+supplier has BILLED and does not know what was delivered. Every progress word
+in the presenter and the page is billing — `partially_billed`,
+`unbilledQuantity`, "Un-billed" — and there is no "received", "delivered" or
+"outstanding" anywhere in the feature.
+
+### The façade era is over
+
+`KNOWN_UNBACKED` in `tests/route-reachability.test.ts` is now **empty**. It
+held these two pages; each entry was deleted by the stage that built it,
+rather than reworded. An empty allowlist means there is no parking space for a
+new one — the inverse guard fails the moment any page calls an unmounted
+route.

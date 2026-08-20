@@ -23,13 +23,9 @@ import VatReport from '@/pages/VatReport';
 import ZakatReport from '@/pages/ZakatReport';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
-// Quotations is BUILT (M21.1) — real routes, real persistence.
+// Both BUILT (M21) — real routes, real persistence. The last two façades the
+// 2026-08-20 audit found are gone; `KNOWN_UNBACKED` is now empty.
 import Quotations from '@/pages/Quotations';
-// 🔴 STILL HELD (owner, 2026-08-20): Purchase Orders is a decided-but-unbuilt
-// feature, scheduled as M21.3 after the owner reviews M21.1/M21.2. The page
-// SAVES NOTHING (toast-only) and /purchase-orders does not exist as an API
-// route; the inverse route-reachability guard exempts exactly this one page,
-// and that exemption is deleted when M21.3 lands.
 import PurchaseOrders from '@/pages/PurchaseOrders';
 import Invoices from '@/pages/Invoices';
 import CreditNotes from '@/pages/CreditNotes';
@@ -141,7 +137,7 @@ function Router() {
               <Route path="/scan-review" component={ScanReview} />
               {/* Purchases */}
               <Route path="/vendors" component={Vendors} />
-              <Route path="/purchase-orders" component={PurchaseOrders} />{/* 🔴 STILL HELD — M21.3 */}
+              <Route path="/purchase-orders" component={PurchaseOrders} />
               <Route path="/bills" component={Bills} />
               {/* Report pages (each backed by a mounted API route) */}
               <Route path="/ar-aging" component={ArAging} />

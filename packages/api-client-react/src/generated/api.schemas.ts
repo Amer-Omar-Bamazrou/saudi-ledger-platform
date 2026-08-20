@@ -1541,6 +1541,156 @@ export interface QuotationConversionResult {
   invoice?: Invoice;
 }
 
+/**
+ * One event where the supplier's price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.
+ */
+export interface PurchaseOrderPriceVariance {
+  orderedUnitPrice?: number;
+  billedUnitPrice?: number;
+  quantity?: number;
+  billedOn?: string;
+  /** billed minus ordered, per unit. Positive = charged more. */
+  difference?: number;
+}
+
+export interface PurchaseOrderItem {
+  id?: number;
+  productId?: number | null;
+  description: string;
+  descriptionAr?: string;
+  quantity: number;
+  /** The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused. */
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount?: number;
+  total?: number;
+  unitCode?: string;
+  /** How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept. */
+  billedQuantity?: number;
+  /** quantity minus billedQuantity. Un-billed, not "outstanding". */
+  unbilledQuantity?: number;
+  priceVariances?: PurchaseOrderPriceVariance[];
+}
+
+/**
+ * The APPROVAL axis only.
+ */
+export type PurchaseOrderStatus = typeof PurchaseOrderStatus[keyof typeof PurchaseOrderStatus];
+
+
+export const PurchaseOrderStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+} as const;
+
+/**
+ * A terminal act by the TENANT. `cancelled` (we withdrew it), never "declined" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.
+ */
+export type PurchaseOrderOutcome = typeof PurchaseOrderOutcome[keyof typeof PurchaseOrderOutcome] | null;
+
+
+export const PurchaseOrderOutcome = {
+  cancelled: 'cancelled',
+  closed: 'closed',
+} as const;
+
+/**
+ * DERIVED from line quantities, never stored. BILLING, not delivery.
+ */
+export type PurchaseOrderBillingState = typeof PurchaseOrderBillingState[keyof typeof PurchaseOrderBillingState];
+
+
+export const PurchaseOrderBillingState = {
+  open: 'open',
+  partially_billed: 'partially_billed',
+  fully_billed: 'fully_billed',
+} as const;
+
+export interface PurchaseOrder {
+  id?: number;
+  orderNumber?: string;
+  date?: string;
+  validUntil?: string | null;
+  vendorId?: number | null;
+  vendorName?: string | null;
+  /** The APPROVAL axis only. */
+  status?: PurchaseOrderStatus;
+  /** A terminal act by the TENANT. `cancelled` (we withdrew it), never "declined" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state. */
+  outcome?: PurchaseOrderOutcome;
+  /** DERIVED from line quantities, never stored. BILLING, not delivery. */
+  billingState?: PurchaseOrderBillingState;
+  expired?: boolean;
+  subtotal?: number;
+  vatAmount?: number;
+  total?: number;
+  currency?: string;
+  notes?: string | null;
+  reviewNote?: string | null;
+  createdAt?: string;
+  items?: PurchaseOrderItem[];
+}
+
+export interface CreatePurchaseOrderInput {
+  date?: string;
+  validUntil?: string;
+  vendorId?: number;
+  currency?: string;
+  notes?: string;
+  /** @minItems 1 */
+  items: PurchaseOrderItem[];
+}
+
+export interface ConvertPurchaseOrderLine {
+  purchaseOrderItemId: number;
+  quantity: number;
+  /** What the supplier ACTUALLY charged. Omit to accept the ordered price. A different figure is not an error. */
+  unitPrice?: number;
+}
+
+/**
+ * A line on the supplier's bill that was never on the order - freight, a surcharge, a substituted part. Allowed, and identifiable afterwards because it has no conversion row against any order line.
+ */
+export interface UnorderedBillLine {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+}
+
+export interface ConvertPurchaseOrderInput {
+  /** Omit entirely to bill everything not yet billed. */
+  lines?: ConvertPurchaseOrderLine[];
+  unorderedLines?: UnorderedBillLine[];
+  date?: string;
+  dueDate?: string;
+  /** The supplier's own bill number. Wins over an allocated one. */
+  vendorReference?: string;
+  billNumber?: string;
+  notes?: string;
+  /** Record a bill for MORE than the order allows. Refused by default - that is the case where the supplier may be wrong and a human should look - but possible, because refusing outright would mean refusing to record a real liability. */
+  allowOverBilling?: boolean;
+}
+
+export interface PurchaseOrderConversion {
+  id?: number;
+  billedOn?: string;
+  billId?: number;
+  billNumber?: string | null;
+  billStatus?: string | null;
+  billTotal?: number | null;
+}
+
+export type PurchaseOrderConversionResultConversion = {
+  id?: number;
+  billedOn?: string;
+};
+
+export interface PurchaseOrderConversionResult {
+  conversion?: PurchaseOrderConversionResultConversion;
+  bill?: Bill;
+}
+
 export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
 
 
@@ -1787,6 +1937,30 @@ export type ListQuotationsOutcome = typeof ListQuotationsOutcome[keyof typeof Li
 export const ListQuotationsOutcome = {
   live: 'live',
   declined: 'declined',
+  closed: 'closed',
+} as const;
+
+export type ListPurchaseOrdersParams = {
+status?: ListPurchaseOrdersStatus;
+vendor_id?: number;
+outcome?: ListPurchaseOrdersOutcome;
+};
+
+export type ListPurchaseOrdersStatus = typeof ListPurchaseOrdersStatus[keyof typeof ListPurchaseOrdersStatus];
+
+
+export const ListPurchaseOrdersStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+} as const;
+
+export type ListPurchaseOrdersOutcome = typeof ListPurchaseOrdersOutcome[keyof typeof ListPurchaseOrdersOutcome];
+
+
+export const ListPurchaseOrdersOutcome = {
+  live: 'live',
+  cancelled: 'cancelled',
   closed: 'closed',
 } as const;
 
