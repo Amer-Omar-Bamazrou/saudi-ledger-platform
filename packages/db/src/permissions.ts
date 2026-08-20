@@ -89,6 +89,18 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
    */
   quotations: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
 
+  /**
+   * Purchase orders (M21.3) — the mirror of `quotations`, and the same
+   * authority split for the mirrored reason: `approve` is what releases the
+   * order to a SUPPLIER, which commits the business to buy. A bookkeeper may
+   * draft one and may not issue it.
+   *
+   * 🔴 `create` also covers CONVERSION to a bill, which produces a DRAFT the
+   * approver still has to post — so `/convert` stays create-level and is
+   * deliberately absent from rbac.ts's APPROVE_ROUTE.
+   */
+  purchase_orders: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+
   // journal_entries: no PATCH route; post/reverse need approve; delete admin-only.
   journal_entries: { read: READ_ALL, create: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
 

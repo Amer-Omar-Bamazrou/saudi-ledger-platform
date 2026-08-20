@@ -911,6 +911,682 @@ export const ListQuotationConversionsResponse = zod.array(ListQuotationConversio
 
 
 /**
+ * @summary List purchase orders (M21.3). A PO is an INTENTION TO BUY - it affects no ledger, statement or return at any status.
+
+ */
+export const ListPurchaseOrdersQueryParams = zod.object({
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional(),
+  "vendor_id": zod.coerce.number().optional(),
+  "outcome": zod.enum(['live', 'cancelled', 'closed']).optional()
+})
+
+export const ListPurchaseOrdersResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+export const ListPurchaseOrdersResponse = zod.array(ListPurchaseOrdersResponseItem)
+
+
+/**
+ * @summary Create a purchase order as a DRAFT. The number is allocated server-side; a caller-supplied status is ignored.
+
+ */
+
+
+
+export const CreatePurchaseOrderBody = zod.object({
+  "date": zod.string().optional(),
+  "validUntil": zod.string().optional(),
+  "vendorId": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).min(1)
+})
+
+export const CreatePurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary One purchase order, with its lines, billed quantities and price variances
+ */
+export const GetPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Edit. Allowed while draft AND approved; locked while submitted and after a terminal outcome. A line the supplier has already billed cannot have its ordered quantity or price changed.
+
+ */
+export const UpdatePurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdatePurchaseOrderBody = zod.object({
+  "date": zod.string().optional(),
+  "validUntil": zod.string().optional(),
+  "vendorId": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).min(1)
+})
+
+export const UpdatePurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a purchase order (admin only; refused once billed)
+ */
+export const DeletePurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeletePurchaseOrderResponse = zod.void()
+
+
+/**
+ * @summary draft to submitted - enters the approver queue
+
+ */
+export const SubmitPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitPurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Approve - the order may now go to the supplier. Posts nothing: a purchase order is not a purchase.
+
+ */
+export const ApprovePurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary submitted to draft, with a correction note
+
+ */
+export const SendBackPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendBackPurchaseOrderBody = zod.object({
+  "note": zod.string().nullish()
+}).describe('Optional reviewer note when sending a submitted record back.')
+
+export const SendBackPurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Reject a non-approved order (hard delete, no archive)
+ */
+export const RejectPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectPurchaseOrderResponse = zod.void()
+
+
+/**
+ * @summary Withdraw the order. NOTE the vocabulary: an order is CANCELLED by us. It is never "declined" - the platform has no way to know whether a supplier refused it.
+
+ */
+export const CancelPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CancelPurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Abandon whatever the supplier has not billed. The tenant decides a remainder is dead; nothing else does.
+
+ */
+export const ClosePurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ClosePurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Undo a cancel or close recorded in error
+
+ */
+export const ReopenPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReopenPurchaseOrderResponse = zod.object({
+  "id": zod.number().optional(),
+  "orderNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean().optional(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "unitCode": zod.string().optional(),
+  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
+  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
+  "priceVariances": zod.array(zod.object({
+  "orderedUnitPrice": zod.number().optional(),
+  "billedUnitPrice": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
+}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Record the supplier's bill against this order (M21.3).
+THE BILL IS THE TRUTH; THE PURCHASE ORDER IS THE EXPECTATION. The bill carries the price the supplier actually charged, the order keeps what was ordered, and the difference is recorded as a variance rather than silently reconciled.
+The bill is created through the ordinary bill path and is ALWAYS a DRAFT, for every role. The record is append-only - there is no undo.
+Over-billing is refused with 409 unless allowOverBilling is set, because refusing outright would mean refusing to record a real liability.
+NOTE: this tracks BILLING, not delivery. There is no goods-receipt concept, so a part-billed order may or may not have been part-delivered and nothing here may claim to know which.
+
+ */
+export const ConvertPurchaseOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConvertPurchaseOrderBody = zod.object({
+  "lines": zod.array(zod.object({
+  "purchaseOrderItemId": zod.number(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().optional().describe('What the supplier ACTUALLY charged. Omit to accept the ordered price. A different figure is not an error.\n')
+})).optional().describe('Omit entirely to bill everything not yet billed.'),
+  "unorderedLines": zod.array(zod.object({
+  "description": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional()
+}).describe('A line on the supplier\'s bill that was never on the order - freight, a surcharge, a substituted part. Allowed, and identifiable afterwards because it has no conversion row against any order line.\n')).optional(),
+  "date": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "vendorReference": zod.string().optional().describe('The supplier\'s own bill number. Wins over an allocated one.'),
+  "billNumber": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "allowOverBilling": zod.boolean().optional().describe('Record a bill for MORE than the order allows. Refused by default - that is the case where the supplier may be wrong and a human should look - but possible, because refusing outright would mean refusing to record a real liability.\n')
+})
+
+export const ConvertPurchaseOrderResponse = zod.object({
+  "conversion": zod.object({
+  "id": zod.number().optional(),
+  "billedOn": zod.string().optional()
+}).optional(),
+  "bill": zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+}).optional()
+})
+
+
+/**
+ * @summary The DATED billing history - one entry per supplier bill recorded against this order.
+
+ */
+export const ListPurchaseOrderConversionsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListPurchaseOrderConversionsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "billedOn": zod.string().optional(),
+  "billId": zod.number().optional(),
+  "billNumber": zod.string().nullish(),
+  "billStatus": zod.string().nullish(),
+  "billTotal": zod.number().nullish()
+})
+export const ListPurchaseOrderConversionsResponse = zod.array(ListPurchaseOrderConversionsResponseItem)
+
+
+/**
  * @summary List recurring document rules (A3)
  */
 export const ListRecurringRulesResponseItem = zod.object({

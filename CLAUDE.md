@@ -129,7 +129,7 @@ EXISTING write path, never a second posting path.
 | --- | --- |
 | **M21.1** — quotations: schema, CRUD, approval, numbering, UI | ✅ **BUILT.** |
 | **M21.2** — quotation → invoice conversion (partial, dated) | ✅ **BUILT.** |
-| **M21.3** — purchase orders + PO↔bill matching | ⬜ 🔴 gated on OWNER REVIEW of M21.1/M21.2 first, so the pattern is not copied before it is checked |
+| **M21.3** — purchase orders + PO↔bill matching | ✅ **BUILT** (after the owner review that corrected M21.2). |
 
 **M21.1 as built:** two orthogonal axes, deliberately never one column —
 `status` is the APPROVAL axis (the M10 engine, `autoApprove` from the RBAC
@@ -179,6 +179,29 @@ a conversion exists both hits the RESTRICT FK as a raw 500 AND (had it
 succeeded) would re-insert the line under a NEW id, orphaning the record of what
 was accepted. Edits now reconcile by id; the old behaviour was re-injected and
 the guard went red, as were both freeze-rule guards.
+**M21.3 as built:** the mirror, plus the matching half. 🔴 **Three differences,
+each VERIFIED against what a bill can represent rather than assumed from
+symmetry:** a PO carries **no discount** (bill_items has no such column, and
+neither does bills — a discount would be silently dropped at conversion, the
+"partial data is not lenient data" failure); **no tax_category_code** (same
+check); and the terminal act is **`cancelled`, not `declined`** — we withdraw
+an order, and saying the supplier refused would assert what we cannot know
+(DB CHECK enforced, tested). **This corrected an M21.2 claim** that both
+directions need the same discount rule: they do not, so the accountant's
+answer governs quotation→invoice only.
+**Matching — "the bill is the truth; the PO is the expectation":** a different
+supplier price is RECORDED as a variance with both figures and its date (the
+billed price is stored per event, so it survives a later bill edit), never
+refused and never silently reconciled; over-billing 409s **with an explicit
+override**, because refusing outright would refuse to record a real liability;
+an unordered line (freight) is allowed and identifiable by having no
+conversion row. 🔴 **The two-way limitation is ON THE SCREEN** — no
+goods-receipt concept exists, so every progress word is BILLING
+(`partially_billed`, `unbilledQuantity`), never "received" or "delivered", and
+the dialog says so plainly.
+🔴 **`KNOWN_UNBACKED` is now EMPTY** — the last of the six audit façades is
+gone, and each entry was deleted by the stage that built it rather than
+reworded.
 See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
 **The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.

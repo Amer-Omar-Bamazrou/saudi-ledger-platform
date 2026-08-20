@@ -2,10 +2,18 @@
  * Shared arithmetic for partial conversion (M21.2 quotation→invoice, M21.3
  * PO→bill).
  *
- * 🔴 WHY THIS IS ITS OWN MODULE. Both conversion directions need the identical
- * discount rule. Two copies would mean a future correction updates one of them
- * — "green fixes the case, not the class", avoided before the second case
- * existed.
+ * 🔴 WHY THIS IS ITS OWN MODULE — and a correction to what that reason was.
+ *
+ * It was written expecting BOTH conversion directions to need the identical
+ * discount rule. They do not: `bill_items` has no `discount` column and
+ * neither does `bills` (checked against information_schema, not inferred from
+ * symmetry), so a purchase order deliberately carries no discount at all and
+ * PO→bill never calls this.
+ *
+ * It stays a module anyway, because the rule is an ACCOUNTING decision with a
+ * verified source and a stated alternative set — that belongs somewhere a
+ * reader can find it, not inline in one service. But the "two callers" claim
+ * has been narrowed to the truth rather than left standing.
  */
 
 /** Round to halalas, the same 2dp discipline the line arithmetic uses. */

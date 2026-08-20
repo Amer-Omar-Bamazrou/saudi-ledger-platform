@@ -243,14 +243,20 @@ describe("the standing check, mechanized — every mounted route has a terminus"
  */
 
 /** Web-called paths that are deliberately NOT backed yet. Each needs a reason. */
-const KNOWN_UNBACKED: Record<string, string> = {
-  // /quotations was here until M21.1 built it. The entry is deleted rather
-  // than updated — that deletion is part of the milestone's definition of
-  // done, and leaving it would let the guard keep excusing a route that no
-  // longer needs excusing.
-  "/purchase-orders":
-    "🔴 HELD (owner, 2026-08-20), scheduled as M21.3. Purchase Orders is DECIDED but not yet built: the design is settled (docs/product/design-quotations-purchase-orders.md) and the build is gated on the owner reviewing M21.1/M21.2 first, so the pattern is not copied before it is checked. The page persists nothing today. Delete this entry when M21.3 lands.",
-};
+/**
+ * 🔴 EMPTY, and that is the milestone's result rather than an oversight.
+ *
+ * This held `/quotations` and `/purchase-orders` — two pages that rendered a
+ * form, showed a success toast and persisted nothing, against API routes that
+ * did not exist. M21.1 built the first and M21.3 the second, and each entry
+ * was DELETED as part of that stage's definition of done rather than reworded.
+ *
+ * Keeping it empty is the point: the guard below fails the moment any page
+ * calls an unmounted route, and an empty allowlist means there is no parking
+ * space to add one to. If a genuine future exception appears, it belongs here
+ * WITH a reason and a named owner — not as a bare path.
+ */
+const KNOWN_UNBACKED: Record<string, string> = {};
 
 describe("the inverse guard — every URL the web calls hits a mounted route", () => {
   it("🔴 no page calls an API route that is not mounted", () => {
