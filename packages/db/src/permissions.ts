@@ -70,6 +70,25 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   bank_accounts: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   budgets: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
 
+  /**
+   * Quotations (M21.1) — an offer to a customer, with NO ledger effect at any
+   * status. The grants nonetheless mirror `invoices` rather than something
+   * looser, and the reason is authority rather than accounting:
+   *
+   * `approve` is what releases a quotation to a customer, and a quotation is a
+   * PRICE COMMITMENT the business will be held to. So a bookkeeper may draft
+   * one and may not issue it — the same split as invoices, for a different
+   * reason (there, approve mints a legal tax document; here, it commits a
+   * price). Delete stays admin-only: an issued quotation is the record of what
+   * was offered.
+   *
+   * 🔴 `create` also covers CONVERSION (M21.2). Converting produces a DRAFT
+   * invoice, which is a bookkeeper's ordinary work; the resulting invoice
+   * still needs an approver before anything reaches the ledger. This is why
+   * `/convert` is deliberately absent from rbac.ts's APPROVE_ROUTE regex.
+   */
+  quotations: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+
   // journal_entries: no PATCH route; post/reverse need approve; delete admin-only.
   journal_entries: { read: READ_ALL, create: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
 
