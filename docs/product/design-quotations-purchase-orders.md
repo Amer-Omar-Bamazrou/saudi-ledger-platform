@@ -375,3 +375,73 @@ id-stability test went red, so the guard is known to bite.
   no unique constraint (**C12**), so unlike the quotation allocator this one
   has no backstop — a lost race duplicates rather than failing. It reduces
   C12's blast radius; it does not close it.
+
+
+## 11. Owner review of M21.1/M21.2 (2026-08-20) — two corrections, one open
+
+### 11.1 CORRECTED: conversion is DRAFTS ONLY, for every role
+
+The first cut resolved issuance from the caller's `invoices:approve` grant, so
+an admin's conversion issued a legal tax invoice in one click. **Reverted to
+the design's own position**, which §6 had already stated and the build had
+quietly overridden:
+
+> agreeing a quotation in March is not authority to issue a legal invoice in
+> November
+
+The owner's reasoning, recorded because it is the general rule and not a
+preference about this screen:
+
+> issuance consumes an ICV irreversibly, conversion can't be undone, and a
+> mis-click becomes a credit note
+
+There is now **no `autoApprove` parameter on `quotationConversionService.convert`
+at all**, so a future caller cannot reintroduce one without editing the
+signature — and the controller has no `can(...)` check, which is the point
+rather than an omission. A test converts as an org admin holding every grant
+and asserts the result is a draft that consumed no ICV.
+
+🔴 **M21.3 inherits this**: PO → bill conversion produces a DRAFT bill.
+
+### 11.2 KEPT, but SURFACED BEFORE THE ACT: no undo
+
+Append-only conversions stand. The owner's condition:
+
+> surface it before the act, not after — the confirmation should say plainly
+> that a conversion cannot be reversed and a mistake is corrected by credit
+> note
+
+The convert dialog now states, before the button: the conversion cannot be
+reversed, a mistake is corrected by a credit note against the invoice, and the
+invoice arrives as a draft so nothing reaches the ledger until approved. The
+button reads **"Create draft invoice"**, not "Convert". Neutral styling — this
+is a fact about what the button does, not a warning that something is wrong.
+
+### 11.3 ✅ ANSWERED by the accountant (2026-08-20): proportional, and EXACT
+
+> "the invoice should reflect the exact math on the quotation"
+
+So a line-level discount is **proportional to the quantity converted** — 100
+SAR on 10 units contributes 40 when 4 are invoiced. Recorded as
+**verified-by-accountant, not reasoned**. The alternatives considered and
+rejected: the whole discount on the FIRST conversion, on the LAST, or refusing
+to convert a discounted line partially. Each would make an intermediate tax
+invoice misstate what was agreed, and every one of those documents is real.
+
+🔴 **The rounding half is the part that would actually have bitten**, and the
+owner flagged it: a scaled discount is exactly where halalas drift between a
+quotation and its invoices. Scaling each conversion independently and rounding
+each result gives, for three equal conversions of a 100.00 discount,
+`33.33 × 3 = 99.99` — the quotation says 100.00 and the invoices in aggregate
+say 99.99, which is precisely the "exact math" the answer rules out.
+
+`allocateLineDiscount` therefore allocates on the **cumulative** quantity and
+subtracts what was already allocated, so the parts telescope to the quoted
+total by construction (33.33 + 33.34 + 33.33 = 100.00). It is the same
+discipline as `header = Σ rounded lines`: round at the finest grain and derive
+the rest. Both the three-way and a seven-way split are pinned as tests, and
+the naive implementation was re-injected to confirm they go red (99.99 and
+10.01 respectively).
+
+The rule lives in ONE function (`services/conversionArithmetic.ts`) so M21.3's
+PO → bill conversion uses the identical arithmetic rather than a second copy.

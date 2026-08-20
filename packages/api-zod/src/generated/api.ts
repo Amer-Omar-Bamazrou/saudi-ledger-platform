@@ -827,7 +827,9 @@ export const ReopenQuotationResponse = zod.object({
 
 
 /**
- * @summary Convert part or all of a quotation into an invoice (M21.2). Omit lines to take everything still outstanding. Prices are FROZEN at the quoted values. Over-converting a line is refused with 409. The invoice is created through the ordinary invoice path, so it is a DRAFT unless the caller holds invoices:approve.
+ * @summary Convert part or all of a quotation into an invoice (M21.2). Omit lines to take everything still outstanding. Prices are FROZEN at the quoted values. Over-converting a line is refused with 409.
+The invoice is created through the ordinary invoice path and is ALWAYS a DRAFT, for every role: issuance consumes an ICV irreversibly and a conversion cannot be undone, so an approver looks at the invoice before it becomes a legal document. There is no option to change this.
+The conversion record is append-only - there is no undo. A mistake is corrected by a credit note against the invoice it produced.
 
  */
 export const ConvertQuotationParams = zod.object({

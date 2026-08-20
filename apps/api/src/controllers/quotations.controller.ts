@@ -91,20 +91,17 @@ export const quotationsController = {
   /**
    * Convert part or all of a quotation into an invoice (M21.2).
    *
-   * 🔴 `autoApprove` is resolved from `invoices:approve`, NOT
-   * `quotations:approve` — the document being issued is an INVOICE, so the
-   * authority that matters is authority over invoices. A bookkeeper may
-   * convert and gets a draft; an approver's conversion issues in one step,
-   * exactly as typing the invoice by hand would.
+   * 🔴 Conversion ALWAYS produces a draft, for every role — note the absence
+   * of a `can(...)` check here, which is the point rather than an omission.
+   * Issuance consumes an ICV irreversibly and a conversion cannot be undone,
+   * so the approver looks at the invoice before it becomes a legal document.
+   * See the service for the full reasoning.
    */
   async convert(req: Request, res: Response) {
-    const role = req.tenant?.role ?? "";
-    const autoApprove = await can(role, "invoices", "approve");
     const out = await quotationConversionService.convert(
       requireId(req),
       req.body ?? {},
       req.session?.userId ?? null,
-      { autoApprove },
     );
     res.status(201).json(out);
   },

@@ -22,6 +22,7 @@ import { quotationsService } from "../services/quotations.service";
 import { quotationConversionService } from "../services/quotationConversion.service";
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
+import { allocateLineDiscount } from "../services/conversionArithmetic";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -134,7 +135,6 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
         quotationId,
         { lines: [{ quotationItemId: firstItemId, quantity: 4 }], date: DATE, convertedOn: "2026-09-08" },
         userId,
-        { autoApprove: false },
       ),
     );
 
@@ -142,7 +142,8 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     expect(invoice.subtotal).toBe(400);
     expect(invoice.vatAmount).toBe(60);
     expect(invoice.total).toBe(460);
-    // A conversion produces a DRAFT for a caller without approve rights.
+    // 🔴 A conversion ALWAYS produces a draft — this caller is an admin who
+    // holds every grant, and still gets a draft.
     expect(invoice.status).toBe("draft");
     expect(conversion.convertedOn).toBe("2026-09-08");
   });
@@ -320,14 +321,24 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     const arBefore = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
 
+    // Convert → a DRAFT, then approve it through the ORDINARY invoice path.
+    // This is a stronger proof than converting straight to an issued invoice:
+    // it shows the produced row is a normal draft that the normal approval
+    // path accepts and posts, rather than something conversion made special.
     const { invoice } = await inTenant(() =>
-      quotationConversionService.convert(approved.id, { date: DATE }, userId, { autoApprove: true }),
+      quotationConversionService.convert(approved.id, { date: DATE }, userId),
     );
-    expect(invoice.status).not.toBe("draft");
+    expect(invoice.status, "conversion is drafts-only, for every role").toBe("draft");
+    expect(
+      (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable,
+      "a DRAFT must not move AR",
+    ).toBe(arBefore);
+
+    await inTenant(() => invoicesService.approve(invoice.id, userId));
     const arAfterConverted = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByConversion = Math.round((arAfterConverted - arBefore) * 100) / 100;
 
-    // The same invoice, typed by hand.
+    // The same invoice, typed by hand and approved the same way.
     await inTenant(() =>
       invoicesService.create(
         {
@@ -343,8 +354,21 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     const arAfterManual = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByManual = Math.round((arAfterManual - arAfterConverted) * 100) / 100;
 
-    expect(movedByConversion, "a converted invoice must move AR").toBe(575);
+    expect(movedByConversion, "an approved converted invoice must move AR").toBe(575);
     expect(movedByManual, "and a hand-typed one must move it identically").toBe(movedByConversion);
+  });
+
+  it("🔴 DRAFTS ONLY: an admin holding every grant still gets a draft", async () => {
+    // The corrected rule (owner, 2026-08-20). The first cut resolved issuance
+    // from `invoices:approve`, so this exact caller would have issued a legal
+    // tax invoice in one click — consuming an ICV irreversibly, against a
+    // conversion that cannot be undone. `userId` here is an org admin.
+    const quo = await makeApprovedQuotation();
+    const { invoice } = await inTenant(() =>
+      quotationConversionService.convert(quo.id, { date: DATE }, userId),
+    );
+    expect(invoice.status).toBe("draft");
+    expect(invoice.icv ?? null, "a draft consumes no ICV").toBeNull();
   });
 
   /**
@@ -362,7 +386,7 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     // Convert to a DRAFT invoice — a draft moves nothing either, so if any
     // figure moves here it can only have come from the quotation side.
-    await inTenant(() => quotationConversionService.convert(quo.id, { date: DATE }, userId, { autoApprove: false }));
+    await inTenant(() => quotationConversionService.convert(quo.id, { date: DATE }, userId));
 
     const after = await inTenant(async () => {
       const bs = await reportsService.balanceSheet();
@@ -371,5 +395,59 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     });
     expect(after.ar, "converting to a DRAFT must move no AR").toBe(before.ar);
     expect(after.revenue, "converting to a DRAFT must move no revenue").toBe(before.revenue);
+  });
+});
+
+/**
+ * The discount allocation rule, on its own — no database needed.
+ *
+ * ✅ Verified with the owner's accountant (2026-08-20): "the invoice should
+ * reflect the exact math on the quotation." The interesting assertions are the
+ * ones about SUMS across conversions, because independent per-conversion
+ * rounding satisfies every single-conversion check and still ends up a halala
+ * short of the quotation.
+ */
+describe("allocateLineDiscount — partial conversion must not lose halalas", () => {
+  it("proportional for a simple split: 100 over 10 units, 4 converted → 40", () => {
+    expect(allocateLineDiscount(100, 0, 4, 10)).toBe(40);
+  });
+
+  it("the remaining 6 units carry the other 60", () => {
+    expect(allocateLineDiscount(100, 4, 6, 10)).toBe(60);
+  });
+
+  it("🔴 THREE-WAY SPLIT SUMS EXACTLY — the case naive scaling gets wrong", () => {
+    // Independent scaling gives 33.33 × 3 = 99.99 against a quoted 100.00.
+    const a = allocateLineDiscount(100, 0, 1, 3);
+    const b = allocateLineDiscount(100, 1, 1, 3);
+    const c = allocateLineDiscount(100, 2, 1, 3);
+    expect(Math.round((a + b + c) * 100) / 100).toBe(100);
+    // The remainder lands on a middle conversion by construction, not the
+    // first — worth pinning so a future "simplification" is visibly a change.
+    expect([a, b, c]).toEqual([33.33, 33.34, 33.33]);
+  });
+
+  it("🔴 an awkward discount over seven units still sums exactly", () => {
+    const quoted = 10;
+    let already = 0;
+    let sum = 0;
+    for (let i = 0; i < 7; i++) {
+      const part = allocateLineDiscount(quoted, already, 1, 7);
+      sum = Math.round((sum + part) * 100) / 100;
+      already += 1;
+    }
+    expect(sum).toBe(quoted);
+  });
+
+  it("converting the whole line in one go carries the whole discount", () => {
+    expect(allocateLineDiscount(87.65, 0, 10, 10)).toBe(87.65);
+  });
+
+  it("no discount, or an unusable quoted quantity, allocates nothing", () => {
+    expect(allocateLineDiscount(0, 0, 5, 10)).toBe(0);
+    // 0 is the SAFE direction here: it charges more, which surfaces as a
+    // question rather than as silent revenue loss.
+    expect(allocateLineDiscount(100, 0, 5, 0)).toBe(0);
+    expect(allocateLineDiscount(Number.NaN, 0, 5, 10)).toBe(0);
   });
 });
