@@ -23,7 +23,21 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-17 (A + B4 — the GL owns cash; every payment keeps its date. Fiscal track complete through F7-cmp.)**
+**Last updated: 2026-08-20 (pre-AI security pass: C9 → audit → C1/C2/C4/C5. The GL owns cash (A + B4); fiscal track complete through F7-cmp.)**
+
+**Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
+(VAT treatments verified against the primary source; `FOOD_MEALS` was a live
+wrong default), a **five-area read-only audit** whose CRITICAL + HIGH findings
+were fixed in the same pass (write-boundary allowlists, the inverse route
+guard, RLS coverage as a permanent test, H2/H3), then **C1** (shared
+Postgres rate-limit store; `TRUST_PROXY_HOPS` / `SESSION_COOKIE_SECURE` as
+explicit env facts), **C2** (the M11.4 document suite now RUNS in CI —
+measured: 822 passed | 9 skipped → **835 passed | 0 skipped**), **C4**
+(malware-scanner seam wired into both upload paths), **C5** (issuance
+diagnosability). Everything MED/LOW is queued below, deliberately unfixed.
+🔴 Three DEPLOYMENT-time items remain and cannot be closed from code: the real
+proxy count for `TRUST_PROXY_HOPS`, a clamd sidecar for `MALWARE_SCANNER`, and
+B1/B2's provider wiring.
 
 **Audit close-out (2026-08-14):** two owner-approved read-only audits
 (accounting correctness under adversarial input; disconnection sweep M13→A3)
