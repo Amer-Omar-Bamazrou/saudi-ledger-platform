@@ -14,6 +14,7 @@
  * payment posts Dr AP / Cr Cash.
  */
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -37,7 +38,29 @@ export const billsService = {
   },
 
   async create(body: Record<string, any>, userId: number | null) {
-    const { items = [], ...billData } = body;
+    const { items = [] } = body;
+    // 🔴 H1 — ALLOWLIST. `status` is forced to "draft" below; `paidAmount`/
+    // `paidAt` are set by the pay path; a client sets only header fields (and,
+    // for a no-items bill, the totals — validated ≥ 0). The raw spread let a
+    // draft be created pre-"approved", payable against an AP balance never
+    // posted (a permanent GL imbalance through the pay path).
+    const billData = pick<Record<string, unknown>>(body, [
+      "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total",
+    ]) as Record<string, any>;
+    // 🔴 H2 — item amounts validated (see invoices.create).
+    (items as any[]).forEach((it, i) => {
+      assertAmount(it.quantity, `item ${i + 1} quantity`, { min: 0, allowZero: true });
+      assertAmount(it.unitPrice, `item ${i + 1} unit price`, { min: 0, allowZero: true });
+      if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
+    });
+    if (billData.date != null) assertDateString(billData.date, "date");
+    if (billData.dueDate != null) assertDateString(billData.dueDate, "dueDate");
+    // No-items bills carry client totals; keep them non-negative (finding 7's
+    // reconciliation still runs at approval).
+    for (const f of ["subtotal", "vatAmount", "total"] as const) {
+      if (billData[f] != null) assertAmount(billData[f], f, { min: 0, allowZero: true });
+    }
     // Audit fix (Tier 1, finding 2): header = Σ rounded lines, exactly — see
     // the full note in invoices.service.create; the same divergence existed
     // here and feeds AP GL posting and the input-VAT side of the return.
@@ -115,7 +138,17 @@ export const billsService = {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be edited.");
-    const [bill] = await billsRepository.update(id, data);
+    // 🔴 H1 — ALLOWLIST (see create). `status`/`paidAmount`/`paidAt` excluded.
+    const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
+      "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total",
+    ]);
+    if (values.date !== undefined) assertDateString(values.date, "date");
+    if (values.dueDate != null) assertDateString(values.dueDate, "dueDate");
+    for (const f of ["subtotal", "vatAmount", "total"] as const) {
+      if (values[f] != null) assertAmount(values[f], f, { min: 0, allowZero: true });
+    }
+    const [bill] = await billsRepository.update(id, values);
     await auditService.updated("bill", id, existing, bill);
     return buildBillOut(bill, null);
   },

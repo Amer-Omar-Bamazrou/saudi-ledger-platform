@@ -227,8 +227,10 @@ describe("M12.4 — the six compliance documents (LIVE ZATCA)", () => {
   ];
 
   for (const [label, input] of documents) {
-    it(`${label} passes ZATCA's compliance checks`, async () => {
-      if (!reachable) return;
+    it(`${label} passes ZATCA's compliance checks`, async (ctx) => {
+      // 🔴 SKIP, never silently pass (audit H3): a bare `return` reported this
+      // authoritative gate as GREEN with zero assertions run.
+      if (!reachable) ctx.skip();
       expectClean(label, await submit(input));
     }, 120_000);
   }
@@ -276,8 +278,8 @@ describe("M12.4 — the six compliance documents (LIVE ZATCA)", () => {
     };
   }
 
-  it("a zero-rated (0% VAT) invoice is accepted — a surface M12.3 never reached", async () => {
-    if (!reachable) return;
+  it("a zero-rated (0% VAT) invoice is accepted — a surface M12.3 never reached", async (ctx) => {
+    if (!reachable) ctx.skip();
     // The ambiguous 0%-VAT case M12.1a deliberately left un-backfilled. Proving
     // a 'Z' line clears ZATCA matters because issuance fails closed demanding an
     // explicit category, and this confirms the explicit answer is accepted.
@@ -290,8 +292,8 @@ describe("M12.4 — the six compliance documents (LIVE ZATCA)", () => {
     expectClean("zero-rated export invoice", await submit(zeroRated));
   }, 120_000);
 
-  it("🔴 VATEX-SA-EDU/HEA require buyer identification — an anonymous B2C invoice is REJECTED", async () => {
-    if (!reachable) return;
+  it("🔴 VATEX-SA-EDU/HEA require buyer identification — an anonymous B2C invoice is REJECTED", async (ctx) => {
+    if (!reachable) ctx.skip();
     /**
      * NOT a bug in our generator — a real ZATCA rule found by submitting one.
      * BR-KSA-49 makes the buyer's national ID (BT-46, scheme NAT) mandatory and

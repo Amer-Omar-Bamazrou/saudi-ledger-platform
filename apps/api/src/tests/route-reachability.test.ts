@@ -213,3 +213,124 @@ describe("the standing check, mechanized — every mounted route has a terminus"
     ).toEqual([]);
   });
 });
+
+/**
+ * THE INVERSE GUARD — every URL the web app CALLS must hit a mounted route.
+ *
+ * ── 🔴 WHY THIS EXISTS: the mirror gap the first guard could not see ────────
+ * The guard above proves every mounted route has a UI. It says nothing about
+ * the reverse, and that reverse shipped a CRITICAL: the 2026-08-19 audit found
+ * six pages whose Save button toasted "saved" and POSTed nothing to routes
+ * that never existed (`/purchase-orders`, `/vendor-receipts`, …), plus six
+ * report pages fetching `/reports/gl`, `/reports/expenses`, … — none mounted —
+ * with the 404 hidden by `.catch(() => [])`. A user was told a false
+ * statement; the data evaporated. The route-vs-UI guard is blind to it because
+ * the routes were never mounted in the first place: there was nothing for it
+ * to flag.
+ *
+ * This guard closes the mirror: it extracts every hand-written `apiFetch(...)`
+ * URL in the web app and asserts each resolves to a mounted API route.
+ *
+ * ── Its limits, stated plainly ─────────────────────────────────────────────
+ *  - It matches `apiFetch("/literal")` and template PREFIXES
+ *    (`` `/invoices/${id}/pay` `` → `/invoices/`). A URL built entirely from a
+ *    variable (`apiFetch(url)`) is invisible — same string-matching limit as
+ *    every boundary guard here.
+ *  - It proves the FIRST path segment(s) map to a mount, not that the exact
+ *    sub-path exists inside that router — except under `/reports/*`, where the
+ *    C1 defect lived, which it checks at the second segment exactly.
+ *  - It proves a route is reachable, never that it behaves.
+ */
+
+/** Web-called paths that are deliberately NOT backed yet. Each needs a reason. */
+const KNOWN_UNBACKED: Record<string, string> = {
+  "/quotations":
+    "🔴 HELD (owner, 2026-08-20): Quotations is an undecided FUTURE feature, not a bogus façade. The page currently persists nothing (toast-only) and this route is unbuilt; it stays pending a build-or-drop decision. Delete both the page and this entry, or build the route — do not leave it here as a parking space.",
+  "/purchase-orders":
+    "🔴 HELD (owner, 2026-08-20): Purchase Orders is an undecided FUTURE feature, same status as /quotations above.",
+};
+
+describe("the inverse guard — every URL the web calls hits a mounted route", () => {
+  it("🔴 no page calls an API route that is not mounted", () => {
+    const robustMount = /router\.use\(\s*["'](\/[a-z0-9/-]+)["']/gi;
+
+    const indexSrc = readFileSync(join(API_SRC, "routes", "index.ts"), "utf8");
+    const topMounts = [...indexSrc.matchAll(robustMount)].map((m) => m[1]).filter((p) => p !== "/");
+    expect(topMounts.length, "no top-level mounts parsed — regex drifted").toBeGreaterThan(10);
+
+    const reportsSrc = readFileSync(join(API_SRC, "routes", "reports", "index.ts"), "utf8");
+    const reportsSub = new Set(
+      [...reportsSrc.matchAll(robustMount)].map((m) => `/reports${m[1]}`),
+    );
+    expect(reportsSub.size, "no reports sub-mounts parsed — regex drifted").toBeGreaterThan(10);
+
+    // A web-called path is backed if it lives under /reports and names a real
+    // sub-route, or (otherwise) starts with a mounted top-level prefix. The
+    // /reports hub itself (`/reports` exactly) is fine; `/reports/<unknown>` is
+    // NOT — that is precisely the C1 defect (`/reports/gl`).
+    const backed = (path: string): boolean => {
+      const segs = path.split("/").filter(Boolean);
+      if (segs[0] === "reports") {
+        return segs.length === 1 || reportsSub.has(`/reports/${segs[1]}`);
+      }
+      return topMounts.some((m) => path === m || path.startsWith(`${m}/`));
+    };
+
+    const webSrc = readAll(WEB_SRC, [".ts", ".tsx"]);
+    // Capture the static leading path of every apiFetch call, stopping at the
+    // first query, interpolation, or closing quote.
+    const called = new Set<string>();
+    for (const m of webSrc.matchAll(/apiFetch(?:<[^>]*>)?\(\s*[`"'](\/[a-zA-Z0-9/_-]*)/g)) {
+      let p = m[1].replace(/\/$/, "");
+      if (p) called.add(p);
+    }
+    expect(called.size, "no apiFetch calls parsed — the call shape changed").toBeGreaterThan(15);
+
+    const unbacked = [...called]
+      .filter((p) => !backed(p))
+      .filter((p) => !(p in KNOWN_UNBACKED));
+
+    const explanation =
+      unbacked.length === 0
+        ? ""
+        : [
+            "",
+            "═══════════════════════════════════════════════════════════════════",
+            "  WEB CALLS TO ROUTES THAT ARE NOT MOUNTED",
+            "═══════════════════════════════════════════════════════════════════",
+            "",
+            ...unbacked.map((p) => `  ✗ apiFetch("${p}...")  → no such API route`),
+            "",
+            "WHAT THIS MEANS",
+            "  A page fetches (or POSTs to) an endpoint the backend does not serve.",
+            "  On a GET, `.catch(() => [])` renders it as an empty list; on a POST,",
+            "  a page may toast 'saved' and persist nothing. Either way the user is",
+            "  told something false. This is the CRITICAL the 2026-08-19 audit found.",
+            "",
+            "HOW TO FIX IT (in order of preference)",
+            "  1. Fix the path if the route exists under another name (the C1 report",
+            "     pages called /reports/gl when the route is /reports/general-ledger).",
+            "  2. Build the route if the feature is real and just missing its backend.",
+            "  3. Delete the page if nothing should serve it — a Save button that lies",
+            "     is worse than a missing feature.",
+            "  4. Only if it is a genuinely-held future feature, add it to",
+            "     KNOWN_UNBACKED WITH A REASON (and a plan to resolve it).",
+            "",
+          ].join("\n");
+
+    expect(unbacked, explanation).toEqual([]);
+  });
+
+  it("every KNOWN_UNBACKED entry states a reason, and is still called by the web", () => {
+    const webSrc = readAll(WEB_SRC, [".ts", ".tsx"]);
+    const noReason = Object.entries(KNOWN_UNBACKED)
+      .filter(([, r]) => !r || r.trim().length < 20)
+      .map(([p]) => p);
+    expect(noReason, "a held path without a real reason is how a gap gets normalised").toEqual([]);
+    // Stale-exemption guard: if the page was deleted, its entry must go too.
+    const stale = Object.keys(KNOWN_UNBACKED).filter(
+      (p) => !['"', "'", "`"].some((q) => webSrc.includes(`${q}${p}`)),
+    );
+    expect(stale, "these held paths are no longer called by any page — delete the entries").toEqual([]);
+  });
+});

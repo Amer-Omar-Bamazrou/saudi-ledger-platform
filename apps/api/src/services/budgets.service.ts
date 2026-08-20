@@ -1,5 +1,9 @@
 /** Budgets service — budget-vs-actual computation. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
+import { pick, assertAmount } from "../lib/writeGuards";
+
+/** H1 allowlist — user-settable budget fields. */
+const BUDGET_FIELDS = ["name", "nameAr", "period", "categoryId", "budgetedAmount", "notes"] as const;
 import { auditService } from "./audit.service";
 import { budgetsRepository } from "../repositories/budgets.repository";
 import type { budgetsTable } from "@workspace/db";
@@ -67,7 +71,11 @@ export const budgetsService = {
   },
 
   async create(data: Record<string, unknown>) {
-    const values = { ...data, budgetedAmount: String(data.budgetedAmount) } as typeof budgetsTable.$inferInsert;
+    // 🔴 H1/H2 — ALLOWLIST + validate. `String(undefined)` → "undefined" → 500;
+    // negatives persisted. budgetedAmount ≥ 0.
+    const picked = pick<Record<string, unknown>>(data, BUDGET_FIELDS);
+    const amount = assertAmount(data.budgetedAmount, "budgetedAmount", { min: 0, allowZero: true });
+    const values = { ...picked, budgetedAmount: amount.toFixed(2) } as typeof budgetsTable.$inferInsert;
     const [row] = await budgetsRepository.insert(values);
     await auditService.created("budget", row.id, row);
     return { ...row, budgetedAmount: toNum(row.budgetedAmount) };
@@ -76,8 +84,8 @@ export const budgetsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await budgetsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = { ...data } as Record<string, unknown>;
-    if (updates.budgetedAmount != null) updates.budgetedAmount = String(updates.budgetedAmount);
+    const updates = pick<Record<string, unknown>>(data, BUDGET_FIELDS);
+    if (updates.budgetedAmount != null) updates.budgetedAmount = assertAmount(updates.budgetedAmount, "budgetedAmount", { min: 0, allowZero: true }).toFixed(2);
     const [row] = await budgetsRepository.update(id, updates as Partial<typeof budgetsTable.$inferInsert>);
     await auditService.updated("budget", id, before, row);
     return { ...row, budgetedAmount: toNum(row.budgetedAmount) };
