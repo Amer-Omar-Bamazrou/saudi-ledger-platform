@@ -68,10 +68,26 @@ export const storage = {
       headers: { ...authHeader(c), "content-type": "application/json" },
       body: JSON.stringify({ id: c.bucket, name: c.bucket, public: false }),
     });
-    // 200 = created; a "already exists" response (409/400) is fine.
-    if (!res.ok && res.status !== 409 && res.status !== 400) {
-      throw new AppError(502, `Storage bucket provisioning failed (${res.status}).`);
-    }
+    if (res.ok) return;
+
+    // 🔴 "Already exists" is the ONLY tolerable failure here, and it must be
+    // recognised by what the body SAYS, not by the status code alone. Supabase
+    // Storage reports a duplicate bucket as HTTP 400 carrying
+    // `{"statusCode":"409","error":"Duplicate"}` — so a blanket `status !== 400`
+    // pass (what this used to do) also swallowed **`invalid signature`**, i.e. a
+    // hard auth failure, and reported provisioning as successful. The upload
+    // then failed with an unexplained 400 against a bucket that was never
+    // created. That is the repo's own rule — a no-op that reports success is a
+    // false statement the caller builds on — and it cost a CI cycle to find.
+    const body = await res.text().catch(() => "");
+    const alreadyExists =
+      res.status === 409 || /"statusCode"\s*:\s*"?409|duplicate|already exists/i.test(body);
+    if (alreadyExists) return;
+
+    // The body carries the reason (auth, tenant, quota). It is OUR storage
+    // backend's error, not user input, and it never reaches the client — the
+    // 502 payload stays generic while the detail goes to the server log.
+    throw new AppError(502, `Storage bucket provisioning failed (${res.status}): ${body.slice(0, 300)}`);
   },
 
   /** Upload bytes to `objectPath` (no upsert — paths are unique per document). */
@@ -86,7 +102,10 @@ export const storage = {
       body: new Uint8Array(bytes),
     });
     if (!res.ok) {
-      throw new AppError(502, `Storage upload failed (${res.status}).`);
+      // Same reasoning as `ensureBucket`: the status alone sent an operator
+      // hunting. The backend's own message names the cause.
+      const body = await res.text().catch(() => "");
+      throw new AppError(502, `Storage upload failed (${res.status}): ${body.slice(0, 300)}`);
     }
   },
 
