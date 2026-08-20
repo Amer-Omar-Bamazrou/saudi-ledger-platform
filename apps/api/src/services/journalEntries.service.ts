@@ -13,6 +13,7 @@
  */
 import { ConflictError, NotFoundError } from "../lib/errors";
 import { BadRequestError } from "../lib/errors";
+import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
@@ -35,9 +36,31 @@ export const journalEntriesService = {
   },
 
   async create(body: Record<string, unknown>, userId: number | null) {
-    const { lines = [], ...jeData } = body as { lines?: unknown[] } & Record<string, unknown>;
-    const totalDebit = (lines as any[]).reduce((s, l) => s + Number(l.debitAmount ?? 0), 0);
-    const totalCredit = (lines as any[]).reduce((s, l) => s + Number(l.creditAmount ?? 0), 0);
+    const { lines = [] } = body as { lines?: unknown[] };
+    // 🔴 H1 — ALLOWLIST, not a raw spread. `status`/`postedAt`/`reversalOf`
+    // can NEVER come from the client: a POST with `{status:"posted"}` used to
+    // bypass approval straight into every report. The entry is always a draft;
+    // posting is the approval transition.
+    const jeData = pick<{ entryNumber: string; date: string; description: string; reference: string; notes: string }>(
+      body,
+      ["entryNumber", "date", "description", "reference", "notes"],
+    );
+
+    // 🔴 H2 — validate each line amount BEFORE the balance check. A non-numeric
+    // amount made `Math.abs(NaN - NaN) > 0.01` false, so garbage PASSED the
+    // balance check and posted to the GL (or died as a raw 500). Amounts are
+    // non-negative (direction is debit vs credit, not a sign); DB CHECK 0049
+    // is the backstop.
+    const parsedLines = (lines as any[]).map((l, i) => ({
+      accountId: l.accountId as number | null,
+      accountName: String(l.accountName ?? ""),
+      description: (l.description ?? null) as string | null,
+      debitAmount: assertAmount(l.debitAmount ?? 0, `line ${i + 1} debit`),
+      creditAmount: assertAmount(l.creditAmount ?? 0, `line ${i + 1} credit`),
+    }));
+
+    const totalDebit = parsedLines.reduce((s, l) => s + l.debitAmount, 0);
+    const totalCredit = parsedLines.reduce((s, l) => s + l.creditAmount, 0);
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
       throw new BadRequestError("Journal entry must balance: debits must equal credits");
     }
@@ -52,7 +75,7 @@ export const journalEntriesService = {
     //
     // Existing rows are unaffected (migration 0024 back-fills what it can and
     // leaves the rest); this applies to NEW entries only.
-    const missingAccount = (lines as any[]).findIndex((l) => l.accountId == null);
+    const missingAccount = parsedLines.findIndex((l) => l.accountId == null);
     if (missingAccount >= 0) {
       throw new BadRequestError(
         `Journal entry line ${missingAccount + 1} has no account. Every line must post to an ` +
@@ -60,6 +83,7 @@ export const journalEntriesService = {
       );
     }
 
+    if (jeData.date) assertDateString(jeData.date, "date");
     if (jeData.date) await checkPeriodOpen(jeData.date as string);
 
     const [je] = await journalEntriesRepository.insertEntry({
@@ -67,13 +91,13 @@ export const journalEntriesService = {
       createdBy: userId ?? null,
     });
     const savedLines =
-      (lines as any[]).length > 0
+      parsedLines.length > 0
         ? await journalEntriesRepository.insertLines(
-            (lines as any[]).map((l) => ({
+            parsedLines.map((l) => ({
               ...l,
               journalEntryId: je.id,
-              debitAmount: String(l.debitAmount ?? 0),
-              creditAmount: String(l.creditAmount ?? 0),
+              debitAmount: l.debitAmount.toFixed(2),
+              creditAmount: l.creditAmount.toFixed(2),
             })),
           )
         : [];

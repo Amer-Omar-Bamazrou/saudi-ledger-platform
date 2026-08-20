@@ -3,10 +3,19 @@
  * Behavior preserved exactly from the pre-M6 route handler.
  */
 import { NotFoundError } from "../lib/errors";
+import { pick, assertAmount } from "../lib/writeGuards";
 import { documentSign } from "../repositories/reports.repository";
 import { auditService } from "./audit.service";
 import { customersRepository, type CustomerListFilter } from "../repositories/customers.repository";
 import type { customersTable } from "@workspace/db";
+
+/** H1 allowlist — user-settable customer fields (system columns excluded). */
+const CUSTOMER_FIELDS = [
+  "name", "nameAr", "taxNumber", "crNumber", "nationalId", "phone", "email",
+  "address", "city", "country", "buildingNumber", "street", "district",
+  "postalCode", "additionalNumber", "province", "currency", "creditLimit",
+  "paymentTermsDays", "notes", "isActive",
+] as const;
 
 type Customer = typeof customersTable.$inferSelect;
 
@@ -53,9 +62,13 @@ export const customersService = {
     };
   },
 
-  // POST/PATCH preserve the pre-M6 behavior of returning the raw row (no view mapping).
+  // 🔴 H1 — ALLOWLIST (audit 2026-08-20). RLS blocks setting a foreign
+  // organization_id, but the raw spread still let a client set `id`/timestamps
+  // and any future sensitive column. `creditLimit` is validated ≥ 0.
   async create(data: typeof customersTable.$inferInsert) {
-    const [row] = await customersRepository.insert(data);
+    const values = pick<typeof customersTable.$inferInsert>(data, CUSTOMER_FIELDS);
+    if (values.creditLimit != null) assertAmount(values.creditLimit, "creditLimit", { min: 0, allowZero: true });
+    const [row] = await customersRepository.insert(values as typeof customersTable.$inferInsert);
     await auditService.created("customer", row.id, row);
     return row;
   },
@@ -63,7 +76,9 @@ export const customersService = {
   async update(id: number, data: Partial<typeof customersTable.$inferInsert>) {
     const [before] = await customersRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const [row] = await customersRepository.update(id, data);
+    const values = pick<typeof customersTable.$inferInsert>(data, CUSTOMER_FIELDS);
+    if (values.creditLimit != null) assertAmount(values.creditLimit, "creditLimit", { min: 0, allowZero: true });
+    const [row] = await customersRepository.update(id, values);
     await auditService.updated("customer", id, before, row);
     return row;
   },

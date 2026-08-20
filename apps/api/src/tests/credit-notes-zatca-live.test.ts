@@ -327,8 +327,10 @@ afterAll(async () => {
 });
 
 describe("M12.1b — notes built from REAL LEDGER ROWS pass ZATCA", () => {
-  it("the ledger rows carry everything the ZATCA pipeline needs", async () => {
-    if (!REAL_DB) return;
+  it("the ledger rows carry everything the ZATCA pipeline needs", async (ctx) => {
+    // 🔴 SKIP, never silently pass (audit H3): these two DB-only tests reported
+    // GREEN with no database at all, and the three live ones with no sandbox.
+    if (!REAL_DB) ctx.skip();
     // The precondition M12.4 could not satisfy.
     const { rows } = await pool.query(
       `SELECT invoice_number, icv, zatca_uuid, issued_at, document_type, original_invoice_id, note_reason
@@ -346,8 +348,8 @@ describe("M12.1b — notes built from REAL LEDGER ROWS pass ZATCA", () => {
     expect(cn.note_reason).toBe("Goods returned");
   });
 
-  it("the billing reference is resolved from the FK, naming the real original", async () => {
-    if (!REAL_DB) return;
+  it("the billing reference is resolved from the FK, naming the real original", async (ctx) => {
+    if (!REAL_DB) ctx.skip();
     const input = await loadFromLedger(creditNoteId);
     expect(input.documentType).toBe("credit_note");
     // Derived from the referenced ROW, never a stored string that could drift.
@@ -355,18 +357,18 @@ describe("M12.1b — notes built from REAL LEDGER ROWS pass ZATCA", () => {
     expect(input.instructionNote).toBe("Goods returned");
   });
 
-  it("the ORIGINAL invoice from the ledger passes ZATCA", async () => {
-    if (!ready) return;
+  it("the ORIGINAL invoice from the ledger passes ZATCA", async (ctx) => {
+    if (!ready) ctx.skip();
     expectClean("ledger invoice", await submitFromLedger(originalId));
   }, 120_000);
 
-  it("🔴 the CREDIT NOTE from the ledger passes ZATCA", async () => {
-    if (!ready) return;
+  it("🔴 the CREDIT NOTE from the ledger passes ZATCA", async (ctx) => {
+    if (!ready) ctx.skip();
     expectClean("ledger credit note", await submitFromLedger(creditNoteId));
   }, 120_000);
 
-  it("🔴 the DEBIT NOTE from the ledger passes ZATCA", async () => {
-    if (!ready) return;
+  it("🔴 the DEBIT NOTE from the ledger passes ZATCA", async (ctx) => {
+    if (!ready) ctx.skip();
     expectClean("ledger debit note", await submitFromLedger(debitNoteId));
   }, 120_000);
 });

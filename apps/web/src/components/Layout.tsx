@@ -12,7 +12,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ReceiptText, ShoppingCart, FilePlus, Store, PieChart, Languages, ShieldCheck, Repeat,
+  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat,
 } from "lucide-react";
 
 type NavItem = {
@@ -40,7 +40,6 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
       { href: "/quotations",        label: "Quotations",        labelAr: "عروض الأسعار",       icon: ClipboardList },
       { href: "/invoices",          label: "Invoices",          labelAr: "الفواتير",           icon: FileText },
       { href: "/credit-notes",      label: "Credit Notes",      labelAr: "إشعارات الدائن",     icon: FileMinus },
-      { href: "/customer-receipts", label: "Customer Receipts", labelAr: "إيصالات العملاء",   icon: ReceiptText },
     ],
   },
   {
@@ -49,9 +48,6 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
       { href: "/vendors",         label: "Vendors",         labelAr: "الموردون",            icon: Building2 },
       { href: "/purchase-orders", label: "Purchase Orders", labelAr: "أوامر الشراء",         icon: ShoppingCart },
       { href: "/bills",           label: "Bills",           labelAr: "فواتير الموردين",      icon: FileInput },
-      { href: "/debit-notes",     label: "Debit Notes",     labelAr: "إشعارات المدين",      icon: FilePlus },
-      { href: "/simple-bills",    label: "Simple Bills",    labelAr: "الفواتير البسيطة",     icon: FileText },
-      { href: "/vendor-receipts", label: "Vendor Receipts", labelAr: "إيصالات الموردين",    icon: Store },
     ],
   },
   {

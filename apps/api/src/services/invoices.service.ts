@@ -18,6 +18,7 @@
  * engine journal entries and bills use.
  */
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
+import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
@@ -52,7 +53,26 @@ export const invoicesService = {
    * issued in one call, preserving pre-M10 behavior for approvers.
    */
   async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
-    const { items = [], ...invData } = body;
+    const { items = [] } = body;
+    // 🔴 H1 — ALLOWLIST the header. Totals are computed below; status is forced
+    // to "draft"; hash/QR/ICV/ZATCA identity are minted at approval. A client
+    // may set only descriptive fields and the note references (validated below).
+    const invData = pick<Record<string, unknown>>(body, [
+      "invoiceNumber", "date", "dueDate", "customerId", "currency", "discount",
+      "notes", "termsAndConditions", "sellerName", "sellerVatNumber",
+      "documentType", "originalInvoiceId", "noteReason",
+    ]) as Record<string, any>;
+    // 🔴 H2 — item amounts validated: NaN/negative quantities and unit prices,
+    // and out-of-range VAT rates, no longer reach the numeric columns (or the
+    // GL, for an auto-approving admin). DB CHECK 0049 is the backstop.
+    (items as any[]).forEach((it, i) => {
+      assertAmount(it.quantity, `item ${i + 1} quantity`, { min: 0, allowZero: true });
+      assertAmount(it.unitPrice, `item ${i + 1} unit price`, { min: 0, allowZero: true });
+      if (it.discount != null) assertAmount(it.discount, `item ${i + 1} discount`, { min: 0, allowZero: true });
+      if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
+    });
+    if (invData.date != null) assertDateString(invData.date, "date");
+    if (invData.dueDate != null) assertDateString(invData.dueDate, "dueDate");
     // ── Audit fix (Tier 1, finding 2): HEADER = Σ ROUNDED LINES, exactly. ──
     // Pre-fix, per-line VAT was stored ROUNDED while the header accumulated the
     // UNROUNDED values and rounded once at the end — so header VAT could differ
@@ -195,7 +215,20 @@ export const invoicesService = {
     if (existing.status !== "draft") {
       throw new ConflictError("Only draft invoices can be edited. Use a credit note to correct an issued invoice.");
     }
-    const [inv] = await invoicesRepository.update(id, data);
+    // 🔴 H1 — ALLOWLIST. The raw spread here was the worst finding of the
+    // 2026-08-20 audit: a draft PATCHed with {status:"sent", invoiceHash, icv}
+    // became an "issued" invoice that never posted to the GL, and because the
+    // chain head is ordered by `icv DESC`, a forged high ICV could become the
+    // predecessor the next real approval links to. Only descriptive header
+    // fields are editable on a draft; status, totals, hash/QR/ICV, ZATCA
+    // identity and paid state are minted by approval/pay and NEVER by a client.
+    const values = pick<typeof import("@workspace/db").invoicesTable.$inferInsert>(data, [
+      "invoiceNumber", "date", "dueDate", "customerId", "currency",
+      "notes", "termsAndConditions", "reviewNote", "sellerName", "sellerVatNumber",
+    ]);
+    if (values.date !== undefined) assertDateString(values.date, "date");
+    if (values.dueDate != null) assertDateString(values.dueDate, "dueDate");
+    const [inv] = await invoicesRepository.update(id, values);
     await auditService.updated("invoice", id, existing, inv);
     return buildInvoiceOut(inv, null);
   },

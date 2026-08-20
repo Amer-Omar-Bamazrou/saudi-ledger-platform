@@ -1,5 +1,12 @@
 /** Vendors service — AP summary + supplier matching. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
+import { pick } from "../lib/writeGuards";
+
+/** H1 allowlist — user-settable vendor fields (system columns excluded). */
+const VENDOR_FIELDS = [
+  "name", "nameAr", "taxNumber", "crNumber", "phone", "email", "address",
+  "city", "country", "currency", "iban", "paymentTermsDays", "notes", "isActive",
+] as const;
 import { auditService } from "./audit.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";
 import type { vendorsTable } from "@workspace/db";
@@ -53,7 +60,7 @@ export const vendorsService = {
   },
 
   async create(data: typeof vendorsTable.$inferInsert) {
-    const [row] = await vendorsRepository.insert(data);
+    const [row] = await vendorsRepository.insert(pick<typeof vendorsTable.$inferInsert>(data, VENDOR_FIELDS) as typeof vendorsTable.$inferInsert);
     await auditService.created("vendor", row.id, row);
     // Explicit created:true so callers can distinguish "created" from "existed".
     return { ...row, created: true as const };
@@ -62,7 +69,7 @@ export const vendorsService = {
   async update(id: number, data: Partial<typeof vendorsTable.$inferInsert>) {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const [row] = await vendorsRepository.update(id, data);
+    const [row] = await vendorsRepository.update(id, pick<typeof vendorsTable.$inferInsert>(data, VENDOR_FIELDS));
     await auditService.updated("vendor", id, before, row);
     return row;
   },

@@ -23,16 +23,17 @@ import VatReport from '@/pages/VatReport';
 import ZakatReport from '@/pages/ZakatReport';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
+// 🔴 HELD (owner, 2026-08-20): Quotations + Purchase Orders are undecided
+// FUTURE features, not bogus façades — kept pending a build-or-drop decision.
+// They currently SAVE NOTHING (toast-only) and their /quotations, /purchase-orders
+// API routes do not exist; that lie persists until the decision. Tracked in the
+// queue as C1-HELD. The inverse route-reachability guard exempts exactly these two.
 import Quotations from '@/pages/Quotations';
+import PurchaseOrders from '@/pages/PurchaseOrders';
 import Invoices from '@/pages/Invoices';
 import CreditNotes from '@/pages/CreditNotes';
-import CustomerReceipts from '@/pages/CustomerReceipts';
 import Vendors from '@/pages/Vendors';
-import PurchaseOrders from '@/pages/PurchaseOrders';
 import Bills from '@/pages/Bills';
-import DebitNotes from '@/pages/DebitNotes';
-import SimpleBills from '@/pages/SimpleBills';
-import VendorReceipts from '@/pages/VendorReceipts';
 import JournalEntries from '@/pages/JournalEntries';
 import Employees from '@/pages/Employees';
 import Payroll from '@/pages/Payroll';
@@ -50,15 +51,9 @@ import IncomeStatement from '@/pages/IncomeStatement';
 import BalanceSheet from '@/pages/BalanceSheet';
 import CashFlow from '@/pages/CashFlow';
 import ArAging from '@/pages/ArAging';
-import GlReport from '@/pages/GlReport';
-import SalesSummary from '@/pages/SalesSummary';
-import CustomerStatement from '@/pages/CustomerStatement';
 import InvoiceSummary from '@/pages/InvoiceSummary';
-import QuotationReport from '@/pages/QuotationReport';
-import ExpenseReport from '@/pages/ExpenseReport';
 import ApAging from '@/pages/ApAging';
 import PayrollReport from '@/pages/PayrollReport';
-import BudgetVsActual from '@/pages/BudgetVsActual';
 import AssetSchedule from '@/pages/AssetSchedule';
 // Scanner review page
 import ScanReview from '@/pages/ScanReview';
@@ -138,30 +133,20 @@ function Router() {
               <Route path="/upload" component={Upload} />
               {/* Sales */}
               <Route path="/customers" component={Customers} />
-              <Route path="/quotations" component={Quotations} />
+              <Route path="/quotations" component={Quotations} />{/* HELD — see import note */}
               <Route path="/invoices" component={Invoices} />
               <Route path="/credit-notes" component={CreditNotes} />
-              <Route path="/customer-receipts" component={CustomerReceipts} />
               {/* Scanner review */}
               <Route path="/scan-review" component={ScanReview} />
               {/* Purchases */}
               <Route path="/vendors" component={Vendors} />
-              <Route path="/purchase-orders" component={PurchaseOrders} />
+              <Route path="/purchase-orders" component={PurchaseOrders} />{/* HELD — see import note */}
               <Route path="/bills" component={Bills} />
-              <Route path="/debit-notes" component={DebitNotes} />
-              <Route path="/simple-bills" component={SimpleBills} />
-              <Route path="/vendor-receipts" component={VendorReceipts} />
-              {/* Legacy report pages */}
-              <Route path="/gl-report" component={GlReport} />
-              <Route path="/sales-summary" component={SalesSummary} />
+              {/* Report pages (each backed by a mounted API route) */}
               <Route path="/ar-aging" component={ArAging} />
-              <Route path="/customer-statement" component={CustomerStatement} />
               <Route path="/invoice-summary" component={InvoiceSummary} />
-              <Route path="/quotation-report" component={QuotationReport} />
-              <Route path="/expense-report" component={ExpenseReport} />
               <Route path="/ap-aging" component={ApAging} />
               <Route path="/payroll-report" component={PayrollReport} />
-              <Route path="/budget-vs-actual" component={BudgetVsActual} />
               <Route path="/asset-schedule" component={AssetSchedule} />
               {/* Reports Hub */}
               <Route path="/reports" component={ReportsHub} />
