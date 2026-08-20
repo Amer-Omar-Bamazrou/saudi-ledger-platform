@@ -23,6 +23,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { documentsService } from "../services/documents.service";
+import { __resetRateLimitsForTests } from "../routes/auth";
 import { storage } from "../lib/storage";
 
 const url = process.env.DATABASE_URL;
@@ -66,6 +67,10 @@ describeMaybe("verification documents (M11.4)", () => {
     (await pool.query(`SELECT action FROM security_audit_logs WHERE organization_id = $1`, [orgId])).rows.map((r) => r.action as string);
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     userA = await mkUser("doctest-user@test.local");
     operatorId = await mkUser("doctest-operator@test.local");

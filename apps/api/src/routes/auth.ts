@@ -3,7 +3,8 @@
  */
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import rateLimit, { MemoryStore } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
+import { PostgresRateLimitStore } from "../lib/rateLimitStore";
 import { db } from "@workspace/db";
 import { usersTable, organizationMembershipsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -23,11 +24,14 @@ function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
 }
 
 /**
- * Brute-force protection for credential endpoints. In-memory store (fine for a
- * single instance; move to a Redis store when the API scales horizontally).
- * Keys on client IP; 10 attempts per 15 minutes.
+ * Brute-force protection for credential endpoints. Keys on client IP; 10
+ * attempts per 15 minutes.
+ *
+ * 🔴 C1 (2026-08-20): the store is now SHARED (Postgres), not per-process.
+ * With MemoryStore, two instances behind a load balancer enforced 20 attempts
+ * while both believed they were enforcing 10.
  */
-const authLimiterStore = new MemoryStore();
+const authLimiterStore = new PostgresRateLimitStore("auth");
 const authRateLimiter = rateLimit({
   store: authLimiterStore,
   windowMs: 15 * 60 * 1000,
@@ -42,7 +46,7 @@ const authRateLimiter = rateLimit({
  * so it gets its own STRICTER limiter than the credential endpoints: creating
  * organizations is expensive and abusable. IP-keyed, 5 per hour.
  */
-const signupLimiterStore = new MemoryStore();
+const signupLimiterStore = new PostgresRateLimitStore("signup");
 const signupRateLimiter = rateLimit({
   store: signupLimiterStore,
   windowMs: 60 * 60 * 1000,
@@ -58,7 +62,7 @@ const signupRateLimiter = rateLimit({
  * practical mass-takeover primitive (`users.id` is a serial integer, so an
  * attacker could walk every id). Rate-limited independently of login/signup.
  */
-const userAdminLimiterStore = new MemoryStore();
+const userAdminLimiterStore = new PostgresRateLimitStore("user-admin");
 const userAdminRateLimiter = rateLimit({
   store: userAdminLimiterStore,
   windowMs: 15 * 60 * 1000,
@@ -84,11 +88,16 @@ const userAdminRateLimiter = rateLimit({
  *
  * So suites that sign up call this in `beforeAll` to start from a clean bucket.
  * Production behaviour is completely unchanged — this only resets stores.
+ *
+ * 🔴 ASYNC since C1 moved the stores to Postgres: callers MUST await it, or
+ * the reset races the first request and the suite sees a stale bucket.
  */
-export function __resetRateLimitsForTests(): void {
-  authLimiterStore.resetAll?.();
-  signupLimiterStore.resetAll?.();
-  userAdminLimiterStore.resetAll?.();
+export async function __resetRateLimitsForTests(): Promise<void> {
+  await Promise.all([
+    authLimiterStore.resetAll(),
+    signupLimiterStore.resetAll(),
+    userAdminLimiterStore.resetAll(),
+  ]);
 }
 
 // Fixed decoy hash used to keep login timing constant when the email is unknown

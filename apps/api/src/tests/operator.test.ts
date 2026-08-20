@@ -25,6 +25,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { requirePlatformOperator } from "../lib/operator";
+import { __resetRateLimitsForTests } from "../routes/auth";
 import { resolveTenant } from "../lib/tenant";
 import { operatorService } from "../services/operator.service";
 
@@ -81,6 +82,10 @@ describeMaybe("platform operator + verification review boundary (M11.3)", () => 
     Number((await pool.query(`SELECT count(*)::int AS c FROM verification_reviews WHERE organization_id = $1`, [orgId])).rows[0].c);
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     operatorId = await mkUser("optest-operator@test.local", OP_PW);
     await pool.query(`INSERT INTO platform_operators (user_id) VALUES ($1)`, [operatorId]);

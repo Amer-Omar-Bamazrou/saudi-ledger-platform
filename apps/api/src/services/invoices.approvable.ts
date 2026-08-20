@@ -29,6 +29,8 @@ import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
+import { BusinessRuleError } from "../lib/errors";
+import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
@@ -156,11 +158,42 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   // A company with no active credential is skipped and issuance proceeds
   // unchanged; an onboarded company that cannot produce a document throws and
   // rolls the approval back. See `enqueueEInvoice` for why those differ.
-  const queued = await enqueueEInvoice({
-    id: inv.id,
-    organizationId: inv.organizationId,
-    companyId: inv.companyId,
-  });
+  //
+  // 🔴 C5 — FAIL CLOSED, BUT SAY WHY. The rollback is deliberate (an ICV gap
+  // is unrecoverable, a refused issuance is not), but until now the failure
+  // reached the user as a bare 500 "Internal server error": no field, no
+  // company, nothing to act on. The posture is unchanged — the diagnosis is
+  // not. `BusinessRuleError` carries a machine-readable code plus the
+  // underlying reason, so the person who must fix the data (a missing buyer
+  // address, a NULL tax category) can see what to fix, and a KMS outage is
+  // distinguishable from bad data.
+  let queued: Awaited<ReturnType<typeof enqueueEInvoice>>;
+  try {
+    queued = await enqueueEInvoice({
+      id: inv.id,
+      organizationId: inv.organizationId,
+      companyId: inv.companyId,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.error(
+      { err, invoiceId: inv.id, companyId: inv.companyId },
+      "🔴 issuance BLOCKED: the ZATCA document could not be built or signed — approval rolled back",
+    );
+    throw new BusinessRuleError(422, {
+      code: "einvoice_issuance_blocked",
+      error:
+        `This invoice could not be issued because its ZATCA e-invoice could not be prepared, ` +
+        `so nothing was posted and the invoice remains a draft. Reason: ${reason}`,
+      invoiceId: inv.id,
+      companyId: inv.companyId,
+      // Names the two families a user can act on differently: fix the document,
+      // or wait/escalate because signing infrastructure is unavailable.
+      likelyCause: /credential|kms|key|sign/i.test(reason)
+        ? "signing_unavailable"
+        : "invoice_data_incomplete",
+    });
+  }
 
   // 🔴 An onboarded company's printed document must carry the PHASE 2 QR.
   // `generateZatcaQr` above emits tags 1–5 (Phase 1); a Phase-2 taxpayer's

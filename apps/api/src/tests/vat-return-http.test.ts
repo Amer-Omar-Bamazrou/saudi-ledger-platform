@@ -24,6 +24,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
+import { __resetRateLimitsForTests } from "../routes/auth";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -70,6 +71,10 @@ describeMaybe("M16.1 — /reports/vat-return over HTTP: reachable, documents-onl
   }
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     orgId = (
       await pool.query(

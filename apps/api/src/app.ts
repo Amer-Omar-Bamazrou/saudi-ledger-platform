@@ -16,10 +16,27 @@ const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
-// Behind a TLS-terminating reverse proxy in production: trust the first proxy so
-// `secure` cookies are honored and express-rate-limit keys on the real client IP.
-if (isProduction) {
-  app.set("trust proxy", 1);
+/**
+ * 🔴 C1 — proxy trust is now an EXPLICIT deployment fact, not inferred.
+ *
+ * Two problems with keying this off `NODE_ENV === "production"`:
+ *
+ *  1. **It was wrong in both directions.** A deployment named anything else
+ *     ("staging") ran WITHOUT `trust proxy` — so `req.ip` was the proxy's
+ *     address, every IP-keyed limiter collapsed onto one bucket, and the
+ *     session cookie shipped without `Secure` (audit 2026-08-20). And a
+ *     production deploy WITHOUT a proxy would trust an `X-Forwarded-For`
+ *     header any client can forge, which makes every IP-keyed limit a no-op.
+ *  2. **The number matters.** `trust proxy` must equal the count of proxies
+ *     that actually rewrite the header; more, and a client-supplied hop is
+ *     believed; fewer, and the real client IP is never reached.
+ *
+ * `TRUST_PROXY_HOPS` states it. Default 0 = no proxy = use the socket address,
+ * which is the safe posture for a direct-to-node deployment. C1's remaining
+ * half is a deployment-time check: confirm exactly one proxy rewrites XFF.
+ */
+if (env.TRUST_PROXY_HOPS > 0) {
+  app.set("trust proxy", env.TRUST_PROXY_HOPS);
 }
 
 app.use(
@@ -68,7 +85,9 @@ app.use(
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
       sameSite: "lax",
-      secure: isProduction, // require HTTPS for the cookie in production
+      // C1: explicit, defaulting to ON in production. `loadEnv` refuses a
+      // production boot with this set false (a session cookie in clear text).
+      secure: env.SESSION_COOKIE_SECURE ?? isProduction,
     },
   }),
 );

@@ -14,6 +14,7 @@ import { DOCUMENT_TYPES, type DocumentType } from "@workspace/db";
 import { BadRequestError, NotFoundError } from "../lib/errors";
 import { storage } from "../lib/storage";
 import { validateDocumentBytes, sanitizeFilename } from "../lib/fileValidation";
+import { assertFileIsClean } from "../lib/malwareScanner";
 import { documentsRepository } from "../repositories/documents.repository";
 import { securityAuditService } from "./securityAudit.service";
 
@@ -47,6 +48,11 @@ export const documentsService = {
     // Trust the bytes, not the declared mime/extension.
     const mimeType = validateDocumentBytes(file.buffer);
     const fileName = sanitizeFilename(file.originalName, mimeType);
+
+    // C4 — scan BEFORE any bytes reach storage, so an infected file is never
+    // written and never needs deleting. Throws 400 on a hit; an unavailable
+    // scanner honours SCAN_UNAVAILABLE_POLICY and is never silently "clean".
+    await assertFileIsClean(file.buffer, { kind: "verification_document" });
 
     // Per-org quota — checked BEFORE any bytes are written to storage, so an
     // over-quota upload costs nothing.

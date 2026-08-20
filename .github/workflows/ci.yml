@@ -48,8 +48,43 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      # ── C2: object storage, so the document path is actually EXERCISED ─────
+      # The M11.4 document tests skipped here for want of a Storage service, so
+      # a green CI proved nothing about upload/download/delete — the same
+      # "green while proving nothing" shape the ZATCA SDK step below exists to
+      # prevent. `storage-api` speaks the same REST surface `lib/storage.ts`
+      # targets (`/storage/v1/object/...` + Bearer service key), so the code
+      # under test is the real client, not a stand-in.
+      storage:
+        image: supabase/storage-api:v1.11.13
+        env:
+          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
+          SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
+          AUTH_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+          PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          FILE_SIZE_LIMIT: "52428800"
+          STORAGE_BACKEND: file
+          FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+          TENANT_ID: ci
+          REGION: ci
+          GLOBAL_S3_BUCKET: ci
+        ports:
+          - 5000:5000
+        options: >-
+          --health-cmd "wget -qO- http://localhost:5000/status || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # C2 — the storage suite gates on the PRESENCE of these two vars (its
+      # absence is deliberately how it skips), so setting them here is what
+      # turns the suite on. Not a secret: a local throwaway JWT for a
+      # throwaway container.
+      SUPABASE_URL: http://localhost:5000
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MTY0MTc2OTIwMCwiZXhwIjoxOTU3MzQ1NjAwfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
