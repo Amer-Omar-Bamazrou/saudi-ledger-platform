@@ -1435,6 +1435,112 @@ export interface UpdateQuotationInput {
   items?: QuotationItem[];
 }
 
+export interface ConvertQuotationLine {
+  quotationItemId: number;
+  /** Must be greater than zero and at most what remains. */
+  quantity: number;
+}
+
+export interface ConvertQuotationInput {
+  /** Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op. */
+  lines?: ConvertQuotationLine[];
+  /** The invoice's accounting date. Defaults to today. */
+  date?: string;
+  dueDate?: string;
+  /** The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date. */
+  convertedOn?: string;
+  /** Optional override; otherwise allocated server-side. */
+  invoiceNumber?: string;
+  notes?: string;
+}
+
+export interface QuotationConversion {
+  id?: number;
+  convertedOn?: string;
+  invoiceId?: number;
+  invoiceNumber?: string | null;
+  invoiceStatus?: string | null;
+  invoiceTotal?: number | null;
+}
+
+export type QuotationConversionResultConversion = {
+  id?: number;
+  convertedOn?: string;
+};
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+
+export const InvoiceStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  sent: 'sent',
+  paid: 'paid',
+  overdue: 'overdue',
+  cancelled: 'cancelled',
+} as const;
+
+export interface InvoiceItem {
+  id: number;
+  invoiceId: number;
+  /** @nullable */
+  productId?: number | null;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  customerName?: string | null;
+  status: InvoiceStatus;
+  subtotal: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+  /** @nullable */
+  currency?: string | null;
+  paidAmount: number;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * ZATCA hash-chain link; null until the invoice is approved.
+     * @nullable
+     */
+  invoiceHash?: string | null;
+  /** @nullable */
+  previousHash?: string | null;
+  /**
+     * ZATCA Phase-1 QR (base64 TLV); null until approved.
+     * @nullable
+     */
+  qrCode?: string | null;
+  createdAt: string;
+  items: InvoiceItem[];
+}
+
+export interface QuotationConversionResult {
+  conversion?: QuotationConversionResultConversion;
+  invoice?: Invoice;
+}
+
 export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
 
 
@@ -1591,74 +1697,6 @@ export interface CapturedDocument {
 export interface SendBackInput {
   /** @nullable */
   note?: string | null;
-}
-
-export interface InvoiceItem {
-  id: number;
-  invoiceId: number;
-  /** @nullable */
-  productId?: number | null;
-  description: string;
-  /** @nullable */
-  descriptionAr?: string | null;
-  quantity: number;
-  unitPrice: number;
-  vatRate?: number;
-  vatAmount: number;
-  discount?: number;
-  total: number;
-}
-
-export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
-
-
-export const InvoiceStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
-  sent: 'sent',
-  paid: 'paid',
-  overdue: 'overdue',
-  cancelled: 'cancelled',
-} as const;
-
-export interface Invoice {
-  id: number;
-  invoiceNumber: string;
-  date: string;
-  /** @nullable */
-  dueDate?: string | null;
-  /** @nullable */
-  customerId?: number | null;
-  /** @nullable */
-  customerName?: string | null;
-  status: InvoiceStatus;
-  subtotal: number;
-  vatAmount: number;
-  discount?: number;
-  total: number;
-  /** @nullable */
-  currency?: string | null;
-  paidAmount: number;
-  /** @nullable */
-  paidAt?: string | null;
-  /** @nullable */
-  reviewNote?: string | null;
-  /** @nullable */
-  notes?: string | null;
-  /**
-     * ZATCA hash-chain link; null until the invoice is approved.
-     * @nullable
-     */
-  invoiceHash?: string | null;
-  /** @nullable */
-  previousHash?: string | null;
-  /**
-     * ZATCA Phase-1 QR (base64 TLV); null until approved.
-     * @nullable
-     */
-  qrCode?: string | null;
-  createdAt: string;
-  items: InvoiceItem[];
 }
 
 export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunStatus];

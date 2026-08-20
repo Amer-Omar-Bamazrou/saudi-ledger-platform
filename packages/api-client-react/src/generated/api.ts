@@ -37,6 +37,7 @@ import type {
   CategoryBreakdown,
   CategoryInput,
   Company,
+  ConvertQuotationInput,
   CreateQuotationInput,
   CreateRecurringRuleInput,
   Decomposition,
@@ -66,6 +67,8 @@ import type {
   PeriodLock,
   PeriodLockInput,
   Quotation,
+  QuotationConversion,
+  QuotationConversionResult,
   RecurringRule,
   RecurringRun,
   SendBackInput,
@@ -1760,6 +1763,159 @@ export const useReopenQuotation = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getReopenQuotationMutationOptions(options));
     }
+
+export const getConvertQuotationUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotations/${id}/convert`
+}
+
+/**
+ * @summary Convert part or all of a quotation into an invoice (M21.2). Omit lines to take everything still outstanding. Prices are FROZEN at the quoted values. Over-converting a line is refused with 409. The invoice is created through the ordinary invoice path, so it is a DRAFT unless the caller holds invoices:approve.
+
+ */
+export const convertQuotation = async (id: number,
+    convertQuotationInput?: ConvertQuotationInput, options?: RequestInit): Promise<QuotationConversionResult> => {
+
+  return customFetch<QuotationConversionResult>(getConvertQuotationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(convertQuotationInput)
+  }
+);}
+
+
+
+
+
+export const getConvertQuotationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuotation>>, TError,{id: number;data?: BodyType<ConvertQuotationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertQuotation>>, TError,{id: number;data?: BodyType<ConvertQuotationInput>}, TContext> => {
+
+const mutationKey = ['convertQuotation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertQuotation>>, {id: number;data?: BodyType<ConvertQuotationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  convertQuotation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertQuotationMutationResult = NonNullable<Awaited<ReturnType<typeof convertQuotation>>>
+    export type ConvertQuotationMutationBody = BodyType<ConvertQuotationInput> | undefined
+    export type ConvertQuotationMutationError = ErrorType<void>
+
+    /**
+ * @summary Convert part or all of a quotation into an invoice (M21.2). Omit lines to take everything still outstanding. Prices are FROZEN at the quoted values. Over-converting a line is refused with 409. The invoice is created through the ordinary invoice path, so it is a DRAFT unless the caller holds invoices:approve.
+
+ */
+export const useConvertQuotation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuotation>>, TError,{id: number;data?: BodyType<ConvertQuotationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertQuotation>>,
+        TError,
+        {id: number;data?: BodyType<ConvertQuotationInput>},
+        TContext
+      > => {
+      return useMutation(getConvertQuotationMutationOptions(options));
+    }
+
+export const getListQuotationConversionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotations/${id}/conversions`
+}
+
+/**
+ * @summary The DATED conversion history - one entry per event, each naming the invoice it produced. Stored as events rather than a running total so the date of every partial acceptance survives.
+
+ */
+export const listQuotationConversions = async (id: number, options?: RequestInit): Promise<QuotationConversion[]> => {
+
+  return customFetch<QuotationConversion[]>(getListQuotationConversionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListQuotationConversionsQueryKey = (id: number,) => {
+    return [
+    `/api/quotations/${id}/conversions`
+    ] as const;
+    }
+
+
+export const getListQuotationConversionsQueryOptions = <TData = Awaited<ReturnType<typeof listQuotationConversions>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listQuotationConversions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListQuotationConversionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listQuotationConversions>>> = ({ signal }) => listQuotationConversions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listQuotationConversions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListQuotationConversionsQueryResult = NonNullable<Awaited<ReturnType<typeof listQuotationConversions>>>
+export type ListQuotationConversionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The DATED conversion history - one entry per event, each naming the invoice it produced. Stored as events rather than a running total so the date of every partial acceptance survives.
+
+ */
+
+export function useListQuotationConversions<TData = Awaited<ReturnType<typeof listQuotationConversions>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listQuotationConversions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListQuotationConversionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListRecurringRulesUrl = () => {
 

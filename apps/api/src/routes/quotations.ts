@@ -27,6 +27,14 @@ router.post("/:id/decline", quotationsController.decline);
 router.post("/:id/close", quotationsController.close);
 router.post("/:id/reopen", quotationsController.reopen);
 
+// 🔴 Conversion is CREATE-level, deliberately. It produces a DRAFT invoice
+// (unless the caller separately holds invoices:approve), and drafting an
+// invoice is a bookkeeper's ordinary work. `convert` is therefore absent from
+// rbac.ts's APPROVE_ROUTE regex — checked, not assumed: that regex matches
+// post|approve|pay|reject|reverse|send-back|settle.
+router.post("/:id/convert", quotationsController.convert);
+router.get("/:id/conversions", quotationsController.conversions);
+
 router.delete("/:id", quotationsController.remove);
 
 export default router;

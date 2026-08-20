@@ -1,6 +1,14 @@
 /** Quotations repository (M21.1) — tenant-scoped via RLS. */
-import { db, quotationsTable, quotationItemsTable, customersTable } from "@workspace/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  db,
+  quotationsTable,
+  quotationItemsTable,
+  quotationConversionsTable,
+  quotationConversionItemsTable,
+  invoicesTable,
+  customersTable,
+} from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 export interface QuotationListFilter {
   status?: string;
@@ -96,8 +104,101 @@ export const quotationsRepository = {
     return db.update(quotationsTable).set(values).where(eq(quotationsTable.id, id)).returning();
   },
 
+  updateItem(id: number, values: Partial<typeof quotationItemsTable.$inferInsert>) {
+    return db.update(quotationItemsTable).set(values).where(eq(quotationItemsTable.id, id)).returning();
+  },
+
+  /**
+   * Delete SPECIFIC lines. Used by the edit path, which reconciles by id
+   * rather than replacing wholesale — a converted line must keep its id, or
+   * the conversion rows that reference it are orphaned (and the RESTRICT FK
+   * turns the attempt into a raw 500).
+   */
+  deleteItemsByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([]);
+    return db.delete(quotationItemsTable).where(inArray(quotationItemsTable.id, ids)).returning();
+  },
+
   deleteItems(quotationId: number) {
     return db.delete(quotationItemsTable).where(eq(quotationItemsTable.quotationId, quotationId));
+  },
+
+  /**
+   * Converted quantity PER LINE for one quotation, derived by SUM.
+   *
+   * 🔴 This is the only source of converted quantity anywhere. There is no
+   * stored column to disagree with it — see the schema header for why (a
+   * running total carries one date; an aggregate beside line-level truth
+   * drifts). Lines with no conversions simply do not appear in the map, and
+   * callers default them to 0.
+   */
+  async convertedQuantities(quotationId: number): Promise<Map<number, number>> {
+    const rows = await db
+      .select({
+        quotationItemId: quotationConversionItemsTable.quotationItemId,
+        qty: sql<string>`SUM(${quotationConversionItemsTable.quantity})`,
+      })
+      .from(quotationConversionItemsTable)
+      .innerJoin(
+        quotationConversionsTable,
+        eq(quotationConversionItemsTable.conversionId, quotationConversionsTable.id),
+      )
+      .where(eq(quotationConversionsTable.quotationId, quotationId))
+      .groupBy(quotationConversionItemsTable.quotationItemId);
+    return new Map(rows.map((r) => [r.quotationItemId, Number(r.qty)]));
+  },
+
+  /** The dated conversion history, with the invoice each one produced. */
+  conversions(quotationId: number) {
+    return db
+      .select({ conv: quotationConversionsTable, inv: invoicesTable })
+      .from(quotationConversionsTable)
+      .leftJoin(invoicesTable, eq(quotationConversionsTable.invoiceId, invoicesTable.id))
+      .where(eq(quotationConversionsTable.quotationId, quotationId))
+      .orderBy(quotationConversionsTable.convertedOn, quotationConversionsTable.id);
+  },
+
+  /** True when ANY conversion exists — used to refuse deletion. */
+  async hasConversions(quotationId: number): Promise<boolean> {
+    const [row] = await db
+      .select({ n: sql<number>`COUNT(*)::int` })
+      .from(quotationConversionsTable)
+      .where(eq(quotationConversionsTable.quotationId, quotationId));
+    return Number(row?.n ?? 0) > 0;
+  },
+
+  insertConversion(values: typeof quotationConversionsTable.$inferInsert) {
+    return db.insert(quotationConversionsTable).values(values).returning();
+  },
+
+  insertConversionItems(values: (typeof quotationConversionItemsTable.$inferInsert)[]) {
+    return db.insert(quotationConversionItemsTable).values(values).returning();
+  },
+
+  /**
+   * Allocate an invoice number for a converted quotation.
+   *
+   * 🔴 HONEST SCOPE. This is `INV-{YYYY}-{NNNN}` allocated server-side, which
+   * is better than the browser-minted timestamp the manual invoice form uses —
+   * but `invoices.invoice_number` has NO UNIQUE CONSTRAINT (queue item C12),
+   * so unlike the quotation allocator this one has no backstop: a lost race
+   * produces a duplicate rather than a failed insert. It reduces C12's blast
+   * radius; it does not close C12, and must not be read as having done so.
+   */
+  async nextInvoiceNumber(date: string): Promise<string> {
+    const year = date.slice(0, 4);
+    const [row] = await db
+      .select({
+        maxSeq: sql<number>`COALESCE(MAX(NULLIF(regexp_replace(${invoicesTable.invoiceNumber}, '^.*-', ''), '')::int), 0)`,
+      })
+      .from(invoicesTable)
+      .where(
+        and(
+          sql`${invoicesTable.companyId} = (nullif(current_setting('app.current_company_id', true), ''))::uuid`,
+          sql`${invoicesTable.invoiceNumber} ~ ${`^INV-${year}-[0-9]+$`}`,
+        ),
+      );
+    return `INV-${year}-${String(Number(row?.maxSeq ?? 0) + 1).padStart(4, "0")}`;
   },
 
   delete(id: number) {

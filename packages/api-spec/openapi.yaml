@@ -492,6 +492,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/Quotation"
 
+  /quotations/{id}/convert:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: convertQuotation
+      tags: [quotations]
+      summary: >
+        Convert part or all of a quotation into an invoice (M21.2). Omit lines
+        to take everything still outstanding. Prices are FROZEN at the quoted
+        values. Over-converting a line is refused with 409. The invoice is
+        created through the ordinary invoice path, so it is a DRAFT unless the
+        caller holds invoices:approve.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertQuotationInput"
+      responses:
+        "201":
+          description: The conversion and the invoice it produced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotationConversionResult"
+        "409":
+          description: >
+            Not convertible - not approved, already declined/closed, fully
+            converted already, or the requested quantity exceeds what remains.
+
+  /quotations/{id}/conversions:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: listQuotationConversions
+      tags: [quotations]
+      summary: >
+        The DATED conversion history - one entry per event, each naming the
+        invoice it produced. Stored as events rather than a running total so
+        the date of every partial acceptance survives.
+      responses:
+        "200":
+          description: The conversion history, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuotationConversion"
+
   /recurring:
     get:
       operationId: listRecurringRules
@@ -3161,6 +3217,60 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QuotationItem"
+
+    ConvertQuotationLine:
+      type: object
+      required: [quotationItemId, quantity]
+      properties:
+        quotationItemId: { type: integer }
+        quantity:
+          type: number
+          description: Must be greater than zero and at most what remains.
+
+    ConvertQuotationInput:
+      type: object
+      properties:
+        lines:
+          type: array
+          description: >
+            Omit entirely to convert everything still outstanding. Supplying an
+            empty array is an error rather than a no-op.
+          items:
+            $ref: "#/components/schemas/ConvertQuotationLine"
+        date:
+          type: string
+          description: The invoice's accounting date. Defaults to today.
+        dueDate: { type: string }
+        convertedOn:
+          type: string
+          description: >
+            The date the customer ACCEPTED, which may precede the invoice date.
+            Defaults to the invoice date.
+        invoiceNumber:
+          type: string
+          description: Optional override; otherwise allocated server-side.
+        notes: { type: string }
+
+    QuotationConversion:
+      type: object
+      properties:
+        id: { type: integer }
+        convertedOn: { type: string }
+        invoiceId: { type: integer }
+        invoiceNumber: { type: string, nullable: true }
+        invoiceStatus: { type: string, nullable: true }
+        invoiceTotal: { type: number, nullable: true }
+
+    QuotationConversionResult:
+      type: object
+      properties:
+        conversion:
+          type: object
+          properties:
+            id: { type: integer }
+            convertedOn: { type: string }
+        invoice:
+          $ref: "#/components/schemas/Invoice"
 
     RecurringRule:
       type: object

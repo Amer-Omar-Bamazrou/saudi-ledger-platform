@@ -90,6 +90,46 @@ function validateItems(items: any[]) {
   });
 }
 
+/**
+ * Refuse an edit that would rewrite a line the customer has already accepted.
+ *
+ * Compares against the quantities and prices as STORED, using the same 3-dp /
+ * 2-dp tolerances the columns use — so a re-submitted "10" vs "10.000" is not
+ * treated as a change, while a real price move is.
+ */
+async function assertConvertedLinesUnchanged(quotationId: number, incoming: any[]) {
+  const converted = await quotationsRepository.convertedQuantities(quotationId);
+  if (converted.size === 0) return;
+
+  const existing = await quotationsRepository.itemsByQuotation(quotationId);
+  const incomingById = new Map<number, any>();
+  for (const line of incoming) {
+    if (line?.id != null) incomingById.set(Number(line.id), line);
+  }
+
+  for (const item of existing) {
+    const convertedQty = converted.get(item.id) ?? 0;
+    if (convertedQty <= 0) continue;
+
+    const line = incomingById.get(item.id);
+    if (!line) {
+      throw new ConflictError(
+        `"${item.description}" has already been invoiced and cannot be removed from this quotation.`,
+      );
+    }
+    if (Math.abs(Number(line.quantity) - Number(item.quantity)) > 0.0005) {
+      throw new ConflictError(
+        `"${item.description}" has already been invoiced; its quantity can no longer be changed.`,
+      );
+    }
+    if (Math.abs(Number(line.unitPrice) - Number(item.unitPrice)) > 0.005) {
+      throw new ConflictError(
+        `"${item.description}" has already been invoiced at ${Number(item.unitPrice)}; its price can no longer be changed. Correct the invoice with a credit note instead.`,
+      );
+    }
+  }
+}
+
 export const quotationsService = {
   async list(filter: QuotationListFilter) {
     const rows = await quotationsRepository.list(filter);
@@ -100,7 +140,10 @@ export const quotationsService = {
     const [row] = await quotationsRepository.findWithCustomer(id);
     if (!row) throw new NotFoundError("Not found");
     const items = await quotationsRepository.itemsByQuotation(id);
-    return buildQuotationOut(row.quo, row.cust, items);
+    // M21.2: converted quantities are DERIVED here, from the conversion rows.
+    // There is no column to read — see the schema header.
+    const converted = await quotationsRepository.convertedQuantities(id);
+    return buildQuotationOut(row.quo, row.cust, items, converted);
   },
 
   /**
@@ -157,10 +200,19 @@ export const quotationsService = {
    * not yet accepted is normal business, not a correction requiring a credit
    * note. `submitted` is locked because it is sitting in someone's queue.
    *
-   * 🔴 M21.2 adds the line-level freeze: a line with any conversion against it
-   * becomes uneditable, because the invoice it produced already quotes those
-   * numbers. Until conversions exist there is nothing to freeze, so that check
-   * arrives with the thing it protects rather than as an inert hook now.
+   * 🔴 THE FREEZE RULE (M21.2). A line with ANY conversion against it is
+   * frozen — the invoice it produced already quotes those numbers, and the
+   * invoice is the legal document. Untouched lines stay editable, because
+   * renegotiating the part the customer has not accepted is exactly what a
+   * live quotation is for.
+   *
+   * Since lines are replaced wholesale on edit, the check is: every line that
+   * has been converted must still be present, with the SAME quantity and
+   * price. Anything else would silently rewrite what was agreed.
+   *
+   * 🔴 Editing NEVER cascades to a produced invoice. If the invoice is wrong
+   * it is corrected by credit note — the existing mechanism. Do not add a
+   * cascade here.
    */
   async update(id: number, data: Record<string, any>) {
     const [existing] = await quotationsRepository.findById(id);
@@ -182,12 +234,37 @@ export const quotationsService = {
     // cannot drift from the lines it claims to sum.
     if (data.items !== undefined) {
       validateItems(data.items);
+      await assertConvertedLinesUnchanged(id, data.items);
       const { prepared, subtotal, vatTotal } = prepareItems(data.items);
       values.subtotal = subtotal.toFixed(2);
       values.vatAmount = vatTotal.toFixed(2);
       values.total = round2(subtotal + vatTotal - Number(values.discount ?? existing.discount ?? 0)).toFixed(2);
-      await quotationsRepository.deleteItems(id);
-      await quotationsRepository.insertItems(prepared.map((p) => ({ ...p, quotationId: id })) as any);
+
+      // 🔴 Lines are RECONCILED BY ID, not replaced wholesale.
+      //
+      // The obvious implementation — delete every line, insert the new set —
+      // was what this did before conversions existed, and it is wrong the
+      // moment one does: a converted line would be deleted (raising the
+      // RESTRICT FK from `quotation_conversion_items` as a raw 500) and, if it
+      // somehow succeeded, re-inserted with a NEW id, orphaning the record of
+      // what the customer accepted. Keeping ids stable is what makes the
+      // conversion history point at the right line.
+      const existingItems = await quotationsRepository.itemsByQuotation(id);
+      const existingIds = new Set(existingItems.map((i) => i.id));
+      const keptIds = new Set<number>();
+
+      for (let idx = 0; idx < prepared.length; idx++) {
+        const incomingId = data.items[idx]?.id;
+        if (incomingId != null && existingIds.has(Number(incomingId))) {
+          keptIds.add(Number(incomingId));
+          await quotationsRepository.updateItem(Number(incomingId), prepared[idx] as never);
+        } else {
+          await quotationsRepository.insertItems([{ ...prepared[idx], quotationId: id }] as never);
+        }
+      }
+
+      const removed = [...existingIds].filter((existingId) => !keptIds.has(existingId));
+      await quotationsRepository.deleteItemsByIds(removed);
     } else if (values.discount != null) {
       // Header discount changed without touching lines: total must follow.
       values.total = round2(
@@ -253,6 +330,14 @@ export const quotationsService = {
   async remove(id: number) {
     const [existing] = await quotationsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
+    // A converted quotation is the record of what the customer agreed to, and
+    // an invoice points at it. The FK would refuse this anyway; a named 409
+    // beats a raw 500 (the audit's 500-where-4xx family).
+    if (await quotationsRepository.hasConversions(id)) {
+      throw new ConflictError(
+        "This quotation has been converted into an invoice and cannot be deleted. Close it instead.",
+      );
+    }
     await quotationsRepository.deleteItems(id);
     await quotationsRepository.delete(id);
     await auditService.deleted("quotation", id, existing);

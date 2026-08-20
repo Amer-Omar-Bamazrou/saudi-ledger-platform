@@ -169,3 +169,94 @@ export const insertQuotationItemSchema = createInsertSchema(quotationItemsTable)
 export type InsertQuotation = z.infer<typeof insertQuotationSchema>;
 export type Quotation = typeof quotationsTable.$inferSelect;
 export type QuotationItem = typeof quotationItemsTable.$inferSelect;
+
+/**
+ * A conversion event (M21.2) — one row each time part or all of a quotation
+ * becomes an invoice.
+ *
+ * 🔴 WHY THIS IS A TABLE AND NOT A `converted_quantity` COLUMN.
+ *
+ * The obvious design increments a running total on the line. That is B4's
+ * defect, written in advance: a running total carries ONE date, so the second
+ * conversion destroys the first one's. B4 had to admit exactly that loss in a
+ * backfill — "an AGGREGATE carrying only the LAST payment's date; the
+ * instalment split is gone forever" — and "we accepted 100 units in March and
+ * 400 in June" is the same fact about a different document.
+ *
+ * It is also the header-vs-lines corollary: when line-level truth exists, a
+ * stored aggregate beside it is a SECOND computation of the same fact and will
+ * drift. So converted quantity is DERIVED (`SUM` over the item rows) and never
+ * stored, which is why no such column appears anywhere in this file.
+ *
+ * APPEND-ONLY at the grants, like `invoice_payments`: what was agreed, and
+ * when, is precisely the row someone would want to quietly adjust later.
+ */
+export const quotationConversionsTable = pgTable(
+  "quotation_conversions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`app_default_org_id()`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`app_default_company_id()`)
+      .references(() => companiesTable.id),
+    quotationId: integer("quotation_id")
+      .notNull()
+      .references(() => quotationsTable.id, { onDelete: "restrict" }),
+    /**
+     * The document this conversion produced — a REAL FK, not the invoice
+     * number string. Same reasoning as `invoices.original_invoice_id`: storing
+     * the number would let the reference drift from the row it names, and
+     * would not let us check that the invoice actually exists.
+     */
+    invoiceId: integer("invoice_id").notNull(),
+    /**
+     * The DATE the conversion happened, distinct from `created_at`. A tenant
+     * entering last week's acceptance today needs the acceptance's date, not
+     * the keystroke's — the same distinction `invoice_payments.paid_at` makes.
+     */
+    convertedOn: text("converted_on").notNull(),
+    convertedBy: integer("converted_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("quotation_conversions_quotation_idx").on(t.quotationId),
+    index("quotation_conversions_invoice_idx").on(t.invoiceId),
+  ],
+);
+
+/** Per-line quantities taken by one conversion. The truth the state derives from. */
+export const quotationConversionItemsTable = pgTable(
+  "quotation_conversion_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`app_default_org_id()`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`app_default_company_id()`)
+      .references(() => companiesTable.id),
+    conversionId: integer("conversion_id")
+      .notNull()
+      .references(() => quotationConversionsTable.id, { onDelete: "cascade" }),
+    /**
+     * RESTRICT, deliberately: a quotation line that has been converted cannot
+     * be deleted, which also stops the quotation's own CASCADE from erasing
+     * the history of what was agreed.
+     */
+    quotationItemId: integer("quotation_item_id")
+      .notNull()
+      .references(() => quotationItemsTable.id, { onDelete: "restrict" }),
+    quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("quotation_conversion_items_conversion_idx").on(t.conversionId)],
+);
+
+export type QuotationConversion = typeof quotationConversionsTable.$inferSelect;
+export type QuotationConversionItem = typeof quotationConversionItemsTable.$inferSelect;
