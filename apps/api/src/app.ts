@@ -102,8 +102,9 @@ app.use("/api", router);
  * materially SAFER for this app than a split one, not merely cheaper: auth is
  * an httpOnly session cookie, and splitting the frontend onto its own origin
  * forces `SameSite=None` plus a credentialed CORS allow-list — loosening two
- * cookie protections to solve a hosting-layout problem. Same origin keeps
- * `sameSite: strict` and needs no CORS entry at all.
+ * cookie protections to solve a hosting-layout problem. Same origin keeps the
+ * cookie at `sameSite: lax` (what the session actually sets — this comment
+ * said `strict`, which the code has never done) and needs no CORS entry at all.
  *
  * Mounted AFTER `/api` so a route can never be shadowed by a file, and the SPA
  * fallback deliberately excludes `/api` so an unknown endpoint still returns
