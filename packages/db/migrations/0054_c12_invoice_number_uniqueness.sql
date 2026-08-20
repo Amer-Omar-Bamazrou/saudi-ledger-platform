@@ -89,7 +89,19 @@ CREATE TABLE IF NOT EXISTS "invoice_number_counters" (
 );--> statement-breakpoint
 
 ALTER TABLE "invoice_number_counters" ADD CONSTRAINT "invoice_number_counters_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invoice_number_counters" ADD CONSTRAINT "invoice_number_counters_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+-- 🔴 CASCADE on the company, and only on the company.
+--
+-- The counter is per-company infrastructure: if the company is gone the series
+-- has no meaning, and a row left behind would block the company delete. That
+-- is not hypothetical — it broke every test suite that creates a company and
+-- tears it down, which is most of them.
+--
+-- CASCADE does NOT weaken the "a series must never restart" guarantee: DELETE
+-- is revoked from the app role, and `invoices.company_id` is ON DELETE NO
+-- ACTION, so a company that has ever issued an invoice cannot be deleted in
+-- the first place. The only company this can cascade from is one with no
+-- invoices — whose counter is worth nothing.
+ALTER TABLE "invoice_number_counters" ADD CONSTRAINT "invoice_number_counters_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 
 -- Never goes backwards. A counter that could be lowered would re-issue a
 -- number that a transmitted document already carries.

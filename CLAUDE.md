@@ -988,6 +988,25 @@ and absent.
 3. Prefer a test that fails loudly over an inspection: this class of loss is
    invisible to reading.
 
+**🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
+VERDICT (2026-08-21).** A local full-suite run was reported here as "905
+passed" and was not green: the line directly above said **`Test Files 1
+failed`**. A teardown (`afterAll`) had thrown, which vitest reports at FILE
+level while every individual test still counts as passed — so the metric I
+read said 905/905 while the run had failed. CI caught it on the next push.
+
+Two mechanisms, both worth fixing in the habit:
+1. **`npx vitest run 2>&1 | tail -6` exits with `tail`'s status, not
+   vitest's.** The pipeline reported success regardless of the suite. Use
+   `${PIPESTATUS[0]}`, or don't pipe the command whose status you need.
+2. **Read `Test Files`, not just `Tests`.** A hook failure, an import error and
+   an unhandled rejection all fail the FILE without failing a test.
+
+Same family as the merge-on-completion mistake above: in both, a metric that
+looked green was read in place of the one that carried the verdict. The
+general form — *when a tool reports several numbers, find out which one is the
+verdict before trusting any of them* — is the reusable part.
+
 **🔴 A CI poll that waits for COMPLETION is not a merge gate (2026-08-17).**
 PR #54 was merged with a RED test check: the polling loop waited for every
 check to reach `status: completed` and the merge step never looked at

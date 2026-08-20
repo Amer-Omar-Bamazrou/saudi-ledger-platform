@@ -194,6 +194,9 @@ export const invoiceNumberCountersTable = pgTable("invoice_number_counters", {
   companyId: uuid("company_id")
     .primaryKey()
     .default(sql`app_default_company_id()`)
-    .references(() => companiesTable.id),
+    // CASCADE: the counter belongs to the company. A company that ever issued
+    // an invoice cannot be deleted anyway (invoices.company_id is NO ACTION),
+    // so this only ever cascades from a company whose series is empty.
+    .references(() => companiesTable.id, { onDelete: "cascade" }),
   lastValue: integer("last_value").notNull().default(0),
 });
