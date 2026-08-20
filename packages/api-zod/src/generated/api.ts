@@ -283,6 +283,550 @@ export const DiscardCapturedDocumentResponse = zod.object({
 
 
 /**
+ * @summary List quotations (M21.1). A quotation is an OFFER - it affects no ledger, statement or return at any status.
+
+ */
+export const ListQuotationsQueryParams = zod.object({
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional(),
+  "customer_id": zod.coerce.number().optional(),
+  "outcome": zod.enum(['live', 'declined', 'closed']).optional().describe('live hides quotations the tenant has declined or closed.\n')
+})
+
+export const ListQuotationsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+export const ListQuotationsResponse = zod.array(ListQuotationsResponseItem)
+
+
+/**
+ * @summary Create a quotation as a DRAFT. The number is allocated server-side and a caller-supplied status is ignored. A caller holding quotations:approve has it issued in the same call.
+
+ */
+
+
+
+export const CreateQuotationBody = zod.object({
+  "date": zod.string().optional(),
+  "validUntil": zod.string().optional(),
+  "customerId": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "discount": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "termsAndConditions": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).min(1)
+})
+
+export const CreateQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary One quotation, with its lines
+ */
+export const GetQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Edit a quotation. Allowed while draft AND while approved - unlike an invoice, because a quotation is an offer rather than a legal document and renegotiating an unaccepted price is ordinary business. Locked while submitted, and after the tenant has declined or closed it.
+
+ */
+export const UpdateQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateQuotationBody = zod.object({
+  "date": zod.string().optional(),
+  "validUntil": zod.string().optional(),
+  "customerId": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "discount": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "termsAndConditions": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+export const UpdateQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a quotation (admin only)
+ */
+export const DeleteQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteQuotationResponse = zod.void()
+
+
+/**
+ * @summary draft to submitted - enters the approver's queue
+ */
+export const SubmitQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Approve - the quotation may now go to the customer. NOTE: this posts nothing. Unlike every other approvable entity, approval here fires no accounting activation, because a quotation is not a supply.
+
+ */
+export const ApproveQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary submitted to draft, with a correction note
+ */
+export const SendBackQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendBackQuotationBody = zod.object({
+  "note": zod.string().nullish()
+}).describe('Optional reviewer note when sending a submitted record back.')
+
+export const SendBackQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Reject a non-approved quotation (hard delete, no archive)
+ */
+export const RejectQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectQuotationResponse = zod.void()
+
+
+/**
+ * @summary Record that the CUSTOMER said no. A terminal act only the tenant can know - the platform never infers it from age or expiry.
+
+ */
+export const DeclineQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeclineQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Abandon what is left of a quotation. The tenant decides a remainder is dead; nothing else does.
+
+ */
+export const CloseQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CloseQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Undo a decline or close recorded in error
+ */
+export const ReopenQuotationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReopenQuotationResponse = zod.object({
+  "id": zod.number().optional(),
+  "quotationNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "validUntil": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().optional(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
+  "unitCode": zod.string().optional(),
+  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
+  "remainingQuantity": zod.number().optional()
+})).optional()
+})
+
+
+/**
  * @summary List recurring document rules (A3)
  */
 export const ListRecurringRulesResponseItem = zod.object({

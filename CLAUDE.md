@@ -117,19 +117,38 @@ controls stay duplicated until a third pattern appears.
 See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
 (§7 build order, §8 as built).
 
-**Quotations & Purchase Orders are SPECIFIED, not built** — 2026-08-20, owner
-via his accountant. Both convert (**quotation → invoice** when the customer
-agrees; **PO → bill** when the supplier's bill arrives), **partial conversion
-is explicitly in scope** ("pays the amount or sub amount"), and 🔴 **neither
-touches the ledger until converted** — they are commitments, not transactions,
-so they move NOTHING in any aggregate until conversion produces a real
-document through the EXISTING write path (never a second posting path). The
-two pages exist today as HELD façades that persist nothing — contained by the
-inverse route guard's `KNOWN_UNBACKED`, not hidden. Nine open design questions
-(unit of partial conversion, remainder handling, re-conversion + whether
-conversion history is dated à la B4, price freezing, approval, expiry,
-numbering, ZATCA non-applicability) must be answered before building. See
-[`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
+**M21 — Quotations & Purchase Orders: DECIDED, building in staged PRs.**
+Design approved 2026-08-20; all five load-bearing questions answered, every
+safe default accepted. **Quotations → invoice** when the customer agrees;
+**PO → bill** when the supplier's bill arrives; **partial conversion by
+QUANTITY per line** ("the amount or sub amount"); 🔴 **neither touches the
+ledger until converted** — conversion produces a real document through the
+EXISTING write path, never a second posting path.
+
+| Stage | State |
+| --- | --- |
+| **M21.1** — quotations: schema, CRUD, approval, numbering, UI | ✅ **BUILT.** |
+| **M21.2** — quotation → invoice conversion (partial, dated) | ⬜ next |
+| **M21.3** — purchase orders + PO↔bill matching | ⬜ 🔴 gated on OWNER REVIEW of M21.1/M21.2 first, so the pattern is not copied before it is checked |
+
+**M21.1 as built:** two orthogonal axes, deliberately never one column —
+`status` is the APPROVAL axis (the M10 engine, `autoApprove` from the RBAC
+matrix) and the CONVERSION axis is **DERIVED from line quantities, never
+stored** (a single status string cannot say "approved AND partially
+converted"). `outcome` (`declined`/`closed`, NULL = live) is the tenant's
+terminal act — the platform never infers that a remainder is dead, not from
+expiry, not from age. Numbering is `QUO-{YYYY}-{NNNN}`, server-allocated, with
+`UNIQUE(company_id, number)` as the real guarantee — 🔴 deliberately NOT the
+sibling pattern, which is queue item **C12**. Expiry warns and never blocks.
+Approval fires **no** accounting activation and that is the feature, not a
+stub. Zero-movement proven through the REAL report services at every status,
+against a captured baseline (not a hardcoded 0), plus an **anti-vacuity test**
+showing a real invoice moves the same figures — otherwise "nothing moved"
+could mean "nothing was measured" (flaw #8's shape). `/quotations` was removed
+from the route guard's `KNOWN_UNBACKED`; `/purchase-orders` stays there until
+M21.3. Nine tests pin the permission grants, including the negative one (a
+bookkeeper may NOT approve — issuing a price is a commitment).
+See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
 **The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.
 Owner answers: the full generative product is the moat (trips the hosting

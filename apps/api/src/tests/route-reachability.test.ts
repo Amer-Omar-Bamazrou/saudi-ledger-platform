@@ -244,10 +244,12 @@ describe("the standing check, mechanized — every mounted route has a terminus"
 
 /** Web-called paths that are deliberately NOT backed yet. Each needs a reason. */
 const KNOWN_UNBACKED: Record<string, string> = {
-  "/quotations":
-    "🔴 HELD (owner, 2026-08-20): Quotations is an undecided FUTURE feature, not a bogus façade. The page currently persists nothing (toast-only) and this route is unbuilt; it stays pending a build-or-drop decision. Delete both the page and this entry, or build the route — do not leave it here as a parking space.",
+  // /quotations was here until M21.1 built it. The entry is deleted rather
+  // than updated — that deletion is part of the milestone's definition of
+  // done, and leaving it would let the guard keep excusing a route that no
+  // longer needs excusing.
   "/purchase-orders":
-    "🔴 HELD (owner, 2026-08-20): Purchase Orders is an undecided FUTURE feature, same status as /quotations above.",
+    "🔴 HELD (owner, 2026-08-20), scheduled as M21.3. Purchase Orders is DECIDED but not yet built: the design is settled (docs/product/design-quotations-purchase-orders.md) and the build is gated on the owner reviewing M21.1/M21.2 first, so the pattern is not copied before it is checked. The page persists nothing today. Delete this entry when M21.3 lands.",
 };
 
 describe("the inverse guard — every URL the web calls hits a mounted route", () => {

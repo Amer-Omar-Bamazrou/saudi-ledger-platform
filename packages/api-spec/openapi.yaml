@@ -264,6 +264,234 @@ paths:
               schema:
                 $ref: "#/components/schemas/DiscardResult"
 
+  /quotations:
+    get:
+      operationId: listQuotations
+      tags: [quotations]
+      summary: >
+        List quotations (M21.1). A quotation is an OFFER - it affects no
+        ledger, statement or return at any status.
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [draft, submitted, approved] }
+        - in: query
+          name: customer_id
+          schema: { type: integer }
+        - in: query
+          name: outcome
+          description: >
+            live hides quotations the tenant has declined or closed.
+          schema: { type: string, enum: [live, declined, closed] }
+      responses:
+        "200":
+          description: The tenant's quotations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Quotation"
+    post:
+      operationId: createQuotation
+      tags: [quotations]
+      summary: >
+        Create a quotation as a DRAFT. The number is allocated server-side and
+        a caller-supplied status is ignored. A caller holding quotations:approve
+        has it issued in the same call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuotationInput"
+      responses:
+        "201":
+          description: The created quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getQuotation
+      tags: [quotations]
+      summary: One quotation, with its lines
+      responses:
+        "200":
+          description: The quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+    patch:
+      operationId: updateQuotation
+      tags: [quotations]
+      summary: >
+        Edit a quotation. Allowed while draft AND while approved - unlike an
+        invoice, because a quotation is an offer rather than a legal document
+        and renegotiating an unaccepted price is ordinary business. Locked while
+        submitted, and after the tenant has declined or closed it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuotationInput"
+      responses:
+        "200":
+          description: The updated quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+    delete:
+      operationId: deleteQuotation
+      tags: [quotations]
+      summary: Delete a quotation (admin only)
+      responses:
+        "204": { description: Deleted }
+
+  /quotations/{id}/submit:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: submitQuotation
+      tags: [quotations]
+      summary: draft to submitted - enters the approver's queue
+      responses:
+        "200":
+          description: The submitted quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}/approve:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: approveQuotation
+      tags: [quotations]
+      summary: >
+        Approve - the quotation may now go to the customer. NOTE: this posts
+        nothing. Unlike every other approvable entity, approval here fires no
+        accounting activation, because a quotation is not a supply.
+      responses:
+        "200":
+          description: The approved quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}/send-back:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: sendBackQuotation
+      tags: [quotations]
+      summary: submitted to draft, with a correction note
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBackInput"
+      responses:
+        "200":
+          description: The returned quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}/reject:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: rejectQuotation
+      tags: [quotations]
+      summary: Reject a non-approved quotation (hard delete, no archive)
+      responses:
+        "204": { description: Rejected }
+
+  /quotations/{id}/decline:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: declineQuotation
+      tags: [quotations]
+      summary: >
+        Record that the CUSTOMER said no. A terminal act only the tenant can
+        know - the platform never infers it from age or expiry.
+      responses:
+        "200":
+          description: The declined quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}/close:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: closeQuotation
+      tags: [quotations]
+      summary: >
+        Abandon what is left of a quotation. The tenant decides a remainder is
+        dead; nothing else does.
+      responses:
+        "200":
+          description: The closed quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
+  /quotations/{id}/reopen:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: reopenQuotation
+      tags: [quotations]
+      summary: Undo a decline or close recorded in error
+      responses:
+        "200":
+          description: The reopened quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+
   /recurring:
     get:
       operationId: listRecurringRules
@@ -2824,6 +3052,115 @@ components:
             A1 — the staged captured document this bill was posted from. Links
             the bill to its source photograph atomically with the posting; the
             promotion job then moves the bytes into the immutable archive.
+
+    QuotationItem:
+      type: object
+      required: [description, quantity, unitPrice]
+      properties:
+        id: { type: integer }
+        productId: { type: integer, nullable: true }
+        description: { type: string }
+        descriptionAr: { type: string }
+        quantity: { type: number }
+        unitPrice:
+          type: number
+          description: >
+            The QUOTED price. Conversion copies this value and never re-reads
+            the product's current price.
+        vatRate: { type: number }
+        vatAmount: { type: number }
+        discount: { type: number }
+        total: { type: number }
+        taxCategoryCode:
+          type: string
+          nullable: true
+          description: >
+            S/Z/E/O. NULL for a 0% line - zero-rated, exempt and out-of-scope
+            are different tax facts an amount cannot distinguish. A quotation
+            never fails closed on this; the tax gate is at invoice creation.
+        unitCode: { type: string }
+        convertedQuantity:
+          type: number
+          description: How much of this line has become an invoice (M21.2).
+        remainingQuantity: { type: number }
+
+    Quotation:
+      type: object
+      properties:
+        id: { type: integer }
+        quotationNumber: { type: string }
+        date: { type: string }
+        validUntil: { type: string, nullable: true }
+        customerId: { type: integer, nullable: true }
+        customerName: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [draft, submitted, approved]
+          description: The APPROVAL axis only.
+        outcome:
+          type: string
+          nullable: true
+          enum: [declined, closed]
+          description: >
+            A terminal act by the TENANT. NULL means live, and NULL is a
+            first-class state - the platform never decides a remainder is dead.
+        conversionState:
+          type: string
+          enum: [open, partially_converted, converted]
+          description: >
+            DERIVED from line quantities, never stored. Kept separate from
+            status because a quotation can be approved AND partly converted at
+            the same time.
+        expired:
+          type: boolean
+          description: >
+            validUntil has passed. A fact to warn on, NOT a block - a customer
+            accepting a lapsed quotation is a commercial decision.
+        subtotal: { type: number }
+        vatAmount: { type: number }
+        discount: { type: number }
+        total: { type: number }
+        currency: { type: string }
+        notes: { type: string, nullable: true }
+        termsAndConditions: { type: string, nullable: true }
+        reviewNote: { type: string, nullable: true }
+        createdAt: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuotationItem"
+
+    CreateQuotationInput:
+      type: object
+      required: [items]
+      properties:
+        date: { type: string }
+        validUntil: { type: string }
+        customerId: { type: integer }
+        currency: { type: string }
+        discount: { type: number }
+        notes: { type: string }
+        termsAndConditions: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/QuotationItem"
+
+    UpdateQuotationInput:
+      type: object
+      properties:
+        date: { type: string }
+        validUntil: { type: string }
+        customerId: { type: integer }
+        currency: { type: string }
+        discount: { type: number }
+        notes: { type: string }
+        termsAndConditions: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuotationItem"
 
     RecurringRule:
       type: object

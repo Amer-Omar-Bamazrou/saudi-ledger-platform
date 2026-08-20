@@ -1330,6 +1330,111 @@ export interface BillApproveInput {
   captureId?: string | null;
 }
 
+export interface QuotationItem {
+  id?: number;
+  productId?: number | null;
+  description: string;
+  descriptionAr?: string;
+  quantity: number;
+  /** The QUOTED price. Conversion copies this value and never re-reads the product's current price. */
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount?: number;
+  discount?: number;
+  total?: number;
+  /** S/Z/E/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation. */
+  taxCategoryCode?: string | null;
+  unitCode?: string;
+  /** How much of this line has become an invoice (M21.2). */
+  convertedQuantity?: number;
+  remainingQuantity?: number;
+}
+
+/**
+ * The APPROVAL axis only.
+ */
+export type QuotationStatus = typeof QuotationStatus[keyof typeof QuotationStatus];
+
+
+export const QuotationStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+} as const;
+
+/**
+ * A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.
+ */
+export type QuotationOutcome = typeof QuotationOutcome[keyof typeof QuotationOutcome] | null;
+
+
+export const QuotationOutcome = {
+  declined: 'declined',
+  closed: 'closed',
+} as const;
+
+/**
+ * DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.
+ */
+export type QuotationConversionState = typeof QuotationConversionState[keyof typeof QuotationConversionState];
+
+
+export const QuotationConversionState = {
+  open: 'open',
+  partially_converted: 'partially_converted',
+  converted: 'converted',
+} as const;
+
+export interface Quotation {
+  id?: number;
+  quotationNumber?: string;
+  date?: string;
+  validUntil?: string | null;
+  customerId?: number | null;
+  customerName?: string | null;
+  /** The APPROVAL axis only. */
+  status?: QuotationStatus;
+  /** A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead. */
+  outcome?: QuotationOutcome;
+  /** DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time. */
+  conversionState?: QuotationConversionState;
+  /** validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision. */
+  expired?: boolean;
+  subtotal?: number;
+  vatAmount?: number;
+  discount?: number;
+  total?: number;
+  currency?: string;
+  notes?: string | null;
+  termsAndConditions?: string | null;
+  reviewNote?: string | null;
+  createdAt?: string;
+  items?: QuotationItem[];
+}
+
+export interface CreateQuotationInput {
+  date?: string;
+  validUntil?: string;
+  customerId?: number;
+  currency?: string;
+  discount?: number;
+  notes?: string;
+  termsAndConditions?: string;
+  /** @minItems 1 */
+  items: QuotationItem[];
+}
+
+export interface UpdateQuotationInput {
+  date?: string;
+  validUntil?: string;
+  customerId?: number;
+  currency?: string;
+  discount?: number;
+  notes?: string;
+  termsAndConditions?: string;
+  items?: QuotationItem[];
+}
+
 export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
 
 
@@ -1618,6 +1723,33 @@ export type ListTransactionsType = typeof ListTransactionsType[keyof typeof List
 export const ListTransactionsType = {
   debit: 'debit',
   credit: 'credit',
+} as const;
+
+export type ListQuotationsParams = {
+status?: ListQuotationsStatus;
+customer_id?: number;
+/**
+ * live hides quotations the tenant has declined or closed.
+ */
+outcome?: ListQuotationsOutcome;
+};
+
+export type ListQuotationsStatus = typeof ListQuotationsStatus[keyof typeof ListQuotationsStatus];
+
+
+export const ListQuotationsStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+} as const;
+
+export type ListQuotationsOutcome = typeof ListQuotationsOutcome[keyof typeof ListQuotationsOutcome];
+
+
+export const ListQuotationsOutcome = {
+  live: 'live',
+  declined: 'declined',
+  closed: 'closed',
 } as const;
 
 export type ListBudgetsParams = {
