@@ -196,8 +196,8 @@ export default function Quotations() {
       refresh();
       qc.invalidateQueries({ queryKey: ["invoices"] });
       toast({
-        title: t("Converted to invoice", "تم التحويل إلى فاتورة"),
-        description: `${res.invoice.invoiceNumber} — ${res.invoice.status}`,
+        title: t("Draft invoice created", "تم إنشاء مسودة الفاتورة"),
+        description: `${res.invoice.invoiceNumber} — ${t("awaiting approval", "بانتظار الاعتماد")}`,
       });
     },
     onError: fail,
@@ -422,6 +422,36 @@ export default function Quotations() {
               )}
             </p>
 
+            {/*
+              🔴 The irreversibility is stated BEFORE the act, not discovered
+              after it (owner instruction, 2026-08-20). The conversion record
+              is append-only by design, so there is no undo; a wrong quantity
+              is corrected the way the ledger corrects things. Saying so here
+              is what makes that design defensible rather than a trap.
+
+              Neutral styling on purpose: this is a fact about what the button
+              does, not a warning that something is wrong. The status palette
+              is reserved for real states (CLAUDE.md §4).
+            */}
+            <div className="rounded-md border border-border bg-secondary/40 p-3 space-y-1">
+              <p className="text-xs font-medium flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                {t("A conversion cannot be reversed", "لا يمكن التراجع عن التحويل")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "This records permanently that the customer accepted these quantities. If you get it wrong, the correction is a credit note against the invoice — there is no undo.",
+                  "يسجّل هذا بشكل دائم أن العميل قبل هذه الكميات. وإذا حدث خطأ، فالتصحيح يكون بإشعار دائن مقابل الفاتورة — ولا يوجد تراجع.",
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "The invoice is created as a DRAFT — nothing reaches the ledger until someone approves it.",
+                  "تُنشأ الفاتورة كمسودة — ولا شيء يصل إلى الدفاتر حتى يعتمدها أحد.",
+                )}
+              </p>
+            </div>
+
             {converting?.expired && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -483,7 +513,9 @@ export default function Quotations() {
             )}
 
             <Button className="w-full" onClick={() => convertMut.mutate()} disabled={convertMut.isPending}>
-              {convertMut.isPending ? t("Converting…", "جارٍ التحويل…") : t("Create invoice", "إنشاء الفاتورة")}
+              {convertMut.isPending
+                ? t("Converting…", "جارٍ التحويل…")
+                : t("Create draft invoice", "إنشاء مسودة فاتورة")}
             </Button>
           </div>
         </DialogContent>

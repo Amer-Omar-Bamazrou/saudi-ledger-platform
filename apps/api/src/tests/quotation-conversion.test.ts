@@ -134,7 +134,6 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
         quotationId,
         { lines: [{ quotationItemId: firstItemId, quantity: 4 }], date: DATE, convertedOn: "2026-09-08" },
         userId,
-        { autoApprove: false },
       ),
     );
 
@@ -142,7 +141,8 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     expect(invoice.subtotal).toBe(400);
     expect(invoice.vatAmount).toBe(60);
     expect(invoice.total).toBe(460);
-    // A conversion produces a DRAFT for a caller without approve rights.
+    // 🔴 A conversion ALWAYS produces a draft — this caller is an admin who
+    // holds every grant, and still gets a draft.
     expect(invoice.status).toBe("draft");
     expect(conversion.convertedOn).toBe("2026-09-08");
   });
@@ -320,14 +320,24 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     const arBefore = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
 
+    // Convert → a DRAFT, then approve it through the ORDINARY invoice path.
+    // This is a stronger proof than converting straight to an issued invoice:
+    // it shows the produced row is a normal draft that the normal approval
+    // path accepts and posts, rather than something conversion made special.
     const { invoice } = await inTenant(() =>
-      quotationConversionService.convert(approved.id, { date: DATE }, userId, { autoApprove: true }),
+      quotationConversionService.convert(approved.id, { date: DATE }, userId),
     );
-    expect(invoice.status).not.toBe("draft");
+    expect(invoice.status, "conversion is drafts-only, for every role").toBe("draft");
+    expect(
+      (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable,
+      "a DRAFT must not move AR",
+    ).toBe(arBefore);
+
+    await inTenant(() => invoicesService.approve(invoice.id, userId));
     const arAfterConverted = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByConversion = Math.round((arAfterConverted - arBefore) * 100) / 100;
 
-    // The same invoice, typed by hand.
+    // The same invoice, typed by hand and approved the same way.
     await inTenant(() =>
       invoicesService.create(
         {
@@ -343,8 +353,21 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     const arAfterManual = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByManual = Math.round((arAfterManual - arAfterConverted) * 100) / 100;
 
-    expect(movedByConversion, "a converted invoice must move AR").toBe(575);
+    expect(movedByConversion, "an approved converted invoice must move AR").toBe(575);
     expect(movedByManual, "and a hand-typed one must move it identically").toBe(movedByConversion);
+  });
+
+  it("🔴 DRAFTS ONLY: an admin holding every grant still gets a draft", async () => {
+    // The corrected rule (owner, 2026-08-20). The first cut resolved issuance
+    // from `invoices:approve`, so this exact caller would have issued a legal
+    // tax invoice in one click — consuming an ICV irreversibly, against a
+    // conversion that cannot be undone. `userId` here is an org admin.
+    const quo = await makeApprovedQuotation();
+    const { invoice } = await inTenant(() =>
+      quotationConversionService.convert(quo.id, { date: DATE }, userId),
+    );
+    expect(invoice.status).toBe("draft");
+    expect(invoice.icv ?? null, "a draft consumes no ICV").toBeNull();
   });
 
   /**
@@ -362,7 +385,7 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     // Convert to a DRAFT invoice — a draft moves nothing either, so if any
     // figure moves here it can only have come from the quotation side.
-    await inTenant(() => quotationConversionService.convert(quo.id, { date: DATE }, userId, { autoApprove: false }));
+    await inTenant(() => quotationConversionService.convert(quo.id, { date: DATE }, userId));
 
     const after = await inTenant(async () => {
       const bs = await reportsService.balanceSheet();

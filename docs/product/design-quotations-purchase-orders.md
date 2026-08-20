@@ -375,3 +375,67 @@ id-stability test went red, so the guard is known to bite.
   no unique constraint (**C12**), so unlike the quotation allocator this one
   has no backstop — a lost race duplicates rather than failing. It reduces
   C12's blast radius; it does not close it.
+
+
+## 11. Owner review of M21.1/M21.2 (2026-08-20) — two corrections, one open
+
+### 11.1 CORRECTED: conversion is DRAFTS ONLY, for every role
+
+The first cut resolved issuance from the caller's `invoices:approve` grant, so
+an admin's conversion issued a legal tax invoice in one click. **Reverted to
+the design's own position**, which §6 had already stated and the build had
+quietly overridden:
+
+> agreeing a quotation in March is not authority to issue a legal invoice in
+> November
+
+The owner's reasoning, recorded because it is the general rule and not a
+preference about this screen:
+
+> issuance consumes an ICV irreversibly, conversion can't be undone, and a
+> mis-click becomes a credit note
+
+There is now **no `autoApprove` parameter on `quotationConversionService.convert`
+at all**, so a future caller cannot reintroduce one without editing the
+signature — and the controller has no `can(...)` check, which is the point
+rather than an omission. A test converts as an org admin holding every grant
+and asserts the result is a draft that consumed no ICV.
+
+🔴 **M21.3 inherits this**: PO → bill conversion produces a DRAFT bill.
+
+### 11.2 KEPT, but SURFACED BEFORE THE ACT: no undo
+
+Append-only conversions stand. The owner's condition:
+
+> surface it before the act, not after — the confirmation should say plainly
+> that a conversion cannot be reversed and a mistake is corrected by credit
+> note
+
+The convert dialog now states, before the button: the conversion cannot be
+reversed, a mistake is corrected by a credit note against the invoice, and the
+invoice arrives as a draft so nothing reaches the ledger until approved. The
+button reads **"Create draft invoice"**, not "Convert". Neutral styling — this
+is a fact about what the button does, not a warning that something is wrong.
+
+### 11.3 🔴 OPEN — with the accountant: partial-conversion discount
+
+**Question asked 2026-08-20; M21.3's conversion half waits on it.** How does a
+LINE-LEVEL discount behave when only part of the line is converted?
+
+Shipping behaviour is **proportional**: a 100 SAR discount on 10 units carries
+40 SAR when 4 are invoiced. Stated reasoning: the discount was quoted against
+the whole line, so applying it in full to the first partial invoice would
+undercharge that document and overcharge the remainder — the customer's total
+across all conversions still lands right, but every intermediate document is
+wrong, and each of those is a real tax invoice.
+
+Plausible alternatives if the accountant differs: the whole discount on the
+FIRST conversion (a discount is an incentive granted once); on the LAST; or a
+discounted line must convert in full.
+
+**The cost of the answer has been made small on purpose.** The rule now lives
+in ONE function — `services/conversionArithmetic.ts` → `scaleLineDiscount` —
+rather than inline in the quotation path where PO→bill would have copied it.
+Whatever comes back changes that function and its tests, and both conversion
+directions follow. That is the "green fixes the case, not the class" lesson
+applied *before* the second case exists.

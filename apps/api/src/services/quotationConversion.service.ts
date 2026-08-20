@@ -30,6 +30,7 @@ import { assertAmount, assertDateString } from "../lib/writeGuards";
 import { quotationsRepository } from "../repositories/quotations.repository";
 import { invoicesService } from "./invoices.service";
 import { auditService } from "./audit.service";
+import { scaleLineDiscount } from "./conversionArithmetic";
 
 export interface ConvertLineInput {
   quotationItemId: number;
@@ -56,18 +57,29 @@ export const quotationConversionService = {
   /**
    * Convert part or all of a quotation into an invoice.
    *
-   * @param autoApprove whether the produced invoice is issued immediately.
-   *   🔴 Resolved from the caller's `invoices:approve` grant, NOT
-   *   `quotations:approve` — what is being issued is an INVOICE, so the
-   *   authority that matters is authority over invoices. A bookkeeper may
-   *   convert (it is ordinary work) and gets a draft an approver still has to
-   *   issue.
+   * 🔴 DRAFTS ONLY — and there is deliberately NO `autoApprove` option to
+   * pass, so no caller can reintroduce one without editing this signature.
+   *
+   * The first cut of M21.2 resolved issuance from the caller's
+   * `invoices:approve` grant, so an admin's conversion issued a legal tax
+   * invoice in one click. That was wrong, and the design had already said why:
+   * **agreeing a quotation in March is not authority to issue a legal invoice
+   * in November.** Three facts compound it — issuance consumes an ICV
+   * IRREVERSIBLY, a conversion cannot be undone (the record is append-only),
+   * and a mis-clicked quantity therefore costs a credit note rather than an
+   * edit. The safe direction is unambiguous: produce a draft and let a human
+   * look at it.
+   *
+   * This is A3's rule in a second place — the recurring generator is
+   * drafts-only for the same reason (`generation.service.ts`: "approval here
+   * would issue a legal document unattended"). The only difference there is
+   * that a schedule fires it; here a person does, and that still is not the
+   * same act as approving the invoice the person has not yet seen.
    */
   async convert(
     quotationId: number,
     input: ConvertQuotationInput,
     userId: number | null,
-    opts: { autoApprove?: boolean } = {},
   ) {
     const [quotation] = await quotationsRepository.findById(quotationId);
     if (!quotation) throw new NotFoundError("Not found");
@@ -154,15 +166,16 @@ export const quotationConversionService = {
     // category come from the quotation line as quoted. `productId` is carried
     // for reporting, but it is NOT used to re-derive a price.
     //
-    // The per-line `discount` is scaled to the converted proportion: a 100 SAR
-    // discount on 10 units is 40 SAR when 4 are invoiced. Not scaling it would
-    // apply the WHOLE discount to a partial invoice, and the customer would be
-    // undercharged by a real amount on the first conversion and overcharged on
-    // the rest.
+    // The per-line discount is scaled by `scaleLineDiscount`, which lives in
+    // its own module because that rule is 🔴 PENDING the owner's accountant
+    // and PO→bill will need the identical answer. One function to change when
+    // it arrives, not two copies to remember.
     const invoiceItems = requested.map(({ item, quantity }) => {
-      const quotedQty = Number(item.quantity);
-      const proportion = quotedQty > 0 ? quantity / quotedQty : 0;
-      const scaledDiscount = Math.round(Number(item.discount ?? 0) * proportion * 100) / 100;
+      const scaledDiscount = scaleLineDiscount(
+        Number(item.discount ?? 0),
+        quantity,
+        Number(item.quantity),
+      );
       return {
         productId: item.productId,
         description: item.description,
@@ -191,7 +204,9 @@ export const quotationConversionService = {
         items: invoiceItems,
       },
       userId,
-      { autoApprove: opts.autoApprove ?? false },
+      // Not a default being relied upon — stated, because the whole point of
+      // this milestone's correction is that it can never be anything else.
+      { autoApprove: false },
     );
 
     // ── Record the event, in this same transaction ─────────────────────────
