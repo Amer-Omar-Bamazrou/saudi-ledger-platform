@@ -1,4 +1,4 @@
-# Advisor question package — ONE conversation, not three
+# Advisor question package — ONE conversation, not four
 
 **Purpose.** Three separate workstreams are blocked on professional advice, and
 all three questions are cheap to ask together and expensive to ask serially.
@@ -233,3 +233,48 @@ architecture rather than the arithmetic.**
    chart-of-accounts classification.
 4. If an answer contradicts something already built, treat it as a finding and
    record it in [`docs/history/findings-and-lessons.md`](../history/findings-and-lessons.md).
+
+---
+
+## Block D — invoice numbering in practice (queue C12, added 2026-08-21)
+
+**Status: the LAW is settled; this block asks only about PRACTICE.** C12 was
+closed by a primary-source read — [`docs/tax/invoice-numbering-verification.md`](invoice-numbering-verification.md)
+has the per-clause citations — and the code now implements the written rule.
+Neither question below gates anything shipped; both would refine it.
+
+### D1 — Does ZATCA question GAPS in an invoice-number series in practice?
+
+**What the text says (verified, not asking about this):** VAT Implementing
+Regulations Art. 53(5)(b) requires "a sequential number which uniquely
+identifies the Tax Invoice". Nothing in that article, or in the E-Invoicing
+Implementation Resolution which delegates to it, requires the series to be
+unbroken — and the Resolution *does* impose an explicitly gapless,
+non-resettable rule on a **different** field (the tamper-resistant counter,
+Annex 2 field 2.5).
+
+**What we cannot answer from the text:** whether ZATCA's **audit practice**
+treats a gap in a taxpayer's invoice numbering as a defect to be explained.
+
+**Why it matters, concretely:** our allocator produces a gap when an allocated
+number is discarded — a rolled-back transaction, or a deleted draft invoice.
+Those are ordinary events. If ZATCA expects gaps to be explainable, the answer
+is not to change the allocator but to be able to **show what happened to a
+missing number**, which is a reporting feature we have not built.
+
+**What would settle it:** the advisor's experience of ZATCA audits, or a ZATCA
+ruling. A "yes, they ask" answer creates a small build (an explanation for each
+absent number); a "no" answer closes it permanently.
+
+### D2 — Is our reading of the Arabic text safe?
+
+Both documents we read are **ZATCA's own English translations**, and both carry
+the disclaimer that **the Arabic version is official and prevails** on any
+discrepancy. Nothing in our verdict turns on a fine shade of wording — the
+operative clause is short and the sibling-field contrast is structural — but a
+native reading of Art. 53(5)(b) and Annex (2) fields 2.1 / 2.5 would remove the
+residual risk.
+
+**Specifically worth a second pair of eyes:** whether the Arabic for
+"sequential" (متسلسل) carries a stronger connotation of *unbroken* than the
+English does. That is the single word our reading rests on.

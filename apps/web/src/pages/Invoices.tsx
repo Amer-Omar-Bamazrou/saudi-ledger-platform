@@ -33,7 +33,16 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   cancelled: <XCircle className="w-3 h-3" />,
 };
 
-const emptyForm = { invoiceNumber: `INV-${Date.now().toString().slice(-6)}`, date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", status: "draft", notes: "" };
+// 🔴 C12: the invoice number is NO LONGER minted here.
+//
+// It used to default to `INV-${Date.now().toString().slice(-6)}` — a truncated
+// millisecond clock, on a value that becomes the ZATCA document's `cbc:ID`.
+// VAT IR Art. 53(5)(b) requires "a sequential number which uniquely identifies
+// the Tax Invoice", which a clock reading is not, and nothing enforced
+// uniqueness. The server now allocates from a monotonic per-company counter;
+// leaving this blank is what asks it to. A number typed here is still honoured
+// (legacy imports), and the DB constraint judges it.
+const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", status: "draft", notes: "" };
 
 export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -123,7 +132,7 @@ export default function Invoices() {
             <DialogHeader><DialogTitle>{t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} placeholder={t("Assigned automatically", "يُخصص تلقائيًا")} className="mt-1 h-8 text-sm" /></div>
                 <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">

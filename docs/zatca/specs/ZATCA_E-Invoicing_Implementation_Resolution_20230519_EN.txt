@@ -1,0 +1,1471 @@
+Controls, Requirements, Technical Specifications and Procedural Rules for
+  Implementing the Provisions of the E-Invoicing Regulation based on the
+    decision of His Excellency the Governor ­ Decision No. (62738) dated
+                                             23/11/1443 H
+
+    First: Scope of the application
+
+1. This Resolution, its attached Annexes (1) and (2) and the documents referred to in the Annexes
+     which are an integral part thereof, are set to define the controls, requirements, technical
+     specifications, or procedural rules required for the implementation of E-Invoicing Regulation
+     provisions which are related to the following:
+
+A.  The Generation of Electronic Invoices and Electronic Notes Phase, including
+
+provisions related to its processing, and record keeping of Electronic Invoices and
+
+Electronic Notes, which is applied to all Persons subject to the E-Invoicing Regulation
+
+effective 4th of December 2021.
+
+B.  The Integration Phase on the transmission of Electronic Invoices and Electronic
+
+Notes, and sharing them with the Authority, which shall be applied to all Persons subject
+
+to the E-Invoicing Regulation in phases starting from 1st of January 2023, and according to
+
+the timelines to be determined pursuant to Clause (Sixth) of this Resolution.
+
+2. Persons subject to Article (3) of the E-Invoicing Regulation shall be subject to this Resolution.
+3. Electronic Invoices generated in accordance with the provisions of this Resolution, the timelines for
+
+     implementing the requirements and details specified in Annexes (1) and (2) thereof, the Integration
+     implementation phases as determined by the Authority and in the format referred to in Clause
+     (Second) are the tax invoices that are considered for exercising the right of deduction referred to
+     in Article (48), paragraph (1) of the Unified VAT Agreement in relation to transactions subject to
+     Article (3) of E-Invoicing Regulation. In order to claim Input Tax Deduction, the electronic invoices
+     and notes should be Cleared by or Reported to the Authority as per the Integration Phase
+     requirements within this resolution starting from the date announced by the Authority in a
+     subsequent resolution.
+4. Electronic Invoices shall include Tax Invoices and Simplified Tax Invoices set forth under Article
+     (53) of the VAT Implementing Regulation.
+
+5. Transactions subject to Article (3) of the E-Invoicing Regulation include the cases for which tax
+     invoices must be issued and set forth under Article (53) of the VAT Implementing Regulation, shall
+     include the following:
+
+A. Supplies of taxable goods and services, either they are subject to the standard VAT rate or Zero
+rate;
+B. Export of goods and services from the Kingdom;
+C. Intra-GCC supplies in accordance with the Unified VAT Agreement, VAT Law and the VAT
+Implementing Regulation;
+D. Nominal supplies by the taxable person in accordance with the Unified VAT Agreement, VAT Law
+and VAT Implementing Regulation;
+E. Any payments related to supply of goods or services and received by the taxable person before
+the actual supply.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+                                                                     1
+    6. Transactions subject to Article (3) of the E-Invoicing Regulation include the cases for which notes
+          must be issued as per the VAT Implementing Regulation.
+
+     7. Transactions set forth under Article (3) of E-Invoicing Regulation shall not include the following:
+
+                 A. Supplies fully exempted from VAT.
+                 B. Any payments related to supplies fully exempted from VAT and received by a taxable
+                 person before such supply.
+                 C. Supplies subject to VAT according to the Reverse Charge Mechanism.
+                 D. Import of goods to the Kingdom.
+
+  Second: Requirements and details for Generation of Electronic Invoices
+                                       and Electronic Notes
+
+The Electronic Invoices and Electronic Notes should be generated in a format that must be compliant with
+the requirements and details specified in Annexes (1) and (2), and in accordance with the timelines
+specified for the application of these requirements and details, subject to the following:
+
+     1. Electronic Invoices, whether they represent a Tax Invoice or a Simplified Tax Invoice, and their
+          associated Electronic Notes, must be generated in a format that covers all details and fields
+          required for each type of invoices as specified in Annex (2) and as per the timelines set forth under
+          Annexes (1) and (2) of this Resolution.
+
+     2. All Electronic Invoices, whether they represent Tax Invoice or Simplified Tax Invoice, and their
+          associated Electronic Notes, must be generated in XML format or PDF/A-3 format (with embedded
+          XML) as per the timelines specified for application and set forth under Annexes (1) and (2) of this
+          Resolution.
+
+     3. Electronic Invoices and their associated Electronic Notes shall contain a Cryptographic Stamp
+          pursuant to what is specified in this Resolution, starting from the date determined by the Authority
+          in accordance with the timelines specified in Annexes (1) and (2) of this Resolution. A
+          Cryptographic Stamp, for the purposes of implementing this Resolution, means an electronic
+          stamp which is created via cryptographic algorithms to ensure authenticity of origin and integrity of
+          content of the data of the Electronic Invoices and their associated Electronic Notes, and to ensure
+          verification of the identity of the issuer of those Invoices and Notes for the purpose of ensuring
+          compliance with the provisions and controls of the VAT Law and its Implementing Regulation
+          regarding the generation of tax Invoices and Notes. The Cryptographic Stamp must be generated
+          as follows:
+
+                     A. With regards to Tax Invoices and their associated Notes which are generated
+                           electronically, the Authority shall - starting from the date which will be determined to
+                           oblige the persons subject to E-Invoicing Regulation to integrate with the Authority's
+                           systems - clear such Electronic Tax Invoices and their associated Electronic Notes in
+                           accordance with the mechanism determined by The Authority. The Authority has the
+                           power to revise, amend such mechanisms as well as ensure the adherence of the
+                           persons subject to E-Invoicing Regulation to it. Clearance means that the Authority
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+
+                                                                     2
+                           shall verify that the Electronic Tax Invoices and their associated Electronic Notes
+                           transmitted to it by the persons subject to E-Invoicing Regulation fulfil the controls and
+                           details specified in this Resolution and Annexes (1) and (2) thereof. The Authority shall
+                           insert the Cryptographic Stamp only on the Invoices and Notes which fulfil the aforesaid
+                           controls and details as well as notify the issuers of such Invoices and Notes prior to
+                           sharing them with the customers.
+
+                   B. With regards to Simplified Tax Invoices and their associated Notes which are
+                           generated electronically, such Simplified Tax Invoices and their associated Electronic
+                           Notes must be reported to the Authority within a period which must not exceed (24)
+                           hours from its generation - in accordance with the mechanism determined by the
+                           authority ­ starting from the date which will be determined by the Authority to oblige
+                           the persons subject to E-Invoicing Regulation to integrate with the Authority's systems.
+                           The Authority has the power to revise, amend such mechanisms as well as ensure the
+                           adherence of the persons subject to E-Invoicing Regulation to it. Reporting is the
+                           process of sharing of the Simplified Tax Invoices and their associated Notes which are
+                           generated electronically- which include the Cryptographic Stamp as specified in
+                           Clause (Fourth) of this Resolution- with the Authority by the persons subject to E-
+                           Invoicing Regulation.
+
+    4. All Electronic Notes must satisfy all the requirements specified in Article (54) of the VAT
+         Implementing Regulation, in addition to all requirements and details set forth under this Clause.
+
+    Third: The specifications and Requirements of E-Invoice Solutions for
+                         Electronic Invoices and Electronic Notes
+
+     1. The E-Invoice Solution used for generating Electronic Invoices and Electronic Notes must be
+          compliant with the specifications and requirements set forth under the E-Invoicing Regulation, this
+          Resolution, and Annexes (1) and (2) thereof. The E-Invoice Solution shall be considered as
+          compliant after verifying its conformity to all specifications and requirements by the Authority, or a
+          third party, or self-certified by the person subject to E-Invoicing Regulation, in accordance with
+          mechanisms and requirements set out by the Authority.
+
+     2. In addition to the above-mentioned requirements in paragraph (1) of this Clause, the Compliant
+          Solution must fulfill the following requirements:
+
+    A. Electronic Invoices and Electronic Notes' formats and its sharing
+         mechanism with customers
+
+                     1. The Compliant E-Invoice solution must be able to generate invoices and their
+                     associated notes in the XML format or PDF/A-3 format (with embedded XML) as per the
+                     requirements of Electronic Invoices formats specified in Annex (1) of this Resolution.
+                     2. Persons subject to E-Invoicing Regulation must share the Tax Invoice, or its associated
+                     Notes that has been electronically generated with customers.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+
+                                                                     3
+                     3. Persons subject to E-Invoicing Regulation must present to their customers a printed
+                     copy of the Simplified Tax Invoice or its associated Notes that has been generated
+                     electronically, such Simplified Tax Invoice or its associated Notes- upon the agreement
+                     between the transaction parties-may also be shared with customers in its electronic format
+                     or any other human readable format with customers.
+
+    B. Electronic Invoices and Electronic Notes' Content
+
+          The Compliant E-Invoice solution must be able to generate Electronic Invoices and Electronic
+          Notes which include all the data fields required in addition to all requirements and other details
+          specified in this Resolution and Annexes (1) and (2) thereof, for each Invoice or Note based on its
+          type or nature, and including all taxable supplies and set forth under Clause (First) of this
+          Resolution.
+
+    C. Data and Information Security Requirements:
+
+                 1. The Compliant E-Invoice solution must be tamper-resistant and include a mechanism,
+                 which prevents tampering and reveals any tampering attempts that might occur by the user or
+                 any third party in accordance with the specifications and requirements specified by the
+                 Authority. The Authority has the power to verify the conformity of the E-Invoice solution to the
+                 specifications and requirements in accordance with the verification mechanism set forth under
+               Clause (Fourth) of this Resolution.
+
+                 2. The Compliant E-Invoice solution must be able to protect the generated Electronic Invoices
+                 and Electronic Notes from alteration or deletion, and contain some functionalities which enable
+                 the person subject to E-invoicing Regulation to save Electronic Invoices and Electronic Notes
+                 and archive them in the format as specified in Annexes (1) and (2) of this Resolution without
+                 the need for internet connection and in accordance with the specifications, requirements and
+                 timelines specified in Annex (1) of this Resolution.
+
+                 3. The Compliant E-Invoice solution must be able to generate a Universally Unique Identifier
+                 (UUID) in addition to the Electronic Invoice sequential number which identifies and distinguish
+                 each VAT Tax Invoice, Simplified Tax Invoice, and their associated notes in accordance with
+                 the specifications, requirements and timelines specified in Annex (2) of this Resolution. This
+                 shall be for each Electronic Invoice or Electronic Note generated by such E-Invoice Generation
+                 Solution, as per the requirements and timelines specified in Annexes (1) and (2) of this
+                 Resolution.
+
+                 4. The Compliant E-Invoice solution which is used for generating Simplified Tax Invoices and
+                 their associated Notes, must be able to generate a Cryptographic Stamp for each Electronic
+                 Invoice or Electronic Note. Such Cryptographic Stamp must have an identifier as per the
+                 requirements and timelines specified in Annexes (1) and (2) of this Resolution, and
+                 requirements and mechanisms set forth under Clause (Fourth) of this Resolution.
+
+                 5. The Compliant E-Invoice solution must be able to generate a Hash for each generated
+                 Electronic Invoice or Electronic Note within the sequence of the Electronic Invoices and
+                 Electronic Notes. The Hash of the Electronic Invoice is then embedded in the next Electronic
+                 Invoice in the sequence. This Hash is used to protect the sequence of Invoices from tampering
+                 whether by deletion or replacement. Hash is an enciphered text obtained by applying a one-
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+                                                                     4
+way algorithm upon data which prevents the return to the original data or amending or
+tampering it as specified in Annex (1) of this Resolution.
+
+6. The Compliant E-Invoice solution must be able to generate a QR code which is a type of
+matrix barcode, with a pattern of black and white squares that is machine readable by a QR
+code scanner or the camera of smart devices in order to enable basic validation of Electronic
+Invoices and Electronic Notes (Referred to as "QR Code") as specified in Annex (1) of this
+Resolution.
+
+7. The Compliant E-Invoice solution must have a tamper-resistant Electronic Invoice counter
+that cannot be reset or reformatted. The counter must increment for each generated Electronic
+Invoice or associated note and the Compliant Solution must record the value of this counter
+in each Electronic Invoice or associated Notes in the field indicated in Annex (2).
+
+D. Integration requirements:
+
+                1. The approved formats for all Electronic Invoices and Electronic Notes for Integration
+                shall be XML format as referred to in this Resolution.
+                2. The Compliant E-Invoice solution must be able to connect to an internet connection
+                and integrate with external systems by using Application Programming Interface (API)
+                specified by the Authority and published on its website.
+
+E. Prohibited functions
+
+1.  The Compliant E-Invoice solution shall not have the prohibited functionalities as
+
+specified in Annex (1) of this Resolution.
+
+2. The Compliant E-Invoice solution must not be able to generate more than one
+
+sequence of Electronic Invoices and Electronic Notes issued through each of the units
+
+within the E-Invoice Solution used. For the purposes of this Resolution, a Unit is the key
+
+component of the E-Invoice Solution that generates the tamper-proofing features of the
+
+sequence of Electronic Invoices by inserting a Hash on the Electronic Invoice or Electronic
+
+Note, in addition to including the Hash of the previous Electronic Invoice or Electronic Note
+
+in a sequence of Electronic Invoices and Electronic Notes, generates the Cryptographic
+
+Stamp for Simplified Tax Invoices and their associated Electronic Notes, and contains a
+
+Cryptographic Stamp Identifier for each Cryptographic Stamp as specified in Annexes (1)
+
+and (2) of this Resolution.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+                                                                     5
+  Fourth: Requirements and mechanisms for verifying the conformity of E-
+ Invoice Solutions, Issuance of Cryptographic Stamps, and Cryptographic
+
+                                         Stamp Identifiers.
+
+The Authority shall determine the special mechanism for verifying the conformity of E-Invoice Solutions to
+the specifications and requirements referred to in Clause (Third) of this Resolution, it shall also determine
+the requirements and mechanisms for issuing Cryptographic Stamps referred to in Clauses (Second) and
+(Third) of this Resolution, in addition to determining the requirements of The Cryptographic Stamp
+Identifiers which is issued as a result of registering the units used for generating Simplified Tax Invoices
+and their associated Electronic Notes with the Authority, which are referred to in Clause (Third), sub-
+clause (2/c/4) of this Resolution.
+
+   Fifth: Keeping of records, Electronic Invoices, Electronic Notes and its
+                                           associated data
+
+Persons subject to the E-Invoicing Regulation must keep records, Electronic Invoices, Electronic Notes,
+and their associated data in a way that is compliant with the format and timelines specified in Annexes (1)
+and (2) of this Resolution and in accordance with the record-keeping requirements set forth under Article
+(66) of the VAT Implementing Regulation, Persons subject to the E-Invoicing Regulation are obliged to
+provide the Authority with all records, Electronic Invoices, Electronic Notes or data upon its request for the
+purpose of verifying the validity of Electronic Invoices and Electronic Notes, and verify their compliance with
+the provisions of the Unified VAT Agreement, VAT Law, the VAT Implementing Regulation and the E-
+Invoicing Regulation.
+
+                                          Sixth: Integration
+
+The Integration phases implementation, transmission of Electronic Invoices and Electronic Notes, and
+sharing them with the Authority, shall be implemented through phases starting from 1st of January 2023,
+as follows:
+
+     1. The Authority shall determine the targeted groups and phases of Integration for the persons
+          subject to E-Invoicing Regulation. The Authority shall notify each target group with the
+          implementation procedures for the integration with its systems at least (6) months prior to the due
+          date
+
+     2. Persons subject to the E-Invoicing Regulation must integrate their systems with the Authority's
+          systems by using an Application Programming Interface "API" in accordance with the timelines,
+          targeted groups, and implementation phases of Integration with the Authority's systems.
+
+In addition to Integration requirements specified in Clause (Third), Sub-Clause (2/D), additional details
+related to Integration and its implementation phases and timelines will be determined through a
+subsequent resolution(s) from the Governor based on the powers set forth in Article (6), Paragraph (b) of
+the E-Invoicing Regulation
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+
+                                                                     6
+ Seventh: Obligations of the Persons Subject to the E-Invoicing Regulation
+
+Taking into consideration all the obligations set forth under the Unified VAT Agreement, VAT Law and the
+VAT Implementing Regulation, all persons subject to the E-Invoicing Regulation as specified in Article (3)
+thereof must adhere to the controls and obligations stipulated in such regulation and this Resolution, and
+in particular, adhere to the following:
+
+     1. Generate all tax invoices and notes that must be issued within the timelines specified in the VAT
+          law, in an electronic form starting from the day following the expiration date of the grace period
+          specified in Article (7), paragraph (B) of the E-Invoicing Regulation.
+
+     2. Comply with all the provisions set forth under the E-Invoicing Regulation in addition to the controls,
+          requirements, technical specification and procedural rules specified in this Resolution and Annexes
+          (1) and (2) thereof, and any subsequent resolutions for E-Invoicing.
+
+     3. Adhere to the specified timelines for compliance with the specifications and requirements of
+          Electronic Invoices and Electronic Notes as per the details and timelines specified in this Resolution
+          and Annexes (1) and (2) thereof.
+
+     4. Adhere to the record keeping requirements of Electronic Invoices, Electronic Notes and its
+          associated data referred to in Clause (Fifth) of this Resolution, and any other requirements as per
+          the applicable laws and regulations.
+
+     5. Notify the Authority through the means specified by the Authority of any incidents, technical error
+          or emergency matters which hinder the generation of Electronic Invoices or Electronic Notes, or
+          hinder the integration of E-Invoicing. The Authority may determine the procedure which should be
+          taken after the validation of such incident, technical error or emergency matter as per its policies.
+          Persons subject to the E-Invoicing Regulation must notify the Authority in the event of the
+          disappearance of such incident, technical error or emergency matter. Persons Subject to the E-
+          Invoicing Regulation shall resume generation of Tax Invoices and associated Notes, and any
+          Invoices or Notes for Transactions conducted during such incidents, technical error or emergency
+          matters electronically, and integrate them with the Authority according to Integration obligations
+          promptly as soon as such incident, technical error or emergency matter that prevented the
+          Generation or Integration of The Electronic Invoices or The Electronic Notes is fixed.
+
+     6. Not to use any E-Invoice Solution which is not compliant with the specifications and requirements
+          referred to in Clause (Third), and in accordance with the timelines and controls specified in this
+          Resolution and Annexes (1) and (2) thereof.
+
+     7. Register the units used for generating Simplified Tax Invoices and their associated Electronic Notes
+          as part of the E-Invoice solution with the Authority, in accordance with the mechanisms and controls
+          referred to in this Resolution and any subsequent resolutions.
+
+     8. Preserve the Cryptographic Stamp Identifiers and its associated components in a safe way, and
+          protect them from copying or illegal use, and not use them for purposes other than those which
+          they are intended for.
+
+     9. Integrate the E-Invoice solution of the persons subject to the E-Invoicing Regulation with the
+          Authority's systems starting from the date specified in this Resolution and any subsequent
+          resolution in this regard.
+
+     10. Sharing the Electronic invoices and the notices associated thereto with the Authority shall be in
+          XML format as of the dates specified for the Integration implementation and according to the
+          timelines specified by the Authority.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+                                                                     7
+                                   Eighth: Closing Provisions
+
+     1. The Authority may authorize one or more entities to perform the verification procedures for the E-
+          Invoice Generation Solution in order to ensure its conformity to the specifications and requirements
+          as per Clause (Third), and verify the fulfillment of the requirements and mechanisms for issuing
+          Cryptographic Stamps referred to in Clauses (Second), (Third), and (Fourth) of this Resolution.
+          Such entity shall verify the conformity of each E-Invoice Generation Solution to the specifications
+          and requirements specified in this Resolution and Annexes (1) and (2) thereof.
+
+     2. Penalties and fines set forth under the VAT Law shall be applied on persons violating the E-
+          Invoicing Regulation and this Resolution, according to the violation's classifications specified in the
+          relevant Board of Directors' resolutions.
+
+                             Ninth: Enforcement and Obligation
+
+     1. Persons subject to the E-Invoicing Regulation shall comply with the specifications and requirements
+          set forth in this Resolution starting from the day following the expiration date of the grace period as
+          per Article (7), paragraph (b) of the E-Invoicing Regulation, taking into consideration the specified
+          timelines for the implementation and compliance with each of the specifications and requirements
+          as specified in Annexes (1) and (2) of this Resolution.
+
+     2. This Resolution shall come into force and take effect as of the date of its publication in the Official
+          Gazette.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of
+the official Arabic version and in case of any discrepancy between both versions the Arabic version prevails
+
+                                                                     8
+                                                                            Annexes
+
+Annexures (1) and (2) below are concerned with specifying the details of the functional and technical requirements and specifications necessary to implement
+the rules and regulations of the electronic invoicing resolution and the relevant decisions, which will be implemented in two main stages:
+
+      The first stage: Generation of Electronic Invoices and Electronic Notes, including provisions related to its processing, and record keeping, effective 4th
+          of December 2021.
+
+      The second stage: Integration phase, transmission of Electronic Invoices and Electronic Notes, and sharing them with the Authority for each target
+          group based on the implementation waves announced by the Authority for the integration with the ZATCA
+
+                                                                           Annex (1)
+                                             Technical Requirements of E-invoice Generation Solutions
+
+This annex contains the following requirements details and shall be reviewed and updated periodically by the Authority.
+     (1) Electronic Invoice requirements covering types of invoices, invoice formats and invoice structure.
+     (2) Security and stamps requirements covering cryptographic stamping, hashing, etc.
+     (3) Data and connectivity requirements of the E-Invoice Generation Solutions for Electronic Invoices and Electronic Notes.
+     (4) Prohibited capabilities and functions.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                                9
+Technical Functionalities mandated from 4th December 2021
+
+Requirements                   Description
+Types of Invoices and Notes
+                               Ability to generate the main types of e-invoices and notes:
+Invoice and Credit/Debit Note
+Format                           - Tax Invoice and associated Credit/Debit Note
+Invoice and Credit/Debit Note    - Simplified Tax Invoice and associated Credit/Debit Note
+Structure
+                                    - No required format as long as the required data are present in the invoices and notes.
+Data Processing & Security
+                                 - E-invoices and associated notes must contain all the mandated fields by the Authority as specified in Annex 2 as per the
+
+                                         enforcement timelines.
+
+                                 - E-invoices and associated notes must comply with the business rules assigned to the conditional fields, and comply with the
+
+                                         field content validations (allowable values).
+
+                                 - E-invoices and associated notes should be time-stamped.
+
+                                 - Enable taxpayer to export e-invoices and associated notes to offline local archival.
+                                 - E-invoice Solution unit locks or tamper evidence mechanisms (Simplified Tax Invoices only and their associated notes).
+
+Data Storage and Archival      - Ability to export generated invoices and associated notes into an external archival system to allow the Persons Subject to the
+
+                                     Electronic Invoicing Regulation to comply with Clause Fifth of this Resolution.
+
+                               - Export of generated electronic Invoices or Notes for archival purposes shall be as files with names consisting of:
+                                      - VAT registration number
+                                      - Electronic Invoice or Notes issuance date
+                                      - Electronic Invoice or Notes issuance time
+                                      - Electronic Invoice or Notes reference number (IRN)
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               10
+QR Code                      For Simplified Electronic Invoices and associated Notes, it is mandatory to generate and print QR code that must contain:
+
+                             ID           Field
+
+                             1            Seller's name
+
+                             2            VAT registration number of the seller
+
+                             3            Time stamp of the Electronic Invoice or Credit/Debit Note (date and time)
+
+                             4            Electronic Invoice or Credit/Debit Note total (with VAT)
+
+                             5            VAT total
+
+Additional Technical Functionalities mandated from 1st of January 2023 for each target group based on the implementation waves announced by the
+Authority for the integration with the ZATCA
+
+Additional Requirements      Description
+
+Electronic Invoice and       - XML (mandated for Electronic Invoice and Credit/Debit Notes generation and transmission) based on ZATCA's specifications
+Credit/Debit Note Format
+                                   and requirements
+Electronic Invoice and
+Credit/Debit Note Structure  - PDF/A-3 with embedded XML file (optional human readable format for sharing the invoice or the note with the customer)
+
+                             - Electronic Invoice and associated Notes must contain all the mandated fields by the Authority as specified in Annex 2 as per
+
+                                   the enforcement timelines.
+
+                             - Electronic Invoice and associated notes must comply with the business rules assigned to the conditional fields, and comply
+
+                                   with the field content validations (allowable values).
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                         11
+Data Processing & Security       - Generation of a unique ID (UUID) for each Electronic Invoice or associated Note.
+                                 - Tamper-resistant counter that increments for each Electronic Invoice and Credit/Debit Note issued.
+
+Cryptographic Stamp (Simplified  - Each electronic invoicing system that generates Simplified Tax Invoices and its associated Notes must have a unique
+Tax Invoices only and its
+associated Notes)                      cryptographic stamp identifier that will be used to apply a cryptographic stamp on each Simplified Tax Invoice and its
+                                       associated Note.
+
+                                 - Each Simplified Tax Invoice and its associated Note must have a cryptographic stamp.
+                                 - The cryptographic stamp identifier will be issued and managed through the Authority's portal. Taxpayers shall login to the
+
+                                       Authority's portal using their current accounts in order to request and manage cryptographic stamp identifiers for their
+                                       Electronic Invoice Solutions.
+
+                                 - Generation of the Stamping Key associated with the cryptographic stamp identifier.
+                                 - A new stamping key shall be generated upon Cryptographic Stamp Identifier renewal.
+                                 - Stamping key should be marked as non-exportable so that it cannot be exported out of the security module.
+                                 - Disk encryption shall be used for the E-Invoice Solution to protect the stamping key in case of using software to store that key.
+
+Additional Cryptographic         - Ability to use standard Secure Hashing Algorithms
+Capabilities
+
+UUID                             The UUID is a 128-bit number, generated by an algorithm chosen to make it unlikely that the same identifier will be generated by
+                                 anyone else in the known universe using the same algorithm.
+
+QR Code                          - For all types of Electronic Invoices and Electronic Notes, it is mandatory to generate and print QR code that must contain the
+
+                                       following fields:
+
+                                 ID  Field
+
+                                 1   Seller's name
+
+                                 2   VAT registration number of the seller
+
+      Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+      any discrepancy between both versions the Arabic version prevails
+
+                                                                                                     12
+              3  Time stamp of the Electronic Invoice or Credit/Debit Note (date and time in accordance with ISO 8601 for
+
+                 example 2022-02-21T12:13:57Z)
+
+              4  Electronic Invoice or Credit/Debit note amount (with VAT)
+
+              5  VAT amount
+
+              6  Hash of XML Electronic Invoice or Credit/Debit Note
+
+              7  ECDSA signature of the XML Hash
+
+                 - For Simplified Tax Invoices and their associated notes, the stamp is generated by the E-Invoice
+
+                 Generating Solution
+
+                 - For Tax Invoices and their associated notes that are integrated with ZATCA's platform, the stamp is
+
+                 generated by ZATCA's platform
+
+              8  ECDSA public key extracted from the signing private key
+
+                 - For Simplified Tax Invoices and their associated notes, this is the public key of the E-Invoice
+
+                 Generating Solution
+
+                 - For Tax Invoices and their associated notes that are integrated with ZATCA's platform, this field is
+
+                 optional and is the public key of ZATCA's platform
+
+              9  For Simplified Tax Invoices and their associated notes, the ECDSA signature of the cryptographic stamp
+
+                 issued by ZATCA's technical CA
+
+Connectivity  - Able to establish encrypted and authenticated connection (such as TLS) over the internet
+              - Ability to periodically upload e-invoices and their associated notes in batch to external API (Simplified Tax Invoice only and the
+
+                    associated notes)
+
+              - Ability to submit invoices and their associated notes in real-time and receive a response (Electronic Tax Invoice only and the
+
+                    associated notes)
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               13
+                                  - In case the solution is offline, e-invoices and any associated notes are queued, and solution remains operational, invoices and
+
+                                        notes are reported after connection re-established
+
+Prohibited Functionalities
+
+     1. The functionalities described under this table are not permitted to be enabled in any of the E-Invoice Solutions used for E-Invoicing subject of this
+          Resolution.
+
+     2. Any E-invoice Solution that is deemed to have enabled any of the below functions will be deemed non- compliant with the E-Invoicing requirements
+          set by the Authority.
+
+Prohibited Functionalities        Description                                                                               Enforced as of 1st of January
+                                                                                                                          2023 only for each target group
+                                                                                             Enforced on 4th of December   based on the implementation
+                                                                                                           2021
+                                                                                                                                         waves
+
+Uncontrolled access               - Anonymous access                                         X
+
+                                  - Ability to operate with default password
+
+                                  - Absence of user session management
+
+Tampering of e-invoices or their  - Allow alteration or deletion of generated e-invoices or  X
+
+associated notes or logs          their associated notes
+
+                                  - Allows for log modification/deletion
+
+                                  - Generated with inaccurate timestamps
+
+                                  - Non-sequential log generation
+
+                                  - Electronic Invoice counter reset
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               14
+Multiple Electronic Invoice  - Allow ability to generate more than one Electronic      X
+
+sequences                    Invoice sequence at any given time
+
+Export of stamping keys      - Provide an option to export cryptographic stamp            X
+
+                             stamping key
+
+Time change                  - Allow software time changes                                X
+
+                             - Allow modification of timestamp value during E-Invoice
+
+                             or Credit/Debit Note issuing
+
+In addition to all the technical requirements mentioned above, additional details, requirements, and specifications relevant to the information
+ above in the "Electronic Invoice Security Implementation Standards" must be abided by. This file is an essential part of this annexure and is
+
+                                                          applied alongside the annex and the resolution.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               15
+                                                                Annex (2) E- Invoices Fields
+
+          This annex shall contain the list of fields that are required to be present on electronic invoices to be enforced in accordance with the timelines specified
+          for each field. The timelines are as follows and are indicated individually for each field:
+
+                1. 4th of December 2021
+                2. Starting from 1st of January 2023 for each target group based on the implementation waves announced by the Authority for the integration
+
+                     with the ZATCA
+          As part of the implementation of the Resolution, the below Electronic Invoice fields included within each Electronic Invoice type are represented by 3
+          levels of obligation as defined under the column "Obligation":
+
+                1. Mandatory: A field that must be included in the Electronic Invoice and its associated Note with its details at all times
+                2. Conditional: A field that must be included in the Electronic Invoice and its associated Note if it satisfies certain conditions, and can be excluded
+
+                     if the conditions are not present
+                3. Optional: A field that is not obligatory to be included within the Electronic Invoice and its associated Note , but needs to be available to be filled
+
+                     by the taxpayer in the E-Invoice Generating Solution
+          The Implementation of the resolution also includes requirements of visibility of the specific field on the Electronic Invoice or Credit/Debit Note in human
+          readable form such as the PDF or the printed Electronic Invoice or Credit/Debit Note:
+
+                1. Required: A field that must be present on the Electronic Invoice or Credit/Debit Note printout by the corresponding enforcement date of the
+                     field
+
+                2. Not Required: A field that is not mandatory to be presented on the printed version of the Electronic Invoice or Credit/Debit Note, and is up to
+                     the discretion of the taxpayer to be included within the printout
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               16
+A Tax Invoice shall contain the following specifications:
+
+#  Field                                                       Validation                       Visibility on Invoice  Obligation   Enforced on                     Enforced as
+                                                                                                   (such as PDF ,                       4th of                           of
+
+                                                                                                printout, any other                  December                           1st of
+                                                                                                 human readable                         2021                          January
+                                                                                                        form)                                                        2023 only
+                                                                                                                                                                      for each
+                                                                                                                                                                       target
+                                                                                                                                                                       group
+                                                                                                                                                                     based on
+
+                                                                                                                                                                         the
+                                                                                                                                                                    implement
+
+                                                                                                                                                                        ation
+                                                                                                                                                                       waves
+
+1 Type of Invoice                                              Enumerated value                 Document title is Mandatory         X
+
+  1.1 Invoice Type Description                                                                  Tax Invoice
+
+         Tax Invoice as per article 53(5) of VAT Implementing  The self-billing option is only  Required               Conditional  X
+         Regulation
+                                                               allowed where both parties       The invoice should be
+  1.2 Special billing agreement flags upon the Authority        are VAT registered and it is      marked as a "Self-
+         approval:                                             not allowed in Simplified Tax        billed Invoice"
+
+                Self-billed Invoice                                        Invoices.
+
+                                                               Enumerated value
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               17
+1.3 Special billing agreement flags upon the Authority                                      Not Required  Conditional                                               X
+       approval:
+
+             Third party billed invoice on behalf of the
+                  supplier
+
+1.4 Special transaction type flags (not mutually exclusive) If any of the conditions are    Not Required  Conditional                                               X
+
+ Nominal Supply                                            present
+
+ Export
+
+ Summary
+
+2 Invoice Identifiers
+
+2.1 Invoice Reference Number (IRN): A unique, sequential   N/A                              Required      Mandatory    X
+
+note number, issued by taxpayer, as per Article
+
+53(5)(b) of the VAT Implementing Regulation.
+
+2.2 Universally Unique Invoice Identifier in UUID format.  N/A                              Not Required  Mandatory                                                 X
+
+UUID is A 128-bit number, generated by an algorithm
+
+chosen to make it unlikely that the same identifier will
+
+be generated by anyone else.
+
+2.3 Previous document (invoice/note) hash.                 N/A                              Not required  Mandatory                                                 X
+
+A hash is a digital fingerprint of a document obtained
+
+using a standardized hashing algorithm to prevent
+
+modifying or tampering with the original data.
+
+2.4 QR Code. This field needs to be present in the human QR Code provided by ZATCA.         Required      Mandatory                                                 X
+
+readable format, to validate the visualized invoice.       It should contain the fields as
+
+                                                           mentioned in Annex (1)
+
+2.5 Invoice tamper-resistant counter value                 N/A                              Not required  Mandatory                                                 X
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               18
+3 Date
+
+3.1 Invoice issue date as per Article 53(5)(a) of the VAT        The format needs to be        Required      Mandatory    X
+       Implementing Regulation                                         YYYY-MM-DD
+
+3.2 Invoice issue time                                           The format needs to be        Not Required  Mandatory    X
+                                                                         HH:mm:ss
+
+3.3 Supply date. The supply date needs to be present, if it      The format needs to be YYYY-  Required      Conditional  X
+       is different from the invoice issue date, as per Article               MM-DD
+       53(5)(g) of the VAT Implementing Regulation
+
+4 Seller Identification
+
+4.1 Name as per Article 53(5)(e) of the VAT Implementing         N/A                           Required      Mandatory    X
+
+Regulation
+
+4.2 Address as per Article 53(5)(e) of the VAT                   N/A                           Required      Mandatory    X
+       Implementing Regulation.
+
+4.3 VAT registration numbers as per Article 53(5)(c) of the                                    Required      Mandatory    X
+       VAT Implementing Regulation and in case the seller is
+       part of a VAT group then the VAT group Registration
+       number should be entered
+
+4.4 Additional seller IDs. one of the following IDs must be      N/A                           Required      Mandatory                                              X
+
+entered:
+
+        1. Commercial Registration (CR)
+        2. MOMRA License
+        3. MLSD License
+        4. SAGIA License
+        5. Other ID of the seller.
+
+It consists of:
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               19
+1. Type of ID
+2. ID Number
+
+Note: If the CR is chosen and in case of multiple
+commercial registrations, the seller should fill the
+commercial registration of the branch in respect of
+which the Tax Invoice is being issued. In case multiple
+IDs exist then one of the above must be entered
+following the sequence specified above
+
+5 Buyer Identification
+
+5.1 Name, as per Article 53(5)(e) of the VAT Implementing         N/A                     Required  Mandatory    X
+                                                                                          Required
+Regulation
+
+5.2 Address as per Article 53(5)(e) of the VAT                    N/A                               Mandatory    X
+
+Implementing Regulation
+
+5.3 VAT registration number (if applicable) for the buyer     Not mandatory for export    Required  Conditional  X
+       and in case the buyer is part of a VAT group then the             invoices.
+       VAT group Registration number should be entered
+                                                              Not Mandatory for internal
+                                                                         supplies
+
+5.4 Additional buyer ID if the buyer is not VAT registered.   Not mandatory for export    Required  Conditional                                                     X
+
+One of the following IDs has to be provided:                  invoices.
+
+1. Tax Identification Number (TIN)
+2. CR
+3. MOMRA License
+4. MLSD License
+5. 700 Number
+6. SAGIA License
+7. National ID
+8. GCC ID
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                              20
+9. Iqama Number
+10. Passport ID of the buyer.
+
+It consists of:
+
+1. Type of ID
+
+2. ID Number
+
+In case multiple IDs exist then one of the above must
+be entered following the sequence specified above
+
+6 Order Reference
+
+6.1 Purchase order                                           N/A                            Not required  Optional                                                  X
+
+6.2 Contract number                                          N/A                            Not required  Optional                                                  X
+
+7 Line Items
+
+7.1 Goods or Service Description as per Article 53(5)(f) of  N/A                            Required      Mandatory    X
+
+the VAT Implementing Regulation
+
+7.2 Goods or Service Code                                    N/A                            Not required  Optional                                                  X
+
+7.3 Unit Price as per Article 53(5)(h) of the VAT            N/A                            Required      Mandatory    X
+
+Implementing Regulation
+
+7.4 Quantity as per Article 53(5)(f) of the VAT              N/A                            Required      Mandatory    X
+       Implementing Regulation
+
+7.5 Discount or rebate percentage, if discount is provided To be filled if the discount is  Not Required  Conditional                                               X
+
+at line item level                                           provided at line item levels
+
+                                                             (goods or service)
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               21
+7.6 Discount or rebate amount, if discount is provided at   To be filled if the discount is  Required      Conditional  X
+       line item level as per Article 53(5)(h) of the VAT   provided at line item levels
+       Implementing Regulation
+                                                                  (goods or service)
+
+7.7 Subtotal (exclusive of VAT)                                 N/A                          Required      Mandatory                                                X
+
+7.8 VAT rate as per Article 53(5)(i) of the VAT             It is mandatory if the goods     Required      Conditional  X
+       Implementing Regulation                              / service is not Out Of Scope
+
+                                                                or Exempt from VAT.
+
+7.9 VAT category code                                           N/A                          Not required  Mandatory                                                X
+
+7.10 VAT amount as per Article 53(5)(j) of the VAT              N/A                          Required      Mandatory    X
+        Implementing Regulation
+
+7.11 Subtotal (inclusive of VAT)                                N/A                          Required      Mandatory                                                X
+
+7.12 Charge amount, without VAT if charge is provided at    To be filled only if charge is   Required, if  Conditional                                              X
+
+line item level                                                 applied                      populated
+
+7.13 prepayment subtotal (Exclusive of VAT) per Rate or     To be filled only if             Required, if  Conditional                                              X
+
+exemption                                                   prepayment is used               populated
+
+7.14 prepayment VAT amount per Rate or exemption"           To be filled only if             Required, if  Conditional                                              X
+
+                                                            prepayment is used               populated
+
+7.15 prepayment VAT rate, per Rate or exemption"            To be filled only if             Required, if  Conditional                                              X
+
+                                                            prepayment is used               populated
+
+8 Total Amounts
+
+8.1 Discount or rebate percentage, if discount is provided  To be filled if discount is      Not required  Conditional                                              X
+
+at invoice level                                            provided at invoice level
+
+8.2 Discount or rebate amount, if discount is provided at   To be filled if discount is      Required      Conditional  X
+       invoice level as per Article 53(5)(h) of the VAT     provided at invoice level
+       Implementing Regulation
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                            22
+8.3 Invoice Taxable Amount per rate or exemption as per    N/A                             Required                Mandatory                                        X
+
+Article 53(5)(h) of the VAT Implementing Regulation
+
+8.4 VAT Total as per Article 53(5)(j) of the VAT           VAT Total must be in SAR        Required                Mandatory    X
+       Implementing Regulation
+
+8.5 Invoice Gross Total (inclusive of VAT)                 N/A                             Required                Mandatory    X
+
+Statement - "Amount includes VAT"
+
+8.6 Charge amount, without VAT if charge is applied To be filled only if charge is         Required, if            Conditional                                      X
+
+at document level                                          applied                         populated
+
+8.7 Advanced payment adjustment amount (inclusive          Adjustment towards              Required, if            Conditional                                      X
+
+of VAT)                                                    Advanced payment on             populated
+
+                                                           which VAT is charged by a
+
+                                                           separate invoice
+
+                                                             To be filled only if
+                                                           prepayment is applied
+
+8.8 Rounding Amount                                        To be filled only if rounding   Required, if            Optional                                         X
+
+                                                           adjustment is applied           populated
+
+8.9 Amount due for payment                                 To be filled only if            Required, if the        Mandatory                                        X
+
+                                                           prepayment subtotal             condition is satisfied
+
+                                                           (Exclusive of VAT) per Rate or
+
+                                                           exemption (7.13) or rounding
+
+                                                           amount (8.7) is used
+
+9 Payment Terms
+
+9.1 Payment means, to specify if mode of payment is cash,  N/A                             Not required                                                             X
+
+credit/debit cards, bank transfer, credit, and/or others.                                                          Mandatory
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               23
+9.2 Payment Terms, if mode of payment is by credit.              N/A                           Not required  Optional                                               X
+
+9.3 Supplier's Bank Account details, if mode of payment is       To be filled if Payment       Not required  Optional                                               X
+
+by credit.                                                       Method is credit
+
+10 Notes
+
+10.1 Notes, to enter any information not captured in invoice     N/A                           Not required  Optional                                               X
+
+fields
+
+11 Special Tax Treatment
+
+11.1 Where Tax is not charged at the standard rate, this         Narration to be entered if    Required      Conditional  X
+        field should have a narration "Tax treatment applied to  Tax is not charged at basic
+        the supply" as per Article 53(5)(k) of the VAT
+        Implementing Regulation                                               rate
+
+12 Cryptographic Stamp                                           Cryptographic Stamp           Not required  Mandatory                                              X
+
+                                                                 provided by ZATCA. It must
+
+                                                                 match the Electronic Invoice
+
+                                                                 content
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               24
+A Simplified Tax Invoice shall contain the following specifications:
+
+#  Field                                                                  Validation    Visibility on Invoice   Obligation   Enforced on                            Enforced as
+                                                                                           (such as PDF ,                        4th of                                   of
+                                                                      Enumerated value
+                                                                              N/A       printout, any other                   December                                  1st of
+                                                                              N/A        human readable                          2021                                 January
+                                                                                                form)                                                                2023 only
+                                                                                                                                                                      for each
+                                                                                                                                                                    target group
+                                                                                                                                                                      based on
+
+                                                                                                                                                                         the
+                                                                                                                                                                    implementa
+                                                                                                                                                                     tion waves
+
+1 Type of Invoice                                                                       Document title is Mandatory          X
+1.1 Invoice Type Description
+                                                                                        Simplified Tax Invoice
+       Simplified Tax Invoice as per article 53(8) of VAT
+       Implementing Regulation                                                          Not Required            Conditional                                         X
+1.2 Special billing arrangement flags upon the Authority
+       approval:                                                                        Not Required            Conditional                                         X
+
+             Third party billed invoice
+1.3 Special transaction type flags (not mutually exclusive)
+
+             Nominal Supply
+             Summary
+2 Invoice Identifiers
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               25
+2.1 Invoice Reference Number (IRN): A unique, sequential note   N/A                           Required      Mandatory    X
+
+number, issued by taxpayer, as per Article 53(5)(b) of the VAT
+
+Implementing Regulation.
+
+2.2 Universally Unique Invoice Identifier in UUID format.       N/A                           Not Required  Mandatory                                               X
+
+UUID is A 128-bit number, generated by an algorithm chosen
+to make it unlikely that the same identifier will be generated
+by anyone else.
+
+2.3 Previous invoice/note hash.                                 N/A                           Not required  Mandatory                                               X
+
+A hash is a digital fingerprint of a document obtained using a
+standardized hashing algorithm to prevent modifying or
+tampering with the original data.
+
+2.4 QR Code. This field needs to be present in the human        QR Code should contain the    Required      Mandatory    X
+       readable format, to validate the printed invoice.        fields as mentioned in Annex
+
+                                                                               (1)
+
+2.5 Invoice tamper-resistant counter                            N/A                           Not Required  Mandatory                                               X
+
+3 Date
+
+3.1 Invoice issue date as per Article 53(8)(a) of the VAT       The format needs to be        Required      Mandatory    X
+       Implementing Regulation                                        YYYY-MM-DD
+
+3.2 Invoice issue time                                          The format needs to be        Not Required  Mandatory    X
+                                                                        HH:mm:ss
+
+3.3 Supply date. The supply date needs to be present, if it is  The format needs to be        Required      Conditional                                             X
+
+different from the invoice issue date, as per Article 53(7)(c   YYYY-MM-DD
+
+and d) of the VAT Implementing Regulation
+
+4 Seller Identification
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               26
+4.1 Name as per Article 53(8)(b) of the VAT Implementing            N/A  Required      Mandatory  X
+                                                                         Required
+Regulation                                                               Required
+
+4.2 Address as per Article 53(8)(b) of the VAT Implementing         N/A                Mandatory  X
+
+Regulation.
+
+4.3 VAT registration number as per Article 53(8)(b) of the VAT                         Mandatory  X
+       Implementing Regulation and in case the seller is part of a
+       VAT group then the VAT group Registration number should
+       be entered
+
+4.4 Additional seller ID. one of the following ID's must be         N/A  Not required  Mandatory                                                                    X
+
+entered:
+
+1. Commercial Registration (CR)
+2. MOMRA License
+3. MLSD License
+4. SAGIA License
+5. Other ID of the seller.
+
+It consists of:
+
+1. Type of ID
+
+2. ID Number
+
+Note: In case of multiple commercial registrations, the seller
+should fill the commercial registration of the branch in
+respect of which the Tax Invoice is being issued. In case
+multiple IDs exist then one of the above must be entered
+following the sequence specified above
+
+5 Buyer Identification
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               27
+5.1 Name                                                         Name is mandatory to be         Required      Conditional                                          X
+
+                                                                 filled as per the transactions
+
+                                                                 mentioned in article 53 (7)
+
+                                                                 and for private education
+
+                                                                 and private healthcare to
+
+                                                                 citizens
+
+5.2 Address                                                      N/A                             Not required  Optional                                             X
+
+5.3 Additional buyer ID.                                         National ID is mandatory to     Required      Conditional                                          X
+
+Required only for private education or private healthcare         be filled for private
+supplies to Citizens. This field should contain the National ID  education and private
+only for invoices pertaining to private education and private    healthcare to citizens
+
+healthcare to citizens
+
+6 Order Reference
+
+6.1 Purchase order                                               N/A                             Not required  Optional                                             X
+
+6.2 Contract number                                              N/A                             Not required  Optional                                             X
+
+7 Line Items
+
+7.1 Goods or Service Description as per Article 53(8)(c) of the  N/A                             Required      Mandatory    X
+
+VAT Implementing Regulation
+
+7.2 Goods or Service Code                                        N/A                             Not required  Optional                                             X
+
+7.3 Unit Price                                                   N/A                             Required      Mandatory    X
+
+7.4 Quantity                                                     N/A                             Required      Mandatory    X
+
+7.5 Discount or rebate percentage                                N/A                             Not required  Optional                                             X
+
+7.6 Discount or rebate amount                                    N/A                             Not required  Optional                                             X
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               28
+7.7 Subtotal (exclusive of VAT)                                      N/A                           Not required                                                     X
+
+                                                                                                                 Mandatory
+
+7.8 VAT rate                                                         N/A                           Not required  Optional                                           X
+
+7.9 VAT category code                                                N/A                           Not required  Mandatory                                          X
+
+7.10 VAT amount as per Article 53(8)(e) of the VAT Implementing      N/A                           Not required  Optional                                           X
+
+Regulation
+
+7.11 Subtotal (inclusive of VAT) as per Article 53(8)(d) of the VAT  N/A                           Required      Mandatory                                          X
+
+Implementing Regulation with a statement saying "inclusive
+
+of VAT"
+
+7.12 Charge amount, without VAT if charge is provided at line item To be filled only if charge is  Required, if  Conditional                                        X
+
+level                                                                applied                       populated
+
+7.13 prepayment subtotal (Exclusive of VAT) per Rate or              To be filled only if          Required, if  Conditional                                        X
+
+exemption                                                            prepayment is used            populated
+
+7.14 prepayment VAT amount per Rate or exemption                     To be filled only if          Required, if  Conditional                                        X
+
+                                                                     prepayment is used            populated
+
+7.15 prepayment VAT rate, per Rate or exemption                      To be filled only if          Required, if  Conditional                                        X
+
+                                                                     prepayment is used            populated
+
+8 Total Amounts
+
+8.1 Discount or rebate percentage, if discount is provided at                                      Not required  Optional                                           X
+       invoice level
+
+8.2 Discount or rebate amount, if discount is provided at invoice                                  Not required  Conditional                                        X
+       level
+
+8.3 Invoice Taxable Amount per rate or exemption                                                   Required      Conditional                                        X
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               29
+8.4 VAT Total as per Article 53(8)(e) of the VAT Implementing                                          Required                Conditional  X
+       Regulation
+
+8.5 Invoice Gross Total (inclusive of VAT) as per Article 53(8)(d) of   If VAT total and invoice       Required                Conditional  X
+       the VAT Implementing Regulation                                   taxable amount is not
+                                                                       entered, Gross Total to be
+       If VAT total is not entered, Gross Total to be entered
+                                                                                  entered
+       Statement - "Amount includes VAT"
+                                                                         Statement - "Amount
+                                                                              includes VAT"
+
+8.6 Charge amount, without VAT if charge is applied at                 To be filled only if charge is  Required, if            Conditional                          X
+
+document level                                                         applied                         populated
+
+8.7 Advanced payment adjustment amount (inclusive of VAT) Adjustment towards                           Required, if            Conditional                          X
+
+                                                                       Advanced payment on             populated
+
+                                                                       which VAT is charged by a
+
+                                                                       separate invoice
+
+                                                                         To be filled only if
+                                                                       prepayment is applied
+
+8.8 Rounding Amount                                                    To be filled only if rounding   Required, if            Optional                             X
+
+                                                                       adjustment is applied           populated
+
+8.9 Amount due for payment                                             To be filled only if            Required, if the        Mandatory                            X
+
+                                                                       prepayment subtotal             condition is satisfied
+
+                                                                       (Exclusive of VAT) per Rate
+
+                                                                       or exemption (7.13) or
+
+                                                                       rounding amount (8.7) is
+
+                                                                       used
+
+9 Payment Terms
+
+9.1 Payment means.                                                     N/A                             Not required            Optional                             X
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               30
+For Simplified Tax Invoices, this field should specify if the
+mode of payment is cash, credit/debit cards, bank transfer or
+others.
+
+9.2 Payment Terms, if mode of payment is credit                    N/A                           Not required  Optional                                             X
+
+9.3 Supplier's Bank Account details, if mode of payment is credit  N/A                           Not required  Optional                                             X
+
+10 Notes
+
+10.1 Notes, to enter any information not captured in invoice       N/A                           Not required  Optional                                             X
+
+fields
+
+11 Special Tax Treatment
+
+11.1 Where Tax is not charged at the standard rate, this field     Narration to be entered if    Not Required  Conditional                                          X
+
+should have a narration "Tax treatment applied to the              Tax is not charged at basic
+
+supply" as per Article 53 of the VAT Implementing                  rate
+
+Regulation
+
+12 Cryptographic Stamp                                             Cryptographic Stamp must      Not required  Mandatory                                            X
+
+                                                                   match the Electronic Invoice
+
+                                                                   content and the device
+
+                                                                   Cryptographic Stamp
+
+                                                                   Identifier
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               31
+Tax Invoice Credit/Debit Notes shall contain the following specifications:
+
+   (1) The fields for credit / debit note should correspond exactly to the type of Electronic Invoice for which the Credit/Debit Note is issued, as specified by
+        Article (54) of VAT regulations
+
+#  Field                                                   Validation                Visibility on   Obligation   Enforced on 4th       Enforced as of
+                                                                                   Invoice (such as  Mandatory    December 2021    1st of January 2023 only
+                                                                                   PDF , printout,
+                                                                                                     Mandatory                      for each target group
+                                                                                       any other     Mandatory                           based on the
+                                                                                   human readable    Conditional
+                                                                                                                                   implementation waves
+                                                                                         form)
+
+  1 Type of Invoice (No change to 1.2 and 1.3)             Enumerated value        Document title                 X
+1.1 Invoice Type Description                               representing Credit             is
+                                                           Note / Debit Note
+       Credit Note or Debit Note as per article 54 of VAT                          Credit Note or
+       Implementing Regulation                                                       Debit Note
+
+  2 Invoice Identifiers (No change to 2.1 - 2.5)           The date format should    Required                     X
+  3 Date                                                       be YYYY-MM-DD       Not Required                                                 X
+3.1 Note issue date as per Article 54(3) of the VAT
+                                                           The format needs to be    Required                     X
+       Implementing Regulation                                     HH:mm:ss
+3.2 Note issue time
+                                                           The date format should
+3.3 Supply date                                                be YYYY-MM-DD
+
+  4 Seller Identification (No change to 4.1 - 4.4)
+  5 Buyer Identification (No change to 5.1 - 5.4)
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               32
+6 Order Reference (No change to 6.1 and 6.2)
+
+7 Line Items (No change to 7.1 - 7.15)
+
+8 Total Amounts (No change to 8.1 - 8.9)
+
+9 Payment Terms (No change to 9.1 - 9.3)
+
+10 Notes (No change)
+
+11 Special Tax Treatment (No change)
+
+12 Cryptographic Stamp (No change)
+
+13 Reference
+
+13.1 A reference to the original invoice(s) that the    N/A  Required  Conditional  X
+        credit/debit note is related to
+
+13.2 Reason for issuance of credit / debit note as per  N/A  Required  Mandatory                                                                                    X
+
+the VAT Implementing Regulation
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               33
+A Simplified Tax Invoice Credit/Debit Note shall contain the following specifications:
+
+#  Field                                                           Validation                   Visibility on Invoice  Obligation  Enforced                         Enforced as
+                                                                                                   (such as PDF ,                  on 4th of                              of
+                                                                                                                       Mandatory   December
+                                                                                                printout, any other                                                     1st of
+                                                                                                  human readable       Mandatory      2021                            January
+                                                                                                        form)          Mandatory                                     2023 only
+                                                                                                                                                                      for each
+                                                                                                 Document title is      Optional                                    target group
+                                                                                                Credit Note or Debit                                                  based on
+
+                                                                                                         Note                                                            the
+                                                                                                                                                                    implementa
+                                                                                                      Required                                                       tion waves
+                                                                                                    Not Required
+1 Type of Invoice (No change to 1.2 and 1.3)                            Enumerated value                                           X
+ 1.1 Invoice Type Description                                      representing Credit Note or        Required
+                                                                                                                                   X
+        Credit Note or Debit Note as per article 54 of VAT                   Debit Note                                                             X
+        Implementing Regulation                                                                                                                      X
+2 Invoice Identifiers (No change to 2.1 - 2.5)                     The date format should be
+3 Date                                                                     YYYY-MM-DD
+ 3.1 Note issue date as per Article 54(3) of the VAT Implementing
+        Regulation                                                   The format needs to be
+ 3.2 Note issue time                                                         HH:mm:ss
+
+ 3.3 Supply date                                                   The date format should be
+                                                                           YYYY-MM-DD
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               34
+4 Seller Identification (No change to 4.1 - 4.4)
+
+5 Buyer Identification (No change to 5.1 - 5.4)
+
+6 Order Reference (No change to 6.1 and 6.2)
+
+7 Line Items (No change from 7.1 - 7.15)
+
+    Total Amounts (No change from 8.1 - 8.9)
+8
+
+    Payment Terms (No change to 9.1 - 9.3)
+9
+
+10 Notes (No changes)
+
+11 Special Tax Treatment (No changes)
+
+12 Cryptographic Stamp (No changes)
+
+13 Reference
+
+13.1 A reference to the original invoice(s) that the note is related  N/A  Required  Conditional  X
+
+to
+
+13.2 Reason for issuance of credit / debit note as per the VAT        N/A  Required  Mandatory                                                                      X
+
+Implementing Regulation
+
+     In addition to all the requirements mentioned above, all detailed technical and functional requirements, business rules, and
+  specifications for each of the previous fields listed in the files "Electronic XML Implementation Standards" and "Electronic Invoice
+ Data Dictionary" must be abided by. These files are an essential part of this annexure and are applied alongside the annex and the
+
+                                                                           resolution.
+
+Disclaimer: The Arabic language is the official version of the resolution and this version is unofficial translation of the official Arabic version and in case of
+any discrepancy between both versions the Arabic version prevails
+
+                                                                                               35
+

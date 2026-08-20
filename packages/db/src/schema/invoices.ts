@@ -166,3 +166,37 @@ export const insertInvoiceItemSchema = createInsertSchema(invoiceItemsTable).omi
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoicesTable.$inferSelect;
 export type InvoiceItem = typeof invoiceItemsTable.$inferSelect;
+
+/**
+ * C12 — the per-company invoice-number counter.
+ *
+ * 🔴 MONOTONIC AND NEVER RESET, including at year end. The rule is
+ * VAT Implementing Regulations Art. 53(5)(b) — "a sequential number which
+ * uniquely identifies the Tax Invoice" — which the E-Invoicing Resolution's
+ * Annex (2) field 2.1 delegates to rather than restating. Citations and the
+ * gaps analysis: docs/tax/invoice-numbering-verification.md.
+ *
+ * A table rather than a Postgres SEQUENCE for two reasons: it must be
+ * per-company and tenant-scoped, and a SEQUENCE is non-transactional, so a
+ * rolled-back invoice would burn a value. Allocating inside the caller's
+ * transaction means a rollback discards the number instead of skipping it.
+ *
+ * Not to be confused with `invoices.icv`. The ICV is a DIFFERENT field with a
+ * DIFFERENT rule (Resolution §7: a tamper-resistant counter that cannot be
+ * reset and must increment for every generated document) and it needs the
+ * advisory-lock reservation this one does not.
+ */
+export const invoiceNumberCountersTable = pgTable("invoice_number_counters", {
+  organizationId: uuid("organization_id")
+    .notNull()
+    .default(sql`app_default_org_id()`)
+    .references(() => organizationsTable.id),
+  companyId: uuid("company_id")
+    .primaryKey()
+    .default(sql`app_default_company_id()`)
+    // CASCADE: the counter belongs to the company. A company that ever issued
+    // an invoice cannot be deleted anyway (invoices.company_id is NO ACTION),
+    // so this only ever cascades from a company whose series is empty.
+    .references(() => companiesTable.id, { onDelete: "cascade" }),
+  lastValue: integer("last_value").notNull().default(0),
+});

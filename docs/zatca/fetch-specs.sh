@@ -11,6 +11,13 @@ cd "$(dirname "$0")"
 mkdir -p specs
 
 ZATCA_DOCS=(
+  # 🔴 THE TWO LEGAL TEXTS (C12, 2026-08-21). Everything else in this list is a
+  # GUIDELINE; these two are the regulation and the resolution, and per the
+  # standing trust order a legal question is answered from them, not from a
+  # guideline and never from a secondary summary. Both are ZATCA's unofficial
+  # English translations — the ARABIC prevails on any discrepancy.
+  "https://zatca.gov.sa/en/RulesRegulations/Taxes/Documents/Implmenting%20Regulations%20of%20the%20VAT%20Law_EN.pdf"
+  "https://zatca.gov.sa/en/E-Invoicing/Introduction/LawsAndRegulations/Documents/20230519_E-Invoicing%20Implementation%20Resolution%20English.pdf"
   "https://zatca.gov.sa/en/E-Invoicing/Introduction/Guidelines/Documents/E-invoicing-Detailed-Technical-Guideline.pdf"
   "https://zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/20230519_ZATCA_Electronic_Invoice_Security_Features_Implementation_Standards_vF.pdf"
   "https://zatca.gov.sa/en/E-Invoicing/Introduction/Guidelines/Documents/E-Invoicing_Detailed__Guideline.pdf"
