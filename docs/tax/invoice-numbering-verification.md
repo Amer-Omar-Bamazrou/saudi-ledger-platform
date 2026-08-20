@@ -9,6 +9,12 @@ summary. Two documents, both downloaded from zatca.gov.sa and read directly:
 | **[R]** | **Controls, Requirements, Technical Specifications and Procedural Rules for Implementing the Provisions of the E-Invoicing Regulation** ("the Resolution") | 19 May 2023, 35 pp. | `docs/zatca/specs/ZATCA_E-Invoicing_Implementation_Resolution_20230519_EN.pdf` |
 | **[V]** | **Implementing Regulations of the Value Added Tax Law** ("the VAT IR") | Eighth Edition, 04/04/1443H / 09/11/2021G | `docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.pdf` |
 
+The PDFs themselves are gitignored (`docs/zatca/specs/*.pdf`); `fetch-specs.sh`
+re-downloads them, and the **text extractions are committed alongside** as
+`…_EN.txt`, so every quotation below can be `grep`ed without a network
+round-trip. That mirrors the `sec-standards.txt` / `dev-portal.txt` convention
+already in that folder.
+
 🔴 **Both are ZATCA's own English translations and both carry the disclaimer
 that the ARABIC version is the official one and prevails on any discrepancy.**
 Every verdict here is therefore verified against the English text and carries
