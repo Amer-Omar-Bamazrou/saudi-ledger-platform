@@ -1,5 +1,12 @@
 /** Invoices repository — tenant-scoped via RLS. */
-import { db, invoicesTable, invoiceItemsTable, customersTable, einvoiceDocumentsTable } from "@workspace/db";
+import {
+  db,
+  invoicesTable,
+  invoiceItemsTable,
+  customersTable,
+  einvoiceDocumentsTable,
+  invoiceNumberCountersTable,
+} from "@workspace/db";
 import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 
 export interface InvoiceListFilter {
@@ -27,6 +34,46 @@ export const invoicesRepository = {
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
       .where(eq(invoicesTable.id, id))
       .limit(1);
+  },
+
+  /**
+   * Allocate the next invoice number for the current company (C12).
+   *
+   * ── The rule, from the PRIMARY TEXT ──────────────────────────────────────
+   * VAT Implementing Regulations **Art. 53(5)(b)**: "a sequential number which
+   * uniquely identifies the Tax Invoice". The E-Invoicing Resolution's Annex
+   * (2) field 2.1 delegates to that article rather than restating it. Full
+   * citations: `docs/tax/invoice-numbering-verification.md`.
+   *
+   * 🔴 **Sequential and unique — NOT gapless.** Neither document contains
+   * "unbroken", "gapless" or "without gap" for the invoice number. ZATCA DID
+   * write an explicitly gapless, non-resettable rule for the tamper-resistant
+   * COUNTER (Resolution §7) — a different field. So this needs no advisory
+   * lock and no reservation discipline; `lockCompanySequence` exists for the
+   * ICV chain and must not acquire a second, unrelated caller.
+   *
+   * 🔴 **Monotonic, never reset — including at year end.** The year is a
+   * display prefix only. M21.2's allocator restarted each January, which
+   * nothing in either document authorises and which is the one arrangement
+   * that sits awkwardly against both "sequential" and Resolution §2's ban on
+   * more than one sequence per unit.
+   *
+   * Concurrency: one atomic UPSERT. Two concurrent callers for the same
+   * company serialise on the row lock and receive different values; callers
+   * for different companies never contend. The `UNIQUE (company_id,
+   * invoice_number)` index is the backstop if anything ever bypasses this.
+   */
+  async allocateInvoiceNumber(date?: string): Promise<string> {
+    const year = (date ?? new Date().toISOString().slice(0, 10)).slice(0, 4);
+    const res = await db.execute<{ last_value: number }>(sql`
+      INSERT INTO invoice_number_counters (organization_id, company_id, last_value)
+      VALUES (DEFAULT, DEFAULT, 1)
+      ON CONFLICT (company_id)
+      DO UPDATE SET last_value = invoice_number_counters.last_value + 1
+      RETURNING last_value
+    `);
+    const next = Number(res.rows[0]?.last_value ?? 1);
+    return `INV-${year}-${String(next).padStart(6, "0")}`;
   },
 
   findById(id: number) {

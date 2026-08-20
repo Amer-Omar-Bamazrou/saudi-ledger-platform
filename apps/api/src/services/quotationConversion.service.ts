@@ -191,12 +191,13 @@ export const quotationConversionService = {
       };
     });
 
-    const invoiceNumber =
-      input.invoiceNumber?.trim() || (await quotationsRepository.nextInvoiceNumber(date));
-
+    // C12: no allocation here. An explicit override still wins; otherwise the
+    // number is left unset and `invoicesService.create` allocates it from the
+    // single per-company counter. A second allocator would be a second
+    // sequence, which Resolution §2 forbids per unit.
     const invoice = await invoicesService.create(
       {
-        invoiceNumber,
+        ...(input.invoiceNumber?.trim() ? { invoiceNumber: input.invoiceNumber.trim() } : {}),
         date,
         dueDate: input.dueDate,
         customerId: quotation.customerId,

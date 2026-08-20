@@ -175,31 +175,12 @@ export const quotationsRepository = {
     return db.insert(quotationConversionItemsTable).values(values).returning();
   },
 
-  /**
-   * Allocate an invoice number for a converted quotation.
-   *
-   * 🔴 HONEST SCOPE. This is `INV-{YYYY}-{NNNN}` allocated server-side, which
-   * is better than the browser-minted timestamp the manual invoice form uses —
-   * but `invoices.invoice_number` has NO UNIQUE CONSTRAINT (queue item C12),
-   * so unlike the quotation allocator this one has no backstop: a lost race
-   * produces a duplicate rather than a failed insert. It reduces C12's blast
-   * radius; it does not close C12, and must not be read as having done so.
-   */
-  async nextInvoiceNumber(date: string): Promise<string> {
-    const year = date.slice(0, 4);
-    const [row] = await db
-      .select({
-        maxSeq: sql<number>`COALESCE(MAX(NULLIF(regexp_replace(${invoicesTable.invoiceNumber}, '^.*-', ''), '')::int), 0)`,
-      })
-      .from(invoicesTable)
-      .where(
-        and(
-          sql`${invoicesTable.companyId} = (nullif(current_setting('app.current_company_id', true), ''))::uuid`,
-          sql`${invoicesTable.invoiceNumber} ~ ${`^INV-${year}-[0-9]+$`}`,
-        ),
-      );
-    return `INV-${year}-${String(Number(row?.maxSeq ?? 0) + 1).padStart(4, "0")}`;
-  },
+  // The invoice-number allocator that used to live here is GONE (C12).
+  // It produced INV-{YYYY}-{NNNN} restarting each January and had no unique
+  // constraint behind it. Conversion now leaves `invoiceNumber` unset and
+  // `invoicesService.create` allocates from the single monotonic per-company
+  // counter — one allocator for every invoice, which is what "one sequence per
+  // unit" requires. See docs/tax/invoice-numbering-verification.md.
 
   delete(id: number) {
     return db.delete(quotationsTable).where(eq(quotationsTable.id, id));

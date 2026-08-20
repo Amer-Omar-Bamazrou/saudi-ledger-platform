@@ -127,6 +127,23 @@ export const invoicesService = {
     // NOT posted as a GL line today — pre-existing, unchanged here.)
     const total = round2(subtotal + vatTotal - Number(invData.discount ?? 0));
 
+    // ── C12: the number is allocated SERVER-SIDE ─────────────────────────
+    // 🔴 It used to arrive from the browser as `INV-${Date.now().slice(-6)}`,
+    // a truncated millisecond clock with no unique constraint behind it — on a
+    // value that becomes the ZATCA document's `cbc:ID` and the
+    // `BillingReference` a credit note uses to name what it corrects.
+    //
+    // VAT IR Art. 53(5)(b) requires "a sequential number which uniquely
+    // identifies the Tax Invoice". A clock reading is neither.
+    //
+    // A caller-supplied number is still honoured — a tenant migrating legacy
+    // books has its own series, and refusing that would make import
+    // impossible — but it is no longer the default, and
+    // `UNIQUE (company_id, invoice_number)` now judges every one of them.
+    if (!String(invData.invoiceNumber ?? "").trim()) {
+      invData.invoiceNumber = await invoicesRepository.allocateInvoiceNumber(invData.date);
+    }
+
     // A draft dated in a closed period is harmless (no ledger effect), but keep
     // the early guard so drafts aren't entered into closed periods.
     //
