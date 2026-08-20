@@ -41,6 +41,10 @@ export default defineConfig({
     // failing invoice tests. It cannot happen in production: `loadEnv` is
     // memoized and runs at boot, so the process would never have started.
     env: {
+      // Vitest sets this itself, but the rate-limit store keys its test
+      // isolation off it (C1) — an assumption about a default is exactly the
+      // kind this repo has been bitten by, so it is stated.
+      NODE_ENV: "test",
       DATABASE_URL: process.env["DATABASE_URL"] ?? "postgresql://localhost:5432/placeholder",
       PORT: process.env["PORT"] ?? "3000",
       SESSION_SECRET: process.env["SESSION_SECRET"] ?? "test-session-secret-not-used-for-real-auth",

@@ -25,6 +25,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { hashToken } from "../lib/tokens";
+import { __resetRateLimitsForTests } from "../routes/auth";
 import { invitationsService } from "../services/invitations.service";
 import { membersService } from "../services/members.service";
 
@@ -85,6 +86,10 @@ describeMaybe("M11.7 — organization invitations", () => {
   const tokenFromLink = (link: string) => new URL(link).searchParams.get("token")!;
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     approvedOrg = (await pool.query(
       `INSERT INTO organizations (name, slug, verification_status) VALUES ('InvTest Approved','invtest-approved','approved') RETURNING id`,

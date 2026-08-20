@@ -83,7 +83,7 @@ describeMaybe("M11.5.1 — user-administration authorization (CRITICAL-1 regress
   beforeAll(async () => {
     // Suites share one process-global, IP-keyed rate-limit budget; start clean
     // so another suite\'s signups cannot 429 this one. See auth.ts.
-    __resetRateLimitsForTests();
+    await __resetRateLimitsForTests();
     await cleanup();
 
     // A legitimate, APPROVED victim organization with an admin and a member.

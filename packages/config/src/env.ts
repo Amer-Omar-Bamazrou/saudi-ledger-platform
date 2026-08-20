@@ -38,6 +38,52 @@ const EnvSchema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
+  /**
+   * C4 — malware scanning for user-supplied files. `none` (default) means no
+   * scanner is deployed; the gate then stores the file and says so at debug
+   * level rather than claiming a scan happened.
+   */
+  MALWARE_SCANNER: z.enum(["none", "clamd"]).default("none"),
+  CLAMD_HOST: z.string().default("127.0.0.1"),
+  CLAMD_PORT: z.coerce.number().int().positive().default(3310),
+
+  /**
+   * 🔴 What an UNAVAILABLE scanner means — an explicit, reviewable choice
+   * rather than one implied by absence. `refuse` = fail-closed (correct once
+   * untrusted tenants exist); `allow` = store it and log loudly (correct while
+   * no scanner is deployed at all, which is today).
+   */
+  SCAN_UNAVAILABLE_POLICY: z.enum(["allow", "refuse"]).default("allow"),
+
+  /**
+   * C1 — how many reverse proxies rewrite `X-Forwarded-For` in front of this
+   * process. It is a DEPLOYMENT FACT, not something to infer from NODE_ENV.
+   *
+   * 🔴 Both wrong directions are live risks: too LOW and `req.ip` is the
+   * proxy's address, so every IP-keyed rate limit collapses into one bucket
+   * (and the session cookie's `secure` gate misfires); too HIGH and a
+   * client-supplied XFF hop is believed, which makes the same limits a no-op
+   * for anyone who sets a header. Default 0 = direct, no proxy.
+   */
+  TRUST_PROXY_HOPS: z.coerce
+    .number({ message: "TRUST_PROXY_HOPS must be a number (0 = no proxy in front of the API)" })
+    .int()
+    .min(0)
+    .max(10)
+    .default(0),
+
+  /**
+   * C1 — whether the session cookie requires HTTPS. Defaults to ON in
+   * production, but is settable, because the audit found the `NODE_ENV ===
+   * "production"` gate shipped auth cookies WITHOUT `Secure` on any
+   * deployment named something else ("staging"). Setting it false in
+   * production is refused below.
+   */
+  SESSION_COOKIE_SECURE: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+
   // The session-cookie signing key. A short/guessable secret lets an attacker
   // forge signed session cookies, so we enforce a minimum length and — unlike
   // the old app.ts — provide NO fallback. There is deliberately no default.
@@ -295,6 +341,19 @@ const EnvSchema = z.object({
         message:
           "MAIL_PROVIDER must be set in production (queue item B1). Renewal reminders and " +
           "invitations would otherwise be recorded and delivered to nobody.",
+      });
+    }
+    // 🔴 C1 — an auth cookie without `Secure` in production is a session
+    // token that travels in clear text on any downgraded request. The audit
+    // found the old NODE_ENV gate shipped exactly that on a "staging" deploy;
+    // making it settable must not make it disable-able where it matters.
+    if (env.NODE_ENV === "production" && env.SESSION_COOKIE_SECURE === false) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SESSION_COOKIE_SECURE"],
+        message:
+          "SESSION_COOKIE_SECURE cannot be false in production — the session cookie would " +
+          "be sent over plain HTTP. Terminate TLS in front of the API instead.",
       });
     }
     if (env.ALERT_PROVIDER === "webhook" && !env.ALERT_WEBHOOK_URL) {

@@ -32,6 +32,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { resolveTenant } from "../lib/tenant";
+import { __resetRateLimitsForTests } from "../routes/auth";
 import { primePermissionCache } from "../lib/rbac";
 
 const url = process.env.DATABASE_URL;
@@ -75,6 +76,10 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     )).rows[0].id as string;
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     userId = (await pool.query(
       `INSERT INTO users (email,name,password_hash,role,is_active) VALUES ($1,'Gate Tester',$2,'admin',true) RETURNING id`,

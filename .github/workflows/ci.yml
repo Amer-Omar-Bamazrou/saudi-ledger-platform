@@ -48,8 +48,18 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # C2 — the storage suite gates on the PRESENCE of SUPABASE_URL +
+      # SUPABASE_SERVICE_ROLE_KEY (their absence is deliberately how it skips),
+      # so supplying them is what turns the suite on. The KEY is not set here:
+      # it is MINTED in the storage step from the same secret the container
+      # gets, because a hardcoded JWT and the container's AUTH_JWT_SECRET are
+      # two facts that must agree — and when they silently disagreed, every
+      # storage call failed with `invalid signature`.
+      SUPABASE_URL: http://localhost:5001
+      STORAGE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -106,8 +116,117 @@ jobs:
       # privileges to it. A vanilla postgres:16 container has no such role, so
       # create it and make `postgres` a member before applying migrations. The
       # service container is fresh per run, so no idempotency guard is needed.
-      - name: Bootstrap non-owner role (authenticated)
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE authenticated NOLOGIN; GRANT authenticated TO postgres;"
+      # `authenticated` is ours (RLS tests SET LOCAL ROLE to it, migration 0004
+      # grants to it). `anon` and `service_role` exist only because the storage
+      # container's own migrations name them in `REVOKE ... FROM anon,
+      # authenticated` — without them storage-api dies at boot with
+      # `role "anon" does not exist`, which is exactly how the first C2 run
+      # failed. They are created NOLOGIN and granted nothing; they exist to be
+      # revoked from.
+      - name: Bootstrap non-owner roles
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            DO \$\$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+            END \$\$;
+            GRANT authenticated TO postgres;
+            -- storage-api serves every request as \`service_role\`, which in a
+            -- real Supabase stack bypasses RLS. Without this, creating the
+            -- bucket fails with 'new row violates row-level security policy'.
+            ALTER ROLE service_role BYPASSRLS;"
+
+      # ── C2: object storage, so the document path is actually EXERCISED ──────
+      # Was the M11.4 coverage gap: `documents.test.ts` skips unless SUPABASE_URL
+      # and SUPABASE_SERVICE_ROLE_KEY are set, so CI proved nothing about upload,
+      # download, sanitization or tenant-prefixed paths.
+      #
+      # 🔴 A STEP, not a `services:` entry — and that is the whole fix. A service
+      # container starts BEFORE the first step runs, so it hit Postgres while the
+      # roles its migrations revoke from did not yet exist. Nothing a later step
+      # does can be early enough. Starting it here orders it after the bootstrap.
+      #
+      # 🔴 nginx is not decoration either: `lib/storage.ts` addresses
+      # `/storage/v1/object/...` because that is the path Kong exposes in a real
+      # Supabase stack. A bare storage-api serves those routes at the ROOT and
+      # would 404 every call. Rewriting the prefix here keeps the test exercising
+      # the SAME URLs production uses — a lib change to suit CI would have made
+      # the suite prove the wrong thing.
+      - name: Start object storage (storage-api + path-rewriting proxy)
+        run: |
+          set -euo pipefail
+
+          # Mint the service-role JWT from the SAME secret the container gets,
+          # so the key and the verifier cannot drift apart.
+          KEY=$(node -e "
+            const c=require('crypto');
+            const b64=o=>Buffer.from(JSON.stringify(o)).toString('base64url');
+            const h=b64({alg:'HS256',typ:'JWT'});
+            const p=b64({role:'service_role',iss:'supabase-demo',iat:1641769200,exp:1957345600});
+            const s=c.createHmac('sha256',process.env.STORAGE_JWT_SECRET).update(h+'.'+p).digest('base64url');
+            console.log(h+'.'+p+'.'+s);
+          ")
+          echo "::add-mask::$KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$KEY" >> "$GITHUB_ENV"
+
+          docker run -d --name storage --network host \
+            -e ANON_KEY="$KEY" -e SERVICE_KEY="$KEY" \
+            -e AUTH_JWT_SECRET="$STORAGE_JWT_SECRET" \
+            -e PGRST_JWT_SECRET="$STORAGE_JWT_SECRET" \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e POSTGREST_URL='http://localhost:3999' \
+            -e FILE_SIZE_LIMIT=52428800 \
+            -e STORAGE_BACKEND=file \
+            -e FILE_STORAGE_BACKEND_PATH=/var/lib/storage \
+            -e TENANT_ID=ci -e REGION=ci -e GLOBAL_S3_BUCKET=ci \
+            supabase/storage-api:v1.11.13
+
+          printf 'server { listen 5001; location /storage/v1/ { proxy_pass http://127.0.0.1:5000/; } }\n' > /tmp/storage-proxy.conf
+          docker run -d --name storage-proxy --network host \
+            -v /tmp/storage-proxy.conf:/etc/nginx/conf.d/default.conf:ro \
+            nginx:1.27-alpine
+
+          # Fail LOUDLY and print the container log. A storage container that
+          # never came up must not degrade into "suite skipped, CI green" —
+          # that silent-skip posture is the gap C2 exists to close.
+          up=""
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5001/storage/v1/status >/dev/null 2>&1; then
+              up="yes"; echo "::notice title=Storage::up after ${i}s"; break
+            fi
+            sleep 1
+          done
+          if [ -z "$up" ]; then
+            echo "::error title=Storage::storage-api never became healthy"
+            docker logs storage; exit 1
+          fi
+
+          # 🔴 These grants come AFTER the container, not before: the `storage`
+          # schema is created by storage-api's OWN migrations at boot, so there
+          # is nothing to grant on until it has started. Without them every
+          # request fails as `relation "buckets" does not exist` — Postgres
+          # hides relations in a schema the role has no USAGE on, so a missing
+          # grant is reported as a missing TABLE. That misreading cost the
+          # longest part of this diagnosis.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA storage TO service_role;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA storage TO service_role;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO service_role;"
+
+          # Prove the round-trip BEFORE the suite runs, so a broken container is
+          # a clear infrastructure error here rather than six confusing
+          # assertion failures later.
+          curl -fsS -X POST http://localhost:5001/storage/v1/bucket \
+            -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+            -d '{"id":"ci-smoke","name":"ci-smoke","public":false}' >/dev/null
+          echo hello > /tmp/smoke.txt
+          curl -fsS -X POST "http://localhost:5001/storage/v1/object/ci-smoke/smoke.txt" \
+            -H "Authorization: Bearer $KEY" -H 'content-type: text/plain' \
+            --data-binary @/tmp/smoke.txt >/dev/null
+          test "$(curl -fsS "http://localhost:5001/storage/v1/object/ci-smoke/smoke.txt" -H "Authorization: Bearer $KEY")" = "hello"
+          echo "::notice title=Storage::round-trip verified — document tests will RUN"
 
       - name: Apply migrations
         run: pnpm --filter @workspace/db run migrate

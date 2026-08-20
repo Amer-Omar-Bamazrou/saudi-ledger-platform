@@ -8,8 +8,13 @@
  * multipart upload plus an attachment-only (never inline) download.
  *
  * Requires BOTH a real DB and Storage credentials (SUPABASE_URL +
- * SUPABASE_SERVICE_ROLE_KEY). CI provides neither the Storage service nor those
- * vars, so this suite skips there; run locally against the Supabase stack.
+ * SUPABASE_SERVICE_ROLE_KEY).
+ *
+ * 🔴 As of C2 (2026-08-20) CI DOES run this suite: the workflow starts
+ * `supabase/storage-api` behind a path-rewriting proxy and supplies both vars.
+ * The old note here said CI "provides neither ... so this suite skips there",
+ * which stopped being true the day the container landed — a claim of absence
+ * expires when the thing is built (standing check, part 6).
  */
 
 // app.ts calls loadEnv() at import — provide the non-storage vars CI omits. We do
@@ -23,6 +28,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { documentsService } from "../services/documents.service";
+import { __resetRateLimitsForTests } from "../routes/auth";
 import { storage } from "../lib/storage";
 
 const url = process.env.DATABASE_URL;
@@ -66,6 +72,10 @@ describeMaybe("verification documents (M11.4)", () => {
     (await pool.query(`SELECT action FROM security_audit_logs WHERE organization_id = $1`, [orgId])).rows.map((r) => r.action as string);
 
   beforeAll(async () => {
+    // C1: the rate-limit store is now SHARED (Postgres), so a suite that
+    // logs in repeatedly consumes the SAME budget as every parallel suite —
+    // the per-fork privacy MemoryStore accidentally provided is gone.
+    await __resetRateLimitsForTests();
     await cleanup();
     userA = await mkUser("doctest-user@test.local");
     operatorId = await mkUser("doctest-operator@test.local");
@@ -177,5 +187,57 @@ describeMaybe("verification documents (M11.4)", () => {
       const up = await fetch(`${base}/onboarding/documents`, { method: "POST", headers: { cookie }, body: form });
       expect(up.status).toBe(400);
     });
+  });
+});
+
+/**
+ * 🔴 `ensureBucket` used to treat ANY 400 as "the bucket already exists".
+ *
+ * That looked harmless because Supabase Storage really does report a duplicate
+ * bucket as HTTP 400 carrying `{"statusCode":"409","error":"Duplicate"}` — so
+ * the blanket pass was right for the case someone tested. It was also right for
+ * `{"statusCode":"403","error":"Unauthorized","message":"invalid signature"}`,
+ * which is a hard auth failure: provisioning reported success, nothing was
+ * created, and the next upload failed with an unexplained 400 against a bucket
+ * that did not exist. It cost a full CI cycle to trace.
+ *
+ * Same family as B3's stub: a no-op that reports success is a false statement
+ * the caller builds on, where a throw is merely a gap. So the tolerance is now
+ * keyed on what the body SAYS, and this test pins both directions — the one
+ * that must be swallowed, and the one that must not.
+ *
+ * `fetch` is stubbed rather than pointed at a real backend: the point is the
+ * DECISION `ensureBucket` makes about a response, not the backend's behaviour.
+ */
+describeMaybe("ensureBucket distinguishes 'already exists' from a real failure", () => {
+  const realFetch = globalThis.fetch;
+  const stub = (status: number, body: string) => {
+    globalThis.fetch = (async () =>
+      new Response(body, { status })) as unknown as typeof globalThis.fetch;
+  };
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("SWALLOWS a duplicate reported as 400/409 (the real Supabase shape)", async () => {
+    stub(400, JSON.stringify({ statusCode: "409", error: "Duplicate", message: "The resource already exists" }));
+    await expect(storage.ensureBucket()).resolves.toBeUndefined();
+  });
+
+  it("swallows a plain 409 too", async () => {
+    stub(409, JSON.stringify({ error: "Duplicate" }));
+    await expect(storage.ensureBucket()).resolves.toBeUndefined();
+  });
+
+  it("🔴 THROWS on an auth failure wearing a 400 — the case that used to pass silently", async () => {
+    stub(400, JSON.stringify({ statusCode: "403", error: "Unauthorized", message: "invalid signature" }));
+    await expect(storage.ensureBucket()).rejects.toThrow(/invalid signature/);
+  });
+
+  it("the thrown error names the reason, not just the status", async () => {
+    stub(500, JSON.stringify({ error: "DatabaseError", message: 'relation "buckets" does not exist' }));
+    // An operator reading the log must be able to act on it. `(500)` alone sent
+    // this exact diagnosis down the wrong path for the better part of an hour.
+    await expect(storage.ensureBucket()).rejects.toThrow(/buckets.* does not exist/);
   });
 });

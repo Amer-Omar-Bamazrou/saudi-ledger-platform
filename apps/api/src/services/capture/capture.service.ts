@@ -13,6 +13,7 @@ import { BadRequestError, NotFoundError } from "../../lib/errors";
 import { logger } from "../../lib/logger";
 import { auditService } from "../audit.service";
 import { sanitizeFilename, validateDocumentBytes } from "../../lib/fileValidation";
+import { assertFileIsClean } from "../../lib/malwareScanner";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { sha256Hex, verifyQrSignature } from "./signatureVerification";
 import { stagingStore } from "./stagingStore";
@@ -57,6 +58,11 @@ export const captureService = {
     // second file-validation path would be a second place to get it wrong.
     const mimeType = validateDocumentBytes(input.bytes);
     const validated = { mimeType, fileName: sanitizeFilename(input.fileName, mimeType) };
+
+    // C4 — the same scan gate as the verification-document path, for the same
+    // reason it shares the sniff: a second file-handling path is a second place
+    // to get it wrong. Phone captures are the HIGHER-volume untrusted input.
+    await assertFileIsClean(input.bytes, { kind: "captured_document" });
 
     const id = randomUUID();
     const stagingPath = `${ctx.organizationId}/${ctx.companyId}/${id}-${validated.fileName}`;

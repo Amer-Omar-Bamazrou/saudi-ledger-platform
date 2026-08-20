@@ -89,7 +89,7 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
   beforeAll(async () => {
     // Suites share one process-global, IP-keyed rate-limit budget; start clean
     // so another suite\'s signups cannot 429 this one. See auth.ts.
-    __resetRateLimitsForTests();
+    await __resetRateLimitsForTests();
     await cleanup();
     primePermissionCache(PERMISSION_MATRIX); // CI applies migrations but doesn't seed permissions
     operatorId = (await pool.query(
