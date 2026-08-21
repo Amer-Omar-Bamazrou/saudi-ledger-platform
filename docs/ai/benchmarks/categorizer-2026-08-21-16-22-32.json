@@ -1,0 +1,164 @@
+{
+  "corpusSize": 49,
+  "results": [
+    {
+      "model": "qwen/qwen3.6-27b",
+      "withHint": false,
+      "successes": 21,
+      "failures": 0,
+      "firstFailure": null,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 84,
+        "pt": 31908,
+        "ct": 5040,
+        "avg_ms": 355,
+        "failed": 0
+      },
+      "arabicGateGapPoints": -4
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "withHint": false,
+      "successes": 15,
+      "failures": 6,
+      "firstFailure": "groq openai/gpt-oss-120b: 200 with no completion content",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 21,
+            "total": 25,
+            "pct": 84
+          },
+          "hard": {
+            "correct": 6,
+            "total": 10,
+            "pct": 60
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 18,
+            "total": 21,
+            "pct": 86
+          },
+          "hard": {
+            "correct": 7,
+            "total": 9,
+            "pct": 78
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          },
+          "hard": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          }
+        }
+      },
+      "usage": {
+        "calls": 63,
+        "pt": 7595,
+        "ct": 982,
+        "avg_ms": 644,
+        "failed": 45
+      },
+      "arabicGateGapPoints": -18
+    },
+    {
+      "model": "openai/gpt-oss-20b",
+      "withHint": false,
+      "successes": 19,
+      "failures": 2,
+      "firstFailure": "groq openai/gpt-oss-20b: 200 with no completion content",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 20,
+            "total": 25,
+            "pct": 80
+          },
+          "hard": {
+            "correct": 5,
+            "total": 10,
+            "pct": 50
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 20,
+            "total": 21,
+            "pct": 95
+          },
+          "hard": {
+            "correct": 9,
+            "total": 9,
+            "pct": 100
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          },
+          "hard": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          }
+        }
+      },
+      "usage": {
+        "calls": 63,
+        "pt": 9696,
+        "ct": 1036,
+        "avg_ms": 561,
+        "failed": 40
+      },
+      "arabicGateGapPoints": -50
+    }
+  ]
+}

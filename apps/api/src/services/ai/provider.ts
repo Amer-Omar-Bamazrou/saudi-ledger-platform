@@ -45,6 +45,15 @@ export interface AiChatRequest {
   timeoutMs?: number;
   /** Override the configured text model (benchmarks compare models). */
   model?: string;
+  /**
+   * Reasoning-effort control for reasoning models (gpt-oss, qwen-think).
+   * 🔴 Without it, a reasoning model can spend the ENTIRE maxTokens budget
+   * thinking and return 200 with empty content — which the provider then
+   * throws as unavailable. That made gpt-oss (the spec's own candidate)
+   * unmeasurable: 19/21 benchmark calls empty even at 500 tokens. Sent as
+   * `reasoning_effort` only when set; non-reasoning models ignore it.
+   */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export interface AiVisionRequest extends AiChatRequest {
@@ -120,6 +129,7 @@ export class GroqProvider implements AiProvider {
         body: JSON.stringify({
           model,
           max_tokens: req.maxTokens,
+          ...(req.reasoningEffort ? { reasoning_effort: req.reasoningEffort } : {}),
           messages: [{ role: "user", content }],
         }),
       });

@@ -37,14 +37,21 @@ interface Verdict {
   hybrid: string | null;
 }
 
-function prompt(c: BenchmarkCase, detHint: string | null): string {
+/**
+ * `withHint=false` is the DISCRIMINATING EXPERIMENT for hint-anchoring: a
+ * model that merely agrees with the deterministic suggestion scores exactly
+ * baseline while looking measured (qwen did precisely this — 21/21 calls,
+ * every score identical to baseline). Until a model has a no-hint run, its
+ * with-hint score must be read as NOT MEASURED, not as "matches baseline".
+ */
+function prompt(c: BenchmarkCase, detHint: string | null, withHint: boolean): string {
   const categoryList = SEED_CATEGORIES.map((x) => `  ${x.systemCode}: ${x.name}`).join("\n");
   return `You are a Saudi Arabian bookkeeping assistant. Classify this bank transaction into exactly ONE category code from the list, or the literal string NONE if no category clearly applies (an unclear transaction must go to human review, not be guessed).
 
 Description: ${c.description || "(none)"}
 Arabic description: ${c.descriptionAr || "(none)"}
 Type: ${c.type === "credit" ? "money received" : "money paid out"}
-${detHint ? `A rule engine tentatively suggested: ${detHint}` : "The rule engine found no match."}
+${withHint ? (detHint ? `A rule engine tentatively suggested: ${detHint}` : "The rule engine found no match.") : ""}
 
 Category codes:
 ${categoryList}
@@ -52,11 +59,31 @@ ${categoryList}
 Reply with JSON only: {"code": "SALES"} or {"code": "NONE"}`;
 }
 
-function parse(text: string): string | null {
-  const m = text.match(/\{[^}]*\}/);
-  if (!m) return null;
+/**
+ * 🔴 Parse the ANSWER, not the thinking. The first version matched the FIRST
+ * `{...}` in the reply — and a reasoning model restates the format inside its
+ * <think> block, so the extracted "answer" was the placeholder
+ * `{"code": "CATEGORY_CODE"}` from the model's own notes: invalid → null →
+ * deterministic fallback → a model that reasoned to the RIGHT answer scored
+ * exactly baseline. (Observed verbatim on qwen3.6: correct classification
+ * inside <think>, truncated before emitting it.)
+ *
+ * Now: a closed <think> block is stripped; an UNCLOSED one means the model
+ * never finished thinking and there IS no answer — that is null honestly, not
+ * a parse of the notes. Then the LAST JSON object wins.
+ */
+export function parse(text: string): string | null {
+  let t = text;
+  const openIdx = t.indexOf("<think>");
+  if (openIdx >= 0) {
+    const closeIdx = t.indexOf("</think>");
+    if (closeIdx < 0) return null; // truncated mid-think: no answer exists
+    t = t.slice(0, openIdx) + t.slice(closeIdx + "</think>".length);
+  }
+  const matches = t.match(/\{[^{}]*\}/g);
+  if (!matches || matches.length === 0) return null;
   try {
-    const code = String(JSON.parse(m[0]).code ?? "");
+    const code = String(JSON.parse(matches[matches.length - 1]).code ?? "");
     if (code === "NONE") return null;
     return SEED_CATEGORIES.some((x) => x.systemCode === code) ? code : null;
   } catch {
@@ -76,6 +103,8 @@ async function main() {
   const env = loadEnv();
   const modelsArg = process.argv.find((a) => a.startsWith("--models"));
   const models = modelsArg ? modelsArg.split("=")[1].split(",") : [env.GROQ_MODEL];
+  const withHint = !process.argv.includes("--no-hint");
+  console.log(`prompt mode: ${withHint ? "WITH deterministic hint" : "NO HINT (anchoring control)"}`);
 
   // ── Deterministic baseline (no network, always runs) ─────────────────────
   const detVerdicts: Verdict[] = BENCHMARK_CASES.map((c) => ({
@@ -126,7 +155,15 @@ async function main() {
         try {
           const out = await conn.run(() =>
             meteredChat(provider, "benchmark_categorizer", {
-              prompt: prompt(c, det ? det.systemCode : null),
+              // qwen3's documented soft switch: without it the model spent
+              // its ENTIRE budget thinking (correct answer included, never
+              // emitted). A classification task needs the answer, not an
+              // audit trail of deliberation.
+              prompt: prompt(c, det ? det.systemCode : null, withHint) + (model.startsWith("qwen/") ? "\n/no_think" : ""),
+              // gpt-oss burns its budget on reasoning without this; low keeps
+              // the thinking bounded so the answer fits (verified: without it,
+              // 19/21 calls returned 200-with-empty-content at 500 tokens).
+              ...(model.startsWith("openai/gpt-oss") ? { reasoningEffort: "low" as const } : {}),
               maxTokens: 60,
               timeoutMs: 25_000,
               model,
@@ -187,7 +224,7 @@ async function main() {
     console.log(
       `  measured: ${usage.rows[0].calls} calls, ${usage.rows[0].pt} prompt + ${usage.rows[0].ct} completion tokens, avg ${usage.rows[0].avg_ms}ms, ${usage.rows[0].failed} failed`,
     );
-    results.push({ model, successes, failures, firstFailure, perLang, usage: usage.rows[0], arabicGateGapPoints: successes > 0 ? gap : null });
+    results.push({ model, withHint, successes, failures, firstFailure, perLang, usage: usage.rows[0], arabicGateGapPoints: successes > 0 ? gap : null });
   }
 
   const outDir = path.join(import.meta.dirname, "../../../../..", "docs", "ai", "benchmarks");

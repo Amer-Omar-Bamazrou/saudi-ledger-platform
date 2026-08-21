@@ -512,6 +512,28 @@ These are short forms; the rules are binding, the history explains why.
   owner's instruction, and it caught a defect the code review had not — M21.2's
   allocator restarted each January, which nothing in either document
   authorises. Read-first did not merely confirm the plan; it changed it.
+- **🔴 THE VACUOUS GREEN IN THE MEASURING INSTRUMENT** (AI-1b, 2026-08-21).
+  The Arabic benchmark — the instrument built to enforce the quality gate —
+  printed "✅ Arabic gate holds" over a run in which **all 21 model calls had
+  failed**: it was comparing the deterministic engine against itself and
+  calling the tie a verdict. Worse than an ordinary vacuous test, because an
+  instrument's output is TRUSTED downstream — a model could have been pinned
+  on it. Three compounding mechanisms, each now guarded: (1) the verdict
+  didn't require any successful evidence (now: zero successes ⇒ "NOT JUDGED",
+  and every verdict prints the call count it rests on); (2) failure reasons
+  were swallowed, so the run looked slow instead of broken (now printed);
+  (3) the parser extracted the FIRST `{...}` from replies, which for a
+  reasoning model is the format placeholder inside its own `<think>` notes —
+  so a model that reasoned to the RIGHT answer scored exactly baseline while
+  looking measured (now: strip closed think-blocks, unclosed ⇒ no answer,
+  last JSON wins). 🔴 **It was caught by the OWNER running it, not by the
+  test suite** — the suite exercised the seam's failure branches but nothing
+  asserted the benchmark's verdict logic against an all-failed run. The rule:
+  **a verdict line must carry the evidence count it rests on, and an
+  instrument needs its own vacuity test — "all inputs failed" is a case the
+  instrument must name, not a case it may score.** Corollary adopted from the
+  owner: an unmeasured row reads "NOT MEASURED", never "matches baseline" —
+  an artifact that looks like a result is worse than a failure.
 - **🔴 A MIRROR IS A HYPOTHESIS ABOUT THE TARGET, NOT A FACT ABOUT IT** (M21.3,
   2026-08-20). Building purchase orders as "the mirror of quotations" carried
   an unexamined assumption: that a BILL can hold what an INVOICE holds. It

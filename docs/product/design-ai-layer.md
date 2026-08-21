@@ -314,21 +314,28 @@ must be synthetic. When the team gets Enterprise access, the seam's provider
 config changes; nothing else should have to.
 
 
-## 12c. Groq outreach list (ask together, owner 2026-08-21)
+## 12c. Groq outreach list (ask together, owner 2026-08-21; reordered 2026-08-21)
 
-Questions for the ONE Enterprise conversation, so nothing needs a second ask:
+Questions for the ONE Enterprise conversation, so nothing needs a second ask.
 
-1. **Enterprise terms**: Dammam-region pinning + contractual zero-data-retention
-   + no-training — the Reading-A package §12a records as decided-pending-terms.
-2. 🔴 **Is an Arabic-acceptable VISION model available IN the Dammam region?**
-   The free-tier benchmark (AI-1b) tells us which models pass the §2a Arabic
-   gate; it cannot tell us those models are served in-region under Enterprise.
-   A model that passes the gate globally but is absent from Dammam fails the
-   residency constraint anyway — ask for the region's model list and its
-   roadmap, in writing.
-3. Practical riders worth one sentence each: token pricing at Enterprise tier
-   (the metering table prices against it), rate limits per model, and whether
-   region pinning is per-request or per-account.
+1. 🔴 **FIRST, because it may reopen a closed decision: is ANY vision model
+   available to us, on any tier?** Measured fact (2026-08-21): our account's
+   `/models` catalog exposes **no vision model at all** — so the question is
+   no longer "which vision model in Dammam?" but "does Groq serve us one
+   anywhere?", and only then "is it Arabic-acceptable, and is it in Dammam?".
+   **If the answer is no, the document layer (A1's extraction) needs a
+   different provider or a local GPU — which reopens the §12a hosting
+   decision for that layer.** Get the answer in writing before the receipt
+   corpus is spent benchmarking anything.
+2. **Enterprise terms**: Dammam-region pinning + contractual zero-data-
+   retention + no-training — the Reading-A package §12a records as
+   decided-pending-terms.
+3. **Practical riders, one sentence each**: Enterprise TPM limits per model
+   (free tier measured at **6,000 tokens/min** — a real 429, org-tier
+   `on_demand`); token pricing at Enterprise tier (the metering table prices
+   against it); whether region pinning is per-request or per-account; and
+   whether the text catalog differs by region (gpt-oss-20b is our measured
+   Arabic leader — confirm it exists in Dammam).
 
 ## 12d. AI-1a as built (2026-08-21)
 
@@ -380,39 +387,30 @@ Questions for the ONE Enterprise conversation, so nothing needs a second ask:
   benchmark is a consumer of the meter, and free-tier rate-limit behaviour is
   part of what gets measured.
 
-## 12f. First real free-tier numbers (2026-08-21) — and what they honestly mean
+## 12f. Free-tier numbers, v2 (2026-08-21) — after the harness itself was debugged
 
-Corpus: the 49-case synthetic benchmark (§12e). Baseline (deterministic only):
-EN 60% / hard 40%, AR 62% / hard 44%. Free-tier catalog note: 🔴 **this key
-exposes NO vision model** — sharpening outreach question §12c-2.
+Corpus: the 49-case synthetic benchmark (§12e); baseline (deterministic only)
+EN 60% / hard 40%, AR 62% / hard 44%. All rows below are **no-hint mode**
+(the anchoring control) with reasoning-effort control in the seam.
 
-| Model | Calls ok | AR hard | EN hard | Verdict |
-| --- | --- | --- | --- | --- |
-| **allam-2-7b** (SDAIA) | 17/21 | **56% (+12 over baseline)** | 40% | ✅ gate holds; **the early Arabic leader** — AR beats EN |
-| qwen/qwen3.6-27b | 21/21 | 44% (=baseline) | 40% (=baseline) | measured but INERT — see caveat 2 |
-| openai/gpt-oss-120b | 2/21 | — | — | NOT MEASURABLE — see caveat 3 |
-| openai/gpt-oss-20b | 2/21 | — | — | NOT MEASURABLE — see caveat 3 |
+| Model | Calls ok | AR overall | **AR hard** | EN hard | Reading |
+| --- | --- | --- | --- | --- | --- |
+| **openai/gpt-oss-20b** (effort=low) | 19/21 | **95%** | **100% (9/9)** | 50% | **The Arabic leader once measurable.** |
+| openai/gpt-oss-120b (effort=low) | 15/21 | 86% | 78% | 60% | Strong; 6 calls still empty at low effort — dropped calls fall back to deterministic and drag the score. |
+| allam-2-7b (SDAIA) | 16/21 | 71% | 56% | 50% | Solid, cheapest/fastest; TPM-throttled (6,000/min measured). |
+| qwen/qwen3.6-27b | 21/21 | — | — | — | 🔴 **NOT MEASURED.** See below — a row that says "baseline" here would be an artifact wearing a result's clothes. |
 
-**Caveats, which are most of the finding:**
+**Why qwen is NOT MEASURED, after two discriminating experiments:** it reasons
+to the CORRECT answer inside `<think>` (observed verbatim) and then truncates
+before emitting it — at every budget tried, with the `/no_think` soft switch
+ignored by this deployment. The earlier "exactly baseline, 21/21 ok" row was
+the parser extracting the format placeholder from the model's own thinking:
+an artifact that looked like a result, which is worse than a failure (owner's
+framing, adopted as the rule: **an unmeasured model's row says NOT MEASURED,
+never "matches baseline"**). Next lever if wanted: Groq's qwen-specific
+reasoning parameters.
 
-1. **n is small** (9–10 hard cases per language): one case ≈ 10 points, and
-   ALLaM's EN-hard flapped 40↔50 between two runs while its AR-hard held at
-   56 in both. Directional signal, not a ranking.
-2. **qwen scored exactly baseline on every axis across 21 successful calls.**
-   Suspicion: HINT-ANCHORING — the prompt includes the deterministic engine's
-   tentative suggestion, and a model that simply agrees with the hint scores
-   exactly baseline while looking measured. A no-hint prompt variant is the
-   discriminating experiment before reading qwen's number as qwen.
-3. **gpt-oss (both sizes) is a reasoning model that returns 200 with EMPTY
-   content when its token budget is consumed by reasoning** — 19/21 calls even
-   at 500 tokens on this prompt. Measuring it needs reasoning-effort control
-   in the provider seam (a small follow-up), not a bigger cap.
-4. **Free-tier TPM limit measured in the wild**: allam-2-7b hit 429 at
-   6,000 tokens/min ("service tier on_demand"). Add to §12c riders: what are
-   the Enterprise TPM limits per model?
-
-**Harness lessons paid for here:** the first run printed "✅ Arabic gate
-holds" over 21 failed calls (deterministic-vs-deterministic — a verdict about
-nothing; the gate now says NOT JUDGED when zero calls succeed), and a 60-token
-cap silently converted a reasoning model's answers into fallbacks that looked
-like measurements. Both are the vacuous-probe disease in benchmark clothing.
+**Standing caveats:** n = 9–10 hard cases per language (one case ≈ 10
+points); dropped calls fall back to the deterministic answer and are mixed
+into hybrid scores; single-digit run counts. Directional, not a ranking —
+but the direction is now real model output end to end.

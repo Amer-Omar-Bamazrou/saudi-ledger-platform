@@ -1,0 +1,58 @@
+{
+  "corpusSize": 49,
+  "results": [
+    {
+      "model": "qwen/qwen3.6-27b",
+      "withHint": false,
+      "successes": 21,
+      "failures": 0,
+      "firstFailure": null,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 63,
+        "pt": 23952,
+        "ct": 3780,
+        "avg_ms": 349,
+        "failed": 0
+      },
+      "arabicGateGapPoints": -4
+    }
+  ]
+}
