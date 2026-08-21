@@ -12,7 +12,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat, CalendarClock,
+  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat, CalendarClock, ScrollText,
 } from "lucide-react";
 
 type NavItem = {
@@ -21,6 +21,9 @@ type NavItem = {
   labelAr: string;
   icon: React.ElementType;
   children?: NavItem[];
+  /** Hide from non-admins — HONESTY about the 403 the API would return
+      (`requirePermission` is the boundary), never the boundary itself. */
+  adminOnly?: boolean;
 };
 
 const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
@@ -116,6 +119,9 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
       { href: "/recurring",        label: "Automation Rules",  labelAr: "قواعد الأتمتة",    icon: Repeat },
       { href: "/company",          label: "Company Settings",  labelAr: "إعدادات الشركة",   icon: Building2 },
       { href: "/closed-months",    label: "Closed Months",     labelAr: "الأشهر المُقفلة",  icon: CalendarClock },
+      // Admin-only in the API (audit_logs read = admin); the adminOnly flag
+      // hides it from roles that would only meet a 403.
+      { href: "/audit-trail",      label: "Audit Trail",       labelAr: "سجل التدقيق",      icon: ScrollText, adminOnly: true },
       { href: "/zatca",            label: "ZATCA e-invoicing", labelAr: "الفوترة الإلكترونية", icon: ShieldCheck },
       { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },
       { href: "/change-password",  label: "Change Password",   labelAr: "تغيير كلمة المرور", icon: KeyRound },
@@ -203,19 +209,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
    * The refusal is the real control — this only keeps the sidebar honest, so a
    * deliberately narrowed demo does not read as a product full of dead links.
    */
-  const visible = (i: NavItem) => !i.href || !DEMO_HIDDEN.has(i.href);
-  const navGroups = demoMode
-    ? navGroupsData
-        .map((g) => ({
-          ...g,
-          // Nested items too: a hidden route inside a collapsible group is
-          // still a dead link.
-          items: g.items
-            .filter(visible)
-            .map((i) => (i.children ? { ...i, children: i.children.filter(visible) } : i)),
-        }))
-        .filter((g) => g.items.length > 0)
-    : navGroupsData;
+  const visible = (i: NavItem) =>
+    (!demoMode || !i.href || !DEMO_HIDDEN.has(i.href)) &&
+    (!i.adminOnly || user?.organizationRole === "admin");
+  // 🔴 Filtered UNCONDITIONALLY, not only on the demo. The first wiring of
+  // `adminOnly` applied `visible` inside the demo branch alone, which made
+  // the flag a no-op for every real tenant — a consumer that consumed nothing
+  // in the path that matters. DEMO_HIDDEN is scoped to demoMode inside
+  // `visible` itself, so unifying the branches changes nothing for it.
+  const navGroups = navGroupsData
+    .map((g) => ({
+      ...g,
+      // Nested items too: a hidden route inside a collapsible group is
+      // still a dead link.
+      items: g.items
+        .filter(visible)
+        .map((i) => (i.children ? { ...i, children: i.children.filter(visible) } : i)),
+    }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">

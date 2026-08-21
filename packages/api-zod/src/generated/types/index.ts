@@ -8,6 +8,8 @@
 
 export * from './acceptPendingInput';
 export * from './acceptPendingResult';
+export * from './auditLogEntry';
+export * from './auditLogPage';
 export * from './bill';
 export * from './billApproveInput';
 export * from './billItem';
@@ -84,6 +86,7 @@ export * from './liquidityBlockersItem';
 export * from './liquidityBlockersItemCode';
 export * from './liquidityObservationsItem';
 export * from './liquidityObservationsItemSeverity';
+export * from './listAuditLogsParams';
 export * from './listBudgetsParams';
 export * from './listPurchaseOrdersOutcome';
 export * from './listPurchaseOrdersParams';

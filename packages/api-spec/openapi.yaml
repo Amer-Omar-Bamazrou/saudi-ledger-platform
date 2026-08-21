@@ -844,6 +844,37 @@ paths:
                 items:
                   $ref: "#/components/schemas/PurchaseOrderConversion"
 
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit-logs]
+      summary: >
+        The organization's audit trail (admin-only): who did what, when, from
+        where, and the before/after states. Append-only at the storage layer -
+        there is no write surface here or anywhere. This route predates the
+        OpenAPI-first rule and gained its spec entry with its first UI (M23),
+        when the response also gained actorName.
+      parameters:
+        - in: query
+          name: entity_type
+          schema: { type: string }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer }
+      responses:
+        "200":
+          description: One page of the trail, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
   /recurring:
     get:
       operationId: listRecurringRules
@@ -3741,6 +3772,37 @@ components:
             billedOn: { type: string }
         bill:
           $ref: "#/components/schemas/Bill"
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: integer, nullable: true }
+        actorName:
+          type: string
+          nullable: true
+          description: >
+            Resolved through the identity layer, scoped to THIS org's
+            memberships - a userId with no membership here stays null (the UI
+            shows "User #id"), never a name from another tenant.
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        beforeState: { nullable: true }
+        afterState: { nullable: true }
+        ipAddress: { type: string, nullable: true }
+        createdAt: { type: string }
+
+    AuditLogPage:
+      type: object
+      properties:
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
 
     RecurringRule:
       type: object
