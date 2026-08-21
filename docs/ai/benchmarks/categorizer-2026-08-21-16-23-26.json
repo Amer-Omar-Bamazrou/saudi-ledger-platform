@@ -1,0 +1,58 @@
+{
+  "corpusSize": 49,
+  "results": [
+    {
+      "model": "allam-2-7b",
+      "withHint": false,
+      "successes": 16,
+      "failures": 5,
+      "firstFailure": "groq allam-2-7b: HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `allam-2-7b` in organization `org_01m09aag60ewfrx4h82nxb9yw6` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5600, Requested 477. Please try again in 770ms. Need more tokens? Upgrade to Dev Tier today",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 17,
+            "total": 25,
+            "pct": 68
+          },
+          "hard": {
+            "correct": 5,
+            "total": 10,
+            "pct": 50
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 15,
+            "total": 21,
+            "pct": 71
+          },
+          "hard": {
+            "correct": 5,
+            "total": 9,
+            "pct": 56
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          },
+          "hard": {
+            "correct": 2,
+            "total": 3,
+            "pct": 67
+          }
+        }
+      },
+      "usage": {
+        "calls": 63,
+        "pt": 23299,
+        "ct": 509,
+        "avg_ms": 219,
+        "failed": 14
+      },
+      "arabicGateGapPoints": -6
+    }
+  ]
+}

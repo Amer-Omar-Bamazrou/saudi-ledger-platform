@@ -78,6 +78,21 @@ describe("GroqProvider — the B3 contract (unavailable THROWS, never returns)",
     await expect(p.chat({ prompt: "hi", maxTokens: 50, timeoutMs: 30 })).rejects.toThrow(AiUnavailableError);
   });
 
+  it("reasoningEffort is sent as reasoning_effort only when set", async () => {
+    // 🔴 Without this control a reasoning model spends the whole maxTokens
+    // budget thinking and returns 200-with-empty-content — which made
+    // gpt-oss, the spec's own candidate, unmeasurable (19/21 empty calls).
+    let sent: any = null;
+    const p = new GroqProvider("k", "m", "vm", stub(async (_u, init) => {
+      sent = JSON.parse(String(init?.body));
+      return okBody("ok");
+    }));
+    await p.chat({ prompt: "x", maxTokens: 10, reasoningEffort: "low" });
+    expect(sent.reasoning_effort).toBe("low");
+    await p.chat({ prompt: "x", maxTokens: 10 });
+    expect("reasoning_effort" in sent).toBe(false);
+  });
+
   it("vision sends the image as a data URL content part", async () => {
     let sent: any = null;
     const p = new GroqProvider("k", "m", "vision-model", stub(async (_u, init) => {
@@ -263,5 +278,42 @@ describeDb("meteredChat — every call leaves a row, failures included", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].ok).toBe(false);
+  });
+});
+
+/**
+ * The benchmark's answer parser — pinned after it manufactured a result.
+ *
+ * Mechanism (3) of the vacuous-green incident (CLAUDE.md §3): the parser took
+ * the FIRST `{...}` in a reply, which for a reasoning model is the format
+ * placeholder restated inside its own <think> notes — so a model that
+ * reasoned to the RIGHT answer scored exactly baseline while looking
+ * measured. These tests pin the corrected contract with the observed shapes.
+ */
+describe("benchmark parse() — the answer, never the thinking", () => {
+  it("🔴 the placeholder inside <think> does not win over the real answer", async () => {
+    const { parse } = await import("../scripts/benchmark/benchmarkCategorizer");
+    const reply = `<think>Format is {"code": "CATEGORY_CODE"} ... LinkedIn is marketing.</think>\n{"code": "MARKETING"}`;
+    expect(parse(reply)).toBe("MARKETING");
+  });
+
+  it("🔴 an UNCLOSED think block is NO ANSWER — null, not a parse of the notes", async () => {
+    const { parse } = await import("../scripts/benchmark/benchmarkCategorizer");
+    // The verbatim qwen failure shape: correct answer inside thinking,
+    // truncated before emitting it. Scoring the notes would be measuring
+    // deliberation, not output.
+    const reply = `<think>The answer is {"code": "MARKETING"} and I will now`;
+    expect(parse(reply)).toBeNull();
+  });
+
+  it("the last JSON object wins when a model narrates before answering", async () => {
+    const { parse } = await import("../scripts/benchmark/benchmarkCategorizer");
+    expect(parse(`Considering {"code": "SALES"} vs others... final: {"code": "MARKETING"}`)).toBe("MARKETING");
+  });
+
+  it("NONE and unknown codes are null — restraint and invalidity both refuse", async () => {
+    const { parse } = await import("../scripts/benchmark/benchmarkCategorizer");
+    expect(parse(`{"code": "NONE"}`)).toBeNull();
+    expect(parse(`{"code": "CATEGORY_CODE"}`)).toBeNull();
   });
 });
