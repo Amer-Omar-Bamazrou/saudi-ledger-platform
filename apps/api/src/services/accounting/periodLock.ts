@@ -5,6 +5,7 @@
 import { db } from "@workspace/db";
 import { periodLocksTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
+import { PeriodLockedError } from "../../lib/errors";
 
 /** Extract YYYY-MM from a date string or Date. */
 function toPeriod(date: string | Date): string {
@@ -43,9 +44,15 @@ export async function checkPeriodOpen(date: string | Date): Promise<void> {
     )
     .limit(1);
   if (lock) {
-    throw Object.assign(
-      new Error(`Period ${period} is locked. It was closed on ${lock.lockedAt.toISOString().slice(0, 10)}. Post a reversing entry in an open period.`),
-      { statusCode: 423 }
+    const lockedAt = lock.lockedAt.toISOString().slice(0, 10);
+    // Plain words, not accountant vocabulary ("post a reversing entry" told a
+    // non-accountant nothing). The client keys on the CODE in the payload and
+    // renders its own copy; this message is the fallback for API callers and
+    // for surfaces that only show text — so it carries the same explanation.
+    throw new PeriodLockedError(
+      `The books for ${period} are closed (closed on ${lockedAt}), so its figures can't change. ` +
+        `Date this in an open month instead — or an admin can reopen ${period} from Closed months.`,
+      { period, lockedAt },
     );
   }
 }
