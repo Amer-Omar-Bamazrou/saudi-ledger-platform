@@ -204,6 +204,20 @@ gone, and each entry was deleted by the stage that built it rather than
 reworded.
 See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
+**M23 — Audit Trail (2026-08-21, PR #73).** The second-to-last
+claimed-but-unreachable route closed: `/audit-trail` is the first reader UI
+for the trail M7 started writing — read-only, filterable, paginated,
+before/after states, admin-gated. **Actors are NAMED via the identity layer**
+(`membersRepository.memberNamesByIds`, the B1 `activeAdminEmails` precedent),
+scoped to the org's own memberships; 🔴 the pinned NEGATIVE test is the one
+that matters — a userId with no membership in the org stays unresolved, so
+the trail can never borrow a name from another tenant. `/audit-logs` gained
+its first OpenAPI entry (the `actorName` response change triggered the
+obligation). **`KNOWN_UNREACHABLE` now holds `/llm` alone**, parked with the
+AI layer by decision. Ops note for background jobs: never `git checkout`
+inside a background waiter — one did, mid-build, and moved a commit onto
+local main (caught by branch protection; repaired).
+
 **AI-1 — the Groq free-tier foundation (2026-08-21, PRs #67/#68).** The AI
 layer's first BUILT phase, entirely inside the owner's free-tier boundary
 (synthetic + dev-org data only). **AI-1a:** the provider seam
