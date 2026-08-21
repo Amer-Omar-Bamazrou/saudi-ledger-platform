@@ -204,6 +204,24 @@ gone, and each entry was deleted by the stage that built it rather than
 reworded.
 See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
+**M22 — Closed months (2026-08-21).** The period-locks surface, in the owner's
+framing: **"close the books for a month so figures stop changing"** — never
+"lock period". A dedicated `/closed-months` page (read for every role; actions
+admin-only) states what closing MEANS before any control, plus 🔴 **the 423 as
+an explanation, once, globally**: `checkPeriodOpen` now throws a structured
+`423 {code: "period_closed", period, lockedAt}`, and ONE dialog in the shared
+fetch layer renders every closed-month refusal from any of the seven posting
+paths — keyed on the **code, never the message text**, so rewording copy
+cannot break it, and any future path that can hit a lock inherits the
+explanation. The recurring generator records the same plain words a human
+sees (it copies `err.message`, and the rewrite lives in the source error).
+D4: the UI does not secretly forbid what the API allows — closing the current
+or a future month is permitted with a loud consequence-naming confirm.
+🔴 **D5 recorded as a CANDIDATE, not a gap:** months may close in any order
+because the BACKEND enforces no order and a UI-only rule would lie about what
+the system enforces; sequential closing, if wanted, is a backend change and
+its own decision.
+
 **The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.
 Owner answers: the full generative product is the moat (trips the hosting
 trigger by definition); constraint ranking **residency > quality > cost**;
@@ -234,7 +252,14 @@ ENTERPRISE arrangement, not a configuration flag (standard tiers route
 globally), so the residency half is contingent on a commercial agreement
 that does not yet exist — **the signed Enterprise/Dammam+ZDR agreement is a
 BLOCKING item before any tenant data reaches Groq**; until then, model
-calls carry fixture/dev data only. Still open: the Enterprise terms
+calls carry fixture/dev data only. 🔴 **Free-tier boundary (owner,
+2026-08-21): Groq's free tier is IN USE for development.** Recorded
+explicitly: free tier = no Enterprise agreement = **no Dammam pinning —
+requests route globally**. Usable for: the provider seam, the Arabic
+benchmark, model evaluation, pipeline testing against synthetic fixtures,
+and measuring real token consumption. **It must not touch any real
+tenant's ledger, receipts, or documents** — the blocking rule above stands
+unchanged, and "development" is not an exception to it. Still open: the Enterprise terms
 themselves, an Arabic-acceptable vision model in the Dammam region, the
 Arabic benchmark, and the eval gate's thresholds. See
 [`docs/product/design-ai-layer.md`](docs/product/design-ai-layer.md).
@@ -776,11 +801,16 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
 - **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
 - **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
 - **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,
-  2026-08-14 — the same class as A1/A3, three more instances):**
-  `/period-locks` (a tenant cannot close an accounting period from the
-  product), `/audit-logs` (the admin audit trail has no reader UI, though it is
+  2026-08-14 — the same class as A1/A3):** ~~`/period-locks`~~ (✅ CLOSED —
+  M18.4 gave it its first UI in the Finance Hub; **M22 (2026-08-21) added the
+  dedicated `/closed-months` page + the global 423 explanation.** 🔴 This
+  bullet itself claimed "a tenant cannot close an accounting period from the
+  product" for a WEEK after M18.4 fixed that — the guard's comment was updated
+  and this file was not, the exact §11 staleness disease, in the operating
+  file), `/audit-logs` (the admin audit trail has no reader UI, though it is
   claimed as available to org admins), `/llm` (proposal-only, inert, parked
-  with the AI layer). They are listed in the guard's `KNOWN_UNREACHABLE` with
+  with the AI layer).
+  They are listed in the guard's `KNOWN_UNREACHABLE` with
   reasons; the guard blocks NEW ones and fails if a listed route gains a UI
   without leaving the list. **Also fixed in the same pass:** `ZatcaOnboarding`
   and `CreditNotes` passed `/api/...` into `apiFetch`, which prepends `/api`

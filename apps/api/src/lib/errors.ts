@@ -72,9 +72,19 @@ export class ConflictError extends AppError {
   }
 }
 
-/** 423 — the accounting period is locked (mirrors the pre-M6 period-lock error). */
+/**
+ * 423 — the accounting period is closed.
+ *
+ * 🔴 STRUCTURED, because the client renders this refusal as an EXPLANATION
+ * (M22): the web's shared fetch layer keys on `code === "period_closed"` —
+ * never on the message text, so rewording the copy can never break the
+ * handler — and uses `period`/`lockedAt` to name the month and the two ways
+ * forward. Seven posting paths throw this via `checkPeriodOpen`; one handler
+ * explains all of them, and any future path that can hit a closed month
+ * inherits the explanation for free.
+ */
 export class PeriodLockedError extends AppError {
-  constructor(message: string) {
-    super(423, message);
+  constructor(message: string, detail?: { period: string; lockedAt: string }) {
+    super(423, message, detail ? { error: message, code: "period_closed", ...detail } : undefined);
   }
 }

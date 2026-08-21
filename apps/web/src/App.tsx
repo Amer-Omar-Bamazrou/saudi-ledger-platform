@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
 import { DemoBanner } from '@/components/DemoBanner';
+import { PeriodClosedDialog } from '@/components/PeriodClosedDialog';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
@@ -40,6 +41,7 @@ import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
 import UserManagement from '@/pages/UserManagement';
 import CompanySettings from '@/pages/CompanySettings';
+import ClosedMonths from '@/pages/ClosedMonths';
 import ZatcaOnboarding from '@/pages/ZatcaOnboarding';
 import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
@@ -121,6 +123,8 @@ function Router() {
       <Route>
         <AuthGuard>
           <Layout>
+            {/* M22 (D3): the one closed-month explanation, for every page. */}
+            <PeriodClosedDialog />
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/transactions" component={Transactions} />
@@ -182,6 +186,7 @@ function Router() {
               <Route path="/categories" component={Categories} />
               <Route path="/approvals" component={Approvals} />
               <Route path="/company" component={CompanySettings} />
+              <Route path="/closed-months" component={ClosedMonths} />
               <Route path="/zatca" component={ZatcaOnboarding} />
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />

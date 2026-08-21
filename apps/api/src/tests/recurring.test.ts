@@ -198,7 +198,7 @@ describeMaybe("A3 — generation", () => {
     expect(run.outcome).toBe("failed");
     // Machine-readable, so the UI can say what to do rather than show a stack.
     expect(run.error_code).toBe("period_locked");
-    expect(run.error_detail).toMatch(/locked/i);
+    expect(run.error_detail).toMatch(/books .* closed/i);
 
     // And nothing was created — a failed run leaves no half-made document.
     expect(run.document_id).toBeNull();

@@ -290,3 +290,25 @@ blended score is how an English-strong model passes while failing the
 customer — the aggregate hiding the segment is the same arithmetic that hid
 sixty dead patterns behind a suite that was mostly green. The Arabic floor
 gates selection; the blended number is not a gate at all.
+
+## 12b. Free-tier boundary (owner decision, 2026-08-21)
+
+Groq's **free tier is in use for development now**, ahead of the Enterprise
+agreement. The boundary, stated so it cannot be blurred later:
+
+**Free tier = no Enterprise agreement = no Dammam pinning. Requests route
+globally.** Therefore:
+
+| ✅ Allowed on the free tier | 🔴 Never on the free tier |
+| --- | --- |
+| The provider seam (build + exercise it) | Any real tenant's ledger rows |
+| The Arabic benchmark (§2a) | Any tenant's receipts or captured documents |
+| Model evaluation / comparison | Anything derived from tenant data (names, amounts, patterns) |
+| Pipeline testing on **synthetic fixtures** | — |
+| Measuring real token consumption per operation | — |
+
+The §12a blocking rule stands unchanged: **the signed Enterprise/Dammam+ZDR
+agreement remains a blocking item before any tenant data reaches Groq.**
+"Development" is not an exception to that rule — it is the reason the fixtures
+must be synthetic. When the team gets Enterprise access, the seam's provider
+config changes; nothing else should have to.

@@ -12,7 +12,7 @@ import {
   BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat,
+  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat, CalendarClock,
 } from "lucide-react";
 
 type NavItem = {
@@ -115,6 +115,7 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
       // here, the "↻ Make recurring" entry point lives on the Invoices page.
       { href: "/recurring",        label: "Automation Rules",  labelAr: "قواعد الأتمتة",    icon: Repeat },
       { href: "/company",          label: "Company Settings",  labelAr: "إعدادات الشركة",   icon: Building2 },
+      { href: "/closed-months",    label: "Closed Months",     labelAr: "الأشهر المُقفلة",  icon: CalendarClock },
       { href: "/zatca",            label: "ZATCA e-invoicing", labelAr: "الفوترة الإلكترونية", icon: ShieldCheck },
       { href: "/users",            label: "User Management",   labelAr: "إدارة المستخدمين", icon: UserCog },
       { href: "/change-password",  label: "Change Password",   labelAr: "تغيير كلمة المرور", icon: KeyRound },

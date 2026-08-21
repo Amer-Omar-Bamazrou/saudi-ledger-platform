@@ -7,6 +7,8 @@ const API = `${BASE}/api`;
  * `code` to route the user to the verification status page instead of showing a
  * bare "access denied".
  */
+import { emitPeriodClosed } from "./periodClosed";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -42,6 +44,18 @@ export function handleApiErrorResponse(status: number, body: any): void {
     if (!window.location.pathname.replace(/\/$/, "").endsWith("/verification")) {
       window.location.href = `${import.meta.env.BASE_URL}verification`;
     }
+  }
+
+  // M22 (D3): a write refused because the month's books are closed. ONE
+  // handler for every path that can hit a lock — the dialog explains the
+  // refusal in plain words and names the two ways forward. 🔴 Keyed on the
+  // structured code, never the message text: rewording server copy must not
+  // be able to break this.
+  if (status === 423 && body?.code === "period_closed") {
+    emitPeriodClosed({
+      period: String(body.period ?? ""),
+      lockedAt: body.lockedAt ? String(body.lockedAt) : null,
+    });
   }
 }
 
