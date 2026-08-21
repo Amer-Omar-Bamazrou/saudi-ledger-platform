@@ -60,3 +60,4 @@ docs/zatca/specs/*.pdf
 # ZATCA Compliance & Enablement Toolbox (SDK) — 40 MB zip + extracted tree.
 # docs/zatca/sdk-manifest.md records the URL, checksum and full inventory.
 docs/zatca/sdk/
+docs/ai/receipt-benchmark/images/
