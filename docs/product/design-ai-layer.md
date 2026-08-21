@@ -414,3 +414,40 @@ reasoning parameters.
 points); dropped calls fall back to the deterministic answer and are mixed
 into hybrid scores; single-digit run counts. Directional, not a ranking —
 but the direction is now real model output end to end.
+
+
+## 12g. 🔴 A finding AGAINST this spec, and the next milestone (owner, 2026-08-21)
+
+### The spec's model-class assumption may be wrong — in the cheap direction
+
+This document assumed the LARGER reasoning model (gpt-oss-120b-class) for the
+generative layer. The first measured evidence points the other way:
+**gpt-oss-20b beat 120b decisively on Arabic** (AR-hard 100% vs 78% on this
+corpus), while being cheaper, faster, and completing more calls at low
+reasoning effort. Recorded as a finding against the spec, not a leaderboard
+row: **our own design's assumption about required model size is now the thing
+under test**, and the error — if it is one — is in the direction that REDUCES
+cost. Do not re-pin the spec on this yet; see the constraint below.
+
+### 🔴 The binding constraint moved: it is now CORPUS SIZE, not model availability
+
+9–10 hard cases per language means **one case is worth ~11 points** — enough
+to reorder the table. Until the corpus is large enough that a single result
+cannot move a verdict, no model-selection decision may cite these numbers as
+settled. (Concretely: ~30+ hard cases per language puts one case at ~3
+points; that is the working bar.)
+
+### AI-2 — corpus expansion (the next AI milestone)
+
+Grow the benchmark corpus until single results stop moving verdicts:
+
+- **Target:** ≥30 hard cases per language (en / ar / mixed), plus
+  proportionate easy and honest-null cases.
+- **Discipline:** the same rule as the receipt labels — cases record **what
+  the paper says** (realistic statement lines as banks print them), never
+  regex-inversions of the engine and never lines written to flatter a model.
+- **Density where the models disagree:** the existing per-case results tell
+  us which categories confuse which models — expand THERE, not uniformly.
+- **Sequenced after the owner's receipt labels begin arriving**, so real-paper
+  edge cases inform the synthetic author (decision 2026-08-21: audit-logs UI
+  ships first; AI-2 follows).
