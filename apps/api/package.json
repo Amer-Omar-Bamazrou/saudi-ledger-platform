@@ -9,7 +9,9 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "seed:sample": "tsx src/scripts/seedSampleData.ts"
+    "seed:sample": "tsx src/scripts/seedSampleData.ts",
+    "benchmark:categorizer": "tsx src/scripts/benchmark/benchmarkCategorizer.ts",
+    "benchmark:vision": "tsx src/scripts/benchmark/benchmarkVision.ts"
   },
   "dependencies": {
     "@peculiar/asn1-csr": "^2.8.0",
