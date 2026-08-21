@@ -379,3 +379,40 @@ Questions for the ONE Enterprise conversation, so nothing needs a second ask:
   reports MEASURED token consumption and failure counts from `ai_usage` — the
   benchmark is a consumer of the meter, and free-tier rate-limit behaviour is
   part of what gets measured.
+
+## 12f. First real free-tier numbers (2026-08-21) — and what they honestly mean
+
+Corpus: the 49-case synthetic benchmark (§12e). Baseline (deterministic only):
+EN 60% / hard 40%, AR 62% / hard 44%. Free-tier catalog note: 🔴 **this key
+exposes NO vision model** — sharpening outreach question §12c-2.
+
+| Model | Calls ok | AR hard | EN hard | Verdict |
+| --- | --- | --- | --- | --- |
+| **allam-2-7b** (SDAIA) | 17/21 | **56% (+12 over baseline)** | 40% | ✅ gate holds; **the early Arabic leader** — AR beats EN |
+| qwen/qwen3.6-27b | 21/21 | 44% (=baseline) | 40% (=baseline) | measured but INERT — see caveat 2 |
+| openai/gpt-oss-120b | 2/21 | — | — | NOT MEASURABLE — see caveat 3 |
+| openai/gpt-oss-20b | 2/21 | — | — | NOT MEASURABLE — see caveat 3 |
+
+**Caveats, which are most of the finding:**
+
+1. **n is small** (9–10 hard cases per language): one case ≈ 10 points, and
+   ALLaM's EN-hard flapped 40↔50 between two runs while its AR-hard held at
+   56 in both. Directional signal, not a ranking.
+2. **qwen scored exactly baseline on every axis across 21 successful calls.**
+   Suspicion: HINT-ANCHORING — the prompt includes the deterministic engine's
+   tentative suggestion, and a model that simply agrees with the hint scores
+   exactly baseline while looking measured. A no-hint prompt variant is the
+   discriminating experiment before reading qwen's number as qwen.
+3. **gpt-oss (both sizes) is a reasoning model that returns 200 with EMPTY
+   content when its token budget is consumed by reasoning** — 19/21 calls even
+   at 500 tokens on this prompt. Measuring it needs reasoning-effort control
+   in the provider seam (a small follow-up), not a bigger cap.
+4. **Free-tier TPM limit measured in the wild**: allam-2-7b hit 429 at
+   6,000 tokens/min ("service tier on_demand"). Add to §12c riders: what are
+   the Enterprise TPM limits per model?
+
+**Harness lessons paid for here:** the first run printed "✅ Arabic gate
+holds" over 21 failed calls (deterministic-vs-deterministic — a verdict about
+nothing; the gate now says NOT JUDGED when zero calls succeed), and a 60-token
+cap silently converted a reasoning model's answers into fallbacks that looked
+like measurements. Both are the vacuous-probe disease in benchmark clothing.

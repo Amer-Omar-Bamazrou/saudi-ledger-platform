@@ -1,0 +1,55 @@
+{
+  "corpusSize": 49,
+  "results": [
+    {
+      "model": "llama-3.3-70b-versatile",
+      "failures": 21,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 21,
+        "pt": 0,
+        "ct": 0,
+        "avg_ms": 185,
+        "failed": 21
+      },
+      "arabicGateGapPoints": -4
+    }
+  ]
+}

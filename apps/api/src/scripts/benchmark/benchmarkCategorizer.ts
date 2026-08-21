@@ -115,6 +115,8 @@ async function main() {
     const provider = new GroqProvider(env.GROQ_API_KEY!, model, env.GROQ_VISION_MODEL);
     const verdicts: Verdict[] = [];
     let failures = 0;
+    let successes = 0;
+    let firstFailure: string | null = null;
 
     for (const c of BENCHMARK_CASES) {
       const det = categorizeTransaction(c.description, 100, c.type, c.descriptionAr);
@@ -131,9 +133,14 @@ async function main() {
             }),
           );
           hybrid = parse(out.text) ?? (det?.systemCode ?? null);
+          successes += 1;
           await conn.commit();
-        } catch {
+        } catch (err) {
           failures += 1;
+          // 🔴 The first run of this benchmark swallowed every reason and
+          // printed a vacuous gate verdict over 21 failures. The reason is
+          // kept and the verdict below is gated on successes > 0.
+          if (!firstFailure) firstFailure = err instanceof Error ? err.message.slice(0, 300) : String(err);
           hybrid = det?.systemCode ?? null; // the degrade contract, same as production
           await conn.commit(); // commit so the ok=false meter row survives
         }
@@ -143,7 +150,9 @@ async function main() {
       await new Promise((r) => setTimeout(r, 400));
     }
 
-    console.log(`\n== Hybrid (deterministic + ${model}) — provider failures: ${failures} ==`);
+    console.log(`
+== Hybrid (deterministic + ${model}) : ${successes} model calls ok, ${failures} failed ==`);
+    if (firstFailure) console.log(`  first failure: ${firstFailure}`);
     const perLang: Record<string, unknown> = {};
     for (const lang of ["en", "ar", "mixed"] as const) {
       const all = score(verdicts, (v) => v.hybrid, lang);
@@ -151,15 +160,22 @@ async function main() {
       perLang[lang] = { all, hard };
       console.log(`  ${lang.padEnd(5)} ${all.correct}/${all.total} (${all.pct}%)   hard-only: ${hard.correct}/${hard.total} (${hard.pct}%)`);
     }
-    // 🔴 The §2a gate, stated as a verdict, not left to the reader.
+    // 🔴 The §2a gate, stated as a verdict — but ONLY over real model output.
+    // The first run printed "✅ gate holds" over 21 failed calls: it was
+    // comparing deterministic-vs-deterministic, a verdict about nothing. A
+    // gate that judges zero evidence must say NOT JUDGED, loudly.
     const arHard = score(verdicts, (v) => v.hybrid, "ar", true);
     const enHard = score(verdicts, (v) => v.hybrid, "en", true);
     const gap = enHard.pct - arHard.pct;
-    console.log(
-      gap > 15
-        ? `  🔴 ARABIC GATE: FAILS for ${model} — hard-case gap EN ${enHard.pct}% vs AR ${arHard.pct}% (${gap} points). An English-strong/Arabic-poor model fails regardless of blended score.`
-        : `  ✅ Arabic gate holds for ${model} on this corpus (hard-case gap ${gap} points).`,
-    );
+    if (successes === 0) {
+      console.log(`  🔴 ARABIC GATE: NOT JUDGED for ${model} — every model call failed; the scores above are the deterministic engine wearing a hybrid label.`);
+    } else {
+      console.log(
+        gap > 15
+          ? `  🔴 ARABIC GATE: FAILS for ${model} — hard-case gap EN ${enHard.pct}% vs AR ${arHard.pct}% (${gap} points). An English-strong/Arabic-poor model fails regardless of blended score.`
+          : `  ✅ Arabic gate holds for ${model} on this corpus (hard-case gap ${gap} points, ${successes} model calls).`,
+      );
+    }
 
     // Measured consumption from the meter — the benchmark CONSUMES ai_usage.
     const usage = await pool.query(
@@ -171,7 +187,7 @@ async function main() {
     console.log(
       `  measured: ${usage.rows[0].calls} calls, ${usage.rows[0].pt} prompt + ${usage.rows[0].ct} completion tokens, avg ${usage.rows[0].avg_ms}ms, ${usage.rows[0].failed} failed`,
     );
-    results.push({ model, failures, perLang, usage: usage.rows[0], arabicGateGapPoints: gap });
+    results.push({ model, successes, failures, firstFailure, perLang, usage: usage.rows[0], arabicGateGapPoints: successes > 0 ? gap : null });
   }
 
   const outDir = path.join(import.meta.dirname, "../../../../..", "docs", "ai", "benchmarks");
