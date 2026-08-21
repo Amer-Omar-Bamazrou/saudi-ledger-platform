@@ -1,0 +1,213 @@
+{
+  "corpusSize": 49,
+  "results": [
+    {
+      "model": "openai/gpt-oss-120b",
+      "successes": 1,
+      "failures": 20,
+      "firstFailure": "groq openai/gpt-oss-120b: 200 with no completion content",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 21,
+        "pt": 429,
+        "ct": 60,
+        "avg_ms": 640,
+        "failed": 20
+      },
+      "arabicGateGapPoints": -4
+    },
+    {
+      "model": "openai/gpt-oss-20b",
+      "successes": 2,
+      "failures": 19,
+      "firstFailure": "groq openai/gpt-oss-20b: 200 with no completion content",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 21,
+        "pt": 856,
+        "ct": 120,
+        "avg_ms": 577,
+        "failed": 19
+      },
+      "arabicGateGapPoints": -4
+    },
+    {
+      "model": "qwen/qwen3.6-27b",
+      "successes": 21,
+      "failures": 0,
+      "firstFailure": null,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 15,
+            "total": 25,
+            "pct": 60
+          },
+          "hard": {
+            "correct": 4,
+            "total": 10,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 13,
+            "total": 21,
+            "pct": 62
+          },
+          "hard": {
+            "correct": 4,
+            "total": 9,
+            "pct": 44
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 21,
+        "pt": 8040,
+        "ct": 1260,
+        "avg_ms": 345,
+        "failed": 0
+      },
+      "arabicGateGapPoints": -4
+    },
+    {
+      "model": "allam-2-7b",
+      "successes": 16,
+      "failures": 5,
+      "firstFailure": "groq allam-2-7b: HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `allam-2-7b` in organization `org_01m09aag60ewfrx4h82nxb9yw6` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5709, Requested 481. Please try again in 1.9s. Need more tokens? Upgrade to Dev Tier today ",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 18,
+            "total": 25,
+            "pct": 72
+          },
+          "hard": {
+            "correct": 5,
+            "total": 10,
+            "pct": 50
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 14,
+            "total": 21,
+            "pct": 67
+          },
+          "hard": {
+            "correct": 5,
+            "total": 9,
+            "pct": 56
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 1,
+            "total": 3,
+            "pct": 33
+          }
+        }
+      },
+      "usage": {
+        "calls": 21,
+        "pt": 7644,
+        "ct": 167,
+        "avg_ms": 213,
+        "failed": 5
+      },
+      "arabicGateGapPoints": -6
+    }
+  ]
+}

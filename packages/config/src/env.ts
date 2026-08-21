@@ -65,7 +65,11 @@ const EnvSchema = z.object({
   AI_PROVIDER: z.enum(["none", "groq"]).default("none"),
   GROQ_API_KEY: z.string().min(1).optional(),
   /** Text model for the categorizer second opinion and future text features. */
-  GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+  // Default verified against the free tier's actual /models catalog
+  // (2026-08-21) — the first default was assumed from memory and 404'd on
+  // every call. The catalog also carries allam-2-7b (SDAIA's Saudi Arabic
+  // model) and qwen/qwen3.6-27b; the benchmark compares them via --models.
+  GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-20b"),
   /** Vision model for the receipt-extraction benchmark harness. */
   GROQ_VISION_MODEL: z.string().min(1).default("meta-llama/llama-4-scout-17b-16e-instruct"),
   /**
