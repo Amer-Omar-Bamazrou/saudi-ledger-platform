@@ -534,6 +534,14 @@ These are short forms; the rules are binding, the history explains why.
   instrument must name, not a case it may score.** Corollary adopted from the
   owner: an unmeasured row reads "NOT MEASURED", never "matches baseline" —
   an artifact that looks like a result is worse than a failure.
+  🔴 **This shape appeared TWICE in two sessions** — the gate-over-failures
+  verdict, then the parser scoring a reasoning model's placeholder — and both
+  times the instrument produced a PLAUSIBLE NUMBER rather than an obvious
+  failure, and both times a human running it caught what the suite did not.
+  The countermeasure is not more tests on the instrument; it is the rule
+  already stated — a verdict must carry the evidence count it rests on — so
+  that when the instrument fails, its output looks like a failure instead of
+  a finding.
 - **🔴 A MIRROR IS A HYPOTHESIS ABOUT THE TARGET, NOT A FACT ABOUT IT** (M21.3,
   2026-08-20). Building purchase orders as "the mirror of quotations" carried
   an unexamined assumption: that a BILL can hold what an INVOICE holds. It
