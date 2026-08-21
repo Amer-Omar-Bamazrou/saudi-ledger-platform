@@ -17,6 +17,8 @@
  */
 
 import { categorizeTransaction, SEED_CATEGORIES, type CategorizationMatch } from "./categorizer.js";
+import { resolveAiProvider } from "../ai/provider";
+import { meteredChat } from "../ai/metered";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -128,6 +130,33 @@ function parseLlmResponse(raw: string): { categoryId: number; confidence: number
   }
 }
 
+// ── Second-opinion dispatch (AI-1a) ──────────────────────────────────────────
+
+/**
+ * Route the second opinion: the provider seam when configured (metered,
+ * AI_PROVIDER=groq), else the legacy local Ollama path. Returns null on any
+ * failure — the caller's contract is "degrade to deterministic", and the
+ * seam's AiUnavailableError is converted to that same null HERE, at the one
+ * boundary where degradation is the declared policy.
+ */
+async function callSecondOpinion(prompt: string): Promise<string | null> {
+  const provider = resolveAiProvider();
+  if (provider) {
+    try {
+      const out = await meteredChat(provider, "categorize_second_opinion", {
+        prompt,
+        maxTokens: 200,
+        timeoutMs: 8000,
+      });
+      return out.text;
+    } catch {
+      return null; // unavailable → deterministic result stands (llm-fallback)
+    }
+  }
+  if (LLM_MODEL !== "none") return callOllama(LLM_MODEL, prompt);
+  return null;
+}
+
 // ── Main exported function ────────────────────────────────────────────────────
 
 /**
@@ -143,8 +172,14 @@ export async function categorizeWithLlm(
   // Step 1: Deterministic engine
   const det = categorizeTransaction(description, amount, transactionType, descriptionAr);
 
-  // Step 2: Skip LLM if disabled or deterministic confidence is high enough
-  if (LLM_MODEL === "none" || (det && det.confidence >= LOW_CONFIDENCE_THRESHOLD)) {
+  // Step 2: Skip LLM if disabled or deterministic confidence is high enough.
+  // Two independent switches, deliberately: the legacy local path
+  // (LLM_MODEL/Ollama) and the provider seam (AI_PROVIDER/Groq, AI-1a). The
+  // LLM runs when EITHER is configured; the deterministic engine stays the
+  // brain in every case.
+  const seamProvider = resolveAiProvider();
+  const llmEnabled = LLM_MODEL !== "none" || seamProvider !== null;
+  if (!llmEnabled || (det && det.confidence >= LOW_CONFIDENCE_THRESHOLD)) {
     return {
       ...(det ?? deterministicFallback(transactionType)),
       source: "deterministic",
@@ -153,14 +188,14 @@ export async function categorizeWithLlm(
 
   // Step 3: Call LLM
   const prompt = buildCategorizationPrompt(description, amount, transactionType, det);
-  const raw = await callOllama(LLM_MODEL, prompt);
+  const raw = await callSecondOpinion(prompt);
 
   if (!raw) {
     // Ollama unreachable — degrade to deterministic
     return {
       ...(det ?? deterministicFallback(transactionType)),
       source: "llm-fallback",
-      llmModel: LLM_MODEL,
+      llmModel: seamProvider ? "groq" : LLM_MODEL,
     };
   }
 
