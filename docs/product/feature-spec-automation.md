@@ -1,7 +1,10 @@
 # Automation — the wedge (SPEC)
 
-**Status: specced, not built. Contains provider decisions with recurring costs
-that require owner approval before they are incurred (§5).**
+**Status (2026-08-21): A1 (document capture) and A3 (recurring documents) are
+✅ BUILT — see their own specs for as-built state. A2 (bank feeds) is specced,
+not built, and blocked on a Saudi CR for provider signatures. Provider
+decisions with recurring costs still require owner approval before they are
+incurred (§5). Current state authority: CLAUDE.md §2.**
 
 The pitch is **"I stopped doing data entry."** That is what a Saudi SME owner
 feels daily and will pay to remove. Automation has **no navigation entry** — it

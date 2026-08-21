@@ -1,8 +1,11 @@
 # ZATCA Phase 2 (M12) — status summary
 
-**As of 2026-08-11.** M12 is complete except **M12.7** and **M12.9**, both blocked
-on a real Saudi taxpayer registration. This is the keepable summary; the full
-narrative lives in `CLAUDE.md`.
+**As of 2026-08-21** (unchanged in substance since 2026-08-11): M12 is complete
+except **M12.7** and **M12.9**, both blocked on a real Saudi taxpayer
+registration. Since the original date: issuance diagnosability (C5) and the
+VAT-treatment verification (C9) closed, and invoice numbering gained its legal
+grounding + unique constraint (C12) — none change this file's claims. Current
+state authority: CLAUDE.md §2.
 
 ---
 
