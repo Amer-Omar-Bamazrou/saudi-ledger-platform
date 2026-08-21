@@ -73,8 +73,9 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // first UI: a tenant can now close and reopen a month from the product. Left
   // as a comment rather than deleted so the entry's history is visible: it sat
   // here from the guard's creation until the capability got a surface.
-  "/audit-logs":
-    "The admin-only audit trail has no reader UI. Every business mutation is recorded (M7) and is claimed as available to org admins; today reaching it requires calling the API by hand.",
+  // "/audit-logs" — CLOSED by M23 (2026-08-21). The Audit Trail page
+  // (/audit-trail, admin-gated nav) is its first reader, ~15 months of rows
+  // after M7 wrote the first one. Deleted, not reworded, per the pattern.
   "/llm":
     "The LLM proposal surface (status/categorize/compare/demo) has no UI. It writes nothing to the ledger by design, so this is inert rather than risky — but the AI layer is parked (hub decision §4), and this route should either gain a consumer when it unparks or be deleted.",
 };

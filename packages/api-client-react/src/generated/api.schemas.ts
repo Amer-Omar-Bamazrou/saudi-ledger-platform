@@ -1691,6 +1691,27 @@ export interface PurchaseOrderConversionResult {
   bill?: Bill;
 }
 
+export interface AuditLogEntry {
+  id?: string;
+  userId?: number | null;
+  /** Resolved through the identity layer, scoped to THIS org's memberships - a userId with no membership here stays null (the UI shows "User #id"), never a name from another tenant. */
+  actorName?: string | null;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  beforeState?: unknown | null;
+  afterState?: unknown | null;
+  ipAddress?: string | null;
+  createdAt?: string;
+}
+
+export interface AuditLogPage {
+  total?: number;
+  limit?: number;
+  offset?: number;
+  logs?: AuditLogEntry[];
+}
+
 export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
 
 
@@ -1963,6 +1984,16 @@ export const ListPurchaseOrdersOutcome = {
   cancelled: 'cancelled',
   closed: 'closed',
 } as const;
+
+export type ListAuditLogsParams = {
+entity_type?: string;
+action?: string;
+/**
+ * @maximum 200
+ */
+limit?: number;
+offset?: number;
+};
 
 export type ListBudgetsParams = {
 period?: string;

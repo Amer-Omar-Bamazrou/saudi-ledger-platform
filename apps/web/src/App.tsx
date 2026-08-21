@@ -42,6 +42,7 @@ import Budgets from '@/pages/Budgets';
 import UserManagement from '@/pages/UserManagement';
 import CompanySettings from '@/pages/CompanySettings';
 import ClosedMonths from '@/pages/ClosedMonths';
+import AuditTrail from '@/pages/AuditTrail';
 import ZatcaOnboarding from '@/pages/ZatcaOnboarding';
 import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
@@ -187,6 +188,7 @@ function Router() {
               <Route path="/approvals" component={Approvals} />
               <Route path="/company" component={CompanySettings} />
               <Route path="/closed-months" component={ClosedMonths} />
+              <Route path="/audit-trail" component={AuditTrail} />
               <Route path="/zatca" component={ZatcaOnboarding} />
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />

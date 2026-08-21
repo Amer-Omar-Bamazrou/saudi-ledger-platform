@@ -8,7 +8,7 @@
  * there is no RLS backstop here, so callers MUST authorize first (see the service).
  */
 import { db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 export const membersRepository = {
   /** The user's active membership role in an org, or null if not an active member. */
@@ -43,6 +43,31 @@ export const membersRepository = {
    * users are excluded — mailing a removed employee about a certificate is both
    * useless and a small data leak.
    */
+  /**
+   * Resolve actor userIds to display names for the AUDIT TRAIL (M23).
+   *
+   * IDENTITY LAYER, deliberately (CLAUDE.md §4): `users` sits outside RLS and
+   * the business layer must never read it — this repository is the sanctioned
+   * consumer, same as `activeAdminEmails` above. Scoped to the org's OWN
+   * memberships so an audit row can never resolve a name from another tenant:
+   * a userId with no membership in this org comes back unresolved and the UI
+   * shows "User #<id>", which is honest rather than leaky.
+   */
+  async memberNamesByIds(orgId: string, userIds: number[]): Promise<Map<number, string>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await ownerDb
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(organizationMembershipsTable)
+      .innerJoin(usersTable, eq(organizationMembershipsTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(organizationMembershipsTable.organizationId, orgId),
+          inArray(organizationMembershipsTable.userId, userIds),
+        ),
+      );
+    return new Map(rows.map((r) => [r.id, r.name || r.email]));
+  },
+
   async activeAdminEmails(orgId: string): Promise<string[]> {
     // `ownerDb`, not `db`: the only caller is a BACKGROUND JOB, which has no
     // request context for the tenant proxy to resolve. Stating the connection

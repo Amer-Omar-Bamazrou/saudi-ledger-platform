@@ -1587,6 +1587,40 @@ export const ListPurchaseOrderConversionsResponse = zod.array(ListPurchaseOrderC
 
 
 /**
+ * @summary The organization's audit trail (admin-only): who did what, when, from where, and the before/after states. Append-only at the storage layer - there is no write surface here or anywhere. This route predates the OpenAPI-first rule and gained its spec entry with its first UI (M23), when the response also gained actorName.
+
+ */
+export const listAuditLogsQueryLimitMax = 200;
+
+
+
+export const ListAuditLogsQueryParams = zod.object({
+  "entity_type": zod.coerce.string().optional(),
+  "action": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().max(listAuditLogsQueryLimitMax).optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListAuditLogsResponse = zod.object({
+  "total": zod.number().optional(),
+  "limit": zod.number().optional(),
+  "offset": zod.number().optional(),
+  "logs": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "userId": zod.number().nullish(),
+  "actorName": zod.string().nullish().describe('Resolved through the identity layer, scoped to THIS org\'s memberships - a userId with no membership here stays null (the UI shows \"User #id\"), never a name from another tenant.\n'),
+  "action": zod.string().optional(),
+  "entityType": zod.string().optional(),
+  "entityId": zod.string().optional(),
+  "beforeState": zod.unknown().nullish(),
+  "afterState": zod.unknown().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})
+
+
+/**
  * @summary List recurring document rules (A3)
  */
 export const ListRecurringRulesResponseItem = zod.object({
