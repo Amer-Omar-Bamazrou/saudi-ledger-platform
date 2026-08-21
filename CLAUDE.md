@@ -204,6 +204,24 @@ gone, and each entry was deleted by the stage that built it rather than
 reworded.
 See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
 
+**AI-1 — the Groq free-tier foundation (2026-08-21, PRs #67/#68).** The AI
+layer's first BUILT phase, entirely inside the owner's free-tier boundary
+(synthetic + dev-org data only). **AI-1a:** the provider seam
+(`services/ai/provider.ts` — chat + vision, dependency-free REST, unavailable
+THROWS per the B3 rule, fetch injectable); per-tenant metering (`ai_usage`,
+migration 0055, append-only, failures are rows too); the categorizer's
+below-0.65 second opinion routed through the seam, deterministic engine still
+the brain. 🔴 **The data boundary is enforced at BOOT**: production refuses
+`AI_PROVIDER=groq` unless `GROQ_DATA_BOUNDARY_ACK="enterprise-dammam-zdr-signed"`
+— a typed attestation, tested in both directions incl. a wrong string.
+**AI-1b:** the categorizer Arabic benchmark (hand-curated corpus, NOT
+regex-inverted; AR/EN scored separately; §2a gate printed as a verdict;
+honest-null cases score restraint; **measured deterministic baseline EN 60% /
+hard 40%, AR 62% / hard 44%**) and the vision harness, built ready for the
+owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
+Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
+Arabic-vision question). As-built: §12d/§12e.
+
 **M22 — Closed months (2026-08-21).** The period-locks surface, in the owner's
 framing: **"close the books for a month so figures stop changing"** — never
 "lock period". A dedicated `/closed-months` page (read for every role; actions
