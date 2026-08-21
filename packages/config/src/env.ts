@@ -48,6 +48,35 @@ const EnvSchema = z.object({
   CLAMD_PORT: z.coerce.number().int().positive().default(3310),
 
   /**
+   * AI provider seam (AI-1a). `none` = every AI feature degrades to its
+   * deterministic path; `groq` = Groq's OpenAI-compatible API.
+   *
+   * 🔴 THE DATA BOUNDARY IS ENFORCED AT BOOT, not by convention. The owner's
+   * standing rule (design-ai-layer §12a/§12b, CLAUDE.md): no tenant data may
+   * reach Groq before the signed Enterprise agreement (Dammam pinning +
+   * contractual ZDR) exists — the free tier routes globally. A production
+   * deployment IS tenant data by definition, so `AI_PROVIDER=groq` in
+   * production is REFUSED by the superRefine below unless
+   * `GROQ_DATA_BOUNDARY_ACK` carries the exact acknowledgement string — the
+   * same fail-closed posture as MAIL_PROVIDER=none and ZATCA's local-dev key.
+   * Development/test carry fixture and dev-org data only, which the owner's
+   * boundary explicitly allows.
+   */
+  AI_PROVIDER: z.enum(["none", "groq"]).default("none"),
+  GROQ_API_KEY: z.string().min(1).optional(),
+  /** Text model for the categorizer second opinion and future text features. */
+  GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+  /** Vision model for the receipt-extraction benchmark harness. */
+  GROQ_VISION_MODEL: z.string().min(1).default("meta-llama/llama-4-scout-17b-16e-instruct"),
+  /**
+   * Must equal "enterprise-dammam-zdr-signed" for AI_PROVIDER=groq to boot in
+   * production. Deliberately a magic string rather than a boolean: setting it
+   * is an attestation a human types after the agreement is signed, not a flag
+   * a deploy template flips to true.
+   */
+  GROQ_DATA_BOUNDARY_ACK: z.string().optional(),
+
+  /**
    * 🔴 What an UNAVAILABLE scanner means — an explicit, reviewable choice
    * rather than one implied by absence. `refuse` = fail-closed (correct once
    * untrusted tenants exist); `allow` = store it and log loudly (correct while
@@ -307,6 +336,30 @@ const EnvSchema = z.object({
   CAPTURE_PURGE_AFTER_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 })
   .superRefine((env, ctx) => {
+    // ── AI-1a: the Groq data boundary, fail-closed ─────────────────────────
+    if (env.AI_PROVIDER === "groq" && !env.GROQ_API_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["GROQ_API_KEY"],
+        message: "AI_PROVIDER='groq' requires GROQ_API_KEY.",
+      });
+    }
+    if (
+      env.NODE_ENV === "production" &&
+      env.AI_PROVIDER === "groq" &&
+      env.GROQ_DATA_BOUNDARY_ACK !== "enterprise-dammam-zdr-signed"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["AI_PROVIDER"],
+        message:
+          "AI_PROVIDER='groq' is refused in production: a production deployment carries tenant data, " +
+          "and no tenant data may reach Groq before the signed Enterprise agreement (Dammam pinning + " +
+          "contractual ZDR) exists — the free tier routes globally. When the agreement is signed, set " +
+          "GROQ_DATA_BOUNDARY_ACK='enterprise-dammam-zdr-signed' to attest it.",
+      });
+    }
+
     if (env.NODE_ENV === "production" && env.ZATCA_KMS_PROVIDER === "local-dev") {
       ctx.addIssue({
         code: "custom",

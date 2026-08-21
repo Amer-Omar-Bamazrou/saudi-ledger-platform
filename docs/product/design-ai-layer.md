@@ -312,3 +312,44 @@ agreement remains a blocking item before any tenant data reaches Groq.**
 "Development" is not an exception to that rule — it is the reason the fixtures
 must be synthetic. When the team gets Enterprise access, the seam's provider
 config changes; nothing else should have to.
+
+
+## 12c. Groq outreach list (ask together, owner 2026-08-21)
+
+Questions for the ONE Enterprise conversation, so nothing needs a second ask:
+
+1. **Enterprise terms**: Dammam-region pinning + contractual zero-data-retention
+   + no-training — the Reading-A package §12a records as decided-pending-terms.
+2. 🔴 **Is an Arabic-acceptable VISION model available IN the Dammam region?**
+   The free-tier benchmark (AI-1b) tells us which models pass the §2a Arabic
+   gate; it cannot tell us those models are served in-region under Enterprise.
+   A model that passes the gate globally but is absent from Dammam fails the
+   residency constraint anyway — ask for the region's model list and its
+   roadmap, in writing.
+3. Practical riders worth one sentence each: token pricing at Enterprise tier
+   (the metering table prices against it), rate limits per model, and whether
+   region pinning is per-request or per-account.
+
+## 12d. AI-1a as built (2026-08-21)
+
+- **The seam**: `services/ai/provider.ts` — `AiProvider` (chat + vision),
+  `GroqProvider` as dependency-free REST against the OpenAI-compatible
+  surface, injectable fetch for tests. 🔴 The B3 rule is the contract:
+  unavailable THROWS (`AiUnavailableError`) — HTTP error, timeout, empty 200
+  are all one honest category, never a silent "". Callers own degradation.
+- **The boundary, enforced at BOOT**: `loadEnv` refuses `AI_PROVIDER=groq` in
+  production unless `GROQ_DATA_BOUNDARY_ACK="enterprise-dammam-zdr-signed"` —
+  a typed attestation, not a boolean a deploy template flips. Dev/test boot
+  with just the key, which is the fixture-data case the owner's boundary
+  allows. Tested in both directions, incl. a wrong attestation string.
+- **Metering**: `ai_usage` (migration 0055) — per-tenant, RLS'd, append-only
+  at the grants; one row per call via `meteredChat`/`meteredVision`;
+  🔴 failures are rows too (`ok=false`) — rate-limit failures are half of what
+  free-tier measurement is for. Known limit, recorded not hidden: metering
+  shares the caller's tenant transaction, so a request that rolls back
+  entirely takes its usage row with it; the categorizer's degrade path
+  commits, so its failure rows survive (pinned by test).
+- **First consumer**: the categorizer's below-0.65 second opinion routes
+  through the seam when `AI_PROVIDER=groq` (metered as
+  `categorize_second_opinion`), with the legacy local Ollama path intact.
+  The deterministic engine stays the brain in every case.
