@@ -1,10 +1,22 @@
-# The AI layer — build-order PROPOSAL (not a plan to approve)
+# The AI layer — build order: DECIDED (owner answers, 2026-08-24)
 
-**Status (2026-08-23): PROPOSAL, awaiting the owner's answers to §5. Nothing
-here is commissioned — the spec's own closing line ("no build order exists;
-one will go to the owner as a proposal when the open questions close") is the
-contract this document fulfils. Same shape as the hub interviews: options and
-their consequences, then questions. Current state authority: CLAUDE.md §2.**
+**Status (2026-08-24): all five §5 questions ANSWERED by the owner; AI-3a is
+COMMISSIONED. §0 below is the decision record; §§1–5 are preserved as the
+proposal the answers were given against. Current state authority:
+CLAUDE.md §2.**
+
+## 0. The answers (owner, 2026-08-24 — verbatim reasoning preserved)
+
+| Q | Answer | The owner's reasoning, kept because it is load-bearing |
+| --- | --- | --- |
+| 1. Order | **Findings-first** (AI-3a → 3b → 4 → 5 → 6). | AI-3a reaches real tenants immediately (no model call, no tax position); vision is double-gated on the owner's receipt corpus AND the Enterprise agreement — "building the gated thing first means waiting on me twice." And findings-first **tests the surface with deterministic content** — how a finding is presented, whether anyone acts on it — before model output is riding on it. |
+| 2. Tax gate | **(a) — internal-consistency only, until C10 closes.** | 🔴 "The line 'we cite an article' is exactly the line that erodes. Today it's Art. 50(1)(b), verbatim, verified. Tomorrow it's a treatment that's cited-but-assumed, then one where the citation supports the general rule and not the specific case." (a) is a clean boundary; (b) requires judgment every time, "and the whole reason C10 exists is that our judgment on tax content has been wrong twice." **Recorded as QUEUED, not lost: (b) is the intended widening once C10 closes, with the Art. 50 meal-VAT check as its first candidate.** |
+| 3. Push channel | **In-app with unread-escalation, PLUS email to active admins. NOT the B2 webhook** (operator-facing; these are tenant findings). | The unread escalation is the load-bearing part: "a run whose findings nobody opened is itself a condition — the only answer to 'pushed, never parked' that survives a tenant who ignores email." And **a finding records where it was sent — otherwise 'we told them' is unfalsifiable.** |
+| 4. Dark-launch | **Confirmed** — build and benchmark model-touching features on synthetic data now; enable for tenants by flipping provider config after the Enterprise agreement. | "Strictly better than idle waiting, **provided the boot-enforced boundary stays exactly as it is.**" |
+| 5. Model pin | **Deferred** to Enterprise-negotiation time. | "Two cases of margin is not a capability difference"; cost, latency and Dammam-availability are the real discriminators, none known yet. "Pinning now would be choosing on the one axis that doesn't separate them." The seam keeps it reversible. |
+
+**Commissioned by Q1+Q3: AI-3a** — the deterministic findings engine, with a
+schema that records delivery from day one.
 
 Parent spec: [`design-ai-layer.md`](design-ai-layer.md) (the decision record
 this proposes an order FOR — nothing there is reopened here).
