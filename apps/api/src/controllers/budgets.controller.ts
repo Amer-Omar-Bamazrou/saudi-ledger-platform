@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { budgetsService } from "../services/budgets.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const budgetsController = {
   async list(req: Request, res: Response) {
@@ -10,10 +11,10 @@ export const budgetsController = {
     res.status(201).json(await budgetsService.create(req.body));
   },
   async update(req: Request, res: Response) {
-    res.json(await budgetsService.update(Number(req.params.id), req.body));
+    res.json(await budgetsService.update(requireIdParam(req), req.body));
   },
   async remove(req: Request, res: Response) {
-    await budgetsService.remove(Number(req.params.id));
+    await budgetsService.remove(requireIdParam(req));
     res.status(204).send();
   },
 };

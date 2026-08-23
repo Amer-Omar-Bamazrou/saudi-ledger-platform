@@ -12,8 +12,26 @@
  * and neither does `bills`. Carrying one would mean silently dropping it at
  * conversion. A supplier discount belongs in the agreed unit price.
  */
-import { ConflictError, NotFoundError, BadRequestError } from "../lib/errors";
+import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
+import { vendorsRepository } from "../repositories/vendors.repository";
+
+/**
+ * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
+ * nonexistent OR other-tenant vendorId reached the FK — see the full note in
+ * invoices.service. Same 422 here so the sibling path cannot disagree.
+ */
+async function assertVendorExists(vendorId: unknown): Promise<void> {
+  if (vendorId == null) return;
+  const [v] = await vendorsRepository.findById(Number(vendorId));
+  if (!v) {
+    throw new BusinessRuleError(422, {
+      error: `Vendor ${vendorId} does not exist for this organization.`,
+      code: "reference_not_found",
+      field: "vendorId",
+    });
+  }
+}
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { purchaseOrderApprovable } from "./purchaseOrders.approvable";
@@ -148,6 +166,7 @@ export const purchaseOrdersService = {
     const date = header.date ?? new Date().toISOString().slice(0, 10);
     assertDateString(date, "date");
     if (header.validUntil != null) assertDateString(header.validUntil, "validUntil");
+    await assertVendorExists(header.vendorId);
 
     // 🔴 NO period-lock check — a closed period protects the ledger, and a PO
     // never touches it.
@@ -200,6 +219,7 @@ export const purchaseOrdersService = {
     const values = pick<Record<string, unknown>>(data, [...PO_FIELDS, "reviewNote"]) as Record<string, any>;
     if (values.date !== undefined) assertDateString(values.date, "date");
     if (values.validUntil != null) assertDateString(values.validUntil, "validUntil");
+    await assertVendorExists(values.vendorId);
 
     if (data.items !== undefined) {
       validateItems(data.items);

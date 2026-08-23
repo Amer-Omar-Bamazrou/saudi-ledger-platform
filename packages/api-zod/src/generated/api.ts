@@ -1844,10 +1844,17 @@ export const UpdateTransactionParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateTransactionBodyVatAmountMin = 0;
+
+export const updateTransactionBodyVatRateMin = 0;
+export const updateTransactionBodyVatRateMax = 100;
+
+
+
 export const UpdateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
-  "vatAmount": zod.number().nullish(),
-  "vatRate": zod.number().nullish(),
+  "vatAmount": zod.number().min(updateTransactionBodyVatAmountMin).nullish(),
+  "vatRate": zod.number().min(updateTransactionBodyVatRateMin).max(updateTransactionBodyVatRateMax).nullish(),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — the human\'s answer to \"did this payment actually carry\nVAT?\". Anything other than `charged` clears the row\'s VAT; setting\n`charged` on a standard-rated row re-extracts it from the gross.\n'),
   "transferDirection": zod.union([zod.literal('own_account'),zod.literal('external'),zod.literal(null)]).nullish().describe('B5 — where a transfer went. `own_account` = between accounts of this\nbusiness (business cash unchanged, so the ledger is right to be\nsilent); `external` = it left the business (cash fell, and the\nledger is understating it). `null` means NOT DECLARED — never\n\"external\". Only a transfer may carry it.\n'),

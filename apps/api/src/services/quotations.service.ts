@@ -15,8 +15,26 @@
  * halalas on mixed-rate documents. Same reason the invoice header is Σ rounded
  * lines rather than a rounded Σ.
  */
-import { ConflictError, NotFoundError, BadRequestError } from "../lib/errors";
-import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
+import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
+import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
+import { customersRepository } from "../repositories/customers.repository";
+
+/**
+ * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
+ * nonexistent OR other-tenant customerId reached the FK — see the full note
+ * in invoices.service. Same 422 here so the sibling path cannot disagree.
+ */
+async function assertCustomerExists(customerId: unknown): Promise<void> {
+  if (customerId == null) return;
+  const [c] = await customersRepository.findById(Number(customerId));
+  if (!c) {
+    throw new BusinessRuleError(422, {
+      error: `Customer ${customerId} does not exist for this organization.`,
+      code: "reference_not_found",
+      field: "customerId",
+    });
+  }
+}
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { quotationApprovable } from "./quotations.approvable";
@@ -87,6 +105,10 @@ function validateItems(items: any[]) {
     assertAmount(it.unitPrice, `line ${i + 1} unit price`, { min: 0, allowZero: true });
     if (it.discount != null) assertAmount(it.discount, `line ${i + 1} discount`, { min: 0, allowZero: true });
     if (it.vatRate != null) assertRate(it.vatRate, `line ${i + 1} VAT rate`);
+    // MED (audit 2026-08-20): validated here too, not only at invoice
+    // creation — a garbage code stored now would refuse CONVERSION later,
+    // surfacing the error months from the act that caused it.
+    assertTaxCategoryCode(it.taxCategoryCode, `line ${i + 1} taxCategoryCode`);
   });
 }
 
@@ -161,6 +183,7 @@ export const quotationsService = {
     assertDateString(date, "date");
     if (header.validUntil != null) assertDateString(header.validUntil, "validUntil");
     if (header.discount != null) assertAmount(header.discount, "discount", { min: 0, allowZero: true });
+    await assertCustomerExists(header.customerId);
 
     // 🔴 NO period-lock check, deliberately. A closed period protects the
     // ledger; a quotation never touches it. Blocking here would refuse a
@@ -228,6 +251,7 @@ export const quotationsService = {
     if (values.date !== undefined) assertDateString(values.date, "date");
     if (values.validUntil != null) assertDateString(values.validUntil, "validUntil");
     if (values.discount != null) assertAmount(values.discount, "discount", { min: 0, allowZero: true });
+    await assertCustomerExists(values.customerId);
 
     // Lines are replaced wholesale when supplied — the same shape the invoice
     // editor uses, and totals are always recomputed from them so the header

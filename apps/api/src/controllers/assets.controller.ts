@@ -1,25 +1,26 @@
 import type { Request, Response } from "express";
 import { assetsService } from "../services/assets.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const assetsController = {
   async list(_req: Request, res: Response) {
     res.json(await assetsService.list());
   },
   async get(req: Request, res: Response) {
-    res.json(await assetsService.getById(Number(req.params.id)));
+    res.json(await assetsService.getById(requireIdParam(req)));
   },
   async create(req: Request, res: Response) {
     res.status(201).json(await assetsService.create(req.body));
   },
   async update(req: Request, res: Response) {
-    res.json(await assetsService.update(Number(req.params.id), req.body));
+    res.json(await assetsService.update(requireIdParam(req), req.body));
   },
   async depreciate(req: Request, res: Response) {
     const { period } = req.body as { period: string };
-    res.json(await assetsService.depreciate(Number(req.params.id), period));
+    res.json(await assetsService.depreciate(requireIdParam(req), period));
   },
   async remove(req: Request, res: Response) {
-    await assetsService.remove(Number(req.params.id));
+    await assetsService.remove(requireIdParam(req));
     res.status(204).send();
   },
 };

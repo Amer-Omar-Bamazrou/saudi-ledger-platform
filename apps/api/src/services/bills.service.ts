@@ -13,8 +13,27 @@
  * number (fixing the pre-existing 500 when it was missing/invalid), and the
  * payment posts Dr AP / Cr Cash.
  */
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
+import { vendorsRepository } from "../repositories/vendors.repository";
+
+/**
+ * MED (audit 2026-08-20): the vendor twin of invoices' assertCustomerExists —
+ * a nonexistent vendorId was a raw FK 500, and the RLS-blind FK check accepted
+ * another tenant's vendor id. Tenant-scoped lookup; 422 (semantically invalid
+ * input that passed schema validation — status policy, 2026-08-23).
+ */
+async function assertVendorExists(vendorId: unknown): Promise<void> {
+  if (vendorId == null) return;
+  const [v] = await vendorsRepository.findById(Number(vendorId));
+  if (!v) {
+    throw new BusinessRuleError(422, {
+      error: `Vendor ${vendorId} does not exist for this organization.`,
+      code: "reference_not_found",
+      field: "vendorId",
+    });
+  }
+}
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -56,6 +75,7 @@ export const billsService = {
     });
     if (billData.date != null) assertDateString(billData.date, "date");
     if (billData.dueDate != null) assertDateString(billData.dueDate, "dueDate");
+    await assertVendorExists(billData.vendorId);
     // No-items bills carry client totals; keep them non-negative (finding 7's
     // reconciliation still runs at approval).
     for (const f of ["subtotal", "vatAmount", "total"] as const) {
@@ -143,11 +163,18 @@ export const billsService = {
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total",
     ]);
-    if (values.date !== undefined) assertDateString(values.date, "date");
+    if (values.date !== undefined) {
+      assertDateString(values.date, "date");
+      // Owner policy (2026-08-23): a document must not be DATED into a closed
+      // month by PATCH when create refuses the same date — see the full note
+      // in invoices.service.update. Approval re-checks via glPosting.
+      await checkPeriodOpen(values.date);
+    }
     if (values.dueDate != null) assertDateString(values.dueDate, "dueDate");
     for (const f of ["subtotal", "vatAmount", "total"] as const) {
       if (values[f] != null) assertAmount(values[f], f, { min: 0, allowZero: true });
     }
+    await assertVendorExists(values.vendorId);
     const [bill] = await billsRepository.update(id, values);
     await auditService.updated("bill", id, existing, bill);
     return buildBillOut(bill, null);

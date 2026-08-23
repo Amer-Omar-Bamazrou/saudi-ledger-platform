@@ -816,11 +816,11 @@ stack or path leaks to clients; the job scheduler survives a failing job.
 | --- | --- | --- |
 | **MED** | **A wrong diagnosis burns outbox attempts.** `catch {} → null` conflates "not onboarded" with ANY failure (KMS outage, DB error), so a transient failure is reported as "no ZATCA credentials for this company; is it onboarded?" | `services/einvoice/zatca/zatcaDirectProvider.ts:71` |
 | **MED** | **A 2xx for a transaction that rolled back.** Commit failure after `res.on("finish")` is logged only — the client already has its success. Structurally hard to fix at that point; nothing alarms on the pattern (L-1 family). | `lib/tenant.ts:144` |
-| **MED** | **The user's OCR silently discarded.** Malformed `extraction`/`fieldSources` JSON → `catch → undefined`; the capture stages with the extraction lost and no signal. | `routes/capture.ts:46` |
-| **MED** | **500-where-4xx cluster** (predictable input → raw 500): nonexistent `customerId`/`vendorId` → FK 23503; manual transaction create with a bad `categoryId` (the BULK path maps PG codes, the single path does not — "green fixed the case, not the class"); a >10 MB phone photo → multer error → 500 (`documentHttp.ts` maps this; `capture.ts` does not). | `invoices.service.ts:148`, `bills.service.ts:67`, `transactions.service.ts:401`, `routes/capture.ts:34` |
-| **MED** | **`taxCategoryCode` accepts any string** into the column the VAT return files from — no enum check at API, service or DB. | `invoices.service.ts:101` |
-| **MED** | **Cross-path inconsistency**: PATCH `/transactions/:id` accepts negative `vatAmount` / unbounded `vatRate` while create+upload bound both. | `api-zod` UpdateTransactionBody vs CreateTransactionBody |
-| **MED** | **`Number(req.params.id)` → NaN reaches queries** on ~9 controllers (22P02 raw 500). Transactions alone coerces properly. | most controllers |
+| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — malformed `extraction`/`fieldSources` JSON now REFUSES with a named 400 (`parseJsonField`, lib/httpParams) instead of staging the capture with the user's OCR silently lost. | `routes/capture.ts` |
+| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — the 500-where-4xx cluster. 🔴 **The finding grew during the fix:** Postgres FK checks run OUTSIDE RLS, so a nonexistent customerId and ANOTHER TENANT's customerId were both accepted-or-500 — a cross-tenant reference + existence oracle, not just a bad status. Fixed by tenant-scoped pre-checks → **422 `reference_not_found`** (status policy: 422 = semantically invalid input that passed schema validation) on customerId/vendorId/categoryId/bankAccountId across invoices, bills, quotations, POs and transactions (both prior bankAccountId 400s aligned to 422). Capture's >10 MB photo now maps through `uploadSingle` → 400. | `audit-med-validation.test.ts` |
+| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `taxCategoryCode` constrained to S/Z/E/O-or-null: named 400 at the services (`assertTaxCategoryCode`), **DB CHECK 0056** on `invoice_items` AND `quotation_items` as the write-boundary backstop (bill/PO items have no such column — verified, the M21.3 lesson). | migration 0056 |
+| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — PATCH `/transactions/:id` now carries the create path's vatAmount/vatRate bounds in the spec, and the invariant itself moved to **DB CHECK 0056** (owner instruction: fix the write boundary, not the looser path). | migration 0056 |
+| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `requireIdParam` (lib/httpParams, the quotations-controller helper generalized) on all ~13 controllers + orgs/auth routes; NaN ids are 400s, never 22P02 500s. | `lib/httpParams.ts` |
 | **MED** | **The certificate alarm has never been exercised FIRING** — only its key's distinctness is asserted. B2's documented T-7/expired behaviour has no test. | `tests/alerting.test.ts:236` |
 | **MED** | **The QR-signature verifier is tested only on the failing half** — `expect(["failed","error"]).toContain(...)` accepts a verifier that never verifies anything; no validly-signed QR fixture exists. | `tests/document-capture.test.ts:186` |
 | **MED** | **The LEGALLY meaningful ZATCA chain is exercised by no concurrent test** — the concurrency suite's company is never onboarded, so it tests the homegrown chain; the enqueue suite's fork test is deliberately sequential. | `tests/invoice-icv-concurrency.test.ts:140` |
@@ -847,6 +847,24 @@ adapters), and **runtime-order test vacuity** (only execution reveals it).
 
 Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
 
+- **🔴 INVOICE DATING INTO CLOSED MONTHS — owner-decided 2026-08-23,
+  REASONED-NOT-VERIFIED (source: the owner, not an accountant).** Its own
+  item by owner instruction, not a leftover of the MED validation pass. The
+  policy: **an invoice must not be dated into a closed period at all** —
+  closing a month means its figures are final, and Saudi VAT files per
+  period, so a backdated document makes a filed return wrong or forces an
+  amendment. Work that genuinely happened in a closed month is **issued in
+  the current open period**; revenue that truly belongs to the closed month
+  is **an accrual made before closing**, never a backdated document after.
+  **The guard honours `document.date`** — the accounting date every report
+  and the VAT return read; `issued_at` is the ZATCA timestamp, a different
+  fact. Under that reading the existing create-path guard was RIGHT, and the
+  real gap was that nothing stopped `date` being backdated after creation —
+  **closed in the same pass**: `invoices.update` / `bills.update` now call
+  `checkPeriodOpen` on a changed date (423 `period_closed`, the M22 dialog
+  explains it for free). 🔴 **One question remains for the accountant:**
+  whether Saudi practice permits ANY exception — a grace window, or an
+  audited override. A detail; the principle stands either way.
 - **M-3**: signup duplicate-email race surfaces as 500 (map Postgres `23505` → `ConflictError`).
 - **M-4**: `bcryptjs` blocks the event loop on public endpoints; no max-length validation before `varchar(255)` (raw 500s).
 - **M-5**: magic-byte sniff is header-only (closes with C4's AV work).

@@ -13,6 +13,7 @@ import { selectActiveMembership } from "../lib/activeOrg";
 import { membersService } from "../services/members.service";
 import { invitationsService } from "../services/invitations.service";
 import { securityAuditService } from "../services/securityAudit.service";
+import { requireIdParam } from "../lib/httpParams";
 
 /** Actor context for the security-audit trail, from the authenticated session. */
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
@@ -139,7 +140,7 @@ router.patch("/:orgId/members/:userId", async (req, res) => {
     await membersService.update(
       req.session.userId!,
       req.params.orgId,
-      Number(req.params.userId),
+      requireIdParam(req, "userId"),
       { role, status },
       actorCtx(req),
     ),
@@ -149,7 +150,7 @@ router.patch("/:orgId/members/:userId", async (req, res) => {
 /** DELETE /api/orgs/:orgId/members/:userId — remove a member (last-admin safe). */
 router.delete("/:orgId/members/:userId", async (req, res) => {
   res.json(
-    await membersService.remove(req.session.userId!, req.params.orgId, Number(req.params.userId), actorCtx(req)),
+    await membersService.remove(req.session.userId!, req.params.orgId, requireIdParam(req, "userId"), actorCtx(req)),
   );
 });
 
