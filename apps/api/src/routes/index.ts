@@ -39,6 +39,7 @@ import llm from "./llm.js";
 import capture from "./capture.js";
 import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMode.js";
 import recurring from "./recurring.js";
+import findings from "./findings.js";
 import auditLogs from "./auditLogs.js";
 
 const router = Router();
@@ -118,6 +119,8 @@ router.use("/llm", requirePermission("llm"), llm);
 // answer to "who may enter a purchase", not two.
 router.use("/capture", refuseCaptureInDemo, requirePermission("bills"), capture);
 router.use("/recurring", requirePermission("recurring"), recurring);
+// AI-3a — deterministic internal-consistency findings; "findings", never "audit" (§9).
+router.use("/findings", requirePermission("findings"), findings);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);
 router.use("/categorize", requirePermission("categorize"), categorize);
 

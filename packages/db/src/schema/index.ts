@@ -20,6 +20,7 @@ export * from "./einvoiceDocuments";
 export * from "./einvoiceArchive";
 export * from "./capturedDocuments";
 export * from "./recurring";
+export * from "./findings";
 export * from "./payments";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)

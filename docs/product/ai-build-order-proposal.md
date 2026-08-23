@@ -18,6 +18,37 @@ CLAUDE.md §2.**
 **Commissioned by Q1+Q3: AI-3a** — the deterministic findings engine, with a
 schema that records delivery from day one.
 
+## 0b. AI-3a as built (2026-08-24)
+
+**Eight checks, all internal-consistency, no model call, no tax position:**
+duplicate bills (vendor+date+total), duplicate accepted transactions,
+invoice-number gaps **as observations** (the finding's own copy states gaps
+are lawful — C12; its value is having an ANSWER, advisor Block D1),
+credit-aware overdue receivables (Tier 3's lesson: outstanding nets credit
+notes, pinned by test), overdue payables, stale drafts
+(invoices/bills/JEs > 14 days undecided), undeclared transfers, and
+accepted-but-unposted rows.
+
+**Findings are rows** (`findings`, migration 0058; RLS + the owner-table
+revoke pattern; **no DELETE for the app role** — a resolved finding is the
+record that it was found). Identity `(org, kind, ref_key)` makes re-runs
+UPSERT; lifecycle: `open` → `acknowledged` (a human's review decision,
+**survives re-detection — the machine never un-acknowledges a human**) →
+`resolved` (machine-set when the condition vanishes; reopens if it returns).
+`delivered` records where each finding was sent (Q3) — `in_app` stamped on
+on-demand runs; AI-5's email/escalation writes the same column.
+
+**Authority:** read = every role; run = write roles (it moves nothing);
+**acknowledge = approver only** — dismissing a warning about money is a
+review decision (`acknowledge` joined rbac's APPROVE_ROUTE; the bookkeeper
+negative is pinned). Acknowledger names resolve via the identity layer with
+M23's negative property.
+
+**No severity anywhere, deliberately** — the status palette is reserved for
+real states; a finding is a kind plus facts, rendered in words, bilingual.
+Surface: `/findings` under Reports, beside the Finance Hub. Zero-movement
+pinned through the real report services. 9 tests + the four guard suites.
+
 Parent spec: [`design-ai-layer.md`](design-ai-layer.md) (the decision record
 this proposes an order FOR — nothing there is reopened here).
 

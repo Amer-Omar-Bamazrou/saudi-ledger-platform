@@ -236,6 +236,27 @@ owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
 Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
 Arabic-vision question). As-built: §12d/§12e.
 
+**AI-3a — the findings engine, deterministic core (2026-08-24).** The
+build-order proposal's five questions are ANSWERED (owner, 2026-08-24 —
+recorded verbatim in [`ai-build-order-proposal.md`](docs/product/ai-build-order-proposal.md) §0:
+findings-first; 🔴 tax gate stays at **(a) internal-consistency only until
+C10 closes** — the (b) citation-carrying widening is QUEUED post-C10 with
+Art. 50 meal-VAT as first candidate; push = in-app + unread-escalation +
+admin email, never the B2 webhook, and **a finding records where it was
+sent**; dark-launch confirmed with the boot boundary untouched; model pin
+deferred to Enterprise negotiation). **AI-3a BUILT:** eight
+internal-consistency checks as ROWS (`findings`, 0058 — no DELETE for the
+app role; a resolved finding is the record it was found), upsert identity
+`(org, kind, ref_key)`, lifecycle open → acknowledged (survives
+re-detection; the machine never un-acknowledges a human) → machine-resolved;
+acknowledge is APPROVER-only (dismissing a money warning is a review
+decision; bookkeeper negative pinned); no severity anywhere (the status
+palette rule); gaps reported as lawful observations (C12); credit-aware
+overdue (Tier 3); zero-movement pinned through the real report services.
+`/findings` under Reports. Next per the answered order: AI-3b (model
+explanations, dark-launched) and AI-5's scheduler carries the push channels.
+As-built: proposal §0b.
+
 **AI-2 — the corpus at measuring size (2026-08-23).** The binding constraint
 (§12g: one hard case moved a verdict ~11 points) closed: **153 cases, 30 hard
 per language** (en/ar equal-N; one case ≈ 3.3 points), with the two authoring

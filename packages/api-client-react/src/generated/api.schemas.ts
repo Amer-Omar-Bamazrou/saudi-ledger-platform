@@ -1719,6 +1719,62 @@ export interface AuditLogPage {
   logs?: AuditLogEntry[];
 }
 
+/**
+ * Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words.
+ */
+export type FindingFacts = { [key: string]: unknown };
+
+export type FindingStatus = typeof FindingStatus[keyof typeof FindingStatus];
+
+
+export const FindingStatus = {
+  open: 'open',
+  acknowledged: 'acknowledged',
+  resolved: 'resolved',
+} as const;
+
+export interface Finding {
+  id: number;
+  /** @nullable */
+  companyId?: string | null;
+  /** duplicate_bill | duplicate_transaction | invoice_number_gap | overdue_receivable | overdue_payable | stale_draft | undeclared_transfer | unposted_transaction. Free-form by design - the vocabulary is service-owned and grows with the checks. */
+  kind: string;
+  refKey: string;
+  /** Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words. */
+  facts: FindingFacts;
+  status: FindingStatus;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  /** @nullable */
+  acknowledgedAt?: string | null;
+  /** @nullable */
+  acknowledgedBy?: number | null;
+  /** @nullable */
+  acknowledgedByName?: string | null;
+  /** @nullable */
+  resolvedAt?: string | null;
+}
+
+export type FindingsPageCounts = {
+  open: number;
+  acknowledged: number;
+  resolved: number;
+};
+
+export interface FindingsPage {
+  findings: Finding[];
+  counts: FindingsPageCounts;
+}
+
+export interface FindingsRunResult {
+  created: number;
+  reopened: number;
+  refreshed: number;
+  resolved: number;
+  /** Total open after the run. */
+  open: number;
+}
+
 export type RecurringRuleEntity = typeof RecurringRuleEntity[keyof typeof RecurringRuleEntity];
 
 
@@ -2015,6 +2071,20 @@ action?: string;
 limit?: number;
 offset?: number;
 };
+
+export type ListFindingsParams = {
+status?: ListFindingsStatus;
+kind?: string;
+};
+
+export type ListFindingsStatus = typeof ListFindingsStatus[keyof typeof ListFindingsStatus];
+
+
+export const ListFindingsStatus = {
+  open: 'open',
+  acknowledged: 'acknowledged',
+  resolved: 'resolved',
+} as const;
 
 export type ListBudgetsParams = {
 period?: string;
