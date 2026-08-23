@@ -27,7 +27,7 @@ import { buildInvoiceXml } from "../ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../crypto/assembleSignedInvoice";
 import { createLiveZatcaClient } from "./liveZatcaClient";
 import { mapZatcaResponse } from "./errorMapping";
-import { signingService } from "../signing/signing.service";
+import { signingService, SigningError } from "../signing/signing.service";
 import { zatcaOnboardingService } from "../onboarding/zatcaOnboarding.service";
 import { defaultOnboardingEnvironment } from "../onboarding/zatcaOnboardingClient";
 import type { ZatcaHttpClient } from "./zatcaHttpClient";
@@ -68,10 +68,21 @@ export function createZatcaDirectProvider(deps: ZatcaDirectDeps = {}): EInvoiceP
           defaultOnboardingEnvironment(),
           (creds) => creds,
         );
-      } catch {
-        // No active credential ⇒ not onboarded. Not an error here: the caller
-        // decides whether that is retryable.
-        return null;
+      } catch (err) {
+        // 🔴 Only the two DURABLE not-ready states mean "not onboarded"
+        // (audit 2026-08-20, MED). The old bare `catch → null` conflated a
+        // KMS outage or DB error with "no credentials" — so a TRANSIENT
+        // failure was reported as "is the company onboarded?" and burned an
+        // outbox attempt against the 24-hour deadline with a diagnosis that
+        // sent the operator to the wrong place. A real failure now
+        // propagates; the outbox records the true reason and retries.
+        if (
+          err instanceof SigningError &&
+          (err.stage === "no-active-credential" || err.stage === "credential-not-activated")
+        ) {
+          return null;
+        }
+        throw err;
       }
     });
 

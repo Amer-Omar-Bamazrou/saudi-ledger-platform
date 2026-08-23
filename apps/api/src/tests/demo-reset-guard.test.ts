@@ -112,7 +112,14 @@ describeMaybe("demo reset — refuses to touch a database with real tenants", ()
   it("DemoResetRefused is a distinct error type, not a bare Error", () => {
     // So a caller can tell "I declined" from "I broke" — they need different
     // responses, and one of them is an emergency.
-    expect(new DemoResetRefused("x")).toBeInstanceOf(Error);
-    expect(new DemoResetRefused("x").name).toBe("Error");
+    // 🔴 The audit (2026-08-20, MED) found the previous version of this test
+    // asserting checks a BARE Error also passes — including `.name === "Error"`,
+    // which pinned the exact defect (the class never set its name). These
+    // assertions now fail against `new Error("x")` by construction.
+    const err = new DemoResetRefused("x");
+    expect(err).toBeInstanceOf(DemoResetRefused);
+    expect(err.name).toBe("DemoResetRefused");
+    expect(new Error("x")).not.toBeInstanceOf(DemoResetRefused);
+    expect(new Error("x").name).not.toBe("DemoResetRefused");
   });
 });

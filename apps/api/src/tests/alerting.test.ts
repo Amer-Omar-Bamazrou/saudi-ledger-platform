@@ -91,6 +91,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
 
   const cleanupFixture = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${FIXTURE_SLUG}')`;
+    await pool.query(`DELETE FROM zatca_credentials WHERE company_id IN (SELECT id FROM companies WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
@@ -235,5 +236,79 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
 
   it("the certificate alarm key exists and is distinct from the outbox one", () => {
     expect(ALARM_PCSID_EXPIRING).not.toBe(ALARM_OUTBOX_OVERDUE);
+  });
+
+  /**
+   * 🔴 The certificate alarm, exercised FIRING (audit 2026-08-20, MED: "the
+   * certificate alarm has never been exercised firing — only its key's
+   * distinctness is asserted"). Same discipline as `stuckDocument`: the
+   * condition is BUILT, never hoped for. An ACTIVE credential row with a
+   * synthetic `not_after` is exactly what `listExpiringBefore` selects on;
+   * the crypto columns carry dummy bytes because the alarm never opens them.
+   */
+  const expiringCredential = async (daysFromNow: number): Promise<string> => {
+    const org = await fixtureOrg();
+    const company = (
+      await pool.query(
+        `INSERT INTO companies (organization_id, name, cr_number, vat_number)
+         VALUES ($1,'AL-CERT','1010101020','399999999999993') RETURNING id`,
+        [org],
+      )
+    ).rows[0].id;
+    const cred = (
+      await pool.query(
+        `INSERT INTO zatca_credentials
+           (company_id, environment, status, kms_provider, kms_key_id,
+            wrapped_data_key, encrypted_private_key, private_key_iv, private_key_auth_tag,
+            certificate_pem, not_after)
+         VALUES ($1, 'sandbox', 'active', 'local-dev', 'test-key',
+                 '\\x00', '\\x00', '\\x00', '\\x00',
+                 'SYNTHETIC', now() + ($2 || ' days')::interval)
+         RETURNING id`,
+        [company, String(daysFromNow)],
+      )
+    ).rows[0].id;
+    return cred as string;
+  };
+
+  it("🔴 a certificate inside the T-7 window FIRES as a warning naming the days remaining", async () => {
+    await expiringCredential(3);
+    const r = await scoped();
+    expect(r.firing).toContain(ALARM_PCSID_EXPIRING);
+    expect(r.paged).toContain(ALARM_PCSID_EXPIRING);
+    const alert = fired.find((a) => a.key === ALARM_PCSID_EXPIRING)!;
+    expect(alert).toBeDefined();
+    expect(alert.severity).toBe("warning");
+    expect(alert.title).toMatch(/expires in [23] days/);
+    // The detail must say why a retry cannot fix it — renewal needs the
+    // TENANT's OTP; this pages a human to chase a human.
+    expect(alert.detail).toContain("OTP");
+  });
+
+  it("🔴 an EXPIRED certificate is CRITICAL and STAYS an alarm — silence after expiry is the worst case", async () => {
+    await expiringCredential(-2);
+    const r = await scoped();
+    expect(r.paged).toContain(ALARM_PCSID_EXPIRING);
+    const alert = fired.find((a) => a.key === ALARM_PCSID_EXPIRING)!;
+    expect(alert.severity).toBe("critical");
+    expect(alert.title).toContain("EXPIRED");
+    // Fire again within the cooldown: still FIRING (the condition holds),
+    // deliberately not re-paged.
+    const again = await scoped();
+    expect(again.firing).toContain(ALARM_PCSID_EXPIRING);
+    expect(again.paged).not.toContain(ALARM_PCSID_EXPIRING);
+  });
+
+  it("a renewed certificate RESOLVES the alarm", async () => {
+    const cred = await expiringCredential(2);
+    await scoped();
+    expect(fired.some((a) => a.key === ALARM_PCSID_EXPIRING)).toBe(true);
+
+    // Renewal rotates to a far-future not_after (the real flow supersedes the
+    // row; moving the date is the minimal way to make the CONDITION clear).
+    await pool.query(`UPDATE zatca_credentials SET not_after = now() + interval '400 days' WHERE id = $1`, [cred]);
+    const r = await scoped();
+    expect(r.resolved).toContain(ALARM_PCSID_EXPIRING);
+    expect(resolved).toContain(ALARM_PCSID_EXPIRING);
   });
 });
