@@ -451,3 +451,69 @@ Grow the benchmark corpus until single results stop moving verdicts:
 - **Sequenced after the owner's receipt labels begin arriving**, so real-paper
   edge cases inform the synthetic author (decision 2026-08-21: audit-logs UI
   ships first; AI-2 follows).
+
+**Status (2026-08-23): BUILT — owner re-sequenced it ahead of the receipt
+labels; as-built record and the numbers it produced are §12h. Current state
+authority: CLAUDE.md §2.**
+
+## 12h. AI-2 as built (2026-08-23) — the corpus at measuring size
+
+**Corpus: 153 cases — en 60 / ar 54 / mixed 39, with 🔴 30 hard per language
+(en/ar deliberately equal-N so the §2a gap compares like with like); one hard
+case ≈ 3.3 points, the §12g bar.** Honest-null (restraint) cases in every
+language. Same authoring rules; one addition earned the hard way:
+
+- **🔴 `hard` is a MEASURED claim, not an authored one.** The first expansion
+  authored 28 hard flags by guess and the engine solved every one at ≥0.65 —
+  including SIX from the ORIGINAL AI-1b corpus (its vendor vocabulary — Careem,
+  Aramex, Tawuniya, NWC, AWS, Salla, TikTok — is far richer than assumed). A
+  high-confidence engine hit never reaches the LLM, so each mislabeled flag
+  padded the hard baseline the gate reads. Now mechanized:
+  `tests/benchmark-corpus.test.ts` FAILS if any hard-flagged case is
+  engine-solved at ≥0.65, if an `expected` label is not an emittable code
+  (a typo'd label makes its case silently unwinnable — the two-id-spaces
+  disease inside the instrument), or if a language drops below 30 hard.
+  `scripts/benchmark/inspectCases.ts` names the offenders. Flags are set by
+  measurement; cases are NEVER reworded until the engine fails them — that
+  would be authoring from the engine, the inversion §12e forbids.
+- **A case whose ground truth is arguable between two codes is EXCLUDED, not
+  labeled** (dropped on that rule: a bare "TAMARA SETTLEMENT" credit — the
+  engine's own m16 design says review-not-guess, a bookkeeper would say SALES;
+  a case the platform cannot answer one way does not belong in the corpus).
+
+**Two instrument defects found DURING measurement — both of the
+failure-looks-like-a-finding family (each silently substituted the
+deterministic answer into the "hybrid" score):** (1) `maxTokens: 60` starved
+gpt-oss of emission room — 43/84 calls returned 200-with-no-content even at
+low reasoning effort (now 300); (2) the fixed 400ms pacing ran ~490-token
+prompts at ~16k TPM against the free tier's 8k limit — 44/84 calls died as
+429s (now paced ~5s/call, `--pace-ms=N` to override). Both fixed ONCE, before
+any model was compared, so every row below is the same harness.
+
+### Free-tier numbers, v3 (2026-08-23) — all runs 84/84 calls ok, no-hint mode
+
+Deterministic baseline: en 50% (hard 13%), ar 46% (hard 13%), mixed 28%
+(hard 7%).
+
+| Model | Calls ok | EN hard | **AR hard** | Mixed hard | EN−AR gap | Reading |
+| --- | --- | --- | --- | --- | --- | --- |
+| openai/gpt-oss-120b | 84/84 | 77% | **83%** | 67% | −6 | Best on this corpus; Arabic its STRONG side. |
+| openai/gpt-oss-20b | 84/84 | 73% | **77%** | 67% | −4 | Two cases behind 120b; cheaper and faster. |
+| allam-2-7b (SDAIA) | 84/84 | 17% | **17%** | 13% | 0 | 🔴 Barely above baseline on hard cases at full evidence — its v2 "AR hard 56%" was 5 single cases. |
+| qwen/qwen3.6-27b | — | — | — | — | — | Still **NOT MEASURED** — the think-truncation pathology (§12f) is not a corpus-size problem; unchanged until the qwen-specific reasoning parameters are tried. |
+
+**🔴 The v2 headline REVERSED at measuring size:** §12g recorded
+"gpt-oss-20b beat 120b decisively on Arabic (100% vs 78%)" — on 9 cases. At 30
+cases per language the order flips (83% vs 77%, a two-case margin), which is
+precisely the reordering the corpus constraint predicted single cases could
+manufacture. Both gpt-oss models clear the §2a Arabic gate with Arabic as the
+STRONGER side; the spec's model-size question is now a genuine cost/latency
+choice between two working models, not a capability finding. **The
+model-selection decision itself remains OPEN** — these are single runs,
+no-hint mode only, on synthetic data; the blocking items in §2/§12c
+(Enterprise terms, Dammam vision model) stand unchanged.
+
+**Standing caveats:** single-digit run counts (one run per model); no-hint
+mode only (with-hint anchors, §12f); the corpus is synthetic and the owner's
+receipt corpus may redistribute difficulty; `ai_usage` "measured" lines
+accumulate across runs per model (the meter query is not per-run).

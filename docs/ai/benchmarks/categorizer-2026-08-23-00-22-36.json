@@ -1,0 +1,58 @@
+{
+  "corpusSize": 153,
+  "results": [
+    {
+      "model": "openai/gpt-oss-20b",
+      "withHint": false,
+      "successes": 41,
+      "failures": 43,
+      "firstFailure": "groq openai/gpt-oss-20b: 200 with no completion content",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 42,
+            "total": 60,
+            "pct": 70
+          },
+          "hard": {
+            "correct": 12,
+            "total": 30,
+            "pct": 40
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 37,
+            "total": 54,
+            "pct": 69
+          },
+          "hard": {
+            "correct": 14,
+            "total": 30,
+            "pct": 47
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 17,
+            "total": 39,
+            "pct": 44
+          },
+          "hard": {
+            "correct": 8,
+            "total": 30,
+            "pct": 27
+          }
+        }
+      },
+      "usage": {
+        "calls": 213,
+        "pt": 41482,
+        "ct": 4379,
+        "avg_ms": 550,
+        "failed": 115
+      },
+      "arabicGateGapPoints": -7
+    }
+  ]
+}

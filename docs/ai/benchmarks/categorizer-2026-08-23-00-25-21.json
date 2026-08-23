@@ -1,0 +1,58 @@
+{
+  "corpusSize": 153,
+  "results": [
+    {
+      "model": "openai/gpt-oss-20b",
+      "withHint": false,
+      "successes": 40,
+      "failures": 44,
+      "firstFailure": "groq openai/gpt-oss-20b: HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-20b` in organization `org_01m09aag60ewfrx4h82nxb9yw6` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7833, Requested 478. Please try again in 2.3325s. Need more tokens? Upgrade",
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 43,
+            "total": 60,
+            "pct": 72
+          },
+          "hard": {
+            "correct": 13,
+            "total": 30,
+            "pct": 43
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 37,
+            "total": 54,
+            "pct": 69
+          },
+          "hard": {
+            "correct": 13,
+            "total": 30,
+            "pct": 43
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 14,
+            "total": 39,
+            "pct": 36
+          },
+          "hard": {
+            "correct": 5,
+            "total": 30,
+            "pct": 17
+          }
+        }
+      },
+      "usage": {
+        "calls": 297,
+        "pt": 58314,
+        "ct": 6281,
+        "avg_ms": 486,
+        "failed": 159
+      },
+      "arabicGateGapPoints": 0
+    }
+  ]
+}

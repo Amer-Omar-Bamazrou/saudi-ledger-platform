@@ -104,7 +104,16 @@ async function main() {
   const modelsArg = process.argv.find((a) => a.startsWith("--models"));
   const models = modelsArg ? modelsArg.split("=")[1].split(",") : [env.GROQ_MODEL];
   const withHint = !process.argv.includes("--no-hint");
-  console.log(`prompt mode: ${withHint ? "WITH deterministic hint" : "NO HINT (anchoring control)"}`);
+  // 🔴 Pace to the free tier's TOKENS-per-minute budget, not to politeness
+  // (2026-08-23): the prompt carries the full category list (~490 tokens), so
+  // at the old fixed 400ms the expanded corpus ran at ~16k TPM against an 8k
+  // limit and 44/84 calls died as 429s — each one silently substituting the
+  // deterministic answer into the "hybrid" score. A run where half the calls
+  // are rate-limited measures the limiter, not the model. ~5s keeps a full run
+  // under the 8k TPM budget; override per-run with --pace-ms=N.
+  const paceArg = process.argv.find((a) => a.startsWith("--pace-ms"));
+  const paceMs = paceArg ? Number(paceArg.split("=")[1]) : 5000;
+  console.log(`prompt mode: ${withHint ? "WITH deterministic hint" : "NO HINT (anchoring control)"}; pacing ${paceMs}ms/call`);
 
   // ── Deterministic baseline (no network, always runs) ─────────────────────
   const detVerdicts: Verdict[] = BENCHMARK_CASES.map((c) => ({
@@ -164,7 +173,14 @@ async function main() {
               // the thinking bounded so the answer fits (verified: without it,
               // 19/21 calls returned 200-with-empty-content at 500 tokens).
               ...(model.startsWith("openai/gpt-oss") ? { reasoningEffort: "low" as const } : {}),
-              maxTokens: 60,
+              // 🔴 300, not 60 (2026-08-23): on the expanded corpus 43/84
+              // gpt-oss-20b calls returned 200-with-no-content at 60 — even at
+              // low effort the reasoning eats the budget before the ~10-token
+              // answer, and every such failure silently substitutes the
+              // deterministic answer into the "hybrid" score. Emission headroom
+              // is instrument correctness (the same family as the think-block
+              // parser fix), so it changes ONCE, before any model is compared.
+              maxTokens: 300,
               timeoutMs: 25_000,
               model,
             }),
@@ -183,8 +199,8 @@ async function main() {
         }
       }
       verdicts.push({ case_: c, deterministic: det?.systemCode ?? null, hybrid });
-      // Free tier is rate-limited; pace rather than burst.
-      await new Promise((r) => setTimeout(r, 400));
+      // Free tier is rate-limited; pace rather than burst (see paceMs above).
+      await new Promise((r) => setTimeout(r, paceMs));
     }
 
     console.log(`

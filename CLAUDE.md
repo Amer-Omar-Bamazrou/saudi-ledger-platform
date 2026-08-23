@@ -236,6 +236,22 @@ owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
 Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
 Arabic-vision question). As-built: §12d/§12e.
 
+**AI-2 — the corpus at measuring size (2026-08-23).** The binding constraint
+(§12g: one hard case moved a verdict ~11 points) closed: **153 cases, 30 hard
+per language** (en/ar equal-N; one case ≈ 3.3 points), with the two authoring
+disciplines MECHANIZED (`tests/benchmark-corpus.test.ts`: every `hard` flag is
+a measured claim the engine cannot solve at ≥0.65 — the first expansion's 28
+guessed flags were ALL engine-solved, six of them from the original corpus;
+every expected label emittable; ≥30 hard per language). Two instrument
+defects fixed during measurement (token starvation, TPM-blind pacing — each
+silently substituted deterministic answers into "hybrid" scores). 🔴 **The
+AI-1b headline REVERSED at measuring size:** on 84/84 clean calls per model,
+gpt-oss-**120b** leads (AR hard 83% vs 20b's 77%; was "20b decisively ahead,
+100% vs 78%" on 9 cases); allam-2-7b is barely above baseline on hard cases
+(17% vs 13%); both gpt-oss models hold the Arabic gate with Arabic as the
+STRONGER side; qwen stays NOT MEASURED. Model selection remains OPEN (single
+runs, synthetic corpus, Enterprise/Dammam items unchanged). As-built: §12h.
+
 **M22 — Closed months (2026-08-21).** The period-locks surface, in the owner's
 framing: **"close the books for a month so figures stop changing"** — never
 "lock period". A dedicated `/closed-months` page (read for every role; actions
