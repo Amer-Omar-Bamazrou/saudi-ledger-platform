@@ -1699,3 +1699,36 @@ where single cases decide verdicts. Corollary kept from the same pass: flags
 are set by measurement, but cases are never REWORDED until the engine fails
 them — that would be authoring from the engine, the inversion the corpus
 header forbids.
+
+### 🔴 NAMED LESSON (2026-08-24, recorded at the owner's instruction, about the owner's own message): AN INSTRUCTION CAN BE CONFIDENTLY WRONG IN EXACTLY THE SHAPE THE CODEBASE KEEPS PRODUCING
+
+The owner sent a work order for "Milestone 1 — GOSI, with the recovery path,"
+answering an unmapped-code (a)/(b) question — decisions plausible,
+self-consistent, phrased in the project's own vocabulary, and **grounded in
+nothing**: no such milestone had been proposed, no such question asked, and
+the data held no wrong GOSI rows (checked: 2 rows, both `O`, no VAT, already
+the C11-verified state). The owner had answered a plan that did not exist.
+
+What made it dangerous is what makes every instance of this family
+dangerous: it did not look wrong. It looked like the next task. Building it
+would have manufactured a "correction" for a defect that was never there —
+the COST-AN-OPTION-BEFORE-VERIFYING-ITS-INPUTS failure, arriving as an
+instruction instead of a proposal.
+
+**The rule, set by the owner about their own messages: check the referent
+against the data before building, and keep that response even when the
+instruction comes from the owner.** An instruction's referent is an input
+like any other — grep for it. The stop that caught this one was nothing
+clever: the milestone name matched no record, so the data was queried before
+any code was written, and the mismatch was reported instead of papered over.
+
+Two standing policies from the same exchange, kept because they are right
+regardless of the phantom that carried them:
+
+1. **A correction ships narrow and scoped, never as a general re-run tool** —
+   a tenant discovering wrong VAT cannot run a script, and a correction with
+   no recovery path for the rows it obsoletes is correct-but-not-connected.
+2. **A named gap that stays gapped beats a silent default** — recording a
+   wrong-but-flagged value ("assumed E") places a wrong treatment in the
+   ledger under a label that ages into being trusted; reporting the gap
+   keeps it a question until something real answers it.

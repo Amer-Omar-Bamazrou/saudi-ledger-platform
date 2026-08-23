@@ -619,6 +619,17 @@ These are short forms; the rules are binding, the history explains why.
   structurally could not see. Fixed with tenant-scoped pre-checks (422
   `reference_not_found`; under RLS, missing and other-tenant are the same
   fact). When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 AN INSTRUCTION'S REFERENT IS AN INPUT — CHECK IT AGAINST THE DATA,
+  EVEN WHEN THE INSTRUCTION COMES FROM THE OWNER** (2026-08-24, recorded at
+  the owner's instruction about their own message). A work order arrived for
+  a milestone that did not exist — plausible, self-consistent, in the
+  project's own vocabulary, grounded in nothing (the owner had answered a
+  plan nobody proposed). The stop that caught it: the name matched no
+  record, so the data was queried before any code, and the mismatch was
+  REPORTED instead of built. Two standing policies from the same exchange:
+  corrections ship NARROW and scoped (never a general re-run tool — a tenant
+  cannot run a script), and a NAMED GAP that stays gapped beats a silent
+  default that ages into being trusted.
 - **🔴 A CLAIM INSIDE A MEASURING INSTRUMENT IS STILL A CLAIM — CHECK IT**
   (AI-2, 2026-08-23). The benchmark's `hard` flag ("the engine can't solve
   this alone") was authored by judgment; the engine solved 28 of them at
