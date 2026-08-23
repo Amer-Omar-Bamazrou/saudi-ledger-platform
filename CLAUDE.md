@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-20 (pre-AI security pass: C9 → audit → C1/C2/C4/C5. The GL owns cash (A + B4); fiscal track complete through F7-cmp.)**
+**Last updated: 2026-08-23 (MED validation pass incl. the FK-outside-RLS security finding, PR #75; AI-2 corpus at measuring size, PR #76; A3 rule health completed, PR #77 pending review.)**
 
 **Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
 (VAT treatments verified against the primary source; `FOOD_MEALS` was a live
@@ -610,6 +610,24 @@ These are short forms; the rules are binding, the history explains why.
   not caught by adding more of either kind — when an operation moves value
   BETWEEN accounts, assert both accounts' balances, before and after. A
   conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 FK CHECKS RUN OUTSIDE RLS — every plain FK between tenant-scoped
+  tables is a cross-tenant edge no policy guards** (SECURITY finding,
+  2026-08-23). Postgres evaluates FK constraints with the table owner's
+  privileges, so `invoices.customer_id → customers(id)` ACCEPTED another
+  tenant's id, and 23503-vs-success was an existence oracle across the whole
+  platform — the RLS blind spot's sibling, in a place the RLS-policy sweep
+  structurally could not see. Fixed with tenant-scoped pre-checks (422
+  `reference_not_found`; under RLS, missing and other-tenant are the same
+  fact). When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 A CLAIM INSIDE A MEASURING INSTRUMENT IS STILL A CLAIM — CHECK IT**
+  (AI-2, 2026-08-23). The benchmark's `hard` flag ("the engine can't solve
+  this alone") was authored by judgment; the engine solved 28 of them at
+  ≥0.65, six from the ORIGINAL corpus — each padding the baseline the gate
+  reads. And "20b decisively ahead" was nine cases talking: at 30 equal-N
+  cases the order flipped. Both now enforced by
+  `tests/benchmark-corpus.test.ts` (the flag is measured, the corpus cannot
+  shrink below verdict-safe size); flags are set by measurement, but cases
+  are never reworded until the engine fails them.
 
 ## 4. Active constraints — do not break these
 
@@ -833,7 +851,7 @@ stack or path leaks to clients; the job scheduler survives a failing job.
 | **MED** | **A wrong diagnosis burns outbox attempts.** `catch {} → null` conflates "not onboarded" with ANY failure (KMS outage, DB error), so a transient failure is reported as "no ZATCA credentials for this company; is it onboarded?" | `services/einvoice/zatca/zatcaDirectProvider.ts:71` |
 | **MED** | **A 2xx for a transaction that rolled back.** Commit failure after `res.on("finish")` is logged only — the client already has its success. Structurally hard to fix at that point; nothing alarms on the pattern (L-1 family). | `lib/tenant.ts:144` |
 | ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — malformed `extraction`/`fieldSources` JSON now REFUSES with a named 400 (`parseJsonField`, lib/httpParams) instead of staging the capture with the user's OCR silently lost. | `routes/capture.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — the 500-where-4xx cluster. 🔴 **The finding grew during the fix:** Postgres FK checks run OUTSIDE RLS, so a nonexistent customerId and ANOTHER TENANT's customerId were both accepted-or-500 — a cross-tenant reference + existence oracle, not just a bad status. Fixed by tenant-scoped pre-checks → **422 `reference_not_found`** (status policy: 422 = semantically invalid input that passed schema validation) on customerId/vendorId/categoryId/bankAccountId across invoices, bills, quotations, POs and transactions (both prior bankAccountId 400s aligned to 422). Capture's >10 MB photo now maps through `uploadSingle` → 400. | `audit-med-validation.test.ts` |
+| ~~MED~~ | ✅ **FIXED (2026-08-23) — reclassified a SECURITY finding by the owner, not a validation fix** (full record: findings file, 2026-08-23). Was queued as the 500-where-4xx cluster; 🔴 **the finding grew during the fix:** Postgres FK checks run OUTSIDE RLS, so a nonexistent customerId and ANOTHER TENANT's customerId were both accepted-or-500 — a cross-tenant reference + existence oracle, not just a bad status. Fixed by tenant-scoped pre-checks → **422 `reference_not_found`** (status policy: 422 = semantically invalid input that passed schema validation) on customerId/vendorId/categoryId/bankAccountId across invoices, bills, quotations, POs and transactions (both prior bankAccountId 400s aligned to 422). Capture's >10 MB photo now maps through `uploadSingle` → 400. | `audit-med-validation.test.ts` |
 | ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `taxCategoryCode` constrained to S/Z/E/O-or-null: named 400 at the services (`assertTaxCategoryCode`), **DB CHECK 0056** on `invoice_items` AND `quotation_items` as the write-boundary backstop (bill/PO items have no such column — verified, the M21.3 lesson). | migration 0056 |
 | ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — PATCH `/transactions/:id` now carries the create path's vatAmount/vatRate bounds in the spec, and the invariant itself moved to **DB CHECK 0056** (owner instruction: fix the write boundary, not the looser path). | migration 0056 |
 | ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `requireIdParam` (lib/httpParams, the quotations-controller helper generalized) on all ~13 controllers + orgs/auth routes; NaN ids are 400s, never 22P02 500s. | `lib/httpParams.ts` |
