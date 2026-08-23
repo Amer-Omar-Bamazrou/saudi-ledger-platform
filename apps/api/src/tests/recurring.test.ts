@@ -234,3 +234,78 @@ describeMaybe("A3 — generation", () => {
     expect(await runsFor(future)).toHaveLength(0);
   });
 });
+
+// ── Health: one failure and a streak are different signals ──────────────────
+
+describeMaybe("A3 — rule health drives the UI", () => {
+  it("🔴 distinguishes ONE failure from a STREAK", async () => {
+    // The UI requirement in test form. "Last run: failed" is technically true
+    // for both a single blip and three months of a customer not being billed,
+    // and rendering them identically answers "did my invoice go out?" with
+    // information that hides the answer.
+    const { pool } = await import("@workspace/db");
+    const { recurringRepository } = await import("../repositories/recurring.repository");
+    const { beginTenantConnection } = await import("@workspace/db");
+
+    const org = (
+      await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Health Org','a3-health') RETURNING id`)
+    ).rows[0].id;
+    const company = (
+      await pool.query(
+        `INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'HC','1010101010','399999999999993') RETURNING id`,
+        [org],
+      )
+    ).rows[0].id;
+
+    const mk = async (label: string) =>
+      (
+        await pool.query(
+          `INSERT INTO recurring_rules (organization_id, company_id, entity, template, frequency, day_of_month, starts_on, next_run_on)
+           VALUES ($1,$2,'invoice','{}'::jsonb,'monthly',1,'2026-01-01','2026-01-01') RETURNING id`,
+          [org, company],
+        )
+      ).rows[0].id;
+
+    const oneBlip = await mk("blip");
+    const streaking = await mk("streak");
+    const healthy = await mk("healthy");
+
+    const run = (rule: string, date: string, outcome: string) =>
+      pool.query(
+        `INSERT INTO recurring_runs (organization_id, rule_id, scheduled_for, outcome, error_code)
+         VALUES ($1,$2,$3::date,$4,$5)`,
+        [org, rule, date, outcome, outcome === "failed" ? "period_locked" : null],
+      );
+
+    // One blip, then recovered — the LAST run succeeded.
+    await run(oneBlip, "2026-01-01", "failed");
+    await run(oneBlip, "2026-02-01", "generated");
+    // Three consecutive failures after an early success.
+    await run(streaking, "2026-01-01", "generated");
+    await run(streaking, "2026-02-01", "failed");
+    await run(streaking, "2026-03-01", "failed");
+    await run(streaking, "2026-04-01", "failed");
+    await run(healthy, "2026-01-01", "generated");
+
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const health = await conn.run(() => recurringRepository.health());
+    await conn.commit();
+
+    const byId = new Map(health.map((h) => [h.rule_id, h]));
+    expect(byId.get(oneBlip)!.last_outcome).toBe("generated");
+    expect(byId.get(oneBlip)!.consecutive_failures).toBe(0);
+
+    // 🔴 The signal that matters: three occurrences unbilled, and the last
+    // success was in January.
+    expect(byId.get(streaking)!.last_outcome).toBe("failed");
+    expect(byId.get(streaking)!.consecutive_failures).toBe(3);
+    expect(byId.get(streaking)!.last_success_on).toBe("2026-01-01");
+
+    expect(byId.get(healthy)!.consecutive_failures).toBe(0);
+
+    await pool.query(`DELETE FROM recurring_runs WHERE organization_id = $1`, [org]);
+    await pool.query(`DELETE FROM recurring_rules WHERE organization_id = $1`, [org]);
+    await pool.query(`DELETE FROM companies WHERE organization_id = $1`, [org]);
+    await pool.query(`DELETE FROM organizations WHERE id = $1`, [org]);
+  });
+});

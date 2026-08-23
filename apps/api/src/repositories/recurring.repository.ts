@@ -6,7 +6,7 @@
  *                             outside any request and filters explicitly.
  */
 import { db, pool, recurringRulesTable, recurringRunsTable } from "@workspace/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 export const recurringRepository = {
   async insertRule(values: typeof recurringRulesTable.$inferInsert) {
@@ -43,6 +43,56 @@ export const recurringRepository = {
 
   async deleteRule(id: string) {
     await db.delete(recurringRulesTable).where(eq(recurringRulesTable.id, id));
+  },
+
+  /**
+   * Health per rule: the last outcome, and how many occurrences have failed
+   * CONSECUTIVELY.
+   *
+   * 🔴 The consecutive count is the point, not decoration. One failed
+   * occurrence is a thing to fix; **three in a row means a customer has not been
+   * billed for three months** and nobody noticed — a different signal
+   * altogether, and the one this feature exists to surface. A UI that renders
+   * both as "last run: failed" answers "did my rent invoice go out?" with
+   * technically-true information that hides the answer.
+   */
+  async health() {
+    const { rows } = await db.execute<{
+      rule_id: string;
+      last_outcome: string | null;
+      last_scheduled_for: string | null;
+      last_error_code: string | null;
+      last_error_detail: string | null;
+      consecutive_failures: number;
+      last_success_on: string | null;
+    }>(sql`
+      WITH ordered AS (
+        SELECT r.*, row_number() OVER (PARTITION BY r.rule_id ORDER BY r.scheduled_for DESC) AS rn
+          FROM recurring_runs r
+      ),
+      streak AS (
+        SELECT rule_id, count(*)::int AS consecutive_failures
+          FROM ordered o
+         WHERE o.outcome = 'failed'
+           AND o.rn <= COALESCE((
+                 SELECT min(rn) - 1 FROM ordered g
+                  WHERE g.rule_id = o.rule_id AND g.outcome <> 'failed'
+               ), 1000000)
+         GROUP BY rule_id
+      )
+      SELECT o.rule_id,
+             o.outcome            AS last_outcome,
+             o.scheduled_for::text AS last_scheduled_for,
+             o.error_code         AS last_error_code,
+             o.error_detail       AS last_error_detail,
+             COALESCE(s.consecutive_failures, 0) AS consecutive_failures,
+             (SELECT max(scheduled_for)::text FROM recurring_runs x
+               WHERE x.rule_id = o.rule_id AND x.outcome <> 'failed') AS last_success_on
+        FROM ordered o
+        LEFT JOIN streak s ON s.rule_id = o.rule_id
+       WHERE o.rn = 1
+    `);
+    return rows;
   },
 };
 

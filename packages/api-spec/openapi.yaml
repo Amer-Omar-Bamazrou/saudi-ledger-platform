@@ -3828,6 +3828,17 @@ components:
         autoIssue: { type: boolean }
         status: { type: string, enum: [active, paused] }
         createdAt: { type: ["string", "null"] }
+        # ── Rule health (A3 follow-up, 2026-08-23) ──────────────────────────
+        # One failure and a streak are different signals: one failed run is a
+        # blip; N consecutive means a customer has not been billed for N
+        # periods and nobody noticed. The list carries both so the UI can say
+        # which — "last run: failed" alone hides the answer.
+        lastOutcome: { type: ["string", "null"], description: "generated | failed | null (never run)" }
+        lastScheduledFor: { type: ["string", "null"] }
+        lastErrorCode: { type: ["string", "null"] }
+        lastErrorDetail: { type: ["string", "null"] }
+        consecutiveFailures: { type: integer }
+        lastSuccessOn: { type: ["string", "null"] }
 
     CreateRecurringRuleInput:
       type: object

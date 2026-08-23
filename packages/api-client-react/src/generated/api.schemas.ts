@@ -1764,6 +1764,20 @@ export interface RecurringRule {
   status: RecurringRuleStatus;
   /** @nullable */
   createdAt?: string | null;
+  /**
+     * generated | failed | null (never run)
+     * @nullable
+     */
+  lastOutcome?: string | null;
+  /** @nullable */
+  lastScheduledFor?: string | null;
+  /** @nullable */
+  lastErrorCode?: string | null;
+  /** @nullable */
+  lastErrorDetail?: string | null;
+  consecutiveFailures?: number;
+  /** @nullable */
+  lastSuccessOn?: string | null;
 }
 
 export type CreateRecurringRuleInputEntity = typeof CreateRecurringRuleInputEntity[keyof typeof CreateRecurringRuleInputEntity];
