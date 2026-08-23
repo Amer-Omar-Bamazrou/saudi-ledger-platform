@@ -13,6 +13,7 @@ import {
   Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
   ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
   ShoppingCart, PieChart, Languages, ShieldCheck, Repeat, CalendarClock, ScrollText,
+  SearchCheck,
 } from "lucide-react";
 
 type NavItem = {
@@ -69,6 +70,8 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
     label: "Reports", labelAr: "التقارير",
     items: [
       { href: "/finance-hub",       label: "Finance Hub",      labelAr: "لوحة المالية",            icon: ShieldCheck },
+      // AI-3a — deterministic observations; "Findings", never "audit" (design-ai-layer §9).
+      { href: "/findings",          label: "Findings",         labelAr: "الملاحظات",                icon: SearchCheck },
       { href: "/analytics",         label: "Analytics",        labelAr: "التحليلات",                 icon: TrendingUp },
       { href: "/reports",           label: "Reports Hub",      labelAr: "مركز التقارير",           icon: BarChart3 },
       { href: "/income-statement",  label: "Income Statement", labelAr: "قائمة الدخل",              icon: TrendingUp },

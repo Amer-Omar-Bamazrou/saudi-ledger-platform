@@ -18,6 +18,7 @@ import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import TransactionReview from '@/pages/TransactionReview';
 import Recurring from '@/pages/Recurring';
+import Findings from '@/pages/Findings';
 import Categorize from '@/pages/Categorize';
 import Upload from '@/pages/Upload';
 import VatReport from '@/pages/VatReport';
@@ -131,6 +132,7 @@ function Router() {
               <Route path="/transactions" component={Transactions} />
               <Route path="/review" component={TransactionReview} />
               <Route path="/recurring" component={Recurring} />
+              <Route path="/findings" component={Findings} />
               <Route path="/categorize" component={Categorize} />
               <Route path="/upload" component={Upload} />
               {/* Sales */}

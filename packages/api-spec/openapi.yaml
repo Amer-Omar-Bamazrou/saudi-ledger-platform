@@ -875,6 +875,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogPage"
 
+  /findings:
+    get:
+      operationId: listFindings
+      tags: [findings]
+      summary: >
+        The organization's findings (AI-3a) - deterministic
+        internal-consistency observations as rows with state, never a report
+        file. Nothing here asserts a tax or compliance position (owner
+        decision 2026-08-24: internal-consistency only until C10 closes).
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [open, acknowledged, resolved] }
+        - in: query
+          name: kind
+          schema: { type: string }
+      responses:
+        "200":
+          description: Findings, most recently seen first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindingsPage"
+
+  /findings/run:
+    post:
+      operationId: runFindings
+      tags: [findings]
+      summary: >
+        Run every check now. Re-detection UPSERTS by (kind, refKey) - an
+        acknowledged finding stays acknowledged while still detected; a
+        finding no longer detected is machine-resolved and KEPT as the record
+        that it was found. Moves nothing in any report.
+      responses:
+        "200":
+          description: What the run changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindingsRunResult"
+
+  /findings/{id}/acknowledge:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: acknowledgeFinding
+      tags: [findings]
+      summary: >
+        Record that a human reviewed this finding and accepts the state it
+        describes ("this duplicate is intentional"). Approver authority - a
+        dismissal is a review decision. Survives re-detection; the machine
+        never un-acknowledges.
+      responses:
+        "200":
+          description: The acknowledged finding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Finding"
+
   /recurring:
     get:
       operationId: listRecurringRules
@@ -3810,6 +3873,58 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLogEntry"
+
+    Finding:
+      type: object
+      required: [id, kind, refKey, facts, status, firstSeenAt, lastSeenAt]
+      properties:
+        id: { type: integer }
+        companyId: { type: ["string", "null"] }
+        kind:
+          type: string
+          description: >
+            duplicate_bill | duplicate_transaction | invoice_number_gap |
+            overdue_receivable | overdue_payable | stale_draft |
+            undeclared_transfer | unposted_transaction. Free-form by design -
+            the vocabulary is service-owned and grows with the checks.
+        refKey: { type: string }
+        facts:
+          type: object
+          additionalProperties: true
+          description: Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words.
+        status: { type: string, enum: [open, acknowledged, resolved] }
+        firstSeenAt: { type: string }
+        lastSeenAt: { type: string }
+        acknowledgedAt: { type: ["string", "null"] }
+        acknowledgedBy: { type: ["integer", "null"] }
+        acknowledgedByName: { type: ["string", "null"] }
+        resolvedAt: { type: ["string", "null"] }
+
+    FindingsPage:
+      type: object
+      required: [findings, counts]
+      properties:
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        counts:
+          type: object
+          required: [open, acknowledged, resolved]
+          properties:
+            open: { type: integer }
+            acknowledged: { type: integer }
+            resolved: { type: integer }
+
+    FindingsRunResult:
+      type: object
+      required: [created, reopened, refreshed, resolved, open]
+      properties:
+        created: { type: integer }
+        reopened: { type: integer }
+        refreshed: { type: integer }
+        resolved: { type: integer }
+        open: { type: integer, description: Total open after the run. }
 
     RecurringRule:
       type: object

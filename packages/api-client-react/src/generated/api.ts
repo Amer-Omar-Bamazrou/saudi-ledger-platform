@@ -48,6 +48,9 @@ import type {
   DiscardResult,
   ErrorResponse,
   FinancialSummary,
+  Finding,
+  FindingsPage,
+  FindingsRunResult,
   FiscalYears,
   GetCashReconciliationParams,
   GetDecompositionParams,
@@ -64,6 +67,7 @@ import type {
   Liquidity,
   ListAuditLogsParams,
   ListBudgetsParams,
+  ListFindingsParams,
   ListPurchaseOrdersParams,
   ListQuotationsParams,
   ListTransactionsParams,
@@ -3066,6 +3070,238 @@ export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs
 
 
 
+
+export const getListFindingsUrl = (params?: ListFindingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/findings?${stringifiedParams}` : `/api/findings`
+}
+
+/**
+ * @summary The organization's findings (AI-3a) - deterministic internal-consistency observations as rows with state, never a report file. Nothing here asserts a tax or compliance position (owner decision 2026-08-24: internal-consistency only until C10 closes).
+
+ */
+export const listFindings = async (params?: ListFindingsParams, options?: RequestInit): Promise<FindingsPage> => {
+
+  return customFetch<FindingsPage>(getListFindingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFindingsQueryKey = (params?: ListFindingsParams,) => {
+    return [
+    `/api/findings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListFindingsQueryOptions = <TData = Awaited<ReturnType<typeof listFindings>>, TError = ErrorType<unknown>>(params?: ListFindingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFindings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFindingsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFindings>>> = ({ signal }) => listFindings(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFindings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFindingsQueryResult = NonNullable<Awaited<ReturnType<typeof listFindings>>>
+export type ListFindingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The organization's findings (AI-3a) - deterministic internal-consistency observations as rows with state, never a report file. Nothing here asserts a tax or compliance position (owner decision 2026-08-24: internal-consistency only until C10 closes).
+
+ */
+
+export function useListFindings<TData = Awaited<ReturnType<typeof listFindings>>, TError = ErrorType<unknown>>(
+ params?: ListFindingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFindings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFindingsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunFindingsUrl = () => {
+
+
+
+
+  return `/api/findings/run`
+}
+
+/**
+ * @summary Run every check now. Re-detection UPSERTS by (kind, refKey) - an acknowledged finding stays acknowledged while still detected; a finding no longer detected is machine-resolved and KEPT as the record that it was found. Moves nothing in any report.
+
+ */
+export const runFindings = async ( options?: RequestInit): Promise<FindingsRunResult> => {
+
+  return customFetch<FindingsRunResult>(getRunFindingsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunFindingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runFindings>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runFindings>>, TError,void, TContext> => {
+
+const mutationKey = ['runFindings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runFindings>>, void> = () => {
+
+
+          return  runFindings(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunFindingsMutationResult = NonNullable<Awaited<ReturnType<typeof runFindings>>>
+
+    export type RunFindingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Run every check now. Re-detection UPSERTS by (kind, refKey) - an acknowledged finding stays acknowledged while still detected; a finding no longer detected is machine-resolved and KEPT as the record that it was found. Moves nothing in any report.
+
+ */
+export const useRunFindings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runFindings>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runFindings>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunFindingsMutationOptions(options));
+    }
+
+export const getAcknowledgeFindingUrl = (id: number,) => {
+
+
+
+
+  return `/api/findings/${id}/acknowledge`
+}
+
+/**
+ * @summary Record that a human reviewed this finding and accepts the state it describes ("this duplicate is intentional"). Approver authority - a dismissal is a review decision. Survives re-detection; the machine never un-acknowledges.
+
+ */
+export const acknowledgeFinding = async (id: number, options?: RequestInit): Promise<Finding> => {
+
+  return customFetch<Finding>(getAcknowledgeFindingUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeFindingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeFinding>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeFinding>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['acknowledgeFinding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeFinding>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  acknowledgeFinding(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeFindingMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeFinding>>>
+
+    export type AcknowledgeFindingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record that a human reviewed this finding and accepts the state it describes ("this duplicate is intentional"). Approver authority - a dismissal is a review decision. Survives re-detection; the machine never un-acknowledges.
+
+ */
+export const useAcknowledgeFinding = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeFinding>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeFinding>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeFindingMutationOptions(options));
+    }
 
 export const getListRecurringRulesUrl = () => {
 

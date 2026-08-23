@@ -149,6 +149,18 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // Audit trail — admin-only read (M7). Writes are done by the audit service on
   // every mutation, not via a route, so only `read` is enforced here.
   audit_logs: { read: ADMIN_ONLY },
+
+  /**
+   * Findings (AI-3a) — deterministic internal-consistency checks. READ is
+   * open (review assistance, like reports); CREATE covers POST /run — running
+   * the checks writes finding rows but moves nothing, the same authority
+   * class as `categorize`. `approve` gates POST /:id/acknowledge: an
+   * acknowledgement is a REVIEW DECISION ("this duplicate is intentional")
+   * that dismisses a warning about money, so it carries approver authority —
+   * the M16 "accepting the match IS the review" principle, applied to the
+   * dismissal direction.
+   */
+  findings: { read: READ_ALL, create: WRITE, approve: APPROVE },
 };
 
 /** The flattened matrix: one row per (role, resource, action) grant. */

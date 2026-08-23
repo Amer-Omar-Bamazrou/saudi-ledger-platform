@@ -1621,6 +1621,75 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary The organization's findings (AI-3a) - deterministic internal-consistency observations as rows with state, never a report file. Nothing here asserts a tax or compliance position (owner decision 2026-08-24: internal-consistency only until C10 closes).
+
+ */
+export const ListFindingsQueryParams = zod.object({
+  "status": zod.enum(['open', 'acknowledged', 'resolved']).optional(),
+  "kind": zod.coerce.string().optional()
+})
+
+export const ListFindingsResponse = zod.object({
+  "findings": zod.array(zod.object({
+  "id": zod.number(),
+  "companyId": zod.string().nullish(),
+  "kind": zod.string().describe('duplicate_bill | duplicate_transaction | invoice_number_gap | overdue_receivable | overdue_payable | stale_draft | undeclared_transfer | unposted_transaction. Free-form by design - the vocabulary is service-owned and grows with the checks.\n'),
+  "refKey": zod.string(),
+  "facts": zod.record(zod.string(), zod.unknown()).describe('Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words.'),
+  "status": zod.enum(['open', 'acknowledged', 'resolved']),
+  "firstSeenAt": zod.string(),
+  "lastSeenAt": zod.string(),
+  "acknowledgedAt": zod.string().nullish(),
+  "acknowledgedBy": zod.number().nullish(),
+  "acknowledgedByName": zod.string().nullish(),
+  "resolvedAt": zod.string().nullish()
+})),
+  "counts": zod.object({
+  "open": zod.number(),
+  "acknowledged": zod.number(),
+  "resolved": zod.number()
+})
+})
+
+
+/**
+ * @summary Run every check now. Re-detection UPSERTS by (kind, refKey) - an acknowledged finding stays acknowledged while still detected; a finding no longer detected is machine-resolved and KEPT as the record that it was found. Moves nothing in any report.
+
+ */
+export const RunFindingsResponse = zod.object({
+  "created": zod.number(),
+  "reopened": zod.number(),
+  "refreshed": zod.number(),
+  "resolved": zod.number(),
+  "open": zod.number().describe('Total open after the run.')
+})
+
+
+/**
+ * @summary Record that a human reviewed this finding and accepts the state it describes ("this duplicate is intentional"). Approver authority - a dismissal is a review decision. Survives re-detection; the machine never un-acknowledges.
+
+ */
+export const AcknowledgeFindingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AcknowledgeFindingResponse = zod.object({
+  "id": zod.number(),
+  "companyId": zod.string().nullish(),
+  "kind": zod.string().describe('duplicate_bill | duplicate_transaction | invoice_number_gap | overdue_receivable | overdue_payable | stale_draft | undeclared_transfer | unposted_transaction. Free-form by design - the vocabulary is service-owned and grows with the checks.\n'),
+  "refKey": zod.string(),
+  "facts": zod.record(zod.string(), zod.unknown()).describe('Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words.'),
+  "status": zod.enum(['open', 'acknowledged', 'resolved']),
+  "firstSeenAt": zod.string(),
+  "lastSeenAt": zod.string(),
+  "acknowledgedAt": zod.string().nullish(),
+  "acknowledgedBy": zod.number().nullish(),
+  "acknowledgedByName": zod.string().nullish(),
+  "resolvedAt": zod.string().nullish()
+})
+
+
+/**
  * @summary List recurring document rules (A3)
  */
 export const ListRecurringRulesResponseItem = zod.object({
