@@ -1632,3 +1632,70 @@ the INTERMEDIATE grain: when an operation moves value BETWEEN accounts,
 assert the balance of BOTH accounts, before and after. The gap between a
 top-line figure and a bottom-line invariant is exactly the space where a
 conservation law can hold while the conserved thing is in the wrong place.
+
+### 🔴 SECURITY FINDING (MED validation pass, 2026-08-23): FK CHECKS RUN OUTSIDE RLS — A CROSS-TENANT REFERENCE PLUS AN EXISTENCE ORACLE
+
+Queued as a validation MED ("nonexistent customerId → raw FK 500"), it grew
+into a security finding while being fixed, and the owner directed it be
+recorded as one: **Postgres evaluates foreign-key constraints with the
+referenced table owner's privileges, so RLS policies do not apply to the
+check.** `invoices.customer_id → customers(id)` is a plain FK with no
+organization component, which meant two things at once:
+
+1. **A tenant could CREATE an invoice referencing ANOTHER tenant's customer
+   row, and the database accepted it.** Reads stayed org-scoped, so the
+   foreign name never rendered — but the reference existed, and a business
+   row in tenant A pointing at identity data in tenant B is a tenant-isolation
+   violation regardless of what the UI shows.
+2. **The 23503-vs-success difference was an existence oracle**: probing
+   sequential ids revealed which ids exist anywhere on the platform.
+
+The same shape held for `bills.vendor_id`, quotations, purchase orders,
+`transactions.category_id`, and the bank-account references. **This is the
+RLS blind spot's sibling, in a place nobody was looking** (the owner's
+framing): the 2026-08-20 audit swept RLS *policy* coverage and found it
+whole, but an FK is not a query — it is a constraint check that RLS never
+sees, so policy coverage cannot catch it.
+
+**The fix** (PR #75): tenant-scoped existence pre-checks through the RLS
+repositories before every insert/update that takes a reference id — under
+RLS, "missing" and "another tenant's" are the same fact, so both refuse with
+the identical 422 `reference_not_found` and the oracle closes with the
+reference hole. The cross-tenant case is pinned by a test that first proves
+the foreign row exists (so the refusal is demonstrably tenant scoping, not
+absence).
+
+**The reusable rule: every plain FK from a tenant-scoped table is a
+cross-tenant edge the moment the referenced table is also tenant-scoped —
+RLS does not guard it; only a scoped lookup (or a composite
+`(organization_id, id)` FK) does.** When auditing isolation, enumerate the
+FKs, not just the queries.
+
+### 🔴 AI-2 (2026-08-23): THE CORPUS RULE EARNING ITS KEEP — NINE CASES TALKING, AND 28 "HARD" FLAGS THAT WERE NOT
+
+Two findings from expanding the benchmark corpus to measuring size, recorded
+plainly (owner's framing):
+
+1. **"gpt-oss-20b decisively ahead on Arabic" was nine cases talking.** At
+   9 hard AR cases, 20b scored 100% vs 120b's 78%; at 30 equal-N cases per
+   language the order flipped (120b 83%, 20b 77%). The §12g constraint —
+   no model-selection decision may cite numbers a single case can reorder —
+   predicted exactly this, and the reversal is the evidence it was right,
+   not a new leaderboard fact (both models are strong; the margin is two
+   cases).
+2. **28 authored-hard cases were not hard.** The `hard` flag ("the engine is
+   not expected to solve this alone") was authored by judgment, and the
+   engine solved 28 of them at ≥0.65 confidence — six from the ORIGINAL
+   AI-1b corpus. Each one padded the hard-only baseline the §2a gate reads,
+   and a high-confidence engine hit never reaches the LLM, so it measured
+   nothing at all.
+
+Both are the same lesson: **a claim inside a measuring instrument is still a
+claim, and if it is checkable it must be checked.** Both are now enforced by
+`tests/benchmark-corpus.test.ts` (no engine-solved hard flag, no
+non-emittable expected label, ≥30 hard per language, en/ar equal-N) — the
+flag became a measured fact, and the corpus cannot quietly shrink back to
+where single cases decide verdicts. Corollary kept from the same pass: flags
+are set by measurement, but cases are never REWORDED until the engine fails
+them — that would be authoring from the engine, the inversion the corpus
+header forbids.
