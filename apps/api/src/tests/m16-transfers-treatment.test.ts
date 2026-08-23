@@ -269,12 +269,17 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
       // record is docs/tax/vat-treatment-verification.md — or this test
       // fails on purpose. It DID fail on purpose on 2026-08-19 (the C9 pass,
       // 17 verified against the VAT Implementing Regulations) — exactly the
-      // forcing function it was built to be.
+      // forcing function it was built to be. And AGAIN on 2026-08-23 (C11:
+      // the sovereign trio + GOSI_PAYABLE, verified against the GCC Agreement
+      // read in full + Law M/113 + IR Art. 39(2); citations in
+      // docs/tax/gcc-framework-verification.md, migration 0057).
       const { rows } = await pool.query(
         `SELECT code FROM system_account_templates WHERE treatment_verified ORDER BY code`,
       );
       expect(rows.map((r: { code: string }) => r.code)).toEqual([
-        "BANK_CHARGES", "FIXED_ASSETS", "FOOD_MEALS", "FUEL_TRANSPORT", "INSURANCE", "INVESTMENTS",
+        "BANK_CHARGES", "FIXED_ASSETS", "FOOD_MEALS", "FUEL_TRANSPORT",
+        "GOSI_EXPENSE", "GOSI_PAYABLE", "GOVT_FEES", "GOVT_GRANTS",
+        "INSURANCE", "INVESTMENTS",
         "IT_SOFTWARE", "MARKETING", "OFFICE_SUPPLIES", "PROFESSIONAL_FEES", "PURCHASES",
         "RENT_UTILITIES", "REPAIRS", "SALARIES", "SALES", "SERVICE_INCOME", "TELECOM",
       ]);
@@ -282,9 +287,9 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
       // reasoning instead of a source is the failure C9's method forbids.
       const { rows: assumed } = await pool.query(
         `SELECT code FROM system_account_templates WHERE NOT treatment_verified AND code IN
-           ('RENTAL_INCOME','TRAVEL','LOANS','INVESTMENT_INCOME','GOVT_FEES','GOVT_GRANTS') ORDER BY code`,
+           ('RENTAL_INCOME','TRAVEL','LOANS','INVESTMENT_INCOME') ORDER BY code`,
       );
-      expect(assumed).toHaveLength(6);
+      expect(assumed).toHaveLength(4);
     });
 
     it("an assumed treatment is flagged in review; a verified one is not", async () => {
