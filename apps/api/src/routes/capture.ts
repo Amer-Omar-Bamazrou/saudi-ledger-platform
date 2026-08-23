@@ -11,6 +11,8 @@ import { Router } from "express";
 import multer from "multer";
 import { MAX_DOCUMENT_BYTES } from "../lib/fileValidation";
 import { BadRequestError } from "../lib/errors";
+import { uploadSingle } from "./documentHttp";
+import { parseJsonField } from "../lib/httpParams";
 import { captureService } from "../services/capture/capture.service";
 
 const router = Router();
@@ -33,8 +35,15 @@ function mustHaveCompany(companyId: string | null): string {
 // expected input and are comfortably inside it.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_DOCUMENT_BYTES } });
 
-/** POST /api/capture — stage a photographed document. */
-router.post("/", upload.single("document"), async (req, res) => {
+/**
+ * POST /api/capture — stage a photographed document.
+ *
+ * `uploadSingle` (not a bare `upload.single`) so an oversized photo is a 400
+ * naming the 10 MB limit, not a raw multer 500 — the mapping the document
+ * routes have had since M11.4 (audit 2026-08-20, MED: "green fixed the case,
+ * not the class").
+ */
+router.post("/", uploadSingle(upload, "document"), async (req, res) => {
   const file = req.file;
   if (!file) throw new BadRequestError("No document was uploaded.");
 
@@ -43,14 +52,8 @@ router.post("/", upload.single("document"), async (req, res) => {
     throw new BadRequestError("source must be one of: qr, ocr, manual");
   }
 
-  const parseJson = (v: unknown) => {
-    if (typeof v !== "string" || !v.trim()) return undefined;
-    try {
-      return JSON.parse(v);
-    } catch {
-      return undefined;
-    }
-  };
+  // 🔴 Malformed JSON REFUSES rather than silently staging without the user's
+  // OCR (audit 2026-08-20, MED) — see parseJsonField in lib/httpParams.
 
   res.status(201).json(
     await captureService.capture(
@@ -59,8 +62,12 @@ router.post("/", upload.single("document"), async (req, res) => {
         fileName: file.originalname,
         source: source as "qr" | "ocr" | "manual",
         qrPayload: typeof req.body?.qrPayload === "string" ? req.body.qrPayload : undefined,
-        extraction: parseJson(req.body?.extraction),
-        fieldSources: parseJson(req.body?.fieldSources),
+        extraction: parseJsonField(req.body?.extraction, "extraction"),
+        // The parse guarantees JSON, not this shape — the service tolerates
+        // arbitrary keys/values here exactly as it did with the old parse.
+        fieldSources: parseJsonField(req.body?.fieldSources, "fieldSources") as
+          | Record<string, string>
+          | undefined,
       },
       {
         organizationId: req.tenant!.organizationId,

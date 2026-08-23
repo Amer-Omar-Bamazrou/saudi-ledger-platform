@@ -3,13 +3,8 @@ import { purchaseOrdersService } from "../services/purchaseOrders.service";
 import { purchaseOrderConversionService } from "../services/purchaseOrderConversion.service";
 import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
-
-/** Validated, not merely coerced — see the quotations controller for why. */
-function requireId(req: Request): number {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) throw new BadRequestError("Invalid id");
-  return id;
-}
+/** Validated, not merely coerced — see lib/httpParams. */
+import { requireIdParam as requireId } from "../lib/httpParams";
 
 export const purchaseOrdersController = {
   async list(req: Request, res: Response) {

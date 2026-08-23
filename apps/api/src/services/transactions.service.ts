@@ -13,7 +13,7 @@ import {
   UploadTransactionsBody,
   UploadTransactionsResponse,
 } from "@workspace/api-zod";
-import { AppError, BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { AppError, BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
@@ -33,6 +33,26 @@ import { reconciliationService } from "./reconciliation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { transactionPostingService } from "./transactionPosting.service";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
+
+/**
+ * MED (audit 2026-08-20): the SINGLE create path let a nonexistent categoryId
+ * reach the FK as a raw 23503 500 while the BULK path mapped it — "green fixed
+ * the case, not the class". Tenant-scoped lookup (the FK check itself runs
+ * outside RLS, so it would accept another tenant's id); 422 per the status
+ * policy (2026-08-23) — semantically invalid input that passed schema
+ * validation.
+ */
+async function assertCategoryExists(categoryId: unknown): Promise<void> {
+  if (categoryId == null) return;
+  const cat = await categoriesRepository.findById(Number(categoryId));
+  if (!cat) {
+    throw new BusinessRuleError(422, {
+      error: `Category ${categoryId} does not exist for this organization.`,
+      code: "reference_not_found",
+      field: "categoryId",
+    });
+  }
+}
 
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
@@ -107,7 +127,15 @@ export const transactionsService = {
     const bankAccountId = data.bankAccountId ?? null;
     if (bankAccountId != null) {
       const [account] = await bankAccountsRepository.findById(bankAccountId);
-      if (!account) throw new BadRequestError("Unknown bank account for this organization");
+      if (!account) {
+        // 422 (was 400): same reference-not-found class as customer/vendor/
+        // category — one status per invariant class (policy 2026-08-23).
+        throw new BusinessRuleError(422, {
+          error: "Unknown bank account for this organization",
+          code: "reference_not_found",
+          field: "bankAccountId",
+        });
+      }
     }
 
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
@@ -399,6 +427,7 @@ export const transactionsService = {
   },
 
   async create(d: CreateTransactionInput) {
+    await assertCategoryExists(d.categoryId);
     const [tx] = await transactionsRepository.insert({
       // M15: manual single entry is ACCEPTED on creation — a human typing one
       // row is looking at that row (the M10.4 self-approve analogue). Only
@@ -484,7 +513,10 @@ export const transactionsService = {
     if (existing.tx.kind === "transfer" && data.categoryId != null) {
       updates.kind = "operating";
     }
-    if (data.categoryId !== undefined) updates.categoryId = data.categoryId ?? null;
+    if (data.categoryId !== undefined) {
+      await assertCategoryExists(data.categoryId);
+      updates.categoryId = data.categoryId ?? null;
+    }
 
     /**
      * 🔴 Audit finding #3: A HUMAN'S CATEGORY MUST MEAN WHAT THE ENGINE'S MEANS.
@@ -623,7 +655,13 @@ export const transactionsService = {
           throw new BadRequestError("A transfer's destination cannot be the account it left.");
         }
         const [account] = await bankAccountsRepository.findById(accountId);
-        if (!account) throw new BadRequestError("That bank account does not exist.");
+        if (!account) {
+          throw new BusinessRuleError(422, {
+            error: "That bank account does not exist.",
+            code: "reference_not_found",
+            field: "counterpartyBankAccountId",
+          });
+        }
       }
       updates.counterpartyBankAccountId = accountId;
     }

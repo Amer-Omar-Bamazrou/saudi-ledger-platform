@@ -4,6 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { customersService } from "../services/customers.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const customersController = {
   async list(req: Request, res: Response) {
@@ -16,7 +17,7 @@ export const customersController = {
   },
 
   async get(req: Request, res: Response) {
-    const out = await customersService.getById(Number(req.params.id));
+    const out = await customersService.getById(requireIdParam(req));
     res.json(out);
   },
 
@@ -26,12 +27,12 @@ export const customersController = {
   },
 
   async update(req: Request, res: Response) {
-    const row = await customersService.update(Number(req.params.id), req.body);
+    const row = await customersService.update(requireIdParam(req), req.body);
     res.json(row);
   },
 
   async remove(req: Request, res: Response) {
-    await customersService.remove(Number(req.params.id));
+    await customersService.remove(requireIdParam(req));
     res.status(204).send();
   },
 };

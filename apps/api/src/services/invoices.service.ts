@@ -18,7 +18,7 @@
  * engine journal entries and bills use.
  */
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
-import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
+import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
@@ -29,6 +29,28 @@ import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
+import { customersRepository } from "../repositories/customers.repository";
+
+/**
+ * MED (audit 2026-08-20): a nonexistent customerId surfaced as a raw 500
+ * (FK 23503) — and worse, Postgres runs FK checks OUTSIDE RLS, so another
+ * tenant's customer id was ACCEPTED by the database (a cross-tenant reference
+ * and an existence oracle). The tenant-scoped lookup closes both at once:
+ * under RLS a missing id and another tenant's id are the same fact, and both
+ * get the same 422 — semantically invalid input that passed schema validation
+ * (status policy, 2026-08-23).
+ */
+async function assertCustomerExists(customerId: unknown): Promise<void> {
+  if (customerId == null) return;
+  const [c] = await customersRepository.findById(Number(customerId));
+  if (!c) {
+    throw new BusinessRuleError(422, {
+      error: `Customer ${customerId} does not exist for this organization.`,
+      code: "reference_not_found",
+      field: "customerId",
+    });
+  }
+}
 
 // Seller identity comes from the ACTIVE COMPANY (services/sellerIdentity.ts).
 // The former DEFAULT_SELLER_* constants were a ZATCA SANDBOX placeholder,
@@ -70,9 +92,13 @@ export const invoicesService = {
       assertAmount(it.unitPrice, `item ${i + 1} unit price`, { min: 0, allowZero: true });
       if (it.discount != null) assertAmount(it.discount, `item ${i + 1} discount`, { min: 0, allowZero: true });
       if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
+      // MED (audit 2026-08-20): the column the VAT return files from took any
+      // string. Named 400 here; DB CHECK 0056 is the backstop.
+      assertTaxCategoryCode(it.taxCategoryCode, `item ${i + 1} taxCategoryCode`);
     });
     if (invData.date != null) assertDateString(invData.date, "date");
     if (invData.dueDate != null) assertDateString(invData.dueDate, "dueDate");
+    await assertCustomerExists(invData.customerId);
     // ── Audit fix (Tier 1, finding 2): HEADER = Σ ROUNDED LINES, exactly. ──
     // Pre-fix, per-line VAT was stored ROUNDED while the header accumulated the
     // UNROUNDED values and rounded once at the end — so header VAT could differ
@@ -243,8 +269,21 @@ export const invoicesService = {
       "invoiceNumber", "date", "dueDate", "customerId", "currency",
       "notes", "termsAndConditions", "reviewNote", "sellerName", "sellerVatNumber",
     ]);
-    if (values.date !== undefined) assertDateString(values.date, "date");
+    if (values.date !== undefined) {
+      assertDateString(values.date, "date");
+      // 🔴 Owner policy (2026-08-23): an invoice must not be DATED into a
+      // closed month — the close means the month's figures (revenue, output
+      // VAT) are final, and Saudi VAT files per period, so a backdated
+      // document makes a filed return wrong. create refused this and PATCH
+      // did not — the same invariant disagreeing across two write paths. The
+      // guard honours document.date (the accounting date every report and
+      // the VAT return read); issued_at is the ZATCA timestamp, a different
+      // fact. Approval re-checks (invoices.approvable), so the ledger was
+      // never exposed; this closes the draft-dating asymmetry.
+      await checkPeriodOpen(values.date);
+    }
     if (values.dueDate != null) assertDateString(values.dueDate, "dueDate");
+    await assertCustomerExists(values.customerId);
     const [inv] = await invoicesRepository.update(id, values);
     await auditService.updated("invoice", id, existing, inv);
     return buildInvoiceOut(inv, null);

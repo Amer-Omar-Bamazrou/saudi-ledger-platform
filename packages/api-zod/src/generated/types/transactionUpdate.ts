@@ -12,9 +12,16 @@ import type { TransactionUpdateVatBasis } from './transactionUpdateVatBasis';
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @nullable
+     */
   vatAmount?: number | null;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
   vatRate?: number | null;
   /**
      * M16.3.1 — per-row VAT-treatment override (the export-sale case, or

@@ -3,22 +3,9 @@ import { quotationsService } from "../services/quotations.service";
 import { quotationConversionService } from "../services/quotationConversion.service";
 import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
-
-/**
- * 🔴 Ids are validated, not just coerced.
- *
- * The 2026-08-20 audit found `Number(req.params.id)` reaching queries on ~9
- * controllers, where a non-numeric id becomes NaN and surfaces as a raw 500
- * (Postgres 22P02) instead of a 400. That is a queued finding about the
- * EXISTING controllers; this is a new one, so it does not become the tenth
- * instance. Same discipline as "green fixes the case, not the class", applied
- * forwards rather than backwards.
- */
-function requireId(req: Request): number {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) throw new BadRequestError("Invalid id");
-  return id;
-}
+// Ids validated, not merely coerced — this controller's local helper became
+// lib/httpParams when the queued ~9-controller finding was fixed (2026-08-23).
+import { requireIdParam as requireId } from "../lib/httpParams";
 
 export const quotationsController = {
   async list(req: Request, res: Response) {

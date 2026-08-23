@@ -328,7 +328,10 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
     });
   });
 
-  it("an unknown bank account id fails closed (400), importing nothing", async () => {
+  it("an unknown bank account id fails closed (422), importing nothing", async () => {
+    // 422 since the MED validation pass (2026-08-23): a well-formed id that
+    // doesn't exist in this tenant's data is SEMANTICALLY invalid — the same
+    // reference_not_found class as customerId/vendorId/categoryId.
     await expect(
       inTenant(() =>
         transactionsService.upload({
@@ -337,6 +340,6 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
           bankAccountId: 99999999,
         } as never),
       ),
-    ).rejects.toMatchObject({ statusCode: 400 });
+    ).rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "reference_not_found" }) });
   });
 });

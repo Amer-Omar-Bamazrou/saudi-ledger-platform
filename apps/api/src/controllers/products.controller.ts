@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { productsService } from "../services/products.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const productsController = {
   async list(req: Request, res: Response) {
@@ -13,7 +14,7 @@ export const productsController = {
   },
 
   async get(req: Request, res: Response) {
-    res.json(await productsService.getById(Number(req.params.id)));
+    res.json(await productsService.getById(requireIdParam(req)));
   },
 
   async create(req: Request, res: Response) {
@@ -21,11 +22,11 @@ export const productsController = {
   },
 
   async update(req: Request, res: Response) {
-    res.json(await productsService.update(Number(req.params.id), req.body));
+    res.json(await productsService.update(requireIdParam(req), req.body));
   },
 
   async remove(req: Request, res: Response) {
-    await productsService.remove(Number(req.params.id));
+    await productsService.remove(requireIdParam(req));
     res.status(204).send();
   },
 };

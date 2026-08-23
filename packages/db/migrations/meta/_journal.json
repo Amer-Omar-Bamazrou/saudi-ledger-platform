@@ -393,6 +393,13 @@
    "when": 1786655845626,
    "tag": "0055_ai_1a_usage_metering",
    "breakpoints": true
+  },
+  {
+   "idx": 56,
+   "version": "7",
+   "when": 1786655845627,
+   "tag": "0056_med_validation_write_boundary",
+   "breakpoints": true
   }
  ]
 }

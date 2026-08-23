@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { vendorsService } from "../services/vendors.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const vendorsController = {
   async list(req: Request, res: Response) {
@@ -12,7 +13,7 @@ export const vendorsController = {
   },
 
   async get(req: Request, res: Response) {
-    res.json(await vendorsService.getById(Number(req.params.id)));
+    res.json(await vendorsService.getById(requireIdParam(req)));
   },
 
   async match(req: Request, res: Response) {
@@ -25,11 +26,11 @@ export const vendorsController = {
   },
 
   async update(req: Request, res: Response) {
-    res.json(await vendorsService.update(Number(req.params.id), req.body));
+    res.json(await vendorsService.update(requireIdParam(req), req.body));
   },
 
   async remove(req: Request, res: Response) {
-    await vendorsService.remove(Number(req.params.id));
+    await vendorsService.remove(requireIdParam(req));
     res.status(204).send();
   },
 };

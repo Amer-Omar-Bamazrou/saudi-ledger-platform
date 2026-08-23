@@ -14,6 +14,7 @@ import { selectActiveMembership } from "../lib/activeOrg";
 import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
 import { userAdminService, safeUser } from "../services/userAdmin.service";
+import { requireIdParam } from "../lib/httpParams";
 
 const router = Router();
 const SALT_ROUNDS = 12;
@@ -292,7 +293,7 @@ router.get("/users", userAdminRateLimiter, requireAuth, async (req, res) => {
 /** PATCH /auth/users/:id — change role/status/name (org-scoped, role validated). */
 router.patch("/users/:id", userAdminRateLimiter, requireAuth, async (req, res) => {
   res.json(
-    await userAdminService.update(req.session.userId!, Number(req.params.id), req.body ?? {}, actorCtx(req)),
+    await userAdminService.update(req.session.userId!, requireIdParam(req), req.body ?? {}, actorCtx(req)),
   );
 });
 
@@ -332,7 +333,7 @@ router.post("/change-password", authRateLimiter, requireAuth, async (req, res) =
 router.post("/users/:id/reset-password", userAdminRateLimiter, requireAuth, async (req, res) => {
   res.json(
     await userAdminService.resetPassword(
-      req.session.userId!, Number(req.params.id), req.body?.newPassword, actorCtx(req),
+      req.session.userId!, requireIdParam(req), req.body?.newPassword, actorCtx(req),
     ),
   );
 });

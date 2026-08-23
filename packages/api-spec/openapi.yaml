@@ -2986,10 +2986,17 @@ components:
       properties:
         categoryId:
           type: ["integer", "null"]
+        # Same bounds as TransactionCreate — the two paths must not disagree
+        # about the invariant (audit 2026-08-20, MED). The invariant itself
+        # lives in a DB CHECK (migration 0056); these bounds are the contract
+        # stating it to clients.
         vatAmount:
           type: ["number", "null"]
+          minimum: 0
         vatRate:
           type: ["number", "null"]
+          minimum: 0
+          maximum: 100
         taxTreatment:
           description: |
             M16.3.1 — per-row VAT-treatment override (the export-sale case, or

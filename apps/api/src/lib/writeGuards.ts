@@ -75,6 +75,22 @@ export function assertRate(value: unknown, field: string): number {
 }
 
 /**
+ * The ZATCA tax category of a line: S, Z, E or O — or NULL, which is
+ * first-class ("0% is genuinely ambiguous between Z/E/O and the platform
+ * never guesses a tax fact", the M12.8 rule). The column feeds the VAT
+ * return's line-level classification, and until the 2026-08-20 audit it
+ * accepted ANY string at every layer. This is the named 400; the DB CHECKs
+ * (migration 0056, invoice_items + quotation_items) are the backstop every
+ * future writer inherits.
+ */
+export function assertTaxCategoryCode(value: unknown, field: string): void {
+  if (value == null) return;
+  if (value !== "S" && value !== "Z" && value !== "E" && value !== "O") {
+    throw new BadRequestError(`${field} must be one of S, Z, E, O (or null for an undeclared 0% line).`);
+  }
+}
+
+/**
  * A `YYYY-MM-DD` string that is a REAL calendar date. Business date columns are
  * `text`, so an invalid string otherwise persists and silently evades period
  * locks (which slice `YYYY-MM` off it) and lexical range filters. Rejects
