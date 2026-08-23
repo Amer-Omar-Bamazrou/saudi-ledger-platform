@@ -93,6 +93,23 @@ describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
     ]);
   });
 
+  it("C11 (2026-08-23) — the sovereign trio seeds VERIFIED: the O defaults now rest on the read texts, not reasoning", async () => {
+    // GCC Agreement Arts. 1+2 (definitional chain — no sovereign article
+    // exists anywhere in the chain, verified by reading all 78 articles),
+    // Agr. Art. 26(6)(b) for grants, IR Art. 39(2) for the grants condition.
+    // Citations: docs/tax/gcc-framework-verification.md.
+    const { rows } = await pool.query(
+      `SELECT system_code, default_tax_treatment, treatment_verified FROM categories
+        WHERE organization_id = $1 AND system_code IN ('GOVT_FEES','GOVT_GRANTS','GOSI_EXPENSE') ORDER BY system_code`,
+      [orgId],
+    );
+    expect(rows).toEqual([
+      expect.objectContaining({ system_code: "GOSI_EXPENSE", default_tax_treatment: "O", treatment_verified: true }),
+      expect.objectContaining({ system_code: "GOVT_FEES", default_tax_treatment: "O", treatment_verified: true }),
+      expect.objectContaining({ system_code: "GOVT_GRANTS", default_tax_treatment: "O", treatment_verified: true }),
+    ]);
+  });
+
   it("🔴 meal VAT is excluded from the recoverable estimate AND returned as a named figure", async () => {
     // Through the real write path: upload + auto-categorize. The engine
     // still EXTRACTS the VAT (the receipt fact) — the correction is at the
