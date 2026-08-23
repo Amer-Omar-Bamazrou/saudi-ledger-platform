@@ -1,0 +1,58 @@
+{
+  "corpusSize": 153,
+  "results": [
+    {
+      "model": "openai/gpt-oss-120b",
+      "withHint": false,
+      "successes": 84,
+      "failures": 0,
+      "firstFailure": null,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 53,
+            "total": 60,
+            "pct": 88
+          },
+          "hard": {
+            "correct": 23,
+            "total": 30,
+            "pct": 77
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 49,
+            "total": 54,
+            "pct": 91
+          },
+          "hard": {
+            "correct": 25,
+            "total": 30,
+            "pct": 83
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 29,
+            "total": 39,
+            "pct": 74
+          },
+          "hard": {
+            "correct": 20,
+            "total": 30,
+            "pct": 67
+          }
+        }
+      },
+      "usage": {
+        "calls": 155,
+        "pt": 44651,
+        "ct": 6607,
+        "avg_ms": 823,
+        "failed": 49
+      },
+      "arabicGateGapPoints": -6
+    }
+  ]
+}

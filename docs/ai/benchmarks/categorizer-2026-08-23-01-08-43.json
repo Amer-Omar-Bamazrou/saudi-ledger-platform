@@ -1,0 +1,58 @@
+{
+  "corpusSize": 153,
+  "results": [
+    {
+      "model": "allam-2-7b",
+      "withHint": false,
+      "successes": 84,
+      "failures": 0,
+      "firstFailure": null,
+      "perLang": {
+        "en": {
+          "all": {
+            "correct": 33,
+            "total": 60,
+            "pct": 55
+          },
+          "hard": {
+            "correct": 5,
+            "total": 30,
+            "pct": 17
+          }
+        },
+        "ar": {
+          "all": {
+            "correct": 27,
+            "total": 54,
+            "pct": 50
+          },
+          "hard": {
+            "correct": 5,
+            "total": 30,
+            "pct": 17
+          }
+        },
+        "mixed": {
+          "all": {
+            "correct": 13,
+            "total": 39,
+            "pct": 33
+          },
+          "hard": {
+            "correct": 4,
+            "total": 30,
+            "pct": 13
+          }
+        }
+      },
+      "usage": {
+        "calls": 147,
+        "pt": 62662,
+        "ct": 1385,
+        "avg_ms": 294,
+        "failed": 14
+      },
+      "arabicGateGapPoints": 0
+    }
+  ]
+}
