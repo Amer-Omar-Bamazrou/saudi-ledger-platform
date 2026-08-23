@@ -58,7 +58,17 @@ const IDENTITY_TABLES = [
   "user_sessions",
 ];
 
-export class DemoResetRefused extends Error {}
+export class DemoResetRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    // 🔴 Without this the class was INDISTINGUISHABLE from a bare Error at
+    // runtime across transpilation targets (name stayed "Error", and the
+    // audit found the test asserting exactly that defect). A caller must be
+    // able to tell "I declined" from "I broke" — one of them is an emergency.
+    this.name = "DemoResetRefused";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 async function tenantTables(): Promise<string[]> {
   const res = await ownerDb.execute<{ table_name: string }>(sql`

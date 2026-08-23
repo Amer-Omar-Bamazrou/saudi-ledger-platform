@@ -10,6 +10,7 @@
  *   4. **The purge job never touches evidence.**
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -205,6 +206,54 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
       // The message must be actionable, not an opaque code — this is what the
       // user is being asked to override.
       expect(verdict.detail.length).toBeGreaterThan(20);
+    });
+
+    /**
+     * 🔴 The POSITIVE half (audit 2026-08-20, MED): the previous coverage
+     * accepted "a verifier that never verifies anything" — every fixture was
+     * broken, so `expect(["failed","error"])` passed against a function that
+     * unconditionally failed. This fixture is GENUINELY signed the way ZATCA
+     * signs (secp256k1, DER signature over the invoice-hash bytes as the
+     * SHA-256 message, SPKI public key in tag 8 as raw bytes, tags 6/7 as
+     * base64 STRINGS — divergence #13's encoding preserved), so "verified"
+     * here means the verifier actually verified.
+     */
+    const signedQr = () => {
+      const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "secp256k1" });
+      const invoiceHash = createHash("sha256").update("synthetic canonical invoice xml").digest();
+      const signer = createSign("SHA256");
+      signer.update(invoiceHash);
+      signer.end();
+      const signatureDer = signer.sign({ key: privateKey, dsaEncoding: "der" });
+      const spki = new Uint8Array(publicKey.export({ format: "der", type: "spki" }));
+      const build = (hashBytes: Buffer) =>
+        bytesToBase64(
+          concatBytes([
+            tlv(QR_TAG.SELLER_NAME, utf8Bytes("مورد")),
+            tlv(QR_TAG.VAT_NUMBER, utf8Bytes("399999999999993")),
+            tlv(QR_TAG.TIMESTAMP, utf8Bytes("2026-08-12T10:00:00")),
+            tlv(QR_TAG.TOTAL_WITH_VAT, utf8Bytes("1150.00")),
+            tlv(QR_TAG.VAT_TOTAL, utf8Bytes("150.00")),
+            tlv(QR_TAG.INVOICE_HASH, utf8Bytes(hashBytes.toString("base64"))),
+            tlv(QR_TAG.SIGNATURE, utf8Bytes(signatureDer.toString("base64"))),
+            tlv(QR_TAG.PUBLIC_KEY, spki),
+            tlv(QR_TAG.CERTIFICATE_SIGNATURE, new Uint8Array([0x30, 0x44])),
+          ]),
+        );
+      return { valid: build(invoiceHash), tampered: build(createHash("sha256").update("a DIFFERENT invoice").digest()) };
+    };
+
+    it("🔴 a validly-signed Phase 2 QR is VERIFIED — the verifier can say yes, not only no", () => {
+      const verdict = verifyQrSignature(signedQr().valid);
+      expect(verdict.status).toBe("verified");
+      expect(verdict.detail).toContain("has not been altered");
+    });
+
+    it("🔴 the SAME key and signature over a different hash FAILS — the pair proves discrimination, not politeness", () => {
+      // Anti-vacuity twin: if "verified" above came from a verifier that says
+      // yes to everything, this one would pass too — it must not.
+      const verdict = verifyQrSignature(signedQr().tampered);
+      expect(verdict.status).toBe("failed");
     });
 
     it("never throws on a malformed payload — one odd document must not fail capture", () => {

@@ -21,6 +21,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
+import { signingService } from "../services/einvoice/signing/signing.service";
+import { GENESIS_PIH } from "../services/einvoice/crypto/invoiceHash";
+import type { ZatcaCsrInput } from "../services/einvoice/crypto/csr";
+import { selfSignedCertificate } from "./helpers/selfSignedCert";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -34,6 +38,7 @@ describeMaybe("ICV + hash chain under concurrent approvals", () => {
   let orgId = "";
   let companyIdA = "";
   let companyIdB = "";
+  let companyIdC = "";
   let userId = 0;
   let customerId = 0;
 
@@ -55,6 +60,11 @@ describeMaybe("ICV + hash chain under concurrent approvals", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = 'icv-conc@test.local')`;
+    const comps = `(SELECT id FROM companies WHERE organization_id IN ${org})`;
+    await pool.query(`DELETE FROM einvoice_archive WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM zatca_credential_reminders WHERE company_id IN ${comps}`);
+    await pool.query(`DELETE FROM zatca_credentials WHERE company_id IN ${comps}`);
+    await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
@@ -81,6 +91,51 @@ describeMaybe("ICV + hash chain under concurrent approvals", () => {
       ).rows[0].id;
     companyIdA = await mkCompany("ICV Co A", "399999999999993");
     companyIdB = await mkCompany("ICV Co B", "399999999999994");
+
+    // 🔴 Company C is ONBOARDED (audit 2026-08-20, MED: the legally meaningful
+    // chain was exercised by no concurrent test — A and B never held a
+    // credential, so every concurrency assertion here ran against the
+    // HOMEGROWN chain while einvoice_documents stayed empty). Full identity
+    // fields because issuance FAILS CLOSED on an unbuildable document, and
+    // that failure would surface as approval rejections, not a skipped chain.
+    companyIdC = (
+      await pool.query(
+        `INSERT INTO companies
+           (organization_id, name, name_ar, cr_number, vat_number,
+            building_number, street, district, city, postal_code, additional_number)
+         VALUES ($1,'ICV Co C','شركة','1010101010','399999999999995',
+                 '1234','King Fahd Rd','Olaya','Riyadh','12345','1234')
+         RETURNING id`,
+        [orgId],
+      )
+    ).rows[0].id;
+    const csr: ZatcaCsrInput = {
+      commonName: "SLP-EGS-ICVC",
+      organizationName: "ICV Co C",
+      organizationalUnitName: "Riyadh Branch",
+      countryName: "SA",
+      invoiceType: "1100",
+      locationAddress: "Riyadh",
+      industryBusinessCategory: "Software",
+      organizationIdentifier: "399999999999995",
+      egsSerialNumber: "1-SLP|2-ICVC|3-EGS001",
+      production: false,
+    };
+    const { credentialId } = await signingService.createCredential({
+      companyId: companyIdC,
+      environment: "sandbox",
+      csr,
+    });
+    const certificatePem = await signingService.withCredentialKey(credentialId, ({ privateKey, publicKey }) =>
+      selfSignedCertificate(privateKey, publicKey),
+    );
+    await signingService.activateCredential({
+      credentialId,
+      certificatePem,
+      csidSecret: "csid-secret",
+      notBefore: new Date("2026-01-01T00:00:00Z"),
+      notAfter: new Date("2031-01-01T00:00:00Z"),
+    });
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('icv-conc@test.local','ICV',' ','admin',true) RETURNING id`,
@@ -160,6 +215,43 @@ describeMaybe("ICV + hash chain under concurrent approvals", () => {
     // Exactly one genesis root.
     expect(rows.filter((r) => r.previous_hash === "GENESIS")).toHaveLength(1);
   });
+
+  it(`🔴 the LEGAL chain (einvoice_documents) holds under ${CONCURRENCY} parallel approvals of an ONBOARDED company`, async () => {
+    // The homegrown chain tests above run against companies with no
+    // credential, so einvoice_documents stays empty for them — meaning the
+    // chain ZATCA actually reads had no concurrent test at all (audit
+    // 2026-08-20, MED). Same shape as the ICV test, on the table that
+    // legally matters.
+    const results = await Promise.allSettled(
+      Array.from({ length: CONCURRENCY }, (_, i) => createAndApprove(companyIdC, 200 + i)),
+    );
+    expect(
+      results.filter((r) => r.status === "rejected").map((r) => String((r as PromiseRejectedResult).reason)),
+      "no approval should fail — issuance fails closed, so a failure here is a real defect, not noise",
+    ).toEqual([]);
+
+    const { rows } = await pool.query(
+      `SELECT d.invoice_hash, d.previous_invoice_hash, i.icv
+         FROM einvoice_documents d JOIN invoices i ON i.id = d.invoice_id
+        WHERE d.company_id = $1 ORDER BY i.icv`,
+      [companyIdC],
+    );
+    expect(rows).toHaveLength(CONCURRENCY);
+
+    // Every document hash distinct; every predecessor distinct (two rows
+    // sharing a predecessor IS the fork — the exact artifact a lost update
+    // produces, and the one unique(company_id, icv) structurally cannot see).
+    expect(new Set(rows.map((r) => r.invoice_hash)).size).toBe(CONCURRENCY);
+    expect(new Set(rows.map((r) => r.previous_invoice_hash)).size).toBe(CONCURRENCY);
+
+    // Contiguous in ICV order, rooted at ZATCA's OWN genesis constant — never
+    // the homegrown "GENESIS" literal (the two chains are different chains).
+    expect(rows[0].previous_invoice_hash).toBe(GENESIS_PIH);
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].previous_invoice_hash, `PIH link at ICV ${rows[i].icv}`).toBe(rows[i - 1].invoice_hash);
+    }
+    expect(rows.filter((r) => r.previous_invoice_hash === GENESIS_PIH)).toHaveLength(1);
+  }, 120_000);
 
   it("does NOT serialise across companies — each has its own sequence", async () => {
     await Promise.all([createAndApprove(companyIdB, 101), createAndApprove(companyIdB, 102)]);
