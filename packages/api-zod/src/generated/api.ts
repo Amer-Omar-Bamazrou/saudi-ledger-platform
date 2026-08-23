@@ -1634,7 +1634,13 @@ export const ListRecurringRulesResponseItem = zod.object({
   "nextRunOn": zod.string(),
   "autoIssue": zod.boolean().optional(),
   "status": zod.enum(['active', 'paused']),
-  "createdAt": zod.string().nullish()
+  "createdAt": zod.string().nullish(),
+  "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
+  "lastScheduledFor": zod.string().nullish(),
+  "lastErrorCode": zod.string().nullish(),
+  "lastErrorDetail": zod.string().nullish(),
+  "consecutiveFailures": zod.number().optional(),
+  "lastSuccessOn": zod.string().nullish()
 })
 export const ListRecurringRulesResponse = zod.array(ListRecurringRulesResponseItem)
 
@@ -1668,7 +1674,13 @@ export const CreateRecurringRuleResponse = zod.object({
   "nextRunOn": zod.string(),
   "autoIssue": zod.boolean().optional(),
   "status": zod.enum(['active', 'paused']),
-  "createdAt": zod.string().nullish()
+  "createdAt": zod.string().nullish(),
+  "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
+  "lastScheduledFor": zod.string().nullish(),
+  "lastErrorCode": zod.string().nullish(),
+  "lastErrorDetail": zod.string().nullish(),
+  "consecutiveFailures": zod.number().optional(),
+  "lastSuccessOn": zod.string().nullish()
 })
 
 
@@ -1710,7 +1722,13 @@ export const PauseRecurringRuleResponse = zod.object({
   "nextRunOn": zod.string(),
   "autoIssue": zod.boolean().optional(),
   "status": zod.enum(['active', 'paused']),
-  "createdAt": zod.string().nullish()
+  "createdAt": zod.string().nullish(),
+  "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
+  "lastScheduledFor": zod.string().nullish(),
+  "lastErrorCode": zod.string().nullish(),
+  "lastErrorDetail": zod.string().nullish(),
+  "consecutiveFailures": zod.number().optional(),
+  "lastSuccessOn": zod.string().nullish()
 })
 
 
@@ -1732,7 +1750,13 @@ export const ResumeRecurringRuleResponse = zod.object({
   "nextRunOn": zod.string(),
   "autoIssue": zod.boolean().optional(),
   "status": zod.enum(['active', 'paused']),
-  "createdAt": zod.string().nullish()
+  "createdAt": zod.string().nullish(),
+  "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
+  "lastScheduledFor": zod.string().nullish(),
+  "lastErrorCode": zod.string().nullish(),
+  "lastErrorDetail": zod.string().nullish(),
+  "consecutiveFailures": zod.number().optional(),
+  "lastSuccessOn": zod.string().nullish()
 })
 
 

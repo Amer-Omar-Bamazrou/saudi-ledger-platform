@@ -31,6 +31,15 @@ interface RecurringRule {
   nextRunOn: string;
   autoIssue: boolean;
   status: "active" | "paused";
+  // Rule health (2026-08-23): one failure and a streak are different signals —
+  // "last run: failed" alone answers "did my invoice go out?" with
+  // technically-true information that hides the answer.
+  lastOutcome: string | null;
+  lastScheduledFor: string | null;
+  lastErrorCode: string | null;
+  lastErrorDetail: string | null;
+  consecutiveFailures: number;
+  lastSuccessOn: string | null;
 }
 interface RecurringRun {
   id: string;
@@ -144,6 +153,23 @@ export default function Recurring() {
               ) : (
                 <Badge className="bg-emerald-500/20 text-emerald-500 border-transparent">{t("Active", "نشطة")}</Badge>
               )}
+              {/* A failed run is a real STATE (the status palette is allowed
+                  here); the streak is the load-bearing signal — visible on the
+                  card face, never only inside the collapsed run history. */}
+              {rule.consecutiveFailures >= 2 ? (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {t(
+                    `${rule.consecutiveFailures} consecutive failures`,
+                    `${rule.consecutiveFailures} إخفاقات متتالية`,
+                  )}
+                </Badge>
+              ) : rule.lastOutcome === "failed" ? (
+                <Badge className="border-transparent bg-amber-500/20 text-amber-600 gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {t("Last run failed", "فشل آخر تشغيل")}
+                </Badge>
+              ) : null}
               <span className="ml-auto flex gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setOpenRuns(openRuns === rule.id ? null : rule.id)} className="gap-1">
                   {openRuns === rule.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -173,6 +199,17 @@ export default function Recurring() {
             {(rule.template as { total?: number } | null)?.total != null && (
               <p className="px-4 pb-2 text-xs text-muted-foreground">
                 {t("Amount", "المبلغ")}: {fmtNum((rule.template as { total: number }).total)}
+              </p>
+            )}
+            {rule.consecutiveFailures >= 1 && (
+              <p className="px-4 pb-2 text-xs text-red-500">
+                {t("Last failure", "آخر إخفاق")} <DualDate date={rule.lastScheduledFor ?? rule.nextRunOn} inline />
+                {rule.lastErrorCode ? ` — ${rule.lastErrorCode}` : ""}
+                {rule.lastErrorDetail ? `: ${rule.lastErrorDetail}` : ""}
+                {" · "}
+                {rule.lastSuccessOn
+                  ? <>{t("last success", "آخر نجاح")} <DualDate date={rule.lastSuccessOn} inline /></>
+                  : t("no successful run yet", "لا يوجد تشغيل ناجح بعد")}
               </p>
             )}
             {openRuns === rule.id && <RuleRuns ruleId={rule.id} />}
