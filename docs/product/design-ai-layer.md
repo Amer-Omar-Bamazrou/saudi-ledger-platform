@@ -517,3 +517,11 @@ no-hint mode only, on synthetic data; the blocking items in §2/§12c
 mode only (with-hint anchors, §12f); the corpus is synthetic and the owner's
 receipt corpus may redistribute difficulty; `ai_usage` "measured" lines
 accumulate across runs per model (the meter query is not per-run).
+
+## 12i. The build-order proposal exists (2026-08-23)
+
+The closing line of this spec's status header — "no build order exists; one
+will go to the owner as a proposal when the open questions close" — is
+fulfilled: [`ai-build-order-proposal.md`](ai-build-order-proposal.md),
+status PROPOSAL, five open questions. Nothing is commissioned until they
+are answered. Current state authority: CLAUDE.md §2.
