@@ -671,6 +671,14 @@ These are short forms; the rules are binding, the history explains why.
   structurally could not see. Fixed with tenant-scoped pre-checks (422
   `reference_not_found`; under RLS, missing and other-tenant are the same
   fact). When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 A VERIFICATION IS A CLAIM ABOUT A MOMENT, NOT A PROPERTY OF THE
+  TEXT** (AI-3b, 2026-08-24, owner-named). An explanation verified against
+  yesterday's facts becomes a lie when the row refreshes — the text
+  unchanged, the truth gone. Any validated artifact must STORE the identity
+  of what it was checked against (AI-3b: a facts hash) and gate rendering on
+  the match; a validation without a binding to its inputs ages into a false
+  credential. Same decay family as the obsolete assertion, in a cache
+  instead of a test.
 - **🔴 AN INSTRUCTION'S REFERENT IS AN INPUT — CHECK IT AGAINST THE DATA,
   EVEN WHEN THE INSTRUCTION COMES FROM THE OWNER** (2026-08-24, recorded at
   the owner's instruction about their own message). A work order arrived for
@@ -962,6 +970,17 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   explains it for free). 🔴 **One question remains for the accountant:**
   whether Saudi practice permits ANY exception — a grace window, or an
   audited override. A detail; the principle stands either way.
+- **🔴 QUEUED DECISION (owner, 2026-08-24): `normalizeDigits` exists twice —
+  single-source it or accept the pin.** The canonical Arabic-Indic digit
+  normalisation lives in `apps/web/src/lib/receiptParser.ts`; AI-3b's
+  explanation verifier carries a copy in
+  `apps/api/src/services/findings.explanationVerifier.ts` because the
+  web↔api workspace boundary blocks a direct import. A
+  behavioral-equivalence test pins the copy today, but "four lines is fine;
+  a second copy that drifts isn't" (owner). The decision when taken: a small
+  shared workspace package (probable home for future shared text/number
+  utilities — the TLV-codec precedent) vs. keeping the pin. Not urgent;
+  recorded so it is a decision, not a flag decaying in a PR description.
 - **M-3**: signup duplicate-email race surfaces as 500 (map Postgres `23505` → `ConflictError`).
 - **M-4**: `bcryptjs` blocks the event loop on public endpoints; no max-length validation before `varchar(255)` (raw 500s).
 - **M-5**: magic-byte sniff is header-only (closes with C4's AV work).
