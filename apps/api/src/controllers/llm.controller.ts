@@ -18,7 +18,10 @@ export const llmController = {
     const status = await checkOllamaReachable();
     res.json({
       activModel: LLM_MODEL,
-      ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
+      // The backend URL is INTERNAL infrastructure (audit 2026-08-20, LOW):
+      // echoing OLLAMA_URL handed any llm-permission tenant our topology.
+      // Whether a backend is configured is the tenant-relevant fact.
+      llmBackendConfigured: !!process.env.OLLAMA_URL || LLM_MODEL !== "none",
       ...status,
       note:
         LLM_MODEL === "none"

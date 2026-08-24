@@ -79,7 +79,10 @@ export async function resolveTenant(
           eq(organizationMembershipsTable.status, "active"),
         ),
       )
-      .orderBy(asc(organizationMembershipsTable.createdAt));
+      // L-3 (closed 2026-08-24): `createdAt` alone is a non-deterministic
+      // primary when two memberships share a timestamp (bulk invites) — the
+      // id is the total order that makes "first membership" one answer.
+      .orderBy(asc(organizationMembershipsTable.createdAt), asc(organizationMembershipsTable.id));
 
     if (memberships.length === 0) {
       res.status(403).json({ error: "You are not a member of any organization." });

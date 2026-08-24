@@ -74,15 +74,42 @@ export const signupService = {
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const created = await signupRepository.createTenant({
-      email,
-      name,
-      passwordHash,
-      organizationName,
-      companyName,
-      crNumber,
-      vatNumber: vatNumber || null,
-    });
+    let created;
+    try {
+      created = await signupRepository.createTenant({
+        email,
+        name,
+        passwordHash,
+        organizationName,
+        companyName,
+        crNumber,
+        vatNumber: vatNumber || null,
+      });
+    } catch (err) {
+      // M-3 (audit, closed 2026-08-24): the emailExists pre-check above has a
+      // RACE — two concurrent signups both pass it and the loser hits the
+      // unique index as a raw 23505 500. The unique index is the real
+      // arbiter; its verdict maps to the same 409 the pre-check gives.
+      // Keyed on the CONSTRAINT, not the code alone: createTenant also
+      // inserts the organization, whose slug collision must not be
+      // mislabeled as a duplicate email. Drizzle WRAPS the driver error
+      // ("Failed query: …") with the pg error as `cause`, so unwrap first.
+      const unwrap = (e: unknown): { code?: string; constraint?: string } => {
+        let cur = e as { code?: string; constraint?: string; cause?: unknown };
+        for (let i = 0; i < 4 && cur && cur.code === undefined && cur.cause; i++) {
+          cur = cur.cause as typeof cur;
+        }
+        return cur ?? {};
+      };
+      const pg = unwrap(err);
+      if (pg?.code === "23505" && pg.constraint === "users_email_unique") {
+        throw new ConflictError("An account with this email already exists.");
+      }
+      if (pg?.code === "23505" && pg.constraint === "organizations_slug_unique") {
+        throw new ConflictError("An organization with this name already exists — choose a different organization name.");
+      }
+      throw err;
+    }
 
     await securityAuditService.record({
       action: "signup.completed",

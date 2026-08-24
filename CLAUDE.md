@@ -688,6 +688,16 @@ These are short forms; the rules are binding, the history explains why.
   structurally could not see. Fixed with tenant-scoped pre-checks (422
   `reference_not_found`; under RLS, missing and other-tenant are the same
   fact). When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** (AI-6a,
+  2026-08-24, owner-named). The projection-assumption rule shipped as
+  structure: the assumption sentences are TOOL OUTPUT and the verifier
+  rejects an answer using the numbers without them — a skippable assumption
+  is unrepresentable, not discouraged. Prior unnamed instances: the derived
+  conversion axis (M21.1), the no-"fail" severity type (M18.3), the
+  delete-less ArchiveStore, the structural receivables identity. When a
+  rule matters, find the representation in which violating it cannot be
+  SAID — construction outlives review, and only construction binds code not
+  yet written.
 - **🔴 A VERIFICATION IS A CLAIM ABOUT A MOMENT, NOT A PROPERTY OF THE
   TEXT** (AI-3b, 2026-08-24, owner-named). An explanation verified against
   yesterday's facts becomes a lie when the row refreshes — the text
@@ -947,14 +957,14 @@ stack or path leaks to clients; the job scheduler survives a failing job.
 | ~~MED~~ | ✅ **FIXED (2026-08-24)** — the verifier can now say YES: a genuinely-signed secp256k1 fixture (DER sig over the hash-as-message, SPKI in tag 8 raw, tags 6/7 as base64 strings — divergence #13 preserved) is VERIFIED, and its anti-vacuity twin (same key/signature, different hash) FAILS — the pair proves discrimination, not politeness. | `tests/document-capture.test.ts` |
 | ~~MED~~ | ✅ **FIXED (2026-08-24)** — a THIRD, ONBOARDED company in the concurrency suite: 8 parallel approvals produce 8 `einvoice_documents` rows chained contiguously from ZATCA's `GENESIS_PIH` (never the homegrown literal), all predecessors distinct — the fork artifact `unique(company_id, icv)` structurally cannot see, asserted on the table ZATCA actually reads. 🔴 Honest note: this test was NOT verified-by-reinjection (that would mean patching `lockCompanySequence` out); its assertions are presence-shaped over real concurrent rows, and the sequential fork case is pinned in the enqueue suite. | `tests/invoice-icv-concurrency.test.ts` |
 | ~~MED~~ | ✅ **FIXED (2026-08-24)** — `DemoResetRefused` now SETS its name and prototype (it was runtime-indistinguishable from a bare Error, and the old test asserted exactly that defect: `.name === "Error"`); the test now fails against `new Error()` by construction. | `tests/demo-reset-guard.test.ts` |
-| **LOW** | **A CSID secret could reach a log line.** `apiError()` attaches the full ZATCA response body to a loggable Error; a malformed 200 carrying `secret` but no `binarySecurityToken` would be logged by pino's err serializer. Strip/allowlist the body before attaching. | `services/einvoice/onboarding/zatcaOnboardingClient.ts:43` |
+| ~~LOW~~ | ✅ **FIXED (2026-08-24, LOW close-out)** — `sanitizeBody` redacts secret-shaped keys (secret/token/password/credential/authorization, any depth) before the body attaches to a loggable error; the diagnosis fields survive. Pinned with a fixture carrying a real-shaped secret. | `zatcaOnboardingClient.ts` |
 | ~~LOW~~ | ✅ **FIXED with C1 (2026-08-20)** — cookie `secure` and `trust proxy` are now explicit env facts (`SESSION_COOKIE_SECURE`, `TRUST_PROXY_HOPS`), not inferred from `NODE_ENV`, and production refuses to boot with Secure off. The stale `sameSite: strict` comment now states the `lax` the code has always set. | `app.ts` |
-| **LOW** | `/llm/status` echoes `OLLAMA_URL` (internal infra URL) to any tenant holding the `llm` permission. | `controllers/llm.controller.ts:21` |
-| **LOW** | **The production boot-refusal has no test**: `loadEnv` refusing `MAIL_PROVIDER=none` / `ALERT_PROVIDER=none` in production is what B1/B2 lean on, and `packages/config` has no test files. | `packages/config/src/env.ts:291,307` |
-| **LOW** | Seven entity CRUD families still take raw `req.body` at the CONTROLLER (the services are now whitelisted, so this is depth-in-defence, not exposure); string length caps absent before `varchar` (M-4 family). | controllers |
-| **LOW** | `route-reachability`'s shrink-check uses a narrower parser than the main test (literal paths only), so a route gaining a UI via a generated hook would not be detected as fixed. | `tests/route-reachability.test.ts:205` |
-| **LOW** | The ZATCA vault-boundary test is text-matching (raw SQL slips past) — an undocumented second instance of the tracked identity-boundary limitation. | `tests/zatca-credential-vault.test.ts:109` |
-| **INFO** | `zatca-crypto`'s canonicalisation test claims "exactly the three excluded elements" and proves one (the QR and Signature exclusions cannot be tested from a fixture that contains neither). | `tests/zatca-crypto.test.ts:117` |
+| ~~LOW~~ | ✅ **FIXED (2026-08-24)** — `/llm/status` no longer echoes `OLLAMA_URL`; it reports `llmBackendConfigured`, the tenant-relevant fact, and keeps the topology. | `controllers/llm.controller.ts` |
+| ~~LOW~~ | ✅ **FIXED (2026-08-24)** — `tests/env-boot-refusal.test.ts`: from a proven-good production baseline, each refusal is one flipped variable — B1 mail, B2 alert, the local-dev key wrapper, `SESSION_COOKIE_SECURE=false`, and the AI-1a attestation in both directions (a near-miss string refuses). Lives in the api suite because the PACKAGE lacks test infra and the BEHAVIOR was the gap. Bonus surfaced by the baseline: the `ZATCA_ARCHIVE_DIR` absolute-path refusal, now exercised too. | `tests/env-boot-refusal.test.ts` |
+| ~~LOW~~ | ✅ **HALF FIXED, HALF ACCEPTED (2026-08-24)** — the varchar half is a CLASS fix: Postgres `22001` maps to a named 400 in the central errorHandler, so every varchar column present and future inherits it. The controller-raw-body half stays ACCEPTED as depth-in-defence (the services are allowlisted — H1); revisit only if a service allowlist regresses. | `middleware/errorHandler.ts` |
+| ~~LOW~~ | ✅ **DOCUMENTED (2026-08-24)** — the shrink-check's generated-hook blind spot is now stated at the check itself, with WHY scanning the generated client would be vacuous (it contains every spec path regardless of use) and the manual rule for hook-fixed entries. Acceptable while `KNOWN_UNREACHABLE` holds one entry. | `tests/route-reachability.test.ts` |
+| ~~LOW~~ | ✅ **DOCUMENTED (2026-08-24)** — the vault-boundary test now states its text-matching limitation in place (the identity-boundary twin) and names the grants layer as the enforcement that doesn't depend on reading source. | `tests/zatca-credential-vault.test.ts` |
+| ~~INFO~~ | ✅ **FIXED (2026-08-24)** — the canonicalisation test now claims what it proves (UBLExtensions stripped) and names where the QR/Signature exclusions ARE proven (the live compliance pass). The narrower-claim shape, corrected at the name. | `tests/zatca-crypto.test.ts` |
 
 🔴 **What the audit could NOT see** (recorded so it is not mistaken for a clean
 bill): RLS *policy* coverage was the biggest gap and is now closed by
@@ -998,12 +1008,12 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/
   shared workspace package (probable home for future shared text/number
   utilities — the TLV-codec precedent) vs. keeping the pin. Not urgent;
   recorded so it is a decision, not a flag decaying in a PR description.
-- **M-3**: signup duplicate-email race surfaces as 500 (map Postgres `23505` → `ConflictError`).
+- ~~M-3~~ ✅ **FIXED (2026-08-24, LOW close-out)** — the signup race maps the unique-index verdict to the pre-check's own 409, keyed on the CONSTRAINT (drizzle-unwrapped) so an org-slug collision is not mislabeled as a duplicate email; pinned by a genuinely concurrent two-signup test. (The bcryptjs half of M-4 stays open.)
 - **M-4**: `bcryptjs` blocks the event loop on public endpoints; no max-length validation before `varchar(255)` (raw 500s).
 - **M-5**: magic-byte sniff is header-only (closes with C4's AV work).
 - **L-1**: security-audit write failures only `console.error` — route through `pino` and alert on the pattern.
 - **L-2**: signup 409 leaks account existence (accepted; document inline).
-- **L-3**: primary-membership tie-break is non-deterministic (`createdAt` only; add `id`).
+- ~~L-3~~ ✅ **FIXED (2026-08-24)** — the primary-membership order is total: `createdAt, id`.
 - **L-4**: the operator queue list is unaudited (accepted trade-off).
 - **✅ `companies.fiscalYearStart` — fully closed by M20.0 + M20.1** (was: stored
   from M11.6, applied by nothing for five milestones). Resolver (`lib/fiscalYear.ts`),

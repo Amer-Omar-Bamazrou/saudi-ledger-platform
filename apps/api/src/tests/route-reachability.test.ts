@@ -201,6 +201,16 @@ describe("the standing check, mechanized — every mounted route has a terminus"
   it("🔴 the known-gap list only shrinks — a fixed route must leave it", () => {
     // Prevents the list becoming a parking space: once a gap has a UI, its
     // entry is stale and must be deleted, or the next real gap hides behind it.
+    //
+    // 🔴 DOCUMENTED LIMITATION (audit 2026-08-20, LOW): this check matches
+    // LITERAL quoted paths in apps/web only. A route whose UI arrives via a
+    // GENERATED React Query hook references its path inside
+    // packages/api-client-react, which is deliberately NOT scanned — the
+    // generated client contains EVERY spec path whether used or not, so
+    // scanning it would mark every entry "fixed" vacuously. Consequence: an
+    // entry fixed through a generated hook must be removed from
+    // KNOWN_UNREACHABLE by hand. Acceptable while the list holds one entry;
+    // revisit if it grows.
     const routerSrc = readFileSync(join(API_SRC, "routes", "index.ts"), "utf8");
     const webSrc = readAll(WEB_SRC, [".ts", ".tsx"]);
     const nowReachable = Object.keys(KNOWN_UNREACHABLE).filter(
