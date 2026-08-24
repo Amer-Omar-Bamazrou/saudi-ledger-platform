@@ -105,6 +105,12 @@ describe("M12.5 — the vault import boundary", () => {
    * "Who can reach key material" must be answerable by reading imports. If this
    * fails, someone has widened the blast radius — move the code into
    * `services/einvoice/signing/` or go through `signingService`.
+   *
+   * 🔴 DOCUMENTED LIMITATION (audit 2026-08-20, LOW): this is TEXT matching
+   * on import statements — raw SQL against zatca_credentials would slip
+   * past, the same tracked limitation as tests/identity-table-boundary. The
+   * grants layer (owner-only table, REVOKEs) is the enforcement that does
+   * not depend on reading source.
    */
   it("is imported by NOTHING outside services/einvoice/signing/", () => {
     const root = join(__dirname, "..");

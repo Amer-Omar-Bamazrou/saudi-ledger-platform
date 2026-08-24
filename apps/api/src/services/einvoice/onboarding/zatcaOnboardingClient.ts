@@ -40,8 +40,26 @@ export interface ZatcaApiError extends Error {
   body: unknown;
 }
 
+/**
+ * 🔴 The attached body is SANITIZED before it can reach a log line (audit
+ * 2026-08-20, LOW): a malformed 200 carrying `secret` but no
+ * `binarySecurityToken` would have flowed into pino's err serializer
+ * verbatim. Secret-shaped keys are REDACTED rather than the body dropped —
+ * the body is the diagnosis, the credentials are not.
+ */
+const SECRET_KEYS = /secret|token|password|credential|authorization/i;
+export function sanitizeBody(body: unknown, depth = 0): unknown {
+  if (depth > 4 || body == null || typeof body !== "object") return body;
+  if (Array.isArray(body)) return body.map((v) => sanitizeBody(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body)) {
+    out[k] = SECRET_KEYS.test(k) ? "[REDACTED]" : sanitizeBody(v, depth + 1);
+  }
+  return out;
+}
+
 function apiError(message: string, httpStatus: number | null, body: unknown): ZatcaApiError {
-  return Object.assign(new Error(message), { httpStatus, body }) as ZatcaApiError;
+  return Object.assign(new Error(message), { httpStatus, body: sanitizeBody(body) }) as ZatcaApiError;
 }
 
 /** ZATCA returns base64(base64(DER)); unwrap one layer and PEM-wrap the rest. */

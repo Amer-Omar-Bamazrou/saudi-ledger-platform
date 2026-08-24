@@ -35,6 +35,19 @@ export function errorHandler(
     return;
   }
 
+  // ── Class-level Postgres mappings (audit 2026-08-20, LOW / M-4 family) ────
+  // 22001 (value too long for varchar) is PREDICTABLE user input hitting a
+  // column bound — a 400, not a 500. Mapped HERE, at the one boundary every
+  // path shares, rather than per-field guards in seven services: present and
+  // future varchar columns inherit it (the write-boundary rule applied to an
+  // error translation). The driver does not reliably name the column, so the
+  // message stays generic; the log line carries the full error.
+  if ((err as { code?: string })?.code === "22001") {
+    req.log.warn({ err }, "varchar overflow mapped to 400");
+    res.status(400).json({ error: "A field exceeds its maximum allowed length." });
+    return;
+  }
+
   req.log.error({ err });
   res.status(500).json({ error: "Internal server error" });
 }

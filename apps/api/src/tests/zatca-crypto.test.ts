@@ -114,7 +114,12 @@ describe("M12.3 — canonicalisation guards are LIVE in the hashing path", () =>
     );
   });
 
-  it("canonicalisation strips exactly the three excluded elements", () => {
+  // 🔴 The NAME was the narrower-claim shape (audit 2026-08-20, INFO): it
+  // said "exactly the three excluded elements" while the fixture contains
+  // only ONE of them — a built invoice has no QR or Signature element yet,
+  // so their exclusion cannot be tested from here and is exercised by the
+  // LIVE compliance pass instead. The test now claims what it proves.
+  it("canonicalisation strips UBLExtensions (QR/Signature exclusion is proven by the live compliance pass, not this fixture)", () => {
     const xml = buildInvoiceXml(standardInvoice());
     const canonical = canonicalizeForZatca(xml);
     expect(canonical).not.toContain("UBLExtensions");

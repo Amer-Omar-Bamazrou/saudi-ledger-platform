@@ -1755,3 +1755,24 @@ checked against, and gate rendering on the match; a validation without a
 binding to its inputs ages into a false credential. (Family resemblance:
 the obsolete-assertion lesson — a test correct when written certifying a
 defect later — is the same decay, in the test suite instead of the cache.)
+
+### 🔴 NAMED PATTERN (AI-6a, 2026-08-24, owner-named): MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN
+
+The owner asked for a projection's assumption to appear in the sentence
+rather than a footnote. What shipped is stronger: the assumption sentences
+are part of the TOOL'S OUTPUT, and the verifier REJECTS any answer that
+uses the tool's numbers without both of them verbatim — with a test proving
+the refusal on the same correct numbers minus the sentence. A skippable
+assumption is not discouraged; it is UNREPRESENTABLE as a delivered answer.
+
+The owner named the pattern: **make-it-inexpressible beats a rule someone
+must remember.** The codebase already carries instances that predate the
+name — the conversion axis DERIVED from line quantities so "approved AND
+partially converted" needs no status string that could lie (M21.1); the
+liquidity severity TYPE with no "fail" level so no UI can render a verdict
+(M18.3); `ArchiveStore` without a `delete` method (M12.8); the receivables
+bridge as an identity that is structural, not checked (M19.6). The
+generalisation: when a rule matters, look for the representation in which
+violating it is not a caught mistake but a THING THAT CANNOT BE SAID —
+enforcement by construction outlives enforcement by review, and it is the
+only kind that binds code not yet written.
