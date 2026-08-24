@@ -236,6 +236,22 @@ owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
 Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
 Arabic-vision question). As-built: §12d/§12e.
 
+**AI-3b — model explanations on findings (2026-08-24, dark-launched).** The
+first model output in real product code: 1–2 sentences rendering a
+finding's FACTS, both languages, generate-then-verify. 🔴 The verifier's
+honest contract: the numeric/entity class is PROVEN mechanically
+(cross-script canonical matching; `normalizeDigits` copied from
+receiptParser with an equivalence pin — single-sourcing needs a shared
+package, flagged not restructured); the qualitative class is only ARGUED (a
+judge pass must return empty) — which is why the UI renders the
+deterministic facts BESIDE the explanation, never instead. Owner conditions
+held: rejection telemetry distinguishes invented-number from
+couldn't-match-a-real-number (token + script + normalized form);
+discard-and-log, never retry; low-context findings (<3 facts) get NO
+attempt; staleness = invention by aging (factsHash gate at the API);
+deterministic is the FLOOR (throwing provider pinned harmless). Dark via
+the existing AI-1a boot boundary — no new flag. As-built: proposal §0d.
+
 **AI-5 — scheduled findings (2026-08-24, taken before AI-3b by owner
 instruction — deterministic reaches tenants now; the delivery mechanism
 proves itself on trusted content before model output rides on it).** Hourly

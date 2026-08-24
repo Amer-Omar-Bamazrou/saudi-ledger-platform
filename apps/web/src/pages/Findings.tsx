@@ -31,6 +31,8 @@ interface Finding {
   lastSeenAt: string;
   acknowledgedByName: string | null;
   resolvedAt: string | null;
+  /** AI-3b — model phrasing of the facts; null is the deterministic floor. */
+  explanation: { en: string; ar: string } | null;
 }
 interface FindingsPage {
   findings: Finding[];
@@ -246,7 +248,20 @@ export default function Findings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-start justify-between gap-3 pt-0">
-            <p className="text-sm">{factLine(f, t)}</p>
+            <div className="min-w-0">
+              {/* The deterministic facts are the FLOOR and always render;
+                  the AI phrasing sits BESIDE them, labeled, never instead —
+                  the reader can always compare it against the facts. */}
+              <p className="text-sm">{factLine(f, t)}</p>
+              {f.explanation && (
+                <p className="mt-1 text-sm text-muted-foreground italic">
+                  {t(f.explanation.en, f.explanation.ar)}{" "}
+                  <span className="not-italic text-[10px] uppercase tracking-wide">
+                    {t("AI phrasing of the facts above", "صياغة آلية للوقائع أعلاه")}
+                  </span>
+                </p>
+              )}
+            </div>
             {f.status === "open" && (
               <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => ackMut.mutate(f.id)} disabled={ackMut.isPending}>
                 <Check className="h-3.5 w-3.5" /> {t("Acknowledge", "إقرار")}

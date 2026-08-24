@@ -352,6 +352,11 @@ export const findingsRepository = {
       .returning();
   },
 
+  /** AI-3b: store a verified explanation. Overwrites any prior one — the facts hash it carries is the render gate. */
+  storeExplanation(id: number, explanation: Record<string, unknown>) {
+    return db.update(findingsTable).set({ explanation }).where(eq(findingsTable.id, id));
+  },
+
   /** Stamp the email notice onto the findings it announced (the open set at send time). */
   markDeliveredEmailNotice(runId: number) {
     return db

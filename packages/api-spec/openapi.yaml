@@ -3937,6 +3937,18 @@ components:
         acknowledgedBy: { type: ["integer", "null"] }
         acknowledgedByName: { type: ["string", "null"] }
         resolvedAt: { type: ["string", "null"] }
+        explanation:
+          type: ["object", "null"]
+          description: >
+            AI-3b - model phrasing OF the facts, verified to introduce
+            nothing the facts do not carry, returned only while current
+            against the facts. NULL is the deterministic floor (model
+            unavailable, output rejected, low-context refusal, or facts
+            refreshed since generation).
+          properties:
+            en: { type: string }
+            ar: { type: string }
+            generatedAt: { type: string }
 
     FindingsPage:
       type: object

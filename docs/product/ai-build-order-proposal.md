@@ -97,6 +97,53 @@ bookkeeper negatives), the delivery record on the findings, viewer-doesn't-
 stamp, derived escalation in all three directions, never-auto-acknowledge,
 monthly opt-in, on-demand rows, and the grant negatives.
 
+## 0d. AI-3b as built (2026-08-24) — the first model output in real code, verified before believed
+
+**Owner constraints held by construction:** the explanation renders the
+finding's facts in words and nothing else ("where, never why" at sentence
+level — what keeps this shippable before C10), and **deterministic content
+is the floor** — the explanation is one nullable column; an unavailable
+model, a rejected output, a low-context refusal and a stale hash all leave
+the finding rendering exactly as before (the capture posture, pinned by a
+throwing-provider test).
+
+**Generate-then-verify, with the verifier's honest contract stated:**
+
+- **The proven class:** every numeric token and identifier/quoted entity in
+  the output must exist in the facts, compared CANONICALLY across scripts
+  and formats. `normalizeDigits` is receiptParser's canonical
+  implementation (copied across the web↔api workspace boundary with a
+  behavioral-equivalence pin; true single-sourcing needs a shared package —
+  flagged, not restructured). Both directions tested: Arabic-Indic token ↔
+  Western fact, and Western token ↔ Arabic-Indic digits inside a fact
+  string.
+- **The argued class:** qualitative invention has no mechanical oracle — a
+  judge pass (the model asked to list claims not entailed by the facts)
+  must return empty; imperfect, stated as such, and the UI renders the
+  deterministic facts BESIDE the explanation (labeled "AI phrasing of the
+  facts above"), never instead.
+- 🔴 **Telemetry distinguishability (owner condition):** every rejection
+  carries the token, its SCRIPT and its NORMALIZED form — so "the model
+  invented a number" and "the verifier couldn't match a real number" are
+  distinguishable in review; a safety catch and a normalisation bug must
+  never look identical.
+- 🔴 **The verifier is proven to FAIL and proven not to false-fail** —
+  seeded inventions rejected in both scripts; real numbers in foreign
+  formats accepted in both directions. A verifier that never rejects is the
+  vacuous-green pattern inside the safety check itself.
+
+**Lifecycle rules:** rejection = discard-and-log, never retry (owner Q2);
+low-context findings (< 3 substantive facts) get NO attempt — refusals
+counted so the judgment is checkable (owner Q3); staleness = invention by
+aging, so the explanation carries a factsHash and the API withholds it the
+moment facts drift; both languages or neither (the Arabic gate at feature
+level); generation is capped per run with the drop LOGGED (no silent caps).
+
+**Dark by the existing boundary:** no provider configured → no attempt; the
+AI-1a boot attestation refuses groq in production, so real tenants see
+nothing until the Enterprise agreement flips the config. No new flag. 17
+tests.
+
 Parent spec: [`design-ai-layer.md`](design-ai-layer.md) (the decision record
 this proposes an order FOR — nothing there is reopened here).
 

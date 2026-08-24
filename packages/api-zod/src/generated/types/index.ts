@@ -61,6 +61,7 @@ export * from './discardResult';
 export * from './errorResponse';
 export * from './financialSummary';
 export * from './finding';
+export * from './findingExplanation';
 export * from './findingFacts';
 export * from './findingsPage';
 export * from './findingsPageCounts';
