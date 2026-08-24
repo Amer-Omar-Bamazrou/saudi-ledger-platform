@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-23 (MED validation pass incl. the FK-outside-RLS security finding, PR #75; AI-2 corpus at measuring size, PR #76; A3 rule health completed, PR #77 pending review.)**
+**Last updated: 2026-08-24 (AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner action order: entity → advisor → Groq → receipts.)**
 
 **Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
 (VAT treatments verified against the primary source; `FOOD_MEALS` was a live
@@ -908,6 +908,13 @@ not, and an unwired alarm is the thing B2 exists to prevent.
 | --- | --- | --- |
 | **B4** | ✅ **CLOSED (2026-08-17, PR #54/#55) — every payment keeps its date.** `invoice_payments` / `bill_payments`: one dated row per payment, written by the existing pay paths in the same tenant transaction (a record beside the posting, never a second posting path; settlements route through pay and get rows too). **Append-only at the grants** (SELECT + INSERT — the record of when money arrived is exactly the row someone would want to quietly fix), asserted against `role_table_grants`. Reader: the Record Payment dialogs show the dated history (`GET /invoices/:id/payments` + bills twin). Live pass: two payments (Aug 5, Aug 17) → two rows, both dates preserved.<br><br>🔴 **The backfill is honest about what was NOT recoverable:** pre-B4 documents got ONE row flagged `backfilled = true` — an AGGREGATE carrying only the LAST payment's date; the instalment split is gone forever. **Any consumer that would be wrong on aggregates — DSO, collection-speed, instalment analytics — MUST filter `backfilled = false`** (recorded on the schema, the repository, and design-analytics §6.1). Deployment note: CI caught that the serial ids' SEQUENCES need explicit `USAGE` on plain Postgres (0047) — local Supabase's default privileges had masked it. | Was: the expiring fact — a second partial payment permanently destroyed the first one's date. What it unblocks: the overdue share over time, DSO and collection-speed trends (backfilled-filtered), and "when was this actually paid". |
 | **B5** | ✅ **CLOSED (2026-08-16) — a transfer can now say where the money went, and the loss has stopped.** `transfer_direction` (`own_account | external`, **NULL = not declared**, no default — the M17.1 posture in a third place) + optional `counterparty_bank_account_id` (migration 0043, four DB CHECKs at the write boundary, tested by violation). Declared on the Transactions list — the only moment anyone knows. The cash reconciliation now splits transfers **three ways** (own-account = the ledger is right; external = the ledger is understating cash; undeclared = the platform will not guess) and surfaces `undeclaredTransfers` as its own number with an ASK, because an undeclared transfer is a question only the tenant can answer. | Was: the expiring fact. Rows recorded before 0043 stay NULL forever — that loss already happened and is not recoverable; what stopped is the accrual. ✅ **Option A is BUILT (2026-08-17)** on the declared data — see the M19.7 → A row in §2. |
+
+**R. 🔴 REVENUE — the billing gap (owner-queued 2026-08-24, its own item by
+instruction):**
+
+| # | Item | The consequence, stated plainly |
+| --- | --- | --- |
+| **R1** | **The platform cannot take money.** No subscription, no billing, no plan gating exists anywhere — AI usage is metered per tenant (`ai_usage`), but no mechanism turns a tenant into a PAYING tenant. | **No billing means no revenue, whatever else works.** This is the last MECHANICAL requirement between a working product and income — not a feature gap. Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating (if any) a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 
 **C. Verification and coverage gaps:**
 
