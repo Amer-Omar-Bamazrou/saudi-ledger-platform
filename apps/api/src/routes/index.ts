@@ -40,6 +40,7 @@ import capture from "./capture.js";
 import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMode.js";
 import recurring from "./recurring.js";
 import findings from "./findings.js";
+import ask from "./ask.js";
 import auditLogs from "./auditLogs.js";
 
 const router = Router();
@@ -121,6 +122,8 @@ router.use("/capture", refuseCaptureInDemo, requirePermission("bills"), capture)
 router.use("/recurring", requirePermission("recurring"), recurring);
 // AI-3a — deterministic internal-consistency findings; "findings", never "audit" (§9).
 router.use("/findings", requirePermission("findings"), findings);
+// AI-6a — grounded answers: register A (facts + projections), stored and auditable.
+router.use("/ask", requirePermission("ask"), ask);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);
 router.use("/categorize", requirePermission("categorize"), categorize);
 

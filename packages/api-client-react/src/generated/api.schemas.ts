@@ -1781,6 +1781,57 @@ export interface FindingsPage {
   counts: FindingsPageCounts;
 }
 
+export interface AskInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  question: string;
+}
+
+/**
+ * @nullable
+ */
+export type AskResultAnswer = {
+  en?: string;
+  ar?: string;
+} | null;
+
+export interface AskResult {
+  refused: boolean;
+  /** @nullable */
+  refusalReason: string | null;
+  /** @nullable */
+  toolUsed: string | null;
+  /** @nullable */
+  answer: AskResultAnswer;
+}
+
+/**
+ * @nullable
+ */
+export type GroundedAnswersPageAnswersItemAnswer = {
+  en?: string;
+  ar?: string;
+} | null;
+
+export type GroundedAnswersPageAnswersItem = {
+  id: number;
+  question: string;
+  /** @nullable */
+  toolUsed?: string | null;
+  /** @nullable */
+  answer?: GroundedAnswersPageAnswersItemAnswer;
+  refused: boolean;
+  /** @nullable */
+  refusalReason?: string | null;
+  createdAt: string;
+};
+
+export interface GroundedAnswersPage {
+  answers: GroundedAnswersPageAnswersItem[];
+}
+
 export type FindingsScheduleInputCadence = typeof FindingsScheduleInputCadence[keyof typeof FindingsScheduleInputCadence];
 
 
@@ -2144,6 +2195,10 @@ export const ListFindingsStatus = {
   acknowledged: 'acknowledged',
   resolved: 'resolved',
 } as const;
+
+export type GetAskStatus200 = {
+  available: boolean;
+};
 
 export type ListBudgetsParams = {
 period?: string;

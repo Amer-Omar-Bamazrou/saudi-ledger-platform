@@ -1,7 +1,18 @@
-# AI-6 — the CFO surface: PROPOSAL (questions first, honest verdict first)
+# AI-6 — the CFO surface: DECIDED (owner answers, 2026-08-24)
 
-**Status (2026-08-24): PROPOSAL, awaiting the owner's answers to §4. Nothing
-is commissioned. Current state authority: CLAUDE.md §2.**
+**Status (2026-08-24): §4's questions ANSWERED; option A is COMMISSIONED as
+AI-6a. §0 is the decision record; the proposal below is preserved as what
+the answers were given against. Current state authority: CLAUDE.md §2.**
+
+## 0. The answers (owner, 2026-08-24 — reasoning preserved)
+
+| Q | Answer | The owner's reasoning |
+| --- | --- | --- |
+| 1. Register | **A — FACT + PROJECTION only. 🔴 B is QUEUED for post-C10, not rejected.** | "Opinion would be the platform's first unverifiable voice, and introducing it before the tax content is verified and before we have a single customer means shipping something we can't stand behind with no evidence anyone wanted it. Projection answers the hiring question without advising — the owner draws the conclusion, which is what an accountant leaves them to do anyway." **The honest cost, chosen deliberately: FACT+PROJECTION is a CFO that shows its work and never advises.** (Q2 — the fence — travels with B into the queue.) |
+| 3. Tool scope | **Analytics + Finance Hub computations.** | "Those are already the questions tenants ask; a tool surface wider than the reports is scope with no demand behind it." |
+| 4. Persistence | **Stored and auditable.** | "'What did the AI tell the tenant' must be answerable — and given B may arrive later, the record needs to exist BEFORE the unverifiable register does, not after." |
+| 5. Placement | **Inside Analytics and the Finance Hub**, per the hub decision. No new destination. | — |
+| + | 🔴 **A projection's assumption is stated IN the answer — never a footnote or tooltip.** | "'Holding the last six months constant' is the load-bearing part of the sentence, and an assumption a reader can skip is an assumption they'll skip." Mechanically enforced: the assumption sentence is part of the tool's output, and the verifier REJECTS an answer that uses the tool's numbers without it. |
 
 Parent records: [`design-ai-layer.md`](design-ai-layer.md) (the interview:
 CFO = on-demand consulting before decisions, never a scheduled report) and
@@ -89,3 +100,42 @@ then decide with real usage data from findings and explanations in hand.
 5. **Placement.** The hub decision weaves AI into pages with no nav
    destination — where does "ask" live? (Inside Analytics and the Finance
    Hub beside the figures it grounds on, is my instinct.)
+
+## 5. AI-6a as built (2026-08-24)
+
+**Six tools, all existing deterministic computations** (Analytics + Finance
+Hub scope — Q3): liquidity, books status, tax-compliance figures, the
+trend, the receivables bridge, and `runway_projection` — the one new pure
+function, built on GL cash (the balance sheet's `cash`-class items, single
+source, post-A) over a trailing six-month average. `decompose` deferred
+(enum-argument complexity; an easy later add — recorded so the omission is
+a decision). The model's only powers: pick ONE tool or refuse; render the
+tool's output in both languages. Two model calls per answer (compose +
+judge), metered.
+
+**The pipeline:** select → compute → compose → verify (the AI-3b verifier
+over the tool result, telemetry distinguishability intact) → 🔴 **the
+assumption gate** — the projection's assumption sentences are part of the
+TOOL output, and an answer using the tool without both of them verbatim is
+REJECTED (`answer_rejected:assumption_missing`): "an assumption a reader
+can skip is an assumption they'll skip," enforced by the machine → judge
+(advice/causation = the opinion register, which does not exist → reject).
+
+**Storage (Q4):** `grounded_answers` (0061), append-only at the grants —
+every exchange a row, refusals included; **a rejected model output is
+stored as a refusal WITHOUT the rejected text** (unverified prose is never
+persisted). The record exists before any unverifiable register ever does,
+as decided.
+
+**The liquidity-claim rule carries over:** a runway projection on blocked
+cash (suspense / undeclared transfers) is WITHHELD with the blockers named
+— the tool returns no `monthsToZero` at all, so an answer asserting one
+would fail verification. Pinned by a test that posts a real undeclared
+transfer.
+
+**Availability:** no deterministic floor exists for an answer, so
+unavailability is an honest 503 and the UI hides the ask box via
+`/ask/status` — dark for real tenants until the Enterprise agreement, by
+the AI-1a boot boundary (ledger data reaches the model by construction).
+Surface: one component inside Analytics and the Finance Hub (Q5), no
+destination. 7 tests; grants: read all roles, ask = write-level.

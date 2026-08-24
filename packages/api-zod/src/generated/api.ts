@@ -1658,6 +1658,57 @@ export const ListFindingsResponse = zod.object({
 
 
 /**
+ * @summary The stored, auditable record of what the AI told the tenant (AI-6a, register A - facts and projections only). Refusals are rows too; a rejected model output is stored as a refusal WITHOUT the rejected text.
+
+ */
+export const ListGroundedAnswersResponse = zod.object({
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "question": zod.string(),
+  "toolUsed": zod.string().nullish(),
+  "answer": zod.object({
+  "en": zod.string().optional(),
+  "ar": zod.string().optional()
+}).nullish(),
+  "refused": zod.boolean(),
+  "refusalReason": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Ask the books a question. The model selects ONE deterministic computation from a fixed menu and renders its output - it never authors a number, never advises (no opinion register exists), and a projection must carry its assumption IN the answer or it is rejected. 503 when no provider is configured - there is no deterministic floor for an answer.
+
+ */
+export const askGroundedQuestionBodyQuestionMax = 500;
+
+
+
+export const AskGroundedQuestionBody = zod.object({
+  "question": zod.string().min(1).max(askGroundedQuestionBodyQuestionMax)
+})
+
+export const AskGroundedQuestionResponse = zod.object({
+  "refused": zod.boolean(),
+  "refusalReason": zod.string().nullable(),
+  "toolUsed": zod.string().nullable(),
+  "answer": zod.object({
+  "en": zod.string().optional(),
+  "ar": zod.string().optional()
+}).nullable()
+})
+
+
+/**
+ * @summary Whether the assistant is enabled on this deployment (dark until the Enterprise agreement).
+ */
+export const GetAskStatusResponse = zod.object({
+  "available": zod.boolean()
+})
+
+
+/**
  * @summary Cadence, the last scheduled run, and the derived escalation flag (AI-5). Escalation is never stored - it is "unviewed and older than the interval", so it cannot drift from the facts that define it.
 
  */

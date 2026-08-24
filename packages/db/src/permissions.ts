@@ -163,6 +163,14 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // `update` (AI-5) gates PUT /findings/schedule — the review cadence is a
   // review decision, so it sits with acknowledge at approver level.
   findings: { read: READ_ALL, create: WRITE, update: APPROVE, approve: APPROVE },
+
+  /**
+   * Grounded answers (AI-6a). READ open — the stored record of what the AI
+   * said is review material like reports. CREATE (asking) at write level: a
+   * question costs metered tokens and writes an auditable row, the same
+   * class as `categorize`; a viewer reads the record and does not spend.
+   */
+  ask: { read: READ_ALL, create: WRITE },
 };
 
 /** The flattened matrix: one row per (role, resource, action) grant. */

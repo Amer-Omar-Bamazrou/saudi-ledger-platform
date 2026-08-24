@@ -8,6 +8,7 @@ import {
   useGetReceivablesBridge, useGetCashReconciliation,
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { AskYourBooks } from "@/components/AskYourBooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -285,6 +286,8 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* AI-6a — woven in per the hub decision; renders nothing while the assistant is dark. */}
+      <AskYourBooks />
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">

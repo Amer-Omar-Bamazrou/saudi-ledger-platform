@@ -236,6 +236,23 @@ owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
 Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
 Arabic-vision question). As-built: §12d/§12e.
 
+**AI-6a — grounded answers (2026-08-24, dark by construction).** The CFO
+surface, register A ONLY (owner: FACT + PROJECTION — "the CFO that shows
+its work and never advises," chosen deliberately; 🔴 **the OPINION register
+is QUEUED post-C10, not rejected** — it would be the platform's first
+unverifiable voice, and the fence question travels with it). Six tools from
+Analytics + the Finance Hub (the model SELECTS one or refuses, never
+authors a number); `runway_projection` on GL cash, and 🔴 **its assumption
+is machine-enforced IN the answer** — the sentences are tool output and an
+answer without both verbatim is rejected ("an assumption a reader can skip
+is an assumption they'll skip"). The liquidity-claim withholding carries
+over (blocked cash ⇒ no projection, blockers named). Every exchange is an
+append-only `grounded_answers` row (0061) — refusals included; rejected
+model text is NEVER stored. Unavailability is an honest 503; the ask box
+hides via /ask/status; dark until Enterprise by the boot boundary. Surface
+woven into Analytics + Finance Hub, no destination. As-built:
+[`ai-6-proposal.md`](docs/product/ai-6-proposal.md) §0/§5.
+
 **AI-3b — model explanations on findings (2026-08-24, dark-launched).** The
 first model output in real product code: 1–2 sentences rendering a
 finding's FACTS, both languages, generate-then-verify. 🔴 The verifier's

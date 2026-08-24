@@ -899,6 +899,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/FindingsPage"
 
+  /ask:
+    get:
+      operationId: listGroundedAnswers
+      tags: [ask]
+      summary: >
+        The stored, auditable record of what the AI told the tenant (AI-6a,
+        register A - facts and projections only). Refusals are rows too; a
+        rejected model output is stored as a refusal WITHOUT the rejected
+        text.
+      responses:
+        "200":
+          description: Recent exchanges, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroundedAnswersPage"
+    post:
+      operationId: askGroundedQuestion
+      tags: [ask]
+      summary: >
+        Ask the books a question. The model selects ONE deterministic
+        computation from a fixed menu and renders its output - it never
+        authors a number, never advises (no opinion register exists), and a
+        projection must carry its assumption IN the answer or it is
+        rejected. 503 when no provider is configured - there is no
+        deterministic floor for an answer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskInput"
+      responses:
+        "200":
+          description: The verified answer, or an honest refusal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskResult"
+
+  /ask/status:
+    get:
+      operationId: getAskStatus
+      tags: [ask]
+      summary: Whether the assistant is enabled on this deployment (dark until the Enterprise agreement).
+      responses:
+        "200":
+          description: Availability
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties:
+                  available: { type: boolean }
+
   /findings/status:
     get:
       operationId: getFindingsStatus
@@ -3965,6 +4021,47 @@ components:
             open: { type: integer }
             acknowledged: { type: integer }
             resolved: { type: integer }
+
+    AskInput:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 500 }
+
+    AskResult:
+      type: object
+      required: [refused, refusalReason, toolUsed, answer]
+      properties:
+        refused: { type: boolean }
+        refusalReason: { type: ["string", "null"] }
+        toolUsed: { type: ["string", "null"] }
+        answer:
+          type: ["object", "null"]
+          properties:
+            en: { type: string }
+            ar: { type: string }
+
+    GroundedAnswersPage:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [id, question, refused, createdAt]
+            properties:
+              id: { type: integer }
+              question: { type: string }
+              toolUsed: { type: ["string", "null"] }
+              answer:
+                type: ["object", "null"]
+                properties:
+                  en: { type: string }
+                  ar: { type: string }
+              refused: { type: boolean }
+              refusalReason: { type: ["string", "null"] }
+              createdAt: { type: string }
 
     FindingsScheduleInput:
       type: object

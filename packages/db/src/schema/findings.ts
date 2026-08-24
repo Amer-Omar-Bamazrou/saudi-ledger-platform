@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, uuid, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, uuid, jsonb, unique, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
@@ -116,3 +116,28 @@ export const findingSchedulesTable = pgTable("finding_schedules", {
 });
 
 export type FindingRun = typeof findingRunsTable.$inferSelect;
+
+/**
+ * AI-6a — the stored, auditable record of what the AI told the tenant.
+ * Refusals are rows too (an honest refusal is an answer); a REJECTED model
+ * output is recorded as a refusal WITHOUT the rejected text. Append-only at
+ * the grants.
+ */
+export const groundedAnswersTable = pgTable("grounded_answers", {
+  id: serial("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .default(sql`app_default_org_id()`)
+    .references(() => organizationsTable.id),
+  question: text("question").notNull(),
+  tool: text("tool"),
+  toolArgs: jsonb("tool_args"),
+  /** { en, ar, toolResultDigest } — verified before storage; NULL on refusal. */
+  answer: jsonb("answer"),
+  refused: boolean("refused").notNull().default(false),
+  refusalReason: text("refusal_reason"),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type GroundedAnswer = typeof groundedAnswersTable.$inferSelect;
