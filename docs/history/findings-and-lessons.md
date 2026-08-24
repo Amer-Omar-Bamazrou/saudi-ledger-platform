@@ -1732,3 +1732,26 @@ regardless of the phantom that carried them:
    wrong-but-flagged value ("assumed E") places a wrong treatment in the
    ledger under a label that ages into being trusted; reporting the gap
    keeps it a question until something real answers it.
+
+### 🔴 NAMED LESSON (AI-3b, 2026-08-24, owner-named): A VERIFICATION IS A CLAIM ABOUT A MOMENT, NOT A PROPERTY OF THE TEXT
+
+AI-3b verifies that a model-written explanation introduces no fact the
+finding does not carry. The verification is real — and it is dated the
+instant it passes: findings REFRESH their facts on every run, so an
+explanation verified against yesterday's facts can state a number that is
+no longer true. **Nothing about the text changed. The text became a lie
+anyway.**
+
+The mechanism that catches it: the explanation stores a hash of the facts
+it was verified against, and the API returns it ONLY while the hash matches
+the current facts. A facts refresh silently withholds the explanation until
+regeneration — no stale prose ever renders as current.
+
+**The general form, worth carrying beyond AI-3b:** any cached artifact that
+was VALIDATED against state — an explanation against facts, a benchmark
+verdict against a corpus, a compliance check against a configuration — is
+valid only while that state holds. Store the identity of what it was
+checked against, and gate rendering on the match; a validation without a
+binding to its inputs ages into a false credential. (Family resemblance:
+the obsolete-assertion lesson — a test correct when written certifying a
+defect later — is the same decay, in the test suite instead of the cache.)
