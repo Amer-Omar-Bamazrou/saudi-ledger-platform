@@ -236,6 +236,21 @@ owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
 Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
 Arabic-vision question). As-built: §12d/§12e.
 
+**AI-5 — scheduled findings (2026-08-24, taken before AI-3b by owner
+instruction — deterministic reaches tenants now; the delivery mechanism
+proves itself on trusted content before model output rides on it).** Hourly
+platform job; calendar cadence (quarterly default / monthly opt-in,
+approver-set); `(org, period)` run row as the CLAIM. The push ladder as the
+owner amended it: **one** email to ACTIVE ADMINS only (counts + pointer,
+never contents; no-recipient orgs logged loudly), then — never a second
+email — after 7 unviewed days a **persistent Dashboard marker** (derived
+"unviewed + old", never stored) that stands until an approver-level role
+opens the Findings page: **opening is the dismissal**, viewing is stamped
+`viewed_at`/`viewed_by`, a viewer's visit does not clear it, and nothing
+auto-acknowledges at any age. 🔴 **The honest limit, recorded plainly: the
+chain ends where the tenant's attention ends** — the product records that a
+run was never opened; it cannot make someone read. As-built: proposal §0c.
+
 **AI-3a — the findings engine, deterministic core (2026-08-24).** The
 build-order proposal's five questions are ANSWERED (owner, 2026-08-24 —
 recorded verbatim in [`ai-build-order-proposal.md`](docs/product/ai-build-order-proposal.md) §0:

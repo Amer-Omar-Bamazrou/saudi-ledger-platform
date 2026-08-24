@@ -414,6 +414,13 @@
    "when": 1786655845629,
    "tag": "0058_ai_3a_findings",
    "breakpoints": true
+  },
+  {
+   "idx": 59,
+   "version": "7",
+   "when": 1786655845630,
+   "tag": "0059_ai_5_scheduled_findings",
+   "breakpoints": true
   }
  ]
 }

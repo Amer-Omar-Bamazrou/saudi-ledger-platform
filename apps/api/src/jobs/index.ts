@@ -16,6 +16,7 @@ import { capturePromotionService } from "../services/capture/promotion.service";
 import { recurringGenerationService } from "../services/recurring/generation.service";
 import { alarmsService } from "../services/alerting/alarms.service";
 import { demoResetJob } from "../services/demo/demoResetJob.service";
+import { findingsScheduleService } from "../services/findings.schedule.service";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
@@ -25,6 +26,7 @@ export const JOB_CAPTURE_PURGE = "capture-purge";
 export const JOB_RECURRING = "recurring-documents";
 export const JOB_ALARMS = "platform-alarms";
 export const JOB_DEMO_RESET = "demo-reset";
+export const JOB_SCHEDULED_FINDINGS = "scheduled-findings";
 
 let scheduler: JobScheduler | null = null;
 
@@ -120,6 +122,17 @@ export function buildScheduler(): JobScheduler {
       intervalMs: 60 * 60_000,
       runOnce: () => demoResetJob.runOnce(),
       scheduled: env.DEMO_MODE,
+    },
+    {
+      // AI-5: runs each org's findings checks on its calendar cadence
+      // (quarterly default / monthly opt-in). A PLATFORM job — deterministic,
+      // transmits nothing, model-free. Hourly only decides how soon after a
+      // period boundary the run happens: due-ness is a CLAIMED (org, period)
+      // row, so frequency cannot double-run and downtime is caught up on the
+      // next tick.
+      name: JOB_SCHEDULED_FINDINGS,
+      intervalMs: 60 * 60_000,
+      runOnce: () => findingsScheduleService.runOnce(),
     },
   ];
 

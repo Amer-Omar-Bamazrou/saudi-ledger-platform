@@ -51,6 +51,8 @@ import type {
   Finding,
   FindingsPage,
   FindingsRunResult,
+  FindingsScheduleInput,
+  FindingsStatus,
   FiscalYears,
   GetCashReconciliationParams,
   GetDecompositionParams,
@@ -3156,6 +3158,158 @@ export function useListFindings<TData = Awaited<ReturnType<typeof listFindings>>
 
 
 
+
+export const getGetFindingsStatusUrl = () => {
+
+
+
+
+  return `/api/findings/status`
+}
+
+/**
+ * @summary Cadence, the last scheduled run, and the derived escalation flag (AI-5). Escalation is never stored - it is "unviewed and older than the interval", so it cannot drift from the facts that define it.
+
+ */
+export const getFindingsStatus = async ( options?: RequestInit): Promise<FindingsStatus> => {
+
+  return customFetch<FindingsStatus>(getGetFindingsStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFindingsStatusQueryKey = () => {
+    return [
+    `/api/findings/status`
+    ] as const;
+    }
+
+
+export const getGetFindingsStatusQueryOptions = <TData = Awaited<ReturnType<typeof getFindingsStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFindingsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFindingsStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFindingsStatus>>> = ({ signal }) => getFindingsStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFindingsStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFindingsStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getFindingsStatus>>>
+export type GetFindingsStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Cadence, the last scheduled run, and the derived escalation flag (AI-5). Escalation is never stored - it is "unviewed and older than the interval", so it cannot drift from the facts that define it.
+
+ */
+
+export function useGetFindingsStatus<TData = Awaited<ReturnType<typeof getFindingsStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFindingsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFindingsStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetFindingsScheduleUrl = () => {
+
+
+
+
+  return `/api/findings/schedule`
+}
+
+/**
+ * @summary Set the scheduled-review cadence - calendar quarterly (default) or monthly opt-in. Approver authority: the review rhythm is a review decision.
+
+ */
+export const setFindingsSchedule = async (findingsScheduleInput: FindingsScheduleInput, options?: RequestInit): Promise<FindingsScheduleInput> => {
+
+  return customFetch<FindingsScheduleInput>(getSetFindingsScheduleUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(findingsScheduleInput)
+  }
+);}
+
+
+
+
+
+export const getSetFindingsScheduleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFindingsSchedule>>, TError,{data: BodyType<FindingsScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setFindingsSchedule>>, TError,{data: BodyType<FindingsScheduleInput>}, TContext> => {
+
+const mutationKey = ['setFindingsSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setFindingsSchedule>>, {data: BodyType<FindingsScheduleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setFindingsSchedule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetFindingsScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof setFindingsSchedule>>>
+    export type SetFindingsScheduleMutationBody = BodyType<FindingsScheduleInput>
+    export type SetFindingsScheduleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set the scheduled-review cadence - calendar quarterly (default) or monthly opt-in. Approver authority: the review rhythm is a review decision.
+
+ */
+export const useSetFindingsSchedule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFindingsSchedule>>, TError,{data: BodyType<FindingsScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setFindingsSchedule>>,
+        TError,
+        {data: BodyType<FindingsScheduleInput>},
+        TContext
+      > => {
+      return useMutation(getSetFindingsScheduleMutationOptions(options));
+    }
 
 export const getRunFindingsUrl = () => {
 

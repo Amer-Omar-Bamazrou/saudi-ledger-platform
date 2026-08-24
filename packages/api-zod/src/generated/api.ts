@@ -1653,6 +1653,37 @@ export const ListFindingsResponse = zod.object({
 
 
 /**
+ * @summary Cadence, the last scheduled run, and the derived escalation flag (AI-5). Escalation is never stored - it is "unviewed and older than the interval", so it cannot drift from the facts that define it.
+
+ */
+export const GetFindingsStatusResponse = zod.object({
+  "cadence": zod.enum(['quarterly', 'monthly']),
+  "lastScheduledRun": zod.object({
+  "periodKey": zod.string().nullish(),
+  "ranAt": zod.string().optional(),
+  "openAfter": zod.number().optional(),
+  "emailedAt": zod.string().nullish(),
+  "emailedCount": zod.number().nullish(),
+  "viewedAt": zod.string().nullish()
+}).nullable(),
+  "escalated": zod.boolean().describe('True when the last scheduled run has open findings nobody viewed for longer than the escalation interval. Renders as the persistent Dashboard marker; opening the Findings page is the dismissal.\n')
+})
+
+
+/**
+ * @summary Set the scheduled-review cadence - calendar quarterly (default) or monthly opt-in. Approver authority: the review rhythm is a review decision.
+
+ */
+export const SetFindingsScheduleBody = zod.object({
+  "cadence": zod.enum(['quarterly', 'monthly'])
+})
+
+export const SetFindingsScheduleResponse = zod.object({
+  "cadence": zod.enum(['quarterly', 'monthly'])
+})
+
+
+/**
  * @summary Run every check now. Re-detection UPSERTS by (kind, refKey) - an acknowledged finding stays acknowledged while still detected; a finding no longer detected is machine-resolved and KEPT as the record that it was found. Moves nothing in any report.
 
  */

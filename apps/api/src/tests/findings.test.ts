@@ -51,6 +51,8 @@ describeMaybe("AI-3a — findings", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await pool.query(`DELETE FROM finding_runs WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM finding_schedules WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM findings WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);

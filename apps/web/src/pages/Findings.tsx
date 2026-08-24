@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { SearchCheck, Play, Check, CircleDot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { DualDate } from "@/components/DualDate";
 
 interface Finding {
@@ -95,18 +96,43 @@ function factLine(f: Finding, t: (en: string, ar: string) => string): string {
   }
 }
 
+interface FindingsStatus {
+  cadence: "quarterly" | "monthly";
+  lastScheduledRun: { periodKey: string | null; ranAt: string; openAfter: number; viewedAt: string | null } | null;
+  escalated: boolean;
+}
+
 export default function Findings() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<"open" | "acknowledged" | "resolved" | "">("open");
+  const isApprover = user?.organizationRole === "admin" || user?.organizationRole === "accountant";
 
   const { data, isLoading } = useQuery<FindingsPage>({
     queryKey: ["findings", statusFilter],
-    queryFn: () => apiFetch(`/findings${statusFilter ? `?status=${statusFilter}` : ""}`),
+    queryFn: async () => {
+      const page = (await apiFetch(`/findings${statusFilter ? `?status=${statusFilter}` : ""}`)) as FindingsPage;
+      // Listing stamped any unviewed scheduled run server-side (viewing IS
+      // the dismissal) — the Dashboard marker must learn it went away.
+      qc.invalidateQueries({ queryKey: ["findings-status"] });
+      return page;
+    },
+  });
+
+  const { data: schedStatus } = useQuery<FindingsStatus>({
+    queryKey: ["findings-status"],
+    queryFn: () => apiFetch("/findings/status"),
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["findings"] });
+
+  const cadenceMut = useMutation({
+    mutationFn: (cadence: string) => apiFetch("/findings/schedule", { method: "PUT", body: JSON.stringify({ cadence }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["findings-status"] }),
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
 
   const runMut = useMutation({
     mutationFn: () => apiFetch("/findings/run", { method: "POST" }),
@@ -148,6 +174,33 @@ export default function Findings() {
           <Play className="h-4 w-4" /> {t("Run checks", "تشغيل الفحوص")}
         </Button>
       </div>
+
+      {schedStatus && (
+        <p className="text-xs text-muted-foreground">
+          {schedStatus.lastScheduledRun
+            ? t(
+                `Scheduled review runs ${schedStatus.cadence === "monthly" ? "monthly" : "quarterly"} — last ran ${schedStatus.lastScheduledRun.ranAt.slice(0, 10)} (${schedStatus.lastScheduledRun.openAfter} open after).`,
+                `يعمل الفحص المجدول ${schedStatus.cadence === "monthly" ? "شهريًا" : "ربع سنويًا"} — آخر تشغيل ${schedStatus.lastScheduledRun.ranAt.slice(0, 10)} (${schedStatus.lastScheduledRun.openAfter} مفتوحة بعده).`,
+              )
+            : t(
+                `Scheduled review runs ${schedStatus.cadence === "monthly" ? "monthly" : "quarterly"} — no scheduled run has happened yet.`,
+                `يعمل الفحص المجدول ${schedStatus.cadence === "monthly" ? "شهريًا" : "ربع سنويًا"} — لم يجرِ أي تشغيل مجدول بعد.`,
+              )}
+          {isApprover && (
+            <Button
+              size="sm"
+              variant="link"
+              className="h-auto px-1 py-0 text-xs"
+              disabled={cadenceMut.isPending}
+              onClick={() => cadenceMut.mutate(schedStatus.cadence === "monthly" ? "quarterly" : "monthly")}
+            >
+              {schedStatus.cadence === "monthly"
+                ? t("switch to quarterly", "التحويل إلى ربع سنوي")
+                : t("switch to monthly", "التحويل إلى شهري")}
+            </Button>
+          )}
+        </p>
+      )}
 
       <div className="flex gap-2">
         {(["open", "acknowledged", "resolved"] as const).map((s) => (

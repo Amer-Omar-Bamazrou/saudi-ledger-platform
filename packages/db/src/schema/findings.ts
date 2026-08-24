@@ -59,3 +59,54 @@ export const findingsTable = pgTable(
 );
 
 export type Finding = typeof findingsTable.$inferSelect;
+
+/**
+ * One row per findings run (AI-5). For SCHEDULED runs, (org, period_key) is
+ * UNIQUE and the row is the CLAIM — inserted before the work (the
+ * recurring-job discipline), so concurrent job instances cannot double-run a
+ * period. `viewed_at`/`viewed_by` are what make "we told them and they saw
+ * it" a queryable fact (owner Q3: otherwise unfalsifiable). 🔴 The honest
+ * limit, stated: viewed_at staying NULL is the product's whole power — it
+ * records that a run was never opened; it cannot make someone read.
+ */
+export const findingRunsTable = pgTable(
+  "finding_runs",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`app_default_org_id()`)
+      .references(() => organizationsTable.id),
+    /** '2026-Q3' / '2026-09' for scheduled runs; NULL for on-demand (never conflicts). */
+    periodKey: text("period_key"),
+    trigger: text("trigger").notNull(),
+    ranAt: timestamp("ran_at", { withTimezone: true }).defaultNow().notNull(),
+    created: integer("created").notNull().default(0),
+    reopened: integer("reopened").notNull().default(0),
+    refreshed: integer("refreshed").notNull().default(0),
+    resolved: integer("resolved").notNull().default(0),
+    openAfter: integer("open_after").notNull().default(0),
+    emailedAt: timestamp("emailed_at", { withTimezone: true }),
+    emailedCount: integer("emailed_count"),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }),
+    viewedBy: integer("viewed_by"),
+  },
+  (t) => [unique("finding_runs_org_period_key").on(t.organizationId, t.periodKey)],
+);
+
+/**
+ * Per-org cadence (AI-5). ABSENT row = quarterly, the default — a row exists
+ * only to opt into monthly (or state quarterly explicitly). Calendar periods,
+ * the M20.2 reasoning: the filing rhythm, and the only definition an
+ * undeclared-fiscal-year tenant has.
+ */
+export const findingSchedulesTable = pgTable("finding_schedules", {
+  organizationId: uuid("organization_id")
+    .primaryKey()
+    .references(() => organizationsTable.id),
+  cadence: text("cadence").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: integer("updated_by"),
+});
+
+export type FindingRun = typeof findingRunsTable.$inferSelect;
