@@ -54,6 +54,12 @@ export const findingsTable = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     /** Where this finding was sent: e.g. {"in_app": "<iso>"}; AI-5 adds email/escalation keys. */
     delivered: jsonb("delivered").notNull().default(sql`'{}'::jsonb`),
+    /**
+     * AI-3b: model phrasing of the facts — { en, ar, model, generatedAt,
+     * factsHash }. NULL is the deterministic floor. Rendered only while
+     * factsHash matches the current facts (staleness = invention by aging).
+     */
+    explanation: jsonb("explanation"),
   },
   (t) => [unique("findings_org_kind_ref_key").on(t.organizationId, t.kind, t.refKey)],
 );

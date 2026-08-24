@@ -19,6 +19,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { findingsRepository, type DetectedFinding, type Finding } from "../repositories/findings.repository";
 import { membersRepository } from "../repositories/members.repository";
+import { findingsExplainService } from "./findings.explain.service";
 
 /** Every kind the run scans — resolveMissing must see the FULL list, or a retired check's findings would stay open forever. */
 export const ALL_FINDING_KINDS = [
@@ -48,7 +49,12 @@ export interface FindingsRunSummary {
 export const ESCALATION_AFTER_DAYS = 7;
 
 function toApi(f: Finding, names?: Map<number, string>) {
+  // AI-3b: the explanation renders ONLY while its factsHash matches the
+  // current facts — a facts refresh withholds it (staleness = invention by
+  // aging). The deterministic facts are always the floor.
+  const ex = findingsExplainService.isCurrent(f) ? (f.explanation as { en: string; ar: string; generatedAt: string }) : null;
   return {
+    explanation: ex ? { en: ex.en, ar: ex.ar, generatedAt: ex.generatedAt } : null,
     id: f.id,
     companyId: f.companyId,
     kind: f.kind,
@@ -119,6 +125,16 @@ export const findingsService = {
     // The delivery record (owner Q3): an on-demand run's new/reopened findings
     // are delivered in-app at this moment — the person who ran it is looking.
     await findingsRepository.markDeliveredInApp(touchedIds);
+
+    // AI-3b: explanations are an ENHANCEMENT pass over the run's open
+    // findings — wrapped so nothing here can fail the run (deterministic is
+    // the floor). Dark until a provider is configured; counts are logged by
+    // the explain service itself.
+    await findingsExplainService.explainOpenFindings().catch(() => {
+      // explainOpenFindings never throws by contract (it logs internally);
+      // this catch is the belt for the contract being wrong somewhere — the
+      // run must complete regardless.
+    });
 
     const counts = await findingsRepository.counts();
     const summary = { created, reopened, refreshed, resolved, open: counts.open };

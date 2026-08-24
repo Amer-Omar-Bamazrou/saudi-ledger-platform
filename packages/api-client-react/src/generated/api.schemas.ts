@@ -1733,6 +1733,16 @@ export const FindingStatus = {
   resolved: 'resolved',
 } as const;
 
+/**
+ * AI-3b - model phrasing OF the facts, verified to introduce nothing the facts do not carry, returned only while current against the facts. NULL is the deterministic floor (model unavailable, output rejected, low-context refusal, or facts refreshed since generation).
+ * @nullable
+ */
+export type FindingExplanation = {
+  en?: string;
+  ar?: string;
+  generatedAt?: string;
+} | null;
+
 export interface Finding {
   id: number;
   /** @nullable */
@@ -1753,6 +1763,11 @@ export interface Finding {
   acknowledgedByName?: string | null;
   /** @nullable */
   resolvedAt?: string | null;
+  /**
+     * AI-3b - model phrasing OF the facts, verified to introduce nothing the facts do not carry, returned only while current against the facts. NULL is the deterministic floor (model unavailable, output rejected, low-context refusal, or facts refreshed since generation).
+     * @nullable
+     */
+  explanation?: FindingExplanation;
 }
 
 export type FindingsPageCounts = {

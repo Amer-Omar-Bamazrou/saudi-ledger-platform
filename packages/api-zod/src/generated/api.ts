@@ -1642,7 +1642,12 @@ export const ListFindingsResponse = zod.object({
   "acknowledgedAt": zod.string().nullish(),
   "acknowledgedBy": zod.number().nullish(),
   "acknowledgedByName": zod.string().nullish(),
-  "resolvedAt": zod.string().nullish()
+  "resolvedAt": zod.string().nullish(),
+  "explanation": zod.object({
+  "en": zod.string().optional(),
+  "ar": zod.string().optional(),
+  "generatedAt": zod.string().optional()
+}).nullish().describe('AI-3b - model phrasing OF the facts, verified to introduce nothing the facts do not carry, returned only while current against the facts. NULL is the deterministic floor (model unavailable, output rejected, low-context refusal, or facts refreshed since generation).\n')
 })),
   "counts": zod.object({
   "open": zod.number(),
@@ -1716,7 +1721,12 @@ export const AcknowledgeFindingResponse = zod.object({
   "acknowledgedAt": zod.string().nullish(),
   "acknowledgedBy": zod.number().nullish(),
   "acknowledgedByName": zod.string().nullish(),
-  "resolvedAt": zod.string().nullish()
+  "resolvedAt": zod.string().nullish(),
+  "explanation": zod.object({
+  "en": zod.string().optional(),
+  "ar": zod.string().optional(),
+  "generatedAt": zod.string().optional()
+}).nullish().describe('AI-3b - model phrasing OF the facts, verified to introduce nothing the facts do not carry, returned only while current against the facts. NULL is the deterministic floor (model unavailable, output rejected, low-context refusal, or facts refreshed since generation).\n')
 })
 
 

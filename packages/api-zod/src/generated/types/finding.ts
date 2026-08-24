@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { FindingExplanation } from './findingExplanation';
 import type { FindingFacts } from './findingFacts';
 import type { FindingStatus } from './findingStatus';
 
@@ -28,4 +29,9 @@ export interface Finding {
   acknowledgedByName?: string | null;
   /** @nullable */
   resolvedAt?: string | null;
+  /**
+     * AI-3b - model phrasing OF the facts, verified to introduce nothing the facts do not carry, returned only while current against the facts. NULL is the deterministic floor (model unavailable, output rejected, low-context refusal, or facts refreshed since generation).
+     * @nullable
+     */
+  explanation?: FindingExplanation;
 }
