@@ -11,8 +11,8 @@
  * numbers and names, never judgments — the UI renders words, and no severity
  * exists anywhere.
  */
-import { db, findingsTable, type Finding } from "@workspace/db";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { db, findingsTable, findingRunsTable, findingSchedulesTable, type Finding, type FindingRun } from "@workspace/db";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 export interface DetectedFinding {
   kind: string;
@@ -294,6 +294,72 @@ export const findingsRepository = {
       .update(findingsTable)
       .set({ delivered: sql`delivered || jsonb_build_object('in_app', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SSOF'))` })
       .where(inArray(findingsTable.id, ids));
+  },
+
+  // ── Runs and schedule (AI-5) ───────────────────────────────────────────────
+
+  /** Record an on-demand run (tenant context; the org comes from the GUC default). */
+  insertRun(counts: { created: number; reopened: number; refreshed: number; resolved: number; openAfter: number }) {
+    return db
+      .insert(findingRunsTable)
+      .values({ trigger: "on_demand", ...counts })
+      .returning();
+  },
+
+  /**
+   * Owner Q3's fact: viewing IS the event. Called when an admin/accountant
+   * lists findings — stamps every unviewed scheduled run for the org. The
+   * side effect on a GET is deliberate and honest: the thing recorded is
+   * exactly that the GET happened.
+   */
+  markScheduledRunsViewed(userId: number | null) {
+    return db
+      .update(findingRunsTable)
+      .set({ viewedAt: new Date(), viewedBy: userId })
+      .where(and(eq(findingRunsTable.trigger, "scheduled"), isNull(findingRunsTable.viewedAt)))
+      .returning({ id: findingRunsTable.id });
+  },
+
+  async latestScheduledRun(): Promise<FindingRun | undefined> {
+    const rows = await db
+      .select()
+      .from(findingRunsTable)
+      .where(eq(findingRunsTable.trigger, "scheduled"))
+      .orderBy(desc(findingRunsTable.ranAt), desc(findingRunsTable.id))
+      .limit(1);
+    return rows[0];
+  },
+
+  async getCadence(): Promise<"quarterly" | "monthly"> {
+    const rows = await db.select().from(findingSchedulesTable).limit(1);
+    return (rows[0]?.cadence as "quarterly" | "monthly") ?? "quarterly";
+  },
+
+  setCadence(cadence: "quarterly" | "monthly", userId: number | null) {
+    return db
+      .insert(findingSchedulesTable)
+      .values({
+        // finding_schedules has no GUC default (its PK is the org), so the
+        // tenant transaction's GUC is read explicitly here.
+        organizationId: sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid` as unknown as string,
+        cadence,
+        updatedBy: userId,
+      })
+      .onConflictDoUpdate({
+        target: findingSchedulesTable.organizationId,
+        set: { cadence, updatedAt: new Date(), updatedBy: userId },
+      })
+      .returning();
+  },
+
+  /** Stamp the email notice onto the findings it announced (the open set at send time). */
+  markDeliveredEmailNotice(runId: number) {
+    return db
+      .update(findingsTable)
+      .set({
+        delivered: sql`delivered || jsonb_build_object('email_notice_run', ${runId}::int, 'email_notice_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SSOF'))`,
+      })
+      .where(eq(findingsTable.status, "open"));
   },
 };
 

@@ -1766,6 +1766,50 @@ export interface FindingsPage {
   counts: FindingsPageCounts;
 }
 
+export type FindingsScheduleInputCadence = typeof FindingsScheduleInputCadence[keyof typeof FindingsScheduleInputCadence];
+
+
+export const FindingsScheduleInputCadence = {
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+} as const;
+
+export interface FindingsScheduleInput {
+  cadence: FindingsScheduleInputCadence;
+}
+
+export type FindingsStatusCadence = typeof FindingsStatusCadence[keyof typeof FindingsStatusCadence];
+
+
+export const FindingsStatusCadence = {
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+} as const;
+
+/**
+ * @nullable
+ */
+export type FindingsStatusLastScheduledRun = {
+  /** @nullable */
+  periodKey?: string | null;
+  ranAt?: string;
+  openAfter?: number;
+  /** @nullable */
+  emailedAt?: string | null;
+  /** @nullable */
+  emailedCount?: number | null;
+  /** @nullable */
+  viewedAt?: string | null;
+} | null;
+
+export interface FindingsStatus {
+  cadence: FindingsStatusCadence;
+  /** @nullable */
+  lastScheduledRun: FindingsStatusLastScheduledRun;
+  /** True when the last scheduled run has open findings nobody viewed for longer than the escalation interval. Renders as the persistent Dashboard marker; opening the Findings page is the dismissal. */
+  escalated: boolean;
+}
+
 export interface FindingsRunResult {
   created: number;
   reopened: number;

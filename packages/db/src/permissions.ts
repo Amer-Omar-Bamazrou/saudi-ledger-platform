@@ -160,7 +160,9 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
    * the M16 "accepting the match IS the review" principle, applied to the
    * dismissal direction.
    */
-  findings: { read: READ_ALL, create: WRITE, approve: APPROVE },
+  // `update` (AI-5) gates PUT /findings/schedule — the review cadence is a
+  // review decision, so it sits with acknowledge at approver level.
+  findings: { read: READ_ALL, create: WRITE, update: APPROVE, approve: APPROVE },
 };
 
 /** The flattened matrix: one row per (role, resource, action) grant. */

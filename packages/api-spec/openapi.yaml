@@ -899,6 +899,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/FindingsPage"
 
+  /findings/status:
+    get:
+      operationId: getFindingsStatus
+      tags: [findings]
+      summary: >
+        Cadence, the last scheduled run, and the derived escalation flag
+        (AI-5). Escalation is never stored - it is "unviewed and older than
+        the interval", so it cannot drift from the facts that define it.
+      responses:
+        "200":
+          description: The delivery state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindingsStatus"
+
+  /findings/schedule:
+    put:
+      operationId: setFindingsSchedule
+      tags: [findings]
+      summary: >
+        Set the scheduled-review cadence - calendar quarterly (default) or
+        monthly opt-in. Approver authority: the review rhythm is a review
+        decision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindingsScheduleInput"
+      responses:
+        "200":
+          description: The stored cadence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindingsScheduleInput"
+
   /findings/run:
     post:
       operationId: runFindings
@@ -3915,6 +3953,34 @@ components:
             open: { type: integer }
             acknowledged: { type: integer }
             resolved: { type: integer }
+
+    FindingsScheduleInput:
+      type: object
+      required: [cadence]
+      properties:
+        cadence: { type: string, enum: [quarterly, monthly] }
+
+    FindingsStatus:
+      type: object
+      required: [cadence, lastScheduledRun, escalated]
+      properties:
+        cadence: { type: string, enum: [quarterly, monthly] }
+        lastScheduledRun:
+          type: ["object", "null"]
+          properties:
+            periodKey: { type: ["string", "null"] }
+            ranAt: { type: string }
+            openAfter: { type: integer }
+            emailedAt: { type: ["string", "null"] }
+            emailedCount: { type: ["integer", "null"] }
+            viewedAt: { type: ["string", "null"] }
+        escalated:
+          type: boolean
+          description: >
+            True when the last scheduled run has open findings nobody viewed
+            for longer than the escalation interval. Renders as the
+            persistent Dashboard marker; opening the Findings page is the
+            dismissal.
 
     FindingsRunResult:
       type: object

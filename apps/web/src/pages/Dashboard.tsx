@@ -1,8 +1,11 @@
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiFetch } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  TrendingUp, ShieldCheck, ListChecks, FileText, FileInput, BarChart3, ChevronRight,
+  TrendingUp, ShieldCheck, ListChecks, FileText, FileInput, BarChart3, ChevronRight, SearchCheck,
 } from "lucide-react";
 
 /**
@@ -121,10 +124,59 @@ function DestinationCard({ d, prominent }: { d: Destination; prominent?: boolean
   );
 }
 
+/**
+ * AI-5's escalation terminus: the persistent marker. 🔴 Owner decisions
+ * (2026-08-24): the escalation lands HERE — on the page the tenant actually
+ * opens — never in a second email ("email escalating into more email is a
+ * longer parking space"). It persists until someone opens the findings;
+ * OPENING IS THE DISMISSAL (the M16 one-act principle) — no close button
+ * exists, because dismissing without viewing is the exact behavior this
+ * exists to prevent. Approver-level roles only: they own the review.
+ *
+ * The honest limit: this is the LOUDEST the product gets. A tenant who never
+ * opens the app is never reached past the one email — recorded, not solved.
+ */
+function UnreadFindingsMarker() {
+  const { t } = useLanguage();
+  const { user } = useAuth();
+  const isApprover = user?.organizationRole === "admin" || user?.organizationRole === "accountant";
+  const { data } = useQuery<{ escalated: boolean; lastScheduledRun: { ranAt: string; openAfter: number } | null }>({
+    queryKey: ["findings-status"],
+    queryFn: () => apiFetch("/findings/status"),
+    enabled: isApprover,
+  });
+  if (!isApprover || !data?.escalated || !data.lastScheduledRun) return null;
+  return (
+    <Link href="/findings">
+      <Card className="border-foreground/30 cursor-pointer">
+        <CardContent className="p-4 flex items-start gap-3">
+          <SearchCheck className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold">
+              {t(
+                `Scheduled findings from ${data.lastScheduledRun.ranAt.slice(0, 10)} have not been opened — ${data.lastScheduledRun.openAfter} open`,
+                `ملاحظات الفحص المجدول بتاريخ ${data.lastScheduledRun.ranAt.slice(0, 10)} لم تُفتح بعد — ${data.lastScheduledRun.openAfter} مفتوحة`,
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t(
+                "This notice stays until someone reviews them. Opening the Findings page is what clears it.",
+                "يبقى هذا التنبيه حتى تتم مراجعتها. فتح صفحة الملاحظات هو ما يزيله.",
+              )}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground/50 ml-auto mt-1" />
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 export default function Dashboard() {
   const { t } = useLanguage();
   return (
     <div className="space-y-8 max-w-4xl">
+      <UnreadFindingsMarker />
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t("Where would you like to go?", "إلى أين تريد الذهاب؟")}</h1>
         <p className="text-muted-foreground text-sm mt-1">

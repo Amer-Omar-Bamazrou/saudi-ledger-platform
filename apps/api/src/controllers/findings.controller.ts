@@ -17,12 +17,24 @@ export const findingsController = {
     if (status && !STATUSES.includes(status)) {
       throw new BadRequestError(`status must be one of: ${STATUSES.join(", ")}`);
     }
+    // Viewing IS the event being recorded (AI-5): an approver-level role
+    // listing findings stamps unviewed scheduled runs. Deliberate side effect
+    // on a GET — the thing recorded is exactly that this GET happened.
+    await findingsService.markViewed(req.tenant!.role, req.session?.userId ?? null);
     res.json(
       await findingsService.list(
         { status: status || undefined, kind: kind || undefined },
         req.tenant!.organizationId,
       ),
     );
+  },
+
+  async status(req: Request, res: Response) {
+    res.json(await findingsService.status());
+  },
+
+  async setSchedule(req: Request, res: Response) {
+    res.json(await findingsService.setCadence(String(req.body?.cadence ?? ""), req.session?.userId ?? null));
   },
 
   async run(_req: Request, res: Response) {

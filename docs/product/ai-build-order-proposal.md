@@ -49,6 +49,54 @@ real states; a finding is a kind plus facts, rendered in words, bilingual.
 Surface: `/findings` under Reports, beside the Finance Hub. Zero-movement
 pinned through the real report services. 9 tests + the four guard suites.
 
+## 0c. AI-5 as built (2026-08-24) — the scheduler, and the push ladder as decided
+
+Taken before AI-3b at the owner's instruction — the same argument that put
+findings first: AI-5 is deterministic and reaches tenants now, and it lets
+the delivery mechanism prove itself with trusted content before model
+explanations ride on it.
+
+**Owner amendments adopted (2026-08-24):** escalation is on the WHOLE RUN
+(one condition, one owner); recipients are **active admins only**;
+**escalate in place, never auto-acknowledge** — and the escalation lands on
+a page the tenant actually opens, **never in another email** ("email
+escalating into more email is a longer parking space").
+
+**The ladder as shipped:**
+
+1. An hourly platform job claims `(org, period)` — calendar quarters by
+   default, months on opt-in (the M20.2 reasoning) — with the run row as the
+   claim (the recurring-job discipline; proven by running twice). The run
+   executes in a per-org tenant transaction.
+2. Open findings ⇒ **one email** to active admins: counts and a pointer,
+   never finding contents, and it says plainly that no second email will
+   come. A no-recipient org is logged loudly (the B1 posture). Nothing open
+   ⇒ no email — all-clear mail trains inattention; the run row still records
+   it ran.
+3. After 7 unviewed days, the run's condition becomes the **persistent
+   Dashboard marker** (approver-level roles). It is DERIVED — "unviewed and
+   old" — never stored, so it cannot drift from the facts. **Opening the
+   Findings page is the dismissal** (the M16 one-act principle; no close
+   button exists). Viewing is stamped `viewed_at`/`viewed_by`, and only
+   approver-level viewing counts — a viewer's visit does not clear an
+   admin's obligation.
+4. Nothing auto-acknowledges, at any age — pinned by test.
+
+🔴 **The honest limit, stated rather than implied:** with no external
+escalation target, **the chain ends where the tenant's attention ends.**
+The product makes ignoring harder (the marker) and records that a run was
+never opened (`viewed_at` stays NULL — "we told them and they saw it" is a
+queryable fact either way). It cannot make someone read, and a tenant who
+never opens the app is never reached past the one email. That is the
+ladder's whole reach, recorded here so nobody later mistakes the escalation
+for a solution to absence.
+
+Cadence changes are approver-level (`findings.update`). 11 tests: the
+claim under a double pass, active-admins-only delivery (removed-admin and
+bookkeeper negatives), the delivery record on the findings, viewer-doesn't-
+stamp, derived escalation in all three directions, never-auto-acknowledge,
+monthly opt-in, on-demand rows, and the grant negatives.
+
 Parent spec: [`design-ai-layer.md`](design-ai-layer.md) (the decision record
 this proposes an order FOR — nothing there is reopened here).
 

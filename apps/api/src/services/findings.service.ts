@@ -15,7 +15,7 @@
  * and the row is KEPT: the record that it was found is part of the
  * who-finds-out trail, not clutter to purge.
  */
-import { ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { findingsRepository, type DetectedFinding, type Finding } from "../repositories/findings.repository";
 import { membersRepository } from "../repositories/members.repository";
@@ -40,6 +40,13 @@ export interface FindingsRunSummary {
   open: number;
 }
 
+/**
+ * AI-5: after this many days unviewed, a scheduled run's condition becomes
+ * the persistent Dashboard marker (owner: escalation lands somewhere
+ * unavoidable, never in another email).
+ */
+export const ESCALATION_AFTER_DAYS = 7;
+
 function toApi(f: Finding, names?: Map<number, string>) {
   return {
     id: f.id,
@@ -59,7 +66,13 @@ function toApi(f: Finding, names?: Map<number, string>) {
 }
 
 export const findingsService = {
-  async run(): Promise<FindingsRunSummary> {
+  /**
+   * `recordRun: false` is the SCHEDULED path's flag — its claim row already
+   * exists (inserted before the work, the recurring-job discipline) and the
+   * schedule service writes the counts into it; recording here too would
+   * double the run history.
+   */
+  async run(opts: { recordRun?: boolean } = {}): Promise<FindingsRunSummary> {
     const detected: DetectedFinding[] = (
       await Promise.all([
         findingsRepository.duplicateBills(),
@@ -109,6 +122,9 @@ export const findingsService = {
 
     const counts = await findingsRepository.counts();
     const summary = { created, reopened, refreshed, resolved, open: counts.open };
+    if (opts.recordRun !== false) {
+      await findingsRepository.insertRun({ created, reopened, refreshed, resolved, openAfter: counts.open });
+    }
     await auditService.record({
       action: "create",
       entityType: "findings_run",
@@ -116,6 +132,52 @@ export const findingsService = {
       after: summary,
     });
     return summary;
+  },
+
+  /**
+   * The delivery state the UI reads: cadence, the last scheduled run, and
+   * whether its unread condition has ESCALATED to the Dashboard marker.
+   * Escalation is DERIVED, never stored — the condition is "unviewed and
+   * old", and a derived condition cannot drift from the facts that define it.
+   */
+  async status() {
+    const [cadence, run] = await Promise.all([
+      findingsRepository.getCadence(),
+      findingsRepository.latestScheduledRun(),
+    ]);
+    const escalated =
+      run != null &&
+      run.viewedAt == null &&
+      Date.now() - run.ranAt.getTime() > ESCALATION_AFTER_DAYS * 24 * 60 * 60 * 1000;
+    return {
+      cadence,
+      lastScheduledRun: run
+        ? {
+            periodKey: run.periodKey,
+            ranAt: run.ranAt.toISOString(),
+            openAfter: run.openAfter,
+            emailedAt: run.emailedAt?.toISOString() ?? null,
+            emailedCount: run.emailedCount,
+            viewedAt: run.viewedAt?.toISOString() ?? null,
+          }
+        : null,
+      escalated,
+    };
+  },
+
+  /** Viewing IS the review of the notice (M16's one-act principle): stamp unviewed scheduled runs when an approver-level role lists findings. */
+  async markViewed(role: string, userId: number | null) {
+    if (role !== "admin" && role !== "accountant") return;
+    await findingsRepository.markScheduledRunsViewed(userId);
+  },
+
+  async setCadence(cadence: string, userId: number | null) {
+    if (cadence !== "quarterly" && cadence !== "monthly") {
+      throw new BadRequestError("cadence must be quarterly or monthly");
+    }
+    const [row] = await findingsRepository.setCadence(cadence, userId);
+    await auditService.record({ action: "update", entityType: "finding_schedule", entityId: "cadence", after: row });
+    return { cadence: row.cadence };
   },
 
   async list(filter: { status?: string; kind?: string }, organizationId: string) {
