@@ -22,6 +22,8 @@ import type {
 import type {
   AcceptPendingInput,
   AcceptPendingResult,
+  AskInput,
+  AskResult,
   AuditLogPage,
   Bill,
   BillApproveInput,
@@ -54,6 +56,7 @@ import type {
   FindingsScheduleInput,
   FindingsStatus,
   FiscalYears,
+  GetAskStatus200,
   GetCashReconciliationParams,
   GetDecompositionParams,
   GetLiquidityParams,
@@ -63,6 +66,7 @@ import type {
   GetTrendParams,
   GetVatReturnParams,
   GetVatSummaryParams,
+  GroundedAnswersPage,
   HealthStatus,
   Invoice,
   JournalEntry,
@@ -3147,6 +3151,235 @@ export function useListFindings<TData = Awaited<ReturnType<typeof listFindings>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListFindingsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListGroundedAnswersUrl = () => {
+
+
+
+
+  return `/api/ask`
+}
+
+/**
+ * @summary The stored, auditable record of what the AI told the tenant (AI-6a, register A - facts and projections only). Refusals are rows too; a rejected model output is stored as a refusal WITHOUT the rejected text.
+
+ */
+export const listGroundedAnswers = async ( options?: RequestInit): Promise<GroundedAnswersPage> => {
+
+  return customFetch<GroundedAnswersPage>(getListGroundedAnswersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGroundedAnswersQueryKey = () => {
+    return [
+    `/api/ask`
+    ] as const;
+    }
+
+
+export const getListGroundedAnswersQueryOptions = <TData = Awaited<ReturnType<typeof listGroundedAnswers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGroundedAnswers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGroundedAnswersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGroundedAnswers>>> = ({ signal }) => listGroundedAnswers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGroundedAnswers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGroundedAnswersQueryResult = NonNullable<Awaited<ReturnType<typeof listGroundedAnswers>>>
+export type ListGroundedAnswersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The stored, auditable record of what the AI told the tenant (AI-6a, register A - facts and projections only). Refusals are rows too; a rejected model output is stored as a refusal WITHOUT the rejected text.
+
+ */
+
+export function useListGroundedAnswers<TData = Awaited<ReturnType<typeof listGroundedAnswers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGroundedAnswers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGroundedAnswersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAskGroundedQuestionUrl = () => {
+
+
+
+
+  return `/api/ask`
+}
+
+/**
+ * @summary Ask the books a question. The model selects ONE deterministic computation from a fixed menu and renders its output - it never authors a number, never advises (no opinion register exists), and a projection must carry its assumption IN the answer or it is rejected. 503 when no provider is configured - there is no deterministic floor for an answer.
+
+ */
+export const askGroundedQuestion = async (askInput: AskInput, options?: RequestInit): Promise<AskResult> => {
+
+  return customFetch<AskResult>(getAskGroundedQuestionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(askInput)
+  }
+);}
+
+
+
+
+
+export const getAskGroundedQuestionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askGroundedQuestion>>, TError,{data: BodyType<AskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askGroundedQuestion>>, TError,{data: BodyType<AskInput>}, TContext> => {
+
+const mutationKey = ['askGroundedQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askGroundedQuestion>>, {data: BodyType<AskInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  askGroundedQuestion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskGroundedQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof askGroundedQuestion>>>
+    export type AskGroundedQuestionMutationBody = BodyType<AskInput>
+    export type AskGroundedQuestionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Ask the books a question. The model selects ONE deterministic computation from a fixed menu and renders its output - it never authors a number, never advises (no opinion register exists), and a projection must carry its assumption IN the answer or it is rejected. 503 when no provider is configured - there is no deterministic floor for an answer.
+
+ */
+export const useAskGroundedQuestion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askGroundedQuestion>>, TError,{data: BodyType<AskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof askGroundedQuestion>>,
+        TError,
+        {data: BodyType<AskInput>},
+        TContext
+      > => {
+      return useMutation(getAskGroundedQuestionMutationOptions(options));
+    }
+
+export const getGetAskStatusUrl = () => {
+
+
+
+
+  return `/api/ask/status`
+}
+
+/**
+ * @summary Whether the assistant is enabled on this deployment (dark until the Enterprise agreement).
+ */
+export const getAskStatus = async ( options?: RequestInit): Promise<GetAskStatus200> => {
+
+  return customFetch<GetAskStatus200>(getGetAskStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAskStatusQueryKey = () => {
+    return [
+    `/api/ask/status`
+    ] as const;
+    }
+
+
+export const getGetAskStatusQueryOptions = <TData = Awaited<ReturnType<typeof getAskStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAskStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAskStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAskStatus>>> = ({ signal }) => getAskStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAskStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAskStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getAskStatus>>>
+export type GetAskStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether the assistant is enabled on this deployment (dark until the Enterprise agreement).
+ */
+
+export function useGetAskStatus<TData = Awaited<ReturnType<typeof getAskStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAskStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAskStatusQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

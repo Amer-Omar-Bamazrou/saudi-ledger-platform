@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { AskYourBooks } from "@/components/AskYourBooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -137,6 +138,9 @@ export default function FinanceHub() {
           )}
         </p>
       </div>
+
+      {/* AI-6a — woven in per the hub decision; renders nothing while the assistant is dark. */}
+      <AskYourBooks />
 
       {error && (
         <Alert variant="destructive">

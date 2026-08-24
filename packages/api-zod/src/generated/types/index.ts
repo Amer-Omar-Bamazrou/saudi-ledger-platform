@@ -8,6 +8,9 @@
 
 export * from './acceptPendingInput';
 export * from './acceptPendingResult';
+export * from './askInput';
+export * from './askResult';
+export * from './askResultAnswer';
 export * from './auditLogEntry';
 export * from './auditLogPage';
 export * from './bill';
@@ -76,6 +79,7 @@ export * from './fiscalPeriod';
 export * from './fiscalPeriodCalendar';
 export * from './fiscalYears';
 export * from './fiscalYearsCalendar';
+export * from './getAskStatus200';
 export * from './getCashReconciliationParams';
 export * from './getDecompositionDimension';
 export * from './getDecompositionParams';
@@ -86,6 +90,9 @@ export * from './getSummaryParams';
 export * from './getTrendParams';
 export * from './getVatReturnParams';
 export * from './getVatSummaryParams';
+export * from './groundedAnswersPage';
+export * from './groundedAnswersPageAnswersItem';
+export * from './groundedAnswersPageAnswersItemAnswer';
 export * from './healthStatus';
 export * from './invoice';
 export * from './invoiceItem';
