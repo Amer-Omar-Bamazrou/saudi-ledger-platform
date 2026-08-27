@@ -194,11 +194,11 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button size="lg" className="flex-1" onClick={() => cameraRef.current?.click()}>
-                  <ScanLine className="w-4 h-4 mr-2" />
+                  <ScanLine className="w-4 h-4 me-2" />
                   Photograph a receipt
                 </Button>
                 <Button size="lg" variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
-                  <UploadCloud className="w-4 h-4 mr-2" />
+                  <UploadCloud className="w-4 h-4 me-2" />
                   Choose a file
                 </Button>
               </div>
@@ -306,7 +306,7 @@ function Field({ label, value, highlight }: { label: string; value: string; high
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className={`font-medium tabular-nums truncate text-right ${highlight ? "text-primary" : "text-foreground"}`}>{value}</span>
+      <span className={`font-medium tabular-nums truncate text-end ${highlight ? "text-primary" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }

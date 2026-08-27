@@ -137,7 +137,7 @@ export default function CreditNotes() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button disabled={correctable.length === 0}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 me-2" />
               New note
             </Button>
           </DialogTrigger>
@@ -314,7 +314,7 @@ export default function CreditNotes() {
                       </td>
                       {/* Displayed with the sign the books apply, so the row reads
                           the way it affects the customer's balance. */}
-                      <td className="text-right tabular-nums">
+                      <td className="text-end tabular-nums">
                         {n.documentType === "credit_note" ? "−" : "+"}
                         {fmtNum(n.total)}
                       </td>

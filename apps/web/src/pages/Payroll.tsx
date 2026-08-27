@@ -104,13 +104,13 @@ export default function Payroll() {
           <CardContent>
             {!detail ? <div className="text-center py-12 text-muted-foreground text-sm">{t("Select a payroll run to view payslips", "اختر مسير رواتب لعرض قسائم الراتب")}</div> : (
               <table className="w-full text-xs">
-                <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+                <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
                 <tbody>{detail.items.map(item=>(
                   <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
-                    <td className="py-2 pr-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div></td>
-                    <td className="py-2 pr-3 font-mono">{fmtNum(item.basicSalary)}</td>
-                    <td className="py-2 pr-3 font-mono text-amber-400">{fmtNum(item.gosiEmployee)}</td>
-                    <td className="py-2 pr-3 font-mono text-red-400">{fmtNum(item.gosiEmployer)}</td>
+                    <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div></td>
+                    <td className="py-2 pe-3 font-mono">{fmtNum(item.basicSalary)}</td>
+                    <td className="py-2 pe-3 font-mono text-amber-400">{fmtNum(item.gosiEmployee)}</td>
+                    <td className="py-2 pe-3 font-mono text-red-400">{fmtNum(item.gosiEmployer)}</td>
                     <td className="py-2 font-mono font-semibold text-emerald-400 text-sm">{fmtNum(item.netPay)}</td>
                   </tr>
                 ))}</tbody>

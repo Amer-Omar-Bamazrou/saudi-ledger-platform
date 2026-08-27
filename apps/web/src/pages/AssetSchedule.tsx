@@ -65,21 +65,21 @@ export default function AssetSchedule() {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Asset", "Category", "Purchase Date", "Cost", "Useful Life", "Method", "Acc. Dep.", "Book Value", "Status"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {assets.map(a => (
                   <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pr-3 font-medium text-xs">{a.name}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs">{a.category}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
-                    <td className="py-2 pr-3 font-mono text-xs">{fmtNum(a.cost)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs">{a.usefulLife}y</td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground">{a.depreciation}</td>
-                    <td className="py-2 pr-3 font-mono text-xs text-red-400">{fmtNum(a.accumulatedDepreciation)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.bookValue)}</td>
+                    <td className="py-2 pe-3 font-medium text-xs">{a.name}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs">{a.category}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
+                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.cost)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLife}y</td>
+                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciation}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(a.accumulatedDepreciation)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.bookValue)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status.replace("_", " ")}</Badge></td>
                   </tr>
                 ))}

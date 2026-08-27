@@ -107,39 +107,39 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground uppercase">
-                <th className="text-left pb-2">{t("Account", "الحساب")}</th>
-                <th className="text-right pb-2">{t("Amount", "المبلغ")}</th>
-                {comparing && <th className="text-right pb-2">{t("Prior", "السابق")}</th>}
-                {comparing && <th className="text-right pb-2">Δ</th>}
-                {comparing && <th className="text-right pb-2">Δ%</th>}
+                <th className="text-start pb-2">{t("Account", "الحساب")}</th>
+                <th className="text-end pb-2">{t("Amount", "المبلغ")}</th>
+                {comparing && <th className="text-end pb-2">{t("Prior", "السابق")}</th>}
+                {comparing && <th className="text-end pb-2">Δ</th>}
+                {comparing && <th className="text-end pb-2">Δ%</th>}
               </tr>
             </thead>
             <tbody>
               {merged.map(({ row, priorAmount }) => (
                 <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/10">
                   <td className="py-2.5 text-foreground">{n(row.name, row.nameAr)}</td>
-                  <td className={`py-2.5 text-right font-mono ${color}`}>{fmtNum(row.amount)}</td>
-                  {comparing && <td className="py-2.5 text-right font-mono text-muted-foreground">{fmtNum(priorAmount ?? 0)}</td>}
+                  <td className={`py-2.5 text-end font-mono ${color}`}>{fmtNum(row.amount)}</td>
+                  {comparing && <td className="py-2.5 text-end font-mono text-muted-foreground">{fmtNum(priorAmount ?? 0)}</td>}
                   {comparing && (
-                    <td className="py-2.5 text-right font-mono text-muted-foreground">
+                    <td className="py-2.5 text-end font-mono text-muted-foreground">
                       {row.amount - (priorAmount ?? 0) >= 0 ? "+" : ""}{fmtNum(row.amount - (priorAmount ?? 0))}
                     </td>
                   )}
-                  {comparing && <td className="py-2.5 text-right font-mono text-muted-foreground">{fmtPctChange(row.amount, priorAmount ?? 0)}</td>}
+                  {comparing && <td className="py-2.5 text-end font-mono text-muted-foreground">{fmtPctChange(row.amount, priorAmount ?? 0)}</td>}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className={`border-t-2 ${border} font-bold ${color}`}>
                 <td className="py-3 uppercase text-xs tracking-wide">{t(totalLabel, totalLabelAr)}</td>
-                <td className="py-3 text-right font-mono text-base">{fmtNum(total)}</td>
-                {comparing && <td className="py-3 text-right font-mono text-muted-foreground">{fmtNum(priorTotal ?? 0)}</td>}
+                <td className="py-3 text-end font-mono text-base">{fmtNum(total)}</td>
+                {comparing && <td className="py-3 text-end font-mono text-muted-foreground">{fmtNum(priorTotal ?? 0)}</td>}
                 {comparing && (
-                  <td className="py-3 text-right font-mono text-muted-foreground">
+                  <td className="py-3 text-end font-mono text-muted-foreground">
                     {total - (priorTotal ?? 0) >= 0 ? "+" : ""}{fmtNum(total - (priorTotal ?? 0))}
                   </td>
                 )}
-                {comparing && <td className="py-3 text-right font-mono text-muted-foreground">{fmtPctChange(total, priorTotal ?? 0)}</td>}
+                {comparing && <td className="py-3 text-end font-mono text-muted-foreground">{fmtPctChange(total, priorTotal ?? 0)}</td>}
               </tr>
             </tfoot>
           </table>

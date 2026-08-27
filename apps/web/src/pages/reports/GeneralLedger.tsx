@@ -128,7 +128,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[t("Date", "التاريخ"), t("Entry #", "رقم القيد"), t("Reference", "المرجع"), t("Description", "الوصف"), t("Debit", "مدين"), t("Credit", "دائن"), t("Running Balance", "الرصيد الجاري")].map(h => (
-                    <th key={h} className="text-left pb-2.5 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2.5 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -139,12 +139,12 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
                 </tr>
                 {data.movements.map((m, i) => (
                   <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2 pr-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={m.date} /></td>
-                    <td className="py-2 pr-4 font-mono text-xs text-primary">{m.entryNumber}</td>
-                    <td className="py-2 pr-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
-                    <td className="py-2 pr-4 text-xs">{m.description}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
+                    <td className="py-2 pe-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={m.date} /></td>
+                    <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
+                    <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
+                    <td className="py-2 pe-4 text-xs">{m.description}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
                     <td className={cn("py-2 font-mono text-xs font-semibold", m.balance < 0 ? "text-red-400" : "")}>{fmtNum(m.balance)}</td>
                   </tr>
                 ))}

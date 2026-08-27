@@ -246,7 +246,7 @@ export default function Quotations() {
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="w-4 h-4 mr-1" />{t("New quotation", "عرض سعر جديد")}</Button>
+              <Button size="sm"><Plus className="w-4 h-4 me-1" />{t("New quotation", "عرض سعر جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>{t("New quotation", "عرض سعر جديد")}</DialogTitle></DialogHeader>
@@ -285,7 +285,7 @@ export default function Quotations() {
                     </div>
                   ))}
                   <Button variant="outline" size="sm" onClick={() => setLines((p) => [...p, emptyLine()])}>
-                    <Plus className="w-3.5 h-3.5 mr-1" />{t("Add line", "إضافة بند")}
+                    <Plus className="w-3.5 h-3.5 me-1" />{t("Add line", "إضافة بند")}
                   </Button>
                 </div>
 
@@ -314,24 +314,24 @@ export default function Quotations() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pr-4">{t("Number", "الرقم")}</th>
-                    <th className="pb-2 pr-4">{t("Customer", "العميل")}</th>
-                    <th className="pb-2 pr-4">{t("Date", "التاريخ")}</th>
-                    <th className="pb-2 pr-4">{t("Valid until", "صالح حتى")}</th>
-                    <th className="pb-2 pr-4 text-right">{t("Total", "الإجمالي")}</th>
-                    <th className="pb-2 pr-4">{t("Status", "الحالة")}</th>
-                    <th className="pb-2 pr-4">{t("Progress", "التقدم")}</th>
-                    <th className="pb-2 text-right">{t("Actions", "إجراءات")}</th>
+                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
+                    <th className="pb-2 pe-4">{t("Number", "الرقم")}</th>
+                    <th className="pb-2 pe-4">{t("Customer", "العميل")}</th>
+                    <th className="pb-2 pe-4">{t("Date", "التاريخ")}</th>
+                    <th className="pb-2 pe-4">{t("Valid until", "صالح حتى")}</th>
+                    <th className="pb-2 pe-4 text-end">{t("Total", "الإجمالي")}</th>
+                    <th className="pb-2 pe-4">{t("Status", "الحالة")}</th>
+                    <th className="pb-2 pe-4">{t("Progress", "التقدم")}</th>
+                    <th className="pb-2 text-end">{t("Actions", "إجراءات")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quotations.map((q) => (
                     <tr key={q.id} className="border-b border-border/50">
-                      <td className="py-3 pr-4 font-mono text-xs text-primary">{q.quotationNumber}</td>
-                      <td className="py-3 pr-4">{q.customerName ?? "—"}</td>
-                      <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={q.date} /></td>
-                      <td className="py-3 pr-4 text-muted-foreground text-xs">
+                      <td className="py-3 pe-4 font-mono text-xs text-primary">{q.quotationNumber}</td>
+                      <td className="py-3 pe-4">{q.customerName ?? "—"}</td>
+                      <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={q.date} /></td>
+                      <td className="py-3 pe-4 text-muted-foreground text-xs">
                         {q.validUntil ? (
                           <span className="inline-flex items-center gap-1">
                             <DualDate date={q.validUntil} />
@@ -348,19 +348,19 @@ export default function Quotations() {
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="py-3 pr-4 text-right font-mono">{fmtNum(q.total)}</td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pe-4 text-end font-mono">{fmtNum(q.total)}</td>
+                      <td className="py-3 pe-4">
                         <Badge className={`text-xs gap-1 ${STATUS_STYLES[q.status] ?? ""}`}>
                           {STATUS_ICONS[q.status]}{q.status}
                         </Badge>
                         {q.outcome && (
-                          <Badge className="text-xs ml-1 bg-secondary text-muted-foreground">{q.outcome}</Badge>
+                          <Badge className="text-xs ms-1 bg-secondary text-muted-foreground">{q.outcome}</Badge>
                         )}
                       </td>
-                      <td className="py-3 pr-4 text-xs text-muted-foreground">
+                      <td className="py-3 pe-4 text-xs text-muted-foreground">
                         {t(...(CONVERSION_LABEL[q.conversionState] ?? ["—", "—"]))}
                       </td>
-                      <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                      <td className="py-3 text-end space-x-1 whitespace-nowrap">
                         {q.status === "draft" && (
                           <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: q.id, action: "submit" })}>
                             {t("Submit", "إرسال")}
@@ -373,13 +373,13 @@ export default function Quotations() {
                         )}
                         {q.status === "approved" && !q.outcome && q.conversionState !== "converted" && (
                           <Button size="sm" onClick={() => openConvert(q)}>
-                            <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />{t("Convert", "تحويل")}
+                            <ArrowRightLeft className="w-3.5 h-3.5 me-1" />{t("Convert", "تحويل")}
                           </Button>
                         )}
                         {q.status === "approved" && !q.outcome && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: q.id, action: "decline" })}>
-                              <XCircle className="w-3.5 h-3.5 mr-1" />{t("Declined", "مرفوض")}
+                              <XCircle className="w-3.5 h-3.5 me-1" />{t("Declined", "مرفوض")}
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => actionMut.mutate({ id: q.id, action: "close" })}>
                               {t("Close", "إغلاق")}
@@ -482,7 +482,7 @@ export default function Quotations() {
                       value={convertQty[i.id!] ?? ""}
                       onChange={(e) => setConvertQty((p) => ({ ...p, [i.id!]: e.target.value }))}
                     />
-                    <span className="col-span-2 text-right font-mono text-xs text-muted-foreground">
+                    <span className="col-span-2 text-end font-mono text-xs text-muted-foreground">
                       {fmtNum(i.unitPrice as number)}
                     </span>
                   </div>

@@ -59,19 +59,19 @@ export default function ApAging() {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Vendor", "Current", "1–30 Days", "31–60 Days", "61–90 Days", "Over 90", "Total"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
                   <tr key={r.vendorId} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pr-4 font-medium">{r.vendorName}</td>
-                    <td className="py-3 pr-4 font-mono text-emerald-400">{fmtNum(r.current)}</td>
-                    <td className="py-3 pr-4 font-mono text-amber-400">{fmtNum(r.days1_30)}</td>
-                    <td className="py-3 pr-4 font-mono text-orange-400">{fmtNum(r.days31_60)}</td>
-                    <td className="py-3 pr-4 font-mono text-red-400">{fmtNum(r.days61_90)}</td>
-                    <td className="py-3 pr-4 font-mono text-red-600">{fmtNum(r.over90)}</td>
+                    <td className="py-3 pe-4 font-medium">{r.vendorName}</td>
+                    <td className="py-3 pe-4 font-mono text-emerald-400">{fmtNum(r.current)}</td>
+                    <td className="py-3 pe-4 font-mono text-amber-400">{fmtNum(r.days1_30)}</td>
+                    <td className="py-3 pe-4 font-mono text-orange-400">{fmtNum(r.days31_60)}</td>
+                    <td className="py-3 pe-4 font-mono text-red-400">{fmtNum(r.days61_90)}</td>
+                    <td className="py-3 pe-4 font-mono text-red-600">{fmtNum(r.over90)}</td>
                     <td className="py-3 font-mono font-semibold">{fmtNum(r.total)}</td>
                   </tr>
                 ))}

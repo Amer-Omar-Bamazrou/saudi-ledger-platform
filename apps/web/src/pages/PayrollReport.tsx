@@ -98,20 +98,20 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Month", "Employees", "Gross Salary", "GOSI", "Allowances", "Deductions", "Net Salary", "Status"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(r => (
                   <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pr-3 font-medium">{r.month}</td>
-                    <td className="py-2 pr-3 font-mono">{r.employeeCount}</td>
-                    <td className="py-2 pr-3 font-mono">{fmtNum(r.grossSalary)}</td>
-                    <td className="py-2 pr-3 font-mono text-amber-400">{fmtNum(r.gosi)}</td>
-                    <td className="py-2 pr-3 font-mono text-emerald-400">{fmtNum(r.allowances)}</td>
-                    <td className="py-2 pr-3 font-mono text-red-400">{fmtNum(r.deductions)}</td>
-                    <td className="py-2 pr-3 font-mono font-semibold">{fmtNum(r.netSalary)}</td>
+                    <td className="py-2 pe-3 font-medium">{r.month}</td>
+                    <td className="py-2 pe-3 font-mono">{r.employeeCount}</td>
+                    <td className="py-2 pe-3 font-mono">{fmtNum(r.grossSalary)}</td>
+                    <td className="py-2 pe-3 font-mono text-amber-400">{fmtNum(r.gosi)}</td>
+                    <td className="py-2 pe-3 font-mono text-emerald-400">{fmtNum(r.allowances)}</td>
+                    <td className="py-2 pe-3 font-mono text-red-400">{fmtNum(r.deductions)}</td>
+                    <td className="py-2 pe-3 font-mono font-semibold">{fmtNum(r.netSalary)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</Badge></td>
                   </tr>
                 ))}

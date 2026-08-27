@@ -72,8 +72,8 @@ export default function Vendors() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <div className="relative max-w-xs">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-            <Input placeholder={t("Search vendors...", "بحث عن الموردين...")} className="pl-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
+            <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+            <Input placeholder={t("Search vendors...", "بحث عن الموردين...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
         </CardHeader>
         <CardContent>
@@ -81,10 +81,10 @@ export default function Vendors() {
             <div className="text-center py-12 text-muted-foreground"><Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No vendors yet. Add your first vendor.", "لا يوجد موردون بعد. أضف أول مورد.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Vendor","المورد"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("IBAN","IBAN"),t("Total Bills","إجمالي الفواتير"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Vendor","المورد"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("IBAN","IBAN"),t("Total Bills","إجمالي الفواتير"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{vendors.map(v=>(
                 <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pe-4">
                     <div className="font-medium text-foreground">{v.name}</div>
                     {arabicFieldStatus(v.nameAr) === "ok"
                       ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>
@@ -92,11 +92,11 @@ export default function Vendors() {
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
                       : <div className="text-[10px] text-amber-500/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pr-4 text-muted-foreground">{v.city||"—"}</td>
-                  <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
-                  <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
-                  <td className="py-3 pr-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
-                  <td className="py-3 pr-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-red-400":"text-emerald-400"}`}>{fmtNum(v.balance??0)}</span></td>
+                  <td className="py-3 pe-4 text-muted-foreground">{v.city||"—"}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
+                  <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
+                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-red-400":"text-emerald-400"}`}>{fmtNum(v.balance??0)}</span></td>
                   <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></td>
                 </tr>
               ))}</tbody>

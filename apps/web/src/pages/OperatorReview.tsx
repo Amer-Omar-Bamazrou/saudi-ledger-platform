@@ -107,7 +107,7 @@ export default function OperatorReview() {
                 <button
                   key={a.organizationId}
                   onClick={() => { setSelected(a.organizationId === selected ? null : a.organizationId); setReason(""); setError(""); }}
-                  className={`w-full text-left flex items-center gap-3 px-6 py-3 hover:bg-muted/40 ${selected === a.organizationId ? "bg-muted/40" : ""}`}
+                  className={`w-full text-start flex items-center gap-3 px-6 py-3 hover:bg-muted/40 ${selected === a.organizationId ? "bg-muted/40" : ""}`}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{a.name}</p>

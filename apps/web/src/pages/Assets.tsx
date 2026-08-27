@@ -93,16 +93,16 @@ export default function Assets() {
             <div className="text-center py-12 text-muted-foreground"><Package className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No fixed assets registered.", "لا توجد أصول ثابتة مسجلة.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Asset","الأصل"),t("Purchase Date","تاريخ الشراء"),t("Cost","التكلفة"),t("Book Value","القيمة الدفترية"),t("Accum. Dep.","الاستهلاك المتراكم"),t("Monthly Dep.","الاستهلاك الشهري"),t("Status","الحالة"),""].map(h=><th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Asset","الأصل"),t("Purchase Date","تاريخ الشراء"),t("Cost","التكلفة"),t("Book Value","القيمة الدفترية"),t("Accum. Dep.","الاستهلاك المتراكم"),t("Monthly Dep.","الاستهلاك الشهري"),t("Status","الحالة"),""].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>{assets.map(a=>(
                 <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-3"><div className="font-medium">{a.name}</div><div className="text-xs text-muted-foreground font-mono">{a.assetNumber}</div></td>
-                  <td className="py-3 pr-3 text-xs text-muted-foreground"><DualDate date={a.purchaseDate} /></td>
-                  <td className="py-3 pr-3 font-mono">{fmtNum(a.purchaseCost)}</td>
-                  <td className="py-3 pr-3 font-mono font-semibold text-amber-400">{fmtNum(a.currentBookValue)}</td>
-                  <td className="py-3 pr-3 font-mono text-muted-foreground">{fmtNum(a.accumulatedDepreciation)}</td>
-                  <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">{fmtNum(a.monthlyDepreciation)}</td>
-                  <td className="py-3 pr-3"><Badge className={`text-xs ${STATUS_STYLES[a.status]??""}`}>{a.status}</Badge></td>
+                  <td className="py-3 pe-3"><div className="font-medium">{a.name}</div><div className="text-xs text-muted-foreground font-mono">{a.assetNumber}</div></td>
+                  <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={a.purchaseDate} /></td>
+                  <td className="py-3 pe-3 font-mono">{fmtNum(a.purchaseCost)}</td>
+                  <td className="py-3 pe-3 font-mono font-semibold text-amber-400">{fmtNum(a.currentBookValue)}</td>
+                  <td className="py-3 pe-3 font-mono text-muted-foreground">{fmtNum(a.accumulatedDepreciation)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-muted-foreground">{fmtNum(a.monthlyDepreciation)}</td>
+                  <td className="py-3 pe-3"><Badge className={`text-xs ${STATUS_STYLES[a.status]??""}`}>{a.status}</Badge></td>
                   <td className="py-3">{a.status==="active"&&<Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={()=>setDepOpen(a.id)}><TrendingDown className="w-3 h-3"/>{t("Depreciate", "استهلاك")}</Button>}</td>
                 </tr>
               ))}</tbody>

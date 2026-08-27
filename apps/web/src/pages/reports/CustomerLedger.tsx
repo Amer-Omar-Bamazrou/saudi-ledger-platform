@@ -46,7 +46,7 @@ function CustomerRow({ cust }: { cust: CustomerBalance }) {
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase bg-card">
               {["Invoice #", "Date", "Due Date", "Subtotal", "VAT", "Total", "Paid", "Outstanding", "Status"].map(h => (
-                <th key={h} className="text-left py-2 px-4 font-medium">{h}</th>
+                <th key={h} className="text-start py-2 px-4 font-medium">{h}</th>
               ))}
             </tr>
           </thead>
@@ -104,7 +104,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Customer Ledger Report <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span></h1>
+          <h1 className="text-2xl font-bold text-foreground">Customer Ledger Report <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span></h1>
           <p className="text-muted-foreground text-sm mt-1">All invoices and balances per customer</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>

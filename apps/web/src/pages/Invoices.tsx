@@ -187,17 +187,17 @@ export default function Invoices() {
                 t("Total", "الإجمالي"),
                 t("Status", "الحالة"),
                 "",
-              ].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
-                  <td className="py-3 pr-4 font-medium">{inv.customerName ?? "—"}</td>
-                  <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
-                  <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
-                  <td className="py-3 pr-4 font-mono">{fmtNum(inv.subtotal)}</td>
-                  <td className="py-3 pr-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
-                  <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
-                  <td className="py-3 pr-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
+                  <td className="py-3 pe-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
+                  <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
+                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
+                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
+                  <td className="py-3 pe-4 font-mono">{fmtNum(inv.subtotal)}</td>
+                  <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
+                  <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
+                  <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
                       {inv.status !== "paid" && inv.status !== "cancelled" && (

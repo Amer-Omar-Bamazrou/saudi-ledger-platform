@@ -62,7 +62,7 @@ export default function Categorize() {
           <CardContent className="space-y-6">
             <div>
               <p className="text-sm font-medium text-muted-foreground">{t("Uncategorized Entries", "الإدخالات غير المصنّفة")}</p>
-              <p className="text-4xl font-mono font-bold text-white mt-2">
+              <p className="text-4xl font-mono font-bold text-foreground mt-2">
                 {summary?.uncategorizedCount ?? '-'}
               </p>
             </div>
@@ -74,7 +74,7 @@ export default function Categorize() {
               disabled={runMutation.isPending || summary?.uncategorizedCount === 0}
             >
               {runMutation.isPending ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t("Running...", "جارٍ التشغيل...")}</>
+                <><Loader2 className="w-5 h-5 me-2 animate-spin" /> {t("Running...", "جارٍ التشغيل...")}</>
               ) : (
                 <>{t("Run Engine", "تشغيل المحرك")}</>
               )}
@@ -128,11 +128,11 @@ export default function Categorize() {
                           <div className="flex items-center gap-3">
                             <span className="font-mono text-muted-foreground">ID: {r.transactionId}</span>
                             <Badge variant="outline" className="border-primary/30 text-primary">{r.categoryName}</Badge>
-                            {r.matchedRule && <span className="text-xs text-muted-foreground ml-2">{t("Rule:", "القاعدة:")} {r.matchedRule}</span>}
+                            {r.matchedRule && <span className="text-xs text-muted-foreground ms-2">{t("Rule:", "القاعدة:")} {r.matchedRule}</span>}
                           </div>
                           <div className="flex items-center gap-3 w-32">
                             <Progress value={r.confidence * 100} className="h-2" />
-                            <span className="font-mono text-xs w-8 text-right">{Math.round(r.confidence * 100)}%</span>
+                            <span className="font-mono text-xs w-8 text-end">{Math.round(r.confidence * 100)}%</span>
                           </div>
                         </div>
                       ))}

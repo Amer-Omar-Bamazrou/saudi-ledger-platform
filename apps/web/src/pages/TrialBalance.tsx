@@ -64,7 +64,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Apply", "تطبيق")}</Button>
             {data && (
-              <div className={`flex items-center gap-2 ml-auto px-4 py-2 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
+              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
                 {data.balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                 <span className={`text-sm font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}</span>
               </div>
@@ -87,10 +87,10 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  <th className="text-left pb-3 pr-4 font-medium">{t("Account", "الحساب")}</th>
-                  <th className="text-left pb-3 pr-4 font-medium">{t("Type", "النوع")}</th>
-                  <th className="text-right pb-3 pr-4 font-medium">{t("Debit (SAR)", "مدين (ر.س)")}</th>
-                  <th className="text-right pb-3 font-medium">{t("Credit (SAR)", "دائن (ر.س)")}</th>
+                  <th className="text-start pb-3 pe-4 font-medium">{t("Account", "الحساب")}</th>
+                  <th className="text-start pb-3 pe-4 font-medium">{t("Type", "النوع")}</th>
+                  <th className="text-end pb-3 pe-4 font-medium">{t("Debit (SAR)", "مدين (ر.س)")}</th>
+                  <th className="text-end pb-3 font-medium">{t("Credit (SAR)", "دائن (ر.س)")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -101,30 +101,30 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                     </tr>
                     {byType[type].map(row => (
                       <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
-                        <td className="py-2.5 pr-4 pl-2">
+                        <td className="py-2.5 pe-4 ps-2">
                           <span className="text-foreground">{n(row.name, row.nameAr)}</span>
-                          {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ml-2" dir="rtl">{row.nameAr}</span>}
+                          {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ms-2" dir="rtl">{row.nameAr}</span>}
                         </td>
-                        <td className="py-2.5 pr-4"><Badge variant="outline" className={`text-xs capitalize border-0 px-0 ${TYPE_STYLES[row.type]??""}`}>{row.type}</Badge></td>
-                        <td className="py-2.5 pr-4 text-right font-mono text-sm">{row.debit > 0 ? fmtNum(row.debit) : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="py-2.5 text-right font-mono text-sm">{row.credit > 0 ? fmtNum(row.credit) : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="py-2.5 pe-4"><Badge variant="outline" className={`text-xs capitalize border-0 px-0 ${TYPE_STYLES[row.type]??""}`}>{row.type}</Badge></td>
+                        <td className="py-2.5 pe-4 text-end font-mono text-sm">{row.debit > 0 ? fmtNum(row.debit) : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="py-2.5 text-end font-mono text-sm">{row.credit > 0 ? fmtNum(row.credit) : <span className="text-muted-foreground">—</span>}</td>
                       </tr>
                     ))}
                     <tr key={`subtotal-${type}`} className="border-b-2 border-border">
-                      <td className="py-2 pl-2 text-xs text-muted-foreground">{t("Subtotal", "المجموع الفرعي")} — {type}</td>
+                      <td className="py-2 ps-2 text-xs text-muted-foreground">{t("Subtotal", "المجموع الفرعي")} — {type}</td>
                       <td />
-                      <td className="py-2 pr-4 text-right font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.debit,0))}</td>
-                      <td className="py-2 text-right font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.credit,0))}</td>
+                      <td className="py-2 pe-4 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.debit,0))}</td>
+                      <td className="py-2 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.credit,0))}</td>
                     </tr>
                   </>
                 ))}
               </tbody>
               <tfoot>
                 <tr className={`font-bold text-sm ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>
-                  <td className="py-4 pr-4 pl-2 uppercase tracking-wide">{t("Total", "الإجمالي")}</td>
+                  <td className="py-4 pe-4 ps-2 uppercase tracking-wide">{t("Total", "الإجمالي")}</td>
                   <td />
-                  <td className="py-4 pr-4 text-right font-mono text-base">{fmtNum(data.totalDebit)}</td>
-                  <td className="py-4 text-right font-mono text-base">{fmtNum(data.totalCredit)}</td>
+                  <td className="py-4 pe-4 text-end font-mono text-base">{fmtNum(data.totalDebit)}</td>
+                  <td className="py-4 text-end font-mono text-base">{fmtNum(data.totalCredit)}</td>
                 </tr>
               </tfoot>
             </table>

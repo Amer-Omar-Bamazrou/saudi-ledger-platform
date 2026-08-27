@@ -54,7 +54,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>Generate</Button>
             {data && (
-              <div className={`flex items-center gap-2 ml-auto px-3 py-1.5 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
+              <div className={`flex items-center gap-2 ms-auto px-3 py-1.5 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
                 {data.balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                 <span className={`text-xs font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? "Balanced" : "Out of Balance"}</span>
               </div>
@@ -111,27 +111,27 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                      <th className="text-left pb-1.5 pr-4 font-medium">Account</th>
-                      <th className="text-left pb-1.5 pr-4 font-medium">Description</th>
-                      <th className="text-right pb-1.5 pr-4 font-medium">Debit</th>
-                      <th className="text-right pb-1.5 font-medium">Credit</th>
+                      <th className="text-start pb-1.5 pe-4 font-medium">Account</th>
+                      <th className="text-start pb-1.5 pe-4 font-medium">Description</th>
+                      <th className="text-end pb-1.5 pe-4 font-medium">Debit</th>
+                      <th className="text-end pb-1.5 font-medium">Credit</th>
                     </tr>
                   </thead>
                   <tbody>
                     {entry.lines.map(line => (
                       <tr key={line.id} className="border-b border-border/30">
-                        <td className="py-1.5 pr-4 text-foreground">{line.accountName}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground text-xs">{line.description ?? "—"}</td>
-                        <td className="py-1.5 pr-4 text-right font-mono text-sm">{line.debit > 0 ? <span className="text-blue-400">{fmtNum(line.debit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
-                        <td className="py-1.5 text-right font-mono text-sm">{line.credit > 0 ? <span className="text-emerald-400">{fmtNum(line.credit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
+                        <td className="py-1.5 pe-4 text-foreground">{line.accountName}</td>
+                        <td className="py-1.5 pe-4 text-muted-foreground text-xs">{line.description ?? "—"}</td>
+                        <td className="py-1.5 pe-4 text-end font-mono text-sm">{line.debit > 0 ? <span className="text-blue-400">{fmtNum(line.debit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
+                        <td className="py-1.5 text-end font-mono text-sm">{line.credit > 0 ? <span className="text-emerald-400">{fmtNum(line.credit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-border font-semibold text-xs text-muted-foreground">
                       <td colSpan={2} className="pt-2">Total</td>
-                      <td className="pt-2 text-right font-mono text-blue-400">{fmtNum(entry.totalDebit)}</td>
-                      <td className="pt-2 text-right font-mono text-emerald-400">{fmtNum(entry.totalCredit)}</td>
+                      <td className="pt-2 text-end font-mono text-blue-400">{fmtNum(entry.totalDebit)}</td>
+                      <td className="pt-2 text-end font-mono text-emerald-400">{fmtNum(entry.totalCredit)}</td>
                     </tr>
                   </tfoot>
                 </table>

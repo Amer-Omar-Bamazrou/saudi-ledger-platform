@@ -101,21 +101,21 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Invoice #", "Customer", "Date", "Due Date", "Subtotal", "VAT", "Total", "Outstanding", "Status"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(i => (
                   <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pr-3 font-mono text-xs text-primary">{i.invoiceNumber}</td>
-                    <td className="py-2 pr-3 font-medium text-xs">{i.customerName}</td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
-                    <td className="py-2 pr-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs text-amber-400">{fmtNum(i.vatAmount)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs font-semibold">{fmtNum(i.total)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs text-red-400">{fmtNum(i.total - i.paidAmount)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-primary">{i.invoiceNumber}</td>
+                    <td className="py-2 pe-3 font-medium text-xs">{i.customerName}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
+                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-amber-400">{fmtNum(i.vatAmount)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs font-semibold">{fmtNum(i.total)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(i.total - i.paidAmount)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[i.status] ?? ""}`}>{i.status}</Badge></td>
                   </tr>
                 ))}

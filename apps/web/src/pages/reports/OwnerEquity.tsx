@@ -43,7 +43,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Change in Owner Equity Statement
-            <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span>
+            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Opening equity + net income + contributions − withdrawals = closing equity</p>
         </div>

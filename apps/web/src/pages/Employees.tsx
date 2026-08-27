@@ -100,17 +100,17 @@ export default function Employees() {
             <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No employees found.", "لا يوجد موظفون.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("Status","الحالة")].map(h=><th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("Status","الحالة")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>{employees.map(e=>(
                 <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div></td>
-                  <td className="py-3 pr-3 text-muted-foreground text-xs">{e.department||"—"}</td>
-                  <td className="py-3 pr-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-blue-500/40 text-blue-400"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
-                  <td className="py-3 pr-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
-                  <td className="py-3 pr-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
-                  <td className="py-3 pr-3 font-mono text-xs text-amber-400">{fmtNum(e.gosiEmployee)}</td>
-                  <td className="py-3 pr-3 font-mono text-xs text-red-400">{fmtNum(e.gosiEmployer)}</td>
-                  <td className="py-3 pr-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
+                  <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div></td>
+                  <td className="py-3 pe-3 text-muted-foreground text-xs">{e.department||"—"}</td>
+                  <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-blue-500/40 text-blue-400"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
+                  <td className="py-3 pe-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
+                  <td className="py-3 pe-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-amber-400">{fmtNum(e.gosiEmployee)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-red-400">{fmtNum(e.gosiEmployer)}</td>
+                  <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
                   <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-emerald-500/20 text-emerald-400":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
                 </tr>
               ))}</tbody>

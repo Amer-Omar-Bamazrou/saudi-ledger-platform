@@ -104,7 +104,7 @@ export default function VatReport() {
             {isLoading ? (
               <Skeleton className="h-10 w-32" />
             ) : (
-              <p className="text-3xl font-mono font-bold text-white">{formatCurrency(sales?.box8_totalOutputVat || 0)}</p>
+              <p className="text-3xl font-mono font-bold text-foreground">{formatCurrency(sales?.box8_totalOutputVat || 0)}</p>
             )}
             <p className="text-xs text-muted-foreground">
               {t("From issued invoices, credit notes deducted", "من الفواتير الصادرة، بعد خصم الإشعارات الدائنة")}
@@ -120,7 +120,7 @@ export default function VatReport() {
             {isLoading ? (
               <Skeleton className="h-10 w-32" />
             ) : (
-              <p className="text-3xl font-mono font-bold text-white">{formatCurrency(purchases?.box13_recoverableInputVat || 0)}</p>
+              <p className="text-3xl font-mono font-bold text-foreground">{formatCurrency(purchases?.box13_recoverableInputVat || 0)}</p>
             )}
             <p className="text-xs text-muted-foreground">{t("From approved bills", "من فواتير المشتريات المعتمدة")}</p>
           </CardContent>
@@ -138,7 +138,7 @@ export default function VatReport() {
                 {formatCurrency(Math.abs(netDue))}
               </p>
             )}
-            <p className="text-xs font-bold text-white/70">
+            <p className="text-xs font-bold text-foreground/70">
               {netDue < 0 ? t("REFUND DUE", "مستحق الاسترداد") : t("PAYMENT DUE", "مستحق السداد")}
             </p>
           </CardContent>
@@ -170,20 +170,20 @@ export default function VatReport() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-start">
                 <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
                   <tr>
                     <th className="px-6 py-3 font-semibold w-16">{t("Box", "خانة")}</th>
                     <th className="px-6 py-3 font-semibold">{t("Description", "الوصف")}</th>
-                    <th className="px-6 py-3 font-semibold text-right">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
+                    <th className="px-6 py-3 font-semibold text-end">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {boxRows.map((row) => (
                     <tr key={row.box} className={row.emphasis ? "bg-secondary/30 font-semibold" : "hover:bg-secondary/30 transition-colors"}>
                       <td className="px-6 py-3 font-mono text-muted-foreground">{row.box}</td>
-                      <td className="px-6 py-3 text-white">{t(row.label, row.labelAr)}</td>
-                      <td className={`px-6 py-3 text-right font-mono ${row.emphasis ? "text-emerald-400" : ""}`}>
+                      <td className="px-6 py-3 text-foreground">{t(row.label, row.labelAr)}</td>
+                      <td className={`px-6 py-3 text-end font-mono ${row.emphasis ? "text-emerald-400" : ""}`}>
                         {formatCurrency(row.value || 0)}
                       </td>
                     </tr>
@@ -215,12 +215,12 @@ export default function VatReport() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Net VAT per your documents", "صافي الضريبة حسب مستنداتك")}</p>
-                <p className="text-2xl font-mono font-bold text-white">{formatCurrency(netDue)}</p>
+                <p className="text-2xl font-mono font-bold text-foreground">{formatCurrency(netDue)}</p>
                 <p className="text-xs text-muted-foreground">{t("This is the filing figure", "هذا هو رقم الإقرار")}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Net VAT per bank activity", "صافي الضريبة حسب الحركة البنكية")}</p>
-                <p className="text-2xl font-mono font-bold text-white">{formatCurrency(bankNet)}</p>
+                <p className="text-2xl font-mono font-bold text-foreground">{formatCurrency(bankNet)}</p>
                 <p className="text-xs text-muted-foreground">
                   {t("Estimated from imported transactions", "مقدّر من المعاملات المستوردة")}
                 </p>
@@ -271,21 +271,21 @@ export default function VatReport() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-start">
                 <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
                   <tr>
                     <th className="px-6 py-4 font-semibold">{t("Date", "التاريخ")}</th>
                     <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
                     <th className="px-6 py-4 font-semibold">{t("Type", "النوع")}</th>
-                    <th className="px-6 py-4 font-semibold text-right">{t("Gross Amount", "المبلغ الإجمالي")}</th>
-                    <th className="px-6 py-4 font-semibold text-right text-emerald-400">{t("VAT Amount", "مبلغ الضريبة")}</th>
+                    <th className="px-6 py-4 font-semibold text-end">{t("Gross Amount", "المبلغ الإجمالي")}</th>
+                    <th className="px-6 py-4 font-semibold text-end text-emerald-400">{t("VAT Amount", "مبلغ الضريبة")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {bankVat?.transactions?.map((tx) => (
                     <tr key={tx.id} className="hover:bg-secondary/30 transition-colors">
                       <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
-                      <td className="px-6 py-4 text-white font-medium">{tx.description}</td>
+                      <td className="px-6 py-4 text-foreground font-medium">{tx.description}</td>
                       <td className="px-6 py-4">
                         <Badge
                           variant="outline"
@@ -294,8 +294,8 @@ export default function VatReport() {
                           {tx.type === "credit" ? t("Output", "مخرجات") : t("Input", "مدخلات")}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right font-mono">{formatCurrency(tx.amount)}</td>
-                      <td className="px-6 py-4 text-right font-mono font-bold text-emerald-400">{formatCurrency(tx.vatAmount)}</td>
+                      <td className="px-6 py-4 text-end font-mono">{formatCurrency(tx.amount)}</td>
+                      <td className="px-6 py-4 text-end font-mono font-bold text-emerald-400">{formatCurrency(tx.vatAmount)}</td>
                     </tr>
                   ))}
                   {bankVat?.transactions?.length === 0 && (

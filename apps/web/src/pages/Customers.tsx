@@ -76,8 +76,8 @@ export default function Customers() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input placeholder={t("Search customers...", "بحث عن العملاء...")} className="pl-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
+              <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+              <Input placeholder={t("Search customers...", "بحث عن العملاء...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
             </div>
           </div>
         </CardHeader>
@@ -86,10 +86,10 @@ export default function Customers() {
             <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{customers.map(c=>(
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pe-4">
                     <div className="font-medium text-foreground">{c.name}</div>
                     {arabicFieldStatus(c.nameAr) === "ok"
                       ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div>
@@ -97,11 +97,11 @@ export default function Customers() {
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
                       : <div className="text-[10px] text-amber-500/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pr-4 text-muted-foreground">{c.city||"—"}</td>
-                  <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
-                  <td className="py-3 pr-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays}d</Badge></td>
-                  <td className="py-3 pr-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
-                  <td className="py-3 pr-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-amber-400":"text-emerald-400"}`}>{fmtNum(c.balance??0)}</span></td>
+                  <td className="py-3 pe-4 text-muted-foreground">{c.city||"—"}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
+                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays}d</Badge></td>
+                  <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
+                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-amber-400":"text-emerald-400"}`}>{fmtNum(c.balance??0)}</span></td>
                   <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></td>
                 </tr>
               ))}</tbody>

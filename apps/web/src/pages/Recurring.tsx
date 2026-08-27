@@ -170,7 +170,7 @@ export default function Recurring() {
                   {t("Last run failed", "فشل آخر تشغيل")}
                 </Badge>
               ) : null}
-              <span className="ml-auto flex gap-1">
+              <span className="ms-auto flex gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setOpenRuns(openRuns === rule.id ? null : rule.id)} className="gap-1">
                   {openRuns === rule.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                   {t("Runs", "التشغيلات")}

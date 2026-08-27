@@ -329,7 +329,7 @@ export default function Upload() {
                         <thead className="sticky top-0 bg-secondary border-b border-border">
                           <tr>
                             {[t("Status", "الحالة"), t("Date", "التاريخ"), t("Description", "الوصف"), t("Amount", "المبلغ"), t("Type", "النوع"), t("Currency", "العملة")].map(h => (
-                              <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
+                              <th key={h} className="text-start px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -343,7 +343,7 @@ export default function Upload() {
                               </td>
                               <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>
                               <td className="px-3 py-2 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">{t("empty", "فارغ")}</span>}</td>
-                              <td className="px-3 py-2 font-mono text-right tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
+                              <td className="px-3 py-2 font-mono text-end tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
                               <td className="px-3 py-2">
                                 <span className={`text-xs font-medium ${row.type === "credit" ? "text-emerald-400" : "text-red-400"}`}>
                                   {row.type}

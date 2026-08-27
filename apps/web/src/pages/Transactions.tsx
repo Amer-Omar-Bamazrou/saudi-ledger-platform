@@ -95,10 +95,10 @@ export default function Transactions() {
 
       <div className="flex flex-col md:flex-row gap-4 items-center bg-card p-4 rounded-lg border shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder={t("Search descriptions...", "بحث في الأوصاف...")}
-            className="pl-9"
+            className="ps-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -106,7 +106,7 @@ export default function Transactions() {
         
         <Select value={typeFilter ?? undefined} onValueChange={(v: any) => setTypeFilter(v)}>
           <SelectTrigger className="w-[140px]">
-            <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+            <Filter className="w-4 h-4 me-2 text-muted-foreground" />
             <SelectValue placeholder={t("Type", "النوع")} />
           </SelectTrigger>
           <SelectContent>
@@ -139,26 +139,26 @@ export default function Transactions() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-start">
               <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
                 <tr>
                   <th className="px-6 py-4 font-semibold">{t("Date", "التاريخ")}</th>
                   <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
-                  <th className="px-6 py-4 font-semibold text-right">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
+                  <th className="px-6 py-4 font-semibold text-end">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
                   <th className="px-6 py-4 font-semibold">{t("Category", "الفئة")}</th>
                   <th className="px-6 py-4 font-semibold">{t("Tags", "التصنيفات")}</th>
-                  <th className="px-6 py-4 text-right">{t("Actions", "إجراءات")}</th>
+                  <th className="px-6 py-4 text-end">{t("Actions", "إجراءات")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {txList?.transactions.map(tx => (
                   <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
                     <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
-                    <td className="px-6 py-4 text-white max-w-[300px]">
+                    <td className="px-6 py-4 text-foreground max-w-[300px]">
                       <div className="truncate font-medium">{tx.description}</div>
                       {tx.descriptionAr && <div className="text-xs text-muted-foreground mt-1" dir="rtl">{tx.descriptionAr}</div>}
                     </td>
-                    <td className="px-6 py-4 text-right font-mono whitespace-nowrap">
+                    <td className="px-6 py-4 text-end font-mono whitespace-nowrap">
                       <span className={tx.type === 'debit' ? 'text-destructive' : 'text-primary'}>
                         {tx.type === 'debit' ? '-' : '+'}{formatCurrency(tx.amount).replace('SAR', '').trim()}
                       </span>
@@ -242,7 +242,7 @@ export default function Transactions() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-end">
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -278,7 +278,7 @@ export default function Transactions() {
           {editTx && (
             <form onSubmit={handleUpdate} className="space-y-6 pt-4">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-white">{editTx.description}</p>
+                <p className="text-sm font-medium text-foreground">{editTx.description}</p>
                 <p className="text-xl font-mono tracking-tight">{formatCurrency(editTx.amount)}</p>
               </div>
 
@@ -300,7 +300,7 @@ export default function Transactions() {
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditTx(null)}>{t("Cancel", "إلغاء")}</Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  {updateMutation.isPending ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
                   {t("Save Override", "حفظ التعديل")}
                 </Button>
               </DialogFooter>

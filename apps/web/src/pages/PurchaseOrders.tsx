@@ -240,7 +240,7 @@ export default function PurchaseOrders() {
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="w-4 h-4 mr-1" />{t("New order", "أمر جديد")}</Button>
+              <Button size="sm"><Plus className="w-4 h-4 me-1" />{t("New order", "أمر جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>{t("New purchase order", "أمر شراء جديد")}</DialogTitle></DialogHeader>
@@ -279,7 +279,7 @@ export default function PurchaseOrders() {
                     </div>
                   ))}
                   <Button variant="outline" size="sm" onClick={() => setLines((p) => [...p, emptyLine()])}>
-                    <Plus className="w-3.5 h-3.5 mr-1" />{t("Add line", "إضافة بند")}
+                    <Plus className="w-3.5 h-3.5 me-1" />{t("Add line", "إضافة بند")}
                   </Button>
                 </div>
 
@@ -308,40 +308,40 @@ export default function PurchaseOrders() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pr-4">{t("Number", "الرقم")}</th>
-                    <th className="pb-2 pr-4">{t("Supplier", "المورد")}</th>
-                    <th className="pb-2 pr-4">{t("Date", "التاريخ")}</th>
-                    <th className="pb-2 pr-4 text-right">{t("Total", "الإجمالي")}</th>
-                    <th className="pb-2 pr-4">{t("Status", "الحالة")}</th>
-                    <th className="pb-2 pr-4">{t("Billing", "الفوترة")}</th>
-                    <th className="pb-2 text-right">{t("Actions", "إجراءات")}</th>
+                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
+                    <th className="pb-2 pe-4">{t("Number", "الرقم")}</th>
+                    <th className="pb-2 pe-4">{t("Supplier", "المورد")}</th>
+                    <th className="pb-2 pe-4">{t("Date", "التاريخ")}</th>
+                    <th className="pb-2 pe-4 text-end">{t("Total", "الإجمالي")}</th>
+                    <th className="pb-2 pe-4">{t("Status", "الحالة")}</th>
+                    <th className="pb-2 pe-4">{t("Billing", "الفوترة")}</th>
+                    <th className="pb-2 text-end">{t("Actions", "إجراءات")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((po) => (
                     <tr key={po.id} className="border-b border-border/50">
-                      <td className="py-3 pr-4 font-mono text-xs text-primary">{po.orderNumber}</td>
-                      <td className="py-3 pr-4">{po.vendorName ?? "—"}</td>
-                      <td className="py-3 pr-4 text-muted-foreground text-xs">
+                      <td className="py-3 pe-4 font-mono text-xs text-primary">{po.orderNumber}</td>
+                      <td className="py-3 pe-4">{po.vendorName ?? "—"}</td>
+                      <td className="py-3 pe-4 text-muted-foreground text-xs">
                         <DualDate date={po.date} />
                         {po.expired && (
-                          <span className="ml-1 inline-flex items-center gap-1 text-muted-foreground">
+                          <span className="ms-1 inline-flex items-center gap-1 text-muted-foreground">
                             <AlertTriangle className="w-3 h-3" />{t("lapsed", "منتهٍ")}
                           </span>
                         )}
                       </td>
-                      <td className="py-3 pr-4 text-right font-mono">{fmtNum(po.total)}</td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pe-4 text-end font-mono">{fmtNum(po.total)}</td>
+                      <td className="py-3 pe-4">
                         <Badge className={`text-xs gap-1 ${STATUS_STYLES[po.status] ?? ""}`}>
                           {STATUS_ICONS[po.status]}{po.status}
                         </Badge>
-                        {po.outcome && <Badge className="text-xs ml-1 bg-secondary text-muted-foreground">{po.outcome}</Badge>}
+                        {po.outcome && <Badge className="text-xs ms-1 bg-secondary text-muted-foreground">{po.outcome}</Badge>}
                       </td>
-                      <td className="py-3 pr-4 text-xs text-muted-foreground">
+                      <td className="py-3 pe-4 text-xs text-muted-foreground">
                         {t(...(BILLING_LABEL[po.billingState] ?? ["—", "—"]))}
                       </td>
-                      <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                      <td className="py-3 text-end space-x-1 whitespace-nowrap">
                         {po.status === "draft" && (
                           <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: po.id, action: "submit" })}>
                             {t("Submit", "إرسال")}
@@ -354,13 +354,13 @@ export default function PurchaseOrders() {
                         )}
                         {po.status === "approved" && !po.outcome && po.billingState !== "fully_billed" && (
                           <Button size="sm" onClick={() => openBilling(po)}>
-                            <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />{t("Record bill", "تسجيل فاتورة")}
+                            <ArrowRightLeft className="w-3.5 h-3.5 me-1" />{t("Record bill", "تسجيل فاتورة")}
                           </Button>
                         )}
                         {po.status === "approved" && !po.outcome && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: po.id, action: "cancel" })}>
-                              <XCircle className="w-3.5 h-3.5 mr-1" />{t("Cancel", "إلغاء")}
+                              <XCircle className="w-3.5 h-3.5 me-1" />{t("Cancel", "إلغاء")}
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => actionMut.mutate({ id: po.id, action: "close" })}>
                               {t("Close", "إغلاق")}

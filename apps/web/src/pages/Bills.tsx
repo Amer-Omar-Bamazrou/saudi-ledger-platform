@@ -64,26 +64,26 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
       <table className="w-full">
         <thead>
           <tr className="border-b border-border/50">
-            <th className="text-left px-3 py-1.5 text-muted-foreground font-normal">{t("Account", "الحساب")}</th>
-            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">{t("Dr", "مدين")}</th>
-            <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">{t("Cr", "دائن")}</th>
+            <th className="text-start px-3 py-1.5 text-muted-foreground font-normal">{t("Account", "الحساب")}</th>
+            <th className="text-end px-3 py-1.5 text-muted-foreground font-normal">{t("Dr", "مدين")}</th>
+            <th className="text-end px-3 py-1.5 text-muted-foreground font-normal">{t("Cr", "دائن")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/30">
           <tr>
             <td className="px-3 py-1.5 truncate max-w-[160px]">{debitAccount || "—"}</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums">{subtotal > 0 ? fmtNum(subtotal) : "—"}</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{subtotal > 0 ? fmtNum(subtotal) : "—"}</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
           </tr>
           <tr>
             <td className="px-3 py-1.5 text-muted-foreground">{t("Input VAT Receivable", "ضريبة القيمة المضافة المدخلة المستحقة")}</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums">{vatAmount > 0 ? fmtNum(vatAmount) : "—"}</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{vatAmount > 0 ? fmtNum(vatAmount) : "—"}</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
           </tr>
           <tr>
             <td className="px-3 py-1.5 text-muted-foreground">{t("Accounts Payable", "الذمم الدائنة")}</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">—</td>
-            <td className="px-3 py-1.5 text-right font-mono tabular-nums">{total > 0 ? fmtNum(total) : "—"}</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{total > 0 ? fmtNum(total) : "—"}</td>
           </tr>
         </tbody>
       </table>
@@ -428,21 +428,21 @@ export default function Bills() {
                     t("Status", "الحالة"),
                     "",
                   ].map(h => (
-                    <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {bills.map(b => (
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="py-3 pr-4 font-mono text-xs text-primary">{b.billNumber}</td>
-                    <td className="py-3 pr-4 font-medium">{b.vendorName ?? "—"}</td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs"><DualDate date={b.dueDate} /></td>
-                    <td className="py-3 pr-4 font-mono">{fmtNum(b.subtotal)}</td>
-                    <td className="py-3 pr-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
-                    <td className="py-3 pr-4 font-mono font-semibold">{fmtNum(b.total)}</td>
-                    <td className="py-3 pr-4">
+                    <td className="py-3 pe-4 font-mono text-xs text-primary">{b.billNumber}</td>
+                    <td className="py-3 pe-4 font-medium">{b.vendorName ?? "—"}</td>
+                    <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
+                    <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.dueDate} /></td>
+                    <td className="py-3 pe-4 font-mono">{fmtNum(b.subtotal)}</td>
+                    <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
+                    <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(b.total)}</td>
+                    <td className="py-3 pe-4">
                       <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{b.status}</Badge>
                     </td>
                     <td className="py-3 flex gap-1">

@@ -390,7 +390,7 @@ export default function FinanceHub() {
               onClick={() => lock.mutate({ data: { period, notes: notes || null } })}
               disabled={lock.isPending || !/^\d{4}-\d{2}$/.test(period)}
             >
-              {lock.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
+              {lock.isPending ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Lock className="w-4 h-4 me-2" />}
               {t("Close month", "إقفال الشهر")}
             </Button>
           </div>
@@ -430,7 +430,7 @@ export default function FinanceHub() {
                     </div>
                     {isOrgAdmin && (
                       <Button variant="ghost" size="sm" onClick={() => setReopening(l.period)}>
-                        <LockOpen className="w-3.5 h-3.5 mr-1.5" />
+                        <LockOpen className="w-3.5 h-3.5 me-1.5" />
                         {t("Reopen", "إعادة فتح")}
                       </Button>
                     )}

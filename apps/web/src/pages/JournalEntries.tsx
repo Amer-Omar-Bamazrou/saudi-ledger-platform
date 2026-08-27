@@ -88,26 +88,26 @@ export default function JournalEntries() {
                   t("Debit (SAR)", "مدين (ر.س)"),
                   t("Credit (SAR)", "دائن (ر.س)"),
                   "",
-                ].map(h=><th key={h} className="text-left pb-1 pr-2">{h}</th>)}</tr></thead>
+                ].map(h=><th key={h} className="text-start pb-1 pe-2">{h}</th>)}</tr></thead>
                 <tbody>
                   {lines.map((l, i) => (
                     <tr key={i}>
-                      <td className="pr-2 py-1">
+                      <td className="pe-2 py-1">
                         <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);updateLine(i,"accountId",Number(v));updateLine(i,"accountName",cat?.name??v);}}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
                           <SelectContent>{categories.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </td>
-                      <td className="pr-2 py-1"><Input value={l.description??""} onChange={e=>updateLine(i,"description",e.target.value)} className="h-7 text-xs" placeholder={t("Description...", "الوصف...")} /></td>
-                      <td className="pr-2 py-1"><Input type="number" value={l.debitAmount||""} onChange={e=>updateLine(i,"debitAmount",Number(e.target.value))} className="h-7 text-xs text-right font-mono" /></td>
-                      <td className="pr-2 py-1"><Input type="number" value={l.creditAmount||""} onChange={e=>updateLine(i,"creditAmount",Number(e.target.value))} className="h-7 text-xs text-right font-mono" /></td>
+                      <td className="pe-2 py-1"><Input value={l.description??""} onChange={e=>updateLine(i,"description",e.target.value)} className="h-7 text-xs" placeholder={t("Description...", "الوصف...")} /></td>
+                      <td className="pe-2 py-1"><Input type="number" value={l.debitAmount||""} onChange={e=>updateLine(i,"debitAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" /></td>
+                      <td className="pe-2 py-1"><Input type="number" value={l.creditAmount||""} onChange={e=>updateLine(i,"creditAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" /></td>
                       <td className="py-1"><Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={()=>setLines(p=>p.filter((_,idx)=>idx!==i))}><Trash2 className="w-3 h-3 text-muted-foreground" /></Button></td>
                     </tr>
                   ))}
                   <tr className="border-t border-border font-semibold">
                     <td colSpan={2} className="py-1 text-xs text-muted-foreground">{t("Totals", "الإجماليات")}</td>
-                    <td className={`py-1 font-mono text-xs text-right ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalDebit)}</td>
-                    <td className={`py-1 font-mono text-xs text-right ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalCredit)}</td>
+                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalDebit)}</td>
+                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalCredit)}</td>
                     <td />
                   </tr>
                 </tbody>
@@ -143,15 +143,15 @@ export default function JournalEntries() {
                   t("Credit", "دائن"),
                   t("Status", "الحالة"),
                   "",
-                ].map(h=><th key={h} className="text-left pb-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+                ].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
                 <tbody>{entries.map(e=>(
                   <tr key={e.id} className={`border-b border-border/50 transition-colors cursor-pointer ${selectedId===e.id?"bg-primary/5":"hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===e.id?null:e.id)}>
-                    <td className="py-2 pr-3 font-mono text-xs text-primary">{e.entryNumber}</td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
-                    <td className="py-2 pr-3 max-w-[140px] truncate">{e.description}</td>
-                    <td className="py-2 pr-3 font-mono text-xs text-emerald-400">{fmtNum(e.totalDebit)}</td>
-                    <td className="py-2 pr-3 font-mono text-xs text-red-400">{fmtNum(e.totalCredit)}</td>
-                    <td className="py-2 pr-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
+                    <td className="py-2 pe-3 font-mono text-xs text-primary">{e.entryNumber}</td>
+                    <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
+                    <td className="py-2 pe-3 max-w-[140px] truncate">{e.description}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-emerald-400">{fmtNum(e.totalDebit)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(e.totalCredit)}</td>
+                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
                     <td className="py-2">
                       {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-emerald-400" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
                       {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
@@ -176,11 +176,11 @@ export default function JournalEntries() {
                     t("Account", "الحساب"),
                     t("Dr", "مدين"),
                     t("Cr", "دائن"),
-                  ].map(h=><th key={h} className="text-left pb-1 pr-2">{h}</th>)}</tr></thead>
+                  ].map(h=><th key={h} className="text-start pb-1 pe-2">{h}</th>)}</tr></thead>
                   <tbody>{selectedEntry.lines.map((l, i) => (
                     <tr key={i} className="border-b border-border/30">
-                      <td className="py-1 pr-2 text-foreground">{l.accountName}</td>
-                      <td className={`py-1 pr-2 font-mono ${l.debitAmount>0?"text-emerald-400":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
+                      <td className="py-1 pe-2 text-foreground">{l.accountName}</td>
+                      <td className={`py-1 pe-2 font-mono ${l.debitAmount>0?"text-emerald-400":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
                       <td className={`py-1 font-mono ${l.creditAmount>0?"text-red-400":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
                     </tr>
                   ))}</tbody>

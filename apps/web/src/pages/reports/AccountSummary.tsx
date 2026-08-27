@@ -91,7 +91,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Account", "Type", "Opening Balance", "Period Debits", "Period Credits", "Closing Balance"].map(h => (
-                    <th key={h} className="text-left pb-3 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-3 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -103,19 +103,19 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
                     </tr>
                     {byType[type].map((r, i) => (
                       <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                        <td className="py-2.5 pr-4 pl-4 text-foreground text-sm">{r.name}</td>
-                        <td className="py-2.5 pr-4"><Badge variant="outline" className={cn("text-xs capitalize border-0 px-0", TYPE_COLOR[r.type] ?? "")}>{r.type}</Badge></td>
-                        <td className="py-2.5 pr-4 font-mono text-xs">{fmtNum(r.openingBalance)}</td>
-                        <td className="py-2.5 pr-4 font-mono text-xs text-blue-400">{r.periodDebit > 0 ? fmtNum(r.periodDebit) : "—"}</td>
-                        <td className="py-2.5 pr-4 font-mono text-xs text-emerald-400">{r.periodCredit > 0 ? fmtNum(r.periodCredit) : "—"}</td>
+                        <td className="py-2.5 pe-4 ps-4 text-foreground text-sm">{r.name}</td>
+                        <td className="py-2.5 pe-4"><Badge variant="outline" className={cn("text-xs capitalize border-0 px-0", TYPE_COLOR[r.type] ?? "")}>{r.type}</Badge></td>
+                        <td className="py-2.5 pe-4 font-mono text-xs">{fmtNum(r.openingBalance)}</td>
+                        <td className="py-2.5 pe-4 font-mono text-xs text-blue-400">{r.periodDebit > 0 ? fmtNum(r.periodDebit) : "—"}</td>
+                        <td className="py-2.5 pe-4 font-mono text-xs text-emerald-400">{r.periodCredit > 0 ? fmtNum(r.periodCredit) : "—"}</td>
                         <td className={cn("py-2.5 font-mono text-xs font-semibold", r.closingBalance < 0 ? "text-red-400" : "")}>{fmtNum(r.closingBalance)}</td>
                       </tr>
                     ))}
                     <tr key={`sub-${type}`} className="border-b-2 border-border/50">
-                      <td className="py-2 pl-4 text-xs text-muted-foreground" colSpan={2}>Subtotal — {type}</td>
-                      <td className="py-2 font-mono text-xs pr-4">{fmtNum(byType[type].reduce((s, r) => s + r.openingBalance, 0))}</td>
-                      <td className="py-2 font-mono text-xs pr-4 text-blue-400">{fmtNum(byType[type].reduce((s, r) => s + r.periodDebit, 0))}</td>
-                      <td className="py-2 font-mono text-xs pr-4 text-emerald-400">{fmtNum(byType[type].reduce((s, r) => s + r.periodCredit, 0))}</td>
+                      <td className="py-2 ps-4 text-xs text-muted-foreground" colSpan={2}>Subtotal — {type}</td>
+                      <td className="py-2 font-mono text-xs pe-4">{fmtNum(byType[type].reduce((s, r) => s + r.openingBalance, 0))}</td>
+                      <td className="py-2 font-mono text-xs pe-4 text-blue-400">{fmtNum(byType[type].reduce((s, r) => s + r.periodDebit, 0))}</td>
+                      <td className="py-2 font-mono text-xs pe-4 text-emerald-400">{fmtNum(byType[type].reduce((s, r) => s + r.periodCredit, 0))}</td>
                       <td className="py-2 font-mono text-xs font-bold">{fmtNum(byType[type].reduce((s, r) => s + r.closingBalance, 0))}</td>
                     </tr>
                   </>

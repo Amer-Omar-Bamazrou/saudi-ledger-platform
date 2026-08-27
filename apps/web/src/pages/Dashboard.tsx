@@ -165,7 +165,7 @@ function UnreadFindingsMarker() {
               )}
             </p>
           </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground/50 ml-auto mt-1" />
+          <ChevronRight className="w-4 h-4 text-muted-foreground/50 ms-auto mt-1" />
         </CardContent>
       </Card>
     </Link>
