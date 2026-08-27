@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-27.** 🔴 **F1 CLOSED — a cross-tenant ACCOUNT TAKEOVER (HIGH) that had been named twice in conversation and written down nowhere.** Any admin of any approved organization could graft a stranger's account into their own org (`POST /orgs/:orgId/members` required no consent from the account's owner, and `users.id` is a `serial`), which made that account "in scope", then reset its password and log in as them — into every tenant that account reached. Fixed by CONFINEMENT rather than overlap ([`lib/accountScope.ts`](apps/api/src/lib/accountScope.ts)); the takeover itself is now an executable regression test, verified by re-injection (pre-fix, login with the attacker's chosen password returns 200). Also this session: the **accounting-core throws AUDITED and closed** (the last 2026-08-20 blind spot — see that section), single currency enforced at the write boundary (#92), the owner-action checklist split out (#93), RTL logical properties across app code (#94), and the design pass's inherited decisions recorded in [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md) — including that **RTL is incomplete** while the vendored primitives stay unowned.
+**Last updated: 2026-08-27.** 🔴 **F1 CLOSED — a cross-tenant ACCOUNT TAKEOVER (HIGH)**, and 🔴 **F2 CLOSED — the operator job runner's reach was inherited from the scheduler registry rather than decided** (three offered, nine permitted; `capture-promotion` genuinely ran, unaudited). Both are the same class, now named in §3: **a composition defect is invisible to any review that reads one file at a time.** F1: any admin of any approved organization could graft a stranger's account into their own org (`POST /orgs/:orgId/members` required no consent, and `users.id` is a `serial`), making it "in scope", then reset its password and log in — into every tenant that account reached. Fixed by CONFINEMENT ([`lib/accountScope.ts`](apps/api/src/lib/accountScope.ts)). F2 fixed by the operator surface declaring its own reach ([`lib/operatorJobs.ts`](apps/api/src/lib/operatorJobs.ts)), refused at route and service, and audited. Both takeovers/reaches are executable regression tests, verified by re-injection. Also this session: the **accounting-core throws AUDITED and closed** (the last 2026-08-20 blind spot), single currency at the write boundary (#92), the owner-action checklist (#93), RTL logical properties across app code (#94), and the design pass's inherited decisions in [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md) — including that **RTL is incomplete** while the vendored primitives stay unowned. **Audit order in flight (owner): operator surface ✅ → accounting-core services → the write paths.**
 
 **Previously (2026-08-24): AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner actions (live, tickable): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the writer for their state; the snapshot is frozen history.)**
 
@@ -681,6 +681,31 @@ These are short forms; the rules are binding, the history explains why.
   not caught by adding more of either kind — when an operation moves value
   BETWEEN accounts, assert both accounts' balances, before and after. A
   conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A COMPOSITION DEFECT IS INVISIBLE TO ANY REVIEW THAT READS ONE FILE AT A
+  TIME** (named 2026-08-27, from F1). Its own class, because it explains a
+  miss rather than describing one. **F1 survived five audits — including two
+  dedicated authn/authz sweeps that reported "no new authz hole" — and every
+  one of them was right about every file it read.** `membersService.assign`
+  is correct: an admin may manage their org's members. `userAdminService`
+  is correct: it refuses users outside the actor's orgs. Neither file is
+  wrong. The vulnerability lives in the EDGE between them — one writes the
+  fact the other trusts — and an edge is not in either file, so no
+  file-at-a-time review can see it, however careful. Adding reviewers does
+  not help; they each read one file too.
+  **The countermeasure is a different question, asked of privileges rather
+  than of code: enumerate what a privilege can DO, not who is granted it.**
+  "Who may call `assign`?" has a correct, reassuring answer. "What can the
+  holder of `assign` cause to become true, and who else trusts that fact?"
+  finds F1 immediately — because it follows the privilege out of its file.
+  Concretely: for each privilege, list the state it can WRITE; for each
+  written fact, grep every guard that READS it; a guard reading a fact the
+  privilege writes is a composition edge, and it must be justified or closed.
+  🔴 **Corollary — the same blindness applies to a privilege's REACH.** A
+  privilege audited as "what its own routes do" is audited one file at a
+  time by another name: the question is what it permits through paths that
+  were never written with it in mind. That is why the operator surface is
+  audited by enumerating reach, not routes.
+
 - **🔴 A GUARD THAT TESTS A FACT ITS OWN CALLER CAN CREATE IS NOT A BOUNDARY**
   (F1, 2026-08-27 — cross-tenant account takeover, HIGH). M11.5.1 fixed
   "any admin can reset any user's password" by scoping the surface to users who
@@ -1032,6 +1057,52 @@ history entropy-scanning** (prefix/pickaxe only, no gitleaks pass), and
 **runtime-order test vacuity** (only execution reveals it).
 ✅ **The accounting core's own throws are now AUDITED (2026-08-27)** — the last
 of this list to close; findings below.
+
+**🔴 OPERATOR SURFACE — AUDITED (2026-08-27), by REACH rather than by routes.**
+Taken next after F1 because it is the platform's only cross-tenant privileged
+path, and audited with the question the composition class demands: *what does
+operator status actually permit, including through paths nobody wrote with
+operators in mind?*
+
+**Verified CLEAN, and worth knowing:** operator status is **not
+self-grantable** — there is NO write path to `platform_operators` anywhere in
+the API (only `packages/db/seed.ts`); `isOperator` is consulted in exactly one
+place (`lib/operator.ts`), so operator status adds nothing inside a tenant
+context; the review state machine never allows `approved` in `allowedFrom`, so
+an operator **cannot** reject a live tenant out of the platform; the
+transition re-asserts its guard atomically; `verification_documents` is its own
+table (not shared with tenant business documents) and `findInOrg` scopes by
+docId AND orgId, so there is no operator IDOR into tenant files.
+
+🔴 **F2 — the job runner's reach was inherited, not decided. FIXED.**
+`POST /operator/zatca/jobs/:name/run` validated against
+`getScheduler().names()` — the whole registry — so the surface gained reach
+every time any milestone registered a job. **The UI offers three buttons and
+the route's comment names three; the API permitted nine.** Re-injection shows
+what that meant: pre-fix, `demo-reset` returned **200** (the route accepted it;
+only the job's own `DEMO_MODE` precondition, in another service, prevented a
+wipe) and `capture-promotion` **actually ran** — irreversibly promoting
+tenants' captures into a store that by design cannot delete, with **no audit
+record at all**. The runner was the ONLY operator route that recorded nothing,
+while being the most consequential one available (draining the outbox transmits
+tenants' invoices to a tax authority). Neither file was wrong: registering
+every job is deliberate and load-bearing (`runNow` is how a job stays operable
+with its timer off), and the route did validate against a list — **a
+registration decision silently doubled as an authorization decision.**
+Fixed by `lib/operatorJobs.ts`: the operator surface declares its OWN reach,
+every job classified with a reason, refused at the route AND the service, the
+run audited as `operator.job_run` (org-less — a job run is platform-wide).
+`tests/operator-job-reach.test.ts` fails in BOTH directions when the registry
+and the classification disagree, so a new job cannot default to runnable and a
+stale rule cannot rot. Verified by re-injection (4 red).
+
+**Recorded, NOT fixed — scope observations, not vulnerabilities:**
+`getApplication` accepts ANY orgId, including an **approved, live** tenant, and
+returns its CR/VAT plus its verification documents — it is audited, and
+re-review is legitimate, but the access **never expires** and those documents
+carry third-party personal data, so it belongs with **C8 (PDPL)** rather than
+being silently fine. `onboardingStatus()` returns every company's VAT number
+across every tenant, unfiltered and unpaginated.
 
 **🔴 ACCOUNTING-CORE THROWS — AUDITED AND CLOSED (2026-08-27).** All 14 throws
 in `services/accounting/` + `services/approval/` enumerated and classified.
