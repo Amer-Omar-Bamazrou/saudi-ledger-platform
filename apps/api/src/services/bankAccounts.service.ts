@@ -1,6 +1,6 @@
 /** Bank accounts service — numeric (de)serialization. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
-import { pick, assertAmount, NUMERIC_15_2_MAX as MAX } from "../lib/writeGuards";
+import { pick, assertAmount, assertSupportedCurrency, NUMERIC_15_2_MAX as MAX } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable bank-account fields. */
 const BANK_FIELDS = [
@@ -32,6 +32,7 @@ export const bankAccountsService = {
     // used to produce "[object Object]" → raw 500. A bank balance may be
     // negative (overdraft), so `balance` is finite-any; `openingBalance` ≥ 0.
     const picked = pick<Record<string, unknown>>(data, BANK_FIELDS);
+    assertSupportedCurrency(picked.currency);
     const balance = assertAmount(data.balance ?? data.openingBalance ?? 0, "balance", { min: -MAX });
     const openingBalance = assertAmount(data.openingBalance ?? 0, "openingBalance", { min: 0, allowZero: true });
     const values = { ...picked, balance: balance.toFixed(2), openingBalance: openingBalance.toFixed(2) } as typeof bankAccountsTable.$inferInsert;
@@ -44,6 +45,7 @@ export const bankAccountsService = {
     const [before] = await bankAccountsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
     const updates = pick<Record<string, unknown>>(data, BANK_FIELDS);
+    assertSupportedCurrency(updates.currency);
     if (updates.balance != null) updates.balance = assertAmount(updates.balance, "balance", { min: -MAX }).toFixed(2);
     if (updates.openingBalance != null) updates.openingBalance = assertAmount(updates.openingBalance, "openingBalance", { min: 0, allowZero: true }).toFixed(2);
     const [row] = await bankAccountsRepository.update(id, updates as Partial<typeof bankAccountsTable.$inferInsert>);

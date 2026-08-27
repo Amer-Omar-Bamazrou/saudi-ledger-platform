@@ -727,6 +727,26 @@ These are short forms; the rules are binding, the history explains why.
   shrink below verdict-safe size); flags are set by measurement, but cases
   are never reworded until the engine fails them.
 
+- **🔴 RENDERING A VALUE THE SYSTEM CANNOT COMPUTE WITH ADVERTISES SUPPORT
+  THAT DOES NOT EXIST** (single-currency boundary, 2026-08-27, owner-named).
+  Nine tables stored `currency` and no aggregate read it — zero references in
+  `glPosting`, the reports/analytics/summary repositories and the VAT return —
+  and no exchange rate existed anywhere in the schema or the services. So a
+  USD row's bare number was summed into SAR totals and the filed return. The
+  reflex fix is to render it honestly ("USD 1,000.00"), and it is the WRONG
+  one: faithful rendering **converts a visible inconsistency into an endorsed
+  one**, telling the user the platform handles multi-currency while the ledger
+  adds dollars to riyals. When a stored value is displayed but never computed
+  with, the honest move is to **refuse the value at the write boundary** —
+  which is also what makes a hardcoded formatter correct rather than lucky.
+  Sibling of the confident zero: a missing producer yields an answer rather
+  than a gap; here a missing *consumer* yielded a label. 🔴 And the invariant
+  already existed in exactly ONE path — `transactions.service` refused non-SAR
+  statement rows (audit finding #4) while `bankAccounts.service` allowlisted
+  `currency` with no validation and a free-text input wrote through it:
+  *green fixes the case, not the class*, and the write boundary is where the
+  class lives (migration 0062).
+
 ## 4. Active constraints — do not break these
 
 ### Architecture

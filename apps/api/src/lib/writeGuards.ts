@@ -91,6 +91,44 @@ export function assertTaxCategoryCode(value: unknown, field: string): void {
 }
 
 /**
+ * The ONLY currency this platform can represent.
+ *
+ * ── Why this is a refusal and not a formatter fix (2026-08-26) ─────────────
+ * `currency` is stored on NINE tables and consulted by no aggregate: a grep of
+ * `glPosting.ts`, `reports.repository.ts`, `analytics.repository.ts`,
+ * `summary.repository.ts` and the VAT return returns ZERO references, and no
+ * exchange-rate column or conversion function exists anywhere in the schema or
+ * the services. So a row stored as USD has its bare number added straight into
+ * SAR totals, the trial balance and the filed VAT return.
+ *
+ * Rendering it honestly ("USD 1,000.00") would be the WORSE fix: it would
+ * advertise multi-currency support the ledger cannot deliver, turning a visible
+ * inconsistency into an endorsed one. The single-currency assumption is real —
+ * so it is enforced here rather than assumed everywhere, which is what makes
+ * the hardcoded SAR formatters in the web app correct instead of lucky.
+ *
+ * 🔴 This is the WRITE-BOUNDARY half of an invariant that already existed in
+ * exactly ONE path: `transactions.service.ts` refuses non-SAR statement rows
+ * (audit finding #4). Per-path enforcement is per-path review, and
+ * `bankAccounts.service.ts` allowlisted `currency` for direct client writes
+ * with no validation at all — a free-text input in the UI wrote through it.
+ * Migration 0062 is the DB CHECK backstop underneath this.
+ */
+export const SUPPORTED_CURRENCY = "SAR";
+
+export function assertSupportedCurrency(value: unknown, field = "currency"): void {
+  if (value == null) return;
+  const code = String(value).trim().toUpperCase();
+  if (code !== SUPPORTED_CURRENCY) {
+    throw new BadRequestError(
+      `${field} must be ${SUPPORTED_CURRENCY}. This platform keeps one set of books in Saudi riyals and ` +
+        `holds no exchange rates, so a ${code} amount would be added to SAR totals and the VAT return unconverted. ` +
+        `Convert the amount to SAR and enter that figure.`,
+    );
+  }
+}
+
+/**
  * A `YYYY-MM-DD` string that is a REAL calendar date. Business date columns are
  * `text`, so an invalid string otherwise persists and silently evades period
  * locks (which slice `YYYY-MM` off it) and lexical range filters. Rejects
