@@ -1391,6 +1391,15 @@ deleted at the M12 close-out. Workspace package names are unchanged; `pnpm
 
 Operating references:
 
+- 🔴 [`docs/hld.md`](docs/hld.md) — **the High-Level Design: the one document
+  that presents this system to someone who has never seen it** (technical
+  diligence, a prospective partner, a joining developer). Product, architecture,
+  the tenancy/security model incl. the operator boundary and the two composition
+  shapes, the data model, ZATCA, the AI layer, provider seams, and the
+  deployment posture stated honestly (nothing is deployed). It describes what
+  EXISTS and marks planned things as planned; it dates its claims and points
+  here for "now" rather than restating status.
+
 - `README.md` — overview and quick start; `docs/local-setup.md` — run locally.
 - [`docs/development-guide.md`](docs/development-guide.md) — layering,
   tenancy/RLS, RBAC, audit, "add a new domain" cookbook. Read before backend
