@@ -8,7 +8,7 @@
  * there is no RLS backstop here, so callers MUST authorize first (see the service).
  */
 import { db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 
 export const membersRepository = {
   /** The user's active membership role in an org, or null if not an active member. */
@@ -117,6 +117,59 @@ export const membersRepository = {
       .innerJoin(usersTable, eq(usersTable.id, organizationMembershipsTable.userId))
       .where(eq(organizationMembershipsTable.organizationId, orgId))
       .orderBy(asc(usersTable.name));
+  },
+
+  /**
+   * F1 — the organizations `targetUserId` belongs to that are NOT in `orgIds`.
+   *
+   * The predicate behind `lib/accountScope.ts`. Deliberately returns the ids
+   * rather than a boolean: a caller that must decide how much to disclose needs
+   * to know THAT there are foreign memberships, and a boolean invites the
+   * "isMemberOfAny" reading that F1 showed is the wrong question.
+   *
+   * 🔴 Status is NOT filtered. An `inactive` membership is one re-activation
+   * away from being access, and that re-activation belongs to the other
+   * organization — see the note in accountScope.ts for what the strict reading
+   * costs and why it is still the right side to err on.
+   */
+  async foreignMembershipOrgIds(targetUserId: number, orgIds: string[]): Promise<string[]> {
+    const rows = await db
+      .select({ organizationId: organizationMembershipsTable.organizationId })
+      .from(organizationMembershipsTable)
+      .where(
+        orgIds.length === 0
+          ? eq(organizationMembershipsTable.userId, targetUserId)
+          : and(
+              eq(organizationMembershipsTable.userId, targetUserId),
+              notInArray(organizationMembershipsTable.organizationId, orgIds),
+            ),
+      );
+    return [...new Set(rows.map((r) => r.organizationId))];
+  },
+
+  /**
+   * Organizations in which `userId` is an ACTIVE ADMIN, whatever the org's
+   * verification status.
+   *
+   * Distinct from `userAdminRepository.administeredOrgIds`, which additionally
+   * requires the org to be verification-`approved` because `/auth/*` sits
+   * outside the M11.2 gate. Membership management does NOT require approval —
+   * an org under review still administers its own members — so narrowing to
+   * approved orgs here would refuse an admin the right to re-activate a member
+   * of their own pending org. The two sets differ on purpose.
+   */
+  async administeredOrgIds(userId: number): Promise<string[]> {
+    const rows = await db
+      .select({ organizationId: organizationMembershipsTable.organizationId })
+      .from(organizationMembershipsTable)
+      .where(
+        and(
+          eq(organizationMembershipsTable.userId, userId),
+          eq(organizationMembershipsTable.role, "admin"),
+          eq(organizationMembershipsTable.status, "active"),
+        ),
+      );
+    return rows.map((r) => r.organizationId);
   },
 
   async userExists(userId: number): Promise<boolean> {
