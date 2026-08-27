@@ -42,6 +42,55 @@ export type GLLine = {
   creditAmount: number;
 } & ({ systemCode: SystemAccountCode; accountId?: never } | { accountId: number; systemCode?: never });
 
+/**
+ * The one tolerance for "these debits and credits are the same money".
+ *
+ * 🔴 EXPORTED, and imported by every other writer that gates on balance, because
+ * this invariant had TWO numbers: `journalEntries.service` refused a manual
+ * entry at `> 0.01` while this file refuses at `> 0.005`. Nothing crossed the
+ * two today — a manual entry posts through its own approvable and never reaches
+ * `postJournalEntry` — so the gap was latent rather than live (checked, not
+ * assumed). But it is the two-id-spaces shape: one invariant, two constants, no
+ * forcing function, and the outer gate LOOSER than the inner one, so the day a
+ * JE-creating path did call `postJournalEntry`, an imbalance in (0.005, 0.01]
+ * would pass the user-facing 400 and die as an opaque 500 on approval.
+ *
+ * Half a halala: anything larger rounds to a different smallest unit of money.
+ */
+export const GL_BALANCE_TOLERANCE = 0.005;
+
+/**
+ * Thrown when a set of lines does not balance.
+ *
+ * 🔴 TYPED, and the reason is the audit that found it: this was a bare `Error`
+ * — the only untyped throw in the accounting core — guarding the single most
+ * important invariant in the system. The central error handler duck-types on
+ * `statusCode`, so a bare Error becomes the generic 500 wall and the two totals
+ * survive only in the log. Its neighbours in this very function were already
+ * typed (`AccountResolutionError` carries its diagnosis at 500; `PeriodLockedError`
+ * is structured at 423), which is what made the odd one out visible.
+ *
+ * 500 and not 4xx, deliberately: every caller builds these lines itself, and
+ * user-supplied lines are balance-checked at their own write boundary before
+ * they ever reach here. Arriving here means OUR arithmetic is wrong, which is a
+ * server fault — so the status stays 500 and what changes is that the response
+ * SAYS what did not balance instead of "Internal server error".
+ */
+export class UnbalancedEntryError extends Error {
+  readonly statusCode = 500;
+  constructor(
+    readonly totalDebit: number,
+    readonly totalCredit: number,
+  ) {
+    super(
+      `GL entry does not balance: Dr ${totalDebit.toFixed(2)} vs Cr ${totalCredit.toFixed(2)} ` +
+        `(difference ${Math.abs(totalDebit - totalCredit).toFixed(4)}, tolerance ${GL_BALANCE_TOLERANCE}). ` +
+        "Nothing was posted.",
+    );
+    this.name = "UnbalancedEntryError";
+  }
+}
+
 /** Thrown when a posting names an account the tenant's chart does not contain. */
 export class AccountResolutionError extends Error {
   readonly statusCode = 500;
@@ -98,10 +147,8 @@ export async function postJournalEntry(opts: {
 }): Promise<typeof journalEntriesTable.$inferSelect> {
   const totalDebit = opts.lines.reduce((s, l) => s + l.debitAmount, 0);
   const totalCredit = opts.lines.reduce((s, l) => s + l.creditAmount, 0);
-  if (Math.abs(totalDebit - totalCredit) > 0.005) {
-    throw new Error(
-      `GL entry does not balance: Dr ${totalDebit.toFixed(2)} vs Cr ${totalCredit.toFixed(2)}`
-    );
+  if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
+    throw new UnbalancedEntryError(totalDebit, totalCredit);
   }
 
   // Resolve BEFORE writing anything, so an incomplete chart cannot leave a

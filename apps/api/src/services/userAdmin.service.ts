@@ -24,6 +24,7 @@
 import bcrypt from "bcryptjs";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { assertAccountConfinedTo } from "../lib/accountScope";
 import { securityAuditService } from "./securityAudit.service";
 
 // Must match apps/api/src/routes/auth.ts SALT_ROUNDS.
@@ -65,12 +66,27 @@ async function requireAdminScope(actorUserId: number): Promise<string[]> {
 }
 
 /** The target must be a member of an organization the actor administers. */
-async function assertTargetInScope(targetUserId: number, orgIds: string[]): Promise<void> {
+/**
+ * The target must be administrable by this actor. TWO conditions, and F1 is the
+ * lesson that the first alone is not a boundary:
+ *
+ *   1. IN SCOPE — the target shares an organization with the actor. Failing
+ *      this is concealed as 404: do not confirm the existence of users outside
+ *      the caller's scope (that would restore the cross-tenant enumeration
+ *      M11.5.1 removed).
+ *
+ *   2. 🔴 CONFINED — the target belongs to NO organization outside the actor's
+ *      scope. Condition 1 was written as the tenant boundary and is not one:
+ *      the actor can CREATE the sharing it tests, via
+ *      `POST /orgs/:orgId/members`, for any user id that exists. Password reset
+ *      and deactivation are acts on a platform-wide account, so they need the
+ *      condition the actor cannot manufacture. See lib/accountScope.ts.
+ */
+async function assertTargetAdministrable(targetUserId: number, orgIds: string[]): Promise<void> {
   if (!(await userAdminRepository.isMemberOfAny(targetUserId, orgIds))) {
-    // 404, not 403: do not confirm the existence of users outside the caller's
-    // scope (that would restore the cross-tenant enumeration this fix removes).
     throw new NotFoundError("User not found.");
   }
+  await assertAccountConfinedTo(targetUserId, orgIds, "explain");
 }
 
 export const userAdminService = {
@@ -128,7 +144,7 @@ export const userAdminService = {
     ctx: ActorContext = {},
   ) {
     const orgIds = await requireAdminScope(actorUserId);
-    await assertTargetInScope(targetUserId, orgIds);
+    await assertTargetAdministrable(targetUserId, orgIds);
 
     const updates: { role?: UserRoleValue; isActive?: boolean; name?: string } = {};
     if (changes.role !== undefined) {
@@ -178,7 +194,7 @@ export const userAdminService = {
     ctx: ActorContext = {},
   ) {
     const orgIds = await requireAdminScope(actorUserId);
-    await assertTargetInScope(targetUserId, orgIds);
+    await assertTargetAdministrable(targetUserId, orgIds);
 
     if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD) {
       throw new BadRequestError(`newPassword must be at least ${MIN_PASSWORD} characters.`);

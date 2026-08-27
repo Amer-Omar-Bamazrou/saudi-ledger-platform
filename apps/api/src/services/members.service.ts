@@ -21,6 +21,7 @@
  */
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { membersRepository } from "../repositories/members.repository";
+import { assertAccountConfinedTo } from "../lib/accountScope";
 import { securityAuditService } from "./securityAudit.service";
 
 /** Actor context for the security-audit trail, threaded from the identity route. */
@@ -61,6 +62,19 @@ export const membersService = {
       );
     }
     if (!(await membersRepository.userExists(userId))) throw new NotFoundError("User not found.");
+
+    // 🔴 F1 — the act that made the M11.5.1 scope forgeable.
+    // Creating a membership here is the ONLY way one admin can make a stranger's
+    // account "theirs", and `userAdminService` trusted exactly that fact to
+    // decide who may have their password reset. So the boundary belongs here as
+    // well as there: an account that already belongs to an organization this
+    // actor does not administer is not one they may quietly graft into their
+    // own. The consented path for such a person is an INVITATION (M11.7) —
+    // token to their address, accepted by them.
+    // Concealed (404, identical to a nonexistent id): the actor supplied a raw
+    // user id, and a distinct refusal would confirm that the id belongs to
+    // someone — the cross-tenant enumeration M11.5.1 removed.
+    await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal");
 
     const [membership] = await membersRepository.upsert(userId, orgId, role as MembershipRole);
     await securityAuditService.record({

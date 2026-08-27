@@ -23,7 +23,9 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-24 (AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner actions (live, tickable): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the writer for their state; the snapshot is frozen history.)**
+**Last updated: 2026-08-27.** 🔴 **F1 CLOSED — a cross-tenant ACCOUNT TAKEOVER (HIGH) that had been named twice in conversation and written down nowhere.** Any admin of any approved organization could graft a stranger's account into their own org (`POST /orgs/:orgId/members` required no consent from the account's owner, and `users.id` is a `serial`), which made that account "in scope", then reset its password and log in as them — into every tenant that account reached. Fixed by CONFINEMENT rather than overlap ([`lib/accountScope.ts`](apps/api/src/lib/accountScope.ts)); the takeover itself is now an executable regression test, verified by re-injection (pre-fix, login with the attacker's chosen password returns 200). Also this session: the **accounting-core throws AUDITED and closed** (the last 2026-08-20 blind spot — see that section), single currency enforced at the write boundary (#92), the owner-action checklist split out (#93), RTL logical properties across app code (#94), and the design pass's inherited decisions recorded in [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md) — including that **RTL is incomplete** while the vendored primitives stay unowned.
+
+**Previously (2026-08-24): AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner actions (live, tickable): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the writer for their state; the snapshot is frozen history.)**
 
 **Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
 (VAT treatments verified against the primary source; `FOOD_MEALS` was a live
@@ -679,6 +681,34 @@ These are short forms; the rules are binding, the history explains why.
   not caught by adding more of either kind — when an operation moves value
   BETWEEN accounts, assert both accounts' balances, before and after. A
   conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A GUARD THAT TESTS A FACT ITS OWN CALLER CAN CREATE IS NOT A BOUNDARY**
+  (F1, 2026-08-27 — cross-tenant account takeover, HIGH). M11.5.1 fixed
+  "any admin can reset any user's password" by scoping the surface to users who
+  **share an organization** with the actor. That predicate reads as a tenant
+  boundary and is not one: `POST /orgs/:orgId/members` created a membership for
+  any `userId` that EXISTED — no consent, no invitation, no email — and
+  `users.id` is a `serial`, so ids are counted, not guessed. Any admin of any
+  approved org could graft a stranger's account into their own org, then reset
+  its password, then log in as them — **into every tenant that account reached**.
+  The privilege that was self-grantable was not a role, it was MEMBERSHIP, and
+  the guard that trusted it was the previous cross-tenant hotfix itself.
+  **The test: for each fact a guard consults, ask who can WRITE that fact.** If
+  the actor can, the guard measures the actor's own behaviour. The fix replaced
+  overlap with **confinement** — the target's ENTIRE membership footprint must
+  lie inside the actor's administered orgs — because an actor can cause overlap
+  with one INSERT and cannot cause confinement at all (it would require deleting
+  another tenant's membership). 🔴 A second lesson rides along: **the scoping
+  question and the consent question were the same question wearing two hats.**
+  `assign` grafting an account without its owner's consent looked like a
+  usability wart; it was the exploit's first step. The consented path (M11.7
+  invitations) existed the whole time.
+  🔴 **And the meta-lesson, which is the expensive one: this was named twice in
+  conversation and written down nowhere**, so it survived two sessions while
+  lower-severity work shipped past it. A finding that lives only in a transcript
+  is not tracked — it is remembered, until it isn't. **A HIGH goes into this file
+  the moment it is named, before the session that named it ends** — even as one
+  line with no fix attached.
+
 - **🔴 FK CHECKS RUN OUTSIDE RLS — every plain FK between tenant-scoped
   tables is a cross-tenant edge no policy guards** (SECURITY finding,
   2026-08-23). Postgres evaluates FK constraints with the table owner's
@@ -998,9 +1028,40 @@ bill): RLS *policy* coverage was the biggest gap and is now closed by
 `tests/rls-coverage.test.ts`; still unaudited are the **permission-matrix seed
 grants** (enforcement was audited, the grants were not), **same-org
 cross-company isolation** (`app.current_company_id` at row level), **git
-history entropy-scanning** (prefix/pickaxe only, no gitleaks pass), the
-**accounting core's own throws** (`glPosting`, `periodLock`, approval
-adapters), and **runtime-order test vacuity** (only execution reveals it).
+history entropy-scanning** (prefix/pickaxe only, no gitleaks pass), and
+**runtime-order test vacuity** (only execution reveals it).
+✅ **The accounting core's own throws are now AUDITED (2026-08-27)** — the last
+of this list to close; findings below.
+
+**🔴 ACCOUNTING-CORE THROWS — AUDITED AND CLOSED (2026-08-27).** All 14 throws
+in `services/accounting/` + `services/approval/` enumerated and classified.
+**Thirteen were already correct** (typed `AppError`s in the approval engine;
+`PeriodLockedError` structured at 423; `AccountResolutionError` a deliberate
+diagnostic-500). `onApprove` failures propagate rather than being swallowed —
+the fail-closed posture holds. Two findings, both fixed:
+
+1. **The balance guard was the one untyped throw in the core** — a bare
+   `throw new Error(...)` guarding *debits equal credits*, the single most
+   important invariant in the system. The central handler duck-types on
+   `statusCode`, so it became the generic 500 wall with the two totals surviving
+   only in the log — the C5 shape (fail-closed right, diagnosis absent) on the
+   core's most consequential guard, while its two immediate neighbours in the
+   same function were both typed. Now `UnbalancedEntryError` (500, naming both
+   totals, the difference, the tolerance, and that nothing was posted).
+   🔴 **And nothing proved it fired**: the suite mentioned it twice, both in a
+   test asserting it does NOT fire. A guard whose only coverage asserts its
+   silence is the obsolete-assertion family — widen the tolerance or invert the
+   comparison and CI stays green. `tests/gl-balance-guard.test.ts` is the
+   presence assertion, with the anti-vacuity twin.
+2. **One invariant, two tolerances** — `journalEntries.service` refused a manual
+   entry at `> 0.01` while the GL refused at `> 0.005`, the user-facing gate
+   LOOSER than the ledger's. 🔴 **Not currently reachable** (checked, not
+   assumed: a manual entry posts through its own approvable and never calls
+   `postJournalEntry`), so it was latent — but it is the two-id-spaces shape,
+   and had a JE path ever reached the GL helper, an imbalance in (0.005, 0.01]
+   would have passed the 400 and died as an opaque 500 on approval. Now one
+   exported `GL_BALANCE_TOLERANCE`, imported rather than restated, with a test
+   that fails when the literal comes back (verified by re-injection).
 
 ### Other open findings (small, non-blocking)
 
@@ -1229,6 +1290,12 @@ Operating references:
 - [`docs/product/design-analytics.md`](docs/product/design-analytics.md) — Analytics
   (round 3): cash + solvency trends, "cash collected" never "revenue", and the
   rule that keeps AI parked (state WHERE a change came from, never WHY).
+- [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md)
+  — 🔴 what the UI redesign INHERITS, with measured costs: the vendored
+  `components/ui/**` deliberately not owned (**120 tokens / 25 files** of
+  physical properties still un-converted, so **RTL is incomplete** and becomes a
+  launch blocker if the design pass slips past launch), the dead `.dark` block,
+  and numeric alignment in RTL.
 - [`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md),
   [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md),
   [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
@@ -1302,6 +1369,45 @@ gate was never tested by a failure until one arrived). The failure was real
 difference local Supabase masked; fixed forward as 0047 within minutes).
 **Rule: a merge step must assert every check's `conclusion == success`, and a
 wait-loop is only a wait-loop.**
+
+**🔴 AN EMPTY VARIABLE TURNS A TARGETED EDIT INTO AN EDIT OF EVERY LINE — THE
+`rm -rf` SHAPE (2026-08-27).** A scripted edit to a tracked file was built from
+a shell variable that was empty. The command did not fail, and it did not match
+nothing: with no address to match on, `sed` applied the append to **every line
+in the file**. The tool reported success. A one-line change became a change to
+every line.
+
+That is the same shape as `rm -rf "$DIR"/` with `DIR` unset: **a command that
+cannot distinguish "no target" from "all targets", and whose default on that
+ambiguity is maximal action.** The family is worth naming because the members
+look nothing alike — `sed` without an address, `rm` with an empty path, a
+`DELETE` whose `WHERE` built to nothing, a filter with an empty allowlist. The
+tell is always the same: *what does this do when its input is empty?* If the
+answer is "everything", quoting discipline is not the fix.
+
+**The countermeasure — now the STANDING PATTERN for scripted edits to tracked
+files: `scripts/anchored-edit.mjs`.** Every edit names an anchor; the anchor must
+match **exactly once**; zero matches, two matches, or an empty anchor all abort
+having written nothing. It refuses untracked files unless told. The ambiguous
+case becomes *inexpressible* rather than merely discouraged — the §3 rule
+applied to our own tooling — and "no target" and "all targets" now have
+different, loud outcomes, which is the property `sed` lacks.
+
+🔴 **It earned itself immediately, twice in the session that introduced it.**
+Asked to rewrite `assertTargetInScope`, the anchor matched **two** call sites
+and it refused rather than silently editing the first — the exact ambiguity that
+had just cost a file. It also refused an empty anchor on a real source file when
+that case was tested deliberately. Use it (`--dry-run` first when unsure) for
+any scripted edit to a tracked file; a heredoc writing a WHOLE new file is fine,
+and reach for the editing tools for one-off changes.
+
+Related, and the reason the pattern is not optional: **§10b's stale-write hazard
+means a mixed diet of scripted and tool edits on one file can silently revert
+work.** One incident in this session: `git checkout -- <file>` after a
+re-injection test reverted to the last COMMIT and took an uncommitted fix with
+it. Nothing warned. It was caught only by re-grepping for the symbol that was
+supposed to be there. **After any revert, re-verify the changes you meant to
+keep are still present** — the same discipline as after a stale-snapshot warning.
 
 ## 11. Development Conventions
 

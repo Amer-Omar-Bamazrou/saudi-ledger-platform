@@ -15,6 +15,7 @@ import { ConflictError, NotFoundError } from "../lib/errors";
 import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
+import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
@@ -61,7 +62,11 @@ export const journalEntriesService = {
 
     const totalDebit = parsedLines.reduce((s, l) => s + l.debitAmount, 0);
     const totalCredit = parsedLines.reduce((s, l) => s + l.creditAmount, 0);
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    // 🔴 The tolerance is IMPORTED, not restated. This gate used to refuse at
+    // `> 0.01` while the GL's own guard refuses at `> 0.005` — one invariant,
+    // two numbers, the user-facing one LOOSER than the ledger's. See
+    // GL_BALANCE_TOLERANCE for what that gap was and why it stayed latent.
+    if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
       throw new BadRequestError("Journal entry must balance: debits must equal credits");
     }
 
