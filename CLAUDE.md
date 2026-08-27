@@ -681,6 +681,45 @@ These are short forms; the rules are binding, the history explains why.
   not caught by adding more of either kind — when an operation moves value
   BETWEEN accounts, assert both accounts' balances, before and after. A
   conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A CORRECT API AND A UI WRITTEN AGAINST AN IMAGINED ONE** (QA audit B1,
+  2026-08-27). `ApAging.tsx` declared `GET /reports/ap-aging` as returning
+  `ApAgingRow[]` and called `rows.reduce(...)`. The endpoint returns an OBJECT,
+  `{buckets, total, items[]}` — so `reduce` threw and the page rendered a
+  **completely blank screen**, zero characters, no error boundary.
+  🔴 **Every server-side check passed, because the server was right.** The
+  contract, the endpoint, its tests and the route-reachability guard were all
+  correct and all silent: the guard asks whether a UI file *references* the
+  route, and this one did. Nothing in the suite RENDERS a page, so nothing
+  could see it. `ArAging.tsx` reads the same response shape correctly — the
+  sibling diverged, which is "green fixes the case, not the class" again.
+  Two aggravating details worth carrying: `.catch(() => [])` **looked**
+  defensive but only catches a rejected fetch, so a shape mismatch sails past
+  it; and the page had been shipped, linked in nav, and typechecked clean —
+  TypeScript cannot check a hand-written interface against a real response.
+  **The countermeasure is not another static guard.** It is that a page must be
+  RENDERED by something before it counts as working — a smoke crawl that visits
+  every route authenticated and fails on a page error or an empty body. That is
+  mechanically checkable and did not exist; the audit's Playwright crawl found
+  this in one pass.
+  **Corollary, and the reason this is its own entry: any page using
+  hand-written `apiFetch<T>` with a hand-authored interface is unverified by
+  construction** — the generated OpenAPI client is the only thing that ties a
+  response type to the contract. Prefer it; where `apiFetch` is used, the type
+  is a claim nobody checks.
+
+- **🔴 A SERVER REFUSAL NOBODY SURFACES IS INDISTINGUISHABLE FROM A FROZEN UI**
+  (QA audit B2, 2026-08-27). `new QueryClient()` has no default error handling,
+  so any mutation whose `onError` was omitted failed silently: a 400 came back,
+  the dialog stayed open, and not one `[role=alert]` appeared. The validation
+  was correct; the user simply never learned it had fired, which leaves retrying
+  forever as the only rational response.
+  Fixed at the **mutation cache**, not per form — the write-boundary rule
+  applied to error surfacing, because per-form `onError` is per-form review and
+  a new form starts at zero. 🔴 **Surfacing it immediately paid for itself:**
+  the real refusal was `creditLimit must be a number`, not the 600-character
+  string the audit had assumed. An unsurfaced error is also a diagnosis nobody
+  gets — including us.
+
 - **🔴 A COMPOSITION DEFECT IS INVISIBLE TO ANY REVIEW THAT READS ONE FILE AT A
   TIME** (named 2026-08-27, from F1; the second shape added the same day). Its
   own class, because it explains a MISS rather than describing a bug. **F1
