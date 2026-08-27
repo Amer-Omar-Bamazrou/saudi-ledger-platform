@@ -242,7 +242,7 @@ export default function Findings() {
                 </Badge>
               )}
               {f.status === "resolved" && <Badge variant="outline">{t("No longer detected", "لم تعد مرصودة")}</Badge>}
-              <span className="ml-auto text-xs font-normal text-muted-foreground">
+              <span className="ms-auto text-xs font-normal text-muted-foreground">
                 {t("last seen", "آخر رصد")} <DualDate date={f.lastSeenAt.slice(0, 10)} inline />
               </span>
             </CardTitle>

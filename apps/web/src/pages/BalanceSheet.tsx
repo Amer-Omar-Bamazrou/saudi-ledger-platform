@@ -41,9 +41,9 @@ function Section({ title, titleAr, color, rows, extra, total, priorRows, priorEx
   const cells = (current: number, prior: number) =>
     !comparing ? null : (
       <>
-        <span className="font-mono text-muted-foreground w-24 text-right shrink-0">{fmtNum(prior)}</span>
-        <span className="font-mono text-muted-foreground w-24 text-right shrink-0">{current - prior >= 0 ? "+" : ""}{fmtNum(current - prior)}</span>
-        <span className="font-mono text-muted-foreground w-16 text-right shrink-0">{fmtPctChange(current, prior)}</span>
+        <span className="font-mono text-muted-foreground w-24 text-end shrink-0">{fmtNum(prior)}</span>
+        <span className="font-mono text-muted-foreground w-24 text-end shrink-0">{current - prior >= 0 ? "+" : ""}{fmtNum(current - prior)}</span>
+        <span className="font-mono text-muted-foreground w-16 text-end shrink-0">{fmtPctChange(current, prior)}</span>
       </>
     );
 
@@ -52,28 +52,28 @@ function Section({ title, titleAr, color, rows, extra, total, priorRows, priorEx
       <div className={`text-xs font-bold uppercase tracking-widest py-2 px-2 rounded ${color}`}>{t(title, titleAr)}</div>
       {comparing && (
         <div className="flex justify-end gap-0 px-2 text-[10px] uppercase text-muted-foreground">
-          <span className="w-24 text-right shrink-0">{t("Prior", "السابق")}</span>
-          <span className="w-24 text-right shrink-0">Δ</span>
-          <span className="w-16 text-right shrink-0">Δ%</span>
+          <span className="w-24 text-end shrink-0">{t("Prior", "السابق")}</span>
+          <span className="w-24 text-end shrink-0">Δ</span>
+          <span className="w-16 text-end shrink-0">Δ%</span>
         </div>
       )}
       {merged.map(({ item, prior }) => (
         <div key={item.key} className="flex justify-between items-center gap-2 py-1.5 px-2 hover:bg-secondary/10 rounded text-sm">
           <span className="text-foreground flex-1">{n(item.name, item.nameAr)}</span>
-          <span className="font-mono w-24 text-right shrink-0">{fmtNum(item.amount)}</span>
+          <span className="font-mono w-24 text-end shrink-0">{fmtNum(item.amount)}</span>
           {cells(item.amount, prior)}
         </div>
       ))}
       {extra?.map((e, i) => (
         <div key={`ex-${i}`} className="flex justify-between items-center gap-2 py-1.5 px-2 hover:bg-secondary/10 rounded text-sm">
           <span className="text-foreground flex-1">{t(e.label, e.labelAr)}</span>
-          <span className="font-mono w-24 text-right shrink-0">{fmtNum(e.amount)}</span>
+          <span className="font-mono w-24 text-end shrink-0">{fmtNum(e.amount)}</span>
           {cells(e.amount, priorExtra?.[i] ?? 0)}
         </div>
       ))}
       <div className="flex justify-between items-center gap-2 py-2 px-2 border-t border-border font-bold text-sm mt-1">
         <span className="text-muted-foreground uppercase text-xs tracking-wide flex-1">{t("Total", "الإجمالي")} {t(title, titleAr)}</span>
-        <span className="font-mono text-base w-24 text-right shrink-0">{fmtNum(total)}</span>
+        <span className="font-mono text-base w-24 text-end shrink-0">{fmtNum(total)}</span>
         {cells(total, priorTotal ?? 0)}
       </div>
     </div>
@@ -134,7 +134,7 @@ export default function BalanceSheet() {
             <CompareSelect value={compare} onChange={setCompare} />
             <AsOfShortcuts value={asOf} onSelect={(d)=>{setAsOf(d);setApplied(d);}} />
             {data && (
-              <div className={`flex items-center gap-2 ml-auto px-4 py-2 rounded-lg border ${balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
+              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
                 {balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                 <span className={`text-sm font-medium ${balanced ? "text-emerald-400" : "text-red-400"}`}>{balanced ? t("Balanced", "متوازن") : t("Check entries", "تحقق من القيود")}</span>
               </div>

@@ -99,7 +99,7 @@ export default function ArAging() {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Invoice #", "Customer", "Due Date", "Days Past Due", "Outstanding", "Aging"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -108,15 +108,15 @@ export default function ArAging() {
                   const bucket = agingBucket(item.daysPastDue);
                   return (
                     <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                      <td className="py-3 pr-4 font-mono text-xs text-primary">{item.invoiceNumber}</td>
-                      <td className="py-3 pr-4 font-medium">{item.customerName}</td>
-                      <td className="py-3 pr-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pe-4 font-mono text-xs text-primary">{item.invoiceNumber}</td>
+                      <td className="py-3 pe-4 font-medium">{item.customerName}</td>
+                      <td className="py-3 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
+                      <td className="py-3 pe-4">
                         <span className={`font-mono font-bold ${BUCKET_COLORS[bucket]}`}>
                           {item.daysPastDue <= 0 ? "Current" : `${item.daysPastDue}d`}
                         </span>
                       </td>
-                      <td className="py-3 pr-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
+                      <td className="py-3 pe-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
                       <td className="py-3">
                         <Badge className={`text-xs ${bucket === "current" ? "bg-emerald-500/20 text-emerald-400" : bucket === "days_1_30" ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
                           {BUCKET_LABELS[bucket]}

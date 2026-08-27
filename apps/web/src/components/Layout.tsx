@@ -234,7 +234,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Sidebar */}
-      <aside className="w-60 border-r border-border bg-sidebar shrink-0 flex flex-col">
+      <aside className="w-60 border-e border-border bg-sidebar shrink-0 flex flex-col">
         {/* Brand */}
         <div className="h-14 flex items-center px-4 border-b border-border">
           <div className="flex items-center gap-2">

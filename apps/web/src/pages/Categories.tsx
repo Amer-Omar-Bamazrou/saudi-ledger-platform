@@ -91,7 +91,7 @@ export default function Categories() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="lg">
-              <Plus className="w-5 h-5 mr-2" />
+              <Plus className="w-5 h-5 me-2" />
               {t("New Category", "فئة جديدة")}
             </Button>
           </DialogTrigger>
@@ -182,7 +182,7 @@ export default function Categories() {
               <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("Cancel", "إلغاء")}</Button>
                 <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {createMutation.isPending && <Loader2 className="w-4 h-4 me-2 animate-spin" />}
                   {t("Create Category", "إنشاء فئة")}
                 </Button>
               </DialogFooter>
@@ -193,7 +193,7 @@ export default function Categories() {
 
       <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-start">
             <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
               <tr>
                 <th className="px-6 py-4 font-semibold">{t("Name", "الاسم")}</th>
@@ -211,7 +211,7 @@ export default function Categories() {
               ) : categories?.map((cat) => (
                 <tr key={cat.id} className="hover:bg-secondary/30 transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-white">{cat.name}</div>
+                    <div className="font-semibold text-foreground">{cat.name}</div>
                     <div className="text-xs text-muted-foreground font-arabic mt-1" dir="rtl">{cat.nameAr}</div>
                   </td>
                   <td className="px-6 py-4 uppercase text-xs font-bold">

@@ -122,11 +122,11 @@ export default function OperatorZatcaPanel() {
           </CardTitle>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => runJob.mutate("einvoice-outbox")} disabled={runJob.isPending}>
-              <PlayCircle className="mr-1 h-3 w-3" />
+              <PlayCircle className="me-1 h-3 w-3" />
               {t("Drain outbox", "تفريغ الطابور")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => runJob.mutate("einvoice-archive")} disabled={runJob.isPending}>
-              <Archive className="mr-1 h-3 w-3" />
+              <Archive className="me-1 h-3 w-3" />
               {t("Sweep archive", "أرشفة")}
             </Button>
           </div>
@@ -188,7 +188,7 @@ export default function OperatorZatcaPanel() {
             {t("Certificate expiry", "انتهاء الشهادات")}
           </CardTitle>
           <Button size="sm" variant="outline" onClick={() => runJob.mutate("zatca-renewal-reminders")} disabled={runJob.isPending}>
-            <PlayCircle className="mr-1 h-3 w-3" />
+            <PlayCircle className="me-1 h-3 w-3" />
             {t("Check now", "تحقق الآن")}
           </Button>
         </CardHeader>

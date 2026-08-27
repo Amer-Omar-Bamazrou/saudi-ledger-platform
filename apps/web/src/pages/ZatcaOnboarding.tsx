@@ -263,12 +263,12 @@ export default function ZatcaOnboarding() {
                   <span className="font-medium">{d.label}</span>
                 </div>
                 {d.errors.map((e) => (
-                  <div key={e.code} className="ml-6 text-destructive">
+                  <div key={e.code} className="ms-6 text-destructive">
                     {e.code}: {e.message}
                   </div>
                 ))}
                 {d.warnings.map((w) => (
-                  <div key={w.code} className="ml-6 text-yellow-600">
+                  <div key={w.code} className="ms-6 text-yellow-600">
                     {w.code}: {w.message}
                   </div>
                 ))}

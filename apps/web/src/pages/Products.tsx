@@ -82,8 +82,8 @@ export default function Products() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input placeholder={t("Search items...", "بحث عن العناصر...")} className="pl-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
+              <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+              <Input placeholder={t("Search items...", "بحث عن العناصر...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
             </div>
             {["all","service","product"].map(tp=><Button key={tp} variant={typeFilter===tp?"default":"ghost"} size="sm" className="h-7 text-xs capitalize" onClick={()=>setTypeFilter(tp)}>{tp === "all" ? t("all","الكل") : tp === "service" ? t("service","خدمة") : t("product","منتج")}</Button>)}
           </div>
@@ -93,18 +93,18 @@ export default function Products() {
             <div className="text-center py-12 text-muted-foreground"><ShoppingBag className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No items yet. Add your first product or service.", "لا توجد عناصر بعد. أضف أول منتج أو خدمة.")}</p></div>
           ) : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Item","العنصر"),t("Type","النوع"),t("Unit","الوحدة"),t("Price","السعر"),t("Cost","التكلفة"),t("Margin","هامش الربح"),t("Stock","المخزون"),t("VAT","ضريبة القيمة المضافة")].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Item","العنصر"),t("Type","النوع"),t("Unit","الوحدة"),t("Price","السعر"),t("Cost","التكلفة"),t("Margin","هامش الربح"),t("Stock","المخزون"),t("VAT","ضريبة القيمة المضافة")].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{products.map(p=>{
                 const margin = p.unitCost && p.unitPrice > 0 ? ((p.unitPrice - p.unitCost) / p.unitPrice * 100) : null;
                 return (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="py-3 pr-4"><div className="font-medium">{p.name}</div>{p.code&&<div className="text-xs text-muted-foreground font-mono">{p.code}</div>}</td>
-                    <td className="py-3 pr-4"><Badge variant="outline" className="text-xs capitalize">{p.type}</Badge></td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{p.unit||"—"}</td>
-                    <td className="py-3 pr-4 font-mono">{fmtNum(p.unitPrice)}</td>
-                    <td className="py-3 pr-4 font-mono text-muted-foreground">{p.unitCost ? fmtNum(p.unitCost) : "—"}</td>
-                    <td className="py-3 pr-4"><span className={`font-mono text-xs ${margin && margin > 30 ? "text-emerald-400" : margin && margin > 0 ? "text-amber-400" : "text-muted-foreground"}`}>{margin != null ? `${margin.toFixed(1)}%` : "—"}</span></td>
-                    <td className="py-3 pr-4 font-mono text-xs">{p.type==="product"?<span className={p.reorderPoint && p.stockQty <= p.reorderPoint ? "text-red-400" : "text-foreground"}>{p.stockQty}</span>:"—"}</td>
+                    <td className="py-3 pe-4"><div className="font-medium">{p.name}</div>{p.code&&<div className="text-xs text-muted-foreground font-mono">{p.code}</div>}</td>
+                    <td className="py-3 pe-4"><Badge variant="outline" className="text-xs capitalize">{p.type}</Badge></td>
+                    <td className="py-3 pe-4 text-muted-foreground text-xs">{p.unit||"—"}</td>
+                    <td className="py-3 pe-4 font-mono">{fmtNum(p.unitPrice)}</td>
+                    <td className="py-3 pe-4 font-mono text-muted-foreground">{p.unitCost ? fmtNum(p.unitCost) : "—"}</td>
+                    <td className="py-3 pe-4"><span className={`font-mono text-xs ${margin && margin > 30 ? "text-emerald-400" : margin && margin > 0 ? "text-amber-400" : "text-muted-foreground"}`}>{margin != null ? `${margin.toFixed(1)}%` : "—"}</span></td>
+                    <td className="py-3 pe-4 font-mono text-xs">{p.type==="product"?<span className={p.reorderPoint && p.stockQty <= p.reorderPoint ? "text-red-400" : "text-foreground"}>{p.stockQty}</span>:"—"}</td>
                     <td className="py-3"><Badge className={`text-xs ${p.vatApplicable?"bg-blue-500/20 text-blue-400":"bg-secondary text-muted-foreground"}`}>{p.vatApplicable ? t("15%","15%") : t("Exempt","معفى")}</Badge></td>
                   </tr>
                 );

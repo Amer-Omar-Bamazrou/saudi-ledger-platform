@@ -42,14 +42,14 @@ function CFBlock({ title, data, color, icon, prior }: { title: string; data: CFS
       </CardHeader>
       <CardContent>
         <table className="w-full text-xs">
-          <thead><tr className="border-b border-border text-muted-foreground uppercase"><th className="text-left pb-1">{t("Item", "البند")}</th><th className="text-right pb-1">{t("Amount", "المبلغ")}</th></tr></thead>
+          <thead><tr className="border-b border-border text-muted-foreground uppercase"><th className="text-start pb-1">{t("Item", "البند")}</th><th className="text-end pb-1">{t("Amount", "المبلغ")}</th></tr></thead>
           <tbody>
             {data.items.length === 0 ? (
               <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">{t("No items", "لا توجد بنود")}</td></tr>
             ) : data.items.slice(0, 10).map((item, i) => (
               <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                <td className="py-1.5 pr-2 text-foreground">{item.name}</td>
-                <td className={`py-1.5 text-right font-mono ${item.amount >= 0 ? "text-emerald-400" : "text-red-400"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
+                <td className="py-1.5 pe-2 text-foreground">{item.name}</td>
+                <td className={`py-1.5 text-end font-mono ${item.amount >= 0 ? "text-emerald-400" : "text-red-400"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
               </tr>
             ))}
             {data.items.length > 10 && <tr><td colSpan={2} className="py-1 text-center text-muted-foreground text-xs">+{data.items.length - 10} {t("more items", "بنود إضافية")}</td></tr>}
@@ -141,7 +141,7 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{t("Net Change in Cash", "صافي التغير في النقدية")}</div>
             <div className={`text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
           </div>
-          <div className="text-right text-xs text-muted-foreground space-y-1">
+          <div className="text-end text-xs text-muted-foreground space-y-1">
             <div>{t("Operating", "التشغيلية")}: <span className={data.operating.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.operating.total)}</span></div>
             <div>{t("Investing", "الاستثمارية")}: <span className={data.investing.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.investing.total)}</span></div>
             <div>{t("Financing", "التمويلية")}: <span className={data.financing.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.financing.total)}</span></div>

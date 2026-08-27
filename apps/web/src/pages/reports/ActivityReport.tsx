@@ -83,20 +83,20 @@ export default function ActivityReport() {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Entry #", "Date", "Description", "Reference", "Lines", "Total", "Accounts", "Status"].map(h => (
-                    <th key={h} className="text-left pb-2.5 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2.5 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.activities.map(a => (
                   <tr key={a.id} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2.5 pr-4 font-mono text-xs text-primary">{a.entryNumber}</td>
-                    <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
-                    <td className="py-2.5 pr-4 text-xs max-w-48 truncate">{a.description}</td>
-                    <td className="py-2.5 pr-4 text-xs text-muted-foreground">{a.reference ?? "—"}</td>
-                    <td className="py-2.5 pr-4 text-xs font-mono">{a.lineCount}</td>
-                    <td className="py-2.5 pr-4 font-mono text-xs">{fmtNum(a.totalDebit)}</td>
-                    <td className="py-2.5 pr-4 text-xs text-muted-foreground max-w-40 truncate">{a.accounts.join(", ")}</td>
+                    <td className="py-2.5 pe-4 font-mono text-xs text-primary">{a.entryNumber}</td>
+                    <td className="py-2.5 pe-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
+                    <td className="py-2.5 pe-4 text-xs max-w-48 truncate">{a.description}</td>
+                    <td className="py-2.5 pe-4 text-xs text-muted-foreground">{a.reference ?? "—"}</td>
+                    <td className="py-2.5 pe-4 text-xs font-mono">{a.lineCount}</td>
+                    <td className="py-2.5 pe-4 font-mono text-xs">{fmtNum(a.totalDebit)}</td>
+                    <td className="py-2.5 pe-4 text-xs text-muted-foreground max-w-40 truncate">{a.accounts.join(", ")}</td>
                     <td className="py-2.5"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status}</Badge></td>
                   </tr>
                 ))}

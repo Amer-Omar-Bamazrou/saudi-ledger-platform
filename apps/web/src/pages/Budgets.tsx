@@ -108,23 +108,23 @@ export default function Budgets() {
                 t("Variance", "الانحراف"),
                 t("Utilization", "نسبة الاستخدام"),
                 "",
-              ].map(h=><th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>)}</tr></thead>
+              ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{budgets.map(b=>{
                 const pct = b.budgetedAmount > 0 ? Math.min((b.actualAmount / b.budgetedAmount) * 100, 100) : 0;
                 const over = b.variance < 0;
                 return (
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pr-4">
+                    <td className="py-3 pe-4">
                         <p className="font-medium">{b.name}</p>
                         {b.nameAr && b.nameAr !== NEEDS_AR
                           ? <p className="text-xs text-muted-foreground" dir="rtl">{b.nameAr}</p>
                           : <p className="text-[10px] text-amber-500/70 italic">{t("needs Arabic translation", "يحتاج ترجمة عربية")}</p>}
                       </td>
-                    <td className="py-3 pr-4 text-muted-foreground text-xs">{b.categoryName || "—"}</td>
-                    <td className="py-3 pr-4 font-mono">{fmtNum(b.budgetedAmount)}</td>
-                    <td className="py-3 pr-4 font-mono">{fmtNum(b.actualAmount)}</td>
-                    <td className={`py-3 pr-4 font-mono font-semibold ${over?"text-red-400":"text-emerald-400"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
-                    <td className="py-3 pr-4">
+                    <td className="py-3 pe-4 text-muted-foreground text-xs">{b.categoryName || "—"}</td>
+                    <td className="py-3 pe-4 font-mono">{fmtNum(b.budgetedAmount)}</td>
+                    <td className="py-3 pe-4 font-mono">{fmtNum(b.actualAmount)}</td>
+                    <td className={`py-3 pe-4 font-mono font-semibold ${over?"text-red-400":"text-emerald-400"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
+                    <td className="py-3 pe-4">
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-secondary rounded-full h-1.5">
                           <div className={`h-1.5 rounded-full transition-all ${over?"bg-red-400":"bg-emerald-400"}`} style={{width:`${pct}%`}} />

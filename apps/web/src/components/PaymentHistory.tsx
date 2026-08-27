@@ -36,7 +36,7 @@ export function PaymentHistory({ entity, id }: { entity: "invoices" | "bills"; i
             <span className="text-muted-foreground">
               <DualDate date={p.paidAt} inline />
               {p.backfilled && (
-                <span className="ml-1 opacity-70">
+                <span className="ms-1 opacity-70">
                   · {t("aggregate of earlier payments (dates not recorded)", "إجمالي دفعات سابقة (التواريخ غير مسجلة)")}
                 </span>
               )}

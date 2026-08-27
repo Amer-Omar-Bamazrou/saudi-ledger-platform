@@ -134,13 +134,13 @@ export default function AuditTrail() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pr-2 w-6"></th>
-                    <th className="pb-2 pr-4">{t("When", "متى")}</th>
-                    <th className="pb-2 pr-4">{t("Who", "من")}</th>
-                    <th className="pb-2 pr-4">{t("Action", "الإجراء")}</th>
-                    <th className="pb-2 pr-4">{t("Record", "السجل")}</th>
-                    <th className="pb-2 pr-4">{t("From (IP)", "من (IP)")}</th>
+                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
+                    <th className="pb-2 pe-2 w-6"></th>
+                    <th className="pb-2 pe-4">{t("When", "متى")}</th>
+                    <th className="pb-2 pe-4">{t("Who", "من")}</th>
+                    <th className="pb-2 pe-4">{t("Action", "الإجراء")}</th>
+                    <th className="pb-2 pe-4">{t("Record", "السجل")}</th>
+                    <th className="pb-2 pe-4">{t("From (IP)", "من (IP)")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -151,32 +151,32 @@ export default function AuditTrail() {
                         className="border-b border-border/50 cursor-pointer hover:bg-secondary/30"
                         onClick={() => setExpanded(expanded === l.id ? null : l.id)}
                       >
-                        <td className="py-2 pr-2 text-muted-foreground">
+                        <td className="py-2 pe-2 text-muted-foreground">
                           {expanded === l.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                         </td>
-                        <td className="py-2 pr-4 text-xs whitespace-nowrap">
+                        <td className="py-2 pe-4 text-xs whitespace-nowrap">
                           <DualDate date={l.createdAt.slice(0, 10)} />
                           <span className="text-muted-foreground ms-1">{l.createdAt.slice(11, 19)}</span>
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pe-4">
                           {/* An unresolved actor stays a number, honestly —
                               never a name borrowed from outside this org. */}
                           {l.actorName ?? (l.userId != null ? `${t("User", "مستخدم")} #${l.userId}` : t("system", "النظام"))}
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pe-4">
                           <Badge className={`text-xs ${ACTION_STYLES[l.action] ?? "bg-secondary text-muted-foreground"}`}>
                             {l.action.replace(/_/g, " ")}
                           </Badge>
                         </td>
-                        <td className="py-2 pr-4 font-mono text-xs">
+                        <td className="py-2 pe-4 font-mono text-xs">
                           {l.entityType.replace(/_/g, " ")} <span className="text-muted-foreground">#{l.entityId}</span>
                         </td>
-                        <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{l.ipAddress ?? "—"}</td>
+                        <td className="py-2 pe-4 font-mono text-xs text-muted-foreground">{l.ipAddress ?? "—"}</td>
                       </tr>
                       {expanded === l.id && (
                         <tr key={`${l.id}-detail`} className="border-b border-border/50 bg-secondary/20">
                           <td></td>
-                          <td colSpan={5} className="py-3 pr-4">
+                          <td colSpan={5} className="py-3 pe-4">
                             <div className="grid md:grid-cols-2 gap-3 text-xs">
                               <div>
                                 <p className="text-muted-foreground mb-1">{t("Before", "قبل")}</p>

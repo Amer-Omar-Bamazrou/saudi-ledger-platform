@@ -281,12 +281,12 @@ export default function ScanReview() {
             href={`/api/capture/${captureId}/image`}
             target="_blank"
             rel="noreferrer"
-            className="ml-auto inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"
+            className="ms-auto inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"
           >
             <CheckCircle2 className="w-3.5 h-3.5" /> Source photograph stored — view
           </a>
         ) : (
-          <span className="ml-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
+          <span className="ms-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
             <AlertTriangle className="w-3.5 h-3.5" /> Photograph not stored
           </span>
         )}
@@ -387,9 +387,9 @@ export default function ScanReview() {
               <Label className="text-xs text-muted-foreground">
                 Supplier VAT Registration #
                 {fields.supplierVatNumber && /^3\d{13}3$/.test(fields.supplierVatNumber)
-                  ? <span className="text-emerald-400 ml-1">✓</span>
+                  ? <span className="text-emerald-400 ms-1">✓</span>
                   : fields.supplierVatNumber
-                    ? <span className="text-red-400 ml-1">✗ invalid format</span>
+                    ? <span className="text-red-400 ms-1">✗ invalid format</span>
                     : null}
               </Label>
               <Input value={fields.supplierVatNumber}
@@ -446,7 +446,7 @@ export default function ScanReview() {
             <div className="rounded-lg border border-border overflow-hidden text-xs">
               <button
                 onClick={() => setRawVisible(v => !v)}
-                className="w-full text-left px-3 py-2 text-muted-foreground hover:bg-secondary/30 transition-colors select-none"
+                className="w-full text-start px-3 py-2 text-muted-foreground hover:bg-secondary/30 transition-colors select-none"
               >
                 {rawVisible ? "▼" : "►"} Raw OCR text (verify against source)
               </button>
@@ -525,7 +525,7 @@ export default function ScanReview() {
                     className="accent-primary" />
                   <Plus className="w-3.5 h-3.5 text-primary" />
                   <span className="text-sm">Create new supplier — <em className="text-muted-foreground">{fields.vendorName || "unnamed"}</em></span>
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ml-auto">New supplier — please confirm details</Badge>
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ms-auto">New supplier — please confirm details</Badge>
                 </label>
               </div>
             </div>
@@ -594,9 +594,9 @@ export default function ScanReview() {
             <table className="w-full">
               <thead className="bg-secondary/40">
                 <tr>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Account</th>
-                  <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Debit (SAR)</th>
-                  <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Credit (SAR)</th>
+                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">Account</th>
+                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Debit (SAR)</th>
+                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Credit (SAR)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -614,24 +614,24 @@ export default function ScanReview() {
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
                     {previewSubtotal > 0 ? fmtNum(previewSubtotal) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
                 </tr>
                 {/* VAT line — fixed */}
                 <tr className="hover:bg-secondary/20">
                   <td className="px-3 py-2 text-muted-foreground text-xs">Input VAT Receivable</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
                     {previewVat > 0 ? fmtNum(previewVat) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
                 </tr>
                 {/* AP line — fixed */}
                 <tr className="hover:bg-secondary/20">
                   <td className="px-3 py-2 text-muted-foreground text-xs">Accounts Payable</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
                     {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
                   </td>
                 </tr>
@@ -639,10 +639,10 @@ export default function ScanReview() {
               <tfoot className="bg-secondary/20 border-t border-border">
                 <tr>
                   <td className="px-3 py-2 text-xs font-semibold text-muted-foreground">Total</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold text-foreground">
+                  <td className="px-3 py-2 text-end font-mono tabular-nums font-semibold text-foreground">
                     {previewSubtotal + previewVat > 0 ? fmtNum(previewSubtotal + previewVat) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold text-foreground">
+                  <td className="px-3 py-2 text-end font-mono tabular-nums font-semibold text-foreground">
                     {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
                   </td>
                 </tr>

@@ -66,7 +66,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                 <SelectContent>
                   {cats.map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name} <span className="text-muted-foreground text-xs ml-1">({c.type})</span>
+                      {c.name} <span className="text-muted-foreground text-xs ms-1">({c.type})</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -116,26 +116,26 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Date", "Entry #", "Reference", "Description", "Debit", "Credit", "Balance"].map(h => (
-                    <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
+                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {/* Opening row */}
                 <tr className="border-b border-border/50 bg-secondary/20">
-                  <td colSpan={4} className="py-2.5 pr-4 text-xs font-semibold text-muted-foreground">Opening Balance</td>
-                  <td className="py-2.5 pr-4" />
-                  <td className="py-2.5 pr-4" />
+                  <td colSpan={4} className="py-2.5 pe-4 text-xs font-semibold text-muted-foreground">Opening Balance</td>
+                  <td className="py-2.5 pe-4" />
+                  <td className="py-2.5 pe-4" />
                   <td className="py-2.5 font-mono font-semibold text-xs">{fmtNum(data.openingBalance)}</td>
                 </tr>
                 {data.movements.map((m, i) => (
                   <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2 pr-4 text-xs text-muted-foreground"><DualDate date={m.date} /></td>
-                    <td className="py-2 pr-4 font-mono text-xs text-primary">{m.entryNumber}</td>
-                    <td className="py-2 pr-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
-                    <td className="py-2 pr-4 text-xs">{m.description}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
+                    <td className="py-2 pe-4 text-xs text-muted-foreground"><DualDate date={m.date} /></td>
+                    <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
+                    <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
+                    <td className="py-2 pe-4 text-xs">{m.description}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
                     <td className="py-2 font-mono text-xs font-semibold">{fmtNum(m.balance)}</td>
                   </tr>
                 ))}

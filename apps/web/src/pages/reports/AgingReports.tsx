@@ -53,7 +53,7 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase">
               {[numLabel, partyLabel, t("Due Date", "تاريخ الاستحقاق"), t("Outstanding", "المبلغ المستحق"), t("Days Overdue", "أيام التأخر")].map(h => (
-                <th key={h} className="text-left pb-2 pr-4 font-medium">{h}</th>
+                <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
               ))}
             </tr>
           </thead>
@@ -63,10 +63,10 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
               const color  = BUCKET_LABELS.find(b => b.key === bucket)?.color ?? "";
               return (
                 <tr key={item.id} className="border-b border-border/30 hover:bg-secondary/10">
-                  <td className="py-2.5 pr-4 font-mono text-xs text-primary">{item[numKey]}</td>
-                  <td className="py-2.5 pr-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
-                  <td className="py-2.5 pr-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
-                  <td className="py-2.5 pr-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
+                  <td className="py-2.5 pe-4 font-mono text-xs text-primary">{item[numKey]}</td>
+                  <td className="py-2.5 pe-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
+                  <td className="py-2.5 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
+                  <td className="py-2.5 pe-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
                   <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
                 </tr>
               );
@@ -102,7 +102,7 @@ export default function AgingReports() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t("Aging Reports", "تقارير الأعمار")}
-            <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">{t("New", "جديد")}</span>
+            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">{t("New", "جديد")}</span>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}</p>
         </div>
@@ -114,7 +114,7 @@ export default function AgingReports() {
         <div className="flex items-center gap-2 mb-4">
           <AlertCircle className="w-4 h-4 text-blue-400" />
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}</h2>
-          {arData && <span className="text-xs text-muted-foreground ml-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
+          {arData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
         </div>
         {arLoading ? <div className="text-sm text-muted-foreground">{t("Loading AR…", "جارٍ تحميل الذمم المدينة…")}</div> : arData ? <AgingTable data={arData} type="ar" /> : null}
       </div>
@@ -126,7 +126,7 @@ export default function AgingReports() {
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="w-4 h-4 text-amber-400" />
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}</h2>
-          {apData && <span className="text-xs text-muted-foreground ml-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
+          {apData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
         </div>
         {apLoading ? <div className="text-sm text-muted-foreground">{t("Loading AP…", "جارٍ تحميل الذمم الدائنة…")}</div> : apData ? <AgingTable data={apData} type="ap" /> : null}
       </div>

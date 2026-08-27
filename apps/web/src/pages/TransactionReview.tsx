@@ -146,10 +146,10 @@ export default function TransactionReview() {
         <div className="truncate text-sm">{r.description}</div>
         <div className="text-xs text-muted-foreground">
           <DualDate date={r.date} inline /> · {r.type} · {fmtNum(r.amount)}
-          {r.kind !== "operating" && <Badge className="ml-2" variant="outline">{r.kind}</Badge>}
-          {r.categoryName && <span className="ml-2">{r.categoryName}</span>}
+          {r.kind !== "operating" && <Badge className="ms-2" variant="outline">{r.kind}</Badge>}
+          {r.categoryName && <span className="ms-2">{r.categoryName}</span>}
           {r.kind === "operating" && (
-            <span className="ml-2 inline-flex items-center gap-1">
+            <span className="ms-2 inline-flex items-center gap-1">
               <select
                 className="rounded border border-border bg-background px-1 py-0.5 text-xs"
                 value={r.taxTreatment ?? ""}
@@ -267,7 +267,7 @@ export default function TransactionReview() {
           <CardHeader>
             <CardTitle className="text-base">
               {lang === "ar" ? "تحتاج انتباهًا" : "Needs attention"} ({attention.length})
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
+              <span className="ms-2 text-xs font-normal text-muted-foreground">
                 {lang === "ar"
                   ? "لا يشملها القبول الجماعي — يجب قبول كل صف باسمه"
                   : "excluded from bulk accept — each row must be accepted by name"}

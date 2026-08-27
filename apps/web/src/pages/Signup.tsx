@@ -51,7 +51,7 @@ export default function Signup() {
         <div className="text-center mb-6 relative">
           <button
             onClick={() => setLang(lang === "en" ? "ar" : "en")}
-            className="absolute top-0 right-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute top-0 end-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
           >
             <Languages className="w-3 h-3" />
             {lang === "en" ? "ع" : "EN"}
