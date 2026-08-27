@@ -94,24 +94,24 @@ service.
 ## 3. What a user can actually do, and how it is organised
 
 An outsider reading only the architecture would not learn what the product
-*is* from a user's seat. This is the shipped surface as of 2026-08-27 — pages
+_is_ from a user's seat. This is the shipped surface as of 2026-08-27 — pages
 that exist and are reachable, not a roadmap.
 
 ### 3.1 The capability surface
 
-| Area | What exists |
-|---|---|
-| **Sales** | Customers, products, **quotations**, invoices, credit notes, receivables ageing, customer ledger |
-| **Purchases** | Vendors, **purchase orders**, bills, payables ageing |
-| **Banking** | Bank accounts, statement upload, an automatic categoriser, a review surface for held rows, bank reconciliation with match *suggestions* |
-| **Ledger** | Chart of accounts, journal entries, trial balance, general ledger, account statements |
-| **Statements** | Income statement, balance sheet, cash flow, owner's equity — each with prior-period comparison |
-| **Tax & compliance** | VAT return (box-structured, filed from documents), tax journal entries, ZATCA onboarding and transmission |
-| **Payroll & assets** | Employees, payroll runs, fixed assets and depreciation schedules |
-| **Controls** | Draft/approval workflow, **closed months**, audit trail, user management, budgets |
-| **Automation** | Recurring documents (**drafts only**), document capture by phone photograph with OCR and QR decoding |
-| **Insight** | Finance Hub, Analytics, deterministic **findings** |
-| **Operator** | Sign-up review queue, ZATCA operations panel |
+| Area                 | What exists                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sales**            | Customers, products, **quotations**, invoices, credit notes, receivables ageing, customer ledger                                        |
+| **Purchases**        | Vendors, **purchase orders**, bills, payables ageing                                                                                    |
+| **Banking**          | Bank accounts, statement upload, an automatic categoriser, a review surface for held rows, bank reconciliation with match _suggestions_ |
+| **Ledger**           | Chart of accounts, journal entries, trial balance, general ledger, account statements                                                   |
+| **Statements**       | Income statement, balance sheet, cash flow, owner's equity — each with prior-period comparison                                          |
+| **Tax & compliance** | VAT return (box-structured, filed from documents), tax journal entries, ZATCA onboarding and transmission                               |
+| **Payroll & assets** | Employees, payroll runs, fixed assets and depreciation schedules                                                                        |
+| **Controls**         | Draft/approval workflow, **closed months**, audit trail, user management, budgets                                                       |
+| **Automation**       | Recurring documents (**drafts only**), document capture by phone photograph with OCR and QR decoding                                    |
+| **Insight**          | Finance Hub, Analytics, deterministic **findings**                                                                                      |
+| **Operator**         | Sign-up review queue, ZATCA operations panel                                                                                            |
 
 Two capabilities are **PLANNED, not built**: the Zakat working paper (the page
 currently states it is not implemented, deliberately, rather than showing a
@@ -143,10 +143,10 @@ graph LR
 Automation and AI have **no navigation entry of their own**, and that is the
 design rather than an omission:
 
-- A recurring-invoice rule is a property *of an invoice*. A separate Automation
+- A recurring-invoice rule is a property _of an invoice_. A separate Automation
   section would mean leaving the invoice you are looking at to configure
   something about it.
-- An AI suggestion is useful only *at the moment of the decision it informs* —
+- An AI suggestion is useful only _at the moment of the decision it informs_ —
   beside the category field, not in a gallery elsewhere.
 - The intended customer is a small-business owner, not an accountant. Every
   additional navigation entry is something they must learn before the product is
@@ -156,7 +156,7 @@ design rather than an omission:
 
 ### 3.3 One interaction principle worth stating
 
-**Accepting the match *is* the review.** Where the system proposes something —
+**Accepting the match _is_ the review.** Where the system proposes something —
 a reconciliation match, a category — one user action both accepts the proposal
 and records its effect. A second confirmation dialog asking about the same fact
 is treated as a design defect rather than extra safety.
@@ -276,13 +276,13 @@ sequenceDiagram
 
     C->>A: request + session cookie
     A->>A: valid session? else 401
-    A->>T: 
+    A->>T:
     T->>DB: load active memberships (owner connection)
     T->>T: pick active org; VERIFICATION GATE<br/>non-approved org ⇒ 403 here
     T->>DB: BEGIN as non-owner role<br/>SET app.current_org_id / current_company_id
     T->>P: run rest of request inside that transaction
     P->>P: role × resource × action, fail-closed
-    P->>H: 
+    P->>H:
     H->>DB: every query filtered by RLS
     H-->>C: response
     Note over T,DB: COMMIT on success · ROLLBACK on error or abort
@@ -314,11 +314,11 @@ enforces the import boundary.
 
 Three distinct mechanisms, used for three distinct things:
 
-| Mechanism | Used for | Source of truth |
-|---|---|---|
-| `requirePermission(resource)` | tenant business routes | seeded role × resource × action matrix; fail-closed |
-| explicit admin-of-**this**-org checks | identity-layer routes (members, invitations) | `organization_memberships` |
-| `requirePlatformOperator` | the cross-tenant operator surface | `platform_operators` |
+| Mechanism                             | Used for                                     | Source of truth                                     |
+| ------------------------------------- | -------------------------------------------- | --------------------------------------------------- |
+| `requirePermission(resource)`         | tenant business routes                       | seeded role × resource × action matrix; fail-closed |
+| explicit admin-of-**this**-org checks | identity-layer routes (members, invitations) | `organization_memberships`                          |
+| `requirePlatformOperator`             | the cross-tenant operator surface            | `platform_operators`                                |
 
 A user's authority comes from their **membership role** in the active
 organization. The global `users.role` column is vestigial and must never gate
@@ -364,14 +364,14 @@ path starts at zero. Several invariants live in migrations for this reason.
 **A composition defect is invisible to any review that reads one file at a
 time.** This one is structural. There are two shapes:
 
-- *A fact one file writes and another trusts.* Each file is correct in
+- _A fact one file writes and another trusts._ Each file is correct in
   isolation; the vulnerability is the edge between them. One such defect
   survived five audits — including two dedicated authorization sweeps — and
   every one of them was right about every file it read. The countermeasure is a
   different question, asked of privileges rather than code: **for each
   privilege, list the state it can write; for each written fact, find every
   guard that reads it.** This stays a human activity.
-- *A guard that exempts a class from the thing designed to exclude it* — a route
+- _A guard that exempts a class from the thing designed to exclude it_ — a route
   on the wrong side of a guard, a business route with no permission check, a
   privilege tier that widens because a mount moved one line. These are
   **positional** facts, and they are now mechanically checked (§5.6).
@@ -460,7 +460,7 @@ disagree by construction rather than by agreement.
 - **Nothing affects the books before approval.** Drafts and submitted records
   move zero in every report, and this is asserted by test for each approvable
   entity.
-- **A reversed journal entry is still *in* the books.** The status marks that a
+- **A reversed journal entry is still _in_ the books.** The status marks that a
   cancelling mirror exists; it is not an eraser. Filtering aggregations to
   "posted only" double-negates every reversal — a real defect that was found
   live.
@@ -534,7 +534,7 @@ simplified flows, and the full path from real Postgres rows to a ZATCA-accepted
 document.
 
 **Not verified: an invoice has never been submitted to ZATCA in any
-environment.** The compliance pass exercises document *construction* against an
+environment.** The compliance pass exercises document _construction_ against an
 onboarding endpoint. The production clearance and reporting endpoints have never
 been called. The transport is proven against a mock; the archive has only been
 exercised on local disk.
@@ -605,7 +605,7 @@ the match.
 
 **Grounded answers** (the question-answering surface) work the same way: the
 model selects one of a fixed set of tools and never authors a number. Where a
-projection is involved, its assumptions are *tool output* and an answer that
+projection is involved, its assumptions are _tool output_ and an answer that
 uses the numbers without them is rejected — the assumption is not
 discouraged-but-skippable, it is unrepresentable.
 
@@ -644,17 +644,17 @@ baseline"** — an artefact that looks like a result is worse than a failure.
 Every external dependency sits behind an interface with a runtime-selected
 implementation, so the vendor is a deployment choice rather than a code change.
 
-| Seam | Implementations | Notes |
-|---|---|---|
-| `ArchiveStore` | local filesystem, object storage | **No delete method**, by regulation |
-| `StagingBackend` | local filesystem, object storage | Separate interface *because* it must delete |
-| `KeyWrapper` | local development, AWS KMS | Wraps ZATCA signing keys |
-| `EInvoiceProvider` | direct ZATCA integration | All four operations route through the seam |
-| Mailer | Resend, Postmark | Production refuses to boot with none configured |
-| Alerter | generic JSON webhook | Reaches PagerDuty, Opsgenie or Slack |
-| Malware scanner | clamd | Wired into both file-upload paths |
-| AI provider | Groq (REST, dependency-free) | Injectable transport for testing |
-| Rate-limit store | Postgres | Shared across processes; fails closed |
+| Seam               | Implementations                  | Notes                                           |
+| ------------------ | -------------------------------- | ----------------------------------------------- |
+| `ArchiveStore`     | local filesystem, object storage | **No delete method**, by regulation             |
+| `StagingBackend`   | local filesystem, object storage | Separate interface _because_ it must delete     |
+| `KeyWrapper`       | local development, AWS KMS       | Wraps ZATCA signing keys                        |
+| `EInvoiceProvider` | direct ZATCA integration         | All four operations route through the seam      |
+| Mailer             | Resend, Postmark                 | Production refuses to boot with none configured |
+| Alerter            | generic JSON webhook             | Reaches PagerDuty, Opsgenie or Slack            |
+| Malware scanner    | clamd                            | Wired into both file-upload paths               |
+| AI provider        | Groq (REST, dependency-free)     | Injectable transport for testing                |
+| Rate-limit store   | Postgres                         | Shared across processes; fails closed           |
 
 **A design rule learned the hard way:** a method that cannot do its job must
 **throw**, never return successfully. A no-op reporting success is a false
@@ -685,7 +685,7 @@ and no customers.**
   This is the last mechanical requirement between a working product and revenue.
 
 **Demo mode** exists and is the closest thing to a deployable configuration. It
-*removes* capabilities rather than weakening guards: document capture, sign-up
+_removes_ capabilities rather than weakening guards: document capture, sign-up
 and tax-authority onboarding are refused at the route, transmission is refused
 at boot, a bilingual banner renders on every page including login, and a weekly
 reset wipes and re-seeds in one transaction. The reset's safety is **structural,
@@ -711,8 +711,21 @@ prerequisite:
 
 Every pull request runs typecheck, build, and the full test suite against a real
 Postgres instance with object storage, so database-dependent suites genuinely
-execute rather than skipping. At the time of writing: **99 test files, 1,103
-tests.**
+execute rather than skipping.
+
+**The suite's size is deliberately not quoted here.** A count written into a
+document is a claim that begins ageing the moment it is written, and a stale one
+is worse than none — it invites a reader to trust a number nobody re-checked.
+The authoritative figure is whatever the **`test` job prints on the most recent
+run of `main`**; reproduce it locally with:
+
+```bash
+pnpm --filter @workspace/api-server run test
+```
+
+Read the **`Test Files`** line, not `Tests`: a failing hook, an import error or
+an unhandled rejection fails a *file* while every individual test in it still
+counts as passed.
 
 Two conventions worth adopting if you work here: a merge gate must assert every
 check's **conclusion**, not merely that checks completed; and when a tool reports
@@ -723,35 +736,35 @@ them.
 
 ## 11. Where to go next
 
-| For | Read |
-|---|---|
-| **Current state — the authority** | [`CLAUDE.md` §2](../CLAUDE.md) |
-| Operating rules and active constraints | [`CLAUDE.md`](../CLAUDE.md) §3–§4 |
-| Running it locally | [`docs/local-setup.md`](local-setup.md) |
-| Backend conventions before writing code | [`docs/development-guide.md`](development-guide.md) |
-| ZATCA: what is proven and where | [`docs/zatca/m12-status.md`](zatca/m12-status.md) |
+| For                                         | Read                                                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Current state — the authority**           | [`CLAUDE.md` §2](../CLAUDE.md)                                                                    |
+| Operating rules and active constraints      | [`CLAUDE.md`](../CLAUDE.md) §3–§4                                                                 |
+| Running it locally                          | [`docs/local-setup.md`](local-setup.md)                                                           |
+| Backend conventions before writing code     | [`docs/development-guide.md`](development-guide.md)                                               |
+| ZATCA: what is proven and where             | [`docs/zatca/m12-status.md`](zatca/m12-status.md)                                                 |
 | Specification-vs-implementation divergences | [`docs/zatca/spec-vs-implementation-divergences.md`](zatca/spec-vs-implementation-divergences.md) |
-| The AI layer's decisions and constraints | [`docs/product/design-ai-layer.md`](product/design-ai-layer.md) |
-| Findings, incidents and the lessons drawn | [`docs/history/findings-and-lessons.md`](history/findings-and-lessons.md) |
-| Open legal and tax questions | [`docs/product/advisor-questions.md`](product/advisor-questions.md) |
+| The AI layer's decisions and constraints    | [`docs/product/design-ai-layer.md`](product/design-ai-layer.md)                                   |
+| Findings, incidents and the lessons drawn   | [`docs/history/findings-and-lessons.md`](history/findings-and-lessons.md)                         |
+| Open legal and tax questions                | [`docs/product/advisor-questions.md`](product/advisor-questions.md)                               |
 
 ---
 
 ## Appendix — technology summary
 
-| Layer | Technology |
-|---|---|
-| Monorepo | pnpm workspaces |
-| Backend | Express 5, TypeScript, Node.js (ESM), esbuild |
-| Frontend | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui |
-| Routing (frontend) | Wouter |
-| Data fetching | TanStack Query v5 |
-| ORM | Drizzle |
-| Database | PostgreSQL (via Supabase — Postgres only, not Supabase Auth) |
-| Cache / queue | **None.** In-process scheduler; Postgres-backed rate limiting |
-| Auth | Express sessions + bcrypt |
-| API contract | OpenAPI-first with orval codegen |
-| Validation | Zod (generated) |
-| Internationalisation | Custom context, Arabic/English, RTL-aware |
-| Logging | pino |
-| Testing | Vitest, against a real database in CI |
+| Layer                | Technology                                                    |
+| -------------------- | ------------------------------------------------------------- |
+| Monorepo             | pnpm workspaces                                               |
+| Backend              | Express 5, TypeScript, Node.js (ESM), esbuild                 |
+| Frontend             | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui            |
+| Routing (frontend)   | Wouter                                                        |
+| Data fetching        | TanStack Query v5                                             |
+| ORM                  | Drizzle                                                       |
+| Database             | PostgreSQL (via Supabase — Postgres only, not Supabase Auth)  |
+| Cache / queue        | **None.** In-process scheduler; Postgres-backed rate limiting |
+| Auth                 | Express sessions + bcrypt                                     |
+| API contract         | OpenAPI-first with orval codegen                              |
+| Validation           | Zod (generated)                                               |
+| Internationalisation | Custom context, Arabic/English, RTL-aware                     |
+| Logging              | pino                                                          |
+| Testing              | Vitest, against a real database in CI                         |

@@ -113,3 +113,101 @@ in the test and skip the fixture rather than commit the document.
 **Six is enough to be useful and small enough to do in an afternoon.** If two
 different vendors both decode without incident, that is already meaningful
 evidence; if one fails, that is worth more than all the passing ones.
+
+---
+
+## Results — first three documents (2026-08-27)
+
+Three documents arrived with the first receipt-benchmark batch. Anonymised per
+the rules above: no seller name, VAT number or amount is recorded here, and the
+raw payloads were **not** committed.
+
+| # | Kind | Language printed | QR present | jsQR **found** it | TLV decoded |
+| --- | --- | --- | --- | --- | --- |
+| A | thermal POS | mixed (AR + EN headers) | yes | ❌ **no** | — |
+| B | thermal POS | Arabic only | yes | ❌ **no** | — |
+| C | A4 tax sales invoice (PDF → JPEG) | bilingual | yes | ✅ yes, full frame, first try | ✅ clean |
+
+### 🔴 Finding 1 — jsQR did not LOCATE the code in either thermal photograph
+
+This is the measurement this document asked for ("I need to know jsQR can *find*
+it in a full-frame photo, not just decode it once located"), and for thermal
+receipts the answer on this sample is **no**.
+
+Both were photographed as a customer would: held or laid at an angle, the paper
+slightly curved, the whole receipt in frame. Neither decoded at full resolution.
+They also failed after 90/180/270° rotation, both inversion modes, and a
+tiling sweep that cropped the frame into overlapping windows upscaled 2–3×.
+
+🔴 **Production is strictly worse than that attempt**, because `qrCapture.ts`
+caps the long edge at 1600px before scanning. So on this evidence the QR path —
+described in the A1 spec as "the majority path, not the clever case" — did not
+fire on either of the two most common document types, and capture would fall
+back to OCR both times.
+
+**What this does and does not establish.** n = 2 thermal photos: it is a signal,
+not a rate. It says nothing about a receipt photographed flat and square, which
+is plausibly the difference. **The actionable question it raises is a capture-UX
+one** — whether the scan screen should guide the user to flatten the receipt and
+fill the frame, and retry the locate on a de-skewed crop — rather than a codec
+one. It should be re-measured as the corpus grows, and the ratio recorded.
+
+### Finding 2 — the decoder handled a real third-party payload with no quirk
+
+Document C's payload was produced by another vendor's software and read
+**cleanly**: tags 1–5 in canonical order, no unknown tags, nothing truncated, no
+missing Phase-1 field, and every decoded value matched what was printed on the
+paper. Timestamp arrived in the plain `YYYY-MM-DDTHH:MM:SSZ` shape — divergence
+#13's territory, and unremarkable here.
+
+**No anonymised fixture has been added, deliberately.** There is no quirk to
+reproduce: a fixture built with our own `tlv()` encoder would produce exactly
+this structure, so it would re-test the round-trip the suite already covers and
+prove nothing new. Per the rule above, the finding is described rather than
+committed as a fixture. Fixtures start when a vendor's structure differs.
+
+### 🔴 Finding 3 — the QR's seller name was ENGLISH on an Arabic-printed invoice
+
+Document C prints the supplier's name in Arabic in its header, and carries the
+**English** transliteration inside the QR's tag 1.
+
+Consequences worth deciding before capture meets real suppliers:
+
+- **A1 prefers QR fields and never overwrites them with OCR.** So the vendor
+  recorded for this supplier is the English name — a different string from the
+  one the user is looking at on the paper. Not wrong, but surprising.
+- The same supplier captured once by QR and once by OCR fallback would produce
+  **two vendor spellings**, and nothing links them.
+- For the **vision benchmark**, ground truth is what the paper says (the Arabic
+  name), which is correct per that corpus's contract — but it means a model
+  scored on `vendor` is being asked for a different string than capture stores.
+
+Nothing is broken; a decision is owed about which name is canonical, and whether
+capture should record both.
+
+### 🔴 CORPUS GAP (owner-recorded 2026-08-27): no Phase-2 QR, and none is scheduled
+
+**Stated as a gap, deliberately not as a task with a deadline.** A Phase-2 QR —
+one carrying tags 6–9, the invoice hash and the cryptographic signature — most
+plausibly comes from a **B2B supplier invoice issued by a Wave-1 company**, and
+the owner cannot summon one on demand. Waiting on it would park the corpus
+behind something nobody controls.
+
+**What that leaves unproven, said plainly:** `verifyQrSignature` — the
+server-side path that decides whether a supplier's stamp actually verifies —
+has **never run against a payload produced by anyone else's software**. Its
+fixtures are our own output plus a hand-built genuinely-signed secp256k1 pair
+(the 2026-08-24 MED fix, which proves the verifier can say YES and can say NO,
+but says nothing about another vendor's field encoding).
+
+So the honest status is: the **decode** path now has one real third-party
+witness; the **verify** path has none, and we know it. If a Phase-2 document
+turns up, it is worth more than the next ten Phase-1 receipts — it is the only
+kind of document that exercises that path at all.
+
+### Finding 4 — a standard tax invoice carrying only Phase-1 tags
+
+Document C is a *standard* tax invoice (فاتورة مبيعات ضريبية) and its QR carries
+tags 1–5 only, with no hash or signature — `isPhase2` is false. So the
+server-side signature verification path has nothing to verify for it. Expected
+in the field, and useful evidence for sizing how often that path can run at all.
