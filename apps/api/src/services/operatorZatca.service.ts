@@ -39,7 +39,13 @@ const DAY_MS = 86_400_000;
 
 export interface OutboxHealth {
   overdueMinutes: number;
-  overdue: { total: number; oldestAgeMinutes: number | null; byFlow: Record<string, number> };
+  overdue: {
+    total: number;
+    /** How many rows the byFlow breakdown was computed from (the capped page). */
+    breakdownCoversFirst: number;
+    oldestAgeMinutes: number | null;
+    byFlow: Record<string, number>;
+  };
   needsReview: number;
   archive: { archived: number; pendingArchive: number };
   workerEnabled: boolean;
@@ -51,8 +57,13 @@ export const operatorZatcaService = {
     const env = loadEnv();
     const overdueMinutes = env.ZATCA_OVERDUE_MINUTES;
 
-    const [overdue, needsReview, archive] = await Promise.all([
+    // 🔴 `overdueTotal` is COUNTED in SQL, not measured from the row list.
+    // `listOverdue(…, 500)` is a capped page used for the byFlow breakdown and
+    // the oldest-age lookup; taking `.length` from it made the headline figure
+    // saturate at 500 on the one surface that watches a 24-hour deadline.
+    const [overdue, overdueTotal, needsReview, archive] = await Promise.all([
       einvoiceOutboxRepository.listOverdue(overdueMinutes, 500),
+      einvoiceOutboxRepository.countOverdue(overdueMinutes),
       einvoiceOutboxRepository.listNeedingReview(500),
       einvoiceArchiveJobRepository.stats(),
     ]);
@@ -63,7 +74,11 @@ export const operatorZatcaService = {
     return {
       overdueMinutes,
       overdue: {
-        total: overdue.length,
+        total: overdueTotal,
+        // 🔴 `byFlow` is derived from the capped page, so it is a breakdown OF
+        // THE SAMPLE, not of the total. Named here rather than silently mixed
+        // with an accurate total.
+        breakdownCoversFirst: overdue.length,
         // `listOverdue` orders by created_at, so the first row is the oldest.
         // Age matters more than count: one document 23 hours old is a bigger
         // problem than fifty that are 61 minutes old.

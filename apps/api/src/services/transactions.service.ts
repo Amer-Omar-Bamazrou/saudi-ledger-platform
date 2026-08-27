@@ -331,6 +331,15 @@ export const transactionsService = {
   },
 
   /** Pending imported rows — the holding-area review surface. */
+  /**
+   * Counts over the FULL pending set (SQL), for callers that want a number
+   * rather than rows. Never derive a count from `pendingReview().length` — that
+   * list is capped and the count would silently saturate.
+   */
+  async pendingReviewCounts() {
+    return transactionsRepository.pendingReviewCounts(AUTO_ASSIGN_CONFIDENCE);
+  },
+
   async pendingReview() {
     const rows = await transactionsRepository.pendingReview();
     // M16.3 — exact-match settlement suggestions, computed server-side so the

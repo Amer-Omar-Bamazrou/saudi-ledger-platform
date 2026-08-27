@@ -48,12 +48,30 @@ export default function Transactions() {
     return () => clearTimeout(handler);
   }, [search]);
 
+/**
+ * 🔴 B6 — this list is CAPPED, and a cap the user cannot see is a wrong answer.
+ *
+ * The page previously asked for exactly `limit: 50` and rendered whatever came
+ * back, so a tenant with 300 matching transactions saw 50 and was told nothing.
+ * At dev-org size (45 rows) that is invisible, which is precisely why it
+ * survived — see the timing property in CLAUDE.md §3.
+ *
+ * Fetch ONE MORE than we show. If the extra row arrives, truncation is a FACT
+ * rather than an inference from "we got exactly the limit", and the notice
+ * below states it plainly instead of the page pretending it is complete.
+ */
+const PAGE_SIZE = 50;
+
   const { data: txList, isLoading: loadingTx } = useListTransactions({
     search: debouncedSearch || undefined,
     type: typeFilter !== "all" ? typeFilter : undefined,
     category_id: categoryFilter !== "all" ? Number(categoryFilter) : undefined,
-    limit: 50,
+    limit: PAGE_SIZE + 1,
   });
+
+  const allRows = txList?.transactions ?? [];
+  const isTruncated = allRows.length > PAGE_SIZE;
+  const visibleRows = isTruncated ? allRows.slice(0, PAGE_SIZE) : allRows;
 
   const { data: categories } = useListCategories();
 
@@ -151,7 +169,7 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {txList?.transactions.map(tx => (
+                {visibleRows.map(tx => (
                   <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
                     <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
                     <td className="px-6 py-4 text-foreground max-w-[300px]">
@@ -254,13 +272,28 @@ export default function Transactions() {
                     </td>
                   </tr>
                 ))}
-                {txList?.transactions.length === 0 && (
+                {visibleRows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <Filter className="w-8 h-8 mb-2 opacity-20" />
                         <p>{t("No transactions match your criteria.", "لا توجد معاملات تطابق معايير البحث.")}</p>
                       </div>
+                    </td>
+                  </tr>
+                )}
+                {isTruncated && (
+                  /* 🔴 The list is capped. Say so, rather than letting the page
+                     imply it is showing everything. Derived from an extra row
+                     actually arriving, so it is a fact, not an inference. */
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center border-t border-border">
+                      <p className="text-xs text-amber-400">
+                        {t(
+                          `Showing the first ${PAGE_SIZE} transactions. More match your criteria — narrow the search, type or category to see them.`,
+                          `يتم عرض أول ${PAGE_SIZE} معاملة فقط. توجد معاملات أخرى مطابقة — يرجى تضييق نطاق البحث أو النوع أو التصنيف لعرضها.`,
+                        )}
+                      </p>
                     </td>
                   </tr>
                 )}

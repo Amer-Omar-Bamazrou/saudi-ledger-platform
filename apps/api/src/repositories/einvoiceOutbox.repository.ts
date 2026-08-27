@@ -188,6 +188,26 @@ export const einvoiceOutboxRepository = {
     return rows;
   },
 
+  /**
+   * 🔴 The overdue COUNT, in SQL over every matching row.
+   *
+   * `listOverdue` is capped (the operator health call passes 500) because it
+   * returns rows. Counting that result made the operator's stuck-outbox figure
+   * saturate at 500 — and that number is the alarm for ZATCA's 24-hour
+   * reporting deadline, so under-reporting it is the failure the surface exists
+   * to prevent. Predicate kept identical to `listOverdue` above.
+   */
+  async countOverdue(olderThanMinutes: number, organizationId?: string): Promise<number> {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM einvoice_documents
+        WHERE status IN ('pending', 'failed', 'submitting')
+          AND created_at < now() - ($1 || ' minutes')::interval
+          AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
+      [String(olderThanMinutes), organizationId ?? null],
+    );
+    return Number(rows[0]?.n ?? 0);
+  },
+
   /** Read one row by id — used by tests and the operator surface. */
   async findById(id: string): Promise<OutboxRow | undefined> {
     const { rows } = await pool.query(`SELECT ${SELECT_COLS} FROM einvoice_documents WHERE id = $1`, [id]);

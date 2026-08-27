@@ -206,10 +206,12 @@ export const financeHubService = {
    * do the work.
    */
   async booksStatus() {
-    const pending = await transactionsService.pendingReview();
-    return {
-      unreviewedCount: pending.length,
-      needsAttentionCount: pending.filter((p) => p.needsAttention).length,
-    };
+    // 🔴 Counted in SQL over every pending row. This previously called
+    // `pendingReview()` — capped at 200 — and returned `pending.length`, so the
+    // headline answer to "are my books current?" saturated at 200 and the
+    // needs-attention figure was filtered within that capped page. A wrong
+    // number presented as the right one, invisible at any fixture size.
+    const { total, needsAttention } = await transactionsService.pendingReviewCounts();
+    return { unreviewedCount: total, needsAttentionCount: needsAttention };
   },
 };

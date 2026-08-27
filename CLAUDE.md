@@ -681,6 +681,71 @@ These are short forms; the rules are binding, the history explains why.
   not caught by adding more of either kind — when an operation moves value
   BETWEEN accounts, assert both accounts' balances, before and after. A
   conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A DEFECT WHOSE TRIGGER IS VOLUME IS INVISIBLE TO EVERY FIXTURE WE OWN**
+  (B6, 2026-08-27 — and the timing property is the reusable part, not the bug).
+  `financeHub.booksStatus()` answered *"are my books current?"* with
+  `(await pendingReview()).length`, and that list is **capped at 200**. So a
+  tenant with 5,000 unreviewed transactions was told **200**.
+  `needsAttentionCount` was worse — it filtered WITHIN the capped page, so it
+  was not a proportional sample but "how many of the 200 most recent", printed
+  as a total. The same shape sat on `operatorZatca.health()`
+  (`listOverdue(…, 500).length`), on the one surface watching ZATCA's 24-hour
+  deadline, where under-reporting is the exact failure it exists to prevent.
+  🔴 **The timing: it is invisible on any dataset small enough to develop
+  against, and appears the month a tenant gets busy.** The dev org holds 45
+  transactions; every fixture in the suite is smaller. At that size the capped
+  answer and the true answer are the same number, so no amount of care at
+  fixture scale can find it — this is a property of the VERIFICATION APPROACH,
+  not of the reviewer. Small fixtures, dev orgs and sample seeds are
+  **structurally blind to any defect whose trigger is volume.**
+  **What else has this shape — ask it of every new surface:**
+  a count taken from a capped list (this); an aggregate `reduce`d client-side
+  over a fetched page (Assets, AssetSchedule, BankAccounts, Bills, Budgets all
+  do this today — correct only while their lists stay unbounded); pagination
+  that truncates without saying so; a bulk action whose label says "all" while
+  it acts on the loaded page; an unbounded query that is merely slow at ten rows
+  and fatal at ten thousand. 🔴 **Capped where it should be unbounded and
+  unbounded where it should be capped is ONE disease pointing both ways** — the
+  question is never "is there a limit" but "does the number shown describe the
+  set the user thinks it describes".
+  **The countermeasure is a fixture LARGER than the cap.** `counts-over-capped-lists.test.ts`
+  builds 237 rows against a 200 cap; verified by re-injection, where it reports
+  `expected 200 to be 237`. A test at fixture size passes against the broken
+  code, which is the whole point.
+
+- **🔴 NOTHING IN THIS PROCESS CHECKS WHETHER A USER CAN REACH WHAT WE BUILT**
+  (2026-08-27, and this is the finding the individual defects are evidence
+  for). **Six read-only audits found none of these. One pass with a browser
+  found four**:
+  | # | Defect | Why every static check passed |
+  | --- | --- | --- |
+  | 1 | `/ap-aging` rendered a **blank white page** | the API was correct; the page's hand-written response type was invented |
+  | 2 | Server 400s **swallowed silently** on every form | the validation worked; no default `onError` existed |
+  | 3 | The GL list showed **SAR 0.00 for all 52 entries** against a 356,328.15 ledger | `list()` never passed lines to the presenter; `(lines ?? [])` made absence look like zero |
+  | 4 | **A bill cannot be edited** — `PATCH /bills/:id` has no caller | the endpoint exists, is tested, and the route guard matches the PREFIX not the verb |
+  Every one was invisible to code reading and obvious within seconds of using
+  the product. Two of them (3 and 4) appeared *behind a button that had just
+  been fixed* — which is the compounding part: fixing a surface exposes the
+  next unreached thing behind it.
+  🔴 **The common cause is not carelessness, it is a missing layer.** The suite
+  has 1,100+ tests and **renders zero pages**. Every guard we own asks a
+  question about the code: does the route exist, does it have a caller, is the
+  invariant enforced. None asks *can a person complete this*. So the failure
+  mode they all share — a correct backend with no working surface — is
+  structurally outside what any of them can see.
+  **The countermeasure is a rendering layer, not another static guard**, and
+  the evidence for that is direct: a static "uncalled endpoint" checker was
+  built and WITHDRAWN the same day, because this client calls the API five
+  different ways (literal paths, generated hooks, and three
+  `/${entity}/${id}/${action}` dispatchers) and the false-positive rate stayed
+  at 65. A checker nobody trusts is worse than none. A browser observes what
+  was actually called regardless of how the path was built, and additionally
+  sees whether the control was reachable and whether the page rendered at all.
+  **Corollary for planning: assume any completed backend may be unreachable
+  until someone has clicked it.** "Correct is not connected" (§3 rule 1) was
+  written about production callers; this is the same rule one layer higher —
+  a caller is not a surface, and a surface is not a usable one.
+
 - **🔴 A CORRECT API AND A UI WRITTEN AGAINST AN IMAGINED ONE** (QA audit B1,
   2026-08-27). `ApAging.tsx` declared `GET /reports/ap-aging` as returning
   `ApAgingRow[]` and called `rows.reduce(...)`. The endpoint returns an OBJECT,
