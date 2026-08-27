@@ -56,7 +56,11 @@ export default function BankAccounts() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label className="text-xs text-muted-foreground">{t("Account Number", "رقم الحساب")}</Label><Input value={form.accountNumber} onChange={e=>setForm(p=>({...p,accountNumber:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>
-                <div><Label className="text-xs text-muted-foreground">{t("Currency", "العملة")}</Label><Input value={form.currency} onChange={e=>setForm(p=>({...p,currency:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+                {/* Single-currency by construction: the ledger holds no exchange rates and
+                    no aggregate consults `currency`, so the API refuses anything but SAR
+                    (writeGuards.assertSupportedCurrency + CHECK 0062). A free-text input
+                    here used to write straight through an unvalidated allowlist. */}
+                <div><Label className="text-xs text-muted-foreground">{t("Currency", "العملة")}</Label><Input value="SAR" readOnly disabled className="mt-1 h-8 text-sm font-mono" /></div>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("IBAN (SA00 0000 0000 0000 0000 0000)", "الآيبان (SA00 0000 0000 0000 0000 0000)")}</Label><Input value={form.iban} onChange={e=>setForm(p=>({...p,iban:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Opening Balance (SAR)", "الرصيد الافتتاحي (ر.س)")}</Label><Input type="number" value={form.balance} onChange={e=>setForm(p=>({...p,balance:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>

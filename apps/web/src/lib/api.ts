@@ -86,6 +86,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json();
 }
 
+// SAR is hardcoded because the API REFUSES any other currency
+// (writeGuards.assertSupportedCurrency + DB CHECK 0062). Before that boundary
+// existed this formatter labelled a stored USD amount "SAR" — the number real,
+// the unit a lie. It is now correct by construction rather than by luck.
 export const fmt = new Intl.NumberFormat("en-SA", { style: "currency", currency: "SAR", minimumFractionDigits: 2 });
 export const fmtNum = (v: number) => fmt.format(v);
 export const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-SA", { day: "2-digit", month: "short", year: "numeric" });
