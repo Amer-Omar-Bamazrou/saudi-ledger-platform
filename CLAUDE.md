@@ -23,7 +23,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-24 (AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner action order: entity → advisor → Groq → receipts.)**
+**Last updated: 2026-08-24 (AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner actions (live, tickable): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the writer for their state; the snapshot is frozen history.)**
 
 **Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
 (VAT treatments verified against the primary source; `FOOD_MEALS` was a live
@@ -1195,6 +1195,10 @@ Operating references:
 - [`docs/development-guide.md`](docs/development-guide.md) — layering,
   tenancy/RLS, RBAC, audit, "add a new domain" cookbook. Read before backend
   work.
+- [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the four
+  owner actions as a LIVE, tickable checklist (entity → advisor → Groq →
+  receipts). It is the writer for their state; the dated state-of-the-platform
+  snapshot is frozen history and defers to it.
 - `CONTRIBUTING.md` — branch strategy, commit conventions, PR checklist.
 - [`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) — target
   architecture.
@@ -1303,6 +1307,14 @@ wait-loop is only a wait-loop.**
   rule, applied to prose). A header must also never lag its own body: a doc
   whose §12 says "built" while its title says "building" is the
   narrower-claim shape in miniature.
+  🔴 **Corollary — a DATED artifact and a LIVE one are different documents,
+  and the live one must never defer to the dated one** (owner, 2026-08-26).
+  A snapshot is frozen by design; a checklist is ticked. Folding the second
+  into the first produces the README disease one level up: the checklist
+  inherits an "as of" date it does not deserve, and its state ages silently
+  because the file it points at is not allowed to change. Split them, and
+  make each the single writer for its own fact. (Applied 2026-08-26:
+  `owner-actions.md` split out of `state-of-the-platform-2026-08-24.md`.)
 - **pnpm only** (a preinstall guard rejects npm/yarn).
 - **Typecheck** with `pnpm run typecheck` before considering work done.
 

@@ -10,7 +10,12 @@ shortens it; only the owner can start it.
 [CLAUDE.md §2](../../CLAUDE.md) — if this document and §2 disagree, §2 is
 right and this file is history.**
 
-## The owner's four actions, in the owner's chosen order (2026-08-24)
+**The four owner actions below are FROZEN as they stood on 2026-08-24.**
+Their live state — what is done, what is in flight — lives in
+[`owner-actions.md`](owner-actions.md), which is the writer for that fact.
+Read the list below as a record of what was decided, never as a status.
+
+## The owner’s four actions, as recorded on 2026-08-24 (frozen)
 
 1. **The entity** — CR + VAT registration + ERAD. The long pole; everything
    below fits inside its shadow.
