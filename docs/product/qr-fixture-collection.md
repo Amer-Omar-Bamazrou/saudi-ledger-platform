@@ -185,6 +185,26 @@ Consequences worth deciding before capture meets real suppliers:
 Nothing is broken; a decision is owed about which name is canonical, and whether
 capture should record both.
 
+### 🔴 CORPUS GAP (owner-recorded 2026-08-27): no Phase-2 QR, and none is scheduled
+
+**Stated as a gap, deliberately not as a task with a deadline.** A Phase-2 QR —
+one carrying tags 6–9, the invoice hash and the cryptographic signature — most
+plausibly comes from a **B2B supplier invoice issued by a Wave-1 company**, and
+the owner cannot summon one on demand. Waiting on it would park the corpus
+behind something nobody controls.
+
+**What that leaves unproven, said plainly:** `verifyQrSignature` — the
+server-side path that decides whether a supplier's stamp actually verifies —
+has **never run against a payload produced by anyone else's software**. Its
+fixtures are our own output plus a hand-built genuinely-signed secp256k1 pair
+(the 2026-08-24 MED fix, which proves the verifier can say YES and can say NO,
+but says nothing about another vendor's field encoding).
+
+So the honest status is: the **decode** path now has one real third-party
+witness; the **verify** path has none, and we know it. If a Phase-2 document
+turns up, it is worth more than the next ten Phase-1 receipts — it is the only
+kind of document that exercises that path at all.
+
 ### Finding 4 — a standard tax invoice carrying only Phase-1 tags
 
 Document C is a *standard* tax invoice (فاتورة مبيعات ضريبية) and its QR carries
