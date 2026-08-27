@@ -32,6 +32,8 @@ import { einvoiceArchiveJobRepository } from "../repositories/einvoiceArchive.re
 import { renewalService, REMINDER_THRESHOLDS_DAYS } from "./einvoice/renewal/renewal.service";
 import { signingService } from "./einvoice/signing/signing.service";
 import { getScheduler } from "../jobs";
+import { isOperatorRunnable, operatorRunnableJobNames } from "../lib/operatorJobs";
+import { BadRequestError } from "../lib/errors";
 
 const DAY_MS = 86_400_000;
 
@@ -188,11 +190,24 @@ export const operatorZatcaService = {
 
   /** Run one background job on demand — the jobs are useful with the worker off. */
   async runJob(name: string) {
+    // Defence in depth: the route refuses first, but a service that would run
+    // ANY registered job is one careless caller away from the F2 defect
+    // returning. Refuse here too, so reach cannot be regained by a new caller.
+    if (!isOperatorRunnable(name)) {
+      throw new BadRequestError(`Job '${name}' is not operator-runnable.`);
+    }
     return { job: name, result: await getScheduler().runNow(name) };
   },
 
+  /**
+   * 🔴 F2: the OPERATOR-runnable names, not every registered job. The scheduler
+   * still registers all of them (that is how a job stays operable with its
+   * timer off), but registration is not authorization — `lib/operatorJobs.ts`
+   * decides reach. Kept as a second, independent refusal so the boundary does
+   * not depend on the route alone.
+   */
   jobNames() {
-    return getScheduler().names();
+    return operatorRunnableJobNames();
   },
 };
 

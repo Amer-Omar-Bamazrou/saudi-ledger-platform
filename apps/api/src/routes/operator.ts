@@ -13,6 +13,8 @@ import { operatorZatcaService } from "../services/operatorZatca.service";
 import { documentsService } from "../services/documents.service";
 import { sendDocument } from "./documentHttp";
 import { BadRequestError } from "../lib/errors";
+import { isOperatorRunnable, operatorRunnableJobNames } from "../lib/operatorJobs";
+import { securityAuditService } from "../services/securityAudit.service";
 
 const router = Router();
 
@@ -101,13 +103,40 @@ router.get("/zatca/onboarding", async (_req, res) => {
  * The jobs are deliberately runnable with `ZATCA_WORKER_ENABLED` off, so an
  * operator can drain the outbox, sweep the archive or re-check expiry without
  * enabling the polling loop.
+ *
+ * 🔴 F2: the allowlist is `lib/operatorJobs.ts`, NOT the scheduler registry.
+ * This route used to validate against every registered job, so the operator
+ * surface silently gained reach each time any milestone added one — nine
+ * permitted against the three this comment names and the three the UI offers.
+ * A registration is not an authorization; see that file for the classification.
+ *
+ * The run is AUDITED. It was the only operator route that recorded nothing —
+ * every other one, including a mere view, writes a security event — while being
+ * the most consequential thing an operator can do (draining the outbox
+ * transmits tenants' invoices to a tax authority).
  */
 router.post("/zatca/jobs/:name/run", async (req, res) => {
   const name = req.params.name;
-  if (!operatorZatcaService.jobNames().includes(name)) {
-    throw new BadRequestError(`Unknown job '${name}'. Known jobs: ${operatorZatcaService.jobNames().join(", ")}`);
+  if (!isOperatorRunnable(name)) {
+    // One answer for "no such job" and "not yours to run": the set of
+    // registered-but-forbidden job names is not an operator's business, and a
+    // distinct message would enumerate the platform's internals.
+    throw new BadRequestError(
+      `Unknown job '${name}'. Runnable jobs: ${operatorRunnableJobNames().join(", ")}`,
+    );
   }
-  res.json(await operatorZatcaService.runJob(name));
+  const result = await operatorZatcaService.runJob(name);
+  await securityAuditService.record({
+    action: "operator.job_run",
+    actorUserId: req.session.userId!,
+    actorEmail: req.session.userEmail ?? null,
+    // Deliberately org-less: a job run is platform-wide and touches every
+    // tenant's queue, so naming one organization would misreport its scope.
+    organizationId: null,
+    metadata: { job: name },
+    ipAddress: req.ip ?? null,
+  });
+  res.json(result);
 });
 
 export default router;
