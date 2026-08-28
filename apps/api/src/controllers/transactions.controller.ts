@@ -33,6 +33,18 @@ export const transactionsController = {
     res.json(await transactionsService.pendingReview());
   },
 
+  /**
+   * 🔴 The TRUE pending totals. The review page's row list is capped at 200
+   * because it feeds a screen; any count taken from it saturates, and the
+   * bulk-accept button was labelled with exactly that capped number while the
+   * endpoint it calls acts on every safe pending row and posts them to the
+   * ledger. A label must state the blast radius of the act it triggers.
+   */
+  async pendingReviewCounts(_req: Request, res: Response) {
+    const counts = await transactionsService.pendingReviewCounts();
+    res.json({ ...counts, ready: counts.total - counts.needsAttention });
+  },
+
   async acceptPending(req: Request, res: Response) {
     const ids = Array.isArray(req.body?.ids)
       ? (req.body.ids as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0)

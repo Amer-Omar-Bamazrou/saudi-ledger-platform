@@ -177,6 +177,22 @@ export const GetPendingReviewTransactionsResponse = zod.array(GetPendingReviewTr
 
 
 /**
+ * `GET /transactions/review` returns a CAPPED page (200 rows) because it
+ * feeds a screen. Any count taken from that page saturates at the cap, so
+ * a tenant with 5,000 pending rows was told 200 — and the bulk-accept
+ * button, which acts on EVERY safe pending row and posts them to the
+ * ledger, was labelled with that capped number. This endpoint is the true
+ * total, so a label can state the real blast radius of the act.
+ * @summary How many rows are pending review, in total — counted in SQL, never off the page
+ */
+export const GetPendingReviewCountsResponse = zod.object({
+  "total": zod.number().describe('Every row awaiting review, counted in SQL over the whole set.'),
+  "needsAttention": zod.number().describe('Rows a human must look at (uncategorised non-transfer, or low confidence and not manually overridden).'),
+  "ready": zod.number().describe('`total - needsAttention` — exactly the set bulk accept will act on\nand POST to the ledger. Computed server-side so no client can derive\nit from a page.\n')
+})
+
+
+/**
  * With `ids`: deliberate, named acceptance of any pending rows. Without:
  * bulk mode — the server restricts it to rows safe to accept unread
  * (categorized or confidently-classified transfers at/above the

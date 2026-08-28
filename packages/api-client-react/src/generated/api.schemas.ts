@@ -776,6 +776,19 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface PendingReviewCounts {
+  /** Every row awaiting review, counted in SQL over the whole set. */
+  total: number;
+  /** Rows a human must look at (uncategorised non-transfer, or low confidence and not manually overridden). */
+  needsAttention: number;
+  /**
+     * `total - needsAttention` — exactly the set bulk accept will act on
+     * and POST to the ledger. Computed server-side so no client can derive
+     * it from a page.
+     */
+  ready: number;
+}
+
 export type PendingReviewTransactionType = typeof PendingReviewTransactionType[keyof typeof PendingReviewTransactionType];
 
 

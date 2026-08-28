@@ -61,10 +61,14 @@ export const operatorZatcaService = {
     // `listOverdue(…, 500)` is a capped page used for the byFlow breakdown and
     // the oldest-age lookup; taking `.length` from it made the headline figure
     // saturate at 500 on the one surface that watches a 24-hour deadline.
-    const [overdue, overdueTotal, needsReview, archive] = await Promise.all([
+    const [overdue, overdueTotal, needsReviewTotal, archive] = await Promise.all([
       einvoiceOutboxRepository.listOverdue(overdueMinutes, 500),
       einvoiceOutboxRepository.countOverdue(overdueMinutes),
-      einvoiceOutboxRepository.listNeedingReview(500),
+      // 🔴 2026-08-28: this was `listNeedingReview(500).length` — the SAME
+      // saturating shape as `overdue.total` two lines up, left behind when that
+      // one was fixed. A dashboard reading exactly 500 is reporting a cap, not a
+      // queue.
+      einvoiceOutboxRepository.countNeedingReview(),
       einvoiceArchiveJobRepository.stats(),
     ]);
 
@@ -85,7 +89,7 @@ export const operatorZatcaService = {
         oldestAgeMinutes: await oldestAgeMinutes(overdue[0]?.id),
         byFlow,
       },
-      needsReview: needsReview.length,
+      needsReview: needsReviewTotal,
       archive,
       workerEnabled: env.ZATCA_WORKER_ENABLED,
     };

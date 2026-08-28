@@ -245,13 +245,15 @@ describeMaybe("statement ingest — currency, whitespace, duplicates, manual cat
     const first = await upload([base]);
     expect(first.inserted).toBe(1);
 
-    // The same statement re-exported with sloppier spacing.
-    const again = await upload([
-      { ...base, description: "  SADAD PAYMENT - STC 0112345678 " },
-      { ...base, description: "SADAD PAYMENT  -  STC 0112345678" }, // doubled internal spaces
-    ]);
+    // The same statement re-exported with sloppier spacing — ONE line, spelled
+    // differently. Normalisation makes it the same row, so nothing imports.
+    const again = await upload([{ ...base, description: "  SADAD PAYMENT - STC 0112345678 " }]);
     expect(again.inserted).toBe(0);
-    expect(again.duplicatesSkipped).toBe(2);
+    expect(again.duplicatesSkipped).toBe(1);
+
+    // …and the other spelling too, independently.
+    const third = await upload([{ ...base, description: "SADAD PAYMENT  -  STC 0112345678" }]);
+    expect(third.inserted).toBe(0);
 
     const { rows } = await pool.query(
       `SELECT description FROM transactions WHERE organization_id = $1 AND description LIKE 'SADAD%'`,
@@ -261,14 +263,63 @@ describeMaybe("statement ingest — currency, whitespace, duplicates, manual cat
     expect(rows[0].description).toBe(base.description); // stored normalised, no stray spaces
   });
 
-  it("🔴 #10 the skipped rows are RETURNED, so a genuine second payment can be seen and re-entered", async () => {
+  /**
+   * 🔴 2026-08-28 — THE DELIBERATE TRADE THIS TEST NOW RECORDS.
+   *
+   * Duplicate detection went from EXISTENCE to MULTIPLICITY: import as many
+   * copies as the file carries minus as many as the account already holds. So a
+   * file that lists a line TWICE imports the second copy, even if the line is
+   * really one charge that a sloppy re-export spelled two ways. The old test
+   * asserted the opposite, because it presented two spellings of one line as if
+   * they were a re-upload.
+   *
+   * We chose the direction on which error is RECOVERABLE, not on which is rarer:
+   *   • Under-import (the old behaviour) drops a real charge from the books.
+   *     Expenses and input VAT are understated, nothing on any screen says so,
+   *     and the only trace was a `duplicates` array no UI reads.
+   *   • Over-import lands in `pending_review`, where a human sees it before it
+   *     can post, AND is detected by the existing `duplicate_transaction`
+   *     finding, which keys on exactly (date, amount, description).
+   *
+   * One direction is caught by two mechanisms we already own; the other is
+   * caught by nothing. That is the whole argument.
+   */
+  it("🔴 a file that lists the same line twice imports both — the file's own count is the evidence", async () => {
+    const fee = { date: "2026-10-05", description: "ATM WITHDRAWAL FEE", amount: 15, currency: "SAR", type: "debit" };
+    const r = await upload([fee, fee]);
+    expect(r.inserted).toBe(2);
+    expect(r.duplicatesSkipped).toBe(0);
+
+    // Re-uploading that same statement adds nothing: the account already holds
+    // as many copies as the file claims.
+    const again = await upload([fee, fee]);
+    expect(again.inserted).toBe(0);
+    expect(again.duplicatesSkipped).toBe(2);
+  });
+
+  it("🔴 #10 two genuinely identical payments both reach the books", async () => {
+    /**
+     * 🔴 THIS TEST USED TO ASSERT THE DEFECT. Its own words were "two real
+     * parking fees on one day", and it then asserted that only ONE of them was
+     * inserted — the obsolete-assertion family, except it was never correct:
+     * it pinned a known loss because the mitigation shipped at the time was to
+     * RETURN the dropped row rather than import it. No UI ever read that field
+     * (checked: zero references to `duplicates` in `apps/web`), so the
+     * mitigation had no consumer and the second fee was silently missing from
+     * the expense figure and the VAT reconciliation.
+     */
     const park = { date: "2026-10-03", description: "PARKING FEE", amount: 20, currency: "SAR", type: "debit" };
     const r = await upload([park, park]); // two real parking fees on one day
-    expect(r.inserted).toBe(1);
-    expect(r.duplicatesSkipped).toBe(1);
-    // The count alone could not distinguish "you re-uploaded" from "you paid
-    // twice". The row itself can.
-    expect(r.duplicates).toEqual([{ date: "2026-10-03", description: "PARKING FEE", amount: 20 }]);
+    expect(r.inserted).toBe(2);
+    expect(r.duplicatesSkipped).toBe(0);
+
+    const { rows } = await pool.query(
+      `SELECT count(*)::int n, sum(amount)::numeric total FROM transactions
+        WHERE organization_id = $1 AND description = 'PARKING FEE'`,
+      [orgId],
+    );
+    expect(rows[0].n).toBe(2);
+    expect(Number(rows[0].total)).toBe(40); // not 20 — the books hold both
   });
 
   it("🔴 #3 categorising by hand stamps the treatment and extracts VAT, exactly as the engine does", async () => {

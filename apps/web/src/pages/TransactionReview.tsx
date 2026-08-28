@@ -10,11 +10,13 @@
  * area and the payment is recorded through the existing invoice/bill pay
  * path. Nothing here is ever automatic; the human clicks.
  */
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCheck, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -70,8 +72,27 @@ export default function TransactionReview() {
     queryFn: () => apiFetch("/transactions/review"),
   });
 
+  /**
+   * 🔴 The TRUE totals, counted in SQL — never `rows.length`.
+   *
+   * `/transactions/review` returns a 200-row page because it feeds this screen.
+   * The bulk button below was labelled `Accept ready (${ready.length})` off that
+   * page and then called the endpoint with NO ids, which accepts EVERY safe
+   * pending row in the tenant and POSTS THEM TO THE LEDGER. A tenant with 5,000
+   * rows read "200" and one click posted all of them. The label understated the
+   * blast radius of an accounting act — invisible below 200 rows, which is
+   * every dataset this product has ever been developed against.
+   */
+  const { data: counts } = useQuery<{ total: number; needsAttention: number; ready: number }>({
+    queryKey: ["transactions-review-counts"],
+    queryFn: () => apiFetch("/transactions/review/counts"),
+  });
+
+  const [confirmBulk, setConfirmBulk] = useState(false);
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["transactions-review"] });
+    qc.invalidateQueries({ queryKey: ["transactions-review-counts"] });
     qc.invalidateQueries({ queryKey: ["transactions"] });
     qc.invalidateQueries({ queryKey: ["invoices"] });
     qc.invalidateQueries({ queryKey: ["bills"] });
@@ -131,6 +152,22 @@ export default function TransactionReview() {
   });
 
   const ready = rows.filter((r) => !r.needsAttention);
+
+  /**
+   * 🔴 The true ready total, and whether one click reaches past what the user
+   * can see. Bulk accept sends NO ids, so the server acts on every safe pending
+   * row in the tenant and POSTS each one to the ledger. Below the 200-row cap
+   * the two numbers are equal and none of this shows; past it, a confirm names
+   * what the click will actually do.
+   *
+   * This does not violate the M16 principle that accepting the match IS the
+   * review — a second confirmation of a fact the user just reviewed is a design
+   * defect. Rows beyond the page were never reviewed, so naming them is not a
+   * second confirmation; it is the first mention.
+   */
+  const readyTotal = counts?.ready ?? null;
+  const reachesBeyondPage = readyTotal != null && readyTotal > ready.length;
+
   const attention = rows.filter((r) => r.needsAttention);
 
   const suggestionLabel = (s: Suggestion) => {
@@ -234,15 +271,77 @@ export default function TransactionReview() {
         <h1 className="text-2xl font-semibold">
           {lang === "ar" ? "مراجعة المعاملات" : "Transaction Review"}
         </h1>
+        {/*
+          Disabled on the TRUE count where we have it: every visible row needing
+          attention does not mean there is nothing ready BEYOND the page. Falls
+          back to the page count only while the server count is still loading.
+        */}
         <Button
-          onClick={() => acceptMut.mutate(undefined)}
-          disabled={acceptMut.isPending || ready.length === 0}
+          onClick={() => (reachesBeyondPage ? setConfirmBulk(true) : acceptMut.mutate(undefined))}
+          disabled={acceptMut.isPending || (readyTotal != null ? readyTotal === 0 : ready.length === 0)}
           className="gap-2"
         >
           <CheckCheck className="h-4 w-4" />
-          {lang === "ar" ? "قبول الجاهزة" : `Accept ready (${ready.length})`}
+          {/*
+            The number is the SERVER's count of every row this click will accept
+            and post — never `ready.length`, which counts only the visible page.
+            When the count has not loaded, the button states no number at all
+            rather than asserting the page count as a total.
+          */}
+          {lang === "ar"
+            ? readyTotal != null
+              ? `قبول الجاهزة (${readyTotal})`
+              : "قبول الجاهزة"
+            : readyTotal != null
+              ? `Accept ready (${readyTotal})`
+              : "Accept ready"}
         </Button>
       </div>
+
+      {/*
+        ── The blast-radius confirm ────────────────────────────────────────────
+        Shown ONLY when the click reaches past the rows on screen. It names the
+        number, says the rows are not visible, and says that accepting posts to
+        the ledger — the three facts the old label hid behind a page count.
+      */}
+      <Dialog open={confirmBulk} onOpenChange={setConfirmBulk}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar"
+                ? `قبول ${readyTotal} معاملة؟`
+                : `Accept ${readyTotal} transactions?`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              {lang === "ar"
+                ? `هذه الصفحة تعرض ${ready.length} فقط. سيقبل هذا الإجراء كل المعاملات الجاهزة البالغ عددها ${readyTotal}، بما فيها ما لا يظهر أمامك.`
+                : `This page shows ${ready.length} of them. The action accepts all ${readyTotal} ready rows, including the ones you cannot see here.`}
+            </p>
+            <p className="font-medium">
+              {lang === "ar"
+                ? "القبول يُرحّل إلى دفتر الأستاذ: ستتحرك قائمة الدخل والتقارير فورًا."
+                : "Accepting POSTS to the ledger — the income statement and every report move immediately."}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmBulk(false)}>
+                {lang === "ar" ? "إلغاء" : "Cancel"}
+              </Button>
+              <Button
+                size="sm"
+                disabled={acceptMut.isPending}
+                onClick={() => {
+                  setConfirmBulk(false);
+                  acceptMut.mutate(undefined);
+                }}
+              >
+                {lang === "ar" ? `قبول ${readyTotal}` : `Accept all ${readyTotal}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isLoading && <p className="text-sm text-muted-foreground">…</p>}
       {!isLoading && rows.length === 0 && (

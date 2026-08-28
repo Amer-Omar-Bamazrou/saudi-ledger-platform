@@ -139,6 +139,26 @@ paths:
                 items:
                   $ref: "#/components/schemas/PendingReviewTransaction"
 
+  /transactions/review/counts:
+    get:
+      operationId: getPendingReviewCounts
+      tags: [transactions]
+      summary: How many rows are pending review, in total — counted in SQL, never off the page
+      description: |
+        `GET /transactions/review` returns a CAPPED page (200 rows) because it
+        feeds a screen. Any count taken from that page saturates at the cap, so
+        a tenant with 5,000 pending rows was told 200 — and the bulk-accept
+        button, which acts on EVERY safe pending row and posts them to the
+        ledger, was labelled with that capped number. This endpoint is the true
+        total, so a label can state the real blast radius of the act.
+      responses:
+        "200":
+          description: True totals over every pending row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingReviewCounts"
+
   /transactions/review/accept:
     post:
       operationId: acceptPendingTransactions
@@ -2982,6 +3002,23 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    PendingReviewCounts:
+      type: object
+      required: [total, needsAttention, ready]
+      properties:
+        total:
+          type: integer
+          description: Every row awaiting review, counted in SQL over the whole set.
+        needsAttention:
+          type: integer
+          description: Rows a human must look at (uncategorised non-transfer, or low confidence and not manually overridden).
+        ready:
+          type: integer
+          description: |
+            `total - needsAttention` — exactly the set bulk accept will act on
+            and POST to the ledger. Computed server-side so no client can derive
+            it from a page.
 
     PendingReviewTransaction:
       type: object

@@ -118,6 +118,12 @@ export const transactionsService = {
      * re-enter a genuine second payment. A bare number cannot be acted on.
      */
     const duplicates: Array<{ date: string; description: string; amount: number }> = [];
+    /**
+     * Per duplicate-key state for THIS upload: how many identical rows the
+     * account already held when the upload began, and how many this file has
+     * presented so far. See the multiplicity note at the check below.
+     */
+    const seenByKey = new Map<string, { alreadyHeld: number; seen: number }>();
     let inserted = 0;
     let categorized = 0;
 
@@ -173,19 +179,45 @@ export const transactionsService = {
           );
           continue;
         }
-        // M15: an identical row (date+description+amount+type) is skipped and
-        // REPORTED — uploading the same statement twice used to double every
-        // figure in the dashboard, VAT summary and Zakat base, silently.
-        // M16.2 — the duplicate key now includes the account: the same salary
-        // paid from two accounts is two real rows, and a statement re-uploaded
-        // against ITS OWN account is the duplicate case.
-        if (await transactionsRepository.existsIdentical({
-          date: row.date,
-          description: row.description,
-          amount: String(row.amount),
-          type: row.type,
-          bankAccountId,
-        })) {
+        /**
+         * M15: an identical row is skipped and REPORTED — uploading the same
+         * statement twice used to double every figure in the dashboard, VAT
+         * summary and Zakat base, silently. M16.2 scoped the key to the account.
+         *
+         * 🔴 2026-08-28 — BY MULTIPLICITY, NOT BY EXISTENCE. The old test asked
+         * "does an identical row exist?", which cannot distinguish a re-uploaded
+         * statement from a statement that genuinely lists the same charge twice
+         * — two taxi fares, two identical fees, two identical transfers on one
+         * day. It answered both with "skip", so the second REAL charge never
+         * entered the books and the expense (and its input VAT) was understated
+         * by exactly that amount. The comment above `duplicates` had already
+         * named the conflation and mitigated it by RETURNING the dropped rows —
+         * but no UI reads that field, so the mitigation had no consumer and the
+         * loss was silent.
+         *
+         * The rule now: import as many copies as this file carries MINUS as many
+         * as the account already holds. Re-upload ⇒ nothing imported. A real
+         * repeat ⇒ every copy imported. `alreadyHeld` is read ONCE per distinct
+         * key (before this run inserts anything) and `seen` counts occurrences
+         * within the file, so the arithmetic is not disturbed by our own inserts.
+         */
+        const dupKey = `${row.date}|${row.description}|${String(row.amount)}|${row.type}|${bankAccountId ?? "-"}`;
+        let seenState = seenByKey.get(dupKey);
+        if (!seenState) {
+          seenState = {
+            alreadyHeld: await transactionsRepository.countIdentical({
+              date: row.date,
+              description: row.description,
+              amount: String(row.amount),
+              type: row.type,
+              bankAccountId,
+            }),
+            seen: 0,
+          };
+          seenByKey.set(dupKey, seenState);
+        }
+        seenState.seen += 1;
+        if (seenState.seen <= seenState.alreadyHeld) {
           duplicates.push({ date: row.date, description, amount: Number(row.amount) });
           continue;
         }

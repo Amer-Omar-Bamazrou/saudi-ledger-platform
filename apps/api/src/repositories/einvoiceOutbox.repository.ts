@@ -208,6 +208,27 @@ export const einvoiceOutboxRepository = {
     return Number(rows[0]?.n ?? 0);
   },
 
+  /**
+   * 🔴 The needs-review COUNT, in SQL over every matching row.
+   *
+   * Same shape as `countOverdue` above, and it is here for the same reason: the
+   * operator dashboard reported `listNeedingReview(500).length`, which
+   * saturates at exactly 500. B6 fixed the overdue figure sitting one line
+   * above it and left this one — "green fixes the case, not the class",
+   * demonstrated inside a single function. Predicate kept identical to
+   * `listNeedingReview`, plus the optional org filter the test suite needs to
+   * scope an assertion to its own fixture on a shared database.
+   */
+  async countNeedingReview(organizationId?: string): Promise<number> {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM einvoice_documents
+        WHERE status IN ('needs_review', 'rejected')
+          AND ($1::uuid IS NULL OR organization_id = $1::uuid)`,
+      [organizationId ?? null],
+    );
+    return Number(rows[0]?.n ?? 0);
+  },
+
   /** Read one row by id — used by tests and the operator surface. */
   async findById(id: string): Promise<OutboxRow | undefined> {
     const { rows } = await pool.query(`SELECT ${SELECT_COLS} FROM einvoice_documents WHERE id = $1`, [id]);

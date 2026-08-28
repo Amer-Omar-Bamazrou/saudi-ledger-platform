@@ -78,6 +78,7 @@ import type {
   ListQuotationsParams,
   ListTransactionsParams,
   PayrollRun,
+  PendingReviewCounts,
   PendingReviewTransaction,
   PeriodLock,
   PeriodLockInput,
@@ -511,6 +512,89 @@ export function useGetPendingReviewTransactions<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPendingReviewTransactionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPendingReviewCountsUrl = () => {
+
+
+
+
+  return `/api/transactions/review/counts`
+}
+
+/**
+ * `GET /transactions/review` returns a CAPPED page (200 rows) because it
+ * feeds a screen. Any count taken from that page saturates at the cap, so
+ * a tenant with 5,000 pending rows was told 200 — and the bulk-accept
+ * button, which acts on EVERY safe pending row and posts them to the
+ * ledger, was labelled with that capped number. This endpoint is the true
+ * total, so a label can state the real blast radius of the act.
+ * @summary How many rows are pending review, in total — counted in SQL, never off the page
+ */
+export const getPendingReviewCounts = async ( options?: RequestInit): Promise<PendingReviewCounts> => {
+
+  return customFetch<PendingReviewCounts>(getGetPendingReviewCountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPendingReviewCountsQueryKey = () => {
+    return [
+    `/api/transactions/review/counts`
+    ] as const;
+    }
+
+
+export const getGetPendingReviewCountsQueryOptions = <TData = Awaited<ReturnType<typeof getPendingReviewCounts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPendingReviewCountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPendingReviewCounts>>> = ({ signal }) => getPendingReviewCounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewCounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPendingReviewCountsQueryResult = NonNullable<Awaited<ReturnType<typeof getPendingReviewCounts>>>
+export type GetPendingReviewCountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary How many rows are pending review, in total — counted in SQL, never off the page
+ */
+
+export function useGetPendingReviewCounts<TData = Awaited<ReturnType<typeof getPendingReviewCounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPendingReviewCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPendingReviewCountsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
