@@ -9,8 +9,10 @@
  * runs outside the verification gate and outside tenant scoping. Callers
  * authorize by membership.
  */
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Onboarding runs across the identity tables before a tenant context exists.
 import {
-  db,
+  ownerDb as db,
   organizationMembershipsTable,
   organizationsTable,
   verificationReviewsTable,

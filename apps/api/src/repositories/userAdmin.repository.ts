@@ -11,7 +11,11 @@
  * on the BASE (owner) connection, read BEFORE `resolveTenant`, so there is no RLS
  * backstop — callers MUST authorize first (the service does).
  */
-import { db, organizationMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Identity layer: `users`, `organizations` and `organization_memberships` are OUTSIDE RLS (§4).
+// The `db` proxy now REFUSES a query outside a tenant transaction instead of
+// silently falling back to this connection.
+import { ownerDb as db, organizationMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 export const userAdminRepository = {

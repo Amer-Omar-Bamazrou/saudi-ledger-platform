@@ -89,6 +89,7 @@ function fakeClient(overrides: Partial<ZatcaOnboardingClient> = {}): ZatcaOnboar
 
 describeMaybe("M12.4 — ZATCA onboarding flow", () => {
   let completeCompanyId: string;
+  let orgId = "";
   let incompleteCompanyId: string;
 
   async function cleanup(): Promise<void> {
@@ -103,6 +104,31 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
       [SLUG],
     );
     await pool.query(`DELETE FROM organizations WHERE slug = $1`, [SLUG]);
+  }
+
+  /**
+   * 🔴 The service calls below now run INSIDE a tenant transaction, as they do
+   * in production: `/zatca/onboarding` is mounted on the tenant router, so
+   * `companiesRepository.findById` resolves to the RLS-scoped handle there.
+   * This fixture used to call the services bare and reach the database through
+   * the proxy's silent owner fallback — testing the code with RLS bypassed,
+   * which is not the configuration the product runs in.
+   */
+  async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
+    const { beginTenantConnection } = await import("@workspace/db");
+    const conn = await beginTenantConnection({
+      organizationId: orgId,
+      companyId: completeCompanyId,
+      role: "authenticated",
+    });
+    try {
+      const out = await conn.run(fn);
+      await conn.commit();
+      return out;
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    }
   }
 
   beforeAll(async () => {
@@ -128,6 +154,7 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
         [org.rows[0].id],
       )
     ).rows[0].id;
+    orgId = org.rows[0].id;
   });
 
   afterAll(async () => {
@@ -135,7 +162,7 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
   });
 
   it("surfaces every missing prerequisite before onboarding can start", async () => {
-    const status = await zatcaOnboardingService.status(incompleteCompanyId, "sandbox");
+    const status = await inTenant(() => zatcaOnboardingService.status(incompleteCompanyId, "sandbox"));
     expect(status.ready).toBe(false);
 
     const missing = status.prerequisites.filter((p) => !p.satisfied).map((p) => p.key);
@@ -149,16 +176,18 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
   });
 
   it("reports ready when the company is complete", async () => {
-    const status = await zatcaOnboardingService.status(completeCompanyId, "sandbox");
+    const status = await inTenant(() => zatcaOnboardingService.status(completeCompanyId, "sandbox"));
     expect(status.ready).toBe(true);
     expect(status.certificate).toBeNull();
   });
 
   it("refuses to onboard an incomplete company, naming the missing fields", async () => {
     await expect(
-      zatcaOnboardingService.onboard(
-        { companyId: incompleteCompanyId, otp: "123456", environment: "sandbox" },
-        fakeClient(),
+      inTenant(() =>
+        zatcaOnboardingService.onboard(
+          { companyId: incompleteCompanyId, otp: "123456", environment: "sandbox" },
+          fakeClient(),
+        ),
       ),
     ).rejects.toMatchObject({
       statusCode: 400,
@@ -168,9 +197,11 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
 
   it("requires an OTP", async () => {
     await expect(
-      zatcaOnboardingService.onboard(
-        { companyId: completeCompanyId, otp: "   ", environment: "sandbox" },
-        fakeClient(),
+      inTenant(() =>
+        zatcaOnboardingService.onboard(
+          { companyId: completeCompanyId, otp: "   ", environment: "sandbox" },
+          fakeClient(),
+        ),
       ),
     ).rejects.toMatchObject({ statusCode: 400, payload: { code: "zatca_otp_required" } });
   });
@@ -184,9 +215,12 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
       },
     });
 
-    const result = await zatcaOnboardingService
-      .onboard({ companyId: completeCompanyId, otp: "123456", environment: "sandbox" }, client)
-      .catch((e: unknown) => e);
+    const result = await inTenant(() =>
+      zatcaOnboardingService.onboard(
+        { companyId: completeCompanyId, otp: "123456", environment: "sandbox" },
+        client,
+      ),
+    ).catch((e: unknown) => e);
 
     // Activation fails on the canned certificate (next test), but all six
     // documents must have been submitted before that point.
@@ -204,14 +238,15 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
      * The public-key check in activateCredential is correct in EVERY
      * environment and catches this automatically.
      */
-    const err = await zatcaOnboardingService
-      .onboard({ companyId: completeCompanyId, otp: "123456", environment: "sandbox" }, fakeClient())
+    const err = await inTenant(() =>
+        zatcaOnboardingService.onboard({ companyId: completeCompanyId, otp: "123456", environment: "sandbox" }, fakeClient()),
+      )
       .catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(CertificateMismatchError);
 
     // Nothing was activated.
-    const status = await zatcaOnboardingService.status(completeCompanyId, "sandbox");
+    const status = await inTenant(() => zatcaOnboardingService.status(completeCompanyId, "sandbox"));
     expect(status.certificate).toBeNull();
   });
 
@@ -231,10 +266,10 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
       },
     });
 
-    const result = await zatcaOnboardingService.onboard(
+    const result = await inTenant(() => zatcaOnboardingService.onboard(
       { companyId: completeCompanyId, otp: "123456", environment: "sandbox" },
       client,
-    );
+    ));
 
     // 🔴 Asserted here rather than inferred from PCSID issuance: the sandbox
     // issues a PCSID even when documents FAIL, so "we got a certificate" is not
@@ -247,8 +282,9 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
 
   it("passes the OTP through exactly once and never stores it", async () => {
     const client = fakeClient();
-    await zatcaOnboardingService
-      .onboard({ companyId: completeCompanyId, otp: " 987654 ", environment: "sandbox" }, client)
+    await inTenant(() =>
+        zatcaOnboardingService.onboard({ companyId: completeCompanyId, otp: " 987654 ", environment: "sandbox" }, client),
+      )
       .catch(() => undefined);
 
     expect(client.otpsSeen).toEqual(["987654"]); // trimmed, used once
@@ -294,7 +330,7 @@ describeMaybe("M12.4 — ZATCA onboarding flow", () => {
       notAfter: new Date("2031-08-08T21:00:00Z"),
     });
 
-    const status = await zatcaOnboardingService.status(completeCompanyId, "simulation");
+    const status = await inTenant(() => zatcaOnboardingService.status(completeCompanyId, "simulation"));
     expect(status.certificate?.status).toBe("active");
     // The 5-year expiry the renewal reminders key off.
     expect(status.certificate?.daysUntilExpiry).toBeGreaterThan(1000);

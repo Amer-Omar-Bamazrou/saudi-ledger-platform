@@ -17,8 +17,13 @@
  */
 import type { Request, Response, NextFunction } from "express";
 import { and, asc, eq } from "drizzle-orm";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// TENANT RESOLUTION runs BEFORE the tenant scope exists — it is what decides
+// which scope to open — so by definition it cannot use the scoped handle. That
+// was always true and was previously expressed by the proxy silently falling
+// back; it is now stated.
 import {
-  db,
+  ownerDb as db,
   beginTenantConnection,
   organizationMembershipsTable,
   organizationsTable,

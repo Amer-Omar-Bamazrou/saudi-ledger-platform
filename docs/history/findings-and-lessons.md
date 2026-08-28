@@ -2649,6 +2649,89 @@ Anyone tempted to clean it up should read this entry first and then not.
 
 ---
 
+## 2026-08-28 — RANK 1 FIXED: the silent fallback to the owner connection is gone
+
+### What it was, and why it ranked first with no live instance
+
+`db` is a Proxy. Inside a tenant transaction it resolved to the RLS-scoped
+client; outside one it fell back **silently** to the owner connection — RLS
+bypassed, no `app.current_org_id`, full cross-tenant reach, no error.
+
+The accounting core depended on that never happening and said so in a comment:
+`glPosting.resolveAccounts` writes no organization filter because "this runs
+inside the request's tenant transaction". The core trusted a fact its CALLER
+controlled, and the failure mode was **a wrong answer rather than a refusal** —
+one tenant's entries posted against another's accounts, silently.
+
+It was ranked **first** in the consequence-ordered triage with no live instance,
+because it is the only open item that hits all three multipliers at once: it
+posts (irreversible), under the wrong tenant (uncorrectable), with no error
+(unnoticed). That call is now vindicated twice over — see below.
+
+### The fix: inexpressible, not guarded
+
+The fallback is deleted. Any DB-reaching method on `db` outside a tenant scope
+throws `UnscopedDatabaseAccessError`, naming what it would otherwise have done
+and what to do instead. A deliberately cross-tenant call imports **`ownerDb`**
+and says so.
+
+🔴 Harmless property access is deliberately NOT refused — `then`, symbols,
+whatever `util.inspect` and drizzle's internals probe. A guard that breaks
+inspection gets reverted within a day for unrelated breakage, which is how a
+correct guard dies. Only the twelve query-building methods are refused, and
+`tests/unscoped-db-refusal.test.ts` pins both halves.
+
+### 🔴 The conversion found a live instance — the ranking was right
+
+**`operatorService.getApplication` → `documentsRepository.listByOrg`**: the
+operator surface read a tenant's `verification_documents` through the fallback.
+RLS bypassed by accident rather than by decision, on a table holding third-party
+identity documents. It is the same surface already queued for unbounded access
+(open finding: `getApplication` accepts any orgId and never expires), and now we
+know it was also unscoped by construction. Fixed by naming `ownerDb` in that
+repository, where every query already filters by `organizationId` explicitly —
+which is what makes the owner connection the right one to name rather than a
+workaround.
+
+### What the conversion measured, which is the durable part
+
+**Thirteen production files** were running unscoped through the fallback, and
+every one of them is in the same layer: auth, signup, invitations, security
+audit, user admin, members, orgs, operators, verification, onboarding, tenant
+resolution, the demo seed, and verification documents. That is the identity and
+pre-tenant layer — precisely the set §4 already says is the only correct
+consumer of those tables. **Two of them (`organization_invitations`,
+`security_audit_logs`) were already documented on `ownerDb` as owner-only and
+were reaching it through the fallback anyway**: the doc said one thing and the
+import said nothing, so the code did the right thing by accident.
+
+🔴 **No business-layer file was relying on the fallback.** The audit's original
+claim ("no live instance found") was correct for the ledger — and is now
+mechanically enforced rather than checked by reading.
+
+`demoSeed.service.ts` is the interesting one: it needs **both** handles, and now
+says which at each call. Its pre-tenant writes (organization, company, admin
+user, membership) are `ownerDb`; everything after it opens `inTenant` stays on
+`db`. A blanket switch there would have bypassed RLS for the business writes —
+the dangerous direction, avoided only by checking each call site against the
+scope boundary rather than pattern-matching the file.
+
+### The test fallout, and what it says
+
+Six test files failed because their fixtures called business services with **no
+tenant scope** — that is, they had been exercising business logic with RLS
+bypassed, which is not the configuration the product runs in. Wrapping them in
+`beginTenantConnection` makes them faithful, not lenient.
+
+🔴 One diagnosis worth keeping: five of those files failed at the FILE level with
+an FK error on `finding_runs`, and the cause was **residue from my own earlier
+broken runs** — the findings scheduler had written rows for those orgs while the
+suite was red, and the cleanups do not delete them. `Test Files 6 failed` beside
+`Tests 1 failed` is the §10b signature exactly: the test-level number said one
+thing and the verdict was elsewhere.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

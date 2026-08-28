@@ -5,7 +5,15 @@
  * Every query is explicitly scoped by `organizationId`; there is no RLS backstop,
  * so callers MUST authorize first (member of the org, or platform operator).
  */
-import { db, verificationDocumentsTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// `verification_documents` is an OWNER-ONLY table (it is not the tenant business
+// document store — see ownerDb's own doc comment), and it is read from BOTH sides:
+// a tenant uploading its own evidence, and a platform OPERATOR reviewing an
+// application from outside any tenant scope. The operator path reached it through
+// the proxy's silent fallback — RLS bypassed by accident rather than by decision.
+// Every query here filters by organizationId explicitly, which is what makes the
+// owner connection the right one to name.
+import { ownerDb as db, verificationDocumentsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 
 const META = {

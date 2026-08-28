@@ -25,7 +25,11 @@
  * NEVER put secrets in `metadata` — no password material, no tokens.
  */
 import { desc, eq } from "drizzle-orm";
-import { db, securityAuditLogsTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// `security_audit_logs` is an owner-only table — likewise already listed on `ownerDb`, and likewise reached through the fallback.
+// The `db` proxy now REFUSES a query outside a tenant transaction rather than
+// falling back here silently, so this import states what was previously assumed.
+import { ownerDb as db, securityAuditLogsTable } from "@workspace/db";
 import { ForbiddenError } from "../lib/errors";
 import { membersRepository } from "../repositories/members.repository";
 

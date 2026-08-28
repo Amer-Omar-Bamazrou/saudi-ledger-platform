@@ -27,6 +27,7 @@ import { and, eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
   db,
+  ownerDb,
   beginTenantConnection,
   organizationsTable,
   companiesTable,
@@ -106,20 +107,30 @@ async function ensureIdentity(
 ): Promise<{ organizationId: string; companyId: string; userId: number }> {
   // The organizations INSERT trigger seeds the chart of accounts AND the
   // default categories for the new org, so nothing here has to.
-  let [org] = await db
+  /**
+   * 🔴 Pre-tenant writes use the OWNER connection, NAMED.
+   *
+   * Creating the organization, its company, the admin user and the membership
+   * all happen BEFORE a tenant scope can exist — they are what makes one
+   * possible. Everything after `inTenant` below is tenant-scoped and keeps
+   * using `db`, which now REFUSES to run outside a scope rather than falling
+   * back here silently. This file needs both handles, and now says which is
+   * which at each call.
+   */
+  let [org] = await ownerDb
     .select()
     .from(organizationsTable)
     .where(eq(organizationsTable.slug, DEMO_ORG_SLUG))
     .limit(1);
 
   if (!org) {
-    [org] = await db
+    [org] = await ownerDb
       .insert(organizationsTable)
       .values({ name: DEMO_ORG_NAME, slug: DEMO_ORG_SLUG, verificationStatus: "approved" })
       .returning();
   }
 
-  let [company] = await db
+  let [company] = await ownerDb
     .select()
     .from(companiesTable)
     .where(
@@ -128,7 +139,7 @@ async function ensureIdentity(
     .limit(1);
 
   if (!company) {
-    [company] = await db
+    [company] = await ownerDb
       .insert(companiesTable)
       .values({
         organizationId: org!.id,
@@ -138,7 +149,7 @@ async function ensureIdentity(
       .returning();
   }
 
-  let [user] = await db
+  let [user] = await ownerDb
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(eq(usersTable.email, adminEmail))
@@ -146,7 +157,7 @@ async function ensureIdentity(
 
   if (!user) {
     const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
-    [user] = await db
+    [user] = await ownerDb
       .insert(usersTable)
       .values({ email: adminEmail, name: adminName, passwordHash, role: "admin", isActive: true })
       .returning({ id: usersTable.id });
@@ -156,7 +167,7 @@ async function ensureIdentity(
   // weekly reset makes any mess temporary, and a half-hidden product is a worse
   // review than a fully clickable one. The authority that matters is still
   // refused at the route — capture and signup are off for every role.
-  await db
+  await ownerDb
     .insert(organizationMembershipsTable)
     .values({
       userId: user!.id,

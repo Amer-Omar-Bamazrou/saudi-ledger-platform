@@ -6,12 +6,11 @@
  * backstop, so callers MUST authorize first (the service does), and every query
  * here is explicitly scoped by organization or by token hash.
  */
-import {
-  db,
-  organizationInvitationsTable,
-  organizationsTable,
-  usersTable,
-} from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// `organization_invitations` is an owner-only table — `ownerDb`'s own doc comment already listed it, and this file was reaching it through the proxy's silent fallback.
+// The `db` proxy now REFUSES a query outside a tenant transaction rather than
+// falling back here silently, so this import states what was previously assumed.
+import { ownerDb as db, organizationInvitationsTable, organizationsTable, usersTable } from "@workspace/db";
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 
 export const invitationsRepository = {

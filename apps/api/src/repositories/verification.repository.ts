@@ -6,8 +6,10 @@
  * applicant company's CR/VAT, and the review history) — never a tenant's
  * financial data.
  */
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Operator/verification surface: `organizations` and `verification_reviews` are owner-only, and review happens before the tenant is approved — there is no tenant scope to be in.
 import {
-  db,
+  ownerDb as db,
   organizationsTable,
   companiesTable,
   verificationReviewsTable,
