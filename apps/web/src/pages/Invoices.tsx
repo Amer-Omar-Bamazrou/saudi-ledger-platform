@@ -49,6 +49,24 @@ export default function Invoices() {
   const [open, setOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
+  /**
+   * 🔴 THE LINES. This form had none — it collected a number, dates, a status,
+   * a customer and notes, and the create mutation hardcoded `items: []`. So
+   * every invoice made from this page was SAR 0.00, and because an approver's
+   * own invoice is auto-approved it was ISSUED at zero: an ICV consumed, a
+   * position taken in the ZATCA hash chain, a QR minted. It could not be
+   * corrected afterwards either — PATCH has no caller (AUD-11) and an issued
+   * invoice cannot be deleted. An invoicing product whose invoice form could
+   * not express an amount.
+   */
+  const [lines, setLines] = useState<Array<{ description: string; quantity: string; unitPrice: string; vatRate: string }>>([
+    { description: "", quantity: "1", unitPrice: "", vatRate: "15" },
+  ]);
+  const lineTotal = (l: { quantity: string; unitPrice: string; vatRate: string }) => {
+    const net = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
+    return net + (net * (Number(l.vatRate) || 0)) / 100;
+  };
+  const invoiceTotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
   const [payAmount, setPayAmount] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -62,8 +80,23 @@ export default function Invoices() {
   const { data: customers = [] } = useQuery<Customer[]>({ queryKey: ["customers"], queryFn: () => apiFetch("/customers") });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/invoices", { method: "POST", body: JSON.stringify({ ...body, customerId: Number(body.customerId), items: [] }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    mutationFn: (body: any) =>
+      apiFetch("/invoices", {
+        method: "POST",
+        body: JSON.stringify({
+          ...body,
+          customerId: Number(body.customerId),
+          items: lines
+            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
+            .map((l) => ({
+              description: l.description.trim(),
+              quantity: Number(l.quantity) || 1,
+              unitPrice: Number(l.unitPrice),
+              vatRate: Number(l.vatRate) || 0,
+            })),
+        }),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -154,8 +187,68 @@ export default function Invoices() {
                 <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("Optional notes...", "ملاحظات اختيارية...")} /></div>
+
+              {/* ── Lines. Without these the invoice is SAR 0.00 and, once
+                  issued, permanently so: it cannot be edited or deleted. ── */}
+              <div className="space-y-2 border-t border-border pt-3">
+                <Label className="text-xs text-muted-foreground">{t("Lines", "البنود")}</Label>
+                {lines.map((l, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2">
+                    <Input
+                      className="col-span-5 h-8 text-sm"
+                      placeholder={t("Description", "الوصف")}
+                      value={l.description}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-sm"
+                      type="number"
+                      placeholder={t("Qty", "الكمية")}
+                      value={l.quantity}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-3 h-8 text-sm"
+                      type="number"
+                      placeholder={t("Unit price", "سعر الوحدة")}
+                      value={l.unitPrice}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, unitPrice: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-sm"
+                      type="number"
+                      placeholder={t("VAT %", "الضريبة %")}
+                      value={l.vatRate}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, vatRate: e.target.value } : x)))}
+                    />
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLines((p) => [...p, { description: "", quantity: "1", unitPrice: "", vatRate: "15" }])}
+                  >
+                    {t("Add line", "إضافة بند")}
+                  </Button>
+                  <span className="text-sm">
+                    <span className="text-muted-foreground me-2">{t("Total (incl. VAT)", "الإجمالي شامل الضريبة")}</span>
+                    <span className="font-mono">{fmtNum(invoiceTotal)}</span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.customerId || createMut.isPending}>
+            <Button
+              className="w-full mt-4"
+              onClick={()=>createMut.mutate(form)}
+              disabled={
+                !form.customerId ||
+                createMut.isPending ||
+                // An invoice with no priced line is SAR 0.00 — and once issued,
+                // permanently so. The server refuses it too; this stops it here.
+                !lines.some((l) => l.description.trim() && Number(l.unitPrice) > 0)
+              }
+            >
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Invoice", "إنشاء فاتورة")}
             </Button>
           </DialogContent>

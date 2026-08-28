@@ -245,6 +245,8 @@ rules at the top of this file, rule 2).
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8, owner-named 2026-08-28). Setting an attribute on `<html>` imperatively — `documentElement.dir` for RTL — is unreliable **by construction**: React reconciles `#root`, nothing re-asserts what lives above it, nothing notices when it is lost, and the static document's value is always there to fall back to. Generalises past the DOM: any fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. Third instance of a correct producer overwritten by a consumer (the scripted regex fix reverted by a stale `Edit`; migration 0044's dropped default re-created by a `?? 1` in a form). **Test that it survives a route change** — that is the event the current code never sees.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** (2026-08-28, from the browser drive). Every test in the suite builds its request the way the SERVER expects — calling a service or controller with a hand-made object — so a client that builds one differently is invisible by construction. That is the whole B-1 class in one sentence: `ApAging.tsx` declared a response shape nobody checked, `CreditNotes.tsx` minted a number the allocator was meant to own, and no amount of server-side testing could see either, because the request never came from the client. 🔴 The suite DOES send malformed input deliberately (`audit-med-validation.test.ts`) — the gap is not "we never test bad input", it is that **the client is never the thing under test**. Only something that drives the real client closes it.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13, 2026-08-28 — the sharpest form of the class). `POST /invoices` with `items: []` returned **201** and, under auto-approve, an ISSUED zero-value tax invoice: an ICV consumed, a ZATCA chain position taken, a QR minted, none of it recoverable. It was **not a malformed request** — it was well-formed with an empty array. Two things made it invisible: **the validation existed on the wrong schema** (`minItems: 1` is declared and enforced for quotations and purchase orders, which touch NO ledger, and was absent for invoices, which consume an ICV — the guard written where the consequence was smallest), and **every test bypassed the layer that had the bug** (service-level fixtures always carry realistic lines, while the CLIENT hardcoded `items: []`). Same family as the SDK differential that proved only that we matched a stale writer: ask what layer the defect lives in, and whether anything tests THAT layer rather than the one below it.
+- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing on its own: these routes pass `req.body` straight to the service, so every constraint in the contract is decorative unless a service re-states it by hand. Either generate the check from the contract or treat the contract as documentation — but never let a reader believe a declared constraint is an enforced one.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). The same class as unreachable navigation, pointed at DATA instead: every control works, every request succeeds, and what lands is a row that no later step can act on — a record born unusable. **No reachability guard can see it**, because nothing is unreachable; the form reached the endpoint and the endpoint said 200. P4 asks whether a user can get somewhere; this asks whether what they created can go anywhere, and the two are independent. The tell is a field the WRITE path treats as optional and a READ path treats as required — check what every consumer of a new record needs BEFORE checking that the form submits.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28). "Accept ready (183)" that accepts 5,000 and posts them is not a display bug — it is an authority bug, the same family as *delete all* deleting fifty: the user consented to what was in front of them and the system acted on a set they were never shown. The rule is not "label it accurately" but **name the true scope BEFORE the act**, and treat any gap between the visible set and the acted-on set as a defect in the act, not in the label. The display half of the same family is a surface that collapses two real rows into one — consent to the one becomes consent to both.
 - **🔴 Nothing in this process checks whether a USER can reach what we built** — six read-only audits found none of four defects that one pass with a browser found in seconds. The suite has 1,100+ tests and renders zero pages, so a correct backend with no working surface is structurally outside what any of them can see. The countermeasure is a rendering layer, not another static guard. Assume any completed backend may be unreachable until someone has clicked it.
@@ -428,6 +430,33 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
 
+### 🔴 P5 — BROWSER TESTS IN CI, as its own project (queued 2026-08-28, NOT started)
+
+**Why it is queued rather than started: half-building it inside a bug-fix pass
+is worse than not starting.** It needs a browser in CI, seeded tenant data per
+run, flake management, and ongoing maintenance — and a flaky E2E suite that
+people learn to re-run is a guard that reports coverage it does not have, which
+is the failure this whole sequence has been about.
+
+**Why it is not a nice-to-have.** It is the ONLY method that has reached this
+class. Every automated test we own runs a layer below the one that broke:
+
+| Found by | Defects |
+| --- | --- |
+| A browser | the blank AP-aging page, swallowed server refusals, the GL showing SAR 0.00, an uneditable bill — and AUD-13, an issued zero-value tax invoice |
+| 1,100+ tests | none of them |
+
+The two 2026-08-28 lessons in §3 say why in one line each: **no test exercises
+the client's request construction**, and AUD-13 was **verified below the layer
+that had the bug**. A suite that calls services with hand-built objects cannot
+see a client that builds them differently, however many assertions it carries.
+
+**Scope when it is taken:** a smoke crawl over every route (authenticated,
+failing on a page error or empty body) that also RECORDS every request the app
+makes, so the recorded call set can be asserted against the mounted route table
+— which closes P4's remaining blind spot (P4 proves a call site exists, not that
+a control renders). Deferred deliberately; not deferred quietly.
+
 ### Deployment-time — cannot be closed from code
 
 | # | Item |
@@ -492,37 +521,18 @@ All three are listed in P4's `KNOWN_GAPS` with a companion test that FAILS if a
 listed route gains a caller and stays listed — the property that keeps an
 allowlist from rotting into an excuse.
 
-🔴 **B-7 IS RETRACTED — verified false by USE, 2026-08-28.** With the servers
-running and a browser: a quotation was created (auto-approved for an admin),
-converted, and produced `INV-2026-000048` (SAR 1,150.00, draft, numbered from
-the server's C12 sequence). M21 works end to end. Nobody had ever clicked it —
-the claim was derived by reading, **in an audit whose premise was that reading
-misses this class**. The headline count is therefore **8 of 15, not 9**. Full
-record and the two lessons in [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
+🔴 **B-7 RETRACTED (verified false by USE), B-8 still open, and the browser
+drive's full results** — including three claims it did NOT support — are in
+[`findings-and-lessons.md`](docs/history/findings-and-lessons.md). Two durable
+outputs: a **solo approver never sees the draft half of the workflow**
+(creation auto-approves, so Submit / Delete / Edit-while-draft never render for
+their own records — in a one-person tenant a quotation cannot be deleted at
+all), and **AUD-13**:
 
-🔴 **What the expanded drive found, and did NOT find (2026-08-28).** It confirmed
-two fixes in the live UI — the note form now reads "Assigned automatically"
-(AUD-1) and a converted quotation reads "Invoiced" (AUD-3) — and surfaced one
-new, checkable gap: **a solo approver never sees the draft half of the
-workflow.** Creation auto-approves for an approver, so `status === "draft"`
-never occurs for their own records and every control gated on it (Submit,
-Delete, Edit-while-draft) is invisible to them. In a one-person tenant — the
-common SME case — a quotation therefore cannot be deleted at all. Recorded as
-an observation about the ROLE MODEL, not a missing control; P4 now models both
-seeds so the claim is machine-checked rather than argued.
+| # | Sev | Finding |
+| --- | --- | --- |
+| **AUD-13** | 🔴 **HIGH — FIXED** | **`POST /invoices` with `items: []` returned 201 and, under auto-approve, ISSUED a SAR 0.00 tax invoice** — ICV consumed, ZATCA chain position taken, QR minted, none of it recoverable, on a document that could then be neither edited (AUD-11) nor deleted. `Invoices.tsx` hardcoded `items: []` on every create and its form collected no amount at all. Fixed at the write boundary (an invoice needs a line; a bill needs a line OR a total, preserving the capture path), in the form (a real line editor), and in the spec. `tests/payload-shape-boundary.test.ts` pins the class across all four create paths. |
 
-🔴 **It did NOT find a conversion that creates nothing.** Checked directly in the
-database: the browser conversion produced invoice 29170 with its line item and
-its dated conversion row. One drive step could not be completed — the
-credit-note dialog's primary action sat below the fold at the automation
-viewport and the renderer stopped responding to scrolling — so AUD-1 is verified
-at the form and through the service test, but not by a literal click. Whether
-that dialog scrolls at an ordinary window size is **unresolved and untested**.
-
-🔴 **B-8 stays open and unreproduced from source** — `applyLang` is the only
-writer of `documentElement.dir` in the client and React does not own `<html>`,
-so if the attribute is lost it is a runtime fact no static check reaches. Its
-lesson is recorded in §3 regardless, because it generalises past this fix.
 
 ### Traps and known-dead surfaces
 

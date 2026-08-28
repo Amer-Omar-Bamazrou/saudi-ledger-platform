@@ -2480,6 +2480,92 @@ covered had just been audited and fixed.
 
 ---
 
+## 2026-08-28 — AUD-13: a well-formed request, an empty array, and a 201 for creating nothing
+
+### What it was
+
+`POST /invoices` with `items: []` returned **201**. Because an approver's own
+invoice is auto-approved, what came back was ISSUED:
+
+```
+status: "sent"   icv: 8   invoiceHash / previousHash   qrCode   total: 0
+```
+
+An issued, ZATCA-stamped, SAR 0.00 tax invoice — with an ICV consumed and a
+position taken in a chain that legally must not have gaps. Not recoverable: an
+issued invoice cannot be deleted (draft only) and `PATCH /invoices/:id` had no
+caller (AUD-11) to add lines afterwards even if it could.
+
+And it was not an edge case reachable only by a hand-built request. **`Invoices.tsx`
+hardcoded `items: []` on every create**, and its New Invoice dialog collected a
+number, dates, a status, a customer and notes — **and no amount at all.** So every
+invoice created from the Invoices page was permanently zero, permanently issued,
+and permanently uncorrectable. An invoicing product whose invoice form could not
+express an amount.
+
+### 🔴 Why nothing saw it — the two roots, and both are sharper than "bad input"
+
+**1. The validation existed on the WRONG SCHEMA.** `CreateQuotationInput` and
+`CreatePurchaseOrderInput` declare `minItems: 1` in the OpenAPI spec, and their
+services enforce it by hand ("A quotation needs at least one line"). Those two
+documents **touch no ledger**. `CreateInvoiceInput` declared no `items` at all
+and nothing enforced it — for the one document that consumes an ICV. The guard
+was written where the consequence was smallest.
+
+**2. Every test bypassed the layer that had the bug.** The invoice suites call
+`invoicesService.create` with hand-built objects that always carry lines,
+because a test author writing a fixture writes a realistic one. Nothing
+exercised the shape the CLIENT actually sends. **Verified below the layer that
+matters** — the same family as the SDK differential that proved only that we
+matched a stale writer, and as the benchmark that scored the engine against
+itself.
+
+🔴 That is why the request being *well-formed* is the important detail. This was
+not caught by input fuzzing and would not have been: it is a legal payload
+asking for nothing, and the only thing that distinguishes it from a real one is
+whether a human would ever mean it.
+
+### A third root, recorded because it is the systemic one
+
+**A spec constraint that exists and is not enforced is worse than no
+constraint**, because the spec and the tests then both read as coverage. These
+routes pass `req.body` straight to the service — no route validates against the
+generated Zod schema — so `minItems` in `openapi.yaml` binds nothing at all. The
+contract said "at least one line" for quotations while the service said it
+independently; had the service ever stopped saying it, the spec would have gone
+on reassuring the next reader.
+
+### The fix, in three places because the defect was in three
+
+- **Write boundary:** an invoice needs at least one line. Bills get the weaker
+  rule — a line OR a non-zero total — deliberately, because the capture path
+  reads header amounts off a photograph and the line detail is not ours to
+  invent. The asymmetry is stated at the code so it reads as a decision.
+- **The form:** a real line editor, with a total preview, and the submit gated
+  on at least one priced line.
+- **The spec:** `items` declared required with `minItems: 1`, and the note says
+  why it was absent.
+
+`tests/payload-shape-boundary.test.ts` pins the SHAPE across all four create
+paths, not just the one that broke, plus the anti-vacuity twin (a real line
+still works) and the header-only bill (the capture path must keep working).
+
+🔴 **Seven existing tests then failed** — they created invoices and bills with
+`items: []` to test reference validation and re-dating. Their fixtures were
+updated to carry a line, and the note in that file states what changed and why
+nothing they ASSERT was weakened. One of them ("create with the tenant's OWN
+customer still succeeds") had been implicitly asserting that a line-less invoice
+is creatable; that assertion expired the day the rule landed.
+
+### What this cost in the dev database
+
+The probe that found it created `INV-2026-000049` — issued, zero-value, ICV 8,
+in the chain. It cannot be deleted. **Finding the defect produced an instance of
+it**, which is the most direct possible statement of why the rule now lives at
+the write boundary.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

@@ -58,6 +58,27 @@ export const billsService = {
 
   async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
+
+    /**
+     * A bill must RECORD something. `POST /bills` with `items: []` and no
+     * totals returned 201 and created a SAR 0.00 liability (found with the
+     * invoice case, 2026-08-28).
+     *
+     * 🔴 Deliberately weaker than the invoice rule, and the difference is not
+     * an oversight: a bill legitimately has NO lines when it comes from the
+     * capture path, where OCR reads header amounts off a photograph and the
+     * line detail is not ours to invent. So the invariant here is "lines OR a
+     * non-zero total", not "lines". An invoice is ours to issue and ZATCA wants
+     * the detail; a supplier's bill is evidence we are recording.
+     */
+    const declaredTotal = Number(body.total ?? 0);
+    if ((!Array.isArray(items) || items.length === 0) && !(declaredTotal > 0)) {
+      throw new BusinessRuleError(400, {
+        error: "A bill needs at least one line, or a total. A bill recording nothing cannot be posted.",
+        code: "bill_records_nothing",
+        field: "items",
+      });
+    }
     // 🔴 H1 — ALLOWLIST. `status` is forced to "draft" below; `paidAmount`/
     // `paidAt` are set by the pay path; a client sets only header fields (and,
     // for a no-items bill, the totals — validated ≥ 0). The raw spread let a
