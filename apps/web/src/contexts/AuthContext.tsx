@@ -34,6 +34,8 @@ interface AuthContextValue {
    * the page must still handle.
    */
   isOrgAdmin: boolean;
+  /** Activation authority (approve / acknowledge). See the note at the value. */
+  canApprove: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
@@ -102,6 +104,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // the active org against the /orgs list itself, which is how the rule
         // ended up written more than once (M18.4.1).
         isOrgAdmin: user?.organizationRole === "admin",
+        /**
+         * 🔴 AUD-7 — activation authority, derived in ONE place.
+         *
+         * Mirrors the APPROVE bundle in `PERMISSION_MATRIX`
+         * (`["admin","accountant"]`). It exists so a page can avoid OFFERING an
+         * act the server will refuse — Approve on a quotation, Acknowledge on a
+         * finding — which is the converse of D4's rule and was never stated: the
+         * UI must not secretly forbid what the API allows, and it should not
+         * advertise what the API forbids either.
+         *
+         * 🔴 The SERVER remains the authority. This may only HIDE a control; it
+         * can never grant one, so drift costs a missing button, never an
+         * unauthorised act. That is the same trade `isOrgAdmin` above already
+         * makes, in the same place, for the same reason.
+         */
+        canApprove: user?.organizationRole === "admin" || user?.organizationRole === "accountant",
         login,
         logout,
         refetch: fetchMe,

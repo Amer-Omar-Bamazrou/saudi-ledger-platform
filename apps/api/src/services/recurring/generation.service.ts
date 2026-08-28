@@ -87,7 +87,23 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
       auditContext.run(
         { userId: rule.createdBy, organizationId: rule.organizationId, ipAddress: null },
         async () => {
-          const body = { ...(rule.template as Record<string, unknown>), date: scheduledFor };
+          /**
+           * 🔴 AUD-2 — A DOCUMENT NUMBER IS NEVER PART OF A PATTERN.
+           *
+           * The template is spread straight into `create`, so any
+           * `invoiceNumber` / `billNumber` it carries is reused on EVERY run.
+           * One rule created from the Invoices page did exactly that: run 1
+           * succeeded, run 2 hit UNIQUE(company_id, invoice_number), and the
+           * rule failed every month thereafter.
+           *
+           * Stripped HERE as well as at the UI that built the template, because
+           * this is the write boundary: a template can be written by any future
+           * path, and per-path enforcement is per-path review (§4). Blank means
+           * the server allocates from the company's one C12 sequence.
+           */
+          const { invoiceNumber: _n, billNumber: _b, ...pattern } =
+            rule.template as Record<string, unknown>;
+          const body = { ...pattern, date: scheduledFor };
           // 🔴 DRAFTS ONLY. `autoApprove: false` is not a default being relied
           // on — it is stated, because approval here would issue a legal
           // document unattended: an ICV consumed, a ZATCA chain position taken,

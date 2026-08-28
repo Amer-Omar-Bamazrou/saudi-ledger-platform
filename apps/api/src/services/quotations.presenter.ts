@@ -121,8 +121,19 @@ export function buildQuotationOut(
   /** line id → converted quantity. Empty in M21.1; supplied by M21.2. */
   convertedByItem: Map<number, number> = new Map(),
   today = new Date().toISOString().slice(0, 10),
+  /**
+   * 🔴 AUD-3 — the LIST's substitute for line data it does not fetch.
+   *
+   * `conversionState` is derived from quantities. A caller that has no items
+   * must supply the totals instead; a caller that supplies NEITHER gets `open`,
+   * which is correct only for a quotation that genuinely has no lines. The list
+   * used to be exactly that second caller, and reported every converted
+   * quotation as open.
+   */
+  aggregate?: { quantity: number; convertedQuantity: number },
 ): QuotationOut {
   const itemsOut = items?.map((i) => buildQuotationItemOut(i, convertedByItem.get(i.id) ?? 0));
+  const stateBasis = itemsOut ?? (aggregate ? [aggregate] : []);
   return {
     id: quo.id,
     quotationNumber: quo.quotationNumber,
@@ -132,7 +143,7 @@ export function buildQuotationOut(
     customerName: cust?.name ?? null,
     status: quo.status,
     outcome: quo.outcome,
-    conversionState: conversionState(itemsOut ?? []),
+    conversionState: conversionState(stateBasis),
     expired: !!quo.validUntil && quo.validUntil < today,
     subtotal: toNum(quo.subtotal),
     vatAmount: toNum(quo.vatAmount),

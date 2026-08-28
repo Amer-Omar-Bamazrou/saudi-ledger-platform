@@ -148,6 +148,51 @@ export const quotationsRepository = {
     return new Map(rows.map((r) => [r.quotationItemId, Number(r.qty)]));
   },
 
+  /**
+   * 🔴 AUD-3 — the totals the LIST needs, in ONE query.
+   *
+   * The list never loaded items, so `buildQuotationOut` derived
+   * `conversionState` from an empty array and every row — including fully
+   * converted ones — reported "open", with a Convert button beside it. The
+   * presenter was reasoning about a quotation with NO LINES; the list was
+   * handing it a quotation whose lines it had not fetched. Two different
+   * emptinesses, one of them a lie.
+   *
+   * Sums are sufficient for the three-way state: converted totals can never
+   * exceed ordered (over-conversion 409s), so `0`, `< ordered` and `>= ordered`
+   * separate open / partial / converted exactly as the per-item form does.
+   */
+  async conversionTotals(): Promise<Map<number, { quantity: number; convertedQuantity: number }>> {
+    const ordered = await db
+      .select({
+        quotationId: quotationItemsTable.quotationId,
+        qty: sql<string>`SUM(${quotationItemsTable.quantity})`,
+      })
+      .from(quotationItemsTable)
+      .groupBy(quotationItemsTable.quotationId);
+
+    const converted = await db
+      .select({
+        quotationId: quotationConversionsTable.quotationId,
+        qty: sql<string>`SUM(${quotationConversionItemsTable.quantity})`,
+      })
+      .from(quotationConversionItemsTable)
+      .innerJoin(
+        quotationConversionsTable,
+        eq(quotationConversionItemsTable.conversionId, quotationConversionsTable.id),
+      )
+      .groupBy(quotationConversionsTable.quotationId);
+
+    const out = new Map<number, { quantity: number; convertedQuantity: number }>();
+    for (const r of ordered) out.set(r.quotationId, { quantity: Number(r.qty), convertedQuantity: 0 });
+    for (const r of converted) {
+      const e = out.get(r.quotationId) ?? { quantity: 0, convertedQuantity: 0 };
+      e.convertedQuantity = Number(r.qty);
+      out.set(r.quotationId, e);
+    }
+    return out;
+  },
+
   /** The dated conversion history, with the invoice each one produced. */
   conversions(quotationId: number) {
     return db

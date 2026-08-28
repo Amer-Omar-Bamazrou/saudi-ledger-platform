@@ -88,7 +88,16 @@ export default function Invoices() {
         body: JSON.stringify({
           entity: "invoice",
           template: {
-            invoiceNumber: `REC-${inv.invoiceNumber}`,
+            /**
+             * 🔴 AUD-2: NO invoiceNumber. This used to carry
+             * `REC-${inv.invoiceNumber}`, a fixed literal, and the generator
+             * spreads the template straight into invoicesService.create — so
+             * every month reused ONE number. Run 1 succeeded; run 2 violated
+             * UNIQUE(company_id, invoice_number) and the rule failed for good,
+             * on a feature whose whole point is running unattended. A number is
+             * a property of a DOCUMENT, never of a pattern: the server
+             * allocates one per generated draft.
+             */
             customerId: inv.customerId,
             // Only the line FACTS — row ids and computed totals must not leak
             // into the template, or every generated draft would try to reuse

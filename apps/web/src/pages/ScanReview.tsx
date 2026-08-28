@@ -28,8 +28,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
-  AlertCircle, AlertTriangle, CheckCircle2, ArrowLeft,
+  AlertCircle, AlertTriangle, CheckCircle2, ArrowLeft, Trash2,
   Building2, Plus, ScanLine, BookOpen, Loader2,
 } from "lucide-react";
 
@@ -53,7 +54,12 @@ function n(v: string | number): number {
 export default function ScanReview() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const qc = useQueryClient();
+
+  // AUD-5: discarding a staged capture — the reachable half of B3's deletion.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
 
   // ── form state (editable by accountant) ───────────────────────────────────
   const [fields, setFields] = useState({
@@ -196,16 +202,16 @@ export default function ScanReview() {
       setCreateNew(false);
       // Use the server-returned created:true flag — not a local boolean
       if (vendor.created) setJustCreatedVendor(vendor);
-      toast({ title: "Supplier created", description: vendor.name });
+      toast({ title: t("Supplier created", "تم إنشاء المورّد"), description: vendor.name });
     },
-    onError: (e: Error) => toast({ title: "Could not create supplier", description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Could not create supplier", "تعذّر إنشاء المورّد"), description: e.message, variant: "destructive" } as any),
   });
 
   // ── confirm & post ────────────────────────────────────────────────────────
   async function handleConfirm() {
     const vendorId = createNew ? null : (selectedVendorId ?? (manualVendorId ? Number(manualVendorId) : null));
     if (!vendorId) {
-      toast({ title: "Supplier required", description: "Select or create a supplier before posting.", variant: "destructive" });
+      toast({ title: t("Supplier required", "المورّد مطلوب"), description: t("Select or create a supplier before posting.", "اختر مورّدًا أو أنشئ واحدًا قبل الترحيل."), variant: "destructive" });
       return;
     }
     if (errors.length > 0 && !window.confirm(
@@ -241,10 +247,10 @@ export default function ScanReview() {
       });
 
       qc.invalidateQueries({ queryKey: ["bills"] });
-      toast({ title: "Bill posted", description: `${bill.billNumber} posted to the general ledger.` });
+      toast({ title: t("Bill posted", "تم ترحيل الفاتورة"), description: t(`${bill.billNumber} posted to the general ledger.`, `تم ترحيل ${bill.billNumber} إلى دفتر الأستاذ.`) });
       navigate("/bills");
     } catch (e: any) {
-      toast({ title: "Posting failed", description: e?.message ?? "Check the fields and try again.", variant: "destructive" });
+      toast({ title: t("Posting failed", "فشل الترحيل"), description: e?.message ?? t("Check the fields and try again.", "راجع الحقول وحاول مرة أخرى."), variant: "destructive" });
     } finally {
       setIsPosting(false);
     }
@@ -256,6 +262,36 @@ export default function ScanReview() {
   const previewTotal     = n(fields.total);
 
   // ── render ────────────────────────────────────────────────────────────────
+  /**
+   * Delete the staged photograph, then leave. The server reports
+   * `imageDeleted` — B3's whole point was that a discard which does not delete
+   * the bytes is a false statement — so a false there is surfaced rather than
+   * swallowed.
+   */
+  const discardCapture = async () => {
+    if (!captureId) return;
+    setDiscarding(true);
+    try {
+      const res: { imageDeleted?: boolean } = await apiFetch(`/capture/${captureId}/discard`, {
+        method: "POST",
+      });
+      toast({
+        title: res.imageDeleted
+          ? t("Photograph deleted", "تم حذف الصورة")
+          : t("Capture discarded — the image could not be deleted yet", "تم إلغاء الالتقاط — تعذّر حذف الصورة بعد"),
+        variant: res.imageDeleted ? undefined : ("destructive" as never),
+      });
+      navigate("/bills");
+    } catch (e: unknown) {
+      toast({
+        title: t("Could not discard", "تعذّر الإلغاء"),
+        description: (e as Error).message,
+        variant: "destructive" as never,
+      });
+      setDiscarding(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       {/* header */}
@@ -283,14 +319,63 @@ export default function ScanReview() {
             rel="noreferrer"
             className="ms-auto inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" /> Source photograph stored — view
+            <CheckCircle2 className="w-3.5 h-3.5" /> {t("Source photograph stored — view", "الصورة المصدرية محفوظة — عرض")}
           </a>
         ) : (
           <span className="ms-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
-            <AlertTriangle className="w-3.5 h-3.5" /> Photograph not stored
+            <AlertTriangle className="w-3.5 h-3.5" /> {t("Photograph not stored", "الصورة غير محفوظة")}
           </span>
         )}
+        {/*
+          🔴 AUD-5 — the ONLY way to un-take a photograph.
+          `POST /capture/:id/discard` was built by B3 to delete the image
+          IMMEDIATELY rather than leave it staged for 30 days, and it returns
+          `imageDeleted` precisely because reporting a deletion that did not
+          happen was half of that defect. Nothing in the product called it, so a
+          user who photographed the wrong document — a personal ID, someone
+          else's invoice — had no way to remove it. That is also the C8/PDPL
+          edge: the erasure path we built was the one nobody could reach.
+        */}
+        {captureId && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground"
+            disabled={discarding}
+            onClick={() => setConfirmDiscard(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5 me-1" />
+            {t("Discard photograph", "حذف الصورة")}
+          </Button>
+        )}
       </div>
+
+      {/* The confirm names what is destroyed and what is not. */}
+      {confirmDiscard && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 space-y-2">
+          <p className="text-sm font-medium text-red-500">
+            {t(
+              "Delete the stored photograph and abandon this review?",
+              "حذف الصورة المحفوظة وإلغاء هذه المراجعة؟",
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "The image is deleted immediately and cannot be recovered. No bill has been posted, so nothing in the ledger changes.",
+              "تُحذف الصورة فورًا ولا يمكن استرجاعها. لم يتم ترحيل أي فاتورة، فلا يتغيّر شيء في دفتر الأستاذ.",
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setConfirmDiscard(false)}>
+              {t("Keep it", "الاحتفاظ بها")}
+            </Button>
+            <Button size="sm" variant="destructive" disabled={discarding} onClick={discardCapture}>
+              {discarding ? t("Deleting…", "جارٍ الحذف…") : t("Delete photograph", "حذف الصورة")}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {signatureStatus === "failed" && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
@@ -486,7 +571,7 @@ export default function ScanReview() {
                   )}
                 </div>
               </div>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Exact match</Badge>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">{t("Exact match", "تطابق تام")}</Badge>
             </div>
           )}
 
@@ -524,8 +609,8 @@ export default function ScanReview() {
                     onChange={() => { setCreateNew(true); setSelectedVendorId(null); }}
                     className="accent-primary" />
                   <Plus className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-sm">Create new supplier — <em className="text-muted-foreground">{fields.vendorName || "unnamed"}</em></span>
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ms-auto">New supplier — please confirm details</Badge>
+                  <span className="text-sm">{t("Create new supplier — ", "إنشاء مورّد جديد — ")}<em className="text-muted-foreground">{fields.vendorName || "unnamed"}</em></span>
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ms-auto">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
                 </label>
               </div>
             </div>
@@ -540,7 +625,7 @@ export default function ScanReview() {
               <p className="text-muted-foreground text-xs mt-1">
                 A new supplier will be created from the extracted name and VAT number — please confirm the details above are correct.
               </p>
-              <Badge className="mt-2 bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">New supplier — please confirm details</Badge>
+              <Badge className="mt-2 bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
             </div>
           )}
 
@@ -594,7 +679,7 @@ export default function ScanReview() {
             <table className="w-full">
               <thead className="bg-secondary/40">
                 <tr>
-                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">Account</th>
+                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">{t("Account", "الحساب")}</th>
                   <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Debit (SAR)</th>
                   <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Credit (SAR)</th>
                 </tr>
@@ -621,7 +706,7 @@ export default function ScanReview() {
                 </tr>
                 {/* VAT line — fixed */}
                 <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2 text-muted-foreground text-xs">Input VAT Receivable</td>
+                  <td className="px-3 py-2 text-muted-foreground text-xs">{t("Input VAT Receivable", "ضريبة القيمة المضافة على المشتريات")}</td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
                     {previewVat > 0 ? fmtNum(previewVat) : "—"}
                   </td>
@@ -629,7 +714,7 @@ export default function ScanReview() {
                 </tr>
                 {/* AP line — fixed */}
                 <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2 text-muted-foreground text-xs">Accounts Payable</td>
+                  <td className="px-3 py-2 text-muted-foreground text-xs">{t("Accounts Payable", "الذمم الدائنة")}</td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
                     {previewTotal > 0 ? fmtNum(previewTotal) : "—"}

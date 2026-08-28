@@ -154,8 +154,15 @@ async function assertConvertedLinesUnchanged(quotationId: number, incoming: any[
 
 export const quotationsService = {
   async list(filter: QuotationListFilter) {
-    const rows = await quotationsRepository.list(filter);
-    return rows.map((r) => buildQuotationOut(r.quo, r.cust));
+    const [rows, totals] = await Promise.all([
+      quotationsRepository.list(filter),
+      // AUD-3: the list states a conversion status, so it must load what that
+      // status is derived from. One grouped query for the page.
+      quotationsRepository.conversionTotals(),
+    ]);
+    return rows.map((r) =>
+      buildQuotationOut(r.quo, r.cust, undefined, undefined, undefined, totals.get(r.quo.id)),
+    );
   },
 
   async getById(id: number) {
