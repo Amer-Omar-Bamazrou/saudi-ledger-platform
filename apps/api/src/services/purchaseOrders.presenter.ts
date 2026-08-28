@@ -126,10 +126,17 @@ export function buildPurchaseOrderOut(
   billedByItem: Map<number, number> = new Map(),
   variancesByItem: Map<number, PriceVariance[]> = new Map(),
   today = new Date().toISOString().slice(0, 10),
+  /**
+   * 🔴 AUD-3 — the LIST's substitute for line data it does not fetch. A caller
+   * with neither items nor totals gets `open`, which is only true of a PO that
+   * genuinely has no lines. See the quotation presenter for the full note.
+   */
+  aggregate?: { quantity: number; billedQuantity: number },
 ): PurchaseOrderOut {
   const itemsOut = items?.map((i) =>
     buildPurchaseOrderItemOut(i, billedByItem.get(i.id) ?? 0, variancesByItem.get(i.id) ?? []),
   );
+  const stateBasis = itemsOut ?? (aggregate ? [aggregate] : []);
   return {
     id: po.id,
     orderNumber: po.orderNumber,
@@ -139,7 +146,7 @@ export function buildPurchaseOrderOut(
     vendorName: vendor?.name ?? null,
     status: po.status,
     outcome: po.outcome,
-    billingState: billingState(itemsOut ?? []),
+    billingState: billingState(stateBasis),
     expired: !!po.validUntil && po.validUntil < today,
     subtotal: toNum(po.subtotal),
     vatAmount: toNum(po.vatAmount),

@@ -76,6 +76,36 @@ export const invoicesService = {
    */
   async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
     const { items = [] } = body;
+
+    /**
+     * 🔴 AN INVOICE WITH NO LINES IS NOT AN INVOICE.
+     *
+     * Found 2026-08-28 by sweeping the payload-shape class: `POST /invoices`
+     * with `items: []` returned **201**, and because an approver's own invoice
+     * is auto-approved it was ISSUED at zero — an ICV consumed, a position taken
+     * in the ZATCA hash chain, a QR minted, for SAR 0.00. None of that is
+     * recoverable: an issued invoice cannot be deleted, and `PATCH` had no
+     * caller to add lines afterwards even if it could.
+     *
+     * 🔴 The asymmetry is the tell: quotations and purchase orders — which touch
+     * NO ledger — already refused this ("A quotation needs at least one line"),
+     * while invoices and bills, which do, did not. The guard was written where
+     * the consequence was smallest.
+     *
+     * Enforced HERE, at the write boundary, rather than in the form that
+     * happened to be wrong: `Invoices.tsx` hardcoded `items: []` on every
+     * create, and a rule that lives in one caller is a rule the next caller
+     * does not have (§4).
+     */
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BusinessRuleError(400, {
+        error:
+          "An invoice needs at least one line. A zero-line invoice is issued at SAR 0.00 and, " +
+          "once issued, cannot be corrected or deleted.",
+        code: "invoice_has_no_lines",
+        field: "items",
+      });
+    }
     // 🔴 H1 — ALLOWLIST the header. Totals are computed below; status is forced
     // to "draft"; hash/QR/ICV/ZATCA identity are minted at approval. A client
     // may set only descriptive fields and the note references (validated below).

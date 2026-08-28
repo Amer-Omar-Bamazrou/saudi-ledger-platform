@@ -242,6 +242,28 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     expect(quo.items!.every((i) => i.remainingQuantity === 0)).toBe(true);
   });
 
+  it("🔴 AUD-3: the LIST agrees with the DETAIL about conversion state", async () => {
+    /**
+     * The list never loaded items, so `conversionState` was derived from an
+     * empty array and every quotation — including this fully converted one —
+     * reported "open", with a Convert button beside it. Measured before the
+     * fix: `detail=converted list=open`.
+     *
+     * 🔴 The existing coverage asserted the state through `getById`, where
+     * items ARE loaded — proving the derivation in exactly the place the defect
+     * could not occur. This asserts the two callers AGREE, which is the
+     * property that was actually broken.
+     */
+    const detail = await inTenant(() => quotationsService.getById(quotationId));
+    const list = await inTenant(() => quotationsService.list({}));
+    const row = list.find((q) => q.id === quotationId)!;
+
+    expect(detail.conversionState).toBe("converted");
+    expect(row.conversionState).toBe(detail.conversionState);
+    // The value the broken list returned, named so a regression is unmistakable.
+    expect(row.conversionState).not.toBe("open");
+  });
+
   it("converting a fully-converted quotation is refused rather than making an empty invoice", async () => {
     await expect(
       inTenant(() => quotationConversionService.convert(quotationId, {}, userId)),

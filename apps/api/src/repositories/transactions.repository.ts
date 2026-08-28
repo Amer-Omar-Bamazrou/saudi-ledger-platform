@@ -157,21 +157,41 @@ export const transactionsRepository = {
       .limit(limit);
   },
 
-  async existsIdentical(v: {
+  /**
+   * 🔴 HOW MANY identical rows this account already holds — not WHETHER it holds
+   * one.
+   *
+   * ── Why a COUNT and not a boolean ──────────────────────────────────────────
+   * This used to be `existsIdentical`, and existence is the wrong question. The
+   * key (date, description, amount, type, account) is not an identity: a real
+   * statement repeats lines all the time — two taxi fares, two identical fees,
+   * two identical transfers on one day. An existence test cannot tell
+   * "you re-uploaded the same statement" from "your business genuinely paid
+   * that twice", so it answered both with "skip", and the second real charge
+   * never reached the books. Expenses and their input VAT were understated by
+   * exactly the repeated amount, quietly.
+   *
+   * MULTIPLICITY answers both: import as many copies as the file carries MINUS
+   * as many as the account already holds. A re-upload imports nothing; a
+   * genuinely repeated line imports every copy.
+   *
+   * 🔴 Invisible to every fixture we own, because they all use unique amounts —
+   * see `tests/scale-and-collision.test.ts`.
+   *
+   * M16.2 — scoped to the ACCOUNT (null-safe): the same salary paid from two
+   * accounts is two real transactions; the duplicate case is a statement
+   * re-uploaded against its own account. `IS NOT DISTINCT FROM` keeps pre-M16.2
+   * (accountless) uploads deduplicating against each other.
+   */
+  async countIdentical(v: {
     date: string;
     description: string;
     amount: string;
     type: string;
-    /**
-     * M16.2 — duplicates are scoped to the ACCOUNT (null-safe): the same salary
-     * paid from two accounts is two real transactions; the duplicate case is a
-     * statement re-uploaded against its own account. `IS NOT DISTINCT FROM`
-     * keeps pre-M16.2 (accountless) uploads deduplicating against each other.
-     */
     bankAccountId: number | null;
-  }): Promise<boolean> {
+  }): Promise<number> {
     const [row] = await db
-      .select({ id: transactionsTable.id })
+      .select({ n: sql<number>`count(*)::int` })
       .from(transactionsTable)
       .where(
         and(
@@ -181,9 +201,8 @@ export const transactionsRepository = {
           eq(transactionsTable.type, v.type),
           sql`${transactionsTable.bankAccountId} IS NOT DISTINCT FROM ${v.bankAccountId}`,
         ),
-      )
-      .limit(1);
-    return !!row;
+      );
+    return Number(row?.n ?? 0);
   },
 
   update(id: number, values: Partial<typeof transactionsTable.$inferInsert>) {

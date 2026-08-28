@@ -119,6 +119,7 @@ export * from './listTransactionsParams';
 export * from './listTransactionsType';
 export * from './payrollRun';
 export * from './payrollRunStatus';
+export * from './pendingReviewCounts';
 export * from './pendingReviewTransaction';
 export * from './pendingReviewTransactionKind';
 export * from './pendingReviewTransactionTaxTreatment';

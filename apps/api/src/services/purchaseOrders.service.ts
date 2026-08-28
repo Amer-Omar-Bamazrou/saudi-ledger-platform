@@ -123,8 +123,15 @@ async function assertBilledLinesUnchanged(purchaseOrderId: number, incoming: any
 
 export const purchaseOrdersService = {
   async list(filter: PurchaseOrderListFilter) {
-    const rows = await purchaseOrdersRepository.list(filter);
-    return rows.map((r) => buildPurchaseOrderOut(r.po, r.vendor));
+    const [rows, totals] = await Promise.all([
+      purchaseOrdersRepository.list(filter),
+      // AUD-3: the list states a billing status, so it loads what that status
+      // is derived from.
+      purchaseOrdersRepository.billingTotals(),
+    ]);
+    return rows.map((r) =>
+      buildPurchaseOrderOut(r.po, r.vendor, undefined, undefined, undefined, undefined, totals.get(r.po.id)),
+    );
   },
 
   async getById(id: number) {

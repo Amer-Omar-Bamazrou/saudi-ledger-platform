@@ -140,15 +140,36 @@ export const alarmsService = {
     const alarms: Array<() => Promise<void>> = [
       // ── 1. Outbox age ──────────────────────────────────────────────────
       async () => {
-        const overdue = await einvoiceOutboxRepository.listOverdue(env.ZATCA_OVERDUE_MINUTES, 500, opts.organizationId);
-        if (overdue.length === 0) {
+        /**
+         * 🔴 2026-08-28 — the COUNT is counted in SQL; the page is only for the
+         * oldest row.
+         *
+         * This alarm said `${overdue.length} document(s) unsubmitted` off a
+         * 500-capped page, so any backlog past 500 paged the words "500
+         * document(s)" — forever, however bad it got. An alarm that
+         * under-reports the condition it exists to detect is quiet neglect
+         * (queue B2) wearing the costume of a working alarm, and this is the one
+         * that watches ZATCA's 24-hour reporting deadline.
+         *
+         * Invisible at fixture scale by construction: below 500 the two numbers
+         * are identical. `tests/scale-and-collision.test.ts` builds 537.
+         */
+        const [overdue, overdueTotal] = await Promise.all([
+          einvoiceOutboxRepository.listOverdue(env.ZATCA_OVERDUE_MINUTES, 500, opts.organizationId),
+          einvoiceOutboxRepository.countOverdue(env.ZATCA_OVERDUE_MINUTES, opts.organizationId),
+        ]);
+        if (overdueTotal === 0) {
           if (await clearIfPresent(ALARM_OUTBOX_OVERDUE, "E-invoice outbox is draining again")) {
             result.resolved.push(ALARM_OUTBOX_OVERDUE);
           }
           return;
         }
         // listOverdue orders by created_at, so the first row is the oldest.
+        // The count and the page share one predicate, so a positive total always
+        // yields a row; the guard states that rather than assuming it — an alarm
+        // must never be the thing that throws.
         const oldest = overdue[0];
+        if (!oldest) return;
         const ageMinutes = await ageMinutesOf(oldest.id);
         const hours = Math.floor(ageMinutes / 60);
         result.firing.push(ALARM_OUTBOX_OVERDUE);
@@ -159,10 +180,10 @@ export const alarmsService = {
             severity: hours >= 12 ? "critical" : "warning",
             title: `E-invoice outbox stuck — oldest document ${hours}h old`,
             detail:
-              `${overdue.length} document(s) unsubmitted; the oldest has waited ${hours}h ${ageMinutes % 60}m. ` +
+              `${overdueTotal} document(s) unsubmitted; the oldest has waited ${hours}h ${ageMinutes % 60}m. ` +
               `ZATCA requires simplified invoices to be REPORTED within 24 hours — past that the tenant is ` +
               `exposed to fines from SAR 5,000. Check the worker is running and the ZATCA API is reachable.`,
-            context: { total: overdue.length, oldestAgeMinutes: ageMinutes, oldestDocumentId: oldest.id },
+            context: { total: overdueTotal, oldestAgeMinutes: ageMinutes, oldestDocumentId: oldest.id },
           },
           env.ALERT_REPEAT_HOURS,
         );

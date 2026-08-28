@@ -115,6 +115,45 @@ export const purchaseOrdersRepository = {
   },
 
   /**
+   * 🔴 AUD-3 (the purchase-order mirror) — billing totals for the LIST.
+   *
+   * `billingState` is derived from quantities and the list fetched none, so
+   * every PO — including fully billed ones — reported "open" with a Bill button
+   * beside it. Same defect, same cause, found by the same question: does the
+   * endpoint load what the field is derived from?
+   */
+  async billingTotals(): Promise<Map<number, { quantity: number; billedQuantity: number }>> {
+    const ordered = await db
+      .select({
+        purchaseOrderId: purchaseOrderItemsTable.purchaseOrderId,
+        qty: sql<string>`SUM(${purchaseOrderItemsTable.quantity})`,
+      })
+      .from(purchaseOrderItemsTable)
+      .groupBy(purchaseOrderItemsTable.purchaseOrderId);
+
+    const billed = await db
+      .select({
+        purchaseOrderId: purchaseOrderConversionsTable.purchaseOrderId,
+        qty: sql<string>`SUM(${purchaseOrderConversionItemsTable.quantity})`,
+      })
+      .from(purchaseOrderConversionItemsTable)
+      .innerJoin(
+        purchaseOrderConversionsTable,
+        eq(purchaseOrderConversionItemsTable.conversionId, purchaseOrderConversionsTable.id),
+      )
+      .groupBy(purchaseOrderConversionsTable.purchaseOrderId);
+
+    const out = new Map<number, { quantity: number; billedQuantity: number }>();
+    for (const r of ordered) out.set(r.purchaseOrderId, { quantity: Number(r.qty), billedQuantity: 0 });
+    for (const r of billed) {
+      const e = out.get(r.purchaseOrderId) ?? { quantity: 0, billedQuantity: 0 };
+      e.billedQuantity = Number(r.qty);
+      out.set(r.purchaseOrderId, e);
+    }
+    return out;
+  },
+
+  /**
    * Every billed line with the price the supplier actually charged — the raw
    * material for the price-variance view. Returned per EVENT rather than
    * aggregated, because "they billed 10 at 100 then 5 at 120" is the fact a

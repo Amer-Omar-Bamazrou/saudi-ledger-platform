@@ -51,7 +51,18 @@ const STATUS_STYLES: Record<string, string> = {
 
 const makeEmpty = () => ({
   documentType: "credit_note",
-  invoiceNumber: `CN-${Date.now().toString().slice(-6)}`,
+  /**
+   * 🔴 AUD-1: EMPTY, so the SERVER allocates from the company's one sequence.
+   * This used to be `CN-${Date.now().slice(-6)}`, which put every credit and
+   * debit note outside the C12 counter — a second concurrent number series,
+   * which the E-Invoicing Resolution §2 lists as a Prohibited Functionality
+   * (one sequence per unit, spanning "Electronic Invoices and Electronic
+   * Notes"). The suffix was also the last six digits of a millisecond clock,
+   * so it wrapped every ~16.7 minutes onto a UNIQUE(company_id, invoice_number)
+   * collision. C12 removed exactly this from Invoices.tsx and nobody checked
+   * the sibling page that creates the sibling document.
+   */
+  invoiceNumber: "",
   originalInvoiceId: "",
   date: new Date().toISOString().split("T")[0],
   noteReason: "",
@@ -154,7 +165,6 @@ export default function CreditNotes() {
                     setForm({
                       ...form,
                       documentType: v,
-                      invoiceNumber: `${v === "credit_note" ? "CN" : "DN"}-${Date.now().toString().slice(-6)}`,
                     })
                   }
                 >
@@ -185,7 +195,15 @@ export default function CreditNotes() {
 
               <div>
                 <Label>Number</Label>
-                <Input value={form.invoiceNumber} onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })} />
+                {/* Left blank = the server allocates the next number in the
+                    company's single sequence (C12). A value typed here is
+                    honoured for legacy imports and judged by the unique
+                    constraint, exactly as on the invoice form. */}
+                <Input
+                  value={form.invoiceNumber}
+                  placeholder="Assigned automatically"
+                  onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Date</Label>
