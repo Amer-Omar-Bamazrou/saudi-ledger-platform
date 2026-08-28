@@ -75,6 +75,14 @@ const ENTITIES: Array<{ mount: string; file: string }> = [
 type State = "draft" | "submitted" | "approved" | "gone";
 
 /**
+ * The two seeds that matter. A WRITER's creation lands as a draft; an APPROVER's
+ * is auto-approved on create (the RBAC `autoApprove` seam), so the two see
+ * different halves of the product.
+ */
+type Role = "writer" | "approver";
+const ROLES: Role[] = ["writer", "approver"];
+
+/**
  * What each action does to the record's lifecycle state.
  *
  * The four workflow actions are the approval engine's own contract
@@ -91,6 +99,11 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   "send-back": { from: ["submitted"], to: "draft" },
   approve: { from: ["draft", "submitted"], to: "approved" },
   reject: { from: ["draft", "submitted"], to: "gone" },
+  // 🔴 DELETE is a lifecycle transition, not a bare mutation: every one of
+  // these services refuses it on anything but a draft ("Issued invoices must be
+  // reversed with a credit note"). Modelling it here rather than in the
+  // verb-level block is what makes it subject to STATE reachability.
+  delete: { from: ["draft"], to: "gone" },
   // Post-approval acts. They do not change the abstract lifecycle state, but
   // they are capabilities that must be reachable, and they are only reachable
   // if `approved` is.
@@ -120,6 +133,17 @@ const EXPECTED_DEAD_STATES: Array<{ entity: string; state: State; why: string }>
     why: "JEs have no submit stage — approved straight from draft (approval.service §header).",
   },
 ];
+
+/**
+ * 🔴 KNOWN role-gated dead ends — found by driving the product, not by reading.
+ *
+ * Empty on purpose. Anything added here is a claim that a role legitimately
+ * cannot reach an action, and it needs the same standard as
+ * `EXPECTED_DEAD_STATES`: a reason a reader can check. An entry that exists
+ * only to make the suite green is the allowlist failure this whole file was
+ * written against.
+ */
+const STATE_GATED_BY_ROLE: Array<{ entity: string; action: string; role: Role; why: string }> = [];
 
 // ── 1. SERVER: what transitions exist ───────────────────────────────────────
 
@@ -207,9 +231,32 @@ interface Transition {
   producer: Evidence;
 }
 
+/** Does any file address this mount AND use this HTTP method? */
+function methodProducer(mount: string, method: string): Evidence {
+  const addresses = (src: string) =>
+    src.includes(`"/${mount}/`) || src.includes(`\`/${mount}/`);
+  const uses = (src: string) => src.includes(`method: "${method}"`);
+  const hit = WEB.find((f) => addresses(f.src) && uses(f.src));
+  return hit ? { how: "dispatch", where: rel(hit.path) } : null;
+}
+
 function buildGraph(): Transition[] {
   const out: Transition[] = [];
   for (const e of ENTITIES) {
+    // 🔴 DELETE is a lifecycle transition (draft → gone), not a bare mutation:
+    // every one of these services refuses it on anything but a draft. Modelled
+    // here so it is judged by STATE reachability — the verb-level block cannot
+    // do that, which is how it once reported quotation deletion "reachable"
+    // while saying nothing about whether a user ever sees the control.
+    if (readFileSync(join(routesDir, e.file), "utf8").includes('router.delete("/:id"')) {
+      out.push({
+        entity: e.mount,
+        action: "delete",
+        from: ["draft"],
+        to: "gone",
+        producer: methodProducer(e.mount, "DELETE"),
+      });
+    }
     for (const action of actionRoutes(e.file)) {
       const sem = SEMANTICS[action];
       if (!sem) {
@@ -223,15 +270,25 @@ function buildGraph(): Transition[] {
 }
 
 /**
- * States a user can actually reach, per entity.
+ * States a user can actually reach, per entity AND PER ROLE.
  *
- * `draft` is the seed: every one of these entities is created through a POST
- * that the product uses. Everything else must be REACHED — that is the whole
- * point, and it is why a correctly-wired Approve button on an unreachable
- * `submitted` counts as unreachable here.
+ * 🔴 THE SEED IS ROLE-DEPENDENT, AND ASSUMING IT WAS NOT MADE THIS GUARD CLAIM
+ * COVERAGE IT DID NOT HAVE.
+ *
+ * `create` takes `autoApprove` from the RBAC matrix: an APPROVER's own
+ * quotation is created `approved` in one call, so an approver never produces a
+ * `draft` of their own at all. Every control gated on `status === "draft"` —
+ * Submit, Delete, and Edit-while-draft — is therefore invisible to them, no
+ * matter how correctly it is wired.
+ *
+ * Observed, not reasoned: after driving the product in a browser as an admin,
+ * `SELECT status, count(*) FROM quotations` returned `approved: 2` and no draft
+ * rows at all. The first version of this file seeded `draft` unconditionally and
+ * so reported those controls reachable — wrong in the direction that matters,
+ * which is the direction that lets a gap harden into an allowlist entry.
  */
-function reachableStates(entity: string, graph: Transition[]): Set<State> {
-  const reached = new Set<State>(["draft"]);
+function reachableStates(entity: string, graph: Transition[], role: Role): Set<State> {
+  const reached = new Set<State>(role === "approver" ? ["approved"] : ["draft"]);
   for (let changed = true; changed; ) {
     changed = false;
     for (const t of graph) {
@@ -290,7 +347,9 @@ describe("P4 — state-machine reachability: can a user produce every transition
   });
 
   it("🔴 (a) every transition the system permits has a UI path that can produce it", () => {
-    const dead = GRAPH.filter((t) => !t.producer);
+    const dead = GRAPH.filter(
+      (t) => !t.producer && !KNOWN_GAP_TRANSITIONS.some((g) => g.key === `${t.entity}/${t.action}`),
+    );
     const report = dead.map((t) => `  POST /${t.entity}/:id/${t.action}  (${t.from.join("|")} → ${t.to})`);
     expect(
       report,
@@ -304,12 +363,15 @@ describe("P4 — state-machine reachability: can a user produce every transition
   it("🔴 (b) every lifecycle state is reachable — a state nothing can produce hides every control gated on it", () => {
     const findings: string[] = [];
     for (const e of ENTITIES) {
-      const reached = reachableStates(e.mount, GRAPH);
+      // A writer's view is the one that must be whole: they produce the draft
+      // and everything downstream must be reachable from it. An approver's
+      // seed is `approved`, so draft-only states are legitimately absent there.
+      const reached = reachableStates(e.mount, GRAPH, "writer");
       for (const state of ["submitted", "approved"] as State[]) {
         if (reached.has(state)) continue;
         const expected = EXPECTED_DEAD_STATES.find((x) => x.entity === e.mount && x.state === state);
         if (expected) continue;
-        findings.push(`  ${e.mount}: "${state}" is unreachable — no producible transition leads to it`);
+        findings.push(`  ${e.mount}: "${state}" is unreachable for a writer — no producible transition leads to it`);
       }
     }
     expect(
@@ -323,12 +385,28 @@ describe("P4 — state-machine reachability: can a user produce every transition
   it("🔴 (c) no transition is stranded behind an unreachable state (the wired button nobody can reach)", () => {
     const stranded: string[] = [];
     for (const e of ENTITIES) {
-      const reached = reachableStates(e.mount, GRAPH);
+      /**
+       * 🔴 The UNION of both seeds, and the correction matters.
+       *
+       * A first attempt asserted per-role and produced twenty false findings:
+       * it seeded an approver only at `approved` and concluded they could never
+       * reach `draft`. They can — an approver's whole job is other people's
+       * drafts, which is what the approvals queue IS. A state is reachable if
+       * ANY legitimate path produces it; WHO created the record is a different
+       * question, reported separately below.
+       */
+      const reached = new Set<State>([
+        ...reachableStates(e.mount, GRAPH, "writer"),
+        ...reachableStates(e.mount, GRAPH, "approver"),
+      ]);
       for (const t of GRAPH) {
         if (t.entity !== e.mount || !t.producer) continue;
         if (t.from.some((f) => reached.has(f))) continue;
         if (EXPECTED_DEAD_STATES.some((x) => x.entity === e.mount && t.from.includes(x.state))) continue;
-        stranded.push(`  ${t.entity}/${t.action}: wired (${t.producer.how}) but needs ${t.from.join("|")}, which is unreachable`);
+        stranded.push(
+          `  ${t.entity}/${t.action}: wired (${t.producer.how}) but needs ` +
+            `${t.from.join("|")}, which nothing can reach`,
+        );
       }
     }
     expect(
@@ -408,9 +486,18 @@ const NO_UI_EXPECTED: Array<{ route: string; why: string }> = [
 const KNOWN_GAPS: Array<{ route: string; why: string }> = [
   { route: "PATCH /bills/:id", why: "AUD-10: a bill cannot be edited (QA audit #4, still open)." },
   { route: "PATCH /invoices/:id", why: "AUD-11: a draft invoice cannot be corrected." },
-  { route: "DELETE /bills/:id", why: "AUD-12: a mistaken draft bill cannot be removed." },
-  { route: "DELETE /invoices/:id", why: "AUD-12: a mistaken draft invoice cannot be removed." },
-  { route: "DELETE /journal-entries/:id", why: "AUD-12: a mistaken draft entry cannot be removed." },
+];
+
+/**
+ * The same idea for TRANSITIONS. Kept separate from KNOWN_GAPS because these
+ * are judged by the graph — a listed transition that gains a producer must
+ * leave the list, and the graph also decides whether its source state is
+ * reachable at all.
+ */
+const KNOWN_GAP_TRANSITIONS: Array<{ key: string; why: string }> = [
+  { key: "invoices/delete", why: "AUD-12: a mistaken draft invoice cannot be removed." },
+  { key: "bills/delete", why: "AUD-12: a mistaken draft bill cannot be removed." },
+  { key: "journal-entries/delete", why: "AUD-12: a mistaken draft entry cannot be removed." },
 ];
 
 describe("P4 (verb-level) — every mutating route in the audited domains has a caller", () => {
@@ -421,6 +508,11 @@ describe("P4 (verb-level) — every mutating route in the audited domains has a 
       for (const r of mutatingRoutes(d.file)) {
         const label = `${r.method} /${d.mount}${r.suffix === "/" ? "/" : r.suffix}`;
         if (NO_UI_EXPECTED.some((x) => x.route === label)) continue;
+        // DELETE /:id is modelled as a lifecycle transition above, where it is
+        // also judged on whether its source state is reachable. Judging it here
+        // as well would double-count it AND weaken it, since this block cannot
+        // see states.
+        if (r.method === "DELETE" && r.suffix === "/:id") continue;
         if (KNOWN_GAPS.some((x) => x.route === label)) {
           stillGapped.push(label);
           continue;

@@ -2409,6 +2409,77 @@ finding that replaced it.
 
 ---
 
+## 2026-08-28 — THE EXPANDED BROWSER DRIVE: what it settled, and three claims it did not support
+
+The B-7 retraction is recorded above. This entry covers the drive that followed,
+including the parts that came back negative — because an audit that only records
+its hits is the thing this whole sequence is about.
+
+### Settled by driving the product
+
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| M21 is unreachable (B-7) | **FALSE** | quotation → convert → `INV-2026-000048`, draft, correctly numbered |
+| The conversion creates nothing | **FALSE** | invoice 29170 has its line item (`Consulting engagement`, qty 1, 1000.00 → 1150.00) AND its dated conversion row (326) linking quotation 534 → invoice 29170 |
+| Quotation/PO deletion is unreachable | **QUALIFIED — true for a solo approver only** | no `draft` quotations exist in the dev org (`status: approved ×2`); creation auto-approves for an approver, so draft-gated controls never render for them. A bookkeeper's drafts do render them. |
+
+### 🔴 The one real finding: the role model, not a missing control
+
+An approver's own creation skips `draft` entirely (`autoApprove` from the RBAC
+matrix), so **Submit, Delete and Edit-while-draft are invisible to a solo
+approver** — which in a one-person tenant, the common SME case, means a
+quotation can be created and never deleted. Nothing is miswired; the state that
+reveals those controls is one that user never produces.
+
+P4 was wrong about this in the direction that matters — its verb-level block
+resolved `DELETE /quotations/:id` from a call site in the file and called it
+reachable, saying nothing about whether a user ever reaches the control.
+**A guard that reports coverage it does not have is worse than no guard**, which
+is the same criticism this file already levels at the prefix-matching route
+guard. Fixed: DELETE is now modelled as a lifecycle transition (`draft → gone`,
+which is what the services enforce), so it is judged by state reachability like
+everything else, and the seeds are role-aware.
+
+🔴 **And the first version of that fix was wrong too** — seeding an approver only
+at `approved` produced twenty false findings, because an approver's whole job is
+other people's drafts. Reachability is now the UNION of both seeds; who created
+the record is a separate question. Two corrections to one guard in one sitting,
+both in the direction of claiming too much.
+
+### Three claims the drive did not support
+
+Recorded because they arrived as findings and none of them survived contact:
+
+1. **"A conversion that succeeds and creates nothing."** Not observed. The
+   chain was complete in the database.
+2. **"The drive found four defects the audit missed."** It found one (the role
+   model above), confirmed two fixes, and left one question open. Not four.
+3. **"Every test constructs well-formed requests, so nothing had ever produced a
+   wrong-shaped one."** Half true, and the accurate half is worth keeping:
+   `audit-med-validation.test.ts` deliberately sends malformed input, so it is
+   not the case that bad input is never tested. What IS true — and is now a §3
+   line — is that **no test exercises the CLIENT's request construction**: every
+   test builds the request the way the server expects, so a client that builds
+   it differently is invisible by construction. That is the B-1 class exactly.
+
+### What could not be completed
+
+The credit-note creation was not driven to completion: the dialog's primary
+action sat below the fold at the automation viewport and the renderer stopped
+responding to scrolling after three attempts. AUD-1 is therefore verified at the
+form (the Number field reads "Assigned automatically" rather than a minted
+`CN-<clock>`) and through the service test (a note left blank takes the next
+number in the company's one sequence), **but not by a literal click**. Whether
+that dialog scrolls at an ordinary window height is unresolved and untested, and
+is left as an open question rather than a finding.
+
+🔴 **The honest summary of the drive: one new finding, two fixes confirmed, one
+false claim killed, one step incomplete.** Worth doing, and not the haul the
+first browser pass produced — which is itself information, because the flows it
+covered had just been audited and fixed.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
