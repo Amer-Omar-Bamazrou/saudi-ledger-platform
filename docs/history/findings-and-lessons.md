@@ -2566,6 +2566,89 @@ the write boundary.
 
 ---
 
+## 2026-08-28 — THE COMPOSITION OF FINDINGS, and INV-2026-000049
+
+### The class, named
+
+AUD-13 is the first defect in this project where **separate findings composed
+into something worse than their sum**, and the composition — not any of the
+parts — is the finding.
+
+| # | The part | Severity in isolation |
+| --- | --- | --- |
+| 1 | The New Invoice form collected **no amount** | a bad form |
+| 2 | The API **accepted none** (`items: []` → 201) | a validation gap |
+| 3 | **Auto-approve** issued it anyway | correct, intended behaviour |
+| 4 | **No edit path** (AUD-11) | MED, queued |
+| 5 | **No delete path** (AUD-12) | MED, queued |
+
+Each was survivable alone. Each was triaged at a severity that was **correct for
+that finding**. Composed, they mint a permanent, ZATCA-stamped, SAR 0.00 tax
+invoice holding a position in a chain that legally cannot have gaps —
+irreversibly, one per click.
+
+🔴 **No individual severity predicted that, and no amount of care per finding
+would have.** Severity is assigned per finding; consequence accrues to the
+PATH. Two of the five (auto-approve, and "the form is thin") would not have been
+findings at all on their own.
+
+**The countermeasure is a triage question, not a test.** For each open finding,
+ask what it COMPOSES with — specifically what makes the resulting state
+**irreversible**, **invisible**, or **uncorrectable** — and rank the list by the
+worst path a user can walk, not by the worst finding in it. Concretely, the
+three multipliers to look for:
+
+- something that **issues or posts** (auto-approve, a posting path, a
+  transmission) — turns a bad record into a permanent one;
+- something that **removes the correction** (no edit, no delete, an
+  append-only store) — turns a permanent record into an uncorrectable one;
+- something that **hides the result** (a silent catch, an unread field, a page
+  that renders zero) — turns an uncorrectable record into an unnoticed one.
+
+A finding that touches none of these is usually as bad as it looks. A finding
+that touches two is worse than its severity says.
+
+🔴 This is the composition-defect class (§3) pointed at FINDINGS rather than at
+code. Shape 1 was two correct files with a bad edge between them; this is two
+correct triage decisions with a bad path between them. The same blindness, one
+level up: **the review reads items, and the damage lives in the joins.**
+
+### INV-2026-000049 — the artefact, which STAYS
+
+The probe that found AUD-13 created one:
+
+```
+INV-2026-000049   status: sent   icv: 8   total: 0.00
+invoiceHash: 38781b13…   previousHash: f7bbd4a3…   qrCode: AQ9EZWZhdWx0…
+```
+
+An issued, ZATCA-stamped, zero-value tax invoice in the dev organization's
+ledger, holding position 8 in the hash chain.
+
+**It cannot be removed, and that is the point.** `remove()` refuses anything but
+a draft ("Issued invoices must be reversed with a credit note"); `PATCH` refuses
+a non-draft too, and had no caller regardless. Deleting it directly in SQL would
+leave a gap in the ICV sequence and break the chain link that the next document
+points at — the exact damage the fail-closed posture exists to prevent. The only
+sanctioned correction is a credit note, which would leave *two* zero-value
+documents where there was one.
+
+🔴 **Owner instruction (2026-08-28): leave it.** It is the strongest artefact
+this project has produced — the probe that found the defect created an instance
+of the defect, permanently, in a ledger. It is a standing, physical answer to
+three questions this file argues about at length:
+
+1. *Why enforce at the write boundary rather than in the caller?* Because the
+   caller was already fixed and the row still exists.
+2. *Why is "we'd catch it in review" not enough?* Because the review that
+   would have caught it is the one that produced this row.
+3. *Why is an irreversible act a different category of risk?* Because everything
+   else in this session was fixed with a commit, and this cannot be.
+
+Anyone tempted to clean it up should read this entry first and then not.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

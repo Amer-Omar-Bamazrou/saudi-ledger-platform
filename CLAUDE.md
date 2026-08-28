@@ -54,33 +54,22 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-08-28.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**This session (2026-08-28).** Two pieces of work, both recorded in full in
-[`findings-and-lessons.md`](docs/history/findings-and-lessons.md):
+**2026-08-28 — the scale/collision sweep, the flow audit, P4, and AUD-13
+(merged, PR #102).** Nineteen findings; the full record, every lesson and the
+retraction of one false finding are in
+[`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
-1. **The scale-and-collision sweep.** Four defects fixed, all of one family —
-   correct on every dataset we own, wrong the month a tenant gets busy: statement
-   ingest dropped genuinely repeated lines (understating expenses and input VAT);
-   bulk accept was labelled from a 200-row page while posting every pending row
-   to the ledger; the outbox alarm paged `500 document(s)` forever; the operator
-   dashboard's `needsReview` saturated at 500. 🔴 **Checked and ABSENT:** that AR
-   aging doubles or drops on colliding documents — it does neither, and is now
-   pinned behaviourally. The durable output is `tests/scale-and-collision.test.ts`,
-   the first fixture here built LARGER than the caps it tests and deliberately
-   degenerate in its values. All four verified by re-injection.
-2. **The flow audit (capture, findings, quotations, POs, closed months,
-   permissions, Arabic)** — nine findings, **all now fixed**, plus three more
-   that P4 found. Two were HIGH and both were numbering: credit/debit notes
-   bypassed the C12 allocator, and recurring invoice rules reused one literal
-   number so they broke on their second run.
-3. **P4 — `tests/state-machine-reachability.test.ts`**, the countermeasure for
-   the built-tested-unreachable class: it computes what a user can REACH from
-   the transition graph, not whether a route is mentioned. 🔴 **8 of the 15
-   findings this session sit in the layer a user touches** — our process
-   verified every layer except that one, which is systematic rather than a run
-   of oversights. (It was 9 until B-7 was verified by clicking and retracted.)
+What a future session needs to know in four lines:
 
-**This file was restructured the same day: 157k → 74k**, with the narrative moved
-to `docs/history/` and the budget now enforced by a test.
+- 🔴 **8 of 15 findings sat in the layer a user touches.** Our automated tests
+  all run a layer below it. That is the standing gap, and **P5** (§5) is the
+  project that closes it.
+- **P4** (`tests/state-machine-reachability.test.ts`) now computes what a user
+  can REACH from the transition graph; it found three defects on its first run.
+- **AUD-13** is the worked example of §3's newest lesson: five separately-minor
+  findings composed into a permanent zero-value ZATCA invoice.
+- **CLAUDE.md is budget-enforced** (`tests/claude-md-budget.test.ts`). If it
+  fails, evict — see the three rules at the top.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -245,6 +234,7 @@ rules at the top of this file, rule 2).
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8, owner-named 2026-08-28). Setting an attribute on `<html>` imperatively — `documentElement.dir` for RTL — is unreliable **by construction**: React reconciles `#root`, nothing re-asserts what lives above it, nothing notices when it is lost, and the static document's value is always there to fall back to. Generalises past the DOM: any fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. Third instance of a correct producer overwritten by a consumer (the scripted regex fix reverted by a stale `Edit`; migration 0044's dropped default re-created by a `?? 1` in a form). **Test that it survives a route change** — that is the event the current code never sees.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** (2026-08-28, from the browser drive). Every test in the suite builds its request the way the SERVER expects — calling a service or controller with a hand-made object — so a client that builds one differently is invisible by construction. That is the whole B-1 class in one sentence: `ApAging.tsx` declared a response shape nobody checked, `CreditNotes.tsx` minted a number the allocator was meant to own, and no amount of server-side testing could see either, because the request never came from the client. 🔴 The suite DOES send malformed input deliberately (`audit-med-validation.test.ts`) — the gap is not "we never test bad input", it is that **the client is never the thing under test**. Only something that drives the real client closes it.
+- **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (named 2026-08-28 from AUD-13; a new class, and the one this session ends on). Five defects, each survivable alone, each triaged at a severity that was correct in isolation: a form that collected **no amount**; an API that **accepted none** (`items: []` → 201); **auto-approve** that issued it anyway; **no edit path** (AUD-11); **no delete path** (AUD-12). Composed, they mint a permanent, ZATCA-stamped, SAR 0.00 tax invoice holding a position in a chain that legally cannot have gaps — irreversible, one per click. 🔴 **No individual severity predicted that**, because severity is assigned per finding and consequence accrues to the PATH. The countermeasure is a triage question, not a test: for each open finding, ask **what it composes with** — specifically, what makes the resulting state *irreversible*, *invisible*, or *uncorrectable* — and re-rank on the worst path a user can walk, not on the worst finding in the list. This is the composition-defect class (§3) pointed at FINDINGS rather than at code: shape 1 was two correct files with a bad edge; this is two correct triage decisions with a bad path.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13, 2026-08-28 — the sharpest form of the class). `POST /invoices` with `items: []` returned **201** and, under auto-approve, an ISSUED zero-value tax invoice: an ICV consumed, a ZATCA chain position taken, a QR minted, none of it recoverable. It was **not a malformed request** — it was well-formed with an empty array. Two things made it invisible: **the validation existed on the wrong schema** (`minItems: 1` is declared and enforced for quotations and purchase orders, which touch NO ledger, and was absent for invoices, which consume an ICV — the guard written where the consequence was smallest), and **every test bypassed the layer that had the bug** (service-level fixtures always carry realistic lines, while the CLIENT hardcoded `items: []`). Same family as the SDK differential that proved only that we matched a stale writer: ask what layer the defect lives in, and whether anything tests THAT layer rather than the one below it.
 - **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing on its own: these routes pass `req.body` straight to the service, so every constraint in the contract is decorative unless a service re-states it by hand. Either generate the check from the contract or treat the contract as documentation — but never let a reader believe a declared constraint is an enforced one.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). The same class as unreachable navigation, pointed at DATA instead: every control works, every request succeeds, and what lands is a row that no later step can act on — a record born unusable. **No reachability guard can see it**, because nothing is unreachable; the form reached the endpoint and the endpoint said 200. P4 asks whether a user can get somewhere; this asks whether what they created can go anywhere, and the two are independent. The tell is a field the WRITE path treats as optional and a READ path treats as required — check what every consumer of a new record needs BEFORE checking that the form submits.
@@ -480,59 +470,44 @@ Written up in [`docs/product/advisor-questions.md`](docs/product/advisor-questio
 | **Invoice dating** | 🔴 The closed-period policy is **REASONED-NOT-VERIFIED** (source: the owner, not an accountant): an invoice must not be dated into a closed period at all; work done in a closed month is issued in the current open period, and revenue belonging to the closed month is an accrual made BEFORE closing. Enforced today on create and on a changed `date` (423 `period_closed`). **The open question:** whether Saudi practice permits ANY exception — a grace window, or an audited override. |
 | **AI tax gate** | 🔴 **No compliance-asserting AI findings before C9/C10 close.** The findings gate stays at (a) internal-consistency only; the (b) citation-carrying widening is QUEUED post-C10, with Art. 50 meal-VAT as first candidate. Likewise the OPINION register for AI-6 (queued post-C10, not rejected — it would be the platform's first unverifiable voice, and the fence question travels with it). |
 
-### Code-level open findings
+### Code-level open findings — RANKED BY CONSEQUENCE, not by discovery
 
-| Sev | Item | What would close it |
-| --- | --- | --- |
-| **MED** | 🔴 **The accounting core's central precondition has no forcing function.** `db` is a Proxy: inside a tenant transaction it resolves to the RLS-scoped client; **outside one it falls back SILENTLY to `baseDb`** — the owner connection, RLS bypassed, no `app.current_org_id`. `glPosting.resolveAccounts` writes no organization filter and justifies it in a comment by "this runs inside the request's tenant transaction", so the core trusts a fact its CALLER controls and the failure mode is a wrong answer, not a refusal. **No live instance found** (checked: the two per-tenant jobs open `beginTenantConnection`; the unscoped sweeps use raw SQL with an explicit `organization_id`). The gap is that nothing STOPS the next caller. | Export a scope predicate from `@workspace/db` and assert it at the top of `postJournalEntry` / `checkPeriodOpen` — throw when called outside a tenant transaction. Make the unscoped call inexpressible rather than merely unwise. |
-| **MED** | **A 2xx for a transaction that rolled back** (`lib/tenant.ts:144`). Commit failure after `res.on("finish")` is logged only — the client already has its success. Structurally hard to fix at that point; nothing alarms on the pattern (L-1 family). | An alarm on the pattern, at minimum. |
-| **MED** | **No password recovery for a multi-org account.** F1's fix means an account that has ever held a membership outside an admin's scope cannot be reset by that admin, and there is no self-service recovery (`/auth/change-password` requires the current password). The strict reading is deliberate; the lockout is real and now reachable. | An operator-level reset (audited, on the operator surface) or a self-service email flow — B1's mailer is live, so the second is buildable. |
-| **MED** | **`operatorService.getApplication` accepts ANY orgId, including an approved LIVE tenant**, returning its CR/VAT and verification documents. Audited, and re-review is legitimate, but the access **never expires** and those documents carry third-party personal data. Not a hole; an unbounded retention/access surface. | Belongs with **C8** — ask first, then build the expiry. Not a code fix ahead of the answer. |
-| **LOW** | **`operatorZatcaService.onboardingStatus()` returns every company's VAT number across every tenant**, unfiltered and unpaginated. The widest single cross-tenant read on the operator surface. | Paginate, and drop `vatNumber` unless a stated operator workflow needs it. |
-| **LOW** | **Manual-JE balance failure returns 400 where the status policy says 422.** Pre-existing and tested. | Align in a pass that owns that path, updating its tests. |
-| **LOW** | **The upload response's `duplicates` array still has no UI consumer.** It now means something narrower and true ("your account already held these rows"), but no page reads it — a shape without a consumer, recorded rather than built. It mattered more before S-1: it was the *mitigation* for the dropped charges, which is why an unread field was able to stand in for a fix. | Show the skipped rows on the Upload page after an import. |
-| **LOW** | **M-4:** `bcryptjs` blocks the event loop on public endpoints; no max-length validation before `varchar(255)`. **M-5:** magic-byte sniff is header-only (closes with C4). **L-1:** security-audit write failures only `console.error` — route through `pino` and alert on the pattern. **L-2:** signup 409 leaks account existence (accepted; document inline). **L-4:** the operator queue list is unaudited (accepted trade-off). | |
-| **DECISION** | **`platform-alarms` is classified NOT operator-runnable.** Harmless in itself (it pages our webhook, not a tenant), but no surface offers it. Flagged for veto rather than decided silently. | A one-line flip in `lib/operatorJobs.ts` plus a button, if manually testing paging is wanted. |
-| **DECISION** | **`normalizeDigits` exists twice** — canonical in `apps/web/src/lib/receiptParser.ts`, copied into `services/findings.explanationVerifier.ts` because the workspace boundary blocks the import. A behavioural-equivalence test pins the copy today. "Four lines is fine; a second copy that drifts isn't." | A small shared workspace package (the TLV-codec precedent) vs. keeping the pin. Not urgent. |
+🔴 **Re-ranked 2026-08-28 using the composition question** (§3's newest lesson):
+not "how bad is this finding" but "what does it compose with, and does the
+result become **irreversible**, **uncorrectable**, or **unnoticed**". AUD-13 is
+why: five items, each correctly triaged in isolation, that together minted a
+permanent zero-value ZATCA invoice. **Composition risk is stated per row, and it
+is the reason the order is not the severity order.**
 
-### 🔴 AUDIT 2026-08-28 — the flow audit: ALL NINE CLOSED, three new ones opened
+| Rank | Item | Composes with | Why here |
+| --- | --- | --- | --- |
+| **1** | 🔴 **The accounting core's precondition has no forcing function.** `db` is a Proxy: inside a tenant transaction it is the RLS-scoped client; **outside one it falls back SILENTLY to `baseDb`** — owner connection, RLS bypassed, no `app.current_org_id`. `glPosting.resolveAccounts` writes no organization filter and justifies it by "this runs inside the request's tenant transaction", so the core trusts a fact its CALLER controls. **No live instance** (checked: per-tenant jobs open `beginTenantConnection`; unscoped sweeps use raw SQL with an explicit org id). | **All three multipliers at once.** Posts to the GL (irreversible) · under the wrong tenant (uncorrectable without a reversal that itself needs the right tenant) · with **no error at all** (unnoticed). | The only open item whose failure mode is *silent cross-tenant ledger corruption*. It ranks first despite having no live instance, because the next caller creates one and nothing stops them. **Fix: export a scope predicate and throw at the top of `postJournalEntry` / `checkPeriodOpen` — make the unscoped call inexpressible.** |
+| **2** | 🔴 **AUD-11 + AUD-12 + auto-approve — the AUD-13 path, minus the zero-value bug.** `PATCH /invoices/:id` and `DELETE /invoices/:id` have no caller. For an approver, creation auto-issues. | Each other, and auto-approve. This is **the same composition AUD-13 rode**; only the "no amount" leg was removed. | A mistyped amount on an issued invoice is now correctable only by credit note, and a mistaken draft cannot be deleted at all. Ranked as ONE item because fixing either alone leaves the path open. **Fix: draft-only Edit and Delete on invoices, bills and journal entries — all five routes already refuse the dangerous case server-side.** |
+| **3** | **A 2xx for a transaction that rolled back** (`lib/tenant.ts:144`). Commit failure after `res.on("finish")` is logged only; the client already has its success. | The **unnoticed** multiplier, applied to every write path at once. Compose it with any create the user will not re-check and the record is simply absent. | Structurally hard to fix at that point, and nothing alarms on the pattern (L-1 family). An alarm is the minimum. |
+| **4** | **A solo approver never sees the draft half of the workflow** (found by driving the product). Creation auto-approves, so `status === "draft"` never occurs for their own records and Submit / Delete / Edit-while-draft never render. | AUD-11/AUD-12 above: in a **one-person tenant — the common SME case** — every document is issued instantly and cannot be edited or deleted from the product at all. | Not a miswiring; a role-model consequence. It is what makes rank 2 worse than it looks, and P4 now models both seeds so the claim stays measured. |
+| **5** | **AUD-10 — `PATCH /bills/:id` has no caller; a bill cannot be edited.** | AUD-12's missing bill delete. | A stuck draft, not a stuck legal document: bills consume no ICV and take no chain position. Same fix as rank 2, lower stakes. |
+| **6** | **No password recovery for a multi-org account.** F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes; it composes only with the absence of an operator reset. | A real lockout with a bounded blast radius and an obvious fix. B1's mailer is live, so a self-service flow is buildable. |
+| **7** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **8** | **`operatorZatcaService.onboardingStatus()` returns every company's VAT number across every tenant**, unfiltered and unpaginated. | Nothing. | The widest single cross-tenant read on the operator surface. Paginate; drop `vatNumber` unless a workflow needs it. |
+| **9** | **The upload response's `duplicates` array has no UI consumer.** | 🔴 Flagged deliberately: this field was the *mitigation* that stood in for fixing S-1, and an unread field standing in for a fix is a composition risk in itself — it makes a gap look closed. | Show the skipped rows after an import. Cheap. |
+| **10** | **Manual-JE balance failure returns 400 where the status policy says 422.** | Nothing. | Pre-existing and tested; align in a pass that owns the path. |
+| **11** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
-The nine findings (capture, findings, quotations, POs, closed months,
-permissions, Arabic) are **fixed and verified**; the full table with each
-finding's cause and countermeasure moved to
-[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md)
-per eviction rule 1. Headlines: credit/debit notes and recurring invoices both
-bypassed the C12 allocator (an invariant with an opt-out is a convention);
-quotation/PO lists reported a conversion state derived from data they never
-loaded; and edit / discard / send-back / reject were built, tested and
-unreachable.
+**Open DECISIONS** (not defects — flagged so they are decided rather than
+defaulted): `platform-alarms` is classified NOT operator-runnable, so no surface
+offers it (one-line flip if manual paging tests are wanted); and
+`normalizeDigits` exists twice, pinned by a behavioural-equivalence test, pending
+a shared workspace package.
 
-🔴 **P4 (`tests/state-machine-reachability.test.ts`) is the countermeasure, and
-it found three more the day it was written** — the first evidence it sees the
-class a browser pass sees:
+**Open and unreproduced:** **B-8** — the RTL `<html dir>` loss. `applyLang` is
+the only writer in the client and React does not own `<html>`, so if the
+attribute is lost it is a runtime fact no static check reaches. Its lesson is in
+§3 regardless.
 
-| # | Sev | Finding |
-| --- | --- | --- |
-| **AUD-10** | **MED** | **`PATCH /bills/:id` has no caller — a bill cannot be edited.** Found by clicking in the 2026-08-27 QA audit, re-found from source by P4, still open. |
-| **AUD-11** | **MED** | **`PATCH /invoices/:id` has no caller — a draft invoice cannot be corrected.** |
-| **AUD-12** | **MED** | **No DELETE caller on invoices, bills or journal entries** — a mistaken draft can be neither corrected nor removed. Quotations and POs can be deleted; these three cannot. |
-
-All three are listed in P4's `KNOWN_GAPS` with a companion test that FAILS if a
-listed route gains a caller and stays listed — the property that keeps an
-allowlist from rotting into an excuse.
-
-🔴 **B-7 RETRACTED (verified false by USE), B-8 still open, and the browser
-drive's full results** — including three claims it did NOT support — are in
-[`findings-and-lessons.md`](docs/history/findings-and-lessons.md). Two durable
-outputs: a **solo approver never sees the draft half of the workflow**
-(creation auto-approves, so Submit / Delete / Edit-while-draft never render for
-their own records — in a one-person tenant a quotation cannot be deleted at
-all), and **AUD-13**:
-
-| # | Sev | Finding |
-| --- | --- | --- |
-| **AUD-13** | 🔴 **HIGH — FIXED** | **`POST /invoices` with `items: []` returned 201 and, under auto-approve, ISSUED a SAR 0.00 tax invoice** — ICV consumed, ZATCA chain position taken, QR minted, none of it recoverable, on a document that could then be neither edited (AUD-11) nor deleted. `Invoices.tsx` hardcoded `items: []` on every create and its form collected no amount at all. Fixed at the write boundary (an invoice needs a line; a bill needs a line OR a total, preserving the capture path), in the form (a real line editor), and in the spec. `tests/payload-shape-boundary.test.ts` pins the class across all four create paths. |
-
+🔴 **Three findings from P4 remain listed in its `KNOWN_GAPS` / `KNOWN_GAP_TRANSITIONS`**
+(AUD-10, AUD-11, AUD-12), each with a companion test that FAILS if a listed
+route gains a caller and stays listed — so closing them cannot leave the list
+stale.
 
 ### Traps and known-dead surfaces
 
