@@ -305,7 +305,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
   });
 
   it("a billed order cannot be deleted", async () => {
-    await expect(inTenant(() => purchaseOrdersService.remove(poId))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(inTenant(() => purchaseOrdersService.deleteDraft(poId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("🔴 CANCELLED, not declined — we withdraw an order; the supplier does not refuse it", async () => {

@@ -108,7 +108,7 @@ export const quotationsController = {
   },
 
   async remove(req: Request, res: Response) {
-    await quotationsService.remove(requireId(req));
+    await quotationsService.deleteDraft(requireId(req));
     res.status(204).send();
   },
 };

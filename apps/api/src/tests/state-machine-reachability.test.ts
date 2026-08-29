@@ -483,10 +483,14 @@ const NO_UI_EXPECTED: Array<{ route: string; why: string }> = [
  * this list cannot rot into a permanent excuse the way an untested allowlist
  * does.
  */
-const KNOWN_GAPS: Array<{ route: string; why: string }> = [
-  { route: "PATCH /bills/:id", why: "AUD-10: a bill cannot be edited (QA audit #4, still open)." },
-  { route: "PATCH /invoices/:id", why: "AUD-11: a draft invoice cannot be corrected." },
-];
+/**
+ * 🔴 EMPTY, and it emptied itself. AUD-10/11/12 were listed here on 2026-08-28
+ * and closed on 2026-08-29 — the companion test below FAILED the moment the
+ * callers were built, which is the property that keeps an allowlist from
+ * rotting into a permanent excuse. A new entry needs a reason a reader can
+ * check, and leaves the moment it is fixed.
+ */
+const KNOWN_GAPS: Array<{ route: string; why: string }> = [];
 
 /**
  * The same idea for TRANSITIONS. Kept separate from KNOWN_GAPS because these
@@ -494,11 +498,7 @@ const KNOWN_GAPS: Array<{ route: string; why: string }> = [
  * leave the list, and the graph also decides whether its source state is
  * reachable at all.
  */
-const KNOWN_GAP_TRANSITIONS: Array<{ key: string; why: string }> = [
-  { key: "invoices/delete", why: "AUD-12: a mistaken draft invoice cannot be removed." },
-  { key: "bills/delete", why: "AUD-12: a mistaken draft bill cannot be removed." },
-  { key: "journal-entries/delete", why: "AUD-12: a mistaken draft entry cannot be removed." },
-];
+const KNOWN_GAP_TRANSITIONS: Array<{ key: string; why: string }> = [];
 
 describe("P4 (verb-level) — every mutating route in the audited domains has a caller", () => {
   it("🔴 no built-and-unreachable mutation is left in these domains", () => {

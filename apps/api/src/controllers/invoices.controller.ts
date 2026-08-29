@@ -60,7 +60,7 @@ export const invoicesController = {
     res.json(await invoicesService.payments(requireIdParam(req)));
   },
   async remove(req: Request, res: Response) {
-    await invoicesService.remove(requireIdParam(req));
+    await invoicesService.deleteDraft(requireIdParam(req));
     res.status(204).send();
   },
 };

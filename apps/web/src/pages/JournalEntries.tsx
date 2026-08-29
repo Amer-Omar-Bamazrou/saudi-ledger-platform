@@ -23,6 +23,8 @@ const emptyLine: JELine = { accountName: "", description: "", debitAmount: 0, cr
 
 export default function JournalEntries() {
   const [open, setOpen] = useState(false);
+  /** Two-step delete: the second click is the confirmation (draft only). */
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [form, setForm] = useState({ entryNumber: `JE-${Date.now().toString().slice(-6)}`, date: new Date().toISOString().split("T")[0], description: "", reference: "", notes: "" });
   const [lines, setLines] = useState<JELine[]>([{ ...emptyLine }, { ...emptyLine }]);
@@ -37,6 +39,16 @@ export default function JournalEntries() {
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/journal-entries", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); setOpen(false); toast({ title: t("Journal entry created", "تم إنشاء قيد اليومية") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/journal-entries/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+      setConfirmDelete(null);
+      toast({ title: t("Draft deleted", "تم حذف المسودة") });
+    },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -154,6 +166,11 @@ export default function JournalEntries() {
                     <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
                     <td className="py-2">
                       {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-emerald-400" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
+                      {/* 🔴 AUD-12: draft-only delete. `DELETE /journal-entries/:id`
+                          existed with no caller, so a mistyped draft entry could not
+                          be removed. A POSTED entry is corrected by a reversing
+                          entry — the service refuses it and says so. */}
+                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-red-400" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
                       {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
                     </td>
                   </tr>

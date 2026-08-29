@@ -2613,6 +2613,33 @@ code. Shape 1 was two correct files with a bad edge between them; this is two
 correct triage decisions with a bad path between them. The same blindness, one
 level up: **the review reads items, and the damage lives in the joins.**
 
+### 🔴 The loop the artefact closes — its sharpest illustration
+
+Checked, not reasoned (probe run against the live row, rolled back):
+INV-2026-000049 **can** be credited — but only by a **zero-value** credit note,
+because `creditNotes` refuses any note whose total exceeds what remains
+creditable, and nothing remains creditable against a SAR 0.00 invoice.
+
+So every correction path is closed or vacuous:
+
+| Path | Outcome |
+| --- | --- |
+| Edit | refused — draft only; it is issued |
+| Delete | refused — draft only; it is issued |
+| Credit note | permitted, but only at **zero value** — it would consume ANOTHER ICV and ANOTHER chain position to cancel nothing |
+
+🔴 **The correction that exists makes the situation worse.** Reversing the
+artefact leaves two permanent zero-value documents in a chain that legally
+cannot have gaps, where there was one. That is the composition class stated in a
+single row: the rule that would have prevented it cannot repair it, and the only
+available repair adds to the damage.
+
+(The mechanism matters and was checked: it is NOT that the invoice's missing
+lines block a credit note — a note carries its own lines. It is that a zero
+total leaves nothing to credit. Recorded precisely because "cannot be reversed"
+and "reversing it is pointless and costly" are different facts, and only the
+second is true.)
+
 ### INV-2026-000049 — the artefact, which STAYS
 
 The probe that found AUD-13 created one:

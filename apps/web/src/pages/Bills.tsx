@@ -100,6 +100,9 @@ export default function Bills() {
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
+  /** AUD-10/AUD-12 — editing and deleting a DRAFT bill, the only state the API allows. */
+  const [editingBill, setEditingBill] = useState<{ id: number; billNumber: string } | null>(null);
+  const [confirmDeleteBill, setConfirmDeleteBill] = useState<{ id: number; billNumber: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const { demoMode } = useDeployment();
   const [payOpen, setPayOpen] = useState<number | null>(null);
@@ -123,6 +126,62 @@ export default function Bills() {
 
   // Manual bill creation: create draft, then post GL through the shared endpoint.
   // debitAccount is passed explicitly — no hardcoded default anywhere in this path.
+  const updateBillMut = useMutation({
+    mutationFn: (body: any) =>
+      apiFetch(`/bills/${editingBill!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          billNumber: body.billNumber || undefined,
+          vendorReference: body.vendorReference || undefined,
+          date: body.date,
+          dueDate: body.dueDate || undefined,
+          vendorId: body.vendorId ? Number(body.vendorId) : undefined,
+          subtotal: body.subtotal ? Number(body.subtotal) : undefined,
+          vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
+          total: body.total ? Number(body.total) : undefined,
+          notes: body.notes || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      setOpen(false); setEditingBill(null); setForm(makeEmpty());
+      toast({ title: t("Changes saved", "تم حفظ التعديلات") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
+  });
+
+  const deleteBillMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/bills/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      setConfirmDeleteBill(null);
+      toast({ title: t("Draft deleted", "تم حذف المسودة") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
+  });
+
+  const openEditBill = async (row: { id: number; billNumber: string }) => {
+    try {
+      const d: any = await apiFetch(`/bills/${row.id}`);
+      setForm({
+        ...makeEmpty(),
+        billNumber: d.billNumber ?? "",
+        vendorReference: d.vendorReference ?? "",
+        date: d.date ?? "",
+        dueDate: d.dueDate ?? "",
+        vendorId: String(d.vendorId ?? ""),
+        subtotal: String(d.subtotal ?? ""),
+        vatAmount: String(d.vatAmount ?? ""),
+        total: String(d.total ?? ""),
+        notes: d.notes ?? "",
+      } as never);
+      setEditingBill(row);
+      setOpen(true);
+    } catch (e) {
+      toast({ title: t("Error", "خطأ"), description: (e as Error).message, variant: "destructive" } as any);
+    }
+  };
+
   const createMut = useMutation({
     mutationFn: async (body: typeof form) => {
       const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
@@ -261,7 +320,13 @@ export default function Bills() {
           )}
 
           {/* New Bill dialog */}
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog
+            open={open}
+            onOpenChange={(o) => {
+              setOpen(o);
+              if (!o) { setEditingBill(null); setForm(makeEmpty()); }
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Bill", "فاتورة جديدة")}</Button>
             </DialogTrigger>
@@ -367,10 +432,14 @@ export default function Bills() {
 
               <Button
                 className="w-full mt-4"
-                onClick={() => createMut.mutate(form)}
-                disabled={!form.vendorId || createMut.isPending}
+                onClick={() => (editingBill ? updateBillMut.mutate(form) : createMut.mutate(form))}
+                disabled={!form.vendorId || createMut.isPending || updateBillMut.isPending}
               >
-                {createMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Post Bill", "ترحيل الفاتورة")}
+                {createMut.isPending || updateBillMut.isPending
+                  ? t("Saving…", "جارٍ الحفظ…")
+                  : editingBill
+                    ? t("Save changes", "حفظ التعديلات")
+                    : t("Post Bill", "ترحيل الفاتورة")}
               </Button>
             </DialogContent>
           </Dialog>
@@ -378,6 +447,32 @@ export default function Bills() {
       </div>
 
       {/* ── KPI cards ───────────────────────────────────────────────────────── */}
+      {/* 🔴 Draft-only delete — the confirm states why it is safe HERE. */}
+      <Dialog open={!!confirmDeleteBill} onOpenChange={(o) => !o && setConfirmDeleteBill(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t(`Delete draft ${confirmDeleteBill?.billNumber ?? ""}?`, `حذف مسودة ${confirmDeleteBill?.billNumber ?? ""}؟`)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              {t(
+                "The draft is removed permanently. Nothing has been posted, so no ledger entry and no payable balance is affected.",
+                "تُحذف المسودة نهائيًا. لم يتم ترحيل أي شيء، فلا يتأثر أي قيد أو رصيد دائن.",
+              )}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteBill(null)}>{t("Cancel", "إلغاء")}</Button>
+              <Button size="sm" variant="destructive" disabled={deleteBillMut.isPending}
+                onClick={() => confirmDeleteBill && deleteBillMut.mutate(confirmDeleteBill.id)}>
+                {deleteBillMut.isPending ? t("Deleting…", "جارٍ الحذف…") : t("Delete draft", "حذف المسودة")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-4 gap-4">
         {[
           [t("Total Bills", "إجمالي الفواتير"), bills.length, "text-primary"],
@@ -446,6 +541,21 @@ export default function Bills() {
                       <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{b.status}</Badge>
                     </td>
                     <td className="py-3 flex gap-1">
+                      {/* 🔴 AUD-10/AUD-12: draft-only. A posted bill is corrected
+                          by its own paths, and the service refuses an edit or a
+                          delete on one — this offers them only where they work. */}
+                      {b.status === "draft" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7"
+                          onClick={() => openEditBill(b)}>
+                          {t("Edit", "تعديل")}
+                        </Button>
+                      )}
+                      {b.status === "draft" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400"
+                          onClick={() => setConfirmDeleteBill(b)}>
+                          {t("Delete", "حذف")}
+                        </Button>
+                      )}
                       {b.status === "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-400"
                           onClick={() => { setPostReviewOpen(b); setPostDebitAccount(DEFAULT_EXPENSE_ACCOUNT); }}>

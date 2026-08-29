@@ -47,7 +47,7 @@ export const billsController = {
     res.json(await billsService.payments(requireIdParam(req)));
   },
   async remove(req: Request, res: Response) {
-    await billsService.remove(requireIdParam(req));
+    await billsService.deleteDraft(requireIdParam(req));
     res.status(204).send();
   },
 };

@@ -272,7 +272,7 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
   });
 
   it("a converted quotation cannot be DELETED — it is the record of what was agreed", async () => {
-    await expect(inTenant(() => quotationsService.remove(quotationId))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(inTenant(() => quotationsService.deleteDraft(quotationId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("only an APPROVED, live quotation converts", async () => {

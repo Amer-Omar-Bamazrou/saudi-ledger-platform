@@ -100,7 +100,7 @@ export const purchaseOrdersController = {
   },
 
   async remove(req: Request, res: Response) {
-    await purchaseOrdersService.remove(requireId(req));
+    await purchaseOrdersService.deleteDraft(requireId(req));
     res.status(204).send();
   },
 };

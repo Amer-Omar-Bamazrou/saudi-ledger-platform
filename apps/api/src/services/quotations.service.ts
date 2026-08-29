@@ -355,7 +355,18 @@ export const quotationsService = {
     return this.getById(id);
   },
 
-  async remove(id: number) {
+  /**
+   * 🔴 Named `deleteDraft`, not `remove`, because that is what it does.
+   *
+   * The route is `DELETE /<resource>/:id` — correct, it addresses the resource —
+   * but the verb implies a delete that mostly is NOT one: an issued invoice
+   * cannot be deleted at all, and the refusal ("Issued invoices must be
+   * reversed with a credit note") is the normal case rather than the edge. A
+   * service method called `remove` invites a caller to believe otherwise. The
+   * name now states the precondition the body enforces, so a reader sees it
+   * before reaching the guard.
+   */
+  async deleteDraft(id: number) {
     const [existing] = await quotationsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     // A converted quotation is the record of what the customer agreed to, and

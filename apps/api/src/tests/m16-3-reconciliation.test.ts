@@ -231,7 +231,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
     // 998.20 gross — unique across ALL documents, but the invoice is a draft.
     const tx = await uploadRow({ date: "2026-07-14", description: "INCOMING MATCHING A DRAFT 55100", amount: 998.2, type: "credit" });
     expect(await suggestionFor(tx)).toBeNull();
-    await inTenant(() => invoicesService.remove(draft.id));
+    await inTenant(() => invoicesService.deleteDraft(draft.id));
   });
 
   // ── Q3a: suggestions are never actions ────────────────────────────────────

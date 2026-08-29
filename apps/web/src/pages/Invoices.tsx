@@ -68,6 +68,9 @@ export default function Invoices() {
   };
   const invoiceTotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
   const [payAmount, setPayAmount] = useState("");
+  /** AUD-11/AUD-12 — editing and deleting a DRAFT, the only states the API allows. */
+  const [editing, setEditing] = useState<Invoice | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -158,6 +161,71 @@ export default function Invoices() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
+  const updateMut = useMutation({
+    mutationFn: (body: any) =>
+      apiFetch(`/invoices/${editing!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          date: body.date,
+          dueDate: body.dueDate || undefined,
+          customerId: body.customerId ? Number(body.customerId) : undefined,
+          notes: body.notes || undefined,
+          items: lines
+            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
+            .map((l) => ({
+              description: l.description.trim(),
+              quantity: Number(l.quantity) || 1,
+              unitPrice: Number(l.unitPrice),
+              vatRate: Number(l.vatRate) || 0,
+            })),
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setOpen(false); setEditing(null); setForm(emptyForm);
+      setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+      toast({ title: t("Changes saved", "تم حفظ التعديلات") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/invoices/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setConfirmDelete(null);
+      toast({ title: t("Draft deleted", "تم حذف المسودة") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  /** Open the shared dialog in EDIT mode, prefilled from the full record. */
+  const openEdit = async (row: Invoice) => {
+    try {
+      const detail: any = await apiFetch(`/invoices/${row.id}`);
+      setForm({
+        invoiceNumber: detail.invoiceNumber ?? "",
+        date: detail.date ?? "",
+        dueDate: detail.dueDate ?? "",
+        customerId: String(detail.customerId ?? ""),
+        status: detail.status ?? "draft",
+        notes: detail.notes ?? "",
+      });
+      setLines(
+        (detail.items ?? []).map((i: any) => ({
+          description: i.description ?? "",
+          quantity: String(i.quantity ?? 1),
+          unitPrice: String(i.unitPrice ?? ""),
+          vatRate: String(i.vatRate ?? 15),
+        })),
+      );
+      setEditing(row);
+      setOpen(true);
+    } catch (e) {
+      toast({ title: t("Error", "خطأ"), description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
   const totalOutstanding = invoices.filter(i => i.status !== "paid" && i.status !== "cancelled").reduce((s, i) => s + (i.total - i.paidAmount), 0);
   const totalPaid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.total, 0);
 
@@ -168,10 +236,22 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-foreground">{t("Invoices", "الفواتير")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Customer invoices · Accounts Receivable", "فواتير العملاء · الذمم المدينة")}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              // Leaving EDIT mode explicitly, or the next "New Invoice" would
+              // silently PATCH the record just edited.
+              setEditing(null);
+              setForm(emptyForm);
+              setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+            }
+          }}
+        >
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Invoice", "فاتورة جديدة")}</Button></DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>{t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editing ? `${t("Edit invoice", "تعديل الفاتورة")} — ${editing.invoiceNumber}` : t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} placeholder={t("Assigned automatically", "يُخصص تلقائيًا")} className="mt-1 h-8 text-sm" /></div>
@@ -240,20 +320,54 @@ export default function Invoices() {
             </div>
             <Button
               className="w-full mt-4"
-              onClick={()=>createMut.mutate(form)}
+              onClick={()=> (editing ? updateMut.mutate(form) : createMut.mutate(form))}
               disabled={
                 !form.customerId ||
                 createMut.isPending ||
+                updateMut.isPending ||
                 // An invoice with no priced line is SAR 0.00 — and once issued,
                 // permanently so. The server refuses it too; this stops it here.
                 !lines.some((l) => l.description.trim() && Number(l.unitPrice) > 0)
               }
             >
-              {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Invoice", "إنشاء فاتورة")}
+              {createMut.isPending || updateMut.isPending
+                ? t("Saving…", "جارٍ الحفظ…")
+                : editing
+                  ? t("Save changes", "حفظ التعديلات")
+                  : t("Create Invoice", "إنشاء فاتورة")}
             </Button>
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* 🔴 Draft-only delete. The confirm names what is and is NOT possible:
+          this works because the invoice is a draft, and would be refused the
+          moment it is issued — at which point a credit note is the only
+          correction. */}
+      <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t(`Delete draft ${confirmDelete?.invoiceNumber ?? ""}?`, `حذف مسودة ${confirmDelete?.invoiceNumber ?? ""}؟`)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              {t(
+                "The draft is removed permanently. Nothing has been issued, so no number, no ledger entry and no ZATCA record is affected.",
+                "تُحذف المسودة نهائيًا. لم يتم إصدار أي شيء، فلا يتأثر أي رقم أو قيد أو سجل لدى هيئة الزكاة والضريبة.",
+              )}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>{t("Cancel", "إلغاء")}</Button>
+              <Button size="sm" variant="destructive" disabled={deleteMut.isPending}
+                onClick={() => confirmDelete && deleteMut.mutate(confirmDelete.id)}>
+                {deleteMut.isPending ? t("Deleting…", "جارٍ الحذف…") : t("Delete draft", "حذف المسودة")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-4 gap-4">
         {[
@@ -302,6 +416,26 @@ export default function Invoices() {
                   <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
+                      {/*
+                        🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
+                        existed and had no caller, so a mistyped draft could be
+                        neither corrected nor removed. They are offered ONLY on a
+                        draft because that is the only state the server permits —
+                        an issued invoice is corrected by credit note, and the
+                        service says so in its refusal.
+                      */}
+                      {inv.status === "draft" && (
+                        <>
+                          <Button variant="ghost" size="sm" className="text-xs h-7"
+                            onClick={() => openEdit(inv)}>
+                            {t("Edit", "تعديل")}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400"
+                            onClick={() => setConfirmDelete(inv)}>
+                            {t("Delete", "حذف")}
+                          </Button>
+                        </>
+                      )}
                       {inv.status !== "paid" && inv.status !== "cancelled" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
