@@ -30,6 +30,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { invoicesService } from "../services/invoices.service";
 import { auditContext } from "../lib/auditContext";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -96,7 +97,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
 
   /** Issue an invoice under `companyId` (approver path → immediate issuance). */
   const issue = (companyId: string, number: string) =>
-    asCompany(companyId, () => invoicesService.create(newInvoice(number) as any, userId, { autoApprove: true }));
+    asCompany(companyId, () => createApproved(invoicesService, newInvoice(number) as any, userId));
 
   const row = async (number: string) =>
     (
@@ -234,7 +235,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
   });
 
   it("drafts still consume no sequence number (M10.4 invariant intact)", async () => {
-    await asCompany(companyA, () => invoicesService.create(newInvoice("MC-A-DRAFT") as any, userId, {}));
+    await asCompany(companyA, () => invoicesService.create(newInvoice("MC-A-DRAFT") as any, userId));
     const draft = await row("MC-A-DRAFT");
     expect(draft.invoice_hash).toBeNull();
     expect(draft.icv).toBeNull();

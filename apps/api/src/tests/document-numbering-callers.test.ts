@@ -41,6 +41,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
+import { createApproved } from "./helpers/createApproved";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
 const url = process.env.DATABASE_URL;
@@ -163,9 +164,7 @@ describeMaybe("the allocator's callers, exercised against real rows", () => {
       // Approved on create: a credit note may only correct an ISSUED invoice
       // (409 `note_original_not_issued` otherwise), so the fixture has to build
       // the state the real flow builds.
-      invoicesService.create({ date: "2026-07-01", customerId, items: [line] } as never, userId, {
-        autoApprove: true,
-      } as never),
+      createApproved(invoicesService, { date: "2026-07-01", customerId, items: [line] } as never, userId as never),
     );
     // A credit note created the way the UI now creates one: no number supplied.
     const note = await inTenant(orgId, companyId, userId, () =>
@@ -178,9 +177,7 @@ describeMaybe("the allocator's callers, exercised against real rows", () => {
           noteReason: "Returned goods",
           items: [line],
         } as never,
-        userId,
-        { autoApprove: false } as never,
-      ),
+        userId as never,),
     );
 
     const invNo = (inv as { invoiceNumber: string }).invoiceNumber;

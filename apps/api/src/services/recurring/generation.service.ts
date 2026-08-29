@@ -104,12 +104,14 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
           const { invoiceNumber: _n, billNumber: _b, ...pattern } =
             rule.template as Record<string, unknown>;
           const body = { ...pattern, date: scheduledFor };
-          // 🔴 DRAFTS ONLY. `autoApprove: false` is not a default being relied
-          // on — it is stated, because approval here would issue a legal
-          // document unattended: an ICV consumed, a ZATCA chain position taken,
-          // correction only by credit note. See the A3 spec §2.
+          // 🔴 DRAFTS ONLY — and since 2026-08-28 that is no longer a flag this
+          // call passes but the ONLY thing `create` can do: auto-approve was
+          // removed from the product entirely. Approval here would issue a legal
+          // document unattended (an ICV consumed, a ZATCA chain position taken,
+          // correction only by credit note — A3 spec §2), and it is now
+          // inexpressible rather than declined.
           return rule.entity === "invoice"
-            ? invoicesService.create(body, rule.createdBy, { autoApprove: false })
+            ? invoicesService.create(body, rule.createdBy)
             : billsService.create(body, rule.createdBy);
         },
       ),

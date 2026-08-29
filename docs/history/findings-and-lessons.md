@@ -2732,6 +2732,80 @@ thing and the verdict was elsewhere.
 
 ---
 
+## 2026-08-29 — AUTO-APPROVE REMOVED, and a scripted edit that had to be reverted
+
+### The decision (owner, 2026-08-28)
+
+`create` took `autoApprove` from the RBAC matrix, so an approver's create ISSUED
+the document in one call. Removed **entirely** — no parameter remains on any of
+the three services.
+
+The owner's reasoning, recorded because it is the durable part: **its
+justification expired when M22 gave the product a real approve button.** What
+was left was a path that minted an ICV and a ZATCA stamp from a single create
+call, contradicting M10's own principle — *approval is an act about a specific
+document, and auto-approve made it an act about a setting.* On invoices it was
+**two-thirds of AUD-13's severity**: the leg that turned a thin form from
+annoying into unrecoverable. "One extra click on a legal document is not a cost
+worth arguing about."
+
+### It closed a second finding by construction
+
+The solo-approver gap — an approver never saw Submit, Delete or Edit-while-draft
+because their own creations skipped `draft` — is **gone**, not fixed. Every
+create lands as a draft for every role, so the state exists for everyone and the
+controls gated on it are reachable. P4's role-aware seeding, added two days
+earlier precisely to model that split, collapsed back to one seed.
+
+🔴 Worth noticing: the finding was closed by removing the thing that caused it
+rather than by adding surfaces to compensate. That is the same move as making
+the unscoped query inexpressible — the cheaper fix is usually upstream of the
+symptom.
+
+### 🔴 THE SCRIPTED EDIT THAT CORRUPTED 25 FILES, AND WHY IT WAS REVERTED
+
+Converting 46 test call sites, the first script used a non-greedy DOTALL regex:
+
+```
+(\w+Service)\.create\(\s*(.*?),\s*(userId|...)\s*,\s*\{ autoApprove: true \}\s*,?\s*\)
+```
+
+`.*?` does not know what a call is. Where a file had a `create(...)` with the
+option removed followed later by one that still had it, the match **spanned both
+calls** and everything between them was swallowed into a single rewritten call.
+It typechecked. The tell was a test named "a bookkeeper's create yields a DRAFT"
+that had been rewritten to `createApproved(...)` — an assertion inverted by a
+regex, not by a decision.
+
+**This is §10b's family exactly** — a scripted edit whose scope was wider than
+its author intended, like `sed` with no address. The countermeasure is the same
+one already recorded: **the ambiguous case must be inexpressible, not
+carefully avoided.** The redo scans for the *balanced closing paren* of each
+call and edits strictly inside it, so an edit **cannot** cross a call boundary
+however the file is laid out.
+
+And the response was the prescribed one: `git checkout HEAD -- apps/api/src/tests`
+and redo, rather than patch the damage. Patching would have left the swallowed
+regions to be found later by a failing assertion — or not found at all, since
+the corruption typechecked. 🔴 The verification that caught the *scale* of it was
+`git diff --numstat` per file: deletions far exceeding additions is what a
+swallowed region looks like from outside. That check is cheap and should follow
+any scripted edit across many files.
+
+### What the removal cost in tests, and what that says
+
+24 sites passed `{ autoApprove: false }` — now redundant, since a draft is the
+only outcome. 24 wanted an ISSUED document and became two acts via
+`tests/helpers/createApproved.ts`, which exists so the second act **names the
+document it approves** rather than hiding behind an option.
+
+One test had to be inverted rather than converted: *"self-approve-on-create: an
+approver's create issues immediately, identical to pre-M10"*. It asserted the
+behaviour being removed. Inverted, not deleted — "a create never issues" is the
+guarantee that replaced it and deserves its own test.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

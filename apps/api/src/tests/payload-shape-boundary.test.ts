@@ -45,6 +45,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
+import { createApproved } from "./helpers/createApproved";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
 const url = process.env.DATABASE_URL;
@@ -153,9 +154,7 @@ describeMaybe("the payload-shape boundary, across every create path", () => {
     const { invoicesService } = await import("../services/invoices.service");
     await expect(
       inTenant(orgId, companyId, userId, () =>
-        invoicesService.create({ date: "2026-08-01", customerId, items: [] } as never, userId, {
-          autoApprove: true,
-        } as never),
+        createApproved(invoicesService, { date: "2026-08-01", customerId, items: [] } as never, userId as never),
       ),
     ).rejects.toMatchObject({ statusCode: 400, payload: { code: "invoice_has_no_lines" } });
 
@@ -177,9 +176,7 @@ describeMaybe("the payload-shape boundary, across every create path", () => {
     const inv = await inTenant(orgId, companyId, userId, () =>
       invoicesService.create(
         { date: "2026-08-01", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 100, vatRate: 15 }] } as never,
-        userId,
-        { autoApprove: false } as never,
-      ),
+        userId as never,),
     );
     expect((inv as { total: number }).total).toBe(115);
   });
@@ -209,12 +206,12 @@ describeMaybe("the payload-shape boundary, across every create path", () => {
     const { purchaseOrdersService } = await import("../services/purchaseOrders.service");
     await expect(
       inTenant(orgId, companyId, userId, () =>
-        quotationsService.create({ date: "2026-08-01", customerId, items: [] } as never, userId, {} as never),
+        quotationsService.create({ date: "2026-08-01", customerId, items: [] } as never, userId),
       ),
     ).rejects.toMatchObject({ statusCode: 400 });
     await expect(
       inTenant(orgId, companyId, userId, () =>
-        purchaseOrdersService.create({ date: "2026-08-01", vendorId, items: [] } as never, userId, {} as never),
+        purchaseOrdersService.create({ date: "2026-08-01", vendorId, items: [] } as never, userId),
       ),
     ).rejects.toMatchObject({ statusCode: 400 });
   });

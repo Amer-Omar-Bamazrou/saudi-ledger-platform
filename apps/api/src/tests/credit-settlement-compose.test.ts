@@ -104,9 +104,7 @@ describeMaybe("Audit Tier 3 — credit/settlement composition, cash-flow buckets
     const inv = await inTenant(() =>
       invoicesService.create(
         { invoiceNumber: num, date: "2026-07-01", customerId, items: [{ description: "S", quantity: 1, unitPrice, vatRate: 15 }], ...extra },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
     return inv.id;

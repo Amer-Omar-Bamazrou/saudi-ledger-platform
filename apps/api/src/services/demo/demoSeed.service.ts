@@ -297,8 +297,11 @@ export async function seedDemoTenant(opts: {
           ],
         },
         userId,
-        { autoApprove: true },
       );
+      // 🔴 Two acts: auto-approve was removed from the product (2026-08-28), so
+      // the demo issues its invoices the way a tenant now must — create, then
+      // approve the specific document.
+      await invoicesService.approve((invoice as { id: number }).id, userId);
       invoiceCount++;
 
       // Older invoices are settled; the two most recent stay outstanding so AR

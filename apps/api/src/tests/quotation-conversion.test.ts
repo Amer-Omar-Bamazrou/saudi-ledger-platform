@@ -23,6 +23,7 @@ import { quotationConversionService } from "../services/quotationConversion.serv
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
 import { allocateLineDiscount } from "../services/conversionArithmetic";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -362,16 +363,13 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     // The same invoice, typed by hand and approved the same way.
     await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: "INV-HANDTYPED-1",
           date: DATE,
           customerId,
           items: [{ description: "Same shape", quantity: 2, unitPrice: 250, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     const arAfterManual = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByManual = Math.round((arAfterManual - arAfterConverted) * 100) / 100;

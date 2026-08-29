@@ -207,9 +207,9 @@ export const quotationConversionService = {
         items: invoiceItems,
       },
       userId,
-      // Not a default being relied upon — stated, because the whole point of
-      // this milestone's correction is that it can never be anything else.
-      { autoApprove: false },
+      // 🔴 M21.2's correction — a conversion produces a DRAFT invoice, never an
+      // issued one — is now structural rather than stated: `create` has no
+      // approve path left to pass, for any caller.
     );
 
     // ── Record the event, in this same transaction ─────────────────────────

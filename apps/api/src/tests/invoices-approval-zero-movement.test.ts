@@ -7,8 +7,8 @@
  * books at every pre-approval state (`draft` AND `submitted`) across the
  * approved-only invoice reports (AR aging, balance-sheet Accounts Receivable,
  * and the VAT-return output-VAT/sales side), that APPROVAL is what issues it
- * (AR posted + ZATCA hash/QR minted), and that self-approve-on-create keeps the
- * approver's one-call behavior identical to pre-M10.
+ * (AR posted + ZATCA hash/QR minted). 🔴 Since 2026-08-28 it also pins the
+ * REMOVAL of self-approve-on-create: a create is a DRAFT for every role.
  *
  * Needs a real database; skips on the DB-free placeholder.
  */
@@ -17,6 +17,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -101,9 +102,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
     const inv = await inTenant(() =>
       invoicesService.create(
         { invoiceNumber: "INV-Z1", date: DATE, customerId, items: [{ description: "Consulting", quantity: 1, unitPrice: SUBTOTAL, vatRate: 15 }] },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     invId = inv.id;
     expect(inv.status).toBe("draft");
@@ -180,16 +179,32 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
     }
   });
 
-  it("self-approve-on-create: an approver's create issues immediately (hash + AR), identical to pre-M10", async () => {
-    const inv = await inTenant(() =>
+  it("🔴 NO self-approve-on-create: an approver's create is a DRAFT, and issuing is a second act", async () => {
+    /**
+     * This asserted the OPPOSITE until 2026-08-28 — that an approver's create
+     * issued the invoice in one call, "identical to pre-M10". That behaviour was
+     * removed: its justification expired when M22 gave the product a real
+     * approve button, and what remained contradicted M10's own principle that
+     * approval is an act about a SPECIFIC DOCUMENT rather than a property of the
+     * caller. On invoices it was also the leg that made AUD-13 unrecoverable — a
+     * create call that minted an ICV and a ZATCA stamp.
+     *
+     * Inverted rather than deleted: "a create never issues" is the guarantee
+     * that replaced it, and it deserves a test of its own.
+     */
+    const draft = await inTenant(() =>
       invoicesService.create(
         { invoiceNumber: "INV-Z2", date: DATE, customerId, items: [{ description: "Consulting", quantity: 1, unitPrice: 50, vatRate: 15 }] },
         userId,
-        { autoApprove: true },
       ),
     );
-    expect(inv.status).toBe("sent");
-    expect(inv.invoiceHash).toBeTruthy();
-    expect(inv.qrCode).toBeTruthy();
+    expect(draft.status).toBe("draft");
+    expect(draft.invoiceHash).toBeFalsy();
+    expect(draft.qrCode).toBeFalsy();
+
+    const issued = await inTenant(() => invoicesService.approve(draft.id, userId));
+    expect(issued.status).toBe("sent");
+    expect(issued.invoiceHash).toBeTruthy();
+    expect(issued.qrCode).toBeTruthy();
   });
 });

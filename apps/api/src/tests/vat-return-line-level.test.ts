@@ -104,7 +104,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
 
   async function issue(num: string, date: string, items: unknown[], extra: Record<string, unknown> = {}) {
     const inv = await inTenant(() =>
-      invoicesService.create({ invoiceNumber: num, date, customerId, items, ...extra }, userId, { autoApprove: false }),
+      invoicesService.create({ invoiceNumber: num, date, customerId, items, ...extra }, userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
     return inv.id;

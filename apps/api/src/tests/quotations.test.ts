@@ -27,6 +27,7 @@ import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
 import { conversionState } from "../services/quotations.presenter";
 import { PERMISSION_MATRIX } from "@workspace/db";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -297,16 +298,13 @@ describeMaybe("Quotations (M21.1)", () => {
   it("🔴 the reports are load-bearing: a real invoice MOVES the same figures", async () => {
     const before = await inTenant(financialSnapshot);
     await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: "INV-QUO-PROOF-1",
           date: DATE,
           customerId,
           items: [{ description: "Real supply", quantity: 1, unitPrice: 500, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     const after = await inTenant(financialSnapshot);
     expect(after.revenue, "revenue must move for a real invoice").not.toBe(before.revenue);

@@ -74,7 +74,7 @@ export const invoicesService = {
    * set (caller may approve — admin/accountant), immediately approve it so it is
    * issued in one call, preserving pre-M10 behavior for approvers.
    */
-  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
+  async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
 
     /**
@@ -256,9 +256,6 @@ export const invoicesService = {
     await auditService.created("invoice", inv.id, inv);
 
     // Self-approve on create for approvers → issue immediately (hash + QR + GL).
-    if (opts.autoApprove) {
-      return this.approve(inv.id, userId);
-    }
     return buildInvoiceOut(inv, null);
   },
 

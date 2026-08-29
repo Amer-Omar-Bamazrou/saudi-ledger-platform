@@ -165,7 +165,7 @@ export const purchaseOrdersService = {
     return buildPurchaseOrderOut(row.po, row.vendor, items, billed, variances);
   },
 
-  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
+  async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
     validateItems(items);
 
@@ -197,9 +197,6 @@ export const purchaseOrdersService = {
     );
     await auditService.created("purchase_order", po.id, po);
 
-    if (opts.autoApprove) {
-      return approvalService.approve(purchaseOrderApprovable(), po.id, { userId: userId ?? null });
-    }
     return this.getById(po.id);
   },
 

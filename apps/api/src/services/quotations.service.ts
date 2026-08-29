@@ -181,7 +181,7 @@ export const quotationsService = {
    * approve rights — so an owner quoting a customer does it in one click while
    * a bookkeeper's quotation queues for review.
    */
-  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
+  async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
     validateItems(items);
 
@@ -215,9 +215,6 @@ export const quotationsService = {
     await quotationsRepository.insertItems(prepared.map((p) => ({ ...p, quotationId: quo.id })) as any);
     await auditService.created("quotation", quo.id, quo);
 
-    if (opts.autoApprove) {
-      return approvalService.approve(quotationApprovable(), quo.id, { userId: userId ?? null });
-    }
     return this.getById(quo.id);
   },
 

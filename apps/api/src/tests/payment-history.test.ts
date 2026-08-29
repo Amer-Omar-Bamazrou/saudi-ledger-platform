@@ -14,6 +14,7 @@ import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { transactionsService } from "../services/transactions.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -102,11 +103,8 @@ describeMaybe("B4 — every payment keeps its date", () => {
 
   it("🔴 THE FACT B4 KEEPS: two partial payments are two dated rows — the first date survives the second", async () => {
     const inv = await inTenant(() =>
-      invoicesService.create(
-        { invoiceNumber: "B4-INV-1", date: "2026-07-01", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] },
-        userId,
-        { autoApprove: true },
-      ),
+      createApproved(invoicesService, { invoiceNumber: "B4-INV-1", date: "2026-07-01", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] },
+        userId),
     );
     await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: "2026-07-10" }, userId));
     await inTenant(() => invoicesService.pay(inv.id, { amount: 750, paidAt: "2026-08-02" }, userId));
@@ -146,11 +144,8 @@ describeMaybe("B4 — every payment keeps its date", () => {
 
   it("settling a bank row routes through pay, so the settlement leaves a dated row too", async () => {
     const inv = await inTenant(() =>
-      invoicesService.create(
-        { invoiceNumber: "B4-INV-2", date: "2026-07-03", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 100, vatRate: 15 }] },
-        userId,
-        { autoApprove: true },
-      ),
+      createApproved(invoicesService, { invoiceNumber: "B4-INV-2", date: "2026-07-03", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 100, vatRate: 15 }] },
+        userId),
     );
     await inTenant(() =>
       transactionsService.upload({

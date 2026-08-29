@@ -200,7 +200,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
   );
 
   // ── Invoices: issued (so they post) across three months ──────────────────
-  // `autoApprove: true` is the approver path — these are ISSUED invoices, which
+  // These are ISSUED invoices — created as drafts, then approved explicitly, which
   // is what makes revenue, AR and output VAT appear in the reports.
   const invoiceSpecs = [
     { date: `${M1}-08`, customerId: custA.id, items: [{ description: "Site survey — phase 1", quantity: 1, unitPrice: 18000, vatRate: 15 }] },
@@ -211,7 +211,14 @@ async function seedAll(inTenant: InTenant, userId: number) {
   ];
   const invoices: { id: number; total: number }[] = [];
   for (const spec of invoiceSpecs) {
-    invoices.push(await inTenant(() => invoicesService.create(spec as never, userId, { autoApprove: true })));
+    // 🔴 Two acts, not one: auto-approve was removed from the product
+    // (2026-08-28), so a seed that wants an ISSUED invoice issues it explicitly.
+    invoices.push(
+      await inTenant(async () => {
+        const draft = await invoicesService.create(spec as never, userId);
+        return invoicesService.approve((draft as { id: number }).id, userId);
+      }),
+    );
   }
 
   // One invoice PAID in full and one PARTIALLY paid, so AR aging, the
@@ -266,9 +273,9 @@ async function seedAll(inTenant: InTenant, userId: number) {
         ],
       } as never,
       userId,
-      { autoApprove: true },
     ),
   );
+  await inTenant(() => quotationsService.approve((quotation as { id: number }).id, userId));
 
   // ── A purchase order (M21.3) — approved, partially billed ────────────────
   const po = await inTenant(() =>
@@ -282,9 +289,9 @@ async function seedAll(inTenant: InTenant, userId: number) {
         ],
       } as never,
       userId,
-      { autoApprove: true },
     ),
   );
+  await inTenant(() => purchaseOrdersService.approve((po as { id: number }).id, userId));
 
   console.log(
     [

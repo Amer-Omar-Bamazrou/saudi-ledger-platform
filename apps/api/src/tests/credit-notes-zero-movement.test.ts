@@ -25,6 +25,7 @@ import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { customersService } from "../services/customers.service";
 import { reportsService } from "../services/reports.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -126,17 +127,14 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
 
     // The original invoice, issued (self-approve on create as an approver).
     const inv = await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: "INV-CN-1",
           date: DATE,
           dueDate: DATE,
           customerId,
           items: [{ description: "Widgets", quantity: 10, unitPrice: 100, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     originalId = inv.id;
   });
@@ -203,9 +201,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
           noteReason: "Goods returned",
           items: [{ description: "Returned widgets", quantity: 2, unitPrice: 100, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     creditNoteId = note.id;
 
@@ -267,8 +263,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
     const before = await books();
 
     const dn = await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: "DN-1",
           date: DATE,
           customerId,
@@ -277,9 +272,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
           noteReason: "Price correction — undercharged freight",
           items: [{ description: "Freight adjustment", quantity: 1, unitPrice: 100, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
 
     const after = await books();
@@ -381,9 +374,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
           customerId,
           items: [{ description: "y", quantity: 1, unitPrice: 50, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
 
     await expect(
@@ -433,8 +424,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
       // ORIGINAL sits in a closed one. That is standard practice: you never post
       // into a closed period, you post the correction in an open one.
       const ok = await inTenant(() =>
-        invoicesService.create(
-          {
+        createApproved(invoicesService, {
             invoiceNumber: "CN-OPEN",
             date: "2026-08-10",
             customerId,
@@ -443,9 +433,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
             noteReason: "Late return, corrected in August",
             items: [{ description: "late", quantity: 1, unitPrice: 10, vatRate: 15 }],
           },
-          userId,
-          { autoApprove: true },
-        ),
+          userId),
       );
       expect(ok.status).toBe("sent");
     } finally {
