@@ -27,7 +27,7 @@ import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
 import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
-import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
+import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
 
@@ -56,10 +56,37 @@ async function assertCustomerExists(customerId: unknown): Promise<void> {
 // The former DEFAULT_SELLER_* constants were a ZATCA SANDBOX placeholder,
 // duplicated here and in invoices.approvable.ts — see sellerIdentity.ts.
 
+/** Money rounds at the boundary; the SQL sums are float8. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export const invoicesService = {
+  /**
+   * A PAGE of invoices, plus the totals for the whole filtered set.
+   *
+   * 🔴 The envelope is the point. Returning a bare array made the page's own
+   * `reduce` the only available total, which is correct exactly while the list
+   * is unbounded and silently wrong the moment it is not — the B-6 trade in
+   * reverse. `totals` is computed in SQL over every matching row, so the
+   * headline figures do not change when the reader turns the page.
+   */
   async list(filter: InvoiceListFilter) {
-    const rows = await invoicesRepository.list(filter);
-    return rows.map((r) => buildInvoiceOut(r.inv, r.cust));
+    const [rows, meta] = await Promise.all([
+      invoicesRepository.list(filter),
+      invoicesRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildInvoiceOut(r.inv, r.cust)),
+      page: {
+        limit: filter.limit ?? DEFAULT_PAGE,
+        offset: filter.offset ?? 0,
+        total: meta.total,
+      },
+      totals: {
+        outstanding: round2(meta.outstanding),
+        collected: round2(meta.collected),
+        overdue: meta.overdue,
+      },
+    };
   },
 
   async getById(id: number) {

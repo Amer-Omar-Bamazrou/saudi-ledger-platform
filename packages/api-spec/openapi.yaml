@@ -1951,6 +1951,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [invoices]
+      summary: A PAGE of invoices, with totals for the whole filtered set
+      description: |
+        🔴 Offset pagination, and the `totals` are computed in SQL over every
+        matching row — never over the page. A page-scoped money total is a
+        number nobody asked for, and the alternative to it is not a smaller
+        figure but a confidently wrong one (B-6).
+
+        Cursor pagination is the upgrade path if volume ever arrives; offset is
+        deliberate while it has not.
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: customer_id, schema: { type: integer } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus set-wide totals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Invoice" }
+                  page:
+                    type: object
+                    required: [limit, offset, total]
+                    properties:
+                      limit: { type: integer }
+                      offset: { type: integer }
+                      total:
+                        type: integer
+                        description: Rows matching the filter, not rows on this page.
+                  totals:
+                    type: object
+                    required: [outstanding, collected, overdue]
+                    properties:
+                      outstanding: { type: number }
+                      collected: { type: number }
+                      overdue: { type: integer }
+
   /invoices/{id}/submit:
     post:
       operationId: submitInvoice

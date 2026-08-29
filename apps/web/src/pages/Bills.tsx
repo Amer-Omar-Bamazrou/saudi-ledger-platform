@@ -21,6 +21,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 
+const BILL_PAGE_SIZE = 50;
+
+interface BillPage {
+  items: Bill[];
+  page: { limit: number; offset: number; total: number };
+  totals: { outstanding: number; paid: number };
+}
+
 interface Bill {
   id: number; billNumber: string; vendorReference: string; date: string;
   dueDate: string; vendorId: number; vendorName: string; status: string;
@@ -100,6 +108,7 @@ export default function Bills() {
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
   /** AUD-10/AUD-12 — editing and deleting a DRAFT bill, the only state the API allows. */
   const [editingBill, setEditingBill] = useState<{ id: number; billNumber: string } | null>(null);
   const [confirmDeleteBill, setConfirmDeleteBill] = useState<{ id: number; billNumber: string } | null>(null);
@@ -114,9 +123,14 @@ export default function Bills() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: bills = [], isLoading } = useQuery<Bill[]>({
-    queryKey: ["bills", statusFilter],
-    queryFn: () => apiFetch(`/bills${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+  /** A PAGE plus set-wide totals — see the note on Invoices.tsx. */
+  const { data: billPage, isLoading } = useQuery<BillPage>({
+    queryKey: ["bills", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/bills?limit=${BILL_PAGE_SIZE}&offset=${page * BILL_PAGE_SIZE}` +
+          (statusFilter !== "all" ? `&status=${statusFilter}` : ""),
+      ),
   });
 
   const { data: vendors = [] } = useQuery<Vendor[]>({
@@ -288,9 +302,9 @@ export default function Bills() {
     }
   };
 
-  const totalOutstanding = bills
-    .filter(b => b.status !== "paid")
-    .reduce((s, b) => s + (b.total - b.paidAmount), 0);
+  const bills = billPage?.items ?? [];
+  const billTotals = billPage?.totals;
+  const billPageInfo = billPage?.page;
 
   // Derived JE preview values for the manual bill form
   const previewSubtotal  = Number(form.subtotal)  || 0;
@@ -475,9 +489,10 @@ export default function Bills() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          [t("Total Bills", "إجمالي الفواتير"), bills.length, "text-primary"],
-          [t("Outstanding AP", "الذمم الدائنة المستحقة"), fmtNum(totalOutstanding), "text-red-400"],
-          [t("Paid", "مدفوع"), fmtNum(bills.filter(b => b.status === "paid").reduce((s, b) => s + b.total, 0)), "text-emerald-400"],
+          // Server figures, over the whole filtered set — not this page.
+          [t("Total Bills", "إجمالي الفواتير"), billPageInfo?.total ?? "—", "text-primary"],
+          [t("Outstanding AP", "الذمم الدائنة المستحقة"), billTotals ? fmtNum(billTotals.outstanding) : "—", "text-red-400"],
+          [t("Paid", "مدفوع"), billTotals ? fmtNum(billTotals.paid) : "—", "text-emerald-400"],
           [t("Overdue", "متأخر"), bills.filter(b => b.status === "overdue").length, "text-red-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
@@ -574,6 +589,36 @@ export default function Bills() {
               </tbody>
             </table>
           )}
+
+            {/*
+              🔴 The page says what it is showing and of how many, and gives a
+              way to the rest. A list that silently stops at 50 is the same
+              defect as a count that saturates at 200 — the number describes a
+              set the reader does not think they are looking at (B-6).
+            */}
+            {billPageInfo && billPageInfo.total > 0 && (
+              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+                <span>
+                  {t(
+                    `Showing ${billPageInfo.offset + 1}–${Math.min(billPageInfo.offset + bills.length, billPageInfo.total)} of ${billPageInfo.total}`,
+                    `عرض ${billPageInfo.offset + 1}–${Math.min(billPageInfo.offset + bills.length, billPageInfo.total)} من ${billPageInfo.total}`,
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    {t("Previous", "السابق")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={billPageInfo.offset + bills.length >= billPageInfo.total}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t("Next", "التالي")}
+                  </Button>
+                </div>
+              </div>
+            )}
         </CardContent>
       </Card>
 

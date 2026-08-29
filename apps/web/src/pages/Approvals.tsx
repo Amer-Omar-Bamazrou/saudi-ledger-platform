@@ -29,7 +29,12 @@ function useEntity(key: EntityKey, map: (r: any) => Row) {
   return useQuery<Row[]>({
     queryKey: ["approvals", key],
     queryFn: async () => {
-      const data = await apiFetch<any[]>(`/${key}`);
+      const raw = await apiFetch<any>(`/${key}`);
+      // 🔴 Invoices are paginated now and answer with `{ items, page, totals }`;
+      // the other three still answer with a bare array. Accept both rather than
+      // assume — and still REFUSE anything that is neither, because "no rows"
+      // on an approvals queue means "no money is waiting for you" (AUD-9).
+      const data = Array.isArray(raw) ? raw : raw?.items;
       /**
        * 🔴 AUD-9: this used to be `Array.isArray(data) ? data : []`, which
        * turns a contract break into "Nothing pending" — a confident empty

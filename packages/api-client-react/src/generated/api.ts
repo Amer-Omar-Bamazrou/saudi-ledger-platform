@@ -74,6 +74,8 @@ import type {
   ListAuditLogsParams,
   ListBudgetsParams,
   ListFindingsParams,
+  ListInvoices200,
+  ListInvoicesParams,
   ListPurchaseOrdersParams,
   ListQuotationsParams,
   ListTransactionsParams,
@@ -6778,6 +6780,97 @@ export const useRejectBill = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRejectBillMutationOptions(options));
     }
+
+export const getListInvoicesUrl = (params?: ListInvoicesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/invoices?${stringifiedParams}` : `/api/invoices`
+}
+
+/**
+ * 🔴 Offset pagination, and the `totals` are computed in SQL over every
+ * matching row — never over the page. A page-scoped money total is a
+ * number nobody asked for, and the alternative to it is not a smaller
+ * figure but a confidently wrong one (B-6).
+ *
+ * Cursor pagination is the upgrade path if volume ever arrives; offset is
+ * deliberate while it has not.
+ * @summary A PAGE of invoices, with totals for the whole filtered set
+ */
+export const listInvoices = async (params?: ListInvoicesParams, options?: RequestInit): Promise<ListInvoices200> => {
+
+  return customFetch<ListInvoices200>(getListInvoicesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInvoicesQueryKey = (params?: ListInvoicesParams,) => {
+    return [
+    `/api/invoices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof listInvoices>>, TError = ErrorType<unknown>>(params?: ListInvoicesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInvoicesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvoices>>> = ({ signal }) => listInvoices(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listInvoices>>>
+export type ListInvoicesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A PAGE of invoices, with totals for the whole filtered set
+ */
+
+export function useListInvoices<TData = Awaited<ReturnType<typeof listInvoices>>, TError = ErrorType<unknown>>(
+ params?: ListInvoicesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInvoicesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSubmitInvoiceUrl = (id: number,) => {
 

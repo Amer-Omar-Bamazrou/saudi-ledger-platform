@@ -40,13 +40,23 @@ import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
 import { buildBillOut } from "./bills.presenter";
-import { billsRepository, type BillListFilter } from "../repositories/bills.repository";
+import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export const billsService = {
+  /** A PAGE of bills, plus the totals for the whole filtered set (see invoices). */
   async list(filter: BillListFilter) {
-    const rows = await billsRepository.list(filter);
-    return rows.map((r) => buildBillOut(r.bill, r.vendor));
+    const [rows, meta] = await Promise.all([
+      billsRepository.list(filter),
+      billsRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildBillOut(r.bill, r.vendor)),
+      page: { limit: filter.limit ?? BILL_PAGE, offset: filter.offset ?? 0, total: meta.total },
+      totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid) },
+    };
   },
 
   async getById(id: number) {

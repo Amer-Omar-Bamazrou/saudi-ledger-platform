@@ -2882,6 +2882,80 @@ export const RejectBillResponse = zod.void()
 
 
 /**
+ * 🔴 Offset pagination, and the `totals` are computed in SQL over every
+ * matching row — never over the page. A page-scoped money total is a
+ * number nobody asked for, and the alternative to it is not a smaller
+ * figure but a confidently wrong one (B-6).
+ *
+ * Cursor pagination is the upgrade path if volume ever arrives; offset is
+ * deliberate while it has not.
+ * @summary A PAGE of invoices, with totals for the whole filtered set
+ */
+export const listInvoicesQueryLimitDefault = 50;
+export const listInvoicesQueryLimitMax = 200;
+
+export const listInvoicesQueryOffsetDefault = 0;
+export const listInvoicesQueryOffsetMin = 0;
+
+
+
+export const ListInvoicesQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listInvoicesQueryLimitMax).default(listInvoicesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listInvoicesQueryOffsetMin).default(listInvoicesQueryOffsetDefault)
+})
+
+export const ListInvoicesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "outstanding": zod.number(),
+  "collected": zod.number(),
+  "overdue": zod.number()
+})
+})
+
+
+/**
  * Draft/approval workflow (M10.4). Moves an editable draft invoice to `submitted` (awaiting approval); locked to the enterer until approved or sent back. Bookkeeper (create-level) action.
  * @summary Submit a draft invoice into the approval queue
  */

@@ -182,6 +182,16 @@ finding in the list:
    renders zero, a 2xx after a rollback) — it turns an uncorrectable record
    into an **unnoticed** one.
 
+🔴 **4. AFTER CLOSING AN ITEM, ASK WHAT IT CHANGED THE MEANING OF.** A fix does
+not only remove its own finding — it edits the queue. Nothing in this process
+re-examines the remaining items after one lands, so a finding can quietly become
+worse, become moot, or change character while its row still reads as it did when
+written. Observed twice in one session: removing auto-approve **closed** the
+solo-approver finding outright, and the unscoped-`db` fix **changed what
+`getApplication` was** — filed as a retention/PDPL question, revealed also to be
+an RLS bypass. This is the composition class pointed at FIXES rather than
+defects, and it is the step most easily skipped because the fix feels finished.
+
 A finding touching none of these is about as bad as it looks. **One touching two
 is worse than its severity says, and the difference is not visible from the
 finding alone** — which is the whole reason this check exists separately from

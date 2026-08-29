@@ -14,6 +14,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 
+const PAGE_SIZE = 50;
+
+interface InvoicePage {
+  items: Invoice[];
+  page: { limit: number; offset: number; total: number };
+  totals: { outstanding: number; collected: number; overdue: number };
+}
+
 interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
 interface Customer { id: number; name: string; }
 
@@ -46,6 +54,7 @@ const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")
 
 export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -75,9 +84,22 @@ export default function Invoices() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["invoices", statusFilter],
-    queryFn: () => apiFetch(`/invoices${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+  /**
+   * 🔴 A PAGE, and totals that describe the whole set.
+   *
+   * This read the entire ledger and then `reduce`d its headline figures over
+   * whatever came back — correct only while the list stayed unbounded, which is
+   * the B-6 trade in reverse. The server now returns `page` and `totals`, so
+   * the Outstanding and Collected figures do not change when the reader turns
+   * the page.
+   */
+  const { data: pageData, isLoading } = useQuery<InvoicePage>({
+    queryKey: ["invoices", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/invoices?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}` +
+          (statusFilter !== "all" ? `&status=${statusFilter}` : ""),
+      ),
   });
 
   const { data: customers = [] } = useQuery<Customer[]>({ queryKey: ["customers"], queryFn: () => apiFetch("/customers") });
@@ -226,8 +248,9 @@ export default function Invoices() {
     }
   };
 
-  const totalOutstanding = invoices.filter(i => i.status !== "paid" && i.status !== "cancelled").reduce((s, i) => s + (i.total - i.paidAmount), 0);
-  const totalPaid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.total, 0);
+  const invoices = pageData?.items ?? [];
+  const totals = pageData?.totals;
+  const pageInfo = pageData?.page;
 
   return (
     <div className="space-y-6">
@@ -371,10 +394,11 @@ export default function Invoices() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          [t("Total Invoices", "إجمالي الفواتير"), invoices.length, "text-primary"],
-          [t("Outstanding", "المستحق"), fmtNum(totalOutstanding), "text-amber-400"],
-          [t("Collected", "المحصّل"), fmtNum(totalPaid), "text-emerald-400"],
-          [t("Overdue", "متأخر"), invoices.filter(i=>i.status==="overdue").length, "text-red-400"],
+          // Every figure here is the SERVER's, over the whole filtered set.
+          [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],
+          [t("Outstanding", "المستحق"), totals ? fmtNum(totals.outstanding) : "—", "text-amber-400"],
+          [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-emerald-400"],
+          [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-red-400"],
         ].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
@@ -457,6 +481,36 @@ export default function Invoices() {
               ))}</tbody>
             </table>
           )}
+
+            {/*
+              🔴 The page says what it is showing and of how many, and gives a
+              way to the rest. A list that silently stops at 50 is the same
+              defect as a count that saturates at 200 — the number describes a
+              set the reader does not think they are looking at (B-6).
+            */}
+            {pageInfo && pageInfo.total > 0 && (
+              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+                <span>
+                  {t(
+                    `Showing ${pageInfo.offset + 1}–${Math.min(pageInfo.offset + invoices.length, pageInfo.total)} of ${pageInfo.total}`,
+                    `عرض ${pageInfo.offset + 1}–${Math.min(pageInfo.offset + invoices.length, pageInfo.total)} من ${pageInfo.total}`,
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    {t("Previous", "السابق")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pageInfo.offset + invoices.length >= pageInfo.total}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t("Next", "التالي")}
+                  </Button>
+                </div>
+              </div>
+            )}
         </CardContent>
       </Card>
 

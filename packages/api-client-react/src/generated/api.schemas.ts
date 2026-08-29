@@ -2319,3 +2319,36 @@ period_from?: string | null;
 period_to?: string | null;
 };
 
+export type ListInvoicesParams = {
+status?: string;
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListInvoices200Page = {
+  limit: number;
+  offset: number;
+  /** Rows matching the filter, not rows on this page. */
+  total: number;
+};
+
+export type ListInvoices200Totals = {
+  outstanding: number;
+  collected: number;
+  overdue: number;
+};
+
+export type ListInvoices200 = {
+  items: Invoice[];
+  page: ListInvoices200Page;
+  totals: ListInvoices200Totals;
+};
+

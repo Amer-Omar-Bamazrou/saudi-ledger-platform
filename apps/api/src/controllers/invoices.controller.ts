@@ -3,13 +3,24 @@ import { invoicesService } from "../services/invoices.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 
+/** 1..200, default 50. A page the caller cannot turn into "everything". */
+function clampPage(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 50;
+  return Math.min(200, Math.floor(n));
+}
+
 export const invoicesController = {
   async list(req: Request, res: Response) {
-    const { status, customer_id } = req.query as Record<string, string>;
+    const { status, customer_id, limit, offset } = req.query as Record<string, string>;
     res.json(
       await invoicesService.list({
         status: status || undefined,
         customerId: customer_id ? Number(customer_id) : undefined,
+        // Bounded so a hand-built request cannot ask for the whole ledger, and
+        // NaN falls back to the default rather than to `LIMIT NaN`.
+        limit: clampPage(limit),
+        offset: Math.max(0, Number(offset) || 0),
       }),
     );
   },

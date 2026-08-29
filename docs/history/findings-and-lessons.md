@@ -2833,6 +2833,62 @@ guarantee that replaced it and deserves its own test.
 
 ---
 
+## 2026-08-29 — LEDGER LIST PAGINATION, and a fix that edits the queue
+
+### The decision, and why offset
+
+Offset pagination with **server-side totals**, on the ledger-facing lists.
+Cursor pagination is better in principle — stable under concurrent inserts, no
+deep-page cost — and **nothing in this market justifies it**: twenty pages of
+fifty is not a problem anyone here has. Recorded at the repository as the
+**upgrade path if volume ever arrives**, so the choice reads as a decision
+rather than an oversight.
+
+🔴 The two halves are one change, and neither is safe alone. `GET /invoices`
+returned the whole ledger and the page `reduce`d Outstanding and Collected over
+whatever came back. That is correct *exactly while the list is unbounded* — the
+moment anyone adds a `LIMIT` for performance, every headline figure silently
+becomes "the total of this page". **"Total on this page" is a number nobody
+asked for, and the alternative to it is not a smaller figure but a confidently
+wrong one.** Same call as B-6: the question is never "is there a limit" but
+"does the number shown describe the set the reader thinks it describes".
+
+The totals are computed in SQL over the whole filtered set, from **one shared
+predicate** used by both the rows and the aggregate — so the two can never
+describe different sets. `tests/ledger-list-pagination.test.ts` builds 73 rows
+against a 50 page and asserts the outstanding total is 73 × 100, explicitly
+**not** 50 × 100, which is the exact number a page-scoped reduce would produce.
+
+### Scoped deliberately
+
+The four ledger-facing lists first, the other eleven as their own pass. The
+consequence genuinely differs — a truncated invoice list hides a document a user
+cannot then reverse, while a truncated customer list is an inconvenience — and
+fifteen lists in one diff makes the four that matter hard to review.
+
+🔴 Honest status: **invoices and bills are done; journal entries and
+transactions are not.** Transactions already had `limit`/`offset` at the
+repository and a truncation notice in the page, so it starts from further along.
+
+### 🔴 The new triage step: a fix edits the queue
+
+Added as step 4 of the Triage Check: **after closing an item, ask what it changed
+the meaning of.** A fix does not only remove its own finding; nothing in this
+process re-examines the remaining items after one lands, so a finding can become
+worse, become moot, or change character while its row still reads as written.
+
+Two instances from this session, both checked:
+
+| The fix | What it changed |
+| --- | --- |
+| Auto-approve removed | **Closed** the solo-approver finding outright — every create lands as a draft, so the draft-gated controls became reachable |
+| The unscoped-`db` fallback removed | **Changed what `getApplication` is**: filed as a retention/PDPL question, revealed also to be an RLS bypass |
+
+It is the composition class pointed at FIXES rather than defects, and it is the
+step most easily skipped, because the fix feels finished.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
