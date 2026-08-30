@@ -15,6 +15,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,11 +107,18 @@ export default function PurchaseOrders() {
   const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
   const [lines, setLines] = useState<Partial<PoItem>[]>([emptyLine()]);
 
-  const { data: orders = [], isLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ["purchase-orders", statusFilter],
-    queryFn: () => apiFetch(`/purchase-orders${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+  const [page, setPage] = useState(0);
+  const { data: ordersPage, isLoading } = useQuery<Paged<PurchaseOrder>>({
+    queryKey: ["purchase-orders", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/purchase-orders?${statusFilter !== "all" ? `status=${statusFilter}&` : ""}` +
+          `limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+      ),
   });
-  const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["vendors"], queryFn: () => apiFetch("/vendors") });
+  const orders = ordersPage?.items ?? [];
+  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<Vendor>("/vendors") });
+  const vendors = vendorsPage?.items ?? [];
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["purchase-orders"] });
   const fail = (e: unknown) =>
@@ -348,7 +359,7 @@ export default function PurchaseOrders() {
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select…", "اختر…")} /></SelectTrigger>
                       <SelectContent>
                         {vendors.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>)}
-                      </SelectContent>
+                      <PickerLimitNotice shown={vendors.length} total={vendorsPage?.total ?? vendors.length} /></SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -521,6 +532,12 @@ export default function PurchaseOrders() {
               </table>
             </div>
           )}
+                  <ListPagination
+            page={ordersPage?.page}
+            shown={orders.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
 

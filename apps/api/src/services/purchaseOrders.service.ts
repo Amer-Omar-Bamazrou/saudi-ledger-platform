@@ -15,6 +15,7 @@
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 /**
  * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
@@ -123,15 +124,20 @@ async function assertBilledLinesUnchanged(purchaseOrderId: number, incoming: any
 
 export const purchaseOrdersService = {
   async list(filter: PurchaseOrderListFilter) {
-    const [rows, totals] = await Promise.all([
+    const [rows, totals, total] = await Promise.all([
       purchaseOrdersRepository.list(filter),
       // AUD-3: the list states a billing status, so it loads what that status
       // is derived from.
       purchaseOrdersRepository.billingTotals(),
+      purchaseOrdersRepository.listCount(filter),
     ]);
-    return rows.map((r) =>
-      buildPurchaseOrderOut(r.po, r.vendor, undefined, undefined, undefined, undefined, totals.get(r.po.id)),
-    );
+    return {
+      items: rows.map((r) =>
+        buildPurchaseOrderOut(r.po, r.vendor, undefined, undefined, undefined, undefined, totals.get(r.po.id)),
+      ),
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals: {},
+    };
   },
 
   async getById(id: number) {

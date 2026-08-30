@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,10 +142,11 @@ export default function Bills() {
       ),
   });
 
-  const { data: vendors = [] } = useQuery<Vendor[]>({
-    queryKey: ["vendors"],
-    queryFn: () => apiFetch("/vendors"),
+  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
+    queryKey: ["vendors", "picker"],
+    queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
   });
+  const vendors = vendorsPage?.items ?? [];
 
   // Manual bill creation: create draft, then post GL through the shared endpoint.
   // debitAccount is passed explicitly — no hardcoded default anywhere in this path.
@@ -392,7 +395,7 @@ export default function Bills() {
                     </SelectTrigger>
                     <SelectContent>
                       {vendors.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>)}
-                    </SelectContent>
+                    <PickerLimitNotice shown={vendors.length} total={vendorsPage?.total ?? vendors.length} /></SelectContent>
                   </Select>
                 </div>
 

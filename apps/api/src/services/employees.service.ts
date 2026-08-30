@@ -14,6 +14,7 @@ const EMPLOYEE_FIELDS = [
 ] as const;
 import { auditService } from "./audit.service";
 import { employeesRepository, type EmployeeListFilter } from "../repositories/employees.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { employeesTable } from "@workspace/db";
 
 type Employee = typeof employeesTable.$inferSelect;
@@ -33,8 +34,16 @@ const toView = (e: Employee) => ({
 
 export const employeesService = {
   async list(filter: EmployeeListFilter) {
-    const rows = await employeesRepository.list(filter);
-    return rows.map(toView);
+    const [rows, totals] = await Promise.all([
+      employeesRepository.list(filter),
+      employeesRepository.listTotals(filter),
+    ]);
+    const { total, ...headline } = totals;
+    return {
+      items: rows.map(toView),
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals: headline,
+    };
   },
 
   async getById(id: number) {

@@ -11,7 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Package, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
+
+interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDepreciation: number; currentBookValue: number; }
 
 interface Asset { id: number; assetNumber: string; name: string; nameAr?: string; purchaseDate: string; purchaseCost: number; salvageValue: number; usefulLifeYears: number; accumulatedDepreciation: number; currentBookValue: number; annualDepreciation: number; monthlyDepreciation: number; depreciationMethod: string; status: string; location?: string; }
 
@@ -28,7 +32,12 @@ export default function Assets() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: assets = [], isLoading } = useQuery<Asset[]>({ queryKey: ["assets"], queryFn: () => apiFetch("/assets") });
+  const [page, setPage] = useState(0);
+  const { data: paged, isLoading } = useQuery<Paged<Asset, AssetTotals>>({
+    queryKey: ["assets", page],
+    queryFn: () => apiFetch(`/assets?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
+  });
+  const assets = paged?.items ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/assets", { method: "POST", body: JSON.stringify({ ...body, purchaseCost: Number(body.purchaseCost), salvageValue: Number(body.salvageValue), usefulLifeYears: Number(body.usefulLifeYears) }) }),
@@ -42,9 +51,10 @@ export default function Assets() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
-  const totalCost = assets.reduce((s, a) => s + a.purchaseCost, 0);
-  const totalBookValue = assets.reduce((s, a) => s + a.currentBookValue, 0);
-  const totalDepreciation = assets.reduce((s, a) => s + a.accumulatedDepreciation, 0);
+  // From the server, over every asset — never over the page.
+  const totalCost = paged?.totals.purchaseCost ?? 0;
+  const totalBookValue = paged?.totals.currentBookValue ?? 0;
+  const totalDepreciation = paged?.totals.accumulatedDepreciation ?? 0;
 
   return (
     <div className="space-y-6">
@@ -82,7 +92,7 @@ export default function Assets() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Assets","الأصول"), assets.length, "text-primary"],[t("Total Cost","إجمالي التكلفة"), fmtNum(totalCost), "text-foreground"],[t("Book Value","القيمة الدفترية"), fmtNum(totalBookValue), "text-amber-400"],[t("Accumulated Depreciation","الاستهلاك المتراكم"), fmtNum(totalDepreciation), "text-muted-foreground"]].map(([l,v,c])=>(
+        {[[t("Assets","الأصول"), paged?.page.total ?? 0, "text-primary"],[t("Total Cost","إجمالي التكلفة"), fmtNum(totalCost), "text-foreground"],[t("Book Value","القيمة الدفترية"), fmtNum(totalBookValue), "text-amber-400"],[t("Accumulated Depreciation","الاستهلاك المتراكم"), fmtNum(totalDepreciation), "text-muted-foreground"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -108,6 +118,12 @@ export default function Assets() {
               ))}</tbody>
             </table>
           )}
+          <ListPagination
+            page={paged?.page}
+            shown={assets.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
 

@@ -1,11 +1,18 @@
 import type { Request, Response } from "express";
 import { employeesService } from "../services/employees.service";
-import { requireIdParam } from "../lib/httpParams";
+import { pageParams, requireIdParam } from "../lib/httpParams";
 
 export const employeesController = {
   async list(req: Request, res: Response) {
     const { search, status, department } = req.query as Record<string, string>;
-    res.json(await employeesService.list({ search, status, department }));
+    res.json(
+      await employeesService.list({
+        search,
+        status,
+        department,
+        ...pageParams(req.query as Record<string, unknown>),
+      }),
+    );
   },
   async get(req: Request, res: Response) {
     res.json(await employeesService.getById(requireIdParam(req)));

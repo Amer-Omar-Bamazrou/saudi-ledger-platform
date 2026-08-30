@@ -11,23 +11,33 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, TrendingUp, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
 interface Customer { id: number; name: string; nameAr: string; taxNumber: string; crNumber: string; phone: string; email: string; city: string; isActive: boolean; creditLimit: number | null; paymentTermsDays: string; totalBilled?: number; totalPaid?: number; balance?: number; }
+
+interface CustomerTotals { totalBilled: number; totalPaid: number; balance: number; }
 
 const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", paymentTermsDays: "30", creditLimit: "" };
 
 export default function Customers() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: customers = [], isLoading } = useQuery<Customer[]>({
-    queryKey: ["customers", search],
-    queryFn: () => apiFetch(`/customers?search=${encodeURIComponent(search)}&is_active=true`),
+  const { data: paged, isLoading } = useQuery<Paged<Customer, CustomerTotals>>({
+    queryKey: ["customers", search, page],
+    queryFn: () =>
+      apiFetch(
+        `/customers?search=${encodeURIComponent(search)}&is_active=true` +
+          `&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+      ),
   });
+  const customers = paged?.items ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: typeof emptyForm) => apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
@@ -35,15 +45,22 @@ export default function Customers() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
-  const totalAR = customers.reduce((s, c) => s + (c.balance ?? 0), 0);
-  const totalBilled = customers.reduce((s, c) => s + (c.totalBilled ?? 0), 0);
+  /**
+   * 🔴 From the server, over every matching customer — never `reduce`d over the
+   * page. These two figures used to sum `c.balance ?? 0` over a field the API
+   * did not send, so both read 0.00 for every tenant; making them real and
+   * making them set-wide is one change, because a page-scoped AR total would
+   * have been the next wrong number.
+   */
+  const totalAR = paged?.totals.balance ?? 0;
+  const totalBilled = paged?.totals.totalBilled ?? 0;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Customers", "العملاء")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {customers.length} {t("active customers", "عميل نشط")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {paged?.page.total ?? 0} {t("active customers", "عميل نشط")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -67,7 +84,7 @@ export default function Customers() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Customers", "إجمالي العملاء")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{customers.length}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Customers", "إجمالي العملاء")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AR", "الحسابات المدينة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAR > 0 ? "text-amber-400" : "text-emerald-400"}`}>{fmtNum(totalAR)}</div></CardContent></Card>
       </div>
@@ -107,6 +124,12 @@ export default function Customers() {
               ))}</tbody>
             </table>
           )}
+          <ListPagination
+            page={paged?.page}
+            shown={customers.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

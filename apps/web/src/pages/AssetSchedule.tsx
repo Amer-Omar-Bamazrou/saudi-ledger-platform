@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,11 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Download } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+/**
+ * 🔴 These are GET /assets' real field names, checked by
+ * `tests/list-response-shape.test.ts` against the live response.
+ *
+ * This interface previously named five fields the endpoint has never returned
+ * (`category`, `cost`, `usefulLife`, `depreciation`, `bookValue`).
+ * `apiFetch<T>` is a cast, so TypeScript agreed — and every money cell on this
+ * schedule, including the totals row, rendered **NaN**, with "undefinedy" in
+ * the Useful Life column.
+ */
 interface AssetRow {
-  id: number; name: string; category: string; purchaseDate: string; cost: number;
-  usefulLife: number; depreciation: string; accumulatedDepreciation: number; bookValue: number; status: string;
+  id: number; name: string; categoryName: string | null; purchaseDate: string; purchaseCost: number;
+  usefulLifeYears: number; depreciationMethod: string; accumulatedDepreciation: number;
+  currentBookValue: number; status: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -18,16 +32,25 @@ const STATUS_STYLES: Record<string, string> = {
   fully_depreciated: "bg-secondary text-muted-foreground",
 };
 
-export default function AssetSchedule() {
-  const { t } = useLanguage();
-  const { data: assets = [], isLoading } = useQuery<AssetRow[]>({
-    queryKey: ["asset-schedule"],
-    queryFn: () => apiFetch<AssetRow[]>("/assets").catch(() => [] as AssetRow[]),
-  });
+interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDepreciation: number; currentBookValue: number; }
 
-  const totalCost = assets.reduce((s, a) => s + a.cost, 0);
-  const totalAccumDep = assets.reduce((s, a) => s + a.accumulatedDepreciation, 0);
-  const totalBookValue = assets.reduce((s, a) => s + a.bookValue, 0);
+export default function AssetSchedule() {
+  const [page, setPage] = useState(0);
+  const { t } = useLanguage();
+  const { data: paged, isLoading } = useQuery<Paged<AssetRow, AssetTotals>>({
+    queryKey: ["asset-schedule", page],
+    queryFn: () => apiFetch(`/assets?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
+  });
+  const assets = paged?.items ?? [];
+
+  /**
+   * 🔴 From the server, over the whole register. The `.catch(() => [])` that
+   * used to wrap this fetch is gone with it: a caught shape mismatch renders an
+   * empty register, which is a confident wrong answer rather than an error.
+   */
+  const totalCost = paged?.totals.purchaseCost ?? 0;
+  const totalAccumDep = paged?.totals.accumulatedDepreciation ?? 0;
+  const totalBookValue = paged?.totals.currentBookValue ?? 0;
 
   return (
     <div className="space-y-6">
@@ -41,7 +64,7 @@ export default function AssetSchedule() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Assets", assets.filter(a => a.status === "active").length, "text-primary"],
+          ["Total Assets", paged?.totals.activeCount ?? 0, "text-primary"],
           ["Total Cost", fmtNum(totalCost), "text-primary"],
           ["Accumulated Dep.", fmtNum(totalAccumDep), "text-red-400"],
           ["Net Book Value", fmtNum(totalBookValue), "text-emerald-400"],
@@ -75,13 +98,13 @@ export default function AssetSchedule() {
                 {assets.map(a => (
                   <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pe-3 font-medium text-xs">{a.name}</td>
-                    <td className="py-2 pe-3 text-muted-foreground text-xs">{a.category}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs">{a.categoryName ?? "—"}</td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
-                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.cost)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLife}y</td>
-                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciation}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.purchaseCost)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLifeYears}y</td>
+                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciationMethod}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(a.accumulatedDepreciation)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.bookValue)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.currentBookValue)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status.replace("_", " ")}</Badge></td>
                   </tr>
                 ))}
@@ -98,6 +121,12 @@ export default function AssetSchedule() {
               </tfoot>
             </table>
           )}
+          <ListPagination
+            page={paged?.page}
+            shown={assets.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

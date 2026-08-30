@@ -86,7 +86,7 @@ describe("no client path mints its own document number", () => {
     const src = readFileSync(join(repoRoot, "apps", "web", "src", "pages", "Invoices.tsx"), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/\/\/.*$/gm, "");
-    expect(src).not.toMatch(/template:\s*\{[^}]*invoiceNumber\s*:/s);
+    expect(src).not.toMatch(/template:\s*\{[^}]*\binvoiceNumber\s*:/s);
   });
 });
 

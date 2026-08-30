@@ -151,7 +151,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // first. Keying on the first would make a half-finished run report "already
   // seeded" over an incomplete org — which is how the first draft failed.
   const priorPos = await inTenant(() => purchaseOrdersService.list({} as never));
-  if (priorPos.length > 0) {
+  if (priorPos.page.total > 0) {
     console.log("[sample] already seeded — nothing to do (re-running is a no-op by design).");
     return;
   }
@@ -178,8 +178,10 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // ── Counterparties and a bank account ────────────────────────────────────
   // GET-OR-CREATE: a re-run after a partial failure reuses what is already
   // there instead of producing a second "Najd Contracting Co.".
-  const customers = await inTenant(() => customersService.list({} as never));
-  const vendors = await inTenant(() => vendorsService.list({} as never));
+  // A page, asked for explicitly: these lookups scan the seeded set, which is
+  // far smaller than the ceiling, and an implicit default would be a silent cap.
+  const customers = (await inTenant(() => customersService.list({ limit: 200 } as never))).items;
+  const vendors = (await inTenant(() => vendorsService.list({ limit: 200 } as never))).items;
   const findC = (name: string) => customers.find((c: { name: string }) => c.name === name);
   const findV = (name: string) => vendors.find((v: { name: string }) => v.name === name);
 

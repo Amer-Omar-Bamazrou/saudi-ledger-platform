@@ -40,9 +40,24 @@ const OBSERVED_TRUNCATION_SIZE = 207_000;
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
 
+/**
+ * 🔴 Line endings are NORMALIZED before measuring, and that is not a detail.
+ *
+ * The budget is about how much of this file arrives in a session's context —
+ * a property of its CONTENT. Read raw, the same file measures ~863 characters
+ * larger on a Windows checkout (CRLF) than on Linux (LF), so the guard was
+ * reporting a property of the developer's git config: red locally, green in
+ * CI, for a file nobody had touched. A measurement that moves when the thing
+ * being measured does not is the instrument's own version of the defects this
+ * suite exists to catch.
+ */
+function readOperatingFile(): string {
+  return readFileSync(join(repoRoot, "CLAUDE.md"), "utf8").split("\r\n").join("\n");
+}
+
 describe("CLAUDE.md size budget", () => {
   it("stays inside the budget that keeps it from being truncated in session context", () => {
-    const text = readFileSync(join(repoRoot, "CLAUDE.md"), "utf8");
+    const text = readOperatingFile();
     const size = text.length;
 
     expect(
@@ -71,7 +86,7 @@ describe("CLAUDE.md size budget", () => {
    * test that goes red, and it names the reason.
    */
   it("is actually reading the operating file, not an empty or missing one", () => {
-    const text = readFileSync(join(repoRoot, "CLAUDE.md"), "utf8");
+    const text = readOperatingFile();
     expect(text.length, "CLAUDE.md read as empty — the budget assertion above would pass vacuously").toBeGreaterThan(
       10_000,
     );

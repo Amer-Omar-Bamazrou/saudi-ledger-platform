@@ -11,7 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, UserCheck, Users, TrendingUp, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
+
+interface EmployeeTotals { saudiCount: number; grossSalary: number; gosiEmployer: number; }
 
 interface Employee { id: number; employeeNumber: string; name: string; nameAr: string; nationality: string; jobTitle: string; department: string; basicSalary: number; grossSalary: number; gosiEmployee: number; gosiEmployer: number; status: string; joiningDate: string; }
 
@@ -25,10 +29,13 @@ export default function Employees() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: employees = [], isLoading } = useQuery<Employee[]>({
-    queryKey: ["employees", statusFilter],
-    queryFn: () => apiFetch(`/employees?status=${statusFilter}`),
+  const [page, setPage] = useState(0);
+  const { data: paged, isLoading } = useQuery<Paged<Employee, EmployeeTotals>>({
+    queryKey: ["employees", statusFilter, page],
+    queryFn: () =>
+      apiFetch(`/employees?status=${statusFilter}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
   });
+  const employees = paged?.items ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/employees", { method: "POST", body: JSON.stringify({ ...body, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
@@ -38,9 +45,11 @@ export default function Employees() {
 
   const f = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target?.value ?? e }));
 
-  const totalPayroll = employees.reduce((s, e) => s + e.grossSalary, 0);
-  const totalGOSIEr = employees.reduce((s, e) => s + e.gosiEmployer, 0);
-  const saudiCount = employees.filter(e => e.nationality === "SA").length;
+  // From the server, over every matching employee — never over the page.
+  const totalPayroll = paged?.totals.grossSalary ?? 0;
+  const totalGOSIEr = paged?.totals.gosiEmployer ?? 0;
+  const saudiCount = paged?.totals.saudiCount ?? 0;
+  const headcount = paged?.page.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -84,7 +93,7 @@ export default function Employees() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Headcount","إجمالي الموظفين"), employees.length, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${employees.length}`, "text-amber-400"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-red-400"]].map(([l,v,c])=>(
+        {[[t("Headcount","إجمالي الموظفين"), headcount, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${headcount}`, "text-amber-400"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-red-400"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -116,6 +125,12 @@ export default function Employees() {
               ))}</tbody>
             </table>
           )}
+                  <ListPagination
+            page={paged?.page}
+            shown={employees.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>
