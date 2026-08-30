@@ -3744,3 +3744,105 @@ build B *with* the break-glass framing rather than as a routine button.
   *green fixes the case, not the class*, and the write boundary is where the
   class lives (migration 0062).
 
+
+---
+
+## 2026-08-30 — 🔴 THE FACADE DIRECTION: what two reachability guards structurally cannot see
+
+**Recorded as a real gap, at the owner's instruction, rather than as a nuance.**
+
+### What actually happened, dated
+
+| When | What |
+| --- | --- |
+| 2026-07-19 | `CustomerReceipts.tsx` / `VendorReceipts.tsx` created. Each fetched an unmounted top-level path (`/customer-receipts`, `/vendor-receipts`) wrapped in `.catch(() => [])`, so both rendered as permanently empty lists. |
+| 2026-08-14 | `route-reachability.test.ts` lands (`d31213d`) — the FORWARD guard: every mounted API route has a UI caller. |
+| 2026-08-19/20 | The audit finds both pages **by hand**. |
+| 2026-08-20 | `f00fb5f` / PR #57 deletes them **and adds the inverse guard in the same commit**. |
+
+🔴 **The correction to the tempting summary.** It is not true that "a facade shipped
+past two guards". The facades shipped past the guard that existed, which pointed
+the other way; the guard that catches this class **was written as the
+countermeasure for finding them by hand.** It is the scar, not the detector.
+That distinction matters, because "our guards failed" invites tightening them,
+while "the second guard did not exist yet" invites asking *what direction is
+still uncovered* — which is the useful question.
+
+### The direction, stated precisely
+
+- **Forward** (`route-reachability`, first describe): *mounted route → does a UI
+  call it?* Catches a backend nobody reaches.
+- **Inverse** (same file, second describe): *client call → is the route mounted?*
+  Catches a page calling something never written. **This is the facade check.**
+
+Both start from an endpoint that EXISTS. Neither can see a control that renders
+but reaches nothing, because there is no endpoint to enumerate from.
+
+### 🔴 Four gaps measured in the inverse guard (2026-08-30)
+
+1. **Prefix-only matching.** `backed()` accepts any path starting with a mounted
+   top-level prefix; only `/reports/*` verifies sub-routes. So
+   `apiFetch("/customers/123/receipts")` passes because `/customers` is mounted.
+   **A facade nested under an existing resource is invisible** — the two that
+   shipped were caught only because they claimed *top-level* paths, which is
+   luck, not coverage.
+2. **Interpolation truncates the check.** The regex captures the static leading
+   path and stops at the first `${`, so `` `/customers/${id}/statement` ``
+   is read as `/customers/` and prefix-matches. Every templated sub-path is
+   effectively unchecked.
+3. **No method check.** A page POSTing to a GET-only route passes.
+4. **Only `apiFetch` is parsed.** At least ten pages use the generated client,
+   invisible to this guard. Safer — a generated client can only name spec paths
+   — but `openapi.yaml` binds nothing on its own (the AUD-13 lesson), so a
+   spec-declared, never-mounted path slips past both.
+
+### Is it mechanically checkable? — MOSTLY YES, and better than today
+
+**Mechanically checkable (no browser needed):**
+
+- Build the route table by walking the Express routers for **method + full path
+  pattern**, not just `router.use` top-level mounts.
+- Extract client calls with their **method**, and normalise interpolation to a
+  pattern (`/customers/${id}` → `/customers/:param`).
+- Match **patterns against patterns** instead of prefix-against-string.
+
+That closes gaps 1–3 outright and turns the guard from "the prefix exists" into
+"this exact endpoint, with this verb, is served". Adding the generated client's
+call sites (gap 4) is the same exercise against the spec's path table, plus a
+spec-vs-router diff to catch a declared-but-unmounted path.
+
+**What still needs the browser (P5):**
+
+- Whether the control that issues the call **renders and is reachable** — a
+  correct call from a button nobody can see is still a dead feature.
+- Whether the response is **used correctly** once it arrives (the AssetSchedule
+  NaN class; `list-response-shape` covers list envelopes only).
+- Paths assembled at **runtime** from variables — statically undecidable in
+  general.
+
+🔴 **The dividing line, reusable:** *does the call exist* is a static question and
+should be answered statically to a much higher standard than it is today; *does
+a user ever reach the thing that makes the call* is a rendering question and
+nothing but a browser answers it. Today's guard sits at the weakest defensible
+point on the first question, which is why it reads as coverage.
+
+### A second finding, from the same session
+
+**`list-response-shape.test.ts` gated its coverage check on a database it does
+not use.** `scanDeclarations()` reads the WEB SOURCE — no query — yet the
+assertion that detects the scanner going blind sat inside `describeMaybe`, so it
+was skipped in every environment without `DATABASE_URL`, and a skipped test
+still reports green. CI sets the variable, so the field assertions did run
+there; the coverage half simply never ran locally, which is exactly when a
+developer is most likely to trust a green suite.
+
+🔴 **The vacuous-green pattern inside the instrument built to prevent it** — the
+worst place for it, because the instrument is what everything else is trusted
+against. Fixed 2026-08-30: the source-only check moved to its own ungated
+`describe` and now runs everywhere; the DB-dependent assertions stay gated,
+which is legitimate. Verified in both directions (1 passed / 4 skipped with no
+DB; 5 passed with one).
+
+**The reusable rule: a guard's gating must name the dependency each ASSERTION
+uses, not the heaviest dependency anywhere in the file.** Gating at file scope
+is how a check that needs nothing ends up needing Postgres.

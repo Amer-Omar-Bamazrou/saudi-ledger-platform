@@ -217,6 +217,32 @@ async function inTenant<T>(ctx: Ctx, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * 🔴 THE COVERAGE HALF NEEDS NO DATABASE, SO IT IS NOT GATED ON ONE (2026-08-30).
+ *
+ * `scanDeclarations()` reads the WEB SOURCE. It does not query anything. This
+ * check used to sit inside the DB-gated describe below, which meant the one
+ * assertion that detects the scanner going blind was itself skipped in every
+ * environment without `DATABASE_URL` — and a skipped test still reports green.
+ *
+ * That is the vacuous-green pattern living inside the instrument built to
+ * prevent it: a guard gated on a dependency it does not use reports coverage it
+ * never provided. CI sets `DATABASE_URL` so the field assertions did run there,
+ * but this half now runs EVERYWHERE — including a local run with no database,
+ * which is exactly when a developer is most likely to believe a green suite.
+ */
+describe("the list-shape scan still covers the pages it was written against", () => {
+  it("the scan still sees the pages it saw when this guard was written", () => {
+    const declarations = scanDeclarations();
+    expect(
+      declarations.length,
+      `The scan found ${declarations.length} list declarations, down from ${DECLARATIONS_AT_WRITING}.\n` +
+        `Either pages were removed, or a call style changed into one this scanner cannot parse —\n` +
+        `which drops pages out of coverage silently. Widen scanDeclarations(), do not lower this number.`,
+    ).toBeGreaterThanOrEqual(DECLARATIONS_AT_WRITING);
+  });
+});
+
 describeMaybe("a page's declared list type matches the real response", () => {
   const ctx: Ctx = { orgId: "", companyId: "" };
   const declarations = scanDeclarations();
@@ -329,15 +355,6 @@ describeMaybe("a page's declared list type matches the real response", () => {
       `These fixtures returned NO rows, so their key sets are empty and every field assertion\n` +
         `below would pass vacuously over them — the confident zero, inside the instrument:\n  ${empty.join("\n  ")}`,
     ).toEqual([]);
-  });
-
-  it("the scan still sees the pages it saw when this guard was written", () => {
-    expect(
-      declarations.length,
-      `The scan found ${declarations.length} list declarations, down from ${DECLARATIONS_AT_WRITING}.\n` +
-        `Either pages were removed, or a call style changed into one this scanner cannot parse —\n` +
-        `which drops pages out of coverage silently. Widen scanDeclarations(), do not lower this number.`,
-    ).toBeGreaterThanOrEqual(DECLARATIONS_AT_WRITING);
   });
 
   it("🔴 every declared field exists in the real response", () => {
