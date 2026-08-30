@@ -31,16 +31,12 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
   sent: "bg-blue-500/20 text-blue-400",
   paid: "bg-emerald-500/20 text-emerald-400",
-  overdue: "bg-red-500/20 text-red-400",
-  cancelled: "bg-secondary text-muted-foreground",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   draft: <FileText className="w-3 h-3" />,
   sent: <Clock className="w-3 h-3" />,
   paid: <CheckCircle className="w-3 h-3" />,
-  overdue: <AlertCircle className="w-3 h-3" />,
-  cancelled: <XCircle className="w-3 h-3" />,
 };
 
 // 🔴 C12: the invoice number is NO LONGER minted here.
@@ -410,7 +406,9 @@ export default function Invoices() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <div className="flex gap-2 flex-wrap">
-            {["all","draft","sent","paid","overdue","cancelled"].map(s=>(
+            {/* "overdue" is answered from the dates by the API; "cancelled" is gone —
+                an invoice that must not stand is reversed by a credit note. */}
+            {["all","draft","sent","paid","overdue"].map(s=>(
               <Button key={s} variant={statusFilter===s?"default":"ghost"} size="sm" className="h-7 text-xs capitalize" onClick={()=>setStatusFilter(s)}>{s}</Button>
             ))}
           </div>
@@ -463,7 +461,7 @@ export default function Invoices() {
                           </Button>
                         </>
                       )}
-                      {inv.status !== "paid" && inv.status !== "cancelled" && (
+                      {inv.status !== "paid" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
                       {/* A3 (hub decision: automation woven into the page) —

@@ -12,9 +12,12 @@ function clampPage(raw: string | undefined): number {
 export const billsController = {
   async list(req: Request, res: Response) {
     const { status, vendor_id, limit, offset } = req.query as Record<string, string>;
+    // See the note in invoices.controller — overdue is derived, not stored.
+    const overdue = status === "overdue";
     res.json(
       await billsService.list({
-        status: status || undefined,
+        status: overdue ? undefined : status || undefined,
+        overdue: overdue || undefined,
         vendorId: vendor_id ? Number(vendor_id) : undefined,
         limit: clampPage(limit),
         offset: Math.max(0, Number(offset) || 0),

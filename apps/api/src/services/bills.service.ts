@@ -56,7 +56,7 @@ export const billsService = {
     return {
       items: rows.map((r) => buildBillOut(r.bill, r.vendor)),
       page: { limit: filter.limit ?? BILL_PAGE, offset: filter.offset ?? 0, total: meta.total },
-      totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid) },
+      totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid), overdue: meta.overdue },
     };
   },
 

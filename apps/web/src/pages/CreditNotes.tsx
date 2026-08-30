@@ -96,7 +96,7 @@ export default function CreditNotes() {
   const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
   // Only ISSUED invoices can be corrected — a draft has nothing in the books.
   const correctable = all.filter(
-    (i) => i.documentType === "invoice" && ["sent", "paid", "overdue"].includes(i.status),
+    (i) => i.documentType === "invoice" && ["sent", "paid"].includes(i.status),
   );
 
   const create = useMutation({

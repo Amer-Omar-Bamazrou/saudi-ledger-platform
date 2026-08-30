@@ -28,7 +28,11 @@ export const invoicesTable = pgTable(
     // yet in the ZATCA hash chain (invoice_hash is null until approved, so a
     // rejected/deleted draft never consumes a sequence number); submitted =
     // awaiting approval (locked); sent = approved & issued (hashed + AR posted).
-    status: text("status").notNull().default("draft"), // draft | submitted | sent | paid | overdue | cancelled
+    // Only values a writer actually produces. `overdue` was removed because it
+    // is DERIVED from due_date (see invoices.repository `OVERDUE`), and
+    // `cancelled` because an invoice that must not stand is reversed by a
+    // credit note — the ZATCA-correct mechanism, which already works.
+    status: text("status").notNull().default("draft"), // draft | submitted | sent | paid
     subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull().default("0"),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     discount: numeric("discount", { precision: 15, scale: 2 }).default("0"),

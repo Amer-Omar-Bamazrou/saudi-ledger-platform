@@ -263,7 +263,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
                   CASE WHEN document_type = 'credit_note' THEN -1 ELSE 1 END
                   * (total::numeric - paid_amount::numeric)), 0) AS ar
            FROM invoices
-          WHERE organization_id = $1 AND status IN ('sent','paid','overdue')`,
+          WHERE organization_id = $1 AND status IN ('sent','paid')`,
         [orgId],
       );
       return Math.round(Number(rows[0].ar) * 100) / 100;

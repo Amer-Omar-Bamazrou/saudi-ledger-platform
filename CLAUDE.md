@@ -253,7 +253,7 @@ rules at the top of this file, rule 2).
 - **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement, so verifying the allocator verifies nothing. Ask what can reach the same effect without going through it, and prefer a boundary with no override to one with a documented escape hatch.
 - **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
 - **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
-- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry the evidence count it rests on, and an instrument needs its own vacuity test: "all inputs failed" is a case it must NAME, not score. An unmeasured row reads "NOT MEASURED", never "matches baseline".
+- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry the evidence count it rests on, and an instrument needs its own vacuity test: "all inputs failed" is a case it must NAME, not score. An unmeasured row reads "NOT MEASURED", never "matches baseline". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES; deriving overdue was verified this way and the assertion caught a `text < date` cast error the old expected-0 could never have failed on.
 - **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
 - **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
@@ -284,6 +284,7 @@ rules at the top of this file, rule 2).
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
 - **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
+- **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
 
 ## 4. Active constraints — do not break these
 
@@ -551,7 +552,7 @@ that found them is the reusable part, not the fix: counting both idioms
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
-- `status: 'overdue'` has **no writer** on invoices or bills (dead enum value; UIs style it, aging derives overdue from dates).
+
 - VAT-return **box 4 (exports) is always 0** — an export today is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment` fields, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (unreachable from the UI; round `paid` at the validation gate).

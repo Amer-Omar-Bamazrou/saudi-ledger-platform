@@ -3970,3 +3970,75 @@ It caught its own blind spot on day one: a changed call shape dropped pages out
 of the scan, and the shrink-check went **red** rather than green over reduced
 coverage. (Its coverage half was later ungated from `DATABASE_URL`, which had
 been skipping that very assertion in every environment without a database.)
+
+---
+
+## 2026-08-31 — 🔴 THE LOST SCOPE: a link both ends of which are correct
+
+**Found by clicking a link, in the session that built it.** It is recorded as
+its own shape because neither class of guard this project owns can see it, and
+the reason is structural rather than a gap in coverage.
+
+### What happened
+
+`CustomerDetail` offers "Open statement", linking to
+`/reports/customer-ledger?customer_id=<id>`. Clicking it from Najd Contracting's
+page opened the ledger report showing **all four customers** and a Total AR
+Balance of SAR 75,330.00 — not Najd's SAR 37,265.00.
+
+`CustomerLedger.tsx` initialised its filter with `useState("all")` and never
+read the query string. The page had supported the filter all along; its own
+dropdown sets it, and line 101 passes `customer_id` to the API. Only the
+DEEP LINK was unwired.
+
+### Why every check we own was green
+
+| Check | What it saw | Why it passed |
+| --- | --- | --- |
+| Route reachability (forward) | `/reports/customer-ledger` is mounted and has a UI caller | true |
+| Route reachability (inverse) | the page calls a route that exists | true |
+| List-response shape guard | every field the page declares is sent by the service | true |
+| Typecheck | a string passed in a URL | nothing to check |
+| Console / network | six requests, all 200 | nothing failed |
+
+**Both ends were correct in isolation.** The source built a well-formed URL
+carrying the right id; the destination rendered correct figures for the set it
+had. The defect lived in neither file — it lived in the **expectation the link
+created and the destination did not honour**.
+
+### 🔴 Why this is not the composition class, and not B-9
+
+It is adjacent to both and identical to neither, which is the reason for a
+separate entry:
+
+- **The composition class** (AUD-13) is several findings whose CONSEQUENCES
+  compound along one path. Here there is only one finding, and it compounds with
+  nothing.
+- **B-9** (a create form omitting a required field) produces a RECORD that no
+  later step can act on. Here nothing is written at all.
+
+The distinguishing property is that **the output is a true statement about the
+wrong set.** The report was not broken; it answered a broader question than the
+one the user asked, and presented the answer with the same confidence it would
+have given the right one. That places it in the confident-zero family — except
+that the number is not zero, it is simply about something else, which is harder
+to notice, not easier.
+
+### What would have caught it
+
+Only following the link and checking what the destination shows. Concretely,
+for P5's smoke crawl: **for every in-app link carrying a query parameter, assert
+the destination reflects it** — the rendered heading, the selected control, or
+the row count. That is mechanically checkable in a browser and invisible without
+one.
+
+The cheap version, available today and needing no infrastructure: when a link
+carries context, click it once and read the destination. That is how this was
+found, roughly ninety seconds after the page it links from first rendered.
+
+### The reusable rule
+
+**A link is a claim about what the destination will show.** Verify the claim at
+the destination, not at the source — the source cannot be wrong about a
+parameter it correctly sends, and the destination cannot be wrong about a
+parameter it never reads.

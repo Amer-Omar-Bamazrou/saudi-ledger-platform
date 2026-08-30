@@ -28,7 +28,7 @@ const BILL_PAGE_SIZE = 50;
 interface BillPage {
   items: Bill[];
   page: { limit: number; offset: number; total: number };
-  totals: { outstanding: number; paid: number };
+  totals: { outstanding: number; paid: number; overdue: number };
 }
 
 interface Bill {
@@ -43,7 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
   received: "bg-blue-500/20 text-blue-400",
   approved: "bg-amber-500/20 text-amber-400",
   paid: "bg-emerald-500/20 text-emerald-400",
-  overdue: "bg-red-500/20 text-red-400",
+
 };
 
 const makeEmpty = () => ({
@@ -503,7 +503,7 @@ export default function Bills() {
           [t("Total Bills", "إجمالي الفواتير"), billPageInfo?.total ?? "—", "text-primary"],
           [t("Outstanding AP", "الذمم الدائنة المستحقة"), billTotals ? fmtNum(billTotals.outstanding) : "—", "text-red-400"],
           [t("Paid", "مدفوع"), billTotals ? fmtNum(billTotals.paid) : "—", "text-emerald-400"],
-          [t("Overdue", "متأخر"), bills.filter(b => b.status === "overdue").length, "text-red-400"],
+          [t("Overdue", "متأخر"), billTotals?.overdue ?? "—", "text-red-400"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>

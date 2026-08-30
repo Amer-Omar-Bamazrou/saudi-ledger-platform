@@ -22,7 +22,9 @@ const LABEL: Record<NoteType, string> = {
 };
 
 /** States in which the ORIGINAL is a real, issued document a note can correct. */
-const ISSUED_STATUSES = ["sent", "paid", "overdue"];
+// `overdue` was in this list and is not a status any writer produces; the list
+// now names only values a row can actually hold.
+const ISSUED_STATUSES = ["sent", "paid"];
 
 const money = (v: unknown): number => Number(v ?? 0);
 const fmt = (n: number): string => n.toFixed(2);
