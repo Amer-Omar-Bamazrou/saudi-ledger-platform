@@ -42,7 +42,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
     <Card>
       <CardContent className="pt-6">
         <p className="text-xs uppercase text-muted-foreground mb-1">{label}</p>
-        <p className={`text-2xl font-mono font-semibold ${tone === "warn" ? "text-amber-400" : tone === "good" ? "text-emerald-400" : "text-foreground"}`}>
+        <p className={`text-2xl font-mono font-semibold ${tone === "warn" ? "text-attention" : tone === "good" ? "text-positive" : "text-foreground"}`}>
           {value}
         </p>
       </CardContent>
@@ -53,7 +53,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
 function TruncationNotice({ shown, total }: { shown: number; total: number }) {
   const { t } = useLanguage();
   return (
-    <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+    <div className="flex items-start gap-2 rounded-md border border-attention-surface/30 bg-attention-surface/10 p-3 text-xs text-amber-200">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <span>
         {t(
@@ -190,7 +190,7 @@ export default function VendorDetail() {
                         <td className="py-3 pe-4"><Badge variant="outline" className="text-xs">{b.status}</Badge></td>
                         <td className="py-3 pe-4 font-mono">{money(b.total)}</td>
                         <td className="py-3 pe-4 font-mono">
-                          <span className={outstanding > 0 ? "text-amber-400" : "text-emerald-400"}>{money(outstanding)}</span>
+                          <span className={outstanding > 0 ? "text-attention" : "text-positive"}>{money(outstanding)}</span>
                         </td>
                       </tr>
                     );
@@ -222,7 +222,7 @@ export default function VendorDetail() {
                     <tr key={p.id} className="border-b border-border/50">
                       <td className="py-3 pe-4 font-mono text-xs">{p.billNumber}</td>
                       <td className="py-3 pe-4 text-muted-foreground">{p.paidAt ? p.paidAt.slice(0, 10) : "—"}</td>
-                      <td className="py-3 pe-4 font-mono text-emerald-400">{money(Number(p.paidAmount ?? 0))}</td>
+                      <td className="py-3 pe-4 font-mono text-positive">{money(Number(p.paidAmount ?? 0))}</td>
                     </tr>
                   ))}
                 </tbody>

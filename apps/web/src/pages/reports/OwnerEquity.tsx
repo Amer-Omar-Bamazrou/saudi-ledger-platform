@@ -43,7 +43,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Change in Owner Equity Statement
-            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span>
+            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">New</span>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Opening equity + net income + contributions − withdrawals = closing equity</p>
         </div>
@@ -69,9 +69,9 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
         <div className="grid grid-cols-4 gap-4">
           {[
             ["Opening Equity", fmtNum(data.openingEquity), "text-primary"],
-            ["Net Income / (Loss)", fmtNum(data.netIncome), data.netIncome >= 0 ? "text-emerald-400" : "text-red-400"],
-            ["Contributions", fmtNum(data.contributions), "text-blue-400"],
-            ["Withdrawals", fmtNum(data.withdrawals), "text-amber-400"],
+            ["Net Income / (Loss)", fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
+            ["Contributions", fmtNum(data.contributions), "text-info"],
+            ["Withdrawals", fmtNum(data.withdrawals), "text-attention"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -104,9 +104,9 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
                     <span className={cn(
                       "font-mono text-sm",
                       isClosing ? "text-lg font-bold text-foreground" : "",
-                      isIncome && row.amount < 0 ? "text-red-400" : "",
-                      isIncome && row.amount >= 0 ? "text-emerald-400" : "",
-                      isWithdrawal ? "text-amber-400" : "",
+                      isIncome && row.amount < 0 ? "text-negative" : "",
+                      isIncome && row.amount >= 0 ? "text-positive" : "",
+                      isWithdrawal ? "text-attention" : "",
                     )}>
                       {isWithdrawal && row.amount !== 0 ? `(${fmtNum(Math.abs(row.amount))})` : fmtNum(row.amount)}
                     </span>
@@ -118,11 +118,11 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
             {data.closingEquity !== 0 && (
               <div className={cn(
                 "mt-6 p-4 rounded-lg border",
-                data.closingEquity >= 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"
+                data.closingEquity >= 0 ? "border-positive-surface/30 bg-positive-surface/5" : "border-negative-surface/30 bg-negative-surface/5"
               )}>
                 <div className="flex items-center justify-between">
-                  <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-emerald-400" : "text-red-400")}>Closing Equity</span>
-                  <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-emerald-400" : "text-red-400")}>{fmtNum(data.closingEquity)}</span>
+                  <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>Closing Equity</span>
+                  <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
                 </div>
               </div>
             )}

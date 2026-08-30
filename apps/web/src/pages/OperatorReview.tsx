@@ -22,10 +22,10 @@ interface Review { id: string; fromStatus: string | null; toStatus: string; reas
 interface Detail extends AppRow { companies: Company[]; documents: Doc[]; reviews: Review[] }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending_review: "bg-amber-500/20 text-amber-500 border-amber-500/30",
-  needs_info: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  rejected: "bg-red-500/20 text-red-400 border-red-500/30",
-  approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  pending_review: "bg-attention-surface/20 text-attention-surface border-attention-surface/30",
+  needs_info: "bg-info-surface/20 text-info border-info-surface/30",
+  rejected: "bg-negative-surface/20 text-negative border-negative-surface/30",
+  approved: "bg-positive-surface/20 text-positive border-positive-surface/30",
 };
 
 export default function OperatorReview() {

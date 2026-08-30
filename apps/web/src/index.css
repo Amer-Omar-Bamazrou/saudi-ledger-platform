@@ -56,11 +56,35 @@
   --color-sidebar-accent-border: hsl(var(--sidebar-accent-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* Account-TYPE colours. Distinct from the state colours below: these say what
+     an account IS, those say what a figure MEANS. */
   --color-income: hsl(var(--color-income));
   --color-expense: hsl(var(--color-expense));
   --color-asset: hsl(var(--color-asset));
   --color-liability: hsl(var(--color-liability));
   --color-equity: hsl(var(--color-equity));
+
+  /* ── SEMANTIC STATE COLOURS ────────────────────────────────────────────────
+     Four meanings the app already expresses 583 times in raw palette classes:
+     money in, money out, wants attention, informational.
+
+     🔴 DEFINED BY REFERENCE, NOT BY VALUE, ON PURPOSE. Each points at the exact
+     palette entry the pages already use, so adopting a token changes the NAME a
+     colour is reached by and nothing about the colour. A design pass can then
+     change a value in one place instead of in 56 files.
+
+     The `-surface` half exists because the codebase consistently uses a lighter
+     shade for text and a darker one behind opacity for fills and borders
+     (`text-emerald-400` beside `bg-emerald-500/20`). One token cannot serve
+     both without changing what renders. */
+  --color-positive: var(--color-emerald-400);
+  --color-positive-surface: var(--color-emerald-500);
+  --color-negative: var(--color-red-400);
+  --color-negative-surface: var(--color-red-500);
+  --color-attention: var(--color-amber-400);
+  --color-attention-surface: var(--color-amber-500);
+  --color-info: var(--color-blue-400);
+  --color-info-surface: var(--color-blue-500);
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);

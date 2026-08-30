@@ -69,7 +69,7 @@ export default function VatReport() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-emerald-500" />
+            <Receipt className="w-8 h-8 text-positive-surface" />
             {t("ZATCA VAT Return", "إقرار ضريبة القيمة المضافة - زاتكا")}
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -126,15 +126,15 @@ export default function VatReport() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card className="border-positive-surface/30 bg-positive-surface/5">
           <CardContent className="p-6 space-y-2">
-            <p className="text-sm font-medium text-emerald-500/80 uppercase tracking-wider">
+            <p className="text-sm font-medium text-positive-surface/80 uppercase tracking-wider">
               {t("Net VAT Due", "صافي الضريبة المستحقة")}
             </p>
             {isLoading ? (
-              <Skeleton className="h-10 w-32 bg-emerald-500/20" />
+              <Skeleton className="h-10 w-32 bg-positive-surface/20" />
             ) : (
-              <p className={`text-4xl font-mono font-bold ${netDue < 0 ? "text-emerald-400" : "text-destructive"}`}>
+              <p className={`text-4xl font-mono font-bold ${netDue < 0 ? "text-positive" : "text-destructive"}`}>
                 {formatCurrency(Math.abs(netDue))}
               </p>
             )}
@@ -183,7 +183,7 @@ export default function VatReport() {
                     <tr key={row.box} className={row.emphasis ? "bg-secondary/30 font-semibold" : "hover:bg-secondary/30 transition-colors"}>
                       <td className="px-6 py-3 font-mono text-muted-foreground">{row.box}</td>
                       <td className="px-6 py-3 text-foreground">{t(row.label, row.labelAr)}</td>
-                      <td className={`px-6 py-3 text-end font-mono ${row.emphasis ? "text-emerald-400" : ""}`}>
+                      <td className={`px-6 py-3 text-end font-mono ${row.emphasis ? "text-positive" : ""}`}>
                         {formatCurrency(row.value || 0)}
                       </td>
                     </tr>
@@ -198,7 +198,7 @@ export default function VatReport() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Scale className="w-5 h-5 text-amber-500" />
+            <Scale className="w-5 h-5 text-attention-surface" />
             {t("Reconciliation — documents vs bank activity", "المطابقة — المستندات مقابل الحركة البنكية")}
           </CardTitle>
           <CardDescription>
@@ -227,7 +227,7 @@ export default function VatReport() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Gap", "الفجوة")}</p>
-                <p className={`text-2xl font-mono font-bold ${Math.abs(gap) < 0.01 ? "text-emerald-400" : "text-amber-400"}`}>
+                <p className={`text-2xl font-mono font-bold ${Math.abs(gap) < 0.01 ? "text-positive" : "text-attention"}`}>
                   {formatCurrency(gap)}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -278,7 +278,7 @@ export default function VatReport() {
                     <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
                     <th className="px-6 py-4 font-semibold">{t("Type", "النوع")}</th>
                     <th className="px-6 py-4 font-semibold text-end">{t("Gross Amount", "المبلغ الإجمالي")}</th>
-                    <th className="px-6 py-4 font-semibold text-end text-emerald-400">{t("VAT Amount", "مبلغ الضريبة")}</th>
+                    <th className="px-6 py-4 font-semibold text-end text-positive">{t("VAT Amount", "مبلغ الضريبة")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -295,7 +295,7 @@ export default function VatReport() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-end font-mono">{formatCurrency(tx.amount)}</td>
-                      <td className="px-6 py-4 text-end font-mono font-bold text-emerald-400">{formatCurrency(tx.vatAmount)}</td>
+                      <td className="px-6 py-4 text-end font-mono font-bold text-positive">{formatCurrency(tx.vatAmount)}</td>
                     </tr>
                   ))}
                   {bankVat?.transactions?.length === 0 && (

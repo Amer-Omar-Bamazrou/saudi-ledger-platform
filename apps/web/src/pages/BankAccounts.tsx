@@ -71,7 +71,7 @@ export default function BankAccounts() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-emerald-400">{fmtNum(totalBalance)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-positive">{fmtNum(totalBalance)}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts", "الحسابات")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{accounts.length}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Banks", "البنوك")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{new Set(accounts.map(a=>a.bankName)).size}</div></CardContent></Card>
       </div>
@@ -96,7 +96,7 @@ export default function BankAccounts() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className={`text-3xl font-bold font-mono ${acc.balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmtNum(acc.balance)}</div>
+                <div className={`text-3xl font-bold font-mono ${acc.balance >= 0 ? "text-positive" : "text-negative"}`}>{fmtNum(acc.balance)}</div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <div className="text-xs text-muted-foreground">IBAN: <span className="font-mono">{acc.iban ? acc.iban.slice(0, 16) + "..." : "—"}</span></div>
                   <div className="text-xs text-muted-foreground">{t("A/C", "حساب")}: <span className="font-mono">{acc.accountNumber || "—"}</span></div>

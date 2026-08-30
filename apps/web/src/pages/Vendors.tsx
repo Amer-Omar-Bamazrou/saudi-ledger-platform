@@ -83,7 +83,7 @@ export default function Vendors() {
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Vendors", "إجمالي الموردين")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AP", "الحسابات الدائنة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAP > 0 ? "text-red-400" : "text-emerald-400"}`}>{fmtNum(totalAP)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AP", "الحسابات الدائنة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAP > 0 ? "text-negative" : "text-positive"}`}>{fmtNum(totalAP)}</div></CardContent></Card>
       </div>
 
       <Card className="border-border bg-card">
@@ -107,13 +107,13 @@ export default function Vendors() {
                       ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>
                       : arabicFieldStatus(v.nameAr) === "wrong-script"
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
-                      : <div className="text-[10px] text-amber-500/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
+                      : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
                   <td className="py-3 pe-4 text-muted-foreground">{v.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
-                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-red-400":"text-emerald-400"}`}>{fmtNum(v.balance??0)}</span></td>
+                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-negative":"text-positive"}`}>{fmtNum(v.balance??0)}</span></td>
                   <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>

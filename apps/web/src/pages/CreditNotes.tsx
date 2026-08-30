@@ -44,9 +44,9 @@ interface Invoice {
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  submitted: "bg-amber-500/20 text-amber-500",
-  sent: "bg-emerald-500/20 text-emerald-400",
-  paid: "bg-emerald-500/20 text-emerald-400",
+  submitted: "bg-attention-surface/20 text-attention-surface",
+  sent: "bg-positive-surface/20 text-positive",
+  paid: "bg-positive-surface/20 text-positive",
 };
 
 const makeEmpty = () => ({

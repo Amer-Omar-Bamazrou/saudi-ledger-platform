@@ -86,8 +86,8 @@ export default function Budgets() {
         {[
           [t("Total Budgeted", "إجمالي الميزانية"), fmtNum(totalBudgeted), "text-primary"],
           [t("Total Actual", "إجمالي الفعلي"), fmtNum(totalActual), "text-foreground"],
-          [t("Variance", "الانحراف"), fmtNum(totalVariance), totalVariance >= 0 ? "text-emerald-400" : "text-red-400"],
-          [t("Over Budget Lines", "سطور تجاوزت الميزانية"), budgetsOver, "text-red-400"],
+          [t("Variance", "الانحراف"), fmtNum(totalVariance), totalVariance >= 0 ? "text-positive" : "text-negative"],
+          [t("Over Budget Lines", "سطور تجاوزت الميزانية"), budgetsOver, "text-negative"],
         ].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
@@ -118,18 +118,18 @@ export default function Budgets() {
                         <p className="font-medium">{b.name}</p>
                         {b.nameAr && b.nameAr !== NEEDS_AR
                           ? <p className="text-xs text-muted-foreground" dir="rtl">{b.nameAr}</p>
-                          : <p className="text-[10px] text-amber-500/70 italic">{t("needs Arabic translation", "يحتاج ترجمة عربية")}</p>}
+                          : <p className="text-[10px] text-attention-surface/70 italic">{t("needs Arabic translation", "يحتاج ترجمة عربية")}</p>}
                       </td>
                     <td className="py-3 pe-4 text-muted-foreground text-xs">{b.categoryName || "—"}</td>
                     <td className="py-3 pe-4 font-mono">{fmtNum(b.budgetedAmount)}</td>
                     <td className="py-3 pe-4 font-mono">{fmtNum(b.actualAmount)}</td>
-                    <td className={`py-3 pe-4 font-mono font-semibold ${over?"text-red-400":"text-emerald-400"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
+                    <td className={`py-3 pe-4 font-mono font-semibold ${over?"text-negative":"text-positive"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
                     <td className="py-3 pe-4">
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-secondary rounded-full h-1.5">
-                          <div className={`h-1.5 rounded-full transition-all ${over?"bg-red-400":"bg-emerald-400"}`} style={{width:`${pct}%`}} />
+                          <div className={`h-1.5 rounded-full transition-all ${over?"bg-negative":"bg-positive"}`} style={{width:`${pct}%`}} />
                         </div>
-                        <span className={`text-xs font-mono ${over?"text-red-400":"text-muted-foreground"}`}>{b.budgetedAmount > 0 ? ((b.actualAmount/b.budgetedAmount)*100).toFixed(0) : 0}%</span>
+                        <span className={`text-xs font-mono ${over?"text-negative":"text-muted-foreground"}`}>{b.budgetedAmount > 0 ? ((b.actualAmount/b.budgetedAmount)*100).toFixed(0) : 0}%</span>
                       </div>
                     </td>
                     <td className="py-3"><Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={()=>deleteMut.mutate(b.id)}>{t("Delete", "حذف")}</Button></td>

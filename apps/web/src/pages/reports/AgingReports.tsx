@@ -14,10 +14,10 @@ interface Buckets { current: number; days_1_30: number; days_31_60: number; days
 interface AgingData { buckets: Buckets; total: number; items: (ArItem | ApItem)[]; }
 
 const BUCKET_LABELS = [
-  { key: "current",    label: "Current",      color: "text-emerald-400" },
-  { key: "days_1_30",  label: "1–30 Days",    color: "text-amber-400" },
+  { key: "current",    label: "Current",      color: "text-positive" },
+  { key: "days_1_30",  label: "1–30 Days",    color: "text-attention" },
   { key: "days_31_60", label: "31–60 Days",   color: "text-orange-400" },
-  { key: "days_61_90", label: "61–90 Days",   color: "text-red-400" },
+  { key: "days_61_90", label: "61–90 Days",   color: "text-negative" },
   { key: "over_90",    label: "Over 90 Days", color: "text-red-600" },
 ] as const;
 
@@ -102,7 +102,7 @@ export default function AgingReports() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t("Aging Reports", "تقارير الأعمار")}
-            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">{t("New", "جديد")}</span>
+            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">{t("New", "جديد")}</span>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}</p>
         </div>
@@ -112,7 +112,7 @@ export default function AgingReports() {
       {/* AR */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="w-4 h-4 text-blue-400" />
+          <AlertCircle className="w-4 h-4 text-info" />
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}</h2>
           {arData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
         </div>
@@ -124,7 +124,7 @@ export default function AgingReports() {
       {/* AP */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <Building2 className="w-4 h-4 text-amber-400" />
+          <Building2 className="w-4 h-4 text-attention" />
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}</h2>
           {apData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
         </div>

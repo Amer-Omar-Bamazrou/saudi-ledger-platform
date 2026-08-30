@@ -85,7 +85,7 @@ export default function Products() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Total Items","إجمالي العناصر"), paged?.page.total ?? 0, "text-primary"],[t("Services","الخدمات"), counts?.serviceCount ?? 0, "text-blue-400"],[t("Products","المنتجات"), counts?.productCount ?? 0, "text-amber-400"],[t("VAT-Applicable","خاضع لضريبة القيمة المضافة"), counts?.vatApplicableCount ?? 0, "text-muted-foreground"]].map(([l,v,c])=>(
+        {[[t("Total Items","إجمالي العناصر"), paged?.page.total ?? 0, "text-primary"],[t("Services","الخدمات"), counts?.serviceCount ?? 0, "text-info"],[t("Products","المنتجات"), counts?.productCount ?? 0, "text-attention"],[t("VAT-Applicable","خاضع لضريبة القيمة المضافة"), counts?.vatApplicableCount ?? 0, "text-muted-foreground"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -115,9 +115,9 @@ export default function Products() {
                     <td className="py-3 pe-4 text-muted-foreground text-xs">{p.unit||"—"}</td>
                     <td className="py-3 pe-4 font-mono">{fmtNum(p.unitPrice)}</td>
                     <td className="py-3 pe-4 font-mono text-muted-foreground">{p.unitCost ? fmtNum(p.unitCost) : "—"}</td>
-                    <td className="py-3 pe-4"><span className={`font-mono text-xs ${margin && margin > 30 ? "text-emerald-400" : margin && margin > 0 ? "text-amber-400" : "text-muted-foreground"}`}>{margin != null ? `${margin.toFixed(1)}%` : "—"}</span></td>
-                    <td className="py-3 pe-4 font-mono text-xs">{p.type==="product"?<span className={p.reorderPoint && p.stockQty <= p.reorderPoint ? "text-red-400" : "text-foreground"}>{p.stockQty}</span>:"—"}</td>
-                    <td className="py-3"><Badge className={`text-xs ${p.vatApplicable?"bg-blue-500/20 text-blue-400":"bg-secondary text-muted-foreground"}`}>{p.vatApplicable ? t("15%","15%") : t("Exempt","معفى")}</Badge></td>
+                    <td className="py-3 pe-4"><span className={`font-mono text-xs ${margin && margin > 30 ? "text-positive" : margin && margin > 0 ? "text-attention" : "text-muted-foreground"}`}>{margin != null ? `${margin.toFixed(1)}%` : "—"}</span></td>
+                    <td className="py-3 pe-4 font-mono text-xs">{p.type==="product"?<span className={p.reorderPoint && p.stockQty <= p.reorderPoint ? "text-negative" : "text-foreground"}>{p.stockQty}</span>:"—"}</td>
+                    <td className="py-3"><Badge className={`text-xs ${p.vatApplicable?"bg-info-surface/20 text-info":"bg-secondary text-muted-foreground"}`}>{p.vatApplicable ? t("15%","15%") : t("Exempt","معفى")}</Badge></td>
                   </tr>
                 );
               })}</tbody>

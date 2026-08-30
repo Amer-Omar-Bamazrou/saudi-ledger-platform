@@ -82,8 +82,8 @@ export default function Employees() {
               {form.basicSalary && (
                 <div className="col-span-2 bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
                   <p className="font-medium text-muted-foreground">{t("GOSI Preview", "معاينة التأمين الاجتماعي")} ({form.nationality === "SA" ? t("Saudi", "سعودي") : t("Expat", "وافد")})</p>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({form.nationality==="SA"?"9.75%":"0%"})</span><span className="font-mono text-amber-400">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.0975:0))}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({form.nationality==="SA"?"11.75%":"2%"})</span><span className="font-mono text-amber-400">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.1175:0.02))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({form.nationality==="SA"?"9.75%":"0%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.0975:0))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({form.nationality==="SA"?"11.75%":"2%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.1175:0.02))}</span></div>
                 </div>
               )}
             </div>
@@ -93,7 +93,7 @@ export default function Employees() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Headcount","إجمالي الموظفين"), headcount, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${headcount}`, "text-amber-400"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-red-400"]].map(([l,v,c])=>(
+        {[[t("Headcount","إجمالي الموظفين"), headcount, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${headcount}`, "text-attention"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-negative"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -114,13 +114,13 @@ export default function Employees() {
                 <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div></td>
                   <td className="py-3 pe-3 text-muted-foreground text-xs">{e.department||"—"}</td>
-                  <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-blue-500/40 text-blue-400"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
+                  <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
                   <td className="py-3 pe-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
                   <td className="py-3 pe-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-amber-400">{fmtNum(e.gosiEmployee)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-red-400">{fmtNum(e.gosiEmployer)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-attention">{fmtNum(e.gosiEmployee)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-negative">{fmtNum(e.gosiEmployer)}</td>
                   <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
-                  <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-emerald-500/20 text-emerald-400":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
+                  <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-positive-surface/20 text-positive":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
                 </tr>
               ))}</tbody>
             </table>

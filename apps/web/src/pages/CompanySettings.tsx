@@ -294,7 +294,7 @@ export default function CompanySettings() {
                 enough to act on (F11's wording rule): what is not set, what the
                 platform does meanwhile, and what setting it changes.
               */
-              <div className="rounded-md border border-amber-300/40 bg-amber-500/5 p-3 max-w-lg">
+              <div className="rounded-md border border-amber-300/40 bg-attention-surface/5 p-3 max-w-lg">
                 <p className="text-xs text-foreground">
                   {t(
                     "Your financial year hasn't been set. Reports show the last 12 months until it is — choose the month it starts above, and they will follow your year instead.",
@@ -320,7 +320,7 @@ export default function CompanySettings() {
                   {fiscalYears.current.days} {t("days", "يوماً")}
                 </p>
                 {(form.fiscalCalendar ?? "gregorian") !== fiscalYears.calendar && (
-                  <p className="text-[11px] text-amber-500">
+                  <p className="text-[11px] text-attention-surface">
                     {t(
                       "Unsaved calendar change — save to see the new boundaries.",
                       "تغيير غير محفوظ في التقويم — احفظ لعرض الحدود الجديدة.",

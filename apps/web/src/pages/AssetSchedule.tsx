@@ -27,8 +27,8 @@ interface AssetRow {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400",
-  disposed: "bg-red-500/20 text-red-400",
+  active: "bg-positive-surface/20 text-positive",
+  disposed: "bg-negative-surface/20 text-negative",
   fully_depreciated: "bg-secondary text-muted-foreground",
 };
 
@@ -66,8 +66,8 @@ export default function AssetSchedule() {
         {[
           ["Total Assets", paged?.totals.activeCount ?? 0, "text-primary"],
           ["Total Cost", fmtNum(totalCost), "text-primary"],
-          ["Accumulated Dep.", fmtNum(totalAccumDep), "text-red-400"],
-          ["Net Book Value", fmtNum(totalBookValue), "text-emerald-400"],
+          ["Accumulated Dep.", fmtNum(totalAccumDep), "text-negative"],
+          ["Net Book Value", fmtNum(totalBookValue), "text-positive"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -103,8 +103,8 @@ export default function AssetSchedule() {
                     <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.purchaseCost)}</td>
                     <td className="py-2 pe-3 font-mono text-xs">{a.usefulLifeYears}y</td>
                     <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciationMethod}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(a.accumulatedDepreciation)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.currentBookValue)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(a.accumulatedDepreciation)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-positive">{fmtNum(a.currentBookValue)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status.replace("_", " ")}</Badge></td>
                   </tr>
                 ))}
@@ -114,8 +114,8 @@ export default function AssetSchedule() {
                   <td colSpan={3} className="pt-3 text-xs text-muted-foreground">{t("Total", "الإجمالي")}</td>
                   <td className="pt-3 font-mono text-xs">{fmtNum(totalCost)}</td>
                   <td colSpan={2} />
-                  <td className="pt-3 font-mono text-xs text-red-400">{fmtNum(totalAccumDep)}</td>
-                  <td className="pt-3 font-mono text-xs text-emerald-400">{fmtNum(totalBookValue)}</td>
+                  <td className="pt-3 font-mono text-xs text-negative">{fmtNum(totalAccumDep)}</td>
+                  <td className="pt-3 font-mono text-xs text-positive">{fmtNum(totalBookValue)}</td>
                   <td />
                 </tr>
               </tfoot>

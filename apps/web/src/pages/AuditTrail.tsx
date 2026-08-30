@@ -51,9 +51,9 @@ const ENTITY_TYPES = [
 const ACTIONS = ["create", "update", "delete", "submit", "approve", "reject", "send_back"];
 
 const ACTION_STYLES: Record<string, string> = {
-  create: "bg-emerald-500/20 text-emerald-400",
-  update: "bg-blue-500/20 text-blue-400",
-  delete: "bg-red-500/20 text-red-400",
+  create: "bg-positive-surface/20 text-positive",
+  update: "bg-info-surface/20 text-info",
+  delete: "bg-negative-surface/20 text-negative",
   approve: "bg-violet-500/20 text-violet-400",
 };
 

@@ -20,10 +20,10 @@ interface InvoiceSummaryRow {
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  sent: "bg-blue-500/20 text-blue-400",
-  paid: "bg-emerald-500/20 text-emerald-400",
+  sent: "bg-info-surface/20 text-info",
+  paid: "bg-positive-surface/20 text-positive",
 
-  partial: "bg-amber-500/20 text-amber-400",
+  partial: "bg-attention-surface/20 text-attention",
 };
 
 export default function InvoiceSummary() {
@@ -91,8 +91,8 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
         {[
           ["Total Invoices", filtered.length, "text-primary"],
           ["Revenue (excl. VAT)", fmtNum(totalRevenue), "text-primary"],
-          ["VAT Charged", fmtNum(totalVat), "text-amber-400"],
-          ["Outstanding", fmtNum(totalOutstanding), "text-red-400"],
+          ["VAT Charged", fmtNum(totalVat), "text-attention"],
+          ["Outstanding", fmtNum(totalOutstanding), "text-negative"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -126,9 +126,9 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
                     <td className="py-2 pe-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-amber-400">{fmtNum(i.vatAmount)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-attention">{fmtNum(i.vatAmount)}</td>
                     <td className="py-2 pe-3 font-mono text-xs font-semibold">{fmtNum(i.total)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(i.total - i.paidAmount)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(i.total - i.paidAmount)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[i.status] ?? ""}`}>{i.status}</Badge></td>
                   </tr>
                 ))}

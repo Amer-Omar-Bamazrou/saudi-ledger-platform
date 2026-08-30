@@ -65,9 +65,9 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
       {runs.map((r) => (
         <div key={r.id} className="flex items-center gap-2 text-xs">
           {r.outcome === "generated" ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-positive-surface" />
           ) : (
-            <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+            <AlertCircle className="h-3.5 w-3.5 text-negative-surface" />
           )}
           <span className="font-mono">{r.scheduledFor}</span>
           {r.outcome === "generated" ? (
@@ -75,7 +75,7 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
               {t("draft created", "تم إنشاء مسودة")} {r.documentId ? `#${r.documentId}` : ""}
             </span>
           ) : (
-            <span className="text-red-500">
+            <span className="text-negative-surface">
               {t("FAILED", "فشل")} — {r.errorCode ?? "generation_failed"}
               {r.errorDetail ? `: ${r.errorDetail}` : ""}
             </span>
@@ -151,7 +151,7 @@ export default function Recurring() {
               {rule.status === "paused" ? (
                 <Badge variant="secondary">{t("Paused", "متوقفة")}</Badge>
               ) : (
-                <Badge className="bg-emerald-500/20 text-emerald-500 border-transparent">{t("Active", "نشطة")}</Badge>
+                <Badge className="bg-positive-surface/20 text-positive-surface border-transparent">{t("Active", "نشطة")}</Badge>
               )}
               {/* A failed run is a real STATE (the status palette is allowed
                   here); the streak is the load-bearing signal — visible on the
@@ -165,7 +165,7 @@ export default function Recurring() {
                   )}
                 </Badge>
               ) : rule.lastOutcome === "failed" ? (
-                <Badge className="border-transparent bg-amber-500/20 text-amber-600 gap-1">
+                <Badge className="border-transparent bg-attention-surface/20 text-amber-600 gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {t("Last run failed", "فشل آخر تشغيل")}
                 </Badge>
@@ -202,7 +202,7 @@ export default function Recurring() {
               </p>
             )}
             {rule.consecutiveFailures >= 1 && (
-              <p className="px-4 pb-2 text-xs text-red-500">
+              <p className="px-4 pb-2 text-xs text-negative-surface">
                 {t("Last failure", "آخر إخفاق")} <DualDate date={rule.lastScheduledFor ?? rule.nextRunOn} inline />
                 {rule.lastErrorCode ? ` — ${rule.lastErrorCode}` : ""}
                 {rule.lastErrorDetail ? `: ${rule.lastErrorDetail}` : ""}

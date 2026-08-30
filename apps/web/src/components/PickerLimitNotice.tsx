@@ -15,7 +15,7 @@ export function PickerLimitNotice({ shown, total }: { shown: number; total: numb
   const { t } = useLanguage();
   if (total <= shown) return null;
   return (
-    <div className="px-2 py-1.5 text-xs text-amber-400 border-t border-border">
+    <div className="px-2 py-1.5 text-xs text-attention border-t border-border">
       {t(
         `Showing ${shown} of ${total}. Use the full list page to find the rest.`,
         `عرض ${shown} من ${total}. استخدم صفحة القائمة الكاملة للعثور على البقية.`,

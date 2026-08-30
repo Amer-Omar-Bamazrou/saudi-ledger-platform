@@ -44,7 +44,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Tax Journal Entries
-            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span>
+            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">New</span>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">All journal entries that touch VAT or tax accounts</p>
         </div>
@@ -70,8 +70,8 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
         <div className="grid grid-cols-3 gap-4">
           {[
             ["Tax Entries", data.count, "text-primary"],
-            ["Total VAT Debited", fmtNum(totalVatDebit), "text-blue-400"],
-            ["Total VAT Credited", fmtNum(totalVatCredit), "text-emerald-400"],
+            ["Total VAT Debited", fmtNum(totalVatDebit), "text-info"],
+            ["Total VAT Credited", fmtNum(totalVatCredit), "text-positive"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -118,21 +118,21 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
                   </thead>
                   <tbody>
                     {entry.lines.map((line, i) => (
-                      <tr key={i} className={cn("border-b border-border/30", line.isTaxLine && "bg-amber-500/5")}>
+                      <tr key={i} className={cn("border-b border-border/30", line.isTaxLine && "bg-attention-surface/5")}>
                         <td className="py-1.5 pe-4">
-                          <span className={cn("text-sm", line.isTaxLine ? "text-amber-400 font-medium" : "text-foreground")}>{line.accountName}</span>
-                          {line.isTaxLine && <span className="ms-2 text-xs text-amber-400/60">● tax</span>}
+                          <span className={cn("text-sm", line.isTaxLine ? "text-attention font-medium" : "text-foreground")}>{line.accountName}</span>
+                          {line.isTaxLine && <span className="ms-2 text-xs text-attention/60">● tax</span>}
                         </td>
-                        <td className="py-1.5 pe-4 text-end font-mono text-sm text-blue-400">{line.debit > 0 ? fmtNum(line.debit) : "—"}</td>
-                        <td className="py-1.5 text-end font-mono text-sm text-emerald-400">{line.credit > 0 ? fmtNum(line.credit) : "—"}</td>
+                        <td className="py-1.5 pe-4 text-end font-mono text-sm text-info">{line.debit > 0 ? fmtNum(line.debit) : "—"}</td>
+                        <td className="py-1.5 text-end font-mono text-sm text-positive">{line.credit > 0 ? fmtNum(line.credit) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-border text-xs text-muted-foreground font-semibold">
                       <td className="pt-2">VAT totals for this entry</td>
-                      <td className="pt-2 text-end font-mono text-blue-400">{fmtNum(entry.totalVatDebit)}</td>
-                      <td className="pt-2 text-end font-mono text-emerald-400">{fmtNum(entry.totalVatCredit)}</td>
+                      <td className="pt-2 text-end font-mono text-info">{fmtNum(entry.totalVatDebit)}</td>
+                      <td className="pt-2 text-end font-mono text-positive">{fmtNum(entry.totalVatCredit)}</td>
                     </tr>
                   </tfoot>
                 </table>

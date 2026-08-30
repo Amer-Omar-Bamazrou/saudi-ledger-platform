@@ -97,21 +97,21 @@ export default function Categorize() {
               <div className="space-y-6">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <BrainCog className="w-8 h-8 text-blue-400" />
+                    <BrainCog className="w-8 h-8 text-info" />
                     <div>
                       <p className="text-sm text-muted-foreground">{t("Processed", "تمت المعالجة")}</p>
                       <p className="text-xl font-bold">{results.processed}</p>
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                    <CheckCircle2 className="w-8 h-8 text-positive" />
                     <div>
                       <p className="text-sm text-muted-foreground">{t("Matched", "تمت المطابقة")}</p>
                       <p className="text-xl font-bold">{results.categorized}</p>
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <AlertCircle className="w-8 h-8 text-amber-400" />
+                    <AlertCircle className="w-8 h-8 text-attention" />
                     <div>
                       <p className="text-sm text-muted-foreground">{t("Skipped", "تم التخطي")}</p>
                       <p className="text-xl font-bold">{results.skipped}</p>

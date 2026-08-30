@@ -204,7 +204,7 @@ export default function TransactionReview() {
                 {TREATMENTS.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               {r.treatmentAssumed && (
-                <Badge variant="outline" className="border-amber-500/40 text-amber-500">
+                <Badge variant="outline" className="border-attention-surface/40 text-attention-surface">
                   {lang === "ar" ? "مفترضة" : "assumed"}
                 </Badge>
               )}
@@ -226,7 +226,7 @@ export default function TransactionReview() {
                 </select>
               )}
               {r.vatBasis === "reverse_charge" && (
-                <Badge variant="outline" className="border-blue-500/40 text-blue-400">
+                <Badge variant="outline" className="border-info-surface/40 text-info">
                   {lang === "ar" ? "احتساب عكسي" : "reverse charge"}
                 </Badge>
               )}
@@ -234,7 +234,7 @@ export default function TransactionReview() {
           )}
         </div>
         {r.suggestion && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+          <div className="mt-1 flex items-center gap-1 text-xs text-info-surface">
             <Link2 className="h-3 w-3" /> {suggestionLabel(r.suggestion)}
           </div>
         )}

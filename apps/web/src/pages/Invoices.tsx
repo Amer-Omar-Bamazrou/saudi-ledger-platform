@@ -29,8 +29,8 @@ interface Customer { id: number; name: string; }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  sent: "bg-blue-500/20 text-blue-400",
-  paid: "bg-emerald-500/20 text-emerald-400",
+  sent: "bg-info-surface/20 text-info",
+  paid: "bg-positive-surface/20 text-positive",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -395,9 +395,9 @@ export default function Invoices() {
         {[
           // Every figure here is the SERVER's, over the whole filtered set.
           [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],
-          [t("Outstanding", "المستحق"), totals ? fmtNum(totals.outstanding) : "—", "text-amber-400"],
-          [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-emerald-400"],
-          [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-red-400"],
+          [t("Outstanding", "المستحق"), totals ? fmtNum(totals.outstanding) : "—", "text-attention"],
+          [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-positive"],
+          [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-negative"],
         ].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
@@ -455,14 +455,14 @@ export default function Invoices() {
                             onClick={() => openEdit(inv)}>
                             {t("Edit", "تعديل")}
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400"
+                          <Button variant="ghost" size="sm" className="text-xs h-7 text-negative"
                             onClick={() => setConfirmDelete(inv)}>
                             {t("Delete", "حذف")}
                           </Button>
                         </>
                       )}
                       {inv.status !== "paid" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
                       {/* A3 (hub decision: automation woven into the page) —
                           repeat this invoice monthly as DRAFTS for approval. */}

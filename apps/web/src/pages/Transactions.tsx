@@ -196,7 +196,7 @@ const PAGE_SIZE = 50;
                           work and invited the user to "fix" a correct row. */}
                       {tx.kind === "transfer" ? (
                         <div className="flex flex-col gap-1 items-start">
-                          <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/5">
+                          <Badge variant="outline" className="border-info-surface/30 text-info bg-info-surface/5">
                             {t("Transfer", "تحويل")}
                           </Badge>
                           {/*
@@ -233,7 +233,7 @@ const PAGE_SIZE = 50;
                           </select>
                         </div>
                       ) : tx.kind === "settlement" ? (
-                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+                        <Badge variant="outline" className="border-positive-surface/30 text-positive bg-positive-surface/5">
                           {t("Settlement", "تسوية")}
                         </Badge>
                       ) : tx.categoryName ? (
@@ -256,7 +256,7 @@ const PAGE_SIZE = 50;
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         {tx.reviewStatus === "pending_review" && (
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase">
+                          <Badge variant="outline" className="border-attention-surface/30 text-attention-surface bg-attention-surface/5 text-[10px] uppercase">
                             {t("Pending review", "بانتظار المراجعة")}
                           </Badge>
                         )}
@@ -264,7 +264,7 @@ const PAGE_SIZE = 50;
                           <Badge variant="secondary" className="text-[10px] uppercase">{t("Manual", "يدوي")}</Badge>
                         )}
                         {(tx.vatAmount || 0) > 0 && (
-                          <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 text-[10px] uppercase">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
+                          <Badge variant="outline" className="border-positive-surface/30 text-positive-surface bg-positive-surface/5 text-[10px] uppercase">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
                         )}
                       </div>
                     </td>

@@ -13,10 +13,10 @@ interface AgingData {
 }
 
 const BUCKET_COLORS: Record<string, string> = {
-  current: "text-emerald-400",
-  days_1_30: "text-amber-400",
+  current: "text-positive",
+  days_1_30: "text-attention",
   days_31_60: "text-orange-400",
-  days_61_90: "text-red-400",
+  days_61_90: "text-negative",
   over_90: "text-red-600",
 };
 
@@ -74,7 +74,7 @@ export default function ArAging() {
                 {Object.entries(BUCKET_LABELS).map(([key]) => {
                   const pct = data.total > 0 ? ((data.buckets as any)[key] / data.total) * 100 : 0;
                   if (pct === 0) return null;
-                  const bg: Record<string, string> = { current: "bg-emerald-500", days_1_30: "bg-amber-500", days_31_60: "bg-orange-500", days_61_90: "bg-red-500", over_90: "bg-red-700" };
+                  const bg: Record<string, string> = { current: "bg-positive-surface", days_1_30: "bg-attention-surface", days_31_60: "bg-orange-500", days_61_90: "bg-negative-surface", over_90: "bg-red-700" };
                   return <div key={key} style={{ width: `${pct}%` }} className={`h-full transition-all ${bg[key]}`} title={`${BUCKET_LABELS[key]}: ${fmtNum((data.buckets as any)[key])}`} />;
                 })}
               </div>
@@ -120,7 +120,7 @@ export default function ArAging() {
                       </td>
                       <td className="py-3 pe-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
                       <td className="py-3">
-                        <Badge className={`text-xs ${bucket === "current" ? "bg-emerald-500/20 text-emerald-400" : bucket === "days_1_30" ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
+                        <Badge className={`text-xs ${bucket === "current" ? "bg-positive-surface/20 text-positive" : bucket === "days_1_30" ? "bg-attention-surface/20 text-attention" : "bg-negative-surface/20 text-negative"}`}>
                           {BUCKET_LABELS[bucket]}
                         </Badge>
                       </td>

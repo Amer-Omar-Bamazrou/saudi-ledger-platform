@@ -19,7 +19,7 @@ interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDe
 
 interface Asset { id: number; assetNumber: string; name: string; nameAr?: string; purchaseDate: string; purchaseCost: number; salvageValue: number; usefulLifeYears: number; accumulatedDepreciation: number; currentBookValue: number; annualDepreciation: number; monthlyDepreciation: number; depreciationMethod: string; status: string; location?: string; }
 
-const STATUS_STYLES: Record<string, string> = { active: "bg-emerald-500/20 text-emerald-400", "fully-depreciated": "bg-secondary text-muted-foreground", disposed: "bg-red-500/20 text-red-400", sold: "bg-blue-500/20 text-blue-400" };
+const STATUS_STYLES: Record<string, string> = { active: "bg-positive-surface/20 text-positive", "fully-depreciated": "bg-secondary text-muted-foreground", disposed: "bg-negative-surface/20 text-negative", sold: "bg-info-surface/20 text-info" };
 
 const emptyForm = { assetNumber: `FA-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", purchaseDate: new Date().toISOString().split("T")[0], purchaseCost: "", salvageValue: "0", usefulLifeYears: "5", depreciationMethod: "straight-line", location: "", serialNumber: "", notes: "" };
 
@@ -81,8 +81,8 @@ export default function Assets() {
               {form.purchaseCost && form.usefulLifeYears && (
                 <div className="col-span-2 bg-secondary/30 rounded-lg p-3 text-xs">
                   <p className="text-muted-foreground mb-1">{t("Depreciation Preview (Straight-Line)", "معاينة الاستهلاك (القسط الثابت)")}</p>
-                  <div className="flex justify-between"><span>{t("Annual", "سنوي")}</span><span className="font-mono text-amber-400">{fmtNum((Number(form.purchaseCost)-Number(form.salvageValue))/Number(form.usefulLifeYears))}</span></div>
-                  <div className="flex justify-between mt-0.5"><span>{t("Monthly", "شهري")}</span><span className="font-mono text-amber-400">{fmtNum((Number(form.purchaseCost)-Number(form.salvageValue))/(Number(form.usefulLifeYears)*12))}</span></div>
+                  <div className="flex justify-between"><span>{t("Annual", "سنوي")}</span><span className="font-mono text-attention">{fmtNum((Number(form.purchaseCost)-Number(form.salvageValue))/Number(form.usefulLifeYears))}</span></div>
+                  <div className="flex justify-between mt-0.5"><span>{t("Monthly", "شهري")}</span><span className="font-mono text-attention">{fmtNum((Number(form.purchaseCost)-Number(form.salvageValue))/(Number(form.usefulLifeYears)*12))}</span></div>
                 </div>
               )}
             </div>
@@ -92,7 +92,7 @@ export default function Assets() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Assets","الأصول"), paged?.page.total ?? 0, "text-primary"],[t("Total Cost","إجمالي التكلفة"), fmtNum(totalCost), "text-foreground"],[t("Book Value","القيمة الدفترية"), fmtNum(totalBookValue), "text-amber-400"],[t("Accumulated Depreciation","الاستهلاك المتراكم"), fmtNum(totalDepreciation), "text-muted-foreground"]].map(([l,v,c])=>(
+        {[[t("Assets","الأصول"), paged?.page.total ?? 0, "text-primary"],[t("Total Cost","إجمالي التكلفة"), fmtNum(totalCost), "text-foreground"],[t("Book Value","القيمة الدفترية"), fmtNum(totalBookValue), "text-attention"],[t("Accumulated Depreciation","الاستهلاك المتراكم"), fmtNum(totalDepreciation), "text-muted-foreground"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -109,7 +109,7 @@ export default function Assets() {
                   <td className="py-3 pe-3"><div className="font-medium">{a.name}</div><div className="text-xs text-muted-foreground font-mono">{a.assetNumber}</div></td>
                   <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={a.purchaseDate} /></td>
                   <td className="py-3 pe-3 font-mono">{fmtNum(a.purchaseCost)}</td>
-                  <td className="py-3 pe-3 font-mono font-semibold text-amber-400">{fmtNum(a.currentBookValue)}</td>
+                  <td className="py-3 pe-3 font-mono font-semibold text-attention">{fmtNum(a.currentBookValue)}</td>
                   <td className="py-3 pe-3 font-mono text-muted-foreground">{fmtNum(a.accumulatedDepreciation)}</td>
                   <td className="py-3 pe-3 font-mono text-xs text-muted-foreground">{fmtNum(a.monthlyDepreciation)}</td>
                   <td className="py-3 pe-3"><Badge className={`text-xs ${STATUS_STYLES[a.status]??""}`}>{a.status}</Badge></td>

@@ -54,9 +54,9 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>Generate</Button>
             {data && (
-              <div className={`flex items-center gap-2 ms-auto px-3 py-1.5 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
-                {data.balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                <span className={`text-xs font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? "Balanced" : "Out of Balance"}</span>
+              <div className={`flex items-center gap-2 ms-auto px-3 py-1.5 rounded-lg border ${data.balanced ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
+                {data.balanced ? <CheckCircle className="w-4 h-4 text-positive" /> : <XCircle className="w-4 h-4 text-negative" />}
+                <span className={`text-xs font-medium ${data.balanced ? "text-positive" : "text-negative"}`}>{data.balanced ? "Balanced" : "Out of Balance"}</span>
               </div>
             )}
           </div>
@@ -68,7 +68,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
 
       {data && (
         <div className="grid grid-cols-3 gap-4">
-          {[["Entries", data.count, "text-primary"], ["Total Debits", fmtNum(data.grandDebit), "text-blue-400"], ["Total Credits", fmtNum(data.grandCredit), "text-emerald-400"]].map(([l, v, c]) => (
+          {[["Entries", data.count, "text-primary"], ["Total Debits", fmtNum(data.grandDebit), "text-info"], ["Total Credits", fmtNum(data.grandCredit), "text-positive"]].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
               <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
@@ -101,7 +101,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground"><DualDate date={entry.date} /></span>
-                    <Badge variant="outline" className={`text-xs ${entry.balanced ? "border-emerald-500/30 text-emerald-400" : "border-red-500/30 text-red-400"}`}>
+                    <Badge variant="outline" className={`text-xs ${entry.balanced ? "border-positive-surface/30 text-positive" : "border-negative-surface/30 text-negative"}`}>
                       {entry.balanced ? "✓ Balanced" : "✗ Unbalanced"}
                     </Badge>
                   </div>
@@ -122,16 +122,16 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                       <tr key={line.id} className="border-b border-border/30">
                         <td className="py-1.5 pe-4 text-foreground">{line.accountName}</td>
                         <td className="py-1.5 pe-4 text-muted-foreground text-xs">{line.description ?? "—"}</td>
-                        <td className="py-1.5 pe-4 text-end font-mono text-sm">{line.debit > 0 ? <span className="text-blue-400">{fmtNum(line.debit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
-                        <td className="py-1.5 text-end font-mono text-sm">{line.credit > 0 ? <span className="text-emerald-400">{fmtNum(line.credit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
+                        <td className="py-1.5 pe-4 text-end font-mono text-sm">{line.debit > 0 ? <span className="text-info">{fmtNum(line.debit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
+                        <td className="py-1.5 text-end font-mono text-sm">{line.credit > 0 ? <span className="text-positive">{fmtNum(line.credit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-border font-semibold text-xs text-muted-foreground">
                       <td colSpan={2} className="pt-2">Total</td>
-                      <td className="pt-2 text-end font-mono text-blue-400">{fmtNum(entry.totalDebit)}</td>
-                      <td className="pt-2 text-end font-mono text-emerald-400">{fmtNum(entry.totalCredit)}</td>
+                      <td className="pt-2 text-end font-mono text-info">{fmtNum(entry.totalDebit)}</td>
+                      <td className="pt-2 text-end font-mono text-positive">{fmtNum(entry.totalCredit)}</td>
                     </tr>
                   </tfoot>
                 </table>

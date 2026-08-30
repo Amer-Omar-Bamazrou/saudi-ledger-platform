@@ -134,9 +134,9 @@ export default function BalanceSheet() {
             <CompareSelect value={compare} onChange={setCompare} />
             <AsOfShortcuts value={asOf} onSelect={(d)=>{setAsOf(d);setApplied(d);}} />
             {data && (
-              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
-                {balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                <span className={`text-sm font-medium ${balanced ? "text-emerald-400" : "text-red-400"}`}>{balanced ? t("Balanced", "متوازن") : t("Check entries", "تحقق من القيود")}</span>
+              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${balanced ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
+                {balanced ? <CheckCircle className="w-4 h-4 text-positive" /> : <XCircle className="w-4 h-4 text-negative" />}
+                <span className={`text-sm font-medium ${balanced ? "text-positive" : "text-negative"}`}>{balanced ? t("Balanced", "متوازن") : t("Check entries", "تحقق من القيود")}</span>
               </div>
             )}
           </div>
@@ -158,10 +158,10 @@ export default function BalanceSheet() {
         <>
           <div className="grid grid-cols-2 gap-4">
             {[
-              [t("Total Assets", "إجمالي الأصول"), fmtNum(data.assets.total), "text-blue-400"],
-              [t("Total Liabilities", "إجمالي الخصوم"), fmtNum(data.liabilities.total), "text-amber-400"],
+              [t("Total Assets", "إجمالي الأصول"), fmtNum(data.assets.total), "text-info"],
+              [t("Total Liabilities", "إجمالي الخصوم"), fmtNum(data.liabilities.total), "text-attention"],
               [t("Equity", "حقوق الملكية"), fmtNum(data.equity.total), "text-purple-400"],
-              [t("Liab + Equity", "الخصوم + حقوق الملكية"), fmtNum(totalLE), balanced ? "text-emerald-400" : "text-red-400"],
+              [t("Liab + Equity", "الخصوم + حقوق الملكية"), fmtNum(totalLE), balanced ? "text-positive" : "text-negative"],
             ].map(([l, v, c]) => (
               <Card key={String(l)} className="border-border bg-card">
                 <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -177,7 +177,7 @@ export default function BalanceSheet() {
                 <Section
                   title="Assets"
                   titleAr="الأصول"
-                  color="bg-blue-500/10 text-blue-400"
+                  color="bg-info-surface/10 text-info"
                   rows={data.assets.items}
                   extra={[{ label: "Accounts Receivable (AR)", labelAr: "ذمم مدينة (AR)", amount: data.assets.accountsReceivable }]}
                   total={data.assets.total}
@@ -195,7 +195,7 @@ export default function BalanceSheet() {
                   <Section
                     title="Liabilities"
                     titleAr="الخصوم"
-                    color="bg-amber-500/10 text-amber-400"
+                    color="bg-attention-surface/10 text-attention"
                     rows={data.liabilities.items}
                     extra={[{ label: "Accounts Payable (AP)", labelAr: "ذمم دائنة (AP)", amount: data.liabilities.accountsPayable }]}
                     total={data.liabilities.total}
@@ -221,9 +221,9 @@ export default function BalanceSheet() {
                 </CardContent>
               </Card>
 
-              <div className={`rounded-lg px-4 py-3 border flex justify-between items-center ${balanced ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"}`}>
+              <div className={`rounded-lg px-4 py-3 border flex justify-between items-center ${balanced ? "bg-positive-surface/10 border-positive-surface/20" : "bg-negative-surface/10 border-negative-surface/20"}`}>
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("Total Liabilities + Equity", "إجمالي الخصوم + حقوق الملكية")}</span>
-                <span className={`font-mono font-bold text-lg ${balanced ? "text-emerald-400" : "text-red-400"}`}>{fmtNum(totalLE)}</span>
+                <span className={`font-mono font-bold text-lg ${balanced ? "text-positive" : "text-negative"}`}>{fmtNum(totalLE)}</span>
               </div>
             </div>
           </div>

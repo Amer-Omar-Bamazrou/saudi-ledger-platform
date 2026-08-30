@@ -73,7 +73,7 @@ export default function VerificationStatus() {
         <Card className="w-full max-w-lg border-border/50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <CheckCircle2 className="w-5 h-5 text-positive-surface" />
               <CardTitle>{t("Your organization is verified", "تم توثيق مؤسستك")}</CardTitle>
             </div>
             <CardDescription>{status.name}</CardDescription>
@@ -106,7 +106,7 @@ export default function VerificationStatus() {
         <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Icon className={`w-5 h-5 ${isPending ? "text-amber-500" : isNeedsInfo ? "text-amber-500" : "text-red-500"}`} />
+              <Icon className={`w-5 h-5 ${isPending ? "text-attention-surface" : isNeedsInfo ? "text-attention-surface" : "text-negative-surface"}`} />
               <CardTitle>{heading}</CardTitle>
             </div>
             <CardDescription>{status.name}</CardDescription>

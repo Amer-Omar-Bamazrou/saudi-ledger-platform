@@ -13,7 +13,7 @@ import { DualDate } from "@/components/DualDate";
 interface ActivityRow { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lineCount: number; totalDebit: number; accounts: string[]; }
 interface ActivityData { activities: ActivityRow[]; count: number; hasPosted: number; hasDraft: number; }
 
-const STATUS_STYLES: Record<string, string> = { posted: "bg-emerald-500/20 text-emerald-400", draft: "bg-secondary text-muted-foreground", reversed: "bg-red-500/20 text-red-400" };
+const STATUS_STYLES: Record<string, string> = { posted: "bg-positive-surface/20 text-positive", draft: "bg-secondary text-muted-foreground", reversed: "bg-negative-surface/20 text-negative" };
 
 export default function ActivityReport() {
   const today = new Date().toISOString().split("T")[0];
@@ -54,7 +54,7 @@ export default function ActivityReport() {
         <div className="grid grid-cols-3 gap-4">
           {[
             ["Total Entries", data.count, "text-primary"],
-            ["Posted", data.hasPosted, "text-emerald-400"],
+            ["Posted", data.hasPosted, "text-positive"],
             ["Draft", data.hasDraft, "text-muted-foreground"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">

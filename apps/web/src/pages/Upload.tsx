@@ -336,8 +336,8 @@ export default function Upload() {
                     <div className="flex items-center gap-3">
                       <File className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-foreground">{fileName}</span>
-                      <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30">{validCount} {t("valid", "صالح")}</Badge>
-                      {errorCount > 0 && <Badge variant="outline" className="text-xs text-red-400 border-red-400/30">{errorCount} {t("errors", "أخطاء")}</Badge>}
+                      <Badge variant="outline" className="text-xs text-positive border-positive/30">{validCount} {t("valid", "صالح")}</Badge>
+                      {errorCount > 0 && <Badge variant="outline" className="text-xs text-negative border-negative/30">{errorCount} {t("errors", "أخطاء")}</Badge>}
                     </div>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground" onClick={() => { setPreview([]); setFileName(null); }}>
                       <X className="w-3.5 h-3.5" /> {t("Clear", "مسح")}
@@ -357,17 +357,17 @@ export default function Upload() {
                         </thead>
                         <tbody className="divide-y divide-border/50">
                           {preview.map((row, i) => (
-                            <tr key={i} className={`transition-colors ${row._error ? "bg-red-500/5" : "hover:bg-secondary/30"}`}>
+                            <tr key={i} className={`transition-colors ${row._error ? "bg-negative-surface/5" : "hover:bg-secondary/30"}`}>
                               <td className="px-3 py-2">
                                 {row._error
-                                  ? <span title={row._error}><XCircle className="w-4 h-4 text-red-400" /></span>
-                                  : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                                  ? <span title={row._error}><XCircle className="w-4 h-4 text-negative" /></span>
+                                  : <CheckCircle2 className="w-4 h-4 text-positive" />}
                               </td>
                               <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>
                               <td className="px-3 py-2 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">{t("empty", "فارغ")}</span>}</td>
                               <td className="px-3 py-2 font-mono text-end tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
                               <td className="px-3 py-2">
-                                <span className={`text-xs font-medium ${row.type === "credit" ? "text-emerald-400" : "text-red-400"}`}>
+                                <span className={`text-xs font-medium ${row.type === "credit" ? "text-positive" : "text-negative"}`}>
                                   {row.type}
                                 </span>
                               </td>
@@ -381,7 +381,7 @@ export default function Upload() {
 
                   {errorCount > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      <span className="text-red-400 font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("have errors and will be skipped. Fix your file and re-upload to import them.", "تحتوي على أخطاء وسيتم تخطيها. صحّح ملفك وأعد رفعه لاستيرادها.")}
+                      <span className="text-negative font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("have errors and will be skipped. Fix your file and re-upload to import them.", "تحتوي على أخطاء وسيتم تخطيها. صحّح ملفك وأعد رفعه لاستيرادها.")}
                     </p>
                   )}
 
@@ -496,7 +496,7 @@ export default function Upload() {
               <div key={col} className="space-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-mono font-semibold text-foreground">{col}</span>
-                  {req && <span className="text-red-400 text-xs">*</span>}
+                  {req && <span className="text-negative text-xs">*</span>}
                 </div>
                 <p className="text-xs text-muted-foreground">{format}</p>
               </div>

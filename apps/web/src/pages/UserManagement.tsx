@@ -24,9 +24,9 @@ interface Invitation { id: string; email: string; role: string; status: string; 
 const MEMBERSHIP_ROLES = ["viewer", "bookkeeper", "accountant", "admin"] as const;
 
 const ROLE_COLOR: Record<string, string> = {
-  admin: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  accountant: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  bookkeeper: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  admin: "bg-attention-surface/20 text-attention border-attention-surface/30",
+  accountant: "bg-info-surface/20 text-info border-info-surface/30",
+  bookkeeper: "bg-positive-surface/20 text-positive border-positive-surface/30",
   viewer: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
 };
 const ROLE_ICON: Record<string, React.ElementType> = {
@@ -300,7 +300,7 @@ export default function UserManagement() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground truncate">{u.name}</span>
                         {isMe && <span className="text-xs text-muted-foreground">({t("you", "أنت")})</span>}
-                        {!u.isActive && <Badge variant="outline" className="text-xs text-red-400 border-red-400/30">{t("Inactive", "غير نشط")}</Badge>}
+                        {!u.isActive && <Badge variant="outline" className="text-xs text-negative border-negative/30">{t("Inactive", "غير نشط")}</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                     </div>
@@ -328,7 +328,7 @@ export default function UserManagement() {
                     {!isMe && orgRole && (
                       <button
                         onClick={() => removeMemberMut.mutate(u.id)}
-                        className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:border-red-400/40 hover:text-red-400 transition-colors"
+                        className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:border-negative/40 hover:text-negative transition-colors"
                         title={t("Remove from this organization", "إزالة من هذه المنظمة")}
                       >
                         {t("Remove", "إزالة")}
@@ -338,7 +338,7 @@ export default function UserManagement() {
                     {!isMe && (
                       <button
                         onClick={() => patchMut.mutate({ id: u.id, updates: { isActive: !u.isActive } })}
-                        className={`text-xs px-2 py-1 rounded border transition-colors ${u.isActive ? "border-border text-muted-foreground hover:border-red-400/40 hover:text-red-400" : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"}`}
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${u.isActive ? "border-border text-muted-foreground hover:border-negative/40 hover:text-negative" : "border-positive-surface/30 text-positive hover:bg-positive-surface/10"}`}
                       >
                         {u.isActive ? t("Deactivate", "تعطيل") : t("Activate", "تفعيل")}
                       </button>
@@ -434,7 +434,7 @@ export default function UserManagement() {
                     <button onClick={() => resendMut.mutate(inv.id)} className="text-xs text-muted-foreground hover:text-primary">
                       {t("Resend", "إعادة إرسال")}
                     </button>
-                    <button onClick={() => revokeMut.mutate(inv.id)} className="text-xs text-muted-foreground hover:text-red-400">
+                    <button onClick={() => revokeMut.mutate(inv.id)} className="text-xs text-muted-foreground hover:text-negative">
                       {t("Revoke", "إلغاء")}
                     </button>
                   </>

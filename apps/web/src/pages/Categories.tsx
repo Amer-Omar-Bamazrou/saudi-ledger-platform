@@ -215,10 +215,10 @@ export default function Categories() {
                     <div className="text-xs text-muted-foreground font-arabic mt-1" dir="rtl">{cat.nameAr}</div>
                   </td>
                   <td className="px-6 py-4 uppercase text-xs font-bold">
-                    {cat.type === 'income' && <span className="text-emerald-400">{t("Income", "دخل")}</span>}
+                    {cat.type === 'income' && <span className="text-positive">{t("Income", "دخل")}</span>}
                     {cat.type === 'expense' && <span className="text-destructive">{t("Expense", "مصروف")}</span>}
                     {cat.type === 'asset' && <span className="text-primary">{t("Asset", "أصل")}</span>}
-                    {cat.type === 'liability' && <span className="text-amber-500">{t("Liability", "التزام")}</span>}
+                    {cat.type === 'liability' && <span className="text-attention-surface">{t("Liability", "التزام")}</span>}
                     {cat.type === 'equity' && <span className="text-purple-400">{t("Equity", "حقوق الملكية")}</span>}
                   </td>
                   {/*
@@ -239,14 +239,14 @@ export default function Categories() {
                         )}
                       </span>
                     ) : (
-                      <Badge variant="outline" className="border-amber-500/40 text-amber-500 text-[10px]">
+                      <Badge variant="outline" className="border-attention-surface/40 text-attention-surface text-[10px]">
                         {t("Not set", "غير محدد")}
                       </Badge>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      {cat.vatApplicable && <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 text-[10px]">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Badge>}
+                      {cat.vatApplicable && <Badge variant="outline" className="border-positive-surface/30 text-positive-surface text-[10px]">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Badge>}
                       {!cat.vatApplicable && <span className="text-muted-foreground text-xs italic">{t("Standard", "قياسي")}</span>}
                     </div>
                   </td>
