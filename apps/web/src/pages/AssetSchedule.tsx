@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Download } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 /**
@@ -29,16 +32,25 @@ const STATUS_STYLES: Record<string, string> = {
   fully_depreciated: "bg-secondary text-muted-foreground",
 };
 
-export default function AssetSchedule() {
-  const { t } = useLanguage();
-  const { data: assets = [], isLoading } = useQuery<AssetRow[]>({
-    queryKey: ["asset-schedule"],
-    queryFn: () => apiFetch<AssetRow[]>("/assets").catch(() => [] as AssetRow[]),
-  });
+interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDepreciation: number; currentBookValue: number; }
 
-  const totalCost = assets.reduce((s, a) => s + a.purchaseCost, 0);
-  const totalAccumDep = assets.reduce((s, a) => s + a.accumulatedDepreciation, 0);
-  const totalBookValue = assets.reduce((s, a) => s + a.currentBookValue, 0);
+export default function AssetSchedule() {
+  const [page, setPage] = useState(0);
+  const { t } = useLanguage();
+  const { data: paged, isLoading } = useQuery<Paged<AssetRow, AssetTotals>>({
+    queryKey: ["asset-schedule", page],
+    queryFn: () => apiFetch(`/assets?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
+  });
+  const assets = paged?.items ?? [];
+
+  /**
+   * 🔴 From the server, over the whole register. The `.catch(() => [])` that
+   * used to wrap this fetch is gone with it: a caught shape mismatch renders an
+   * empty register, which is a confident wrong answer rather than an error.
+   */
+  const totalCost = paged?.totals.purchaseCost ?? 0;
+  const totalAccumDep = paged?.totals.accumulatedDepreciation ?? 0;
+  const totalBookValue = paged?.totals.currentBookValue ?? 0;
 
   return (
     <div className="space-y-6">
@@ -52,7 +64,7 @@ export default function AssetSchedule() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Assets", assets.filter(a => a.status === "active").length, "text-primary"],
+          ["Total Assets", paged?.totals.activeCount ?? 0, "text-primary"],
           ["Total Cost", fmtNum(totalCost), "text-primary"],
           ["Accumulated Dep.", fmtNum(totalAccumDep), "text-red-400"],
           ["Net Book Value", fmtNum(totalBookValue), "text-emerald-400"],
@@ -109,6 +121,12 @@ export default function AssetSchedule() {
               </tfoot>
             </table>
           )}
+          <ListPagination
+            page={paged?.page}
+            shown={assets.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

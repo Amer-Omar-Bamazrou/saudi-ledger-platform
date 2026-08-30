@@ -9,6 +9,7 @@ const PRODUCT_FIELDS = [
 ] as const;
 import { auditService } from "./audit.service";
 import { productsRepository, type ProductListFilter } from "../repositories/products.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { productsTable } from "@workspace/db";
 
 type Product = typeof productsTable.$inferSelect;
@@ -23,8 +24,16 @@ const toView = (p: Product) => ({
 
 export const productsService = {
   async list(filter: ProductListFilter) {
-    const rows = await productsRepository.list(filter);
-    return rows.map(toView);
+    const [rows, totals] = await Promise.all([
+      productsRepository.list(filter),
+      productsRepository.listTotals(filter),
+    ]);
+    const { total, ...counts } = totals;
+    return {
+      items: rows.map(toView),
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals: counts,
+    };
   },
 
   async getById(id: number) {

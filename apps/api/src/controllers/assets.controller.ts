@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
 import { assetsService } from "../services/assets.service";
-import { requireIdParam } from "../lib/httpParams";
+import { pageParams, requireIdParam } from "../lib/httpParams";
 
 export const assetsController = {
-  async list(_req: Request, res: Response) {
-    res.json(await assetsService.list());
+  async list(req: Request, res: Response) {
+    res.json(await assetsService.list(pageParams(req.query as Record<string, unknown>)));
   },
   async get(req: Request, res: Response) {
     res.json(await assetsService.getById(requireIdParam(req)));

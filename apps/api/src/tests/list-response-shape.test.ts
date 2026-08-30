@@ -163,13 +163,17 @@ interface Ctx {
   companyId: string;
 }
 
-/** endpoint → the real response, via the real service, inside a tenant transaction. */
-const FIXTURES: Record<string, () => Promise<unknown[]>> = {
+/**
+ * endpoint → the real response, via the real service, inside a tenant
+ * transaction. A fixture may return a bare array or the `{items, page, totals}`
+ * envelope; `rowsOf` normalizes, so converting an endpoint to pagination does
+ * not silently drop it out of coverage — the failure mode this guard's own
+ * shrink-check caught once already.
+ */
+const FIXTURES: Record<string, () => Promise<unknown>> = {
   "/assets": async () => (await import("../services/assets.service")).assetsService.list(),
-  "/customers": async () =>
-    ((await (await import("../services/customers.service")).customersService.list({})).items as unknown[]),
-  "/vendors": async () =>
-    ((await (await import("../services/vendors.service")).vendorsService.list({})).items as unknown[]),
+  "/customers": async () => (await import("../services/customers.service")).customersService.list({}),
+  "/vendors": async () => (await import("../services/vendors.service")).vendorsService.list({}),
   "/employees": async () => (await import("../services/employees.service")).employeesService.list({}),
   "/bank-accounts": async () => (await import("../services/bankAccounts.service")).bankAccountsService.list(),
   "/products": async () => (await import("../services/products.service")).productsService.list({}),
@@ -177,22 +181,24 @@ const FIXTURES: Record<string, () => Promise<unknown[]>> = {
   "/categories": async () => (await import("../services/categories.service")).categoriesService.list(),
   "/payroll": async () => (await import("../services/payroll.service")).payrollService.list(),
   "/period-locks": async () => (await import("../services/periodLocks.service")).periodLocksService.list(),
-  /**
-   * 🔴 The paginated one, and the reason it is here. `/invoices` returns
-   * `{items, page, totals}`; a page declaring `useQuery<Invoice[]>` over it
-   * gets an object where it expects an array. That is B1's defect exactly, and
-   * it is the shape two pages of this codebase were shipped with. The fixture
-   * unwraps `items` so the FIELD check still runs, and the envelope check below
-   * catches a page that never unwraps it.
-   */
-  "/invoices": async () => {
-    const { invoicesService } = await import("../services/invoices.service");
-    return (await invoicesService.list({})).items as unknown[];
-  },
+  "/invoices": async () => (await import("../services/invoices.service")).invoicesService.list({}),
 };
 
-/** Endpoints whose real response is an envelope rather than a bare array. */
-const ENVELOPE_ENDPOINTS = new Set(["/invoices", "/customers", "/vendors"]);
+/**
+ * Endpoints whose real response is the `{items, page, totals}` envelope. A page
+ * declaring `useQuery<Invoice[]>` over one of these gets an OBJECT where it
+ * expects an array, throws on the first `.filter`, and renders nothing — B1's
+ * blank page exactly, and the shape two pages of this codebase were shipped
+ * with earlier in this stack.
+ */
+const ENVELOPE_ENDPOINTS = new Set(["/invoices", "/customers", "/vendors", "/assets"]);
+
+/** A fixture's rows, whether it returned a bare array or the envelope. */
+function rowsOf(result: unknown): Record<string, unknown>[] {
+  if (Array.isArray(result)) return result as Record<string, unknown>[];
+  const items = (result as { items?: unknown }).items;
+  return Array.isArray(items) ? (items as Record<string, unknown>[]) : [];
+}
 
 async function inTenant<T>(ctx: Ctx, fn: () => Promise<T>): Promise<T> {
   const { beginTenantConnection } = await import("@workspace/db");
@@ -308,7 +314,7 @@ describeMaybe("a page's declared list type matches the real response", () => {
     );
 
     for (const [endpoint, fetchRows] of Object.entries(FIXTURES)) {
-      const rows = (await inTenant(ctx, fetchRows)) as Record<string, unknown>[];
+      const rows = rowsOf(await inTenant(ctx, fetchRows));
       rowCounts.set(endpoint, rows.length);
       observed.set(endpoint, new Set(rows.length > 0 ? Object.keys(rows[0]) : []));
     }
