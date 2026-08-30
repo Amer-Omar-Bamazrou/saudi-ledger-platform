@@ -122,6 +122,28 @@ export default function Upload() {
       onSuccess: (res) => {
         toast({ title: t("Import successful", "تم الاستيراد بنجاح"), description: `${res.inserted} ${t("rows inserted", "صفوف مُدرجة")} · ${res.categorized} ${t("auto-categorised", "مصنّف تلقائياً")}` });
         if (res.errors?.length) toast({ title: `${res.errors.length} ${t("row errors", "أخطاء في الصفوف")}`, description: res.errors[0], variant: "destructive" });
+        /**
+         * 🔴 The skipped rows, finally SHOWN.
+         *
+         * The API has returned `duplicates` since the audit that added it — the
+         * stated mitigation for rows the import drops — and no page has ever
+         * read it. An unread field standing in for a fix is worse than no fix:
+         * it makes the gap look closed, which is why S-1's real defect (a
+         * genuinely repeated statement line being dropped) survived as long as
+         * it did. Now that the ingest counts by MULTIPLICITY, this list means
+         * something narrower and true: rows this account already held.
+         */
+        if (res.duplicates?.length) {
+          const first = res.duplicates[0]!;
+          toast({
+            title: `${res.duplicates.length} ${t("already in this account — skipped", "موجودة بالفعل في هذا الحساب — تم تخطيها")}`,
+            description: `${first.date} · ${first.description} · ${first.amount}${
+              res.duplicates.length > 1
+                ? ` ${t(`and ${res.duplicates.length - 1} more`, `و${res.duplicates.length - 1} أخرى`)}`
+                : ""
+            }`,
+          });
+        }
         setPreview([]); setFileName(null); setCsvData("");
         setManualRows([{ date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" }]);
         qc.invalidateQueries({ queryKey: getListTransactionsQueryKey() });

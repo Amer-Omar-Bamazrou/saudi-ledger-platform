@@ -34,6 +34,7 @@ See CONTRIBUTING.md for conventions.
   - [ ] if this PR implements something, grep for tests asserting it is
         absent/throwing and re-read each hit
 - [ ] Docs (`CLAUDE.md`, `docs/`) updated if behavior or architecture changed
+- [ ] Any design doc added or extended carries **"What we rejected, and why"**
 - [ ] Commits are focused and follow the `type(scope): description` convention
 
 ## Notes for reviewers

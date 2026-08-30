@@ -151,7 +151,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // first. Keying on the first would make a half-finished run report "already
   // seeded" over an incomplete org — which is how the first draft failed.
   const priorPos = await inTenant(() => purchaseOrdersService.list({} as never));
-  if (priorPos.length > 0) {
+  if (priorPos.page.total > 0) {
     console.log("[sample] already seeded — nothing to do (re-running is a no-op by design).");
     return;
   }
@@ -178,8 +178,10 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // ── Counterparties and a bank account ────────────────────────────────────
   // GET-OR-CREATE: a re-run after a partial failure reuses what is already
   // there instead of producing a second "Najd Contracting Co.".
-  const customers = await inTenant(() => customersService.list({} as never));
-  const vendors = await inTenant(() => vendorsService.list({} as never));
+  // A page, asked for explicitly: these lookups scan the seeded set, which is
+  // far smaller than the ceiling, and an implicit default would be a silent cap.
+  const customers = (await inTenant(() => customersService.list({ limit: 200 } as never))).items;
+  const vendors = (await inTenant(() => vendorsService.list({ limit: 200 } as never))).items;
   const findC = (name: string) => customers.find((c: { name: string }) => c.name === name);
   const findV = (name: string) => vendors.find((v: { name: string }) => v.name === name);
 
@@ -200,7 +202,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
   );
 
   // ── Invoices: issued (so they post) across three months ──────────────────
-  // `autoApprove: true` is the approver path — these are ISSUED invoices, which
+  // These are ISSUED invoices — created as drafts, then approved explicitly, which
   // is what makes revenue, AR and output VAT appear in the reports.
   const invoiceSpecs = [
     { date: `${M1}-08`, customerId: custA.id, items: [{ description: "Site survey — phase 1", quantity: 1, unitPrice: 18000, vatRate: 15 }] },
@@ -211,7 +213,14 @@ async function seedAll(inTenant: InTenant, userId: number) {
   ];
   const invoices: { id: number; total: number }[] = [];
   for (const spec of invoiceSpecs) {
-    invoices.push(await inTenant(() => invoicesService.create(spec as never, userId, { autoApprove: true })));
+    // 🔴 Two acts, not one: auto-approve was removed from the product
+    // (2026-08-28), so a seed that wants an ISSUED invoice issues it explicitly.
+    invoices.push(
+      await inTenant(async () => {
+        const draft = await invoicesService.create(spec as never, userId);
+        return invoicesService.approve((draft as { id: number }).id, userId);
+      }),
+    );
   }
 
   // One invoice PAID in full and one PARTIALLY paid, so AR aging, the
@@ -266,9 +275,9 @@ async function seedAll(inTenant: InTenant, userId: number) {
         ],
       } as never,
       userId,
-      { autoApprove: true },
     ),
   );
+  await inTenant(() => quotationsService.approve((quotation as { id: number }).id, userId));
 
   // ── A purchase order (M21.3) — approved, partially billed ────────────────
   const po = await inTenant(() =>
@@ -282,9 +291,9 @@ async function seedAll(inTenant: InTenant, userId: number) {
         ],
       } as never,
       userId,
-      { autoApprove: true },
     ),
   );
+  await inTenant(() => purchaseOrdersService.approve((po as { id: number }).id, userId));
 
   console.log(
     [

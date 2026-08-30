@@ -11,7 +11,8 @@
  *
  * Balancing, immutability guards, and reversal are preserved exactly.
  */
-import { ConflictError, NotFoundError } from "../lib/errors";
+import { ConflictError, NotFoundError, BusinessRuleError } from "../lib/errors";
+import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -20,13 +21,20 @@ import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
-import { journalEntriesRepository } from "../repositories/journalEntries.repository";
+import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE } from "../repositories/journalEntries.repository";
 import type { journalEntriesTable } from "@workspace/db";
 
 export const journalEntriesService = {
-  async list(status?: string) {
-    const rows = await journalEntriesRepository.list(status);
-    return rows.map((r) => buildJEOut(r));
+  /** A PAGE of entries, plus the count for the whole filtered set. */
+  async list(filter: { status?: string; limit?: number; offset?: number } = {}) {
+    const [rows, meta] = await Promise.all([
+      journalEntriesRepository.list(filter),
+      journalEntriesRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildJEOut(r)),
+      page: { limit: filter.limit ?? JE_PAGE, offset: filter.offset ?? 0, total: meta.total },
+    };
   },
 
   async getById(id: number) {
@@ -42,6 +50,21 @@ export const journalEntriesService = {
     // can NEVER come from the client: a POST with `{status:"posted"}` used to
     // bypass approval straight into every report. The entry is always a draft;
     // posting is the approval transition.
+
+    /**
+     * 🔴 Server-allocated when the caller leaves it blank — the AUD-1 fix,
+     * swept to the documents it originally missed.
+     *
+     * The browser used to mint `JE-${Date.now().toString().slice(-6)}`, which
+     * wraps every ~16.7 minutes onto a column with NO unique index: a collision
+     * produced two financial records claiming to be the same document, and
+     * nothing refused it. A caller-supplied number is still honoured (legacy
+     * imports and a user who types their own); blank is what asks the server.
+     */
+    if (!String(body.entryNumber ?? "").trim()) {
+      body.entryNumber = await documentNumbersRepository.allocate("journal_entry");
+    }
+
     const jeData = pick<{ entryNumber: string; date: string; description: string; reference: string; notes: string }>(
       body,
       ["entryNumber", "date", "description", "reference", "notes"],
@@ -67,7 +90,25 @@ export const journalEntriesService = {
     // two numbers, the user-facing one LOOSER than the ledger's. See
     // GL_BALANCE_TOLERANCE for what that gap was and why it stayed latent.
     if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
-      throw new BadRequestError("Journal entry must balance: debits must equal credits");
+      /**
+       * 🔴 422, not 400 — the status policy (2026-08-23): 400 is a SCHEMA
+       * failure, 422 is input that parsed cleanly and is semantically invalid.
+       * Every line here is a well-formed number; they simply do not balance,
+       * which is exactly the 422 case. It answered 400 only because it predates
+       * the policy.
+       *
+       * The message now carries both totals and the difference, because "must
+       * balance" without them makes the user hunt for a discrepancy the server
+       * has already computed.
+       */
+      const difference = Math.round((totalDebit - totalCredit) * 100) / 100;
+      throw new BusinessRuleError(422, {
+        error:
+          `Journal entry must balance: debits (${totalDebit.toFixed(2)}) must equal ` +
+          `credits (${totalCredit.toFixed(2)}). Difference: ${difference.toFixed(2)}.`,
+        code: "journal_entry_unbalanced",
+        field: "lines",
+      });
     }
 
     // 🔴 M13: every line must name an account. This is a BEHAVIOURAL CHANGE.
@@ -170,7 +211,18 @@ export const journalEntriesService = {
     return { message: "Reversed", reversalId: reversal.id, reversal: reversalOut };
   },
 
-  async remove(id: number) {
+  /**
+   * 🔴 Named `deleteDraft`, not `remove`, because that is what it does.
+   *
+   * The route is `DELETE /<resource>/:id` — correct, it addresses the resource —
+   * but the verb implies a delete that mostly is NOT one: an issued invoice
+   * cannot be deleted at all, and the refusal ("Issued invoices must be
+   * reversed with a credit note") is the normal case rather than the edge. A
+   * service method called `remove` invites a caller to believe otherwise. The
+   * name now states the precondition the body enforces, so a reader sees it
+   * before reaching the guard.
+   */
+  async deleteDraft(id: number) {
     const [existing] = await journalEntriesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {

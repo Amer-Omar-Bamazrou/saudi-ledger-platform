@@ -107,6 +107,19 @@ const SLUG = "med-validation";
 const SLUG_B = "med-validation-b";
 const EMAIL = "med-validation@test.local";
 
+/**
+ * 🔴 FIXTURE NOTE (2026-08-28): these creates used to pass `items: []`.
+ *
+ * `invoicesService.create` now refuses a line-less invoice — it would be issued
+ * at SAR 0.00, consuming an ICV and a ZATCA chain position irreversibly — so
+ * the fixtures carry a real line. Nothing these tests ASSERT has changed: they
+ * are about reference validation (422) and re-dating into a closed period
+ * (423), and a realistic fixture exercises both the same way.
+ *
+ * One of them ("create with the tenant's OWN customer still succeeds") was
+ * implicitly asserting that a line-less invoice is creatable. That assertion
+ * expired the day the rule landed.
+ */
 describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating", () => {
   let orgId = "";
   let companyId = "";
@@ -194,7 +207,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
 
   it("invoice create with a nonexistent customerId → 422 reference_not_found (was a raw FK 500)", async () => {
     await expect(
-      inTenant(() => invoicesService.create({ date: "2026-07-10", customerId: NONEXISTENT, items: [] }, userId)),
+      inTenant(() => invoicesService.create({ date: "2026-07-10", customerId: NONEXISTENT, items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)),
     ).rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "reference_not_found", field: "customerId" }) });
   });
 
@@ -203,18 +216,18 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
     const { rows } = await pool.query(`SELECT id FROM customers WHERE id = $1`, [orgBCustomerId]);
     expect(rows).toHaveLength(1);
     await expect(
-      inTenant(() => invoicesService.create({ date: "2026-07-10", customerId: orgBCustomerId, items: [] }, userId)),
+      inTenant(() => invoicesService.create({ date: "2026-07-10", customerId: orgBCustomerId, items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)),
     ).rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "reference_not_found" }) });
   });
 
   it("invoice create with the tenant's OWN customer still succeeds (the fix narrows, it does not break)", async () => {
-    const out = await inTenant(() => invoicesService.create({ date: "2026-07-10", customerId, items: [] }, userId));
+    const out = await inTenant(() => invoicesService.create({ date: "2026-07-10", customerId, items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId));
     expect(out.customerId).toBe(customerId);
   });
 
   it("bill create with a nonexistent vendorId → 422", async () => {
     await expect(
-      inTenant(() => billsService.create({ date: "2026-07-10", vendorId: NONEXISTENT, items: [] }, userId)),
+      inTenant(() => billsService.create({ date: "2026-07-10", vendorId: NONEXISTENT, items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)),
     ).rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "reference_not_found", field: "vendorId" }) });
   });
 
@@ -306,7 +319,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
   // ── Re-dating a draft into a closed month ─────────────────────────────────
 
   it("🔴 PATCHing a draft invoice's date into a closed month → 423 period_closed (create refused it; PATCH did not)", async () => {
-    const inv = await inTenant(() => invoicesService.create({ date: "2026-07-15", items: [] }, userId));
+    const inv = await inTenant(() => invoicesService.create({ date: "2026-07-15", items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId));
     expect(inv.status).toBe("draft");
     await pool.query(
       `INSERT INTO period_locks (organization_id, company_id, period) VALUES ($1,$2,'2026-06') ON CONFLICT DO NOTHING`,
@@ -322,7 +335,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
 
   it("the bill twin: PATCHing a draft bill's date into the closed month → 423", async () => {
     const bill = await inTenant(() =>
-      billsService.create({ billNumber: "MED-BILL-1", date: "2026-07-15", vendorId, items: [] }, userId),
+      billsService.create({ billNumber: "MED-BILL-1", date: "2026-07-15", vendorId, items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId),
     );
     await expect(
       inTenant(() => billsService.update(bill.id, { date: "2026-06-10" })),
@@ -330,7 +343,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
   });
 
   it("re-dating a draft into an OPEN month still works (the guard checks the new date, not the act of editing)", async () => {
-    const inv = await inTenant(() => invoicesService.create({ date: "2026-07-15", items: [] }, userId));
+    const inv = await inTenant(() => invoicesService.create({ date: "2026-07-15", items: [{ description: "Line", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId));
     const out = await inTenant(() => invoicesService.update(inv.id, { date: "2026-08-05" }));
     expect(out.date).toBe("2026-08-05");
   });

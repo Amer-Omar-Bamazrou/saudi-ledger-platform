@@ -182,9 +182,7 @@ describeMaybe("M12.8 — issuance enqueues a signed ZATCA document, from real le
           customerId,
           items: [{ description: "Item", quantity: 1, unitPrice: 100, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     return inv.id;
   }
@@ -322,9 +320,7 @@ describeMaybe("M12.8 — issuance enqueues a signed ZATCA document, from real le
           customerId: b2bId,
           items: [{ description: "Consulting", quantity: 1, unitPrice: 500, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await approve(companyId, inv.id);
 

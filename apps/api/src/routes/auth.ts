@@ -5,7 +5,11 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
 import { PostgresRateLimitStore } from "../lib/rateLimitStore";
-import { db } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Identity layer: `users` and `organization_memberships` are OUTSIDE RLS (§4) and this runs BEFORE tenant resolution, so there is no tenant handle to use.
+// The `db` proxy now REFUSES a query outside a tenant transaction rather than
+// falling back here silently, so this import states what was previously assumed.
+import { ownerDb as db } from "@workspace/db";
 import { usersTable, organizationMembershipsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";

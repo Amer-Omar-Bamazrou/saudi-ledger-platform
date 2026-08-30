@@ -61,12 +61,80 @@ const tenantStorage = new AsyncLocalStorage<TenantStore>();
  * `import { db }` call sites become tenant-scoped with no code changes, while
  * the M6 layering refactor is still pending.
  */
+/**
+ * The methods on this handle that actually reach the database.
+ *
+ * Only these are refused outside a tenant scope. Property probes — `then`,
+ * `Symbol.toStringTag`, whatever `util.inspect` and drizzle's own internals
+ * touch — must stay harmless, or the guard breaks unrelated things while
+ * claiming to protect the ledger.
+ */
+const DB_REACHING_METHODS = new Set([
+  "select",
+  "selectDistinct",
+  "selectDistinctOn",
+  "insert",
+  "update",
+  "delete",
+  "execute",
+  "transaction",
+  "batch",
+  "with",
+  "$with",
+  "$count",
+]);
+
+/**
+ * Raised when a query is attempted through {@link db} outside a tenant
+ * transaction. Named so it can be asserted on and never mistaken for a
+ * connection error.
+ */
+export class UnscopedDatabaseAccessError extends Error {
+  constructor(method: string) {
+    super(
+      `db.${method}() was called outside a tenant transaction. The tenant-scoped handle is ` +
+        `unavailable here, and falling back to the owner connection would run the query with ` +
+        `RLS BYPASSED and no app.current_org_id — a silent cross-tenant read or write. ` +
+        `If this call is deliberately cross-tenant (a platform job, migration, seeding, auth, ` +
+        `or tenant resolution), import { ownerDb } and say so; otherwise wrap the call in ` +
+        `beginTenantConnection().run().`,
+    );
+    this.name = "UnscopedDatabaseAccessError";
+    Object.setPrototypeOf(this, UnscopedDatabaseAccessError.prototype);
+  }
+}
+
 export const db: DB = new Proxy(baseDb, {
   get(target, prop) {
-    const active = tenantStorage.getStore()?.db ?? target;
-    const value = Reflect.get(active as object, prop);
+    const active = tenantStorage.getStore()?.db;
+
+    /**
+     * 🔴 NO SILENT FALLBACK. This used to be `?? target` — outside a tenant
+     * scope the handle quietly became the OWNER connection: RLS bypassed, no
+     * `app.current_org_id`, full cross-tenant reach, and no error of any kind.
+     *
+     * The accounting core depends on that never happening and says so in a
+     * comment: `glPosting.resolveAccounts` writes no organization filter
+     * because "this runs inside the request's tenant transaction". So the core
+     * trusted a fact its CALLER controlled, and the failure mode was a wrong
+     * answer rather than a refusal — posting one tenant's entries against
+     * another's accounts, silently, in the layer with the least tolerance for
+     * it. Ranked first in §5 despite having no live instance, because nothing
+     * stopped the next caller from creating one.
+     *
+     * Now the wrong thing is INEXPRESSIBLE rather than merely unwise (§3): the
+     * unscoped query cannot be written through this handle at all, and the
+     * deliberate cross-tenant path has a different name — `ownerDb` — that a
+     * reader can see and a reviewer can question.
+     */
+    if (!active && typeof prop === "string" && DB_REACHING_METHODS.has(prop)) {
+      throw new UnscopedDatabaseAccessError(prop);
+    }
+
+    const resolved = active ?? target;
+    const value = Reflect.get(resolved as object, prop);
     return typeof value === "function"
-      ? (value as (...args: unknown[]) => unknown).bind(active)
+      ? (value as (...args: unknown[]) => unknown).bind(resolved)
       : value;
   },
 });

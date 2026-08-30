@@ -3,13 +3,40 @@
 Guidance for Claude Code (and any AI agent) working in this repository.
 
 > **This file is the OPERATING context only**: where things stand, what must not
-> be broken, the standing checks, the pre-production queue, and conventions.
-> The narrative history — per-milestone as-built records, the findings with
-> their incidents and evidence — lives in [`docs/history/`](docs/history/) and
-> is linked from here. **Keep it that way:** when a milestone closes, update
-> §2 Current State here (a few lines + a link) and put the full record in
-> `docs/history/`. This file must stay well under 100k characters; it was once
-> 207k and truncated in every session that loaded it.
+> be broken, the standing checks, the OPEN pre-production queue, and
+> conventions. The narrative history — per-milestone as-built records, the
+> findings with their incidents and evidence, the queue items that already
+> closed — lives in [`docs/history/`](docs/history/) and is linked from here.
+>
+> 🔴 **BUDGET: 75k characters, enforced by `apps/api/src/tests/claude-md-budget.test.ts`.**
+> It was 207k (truncated in every session that loaded it), restructured to 35k,
+> and back to 157k within four weeks. Prose asking for restraint has now failed
+> twice, so the limit is a failing test instead. The file sits at ~63k, so the
+> headroom is deliberate — **and raising the number is not a fix.** When the test
+> goes red, something in here has become history; find it with the three rules
+> below.
+>
+> 🔴 **The three eviction rules — this file grows because writing has a trigger
+> and deleting has none.** Each rule names the moment a line LEAVES:
+>
+> 1. **A queue item leaves §5 in the commit that closes it.** Not "later, in a
+>    housekeeping pass" — §5 is what is still open, and a closed item's
+>    as-built record belongs in `docs/history/`. 54% of §5 was closed work.
+>    🔴 **The reusable form: CLOSED ITEMS DON'T STOP BEING WRITTEN.** Closing
+>    something is when it is best understood, so it attracts the longest entry
+>    it will ever have — at the exact moment it stops being operating context.
+>    The queue does not grow because work is slow; it grows because finishing
+>    is when people write.
+> 2. **A §3 lesson is ONE line, and the incident goes to
+>    [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) in the
+>    same commit.** §3 has said "one line each" since the last restructure and
+>    grew to 35k anyway, because the session that finds something is the
+>    session with the most to say about it. If your entry needs a paragraph to
+>    be understood, the paragraph is history and the line is the rule.
+> 3. **§2 states STATUS, never as-built.** A few lines and a link. The moment
+>    a milestone's entry explains *how* it was built, it is a history record
+>    living in the wrong file — every one of them already had a design doc that
+>    §2 both linked to and re-summarised at length.
 
 ## 1. Project Overview
 
@@ -21,374 +48,56 @@ multi-tenant SaaS platform. The accounting core is real and correct — invoices
 bills, journal entries, GL posting, period locks, VAT, and Zakat all work today.
 When in doubt, favor evolving the existing system over replacing it.
 
+
 ## 2. Current State
 
-**Last updated: 2026-08-27.** 🔴 **F1 CLOSED — a cross-tenant ACCOUNT TAKEOVER (HIGH)**, and 🔴 **F2 CLOSED — the operator job runner's reach was inherited from the scheduler registry rather than decided** (three offered, nine permitted; `capture-promotion` genuinely ran, unaudited). Both are the same class, now named in §3: **a composition defect is invisible to any review that reads one file at a time.** F1: any admin of any approved organization could graft a stranger's account into their own org (`POST /orgs/:orgId/members` required no consent, and `users.id` is a `serial`), making it "in scope", then reset its password and log in — into every tenant that account reached. Fixed by CONFINEMENT ([`lib/accountScope.ts`](apps/api/src/lib/accountScope.ts)). F2 fixed by the operator surface declaring its own reach ([`lib/operatorJobs.ts`](apps/api/src/lib/operatorJobs.ts)), refused at route and service, and audited. Both takeovers/reaches are executable regression tests, verified by re-injection. Also this session: the **accounting-core throws AUDITED and closed** (the last 2026-08-20 blind spot), single currency at the write boundary (#92), the owner-action checklist (#93), RTL logical properties across app code (#94), and the design pass's inherited decisions in [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md) — including that **RTL is incomplete** while the vendored primitives stay unowned. **Audit order in flight (owner): operator surface ✅ → accounting-core services → the write paths. 🔴 **A hypothesised G-1 (that `assertOrgAdmin` exempts platform operators, letting an operator add themselves to a tenant as admin) was CHECKED AND DOES NOT EXIST** — operator status is consulted in four places, none an authz path; now pinned behaviourally by [`tests/operator-tenant-boundary.test.ts`](apps/api/src/tests/operator-tenant-boundary.test.ts). The **privilege surface map** ([`tests/privilege-surface-map.test.ts`](apps/api/src/tests/privilege-surface-map.test.ts)) now derives what each privilege reaches from the LIVE router stack and fails when it drifts — 🔴 it covers the positional shape only, and would NOT have caught F1 (§3).**
+**Last updated: 2026-08-28.** Full as-built narrative for everything below:
+[`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**Previously (2026-08-24): AI track complete — 3a findings, 5 scheduler+escalation, 3b explanations dark, 6a grounded answers dark; audit MED+LOW tables fully closed; R1 billing gap queued; state snapshot: [`docs/product/state-of-the-platform-2026-08-24.md`](docs/product/state-of-the-platform-2026-08-24.md). Owner actions (live, tickable): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the writer for their state; the snapshot is frozen history.)**
+**2026-08-28 → 30 — six passes** (merged, or in PR #104/#105). Full record:
+[`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
-**Pre-AI security pass — CLOSED (2026-08-20, PRs #57 + #58).** In order: **C9**
-(VAT treatments verified against the primary source; `FOOD_MEALS` was a live
-wrong default), a **five-area read-only audit** whose CRITICAL + HIGH findings
-were fixed in the same pass (write-boundary allowlists, the inverse route
-guard, RLS coverage as a permanent test, H2/H3), then **C1** (shared
-Postgres rate-limit store; `TRUST_PROXY_HOPS` / `SESSION_COOKIE_SECURE` as
-explicit env facts), **C2** (the M11.4 document suite now RUNS in CI —
-measured: 822 passed | 9 skipped → **835 passed | 0 skipped**), **C4**
-(malware-scanner seam wired into both upload paths), **C5** (issuance
-diagnosability). Everything MED/LOW is queued below, deliberately unfixed.
-🔴 Three DEPLOYMENT-time items remain and cannot be closed from code: the real
-proxy count for `TRUST_PROXY_HOPS`, a clamd sidecar for `MALWARE_SCANNER`, and
-B1/B2's provider wiring.
+- 🔴 **8 of 15 findings sat in the layer a user touches**; every automated test
+  runs a layer below it. **P5** (§5) closes that, and now carries the incident
+  that proves it.
+- **P4** computes reachability from the transition graph; its gap lists emptied
+  themselves.
+- **AUD-13** is the composition class's worked example; its artefact,
+  `INV-2026-000049`, stays deliberately.
+- **No auto-approve**, **`db` refuses an unscoped query**, **ledger lists
+  paginate with SQL totals**, **document numbers are server-allocated** (§4).
 
-**Audit close-out (2026-08-14):** two owner-approved read-only audits
-(accounting correctness under adversarial input; disconnection sweep M13→A3)
-found and fixed, in order: the VAT return's header-rate reconstruction
-(mixed-rate/small/exempt documents vanished from the filing figure — now
-line-level from `tax_category_code`), header≠Σlines rounding (BR-CO-14-invalid
-UBL + GL imbalance — headers are now sums of rounded lines), the Categorize
-run rewriting ACCEPTED rows (now gated to pending+operating at the repository),
-"Z/E/O ⇒ no VAT" as DB CHECK 0034, settlement rows undeletable/uneditable,
-A1's capture pipeline wired to its first caller (ScanReview → staged evidence),
-A3's first frontend (+ the `ZATCA_WORKER_ENABLED` scope-drift fix — platform
-jobs now always schedule), credit-aware outstanding everywhere on the
-receivable side (aging nets notes and always agrees with GL AR), cash-flow
-internal-movements bucketing, and honest kind badges in the transactions list.
-Full findings: [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md);
-unfixed leftovers tracked under "Other open findings".
-If this block disagrees with reality, fix it first.
+**Where things stand, in one table.** Status only; the record is the link.
 
-### Where we are
-
-| Phase | Status | Record |
+| Area | Status (2026-08-28) | Record |
 | --- | --- | --- |
-| **Phase 0** — Platform Foundation (M1–M10) | ✅ Complete. Multi-tenancy + RLS, auth/session hardening, RBAC, layering, CI/CD, audit logging, draft/approval workflow + 4-role model. | [`docs/history/phase-0-platform-foundation.md`](docs/history/phase-0-platform-foundation.md) |
-| **Phase 1** — Onboarding & Multi-Company (M11.1–M11.7) | ✅ Complete. Self-service signup behind a verification gate, platform operators, document upload, company/ZATCA identity, invitations. Includes the M11.5.1 CRITICAL security hotfix. | [`docs/history/phase-1-onboarding-m11.md`](docs/history/phase-1-onboarding-m11.md) |
-| **Phase 2** — ZATCA Phase 2 / Fatoora (M12) | 🟡 **Closed except M12.7 + M12.9**, blocked on a real Saudi taxpayer registration. Everything buildable without ZATCA credentials is done. | [`docs/history/phase-2-zatca-m12.md`](docs/history/phase-2-zatca-m12.md) + [`docs/zatca/m12-status.md`](docs/zatca/m12-status.md) |
-| **M13** — Chart of accounts | ✅ Seeded system chart + `system_code` resolution in the posting path; income-statement classification fixed; balance-sheet AR/AP moved to the GL. | [`docs/feature-spec-chart-of-accounts.md`](docs/feature-spec-chart-of-accounts.md) |
-| **M14** — Pre-production queue group A | ✅ 35-table `TRUNCATE`/`REFERENCES`/`TRIGGER` revokes + `ALTER DEFAULT PRIVILEGES` narrowed (with a throwaway-table guard test); identity-table build guard; company-scoped period-lock routes. | Queue §5 below |
-| **M15** — Statement ingestion repair | ✅ Categorizer emits `system_code` (forcing-function test: every emittable code exists in the seeded chart); holding area / review surface for uploaded transactions. | [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md) |
-| **M16.1** — VAT page source switch | ✅ `VatReport.tsx` **files from documents** (`reports.vatReturn`, box-structured); the transaction figure is the **reconciliation view** beside it, gap itemised. (PR #25) | same design doc |
-| **M16.2** — Transfers, treatment, accounts | ✅ `kind: operating\|transfer\|settlement` (transfers excluded from all P&L/tax aggregates, kept in cash flow); reconcile-grade S/Z/E/O `tax_treatment` defaulted from the category; `bank_account_id` + upload-page account picker. (PR #26) | same design doc — incl. the **treatment-verification-status flag** (most defaults are illustrative, not verified) |
-| **M16.3** — Bank reconciliation | ✅ Exact-match suggestions (never actions) on the review surface; settling routes through the existing pay paths (`kind: settlement` + document links); real partial-payment semantics in pay (accumulate; overpay 409); the M15 review surface got its first UI consumer (`/review`). Live pass observed: settling a 3,450 receipt moved no income/VAT figure, cash flow +3,450, AR aging → 0. | design doc §3 (as-built + live-pass record) |
-| **Demo deployment** | ✅ **Codebase demo-ready; nothing deployed.** `DEMO_MODE` REMOVES capabilities and weakens no guard: capture, signup and ZATCA onboarding are refused **at the route**, ZATCA transmission is refused **at boot**, a server-driven bilingual banner runs on every page incl. login, and a weekly reset wipes + re-seeds in one transaction. 🔴 The reset's safety is **structural, not the flag**: it refuses unless the database holds exactly one organization and it is the demo. Seed data is posted through the product's own write paths and starts **claimable**, so uploading a statement demonstrates the liquidity claim being withheld. Also new: `SERVE_WEB_DIST` (default unset) lets the API serve the SPA same-origin — a cookie decision, not a cost one. | [`docs/product/demo-deployment-decisions.md`](docs/product/demo-deployment-decisions.md) + [runbook](docs/product/demo-deployment-runbook.md) |
-| **M19.6** — receivables bridge | ✅ Analytics now shows **Invoiced vs Collected** (flows) and **receivables outstanding** (stock) on separate canvases, plus the bridge as numbers: `opening + invoiced − collected − credited − other = closing`. 🔴 The identity is **structural, not checked** — every term is a debit or credit on ONE GL account, so `closing` IS the balance-sheet AR figure rather than agreeing with it. **Two items of §6.1 are deliberately NOT built:** net cash per period is HELD on a source question (`reports.cashFlow` is transaction-derived and disagrees with GL cash by a measured 10,800 on the dev org — transfers never post, and document payments create no transaction), and the historical overdue share is **not derivable** at all (no dated payment history). | [`docs/product/design-analytics.md`](docs/product/design-analytics.md) §6.1 |
-| **M19.7 → A** — the GL owns cash | ✅ **The C → D → A sequence is complete (A: 2026-08-17, PR #54/#55).** Transfers POST by declared direction (own_account → Transfer clearing; external → External transfers, equity; undeclared → Transfers awaiting declaration, which posts — the bank moved — and **blocks the liquidity claim** like SUSPENSE). The cash card reframed: **the ledger is cash; the reconciliation states where the bank statement differs and why** (settlements / unposted_legacy / ledger_only; `unexplained` still returned, not asserted). Live pass observed: backfill posted 5 transfers, cash −94,194.15 → −122,494.15, transfer suspense +28,300, total assets unchanged, gap −19,550 → +8,750 fully itemised, declaring one transfer moved exactly its 2,000 from suspense to clearing. 🔴 **Found and fixed during the build: posted-only report filters double-negated every REVERSAL** (±8,750 live) — see §4's `JE_IN_BOOKS` rule. | [`docs/product/design-analytics.md`](docs/product/design-analytics.md) §6.1 (as-built + live pass) |
-| **Automation** | **A1** ✅ document capture (client-side Tesseract OCR + ZATCA QR TLV decode, staged captures). **A3** ✅ recurring documents, **drafts only**. **A2** (bank feeds) not started — exploratory outreach only ([`docs/product/a2-provider-outreach.md`](docs/product/a2-provider-outreach.md)). | [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md) |
-| **M17.0** — Zakat: retire the fake surface | ✅ The Zakat page **states it is not implemented**; `is_zakat_relevant` / `zakat_relevant` deleted everywhere (migration 0038) and `GET /summary/zakat` removed. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) |
-| **M17.1** — Zakat ownership scope | ✅ Q2: `companies.ownership_type` (`SAUDI_GCC\|FOREIGN\|MIXED`, migration 0040), **nullable with NO default** — NULL = not declared is a first-class state, because a default would have the platform assert the tenant's ownership and that assertion gates the Zakat surface. The page branches **three** ways (ask / module / out-of-scope-see-your-advisor); a declaration can be withdrawn. Rule lives in `lib/zakatScope.ts` — 🔴 **M17.4's endpoint must call it and refuse non-`eligible`.** | same design doc §5b |
-| **M17.2** — Fiscal year + calendar | ✅ Q3's stated prerequisite, and it closes a five-milestone gap: `fiscalYearStart` is finally resolved. `fiscal_calendar` (gregorian \| **Umm al-Qura** hijri, migration 0039 + two CHECKs), a pure resolver (`lib/fiscalYear.ts`), Hijri conversion by **binary search over the ICU tables** (`lib/hijriCalendar.ts` — an arithmetic estimate was tried and is wrong, months are tabulated), a **boot assertion** that refuses to start on a small-ICU runtime, `GET /companies/current/fiscal-years`, and Company Settings showing real boundaries. **Reports still take explicit dates** — see the known-issue note. | same design doc §3 |
-| **M20.0** — the lying column | ✅ Migration 0044: `fiscal_year_start` nullable, NO default, **existing rows NULLed** (the 1s were the old default, not data). `GET /companies/current/fiscal-years` returns `declared: false` when undeclared; `null` on update WITHDRAWS. 🔴 Also fixed: Company Settings' submit coerced `?? 1`, so saving an ADDRESS would have re-declared January — the write-boundary corollary (§3). Part 6 fired: the suite's first test guarded the defect; rewritten. (PR #47) | [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md) §8 |
-| **M20.1** — report default windows | ✅ Sixteen report pages open on the tenant's **current fiscal year** (resolver boundaries, Gregorian or Hijri) or a **rolling last 12 months** when undeclared, with the F13 inline notice on the report itself. One data hook (`useReportDefaultRange`) owns the decision; the bespoke date controls stay (F5). A failed settings fetch falls back with NO notice — the page won't assert what it doesn't know. Release note shipped (reports change on open with no user action). `VatReport` verified OUT of the class (opens empty, asserts nothing). (PR #48) | same design doc §8 + [release note](docs/release-notes/m20-1-report-default-windows.md) |
-| **M20.2** — period shortcuts | ✅ Six shortcuts on all **twenty** report pages (F12), F6 as stated: a shortcut SETS the dates and applies them, inputs stay editable, the lit chip is **derived by equality** so "Custom when touched" needs no state. Month/quarter = **CALENDAR** periods (the filing rhythm; the only definition an undeclared tenant has); the fiscal pair uses API boundaries and is absent while undeclared; Balance Sheet gets both FY-ends. Beyond M20.1's sixteen: ActivityReport, GlReport, BalanceSheet, VatReport (month granularity). (PR #50) | same design doc §8 |
-| **M20.3** — fiscal-year labels | ✅ `FY 1447 (Jun 2025 – Jun 2026)` wherever a period is named — one pure formatter (`lib/fiscalLabel.ts`, tested against the design's example verbatim), NO client-side calendar math (the API payload already carries everything; client Hijri arithmetic would reintroduce M17.2's silent-substitution hazard). Applied at Company Settings' fiscal-year card + as tooltips on M20.2's fiscal chips. **M20 complete.** (PR #51) | same design doc §8 |
+| **Phase 0** — platform foundation (M1–M10) | ✅ Complete | [`phase-0`](docs/history/phase-0-platform-foundation.md) |
+| **Phase 1** — onboarding & multi-company (M11) | ✅ Complete | [`phase-1`](docs/history/phase-1-onboarding-m11.md) |
+| **Phase 2** — ZATCA / Fatoora (M12) | 🟡 Closed except M12.7 + M12.9 — blocked on a real Saudi taxpayer registration | [`phase-2`](docs/history/phase-2-zatca-m12.md), [`m12-status`](docs/zatca/m12-status.md) |
+| **M13–M16** — chart of accounts, ingestion repair, VAT source switch, transfers, bank reconciliation | ✅ Complete | [`design-transaction-accounting`](docs/product/design-transaction-accounting.md) |
+| **M17** — Zakat scope + fiscal calendar | 🟡 M17.0–M17.2 built; **M17.3/M17.4 HELD on C10** (the tax content is unverified) | [`design-zakat-module`](docs/product/design-zakat-module.md) |
+| **M19.6 / M19.7 → A** — receivables bridge, the GL owns cash | ✅ Complete | [`design-analytics`](docs/product/design-analytics.md) §6.1 |
+| **M20** — fiscal periods in reports (F1–F13, F3-dual, F7-cmp) | ✅ Complete | [`design-fiscal-periods`](docs/product/design-fiscal-periods.md) §8 |
+| **M21** — quotations & purchase orders (M21.1–M21.3) | ✅ Complete | [`design-quotations-purchase-orders`](docs/product/design-quotations-purchase-orders.md) |
+| **M22** — closed months + the global 423 explanation | ✅ Complete | as-built records |
+| **M23** — audit-trail reader UI | ✅ Complete | as-built records |
+| **AI track** — AI-1 (Groq seam + metering), AI-2 (corpus at measuring size), AI-3a (findings engine), AI-3b (explanations), AI-5 (scheduled findings), AI-6a (grounded answers) | ✅ Built, **dark by construction** (the boot boundary refuses tenant data until Groq Enterprise is signed) | [`design-ai-layer`](docs/product/design-ai-layer.md), [`ai-6-proposal`](docs/product/ai-6-proposal.md) |
+| **Automation** | A1 capture ✅, A3 recurring (drafts only) ✅, **A2 bank feeds not started** | [`feature-spec-automation`](docs/product/feature-spec-automation.md) |
+| **Demo deployment** | ✅ Codebase demo-ready; **nothing is deployed** | [`demo-deployment-decisions`](docs/product/demo-deployment-decisions.md) |
+| **Billing** | 🔴 **Does not exist** (queue R1) | §5 |
+| **Security** | F1 (cross-tenant account takeover) and F2 (operator job reach) CLOSED; G-1 checked and absent; privilege surface map live | [`hld`](docs/hld.md) §security, findings file |
 
-**Zakat is DECIDED but NOT BUILT** — 2026-08-15, by owner interview (Q1–Q8). The
-platform produces an **auditable working paper**, never a ZATCA submission;
-**100% Saudi/GCC-owned entities only** in v1; **Hijri and Gregorian** fiscal
-years (fiscal-year support is a stated **prerequisite** — `fiscalYearStart` is
-stored today and applied by no report); the base is derived **from the GL**;
-the worksheet is an **interactive, period-locked input surface**; it lands as an
-annual report generator under **Tax & Compliance**. 🔴 **The tax content itself
-is UNVERIFIED against a primary source** — base composition, the Gregorian rate
-divisor, minimum-base rules, and whether nisab applies to corporate Zakat at
-all. M17.4 must not show a tenant a figure before that is closed (design doc §4;
-ask with the C7/C8 advisor).
+**Owner-approved audit order, in flight:** operator surface ✅ → accounting-core
+services ✅ → **the write paths** (next).
 
-**Fiscal periods in reports — DECIDED (F1–F13), M20 COMPLETE + F3-dual BUILT
-(2026-08-17).** Both defects F1–F9 surfaced are FIXED (the lying
-`NOT NULL DEFAULT 1` column, M20.0; the hardcoded Jan–Dec default window,
-M20.1); six period shortcuts are on every report (M20.2); fiscal years are
-named by their span (M20.3); and a Hijri tenant reads BOTH calendars on
-every ledger date (**F3-dual**, PR #52 — one shared `DualDate` component
-over 42 render sites, with a client-side probe of the M17.2 fact that
-REFUSES to render Hijri on a runtime that would silently substitute
-Gregorian; fallback in every failure direction is Gregorian-only). **F7-cmp
-BUILT** (PR #53): prior-period comparison on the three statements — the
-prior window DERIVED from what the dates are (fiscal → the resolver's
-preceding period, never calendar-minus-one, which is ~11 days off a Hijri
-year; month/quarter → exact shift; custom → labelled calendar shift); an
-empty prior is a NAMED fact, never zero columns; Δ% is "—" on a zero base;
-🔴 mismatched sources (journal vs transactions-fallback) REFUSE with a
-stated reason — a prevented #9 instance, recorded in the findings file;
-line merge by response-carried KEY, never display name. Next in the
-owner-approved order (§7): A (GL owns cash), then B4. Standing decisions: free dates plus shortcuts
-(nothing period-only); NO in-table Hijri date conversion (dual display is
-alongside, never instead); Analytics out of scope; the twenty bespoke date
-controls stay duplicated until a third pattern appears.
-See [`docs/product/design-fiscal-periods.md`](docs/product/design-fiscal-periods.md)
-(§7 build order, §8 as built).
+**Live, tickable owner actions** (entity → advisor → Groq → receipts):
+[`docs/product/owner-actions.md`](docs/product/owner-actions.md) — that file is
+the single writer for their state; do not restate it here.
 
-**M21 — Quotations & Purchase Orders: DECIDED, building in staged PRs.**
-Design approved 2026-08-20; all five load-bearing questions answered, every
-safe default accepted. **Quotations → invoice** when the customer agrees;
-**PO → bill** when the supplier's bill arrives; **partial conversion by
-QUANTITY per line** ("the amount or sub amount"); 🔴 **neither touches the
-ledger until converted** — conversion produces a real document through the
-EXISTING write path, never a second posting path.
-
-| Stage | State |
-| --- | --- |
-| **M21.1** — quotations: schema, CRUD, approval, numbering, UI | ✅ **BUILT.** |
-| **M21.2** — quotation → invoice conversion (partial, dated) | ✅ **BUILT.** |
-| **M21.3** — purchase orders + PO↔bill matching | ✅ **BUILT** (after the owner review that corrected M21.2). |
-
-**M21.1 as built:** two orthogonal axes, deliberately never one column —
-`status` is the APPROVAL axis (the M10 engine, `autoApprove` from the RBAC
-matrix) and the CONVERSION axis is **DERIVED from line quantities, never
-stored** (a single status string cannot say "approved AND partially
-converted"). `outcome` (`declined`/`closed`, NULL = live) is the tenant's
-terminal act — the platform never infers that a remainder is dead, not from
-expiry, not from age. Numbering is `QUO-{YYYY}-{NNNN}`, server-allocated, with
-`UNIQUE(company_id, number)` as the real guarantee — 🔴 deliberately NOT the
-sibling pattern, which is queue item **C12**. Expiry warns and never blocks.
-Approval fires **no** accounting activation and that is the feature, not a
-stub. Zero-movement proven through the REAL report services at every status,
-against a captured baseline (not a hardcoded 0), plus an **anti-vacuity test**
-showing a real invoice moves the same figures — otherwise "nothing moved"
-could mean "nothing was measured" (flaw #8's shape). `/quotations` was removed
-from the route guard's `KNOWN_UNBACKED`; `/purchase-orders` stays there until
-M21.3. Nine tests pin the permission grants, including the negative one (a
-bookkeeper may NOT approve — issuing a price is a commitment).
-🔴 **Owner review, 2026-08-20 — two corrections:** (1) **conversion is DRAFTS
-ONLY for every role.** The build had resolved issuance from `invoices:approve`;
-the design's own position was restored ("agreeing a quotation in March is not
-authority to issue a legal invoice in November") because issuance consumes an
-ICV irreversibly and a conversion cannot be undone. There is now no
-`autoApprove` parameter on the convert service at all. **M21.3 inherits this.**
-(2) **No-undo is now stated BEFORE the act** — the convert dialog says the
-conversion cannot be reversed and a mistake is corrected by credit note, and
-the button reads "Create draft invoice". ✅ **The discount question is ANSWERED by
-the accountant (2026-08-20): "the invoice should reflect the exact math on the
-quotation"** — proportional, recorded as verified rather than reasoned. 🔴 The
-rounding half is what would have bitten: independent per-conversion scaling
-gives 33.33 × 3 = 99.99 against a quoted 100.00, so `allocateLineDiscount`
-allocates on the CUMULATIVE quantity and subtracts what was already allocated,
-telescoping to the quoted total exactly. One function
-(`services/conversionArithmetic.ts`), used by both conversion directions.
-
-**M21.2 as built:** conversion calls `invoicesService.create` — never a second
-posting path — proven behaviourally: a converted invoice and a hand-typed one
-of the same value both move AR by exactly 575.00. The record is **dated events**
-(migration 0052, append-only grants), and converted quantity is `SUM`ed from
-them: **no `converted_quantity` column exists**, because a running total keeps
-one date and would destroy the first partial acceptance's — B4's loss, avoided
-in advance. Over-conversion 409s; the freeze rule stops a converted line being
-re-priced or removed while untouched lines stay editable; a per-line discount is
-**scaled to the converted proportion**; expiry warns and never blocks.
-🔴 **Found while building:** the edit path replaced lines wholesale, which once
-a conversion exists both hits the RESTRICT FK as a raw 500 AND (had it
-succeeded) would re-insert the line under a NEW id, orphaning the record of what
-was accepted. Edits now reconcile by id; the old behaviour was re-injected and
-the guard went red, as were both freeze-rule guards.
-**M21.3 as built:** the mirror, plus the matching half. 🔴 **Three differences,
-each VERIFIED against what a bill can represent rather than assumed from
-symmetry:** a PO carries **no discount** (bill_items has no such column, and
-neither does bills — a discount would be silently dropped at conversion, the
-"partial data is not lenient data" failure); **no tax_category_code** (same
-check); and the terminal act is **`cancelled`, not `declined`** — we withdraw
-an order, and saying the supplier refused would assert what we cannot know
-(DB CHECK enforced, tested). **This corrected an M21.2 claim** that both
-directions need the same discount rule: they do not, so the accountant's
-answer governs quotation→invoice only.
-**Matching — "the bill is the truth; the PO is the expectation":** a different
-supplier price is RECORDED as a variance with both figures and its date (the
-billed price is stored per event, so it survives a later bill edit), never
-refused and never silently reconciled; over-billing 409s **with an explicit
-override**, because refusing outright would refuse to record a real liability;
-an unordered line (freight) is allowed and identifiable by having no
-conversion row. 🔴 **The two-way limitation is ON THE SCREEN** — no
-goods-receipt concept exists, so every progress word is BILLING
-(`partially_billed`, `unbilledQuantity`), never "received" or "delivered", and
-the dialog says so plainly.
-🔴 **`KNOWN_UNBACKED` is now EMPTY** — the last of the six audit façades is
-gone, and each entry was deleted by the stage that built it rather than
-reworded.
-See [`docs/product/design-quotations-purchase-orders.md`](docs/product/design-quotations-purchase-orders.md).
-
-**M23 — Audit Trail (2026-08-21, PR #73).** The second-to-last
-claimed-but-unreachable route closed: `/audit-trail` is the first reader UI
-for the trail M7 started writing — read-only, filterable, paginated,
-before/after states, admin-gated. **Actors are NAMED via the identity layer**
-(`membersRepository.memberNamesByIds`, the B1 `activeAdminEmails` precedent),
-scoped to the org's own memberships; 🔴 the pinned NEGATIVE test is the one
-that matters — a userId with no membership in the org stays unresolved, so
-the trail can never borrow a name from another tenant. `/audit-logs` gained
-its first OpenAPI entry (the `actorName` response change triggered the
-obligation). **`KNOWN_UNREACHABLE` now holds `/llm` alone**, parked with the
-AI layer by decision. Ops note for background jobs: never `git checkout`
-inside a background waiter — one did, mid-build, and moved a commit onto
-local main (caught by branch protection; repaired).
-
-**AI-1 — the Groq free-tier foundation (2026-08-21, PRs #67/#68).** The AI
-layer's first BUILT phase, entirely inside the owner's free-tier boundary
-(synthetic + dev-org data only). **AI-1a:** the provider seam
-(`services/ai/provider.ts` — chat + vision, dependency-free REST, unavailable
-THROWS per the B3 rule, fetch injectable); per-tenant metering (`ai_usage`,
-migration 0055, append-only, failures are rows too); the categorizer's
-below-0.65 second opinion routed through the seam, deterministic engine still
-the brain. 🔴 **The data boundary is enforced at BOOT**: production refuses
-`AI_PROVIDER=groq` unless `GROQ_DATA_BOUNDARY_ACK="enterprise-dammam-zdr-signed"`
-— a typed attestation, tested in both directions incl. a wrong string.
-**AI-1b:** the categorizer Arabic benchmark (hand-curated corpus, NOT
-regex-inverted; AR/EN scored separately; §2a gate printed as a verdict;
-honest-null cases score restraint; **measured deterministic baseline EN 60% /
-hard 40%, AR 62% / hard 44%**) and the vision harness, built ready for the
-owner's receipt corpus with a LOUD not-run on empty. Outreach list for the one
-Groq conversation: design-ai-layer §12c (Enterprise terms + the Dammam-region
-Arabic-vision question). As-built: §12d/§12e.
-
-**AI-6a — grounded answers (2026-08-24, dark by construction).** The CFO
-surface, register A ONLY (owner: FACT + PROJECTION — "the CFO that shows
-its work and never advises," chosen deliberately; 🔴 **the OPINION register
-is QUEUED post-C10, not rejected** — it would be the platform's first
-unverifiable voice, and the fence question travels with it). Six tools from
-Analytics + the Finance Hub (the model SELECTS one or refuses, never
-authors a number); `runway_projection` on GL cash, and 🔴 **its assumption
-is machine-enforced IN the answer** — the sentences are tool output and an
-answer without both verbatim is rejected ("an assumption a reader can skip
-is an assumption they'll skip"). The liquidity-claim withholding carries
-over (blocked cash ⇒ no projection, blockers named). Every exchange is an
-append-only `grounded_answers` row (0061) — refusals included; rejected
-model text is NEVER stored. Unavailability is an honest 503; the ask box
-hides via /ask/status; dark until Enterprise by the boot boundary. Surface
-woven into Analytics + Finance Hub, no destination. As-built:
-[`ai-6-proposal.md`](docs/product/ai-6-proposal.md) §0/§5.
-
-**AI-3b — model explanations on findings (2026-08-24, dark-launched).** The
-first model output in real product code: 1–2 sentences rendering a
-finding's FACTS, both languages, generate-then-verify. 🔴 The verifier's
-honest contract: the numeric/entity class is PROVEN mechanically
-(cross-script canonical matching; `normalizeDigits` copied from
-receiptParser with an equivalence pin — single-sourcing needs a shared
-package, flagged not restructured); the qualitative class is only ARGUED (a
-judge pass must return empty) — which is why the UI renders the
-deterministic facts BESIDE the explanation, never instead. Owner conditions
-held: rejection telemetry distinguishes invented-number from
-couldn't-match-a-real-number (token + script + normalized form);
-discard-and-log, never retry; low-context findings (<3 facts) get NO
-attempt; staleness = invention by aging (factsHash gate at the API);
-deterministic is the FLOOR (throwing provider pinned harmless). Dark via
-the existing AI-1a boot boundary — no new flag. As-built: proposal §0d.
-
-**AI-5 — scheduled findings (2026-08-24, taken before AI-3b by owner
-instruction — deterministic reaches tenants now; the delivery mechanism
-proves itself on trusted content before model output rides on it).** Hourly
-platform job; calendar cadence (quarterly default / monthly opt-in,
-approver-set); `(org, period)` run row as the CLAIM. The push ladder as the
-owner amended it: **one** email to ACTIVE ADMINS only (counts + pointer,
-never contents; no-recipient orgs logged loudly), then — never a second
-email — after 7 unviewed days a **persistent Dashboard marker** (derived
-"unviewed + old", never stored) that stands until an approver-level role
-opens the Findings page: **opening is the dismissal**, viewing is stamped
-`viewed_at`/`viewed_by`, a viewer's visit does not clear it, and nothing
-auto-acknowledges at any age. 🔴 **The honest limit, recorded plainly: the
-chain ends where the tenant's attention ends** — the product records that a
-run was never opened; it cannot make someone read. As-built: proposal §0c.
-
-**AI-3a — the findings engine, deterministic core (2026-08-24).** The
-build-order proposal's five questions are ANSWERED (owner, 2026-08-24 —
-recorded verbatim in [`ai-build-order-proposal.md`](docs/product/ai-build-order-proposal.md) §0:
-findings-first; 🔴 tax gate stays at **(a) internal-consistency only until
-C10 closes** — the (b) citation-carrying widening is QUEUED post-C10 with
-Art. 50 meal-VAT as first candidate; push = in-app + unread-escalation +
-admin email, never the B2 webhook, and **a finding records where it was
-sent**; dark-launch confirmed with the boot boundary untouched; model pin
-deferred to Enterprise negotiation). **AI-3a BUILT:** eight
-internal-consistency checks as ROWS (`findings`, 0058 — no DELETE for the
-app role; a resolved finding is the record it was found), upsert identity
-`(org, kind, ref_key)`, lifecycle open → acknowledged (survives
-re-detection; the machine never un-acknowledges a human) → machine-resolved;
-acknowledge is APPROVER-only (dismissing a money warning is a review
-decision; bookkeeper negative pinned); no severity anywhere (the status
-palette rule); gaps reported as lawful observations (C12); credit-aware
-overdue (Tier 3); zero-movement pinned through the real report services.
-`/findings` under Reports. Next per the answered order: AI-3b (model
-explanations, dark-launched) and AI-5's scheduler carries the push channels.
-As-built: proposal §0b.
-
-**AI-2 — the corpus at measuring size (2026-08-23).** The binding constraint
-(§12g: one hard case moved a verdict ~11 points) closed: **153 cases, 30 hard
-per language** (en/ar equal-N; one case ≈ 3.3 points), with the two authoring
-disciplines MECHANIZED (`tests/benchmark-corpus.test.ts`: every `hard` flag is
-a measured claim the engine cannot solve at ≥0.65 — the first expansion's 28
-guessed flags were ALL engine-solved, six of them from the original corpus;
-every expected label emittable; ≥30 hard per language). Two instrument
-defects fixed during measurement (token starvation, TPM-blind pacing — each
-silently substituted deterministic answers into "hybrid" scores). 🔴 **The
-AI-1b headline REVERSED at measuring size:** on 84/84 clean calls per model,
-gpt-oss-**120b** leads (AR hard 83% vs 20b's 77%; was "20b decisively ahead,
-100% vs 78%" on 9 cases); allam-2-7b is barely above baseline on hard cases
-(17% vs 13%); both gpt-oss models hold the Arabic gate with Arabic as the
-STRONGER side; qwen stays NOT MEASURED. Model selection remains OPEN (single
-runs, synthetic corpus, Enterprise/Dammam items unchanged). As-built: §12h.
-
-**M22 — Closed months (2026-08-21).** The period-locks surface, in the owner's
-framing: **"close the books for a month so figures stop changing"** — never
-"lock period". A dedicated `/closed-months` page (read for every role; actions
-admin-only) states what closing MEANS before any control, plus 🔴 **the 423 as
-an explanation, once, globally**: `checkPeriodOpen` now throws a structured
-`423 {code: "period_closed", period, lockedAt}`, and ONE dialog in the shared
-fetch layer renders every closed-month refusal from any of the seven posting
-paths — keyed on the **code, never the message text**, so rewording copy
-cannot break it, and any future path that can hit a lock inherits the
-explanation. The recurring generator records the same plain words a human
-sees (it copies `err.message`, and the rewrite lives in the source error).
-D4: the UI does not secretly forbid what the API allows — closing the current
-or a future month is permitted with a loud consequence-naming confirm.
-🔴 **D5 recorded as a CANDIDATE, not a gap:** months may close in any order
-because the BACKEND enforces no order and a UI-only rule would lie about what
-the system enforces; sequential closing, if wanted, is a backend change and
-its own decision.
-
-**The AI layer is INTERVIEWED and SPECCED, not commissioned** — 2026-08-18.
-Owner answers: the full generative product is the moat (trips the hosting
-trigger by definition); constraint ranking **residency > quality > cost**;
-data boundary ABSOLUTE (no hosted model APIs — open-weight, self-hosted
-only); AI usage metered per tenant and likely billable; training-on-tenant-
-data is **owner-preference-PENDING-LEGAL** (goes to the advisor with
-C7/C8/C10). Seven corrections adopted into the revised spec: approver is a
-permission not a profession (+ the non-accountant review surface
-requirement); the model SELECTS classifications, never AUTHORS tax
-positions (C9/C10 stay the single tax gate; **no compliance-asserting AI
-findings before C9/C10 close**); Qwen inside A1's pipeline (QR fields never
-overwritten); the deterministic categorizer stays the brain with the model
-as the below-0.65 second opinion; one writer per effect (no Dr/Cr from the
-model); provider-agnostic seam; **"findings", never "audit"**. **Arabic is a
-LAUNCH requirement and a HARD GATE on model selection** (2026-08-18): both
-layers, benchmarked on Arabic financial text BEFORE any model is pinned,
-Arabic and English scored separately — an English-strong/Arabic-poor model
-fails regardless of its other scores (the `\b` lesson at model scale). 🔴
-**Q2 answered (2026-08-18):** CFO = on-demand consulting before decisions,
-never a scheduled report; Auditor = on-demand AND scheduled (quarterly
-default, monthly opt-in) — the schedule creates two recorded obligations
-(pushed-not-parked findings, the quiet-neglect shape; and C9/C10 bites
-HARDEST on scheduled output, which looks authoritative precisely because it
-arrived on a schedule). ✅ **Hosting DECIDED-PENDING-ENTERPRISE-TERMS (2026-08-18): Groq, Reading A
-— contractual ZDR, no training, Dammam-region processing; the provider seam
-keeps it reversible.** 🔴 Recorded honestly with it: Dammam pinning is an
-ENTERPRISE arrangement, not a configuration flag (standard tiers route
-globally), so the residency half is contingent on a commercial agreement
-that does not yet exist — **the signed Enterprise/Dammam+ZDR agreement is a
-BLOCKING item before any tenant data reaches Groq**; until then, model
-calls carry fixture/dev data only. 🔴 **Free-tier boundary (owner,
-2026-08-21): Groq's free tier is IN USE for development.** Recorded
-explicitly: free tier = no Enterprise agreement = **no Dammam pinning —
-requests route globally**. Usable for: the provider seam, the Arabic
-benchmark, model evaluation, pipeline testing against synthetic fixtures,
-and measuring real token consumption. **It must not touch any real
-tenant's ledger, receipts, or documents** — the blocking rule above stands
-unchanged, and "development" is not an exception to it. Still open: the Enterprise terms
-themselves, an Arabic-acceptable vision model in the Dammam region, the
-Arabic benchmark, and the eval gate's thresholds. See
-[`docs/product/design-ai-layer.md`](docs/product/design-ai-layer.md).
-
-**Product structure (the hubs) is DECIDED** — 2026-08-12, by owner interview:
-two destinations (Finance Hub, Analytics), Automation and AI woven into existing
-pages, Automation is the wedge. See
-[`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md).
-That decision record supersedes any earlier inferred hub description; only
-Automation is specced to build-depth.
+🔴 **Three DEPLOYMENT-time items cannot be closed from code:** the real proxy
+count for `TRUST_PROXY_HOPS`, a clamd sidecar for `MALWARE_SCANNER`, and B1/B2's
+provider wiring (a mail provider, and a webhook pointed somewhere real). An
+unwired alarm is the thing B2 exists to prevent.
 
 ### 🔴 What is verified LIVE vs only LOCALLY (ZATCA)
 
@@ -430,6 +139,7 @@ audit trails, append-only guarantees, fail-closed posture) — those are cheap
 now precisely because nobody depends on them, which is the argument for getting
 them right now. **Revisit when the first tenant onboards.**
 
+
 ## 3. Standing rules, the standing check, and the named lessons
 
 Full incidents and evidence: [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md).
@@ -453,6 +163,36 @@ These are short forms; the rules are binding, the history explains why.
    not test results. The M15 pass proved why: a test-verified fix coexisted
    with a live path still recording SAR 260.87 of phantom VAT through a rule
    no test asserted.
+
+### 🔴 THE TRIAGE CHECK (apply to every finding, before ranking it)
+
+**Severity is per FINDING; consequence is per PATH.** Ask these three of every
+finding, and rank on the worst path a user can walk rather than the worst
+finding in the list:
+
+1. **What ISSUES or POSTS on this path?** (auto-approve, a posting path, a
+   transmission) — it turns a bad record into a **permanent** one.
+2. **What removes the CORRECTION?** (no edit, no delete, an append-only store,
+   a closed period) — it turns a permanent record into an **uncorrectable** one.
+3. **What hides the RESULT?** (a silent catch, an unread field, a page that
+   renders zero, a 2xx after a rollback) — it turns an uncorrectable record
+   into an **unnoticed** one.
+
+🔴 **4. AFTER CLOSING AN ITEM, ASK WHAT IT CHANGED THE MEANING OF.** A fix does
+not only remove its own finding — it edits the queue. Nothing in this process
+re-examines the remaining items after one lands, so a finding can quietly become
+worse, become moot, or change character while its row still reads as it did when
+written. Observed twice in one session: removing auto-approve **closed** the
+solo-approver finding outright, and the unscoped-`db` fix **changed what
+`getApplication` was** — filed as a retention/PDPL question, revealed also to be
+an RLS bypass. This is the composition class pointed at FIXES rather than
+defects, and it is the step most easily skipped because the fix feels finished.
+
+A finding touching none of these is about as bad as it looks. **One touching two
+is worse than its severity says, and the difference is not visible from the
+finding alone** — which is the whole reason this check exists separately from
+severity. AUD-13 is the worked example: five items, each correctly triaged
+alone, that together minted a permanent zero-value ZATCA invoice.
 
 ### The standing check (apply before recording any milestone as done)
 
@@ -484,356 +224,65 @@ These are short forms; the rules are binding, the history explains why.
    `toThrow`, `toBeNull`, `not.toContain`) and re-read each hit — an assertion
    of absence expires the day the thing is built.
 
-### Named failure modes and lessons (one line each; full text in the findings file)
+### Named failure modes and lessons
 
-- **A shape without a consumer.** Declaring a column/table/interface/flag looks
-  exactly like progress and ships unbuilt; endemic in a schema-first codebase —
-  the standing check is the countermeasure.
-- **A CONSUMER with no producer is the same failure, and it is worse** (M17.0,
-  flaw #8). The Zakat page had a column, an endpoint, a route, a nav entry, a
-  UI and four tests — everything except a writer for the flag it read (one rule
-  out of ~40). A missing consumer yields a dead column nobody sees; a missing
-  producer yields **a confident zero**, which reads as an answer, so nobody
-  reports it. Check writers as well as readers — standing-check part 2 is the
-  half that catches this, and it is the half most often skipped because the
-  feature demos fine. **Corollary: "nothing writes it" is itself a claim that
-  needs part 5's search shape.** The first pass of this very fix asserted the
-  flag had *no* writer; grepping the pre-change file found one, and that one
-  turned the finding from "always 0" into "wrong in a specific, worse way".
-- **An obsolete assertion** (a test that became a guard for the bug): a
-  correct-when-written absence assertion stays green while certifying the
-  defect. Prefer presence assertions.
-- **Two id spaces with no forcing function** will diverge invisibly until
-  something joins them. Remove the second space or add a test that fails when
-  they drift (the M15 `system_code` fix).
-- **The narrower-claim family** (findings #6, #9, #11): a suite's or page's
-  NAME describes a capability while its fixtures/endpoint/source prove
-  something narrower. Read the name as a claim; check the fixtures supply it.
-- **Assert the property, not the number** — a fixed figure derived from
-  unverified reasoning passes vacuously; change one thing, prove the figure
-  does not move, and prove something else DID move.
-- **An act about a document is not an act about a pattern.** Self-approve works
-  because the approver sees the specific document; consent to a rule in January
-  is not consent to what it produces in November. Rules never grant authority
-  their creator lacks, re-checked at generation. (Why A3 is drafts-only.)
-- **Partial data is not lenient data.** Leniency means salvaging the fields
-  that WERE readable — never returning part of a value as the whole value
-  ("150.00" truncated → "15"). Applies to every parser of data we didn't
-  produce.
-- **Who finds out?** Silence is not a neutral outcome. A "skipped" recurring
-  invoice, an unsent reminder, an undrained queue — quiet neglect needs an
-  alarm, not a dashboard (queue B1/B2; finding #10).
-- **A name says who processed a movement, not what it was** (M16.2). Keyword
-  rules keyed on an ENTITY (bank, gateway, government body) instead of an
-  ACTION (fee, charge, commission) confidently misclassify everything that
-  entity touches — the Tamara case turned revenue into expense. Check every
-  trigger token: actor or action?
-- **Green fixes the case, not the class** (finding #8). When a fix is "add a
-  scope/guard/filter to X", grep for X's siblings before accepting green as
-  done.
-- **External validators check the weakest property they plausibly could** (the
-  PIH/base64 lesson). Validate meaning locally; never infer correctness from an
-  accepted submission.
-- **🔴 COST AN OPTION AFTER VERIFYING ITS INPUTS EXIST, NOT BEFORE** (the cash
-  decision, 2026-08-16). "GL owns cash; transfers post through a contra account"
-  was offered as a lean and costed as moderate — before anyone checked whether
-  the platform records **where a transfer went**. It does not. Built on today's
-  data that option would manufacture a clearing balance for every transfer,
-  including the genuinely internal ones it was meant to leave alone. The cost
-  estimate was not slightly low; it was **about a different feature**. Before
-  recommending an approach, name the inputs it consumes and grep for each —
-  the same discipline standing-check part 2 applies to a milestone, applied to
-  a PROPOSAL.
-- **🔴 A STUB IS THE PART THAT NEEDED TESTING** (B3). When a capability is
-  implemented for one backend and stubbed for the others, the passing tests
-  prove nothing — the suite ran on the backend that worked. Test the branch you
-  did NOT write: inject a failing implementation and assert on what survives.
-  And at the interface, **a method that cannot do the thing must throw, never
-  return** — a no-op reporting success is a false statement the caller builds
-  on, where an unimplemented method is merely a gap. Same family as the SDK
-  differential that proved only that we matched a stale writer: **a test whose
-  oracle shares the defect it is meant to detect.** Ask what a failure would
-  have to be measured against, and whether that thing is independent of the code
-  under test. **Where to look:** every `resolve*Store` / `get*Provider` seam —
-  `ArchiveStore`, `KeyWrapper` (the AWS branch is lazily loaded and has never
-  executed), the mailer, the alerter.
-- **🔴 A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT**
-  (M17.2's small-ICU finding; second instance of the shape). A small-ICU Node
-  accepts `islamic-umalqura` and silently returns **Gregorian** dates — no
-  error, no missing output, just a plausible wrong answer. Same shape as the
-  ASCII `\b` that made sixty Arabic patterns match nothing: the API took the
-  input and quietly did something else. **The countermeasure generalises: when
-  a dependency can silently substitute different behaviour, probe an
-  EXTERNALLY CHECKABLE FACT at boot** — a value verifiable against a source
-  outside the dependency (1 Muharram 1447 AH = 26 June 2025), not a round-trip
-  through the thing you are testing. "It didn't throw" is not evidence.
-- **Sources rank LIVE API > SDK > PDF > secondary sources** — and an unread
-  primary source is not a licence to trust a secondary one (the residency
-  claim was the opposite of what §5.5 actually says).
-- **Enforce invariants at the WRITE BOUNDARY, not in one path** (audit
-  close-out). An invariant three writers can violate belongs in a DB CHECK or
-  a shared gate, not in per-path code — per-path enforcement is per-path
-  review, and a new path starts at zero. Corollary: **when line-level truth
-  exists, header-level arithmetic is a second computation of the same fact**
-  and will drift — classify/derive from the finer grain. Second corollary
-  (M20.0): **a REMOVED default is an invariant too — after dropping it, check
-  every path that can write the column, not just the layer that defined it.**
-  The schema stopped asserting January while Company Settings' submit still
-  coerced `?? 1`, so saving an ADDRESS would have re-declared January: the
-  migration fixed one layer and another kept re-creating the fiction. Defaults
-  live wherever a writer supplies a fallback, and each is a write path.
-- **🔴 A RULE SPELLED OUT FOR A SIBLING FIELD AND OMITTED HERE IS EVIDENCE OF
-  INTENT, NOT AN OVERSIGHT TO FILL IN** (C12, 2026-08-21). Asking "does ZATCA
-  require invoice numbers to be gapless?", the weak answer is *the word
-  "unbroken" does not appear* — an absence, which is thin evidence and invites
-  filling the silence with the stricter rule "to be safe". The strong answer
-  came from the drafting: ZATCA **did** write an explicitly gapless,
-  non-resettable requirement — in the same Annex, for the **sibling field**
-  (2.5, the tamper-resistant counter), with "counter reset" listed under
-  Prohibited Functionalities — and wrote nothing of the kind for 2.1, the
-  invoice number. A drafter who spells a constraint out for one field and not
-  its neighbour has made a choice.
-  **How to use it:** when a spec is silent on the property you care about, do
-  not stop at the absence — look for the nearest place the same author DID
-  state that property, and read the contrast. It converts "unstated, so I'll
-  assume the strict reading" into evidence. It also protects against the
-  opposite error: had 2.1 and 2.5 both been silent, the absence would prove
-  much less. (Second-order payoff here: the strict reading would have bought a
-  materially more complex allocator than the law asks for.)
-- **🔴 A DEFINITION IS NOT A RULE — FOLLOW THE DELEGATION** (C12, 2026-08-21).
-  The E-Invoicing Resolution DEFINES the invoice-number field (Annex 2, 2.1)
-  and then delegates the actual rule: *"as per Article 53(5)(b) of the VAT
-  Implementing Regulation"*. Reading only the e-invoicing documents — the
-  obvious corpus for an e-invoicing question — yields a field definition with
-  no rule in it, **and that is precisely the situation in which someone
-  reasons their way to an answer** and records the reasoning as the finding.
-  When a spec describes a field without stating its constraint, assume the
-  constraint lives somewhere else and go find it.
-  **Corollary, on sequencing:** this read was done BEFORE any code, on the
-  owner's instruction, and it caught a defect the code review had not — M21.2's
-  allocator restarted each January, which nothing in either document
-  authorises. Read-first did not merely confirm the plan; it changed it.
-- **🔴 THE VACUOUS GREEN IN THE MEASURING INSTRUMENT** (AI-1b, 2026-08-21).
-  The Arabic benchmark — the instrument built to enforce the quality gate —
-  printed "✅ Arabic gate holds" over a run in which **all 21 model calls had
-  failed**: it was comparing the deterministic engine against itself and
-  calling the tie a verdict. Worse than an ordinary vacuous test, because an
-  instrument's output is TRUSTED downstream — a model could have been pinned
-  on it. Three compounding mechanisms, each now guarded: (1) the verdict
-  didn't require any successful evidence (now: zero successes ⇒ "NOT JUDGED",
-  and every verdict prints the call count it rests on); (2) failure reasons
-  were swallowed, so the run looked slow instead of broken (now printed);
-  (3) the parser extracted the FIRST `{...}` from replies, which for a
-  reasoning model is the format placeholder inside its own `<think>` notes —
-  so a model that reasoned to the RIGHT answer scored exactly baseline while
-  looking measured (now: strip closed think-blocks, unclosed ⇒ no answer,
-  last JSON wins). 🔴 **It was caught by the OWNER running it, not by the
-  test suite** — the suite exercised the seam's failure branches but nothing
-  asserted the benchmark's verdict logic against an all-failed run. The rule:
-  **a verdict line must carry the evidence count it rests on, and an
-  instrument needs its own vacuity test — "all inputs failed" is a case the
-  instrument must name, not a case it may score.** Corollary adopted from the
-  owner: an unmeasured row reads "NOT MEASURED", never "matches baseline" —
-  an artifact that looks like a result is worse than a failure.
-  🔴 **This shape appeared TWICE in two sessions** — the gate-over-failures
-  verdict, then the parser scoring a reasoning model's placeholder — and both
-  times the instrument produced a PLAUSIBLE NUMBER rather than an obvious
-  failure, and both times a human running it caught what the suite did not.
-  The countermeasure is not more tests on the instrument; it is the rule
-  already stated — a verdict must carry the evidence count it rests on — so
-  that when the instrument fails, its output looks like a failure instead of
-  a finding.
-- **🔴 A MIRROR IS A HYPOTHESIS ABOUT THE TARGET, NOT A FACT ABOUT IT** (M21.3,
-  2026-08-20). Building purchase orders as "the mirror of quotations" carried
-  an unexamined assumption: that a BILL can hold what an INVOICE holds. It
-  cannot — `bill_items` has no `discount` column and neither does `bills`,
-  while invoices have both. A discount on a PO would therefore have been
-  silently dropped at conversion (the "partial data is not lenient data"
-  failure), and the M21.2 claim that both conversion directions need the same
-  discount rule was simply wrong.
-  **The countermeasure is cheap and mechanical: before mirroring an entity,
-  diff the two tables' columns in `information_schema` rather than reasoning
-  from the shape of the source.** One query — the same instinct the org-seed
-  trigger test encodes by comparing column SETS instead of naming columns.
-  The same check also surfaced that a quotation is DECLINED by the customer
-  while a PO is CANCELLED by us, so even the vocabulary does not mirror. Applies
-  to any "same as X but for Y" work: X's capabilities are a claim about X.
-- **🔴 A RETRY CANNOT FIX AN ORDERING PROBLEM** (C2's storage container,
-  2026-08-20). storage-api died at boot with `role "anon" does not exist`, and
-  the reflex fix is more health-retries — but the role was created by a *step*,
-  and a GitHub `services:` container starts **before the first step runs**, so
-  no amount of waiting could ever have reached a state that did not yet exist.
-  The tell is that the missing thing has a **creator** rather than a settling
-  time: if nothing is scheduled to produce it, waiting is just a slower
-  failure. Ask *what creates this, and is it scheduled before me?* before
-  reaching for a timeout — the fix was to change the ordering (start it from a
-  step), not the patience. Second half of the same incident: the wait now
-  **fails loudly and dumps the container log**, because a dead dependency that
-  degrades into "suite skipped, CI green" is the exact gap C2 exists to close.
-- **A flag's scope drifts past its name** when the thing it gates becomes
-  shared infrastructure (ZATCA_WORKER_ENABLED silently disabled every
-  non-ZATCA job). Move the gate WITH the thing the flag names.
-- **🔴 TWO CORRECT ASSERTIONS WITH A GAP BETWEEN THEM** (the reversal
-  double-negation, 2026-08-17). A suite asserted the top-line FIGURE (P&L —
-  right) and the bottom-line INVARIANT (debits = credits — held), and every
-  reversal still moved 8,750 through the layer neither speaks about: WHICH
-  accounts hold the value. A different class from a missing assertion, and
-  not caught by adding more of either kind — when an operation moves value
-  BETWEEN accounts, assert both accounts' balances, before and after. A
-  conservation law can hold while the conserved thing is in the wrong place.
-- **🔴 A COMPOSITION DEFECT IS INVISIBLE TO ANY REVIEW THAT READS ONE FILE AT A
-  TIME** (named 2026-08-27, from F1; the second shape added the same day). Its
-  own class, because it explains a MISS rather than describing a bug. **F1
-  survived five audits — including two dedicated authn/authz sweeps that
-  reported "no new authz hole" — and every one of them was right about every
-  file it read.**
-  🔴 **There are TWO shapes in this class, and they need DIFFERENT
-  countermeasures. Conflating them is how one gets treated as covered by the
-  other's fix.**
+🔴 **ONE LINE EACH. The incident, the evidence and the countermeasure go to
+[`findings-and-lessons.md`](docs/history/findings-and-lessons.md) in the same
+commit** — that file holds the long form of every entry below. A lesson that
+needs a paragraph here is a history record in the wrong file (the eviction
+rules at the top of this file, rule 2).
 
-  **Shape 1 — the fact one file writes and another trusts.** Needs two files
-  read TOGETHER. `membersService.assign` is correct: an admin may manage their
-  org's members. `userAdminService` is correct: it refuses users outside the
-  actor's orgs. Neither file is wrong; the vulnerability is the EDGE — one
-  writes the fact the other trusts — and an edge is in neither file, so no
-  file-at-a-time review can see it, however careful. Adding reviewers does not
-  help; they each read one file too. (F1, and F2's registry-as-allowlist.)
-  **Countermeasure — a different question, asked of privileges rather than of
-  code: enumerate what a privilege can DO, not who is granted it.** "Who may
-  call `assign`?" has a correct, reassuring answer. "What can `assign`'s holder
-  cause to become TRUE, and who else trusts that fact?" finds F1 immediately.
-  Concretely: for each privilege, list the state it can WRITE; for each written
-  fact, grep every guard that READS it; a guard reading a fact the privilege
-  writes is a composition edge, and must be justified or closed. **This stays
-  human — it is a data-flow question, and no stack introspection reveals it.**
-
-  **Shape 2 — a guard that exempts a class from the thing designed to exclude
-  it.** A route on the wrong side of a guard; a business route with no
-  `requirePermission`; a privilege tier that widens because a mount moved one
-  line. These are POSITIONAL facts about the middleware stack, not data-flow
-  ones. **Countermeasure — `tests/privilege-surface-map.test.ts`**, which
-  derives what each privilege reaches from the LIVE router stack and
-  cross-checks it against the declared mounts, failing when either drifts.
-  Verified by injecting both drifts: a business router moved above
-  `requireAuth` (it appeared in the public tier) and one mounted with no
-  permission guard (it appeared as bare). Both are one-line changes no reviewer
-  would notice.
-
-  🔴 **THE MAP WOULD NOT HAVE CAUGHT F1, and must never be cited as if it
-  would.** Every route in F1 was mounted in the right tier behind the right
-  guard — the map would have rendered both as perfectly placed, because they
-  were. Shape 1 is data flow; the map measures position. Two shapes, two
-  countermeasures, and only one of them is mechanical.
-
-  🔴 **A hypothesised instance of shape 2 was checked and DOES NOT EXIST
-  (2026-08-27):** that `assertOrgAdmin` exempts platform operators, letting an
-  operator add themselves to a tenant as admin — the inversion of M11.3.
-  Checked before building, per the referent rule below. `isOperator` /
-  `platform_operators` appears in exactly FOUR places in the API —
-  `lib/operator.ts`, `repositories/operators.repository.ts`, `routes/index.ts`,
-  and a TRUNCATE list — and in NO authorization path, so `assertOrgAdmin` has
-  no way to know an operator when it sees one. Confirmed behaviourally, not
-  only by reading: `tests/operator-tenant-boundary.test.ts` has an operator
-  attempt exactly that escalation (403, zero memberships after) across nine
-  routes, with an anti-vacuity twin proving the same calls SUCCEED for the
-  tenant's own admin. The claim is now a standing measurement rather than a
-  doc-comment, which is the durable part of having checked.
-
-- **🔴 A GUARD THAT TESTS A FACT ITS OWN CALLER CAN CREATE IS NOT A BOUNDARY**
-  (F1, 2026-08-27 — cross-tenant account takeover, HIGH). M11.5.1 fixed
-  "any admin can reset any user's password" by scoping the surface to users who
-  **share an organization** with the actor. That predicate reads as a tenant
-  boundary and is not one: `POST /orgs/:orgId/members` created a membership for
-  any `userId` that EXISTED — no consent, no invitation, no email — and
-  `users.id` is a `serial`, so ids are counted, not guessed. Any admin of any
-  approved org could graft a stranger's account into their own org, then reset
-  its password, then log in as them — **into every tenant that account reached**.
-  The privilege that was self-grantable was not a role, it was MEMBERSHIP, and
-  the guard that trusted it was the previous cross-tenant hotfix itself.
-  **The test: for each fact a guard consults, ask who can WRITE that fact.** If
-  the actor can, the guard measures the actor's own behaviour. The fix replaced
-  overlap with **confinement** — the target's ENTIRE membership footprint must
-  lie inside the actor's administered orgs — because an actor can cause overlap
-  with one INSERT and cannot cause confinement at all (it would require deleting
-  another tenant's membership). 🔴 A second lesson rides along: **the scoping
-  question and the consent question were the same question wearing two hats.**
-  `assign` grafting an account without its owner's consent looked like a
-  usability wart; it was the exploit's first step. The consented path (M11.7
-  invitations) existed the whole time.
-  🔴 **And the meta-lesson, which is the expensive one: this was named twice in
-  conversation and written down nowhere**, so it survived two sessions while
-  lower-severity work shipped past it. A finding that lives only in a transcript
-  is not tracked — it is remembered, until it isn't. **A HIGH goes into this file
-  the moment it is named, before the session that named it ends** — even as one
-  line with no fix attached.
-
-- **🔴 FK CHECKS RUN OUTSIDE RLS — every plain FK between tenant-scoped
-  tables is a cross-tenant edge no policy guards** (SECURITY finding,
-  2026-08-23). Postgres evaluates FK constraints with the table owner's
-  privileges, so `invoices.customer_id → customers(id)` ACCEPTED another
-  tenant's id, and 23503-vs-success was an existence oracle across the whole
-  platform — the RLS blind spot's sibling, in a place the RLS-policy sweep
-  structurally could not see. Fixed with tenant-scoped pre-checks (422
-  `reference_not_found`; under RLS, missing and other-tenant are the same
-  fact). When auditing isolation, enumerate the FKs, not just the queries.
-- **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** (AI-6a,
-  2026-08-24, owner-named). The projection-assumption rule shipped as
-  structure: the assumption sentences are TOOL OUTPUT and the verifier
-  rejects an answer using the numbers without them — a skippable assumption
-  is unrepresentable, not discouraged. Prior unnamed instances: the derived
-  conversion axis (M21.1), the no-"fail" severity type (M18.3), the
-  delete-less ArchiveStore, the structural receivables identity. When a
-  rule matters, find the representation in which violating it cannot be
-  SAID — construction outlives review, and only construction binds code not
-  yet written.
-- **🔴 A VERIFICATION IS A CLAIM ABOUT A MOMENT, NOT A PROPERTY OF THE
-  TEXT** (AI-3b, 2026-08-24, owner-named). An explanation verified against
-  yesterday's facts becomes a lie when the row refreshes — the text
-  unchanged, the truth gone. Any validated artifact must STORE the identity
-  of what it was checked against (AI-3b: a facts hash) and gate rendering on
-  the match; a validation without a binding to its inputs ages into a false
-  credential. Same decay family as the obsolete assertion, in a cache
-  instead of a test.
-- **🔴 AN INSTRUCTION'S REFERENT IS AN INPUT — CHECK IT AGAINST THE DATA,
-  EVEN WHEN THE INSTRUCTION COMES FROM THE OWNER** (2026-08-24, recorded at
-  the owner's instruction about their own message). A work order arrived for
-  a milestone that did not exist — plausible, self-consistent, in the
-  project's own vocabulary, grounded in nothing (the owner had answered a
-  plan nobody proposed). The stop that caught it: the name matched no
-  record, so the data was queried before any code, and the mismatch was
-  REPORTED instead of built. Two standing policies from the same exchange:
-  corrections ship NARROW and scoped (never a general re-run tool — a tenant
-  cannot run a script), and a NAMED GAP that stays gapped beats a silent
-  default that ages into being trusted.
-- **🔴 A CLAIM INSIDE A MEASURING INSTRUMENT IS STILL A CLAIM — CHECK IT**
-  (AI-2, 2026-08-23). The benchmark's `hard` flag ("the engine can't solve
-  this alone") was authored by judgment; the engine solved 28 of them at
-  ≥0.65, six from the ORIGINAL corpus — each padding the baseline the gate
-  reads. And "20b decisively ahead" was nine cases talking: at 30 equal-N
-  cases the order flipped. Both now enforced by
-  `tests/benchmark-corpus.test.ts` (the flag is measured, the corpus cannot
-  shrink below verdict-safe size); flags are set by measurement, but cases
-  are never reworded until the engine fails them.
-
-- **🔴 RENDERING A VALUE THE SYSTEM CANNOT COMPUTE WITH ADVERTISES SUPPORT
-  THAT DOES NOT EXIST** (single-currency boundary, 2026-08-27, owner-named).
-  Nine tables stored `currency` and no aggregate read it — zero references in
-  `glPosting`, the reports/analytics/summary repositories and the VAT return —
-  and no exchange rate existed anywhere in the schema or the services. So a
-  USD row's bare number was summed into SAR totals and the filed return. The
-  reflex fix is to render it honestly ("USD 1,000.00"), and it is the WRONG
-  one: faithful rendering **converts a visible inconsistency into an endorsed
-  one**, telling the user the platform handles multi-currency while the ledger
-  adds dollars to riyals. When a stored value is displayed but never computed
-  with, the honest move is to **refuse the value at the write boundary** —
-  which is also what makes a hardcoded formatter correct rather than lucky.
-  Sibling of the confident zero: a missing producer yields an answer rather
-  than a gap; here a missing *consumer* yielded a label. 🔴 And the invariant
-  already existed in exactly ONE path — `transactions.service` refused non-SAR
-  statement rows (audit finding #4) while `bankAccounts.service` allowlisted
-  `currency` with no validation and a free-text input wrote through it:
-  *green fixes the case, not the class*, and the write boundary is where the
-  class lives (migration 0062).
+- **A shape without a consumer** — a column/table/interface/flag looks exactly like progress and ships unbuilt; the standing check is the countermeasure.
+- **A CONSUMER with no producer is worse** — a missing consumer yields a dead column nobody sees; a missing producer yields **a confident zero**, which reads as an answer. Check writers as well as readers. "Nothing writes it" is itself a claim needing part 5's search shape.
+- **An obsolete assertion** — a correct-when-written absence assertion stays green while certifying the defect it now guards. Prefer presence assertions.
+- **Two id spaces with no forcing function** diverge invisibly until something joins them. Remove the second, or add a test that fails when they drift.
+- **The narrower-claim family** — a suite's or page's NAME describes a capability while its fixtures prove something narrower. Read the name as a claim; check the fixtures supply it.
+- **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID.
+- **An act about a document is not an act about a pattern** — consent to a rule in January is not consent to what it produces in November. (Why A3 is drafts-only.)
+- **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
+- **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
+- **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
+- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** AUD-1 fixed the browser minting invoice numbers from a clock; sweeping found **five** instances and the fix had covered two. 🔴 The three left behind were WORSE: `invoices` has a unique index so a collision was REFUSED, while the others have none, so the identical collision was ACCEPTED. **The audit had named the only instance the database would have caught.** The inverse of the composition class — one finding standing for a set nobody enumerated. **The report is a sample, not an inventory.**
+- **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
+- **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
+- **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each, before recommending it. The cash estimate was not slightly low; it was about a different feature.
+- **🔴 A stub is the part that needed testing** — test the branch you did NOT write (inject a failing implementation). At an interface, a method that cannot do the thing must THROW, never return: a no-op reporting success is a false statement the caller builds on. Look at every `resolve*Store` / `get*Provider` seam.
+- **🔴 A dependency that accepts your input has not promised to honour it** — small-ICU Node accepts `islamic-umalqura` and returns Gregorian. When a dependency can silently substitute behaviour, probe an EXTERNALLY CHECKABLE FACT at boot. "It didn't throw" is not evidence.
+- **Sources rank LIVE API > SDK > PDF > secondary** — and an unread primary source is not a licence to trust a secondary one.
+- **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollary: when line-level truth exists, header-level arithmetic is a second computation of the same fact and will drift. Corollary: **a REMOVED default is an invariant too** — defaults live wherever a writer supplies a fallback, and each is a write path.
+- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement, so verifying the allocator verifies nothing. Ask what can reach the same effect without going through it, and prefer a boundary with no override to one with a documented escape hatch.
+- **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
+- **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
+- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry the evidence count it rests on, and an instrument needs its own vacuity test: "all inputs failed" is a case it must NAME, not score. An unmeasured row reads "NOT MEASURED", never "matches baseline".
+- **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
+- **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
+- **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
+- **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after. A conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
+- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step — *"this needs an accountant to approve it; send it for approval"* — teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE like M22's closed-period dialog so rewording copy cannot break it. The reversal also deleted `canApprove`: a derived flag with no consumer would have invited the hiding back. Incident: findings file.
+- **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout, so the login toggle works. Checked twice; two proposed B-8 mechanisms died here. Incident: findings file.
+- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change.**
+- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it (**P5**, §5).
+- **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13, 2026-08-28). Five items, each survivable alone and each triaged at a severity correct in isolation, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding, and rank on the worst path rather than the worst item. This is the composition-defect class pointed at FINDINGS instead of code: two correct triage decisions with a bad path between them.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema (declared for quotations and POs, which touch no ledger; absent for invoices, which consume an ICV), and every test built its request the way the server expects. Ask which layer the defect lives in, and whether anything tests THAT one. Full record in the findings file.
+- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing on its own: these routes pass `req.body` straight to the service, so every constraint in the contract is decorative unless a service re-states it by hand. Either generate the check from the contract or treat the contract as documentation — but never let a reader believe a declared constraint is an enforced one.
+- **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). The same class as unreachable navigation, pointed at DATA instead: every control works, every request succeeds, and what lands is a row that no later step can act on — a record born unusable. **No reachability guard can see it**, because nothing is unreachable; the form reached the endpoint and the endpoint said 200. P4 asks whether a user can get somewhere; this asks whether what they created can go anywhere, and the two are independent. The tell is a field the WRITE path treats as optional and a READ path treats as required — check what every consumer of a new record needs BEFORE checking that the form submits.
+- **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING, EVEN WHERE NOBODY WOULD CHALLENGE IT** (journal-entry lists) — every other paginated list got money totals; this one got a COUNT, because an entry's debits and credits are equal by construction, so a total across entries is twice the turnover or zero depending which column you pick. It would have looked authoritative and been questioned by no one. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
+- **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** (transactions list) — the page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; a capability simply never surfaced, so the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
+- **🔴 A TARGETED FIX SEES THE THING IT WAS SENT TO FIX — SO MEASURE, DO NOT RELY ON INCIDENTAL DISCOVERY** (2026-08-30). AUD-1 corrected `CreditNotes.tsx`'s number field for a ZATCA compliance defect; the same edit passed over a form whose *every field label* is English-only, against a stated launch requirement. Not carelessness — attention narrows to the defect it is hunting, which is what makes it effective. The corollary is structural: **working on a file causes none of its other defects to be noticed**, so coverage questions ("how much of the product is translated", "how many lists are unbounded", "which endpoints have no caller") must be asked PERIODICALLY and MECHANICALLY, against the whole surface, or they are only ever answered where someone happened to be looking. Every mechanical sweep this project has run — the privilege map, P4, the Arabic count — found something that repeated targeted work had not.
+- **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28). "Accept ready (183)" that accepts 5,000 and posts them is not a display bug — it is an authority bug, the same family as *delete all* deleting fifty: the user consented to what was in front of them and the system acted on a set they were never shown. The rule is not "label it accurately" but **name the true scope BEFORE the act**, and treat any gap between the visible set and the acted-on set as a defect in the act, not in the label. The display half of the same family is a surface that collapses two real rows into one — consent to the one becomes consent to both.
+- **🔴 Nothing in this process checks whether a USER can reach what we built** — six read-only audits found none of four defects that one pass with a browser found in seconds. The suite has 1,100+ tests and renders zero pages, so a correct backend with no working surface is structurally outside what any of them can see. The countermeasure is a rendering layer, not another static guard. Assume any completed backend may be unreachable until someone has clicked it.
+- **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated OpenAPI client; a page must be RENDERED by something before it counts as working. 🔴 **MEASURED, 2026-08-30: the claim was wrong on FIVE pages, 18 fields** — AssetSchedule rendered NaN in every money cell, PayrollReport filtered on an absent `month` so rendered "no runs in this period" always, Customers/Vendors printed **Total AR/AP 0.00 forever**. Three of those are a plausible wrong answer rather than an error, which is why none was reported. The countermeasure is now mechanical and does not read the services (the shape is built by spreads; re-deriving it would share the defect): `tests/list-response-shape.test.ts` seeds one row per list, calls the REAL service, and compares `Object.keys` to what each page declares. It caught its own blind spot on day one: a changed call shape dropped pages out of the scan and the shrink-check went red, not green over reduced coverage.
+- **🔴 A server refusal nobody surfaces is indistinguishable from a frozen UI** — surface errors at the mutation cache, not per form (the write-boundary rule applied to error surfacing). An unsurfaced error is also a diagnosis nobody gets, including us.
+- **🔴 A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures, never conflated.** *Shape 1 (data flow):* one file writes the fact another trusts; both files are correct and the EDGE is the hole. The countermeasure is human — enumerate what a privilege can WRITE, then grep every guard that READS that fact. *Shape 2 (position):* a route on the wrong side of a guard. The countermeasure is mechanical — `tests/privilege-surface-map.test.ts`. 🔴 **The map would NOT have caught F1** and must never be cited as if it would.
+- **🔴 A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it. F1's fix replaced overlap with CONFINEMENT, because an actor can cause overlap with one INSERT and cannot cause confinement at all. Corollary: **a HIGH goes into this file the moment it is named**, before the session that named it ends — a finding that lives only in a transcript is remembered, until it isn't.
+- **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
+- **🔴 A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
+- **🔴 An instruction's referent is an INPUT — check it against the data, even when it comes from the owner.** A work order once arrived for a milestone that did not exist; a bug was reported twice with a confident mechanism that was absent both times. 🔴 **An instruction's MECHANISM is an input too** — take the shape it describes, check the mechanism, and REPORT the mismatch rather than building the plausible thing. Corrections ship narrow and scoped; a named gap beats a silent default. (Seven instances this session; the table is in the findings file.)
+- **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
+- **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
+- **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`.
 
 ## 4. Active constraints — do not break these
 
@@ -869,6 +318,8 @@ These are short forms; the rules are binding, the history explains why.
   `organization_memberships` role governs. Prefer explicit, scoped authz
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
+- **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no `app.current_org_id`, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** The conversion found a live instance (the operator surface reading a tenant's `verification_documents`) and named the thirteen identity-layer files that had been running unscoped.
+- **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
   human approves.
@@ -989,316 +440,135 @@ These are short forms; the rules are binding, the history explains why.
 Everything that must close before a real taxpayer is onboarded. Nothing here
 blocks ordinary platform work.
 
-**A. ✅ CLOSED IN M14 — grants and configuration:**
+🔴 **OPEN ITEMS ONLY.** An item leaves this list in the commit that closes it;
+its as-built record goes to
+[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md),
+which holds every closed item (A1–A4, B1–B5, C1's code half, C2, C5, C9, C11,
+C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 
-| # | Item | Outcome |
+### Blocking, by their own nature
+
+| # | Item | What would close it |
 | --- | --- | --- |
-| A1/A2 | `REVOKE TRUNCATE/REFERENCES/TRIGGER` from the app roles | ✅ Done — **35 tables**, plus `ALTER DEFAULT PRIVILEGES` narrowed so the next `CREATE TABLE` cannot silently re-grant; guarded by a throwaway-table test. |
-| A3 | Guard on `organizations`/`users`/`organization_memberships` | ✅ **Build guard** (`tests/identity-table-boundary.test.ts`); RLS rejected — policies there would be exercised by no traffic (all legitimate consumers bypass RLS on the owner connection). |
-| A4 | Period locks ignored `company_id` | ✅ Posting path (M13) + routes (M14). The route bug was the serious one: one company's unlock **deleted every other company's lock**, silently reopening closed books. |
+| **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
+| **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
+| **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
 
-**B. ✅ ALL CLOSED (2026-08-14 / 2026-08-16) — the three failures that were SILENT.**
-Each failed by quiet neglect rather than loud rejection: a reminder delivered to
-nobody, an outbox nobody was watching, and a deletion that reported success
-without happening. 🔴 **Deployment steps remain** for B1 and B2 (pick a mail
-provider, point the webhook somewhere real) — the code is done, the wiring is
-not, and an unwired alarm is the thing B2 exists to prevent.
+### 🔴 P5 — BROWSER TESTS IN CI, as its own project (queued 2026-08-28, NOT started)
 
-| # | Item | Outcome |
-| --- | --- | --- |
-| **B1** | ✅ **CLOSED (2026-08-14) — email delivery is real.** `lib/mailer.ts` ships dependency-free REST implementations for **Resend** and **Postmark**, chosen by `MAIL_PROVIDER` + `MAIL_API_KEY` + `MAIL_FROM`; a send never throws (callers have already committed state) and reports `delivered` truthfully. **`loadEnv` refuses to boot production with `MAIL_PROVIDER=none`** — the `local-dev` key-wrapper posture, because a silently-inert alarm is invisible until the thing it guarded has happened. **AWS SES deliberately not implemented** (SigV4 or the SDK — a deployment-time addition like `@aws-sdk/client-kms`); add it there if the per-email cost matters at volume.<br><br>🔴 **The entry was wrong about the work:** "implement `send`; nothing else changes" missed that the renewal reminder had **no recipient** — it addressed `zatca-admin+<companyId>@invalid.local`, a placeholder that can never receive mail. A working provider behind that would have reached nobody. Recipients are now the organization's **active admins**, resolved via `membersRepository.activeAdminEmails` (identity layer — those tables are outside RLS), excluding removed admins and non-admins; a company with no resolvable admin is **logged as in-app only**, not silently skipped. | Was: the renewal reminder's entire value is lead time for an action only the tenant can take (fresh CSR + an OTP from THEIR Fatoora portal). Invitations also stop depending on an admin copying a link out of band. **Remaining deployment step:** pick a provider, verify a sending domain, set the three env vars. |
-| **B2** | ✅ **CLOSED (2026-08-14) — something pages a human.** `lib/alerter.ts` (generic JSON webhook — one implementation reaches PagerDuty, Opsgenie and Slack, so the vendor stays a deployment choice) + `services/alerting/alarms.service.ts`, registered as the **platform** job `platform-alarms` (5-minute evaluation, always scheduled — it transmits nothing to ZATCA, it watches whether we are failing to). Two alarms: **outbox-overdue**, keyed off the OLDEST document's age and escalating to `critical` at 12h against the 24-hour deadline; **pcsid-expiring**, firing inside the final (T-7) window and staying `critical` after expiry. `ALERT_PROVIDER` + `ALERT_WEBHOOK_URL` + `ALERT_REPEAT_HOURS`; **`none` refused in production** like B1's mailer.<br><br>Dedupe is a **row, not a timer** (`alert_state`, migration 0035, owner-only with the grants revoked): one row per CONDITION, re-pages at most every `ALERT_REPEAT_HOURS`, survives restarts and concurrent instances (a single conditional UPSERT decides fire-vs-suppress), and a cleared condition **deletes the row and sends a RESOLVE** — a channel that never says "clear" gets muted, which ends where not alerting began. A webhook outage is logged and never breaks the job that detected the problem. | Was: both failures are quiet neglect, not loud rejection, and a panel only helps someone already looking. **Remaining deployment step:** point `ALERT_WEBHOOK_URL` at a real destination and confirm one test page arrives. |
-| **B3** | ✅ **CLOSED (2026-08-16) — the bug half. The legal half was never B3's; it is C8.** The finding was two questions wearing one label, and the label said BLOCKING-on-an-advisor for a plain bug in a live path.<br><br>**What was wrong:** `stagingStore.remove` deleted files on `local-fs` and **returned silently on every other backend** — so `purgeOnce` deleted the metadata row regardless, and on cloud the bytes were orphaned **and the only index to them destroyed**. The same shape ran through promotion, where `markPromoted` nulled `staging_path` in the statement that recorded the archive copy. 🔴 All of it was invisible in a local-fs test run, because local-fs was the one backend that worked.<br><br>**Fixed as the entry itself prescribed:** a **separate `StagingBackend` contract** (`stagingBackend.ts`) with a real `supabase-storage` delete — `ArchiveStore` still has no `delete` and a test asserts it never gains one. Purge now deletes **bytes before row** and **keeps the row when the bytes survive** (`retained` count, logged at error). `markPromoted` leaves `staging_path` set until the staged copy is confirmed gone, so *a promoted row carrying a staging path IS the backlog* — enumerable, retryable, drained by `sweepStagedLeftovers` on every promotion pass. `POST /capture/:id/discard` now **deletes the image immediately** (not up to 30 days later) and returns `imageDeleted`, because reporting a deletion that did not happen was half the defect.<br><br>🔴 **The regression tests were verified to FAIL against the old code** — the previous ordering was re-injected and 6 of 10 went red. A no-op that reports success is worse than an unimplemented method that throws: the second is a gap, the first is a false statement the caller builds on. | **The remaining question is C8's, not this one.** Whether a PROMOTED inbound capture may ever be erased is a legal question about a store that by design cannot delete — it does not gate the staging mechanism, which now does what it was built for. C7/C8 keep the cross-reference; B3 no longer blocks on an advisor. |
+**Why it is queued rather than started: half-building it inside a bug-fix pass
+is worse than not starting.** It needs a browser in CI, seeded tenant data per
+run, flake management, and ongoing maintenance — and a flaky E2E suite that
+people learn to re-run is a guard that reports coverage it does not have, which
+is the failure this whole sequence has been about.
 
-**B-NEW. 🔴 TIME-SENSITIVE — data is being destroyed as it accrues:**
+🔴 **THE ARGUMENT, IN ONE INCIDENT (2026-08-30):** a changed response shape
+broke two client pages — one blank, one rendering a confident "No invoices in
+this date range" about a period that was not empty. Caught by a typecheck error
+two files away, by none of 1,157 tests, because nothing renders these pages.
+Incident: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
-| # | Item | Why it cannot wait |
-| --- | --- | --- |
-| **B4** | ✅ **CLOSED (2026-08-17, PR #54/#55) — every payment keeps its date.** `invoice_payments` / `bill_payments`: one dated row per payment, written by the existing pay paths in the same tenant transaction (a record beside the posting, never a second posting path; settlements route through pay and get rows too). **Append-only at the grants** (SELECT + INSERT — the record of when money arrived is exactly the row someone would want to quietly fix), asserted against `role_table_grants`. Reader: the Record Payment dialogs show the dated history (`GET /invoices/:id/payments` + bills twin). Live pass: two payments (Aug 5, Aug 17) → two rows, both dates preserved.<br><br>🔴 **The backfill is honest about what was NOT recoverable:** pre-B4 documents got ONE row flagged `backfilled = true` — an AGGREGATE carrying only the LAST payment's date; the instalment split is gone forever. **Any consumer that would be wrong on aggregates — DSO, collection-speed, instalment analytics — MUST filter `backfilled = false`** (recorded on the schema, the repository, and design-analytics §6.1). Deployment note: CI caught that the serial ids' SEQUENCES need explicit `USAGE` on plain Postgres (0047) — local Supabase's default privileges had masked it. | Was: the expiring fact — a second partial payment permanently destroyed the first one's date. What it unblocks: the overdue share over time, DSO and collection-speed trends (backfilled-filtered), and "when was this actually paid". |
-| **B5** | ✅ **CLOSED (2026-08-16) — a transfer can now say where the money went, and the loss has stopped.** `transfer_direction` (`own_account | external`, **NULL = not declared**, no default — the M17.1 posture in a third place) + optional `counterparty_bank_account_id` (migration 0043, four DB CHECKs at the write boundary, tested by violation). Declared on the Transactions list — the only moment anyone knows. The cash reconciliation now splits transfers **three ways** (own-account = the ledger is right; external = the ledger is understating cash; undeclared = the platform will not guess) and surfaces `undeclaredTransfers` as its own number with an ASK, because an undeclared transfer is a question only the tenant can answer. | Was: the expiring fact. Rows recorded before 0043 stay NULL forever — that loss already happened and is not recoverable; what stopped is the accrual. ✅ **Option A is BUILT (2026-08-17)** on the declared data — see the M19.7 → A row in §2. |
+**Why it is not a nice-to-have.** It is the ONLY method that has reached this
+class. Every automated test we own runs a layer below the one that broke:
 
-**R. 🔴 REVENUE — the billing gap (owner-queued 2026-08-24, its own item by
-instruction):**
+| Found by | Defects |
+| --- | --- |
+| A browser | the blank AP-aging page, swallowed server refusals, the GL showing SAR 0.00, an uneditable bill — and AUD-13, an issued zero-value tax invoice |
+| 1,100+ tests | none of them |
 
-| # | Item | The consequence, stated plainly |
-| --- | --- | --- |
-| **R1** | **The platform cannot take money.** No subscription, no billing, no plan gating exists anywhere — AI usage is metered per tenant (`ai_usage`), but no mechanism turns a tenant into a PAYING tenant. | **No billing means no revenue, whatever else works.** This is the last MECHANICAL requirement between a working product and income — not a feature gap. Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating (if any) a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
+The two 2026-08-28 lessons in §3 say why in one line each: **no test exercises
+the client's request construction**, and AUD-13 was **verified below the layer
+that had the bug**. A suite that calls services with hand-built objects cannot
+see a client that builds them differently, however many assertions it carries.
 
-**C. Verification and coverage gaps:**
+**Scope when it is taken:** a smoke crawl over every route (authenticated,
+failing on a page error or empty body) that also RECORDS every request the app
+makes, so the recorded call set can be asserted against the mounted route table
+— which closes P4's remaining blind spot (P4 proves a call site exists, not that
+a control renders). Deferred deliberately; not deferred quietly.
 
-| # | Item | Where recorded |
-| --- | --- | --- |
-| C1 | ✅ **CODE HALF CLOSED (2026-08-20); one DEPLOYMENT-TIME check remains.** (a) **Shared store built in Postgres, not Redis** — `lib/rateLimitStore.ts` implements express-rate-limit's `Store` over the existing pool (migration 0050, owner-only table, no `organization_id` because rate limiting runs BEFORE tenant resolution). No new service, no new failure domain; fail-CLOSED if the query errors. All three limiters (auth/signup/user-admin) now share it, namespaced. Tested by building TWO store instances and proving one sees the other's hit — the property MemoryStore could not give, and an assertion that would pass vacuously against a single store. (b) **`trust proxy` is now an explicit `TRUST_PROXY_HOPS` env fact, not inferred from `NODE_ENV`** — the old gate was wrong in BOTH directions (a "staging" deploy ran without it, collapsing every IP-keyed limit onto the proxy's address and shipping the session cookie without `Secure`; a proxy-less production deploy would trust a forgeable header). `SESSION_COOKIE_SECURE` likewise explicit, and `loadEnv` REFUSES a production boot with it false. 🔴 **Still open, and only verifiable in the real deployment: confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For`** — a wrong number is a spoofable limiter either way. | M11 audit + finding S3; audit 2026-08-20 |
-| C2 | ✅ **CLOSED (2026-08-20).** CI now runs `supabase/storage-api` and sets `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, so the M11.4 document suite RUNS instead of skipping. 🔴 **Two things the first red run taught, both worth keeping:** (1) it is started by a **STEP, not a `services:` entry** — a service container starts BEFORE the first step, so it hit Postgres before the roles its own migrations `REVOKE ... FROM anon, authenticated` existed and died with `role "anon" does not exist`; **nothing a later step does can be early enough**, so the ordering had to change, not the timing. (2) A **path-rewriting proxy** sits in front, because `lib/storage.ts` addresses `/storage/v1/object/...` — the path **Kong** exposes in a real Supabase stack — while a bare storage-api serves those routes at the root. Rewriting in CI keeps the suite exercising the URLs production uses; changing the lib to suit CI would have made the test prove the wrong thing. The health wait **fails loudly and dumps the container log** rather than letting a dead container degrade into "suite skipped, CI green" — which is the exact gap C2 exists to close — the suite gates on the presence of those vars, so supplying them is what turns it on. Same reasoning the ZATCA-SDK step already carried in this file: a green CI that skips its highest-consequence suite proves nothing. The container speaks the same REST surface `lib/storage.ts` targets, so the code under test is the real client. | Known CI gap |
-| C3 | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. | [`docs/history/phase-2-zatca-m12.md`](docs/history/phase-2-zatca-m12.md) |
-| C4 | ✅ **CODE HALF CLOSED (2026-08-20); deployment remains.** `lib/malwareScanner.ts` — a provider-agnostic seam (the `KeyWrapper`/`ArchiveStore` hedge) with a dependency-free clamd INSTREAM implementation, wired into BOTH user-file paths right after the magic-byte sniff and before any bytes reach storage: `documents.service.upload` AND `capture.service.capture` (phone captures are the higher-volume untrusted input). 🔴 **The B3 rule is the design**: `scan()` returns `clean`/`infected` or THROWS — an unparseable reply, a timeout and a socket error are all `ScanUnavailable`, never a silent "clean". `SCAN_UNAVAILABLE_POLICY` makes fail-open-vs-closed an explicit config choice (`allow` today, and an unscanned stored file is logged at WARN so it is findable; `refuse` = 503 once untrusted tenants exist). Tests inject a DOWN scanner — the branch nobody writes — and caught a real defect in the gate (configuration was consulted before the injected scanner, which would have made every injection test vacuous). **Remaining: deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`**; M-5's header-only sniff closes with it. | M11.4 follow-up |
-| C5 | ✅ **CLOSED (2026-08-20).** Checked first, then fixed the half that was actually broken: **document ASSEMBLY was already diagnosable** (the assembler throws `BusinessRuleError` 400s with codes — `note_reason_missing`, `amount_not_finite`, …). The gap was **SIGNING**: `SigningError` carries a deliberately fixed, non-leaking message ("ZATCA signing is unavailable for this company") — right for secrecy, useless for action, and it reached the user as an opaque 500 naming no invoice. `invoices.approvable` now wraps the enqueue: a **422 `einvoice_issuance_blocked`** carrying the invoiceId, companyId, the underlying reason, and a `likelyCause` of `signing_unavailable` vs `invoice_data_incomplete` — the two families a user acts on differently — plus a server-side ERROR log. 🔴 The fail-closed POSTURE is unchanged (an ICV gap is unrecoverable; a refused issuance is not), and the test proves both halves: the diagnosis AND that nothing was issued (no ICV consumed, no chain position, no GL entry) — a helpful message that left a half-issued invoice would be the worse bug. | M12.8 decision |
-| C6 | **Data residency / hosting region — now ALSO the AI hosting decision (2026-08-18).** ZATCA permits cloud (the "must be in KSA" claim was a secondary-source error); NCA / sector rules are **unverified legal questions**. Choose host, KMS region, **and AI hosting together** — AI hosting ✅ **decided-pending-Enterprise-terms (2026-08-18): Groq, Reading A, Dammam** (design-ai-layer §12a; seam keeps it reversible). 🔴 The C6 work this leaves: (1) negotiate + sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; (2) confirm an Arabic-acceptable vision model in the Dammam region (the §2a Arabic gate decides on measured numbers); (3) the platform-hosting half (region + KMS) unchanged. No hosted Supabase project exists yet — this is a deployment decision, not a migration. | Residency correction, phase-2 history + [`design-ai-layer.md`](docs/product/design-ai-layer.md) |
-| C7 | **TAX ADVICE — retention of INBOUND supplier documents.** A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. **Answer together with C8 AND the Zakat questions — one package: [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md), Block A.**<br><br>**Sharpened 2026-08-14 (audit):** `retain_until` now has a real production writer (set at promotion, `capture.service.ts:166-173`) — and **still no reader: nothing expires, enforces, or refuses deletion based on it** (the purge job selects on `status` + `captured_at` only, `capturedDocuments.repository.ts:109-118`, and never sees promoted rows). So the "conservative default" is a **stored intention, not a retention policy**. Two consequences for the advice: (a) whatever duration comes back, an ENFORCER has to be built — the value is decorative today; (b) 🔴 **an answer SHORTER than the outbound standard is currently not implementable at all**, because promoted captures live in a store with no delete. Ask the advisor for the duration AND whether inbound evidence may be destroyed on schedule; if it may, that is a B3-shaped build, not a config change. | A1 (Q4) |
-| C9 | ✅ **SUBSTANTIALLY CLOSED (2026-08-19) — verified against the PRIMARY SOURCE** (the official ZATCA VAT Implementing Regulations PDF, read page by page; per-article citations in [`docs/tax/vat-treatment-verification.md`](docs/tax/vat-treatment-verification.md)). **17 treatments verified** (migration 0048), incl. both owner priorities: (1) `FOOD_MEALS` — the predicted defect CONFIRMED as a live wrong default: Art. 50(1)(a)-(b) blocks meals/entertainment input VAT, and the engine was counting it as recoverable (SAR 94.34 live on the dev org). Fixed via 🔴 **`input_vat_blocked` — a deliberate THIRD axis** (recoverability ≠ treatment ≠ basis; reasoning recorded on the column) — excluded from the recoverable estimate, returned as a named `vatBlocked` figure, never silently dropped. (2) Reverse charge — Art. 47(1) verified verbatim; the `vat_basis` mechanism is the correct implementation. **Still open, each with what-would-settle-it recorded in the doc:** the foreign-supplier list (needs actual invoices — safe error direction), LOANS/INVESTMENT_INCOME mixes (advisor), RENTAL_INCOME/TRAVEL (product granularity, not law), and the GCC-Agreement trio → C11. | [`docs/tax/vat-treatment-verification.md`](docs/tax/vat-treatment-verification.md) |
-| **C12** | ✅ **CLOSED (2026-08-21) — verified against the PRIMARY TEXT, then fixed.** Two documents read directly, both from zatca.gov.sa: the **E-Invoicing Implementation Resolution** (19 May 2023) and the **VAT Implementing Regulations** (Eighth Edition). Per-clause citations in [`docs/tax/invoice-numbering-verification.md`](docs/tax/invoice-numbering-verification.md).<br><br>🔴 **The delegation chain is what made the answer findable:** the Resolution does NOT state the rule — Annex (2) field 2.1 defines the IRN and delegates *"as per Article 53(5)(b) of the VAT Implementing Regulation"*. That article is the whole requirement: **"a sequential number which uniquely identifies the Tax Invoice"**.<br><br>**Q1 — are GAPS permitted? YES; sequential + unique is the requirement, unbroken is NOT.** Neither document contains "unbroken", "gapless" or "without gap" for the invoice number (checked, not assumed). 🔴 **The decisive evidence is internal: ZATCA DID write an explicitly gapless, non-resettable rule — for the tamper-resistant COUNTER** (Resolution §7 + Annex 2 field **2.5**, a *different field*, with "counter reset" listed under Prohibited Functionalities). Having spelled it out for 2.5 and not for 2.1, the two differ — exactly as the owner suspected they might. **So a simple counter + unique constraint suffices; the ICV's advisory-lock reservation is NOT required here** and `lockCompanySequence` gains no second caller.<br><br>**Q2 — SCOPE: per COMPANY, one series spanning invoices AND their notes, never reset.** Art. 53(5)(b) scopes uniqueness to the supplier (= the company: it holds the VAT registration and is the EGS unit). Resolution §2 forbids a solution generating more than one sequence of "Electronic Invoices and Electronic Notes" per unit, and multiple concurrent sequences are a **Prohibited Functionality** — so NOT per document type. 🔴 **The year-reset M21.2 introduced is the part that was unsupported**: nothing authorises a per-year restart, and a restart is the one arrangement sitting awkwardly against both "sequential" and the one-sequence rule.<br><br>**Fixed (migration 0054):** `UNIQUE (company_id, invoice_number)`; a monotonic per-company `invoice_number_counters` table that **never resets** (the year is a display prefix — `INV-2026-000045` → `INV-2027-000046`); allocation moved **server-side** into `invoicesService.create` via one atomic UPSERT; the browser's `` INV-${Date.now()...} `` removed; M21.2's second allocator deleted so one counter serves every invoice. A caller-supplied number is still honoured for legacy imports and the constraint judges it. The migration **refuses to run** on pre-existing duplicates and names them rather than auto-renaming — the number may already be a transmitted `cbc:ID` and a note's `BillingReference`. 9 tests, incl. a concurrency property proving a read-then-write allocator collapses 8 allocations into one (verified by re-injection).<br><br>**Still open, carried to the advisor package as Block D** (not stranded in the verification doc): **D1** whether ZATCA's *audit practice* questions gaps — the text cannot answer it, and a "yes" would mean building an explanation for each absent number rather than changing the allocator; **D2** the standing caveat that both English texts are unofficial translations with the **Arabic prevailing**, where the one word our reading rests on is متسلسل / "sequential". | [`docs/tax/invoice-numbering-verification.md`](docs/tax/invoice-numbering-verification.md) |
-| C11 | ✅ **CLOSED (2026-08-23) — verified against the PRIMARY TEXTS, and the queue entry's premise was wrong in both halves.** Three documents read: the **GCC Common VAT Agreement in full (all 78 articles)**, the **KSA VAT Law M/113** (Bureau of Experts official translation — never previously read), and the IR + its Nov-2024 amendments via ZATCA's own guideline. 🔴 The Agreement's Art. 9 is REVERSE CHARGE, and **no sovereign-capacity article exists anywhere in the chain** — the delegation runs Agreement (definitions) → Law Art. 8 → IR Art. 17, which covers only TOGC. The O verdicts are VERIFIED from the definitional scope chain (Agr. Arts. 1+2; Law Art. 2; IR Art. 14) — the same plain-text application C9 used for SALARIES — plus **Agr. Art. 26(6)(b)** for grants. Migration 0057 marks all four codes `treatment_verified`. 🔴 **One condition in positive law, cutting the UNSAFE way: IR Art. 39(2)** (Nov 2024) — a "grant" compensating supplies that benefit the government, directly or indirectly, is TAXABLE CONSIDERATION; booked O it would UNDERSTATE output VAT. Per-row fact, handled by the existing treatment override; recorded loudly. **No advisor question created** — the texts answered all three. | [`docs/tax/gcc-framework-verification.md`](docs/tax/gcc-framework-verification.md) |
-| C8 | 🔴 **PDPL — higher priority than C7 and answered with it. Questions written up as Block B of [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md).** Phone photographs will eventually contain third-party personal data; PDPL grants erasure rights that may conflict with retention. **PDPL has never been considered anywhere in this project** — scope it to the platform (audit logs hold IPs append-only; the archive holds names/addresses 6–11 years; `users`/`customers`/`employees` have no retention policy), not just document capture.<br><br>**Sharpened 2026-08-14 (audit) — the question stopped being hypothetical.** The product now accepts phone photographs from ordinary users, and **posting a bill promotes that photograph into a store that by interface design can never delete it**. So the irreversible act is performed by ordinary users in the ordinary flow, **before the legal question has been answered**, and an erasure request for a promoted capture is today not "hard" but *impossible by construction*. The advisor question that the wiring surfaces: 🔴 **ZATCA §5.5 immutability covers invoices WE GENERATED — a supplier's invoice photographed by our user is a different class of document, and we currently give both the identical no-delete guarantee.** Ask whether inbound third-party captures may be made erasable-with-audit without touching the outbound guarantee. If yes, the archive needs a class distinction (not a `delete` on `ArchiveStore`); if no, capture needs a consent/data-minimisation story instead. Either way it is a design change, so ask before more tenants photograph more documents. | A1 |
-| C10 | 🔴 **ZAKAT TAX ADVICE — the base computation itself. M17.4 IS HELD ON THIS** (owner instruction, 2026-08-15). Q1–Q8 decided the MECHANISM (working paper, GL-derived, Saudi/GCC-only, Hijri+Gregorian); the TAX CONTENT has never been checked against the Zakat Collection Regulations. Written up as **Block C of [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md)**, asked in the SAME conversation as C7/C8. 🔴 **Ask C1 (the minimum-base rule) first — it is the only one that changes architecture rather than arithmetic:** if a rule ties the Zakat base to adjusted net profit, the income statement stops being Q4's cross-check and becomes a computed INPUT, so the worksheet needs an adjusted-net-profit derivation with its own adjustments and audit trail. Also open: exact base composition and which provisions qualify (needed before **M17.3**, not just M17.4), the Gregorian divisor (354 vs 354.367) and rounding convention, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and confirmation that declining mixed/foreign ownership is the right v1 posture. | [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md) §4 |
+### Deployment-time — cannot be closed from code
 
-Re-check the hosted project's default privileges when it exists — they may
-differ from the local Supabase CLI stack where all of this was measured.
+| # | Item |
+| --- | --- |
+| **B1/B2 wiring** | Pick a mail provider + verify a sending domain (`MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM`); point `ALERT_WEBHOOK_URL` at a real destination and confirm one test page arrives. The code is done; an unwired alarm is the thing B2 exists to prevent. |
+| **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter in either direction. |
+| **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
+| **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
+| **C6** | **Residency / hosting, now also the AI hosting decision.** (1) 🔴 Negotiate + sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier is in use for development and routes globally, and "development" is not an exception. (2) Confirm an Arabic-acceptable vision model in the Dammam region. (3) The platform-hosting half (region + KMS) is unchanged. No hosted Supabase project exists yet. |
 
-### 🔴 AUDIT 2026-08-20 — the remaining findings, by severity (NOT yet fixed)
+### Advisor package — one conversation, four blocks
 
-Five parallel read-only auditors (authn/authz, secrets, error handling, input
-validation, test meaningfulness). **CRITICAL + HIGH are CLOSED** — see §2's
-audit row. What follows is everything else, queued deliberately rather than
-fixed in the same pass. Full method and each auditor's stated blind spots are
-in the PR for `fix/audit-critical-high`.
+Written up in [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md).
 
-**Verified CLEAN (worth knowing):** no new authz hole (guard order, identity-route
-IDOR checks, operator isolation, session-fixation regeneration, and an
-RLS-bypass sweep all held); no real secret committed, logged or returned (the
-ZATCA vault verified strongly — callback-scoped key access, buffers zeroed,
-throwing `toJSON`, fixed error messages); the generic-500 wall means no SQL,
-stack or path leaks to clients; the job scheduler survives a failing job.
+| # | Item |
+| --- | --- |
+| **C7** (Block A) | Retention of INBOUND supplier documents. A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. 🔴 `retain_until` has a writer and **no reader** — nothing expires or refuses deletion on it, so it is a stored intention, not a policy; whatever duration comes back, an ENFORCER must be built. An answer SHORTER than the outbound standard is **not implementable today** (promoted captures live in a store with no delete) and would be a B3-shaped build. |
+| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** Never considered anywhere in this project; scope it to the platform (audit logs hold IPs append-only, the archive holds names/addresses 6–11 years, `users`/`customers`/`employees` have no retention policy), not just capture. The irreversible act is already performed by ordinary users: posting a bill promotes a phone photograph into a store that by interface design can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — those cover invoices WE generated, and we currently give both classes the identical no-delete promise. **Also in this block:** whether an operator's readability of a verified tenant's identity documents should EXPIRE (see the operator surface note below). |
+| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) first — it is the only one that changes architecture rather than arithmetic**: if a rule ties the base to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. Also open: exact base composition and qualifying provisions, the Gregorian divisor (354 vs 354.367) and rounding, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and whether declining mixed/foreign ownership is the right v1 posture. |
+| **C12 leftovers** (Block D) | **D1:** whether ZATCA's *audit practice* questions gaps — the text cannot answer it, and a "yes" means building an explanation for each absent number, not changing the allocator. **D2:** both English texts are unofficial translations with the **Arabic prevailing**, and our reading rests on متسلسل / "sequential". |
+| **Invoice dating** | 🔴 The closed-period policy is **REASONED-NOT-VERIFIED** (source: the owner, not an accountant): an invoice must not be dated into a closed period at all; work done in a closed month is issued in the current open period, and revenue belonging to the closed month is an accrual made BEFORE closing. Enforced today on create and on a changed `date` (423 `period_closed`). **The open question:** whether Saudi practice permits ANY exception — a grace window, or an audited override. |
 
-| Sev | Finding | Where |
-| --- | --- | --- |
-| ~~MED~~ | ✅ **FIXED (2026-08-24, test-vacuity cluster)** — only the two DURABLE not-ready stages (`no-active-credential`, `credential-not-activated`) map to null/"not onboarded"; a KMS outage or DB error now PROPAGATES, so the outbox records the true reason and retries instead of burning an attempt on a wrong diagnosis. | `zatcaDirectProvider.ts` |
-| **MED** | **A 2xx for a transaction that rolled back.** Commit failure after `res.on("finish")` is logged only — the client already has its success. Structurally hard to fix at that point; nothing alarms on the pattern (L-1 family). | `lib/tenant.ts:144` |
-| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — malformed `extraction`/`fieldSources` JSON now REFUSES with a named 400 (`parseJsonField`, lib/httpParams) instead of staging the capture with the user's OCR silently lost. | `routes/capture.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-23) — reclassified a SECURITY finding by the owner, not a validation fix** (full record: findings file, 2026-08-23). Was queued as the 500-where-4xx cluster; 🔴 **the finding grew during the fix:** Postgres FK checks run OUTSIDE RLS, so a nonexistent customerId and ANOTHER TENANT's customerId were both accepted-or-500 — a cross-tenant reference + existence oracle, not just a bad status. Fixed by tenant-scoped pre-checks → **422 `reference_not_found`** (status policy: 422 = semantically invalid input that passed schema validation) on customerId/vendorId/categoryId/bankAccountId across invoices, bills, quotations, POs and transactions (both prior bankAccountId 400s aligned to 422). Capture's >10 MB photo now maps through `uploadSingle` → 400. | `audit-med-validation.test.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `taxCategoryCode` constrained to S/Z/E/O-or-null: named 400 at the services (`assertTaxCategoryCode`), **DB CHECK 0056** on `invoice_items` AND `quotation_items` as the write-boundary backstop (bill/PO items have no such column — verified, the M21.3 lesson). | migration 0056 |
-| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — PATCH `/transactions/:id` now carries the create path's vatAmount/vatRate bounds in the spec, and the invariant itself moved to **DB CHECK 0056** (owner instruction: fix the write boundary, not the looser path). | migration 0056 |
-| ~~MED~~ | ✅ **FIXED (2026-08-23, MED validation pass)** — `requireIdParam` (lib/httpParams, the quotations-controller helper generalized) on all ~13 controllers + orgs/auth routes; NaN ids are 400s, never 22P02 500s. | `lib/httpParams.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-24)** — the certificate alarm is exercised FIRING with a BUILT condition (the `stuckDocument` discipline): T-3 fires as a warning naming the days and the tenant-OTP fact; expired fires CRITICAL, stays firing through the cooldown, and a renewal RESOLVES. | `tests/alerting.test.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-24)** — the verifier can now say YES: a genuinely-signed secp256k1 fixture (DER sig over the hash-as-message, SPKI in tag 8 raw, tags 6/7 as base64 strings — divergence #13 preserved) is VERIFIED, and its anti-vacuity twin (same key/signature, different hash) FAILS — the pair proves discrimination, not politeness. | `tests/document-capture.test.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-24)** — a THIRD, ONBOARDED company in the concurrency suite: 8 parallel approvals produce 8 `einvoice_documents` rows chained contiguously from ZATCA's `GENESIS_PIH` (never the homegrown literal), all predecessors distinct — the fork artifact `unique(company_id, icv)` structurally cannot see, asserted on the table ZATCA actually reads. 🔴 Honest note: this test was NOT verified-by-reinjection (that would mean patching `lockCompanySequence` out); its assertions are presence-shaped over real concurrent rows, and the sequential fork case is pinned in the enqueue suite. | `tests/invoice-icv-concurrency.test.ts` |
-| ~~MED~~ | ✅ **FIXED (2026-08-24)** — `DemoResetRefused` now SETS its name and prototype (it was runtime-indistinguishable from a bare Error, and the old test asserted exactly that defect: `.name === "Error"`); the test now fails against `new Error()` by construction. | `tests/demo-reset-guard.test.ts` |
-| ~~LOW~~ | ✅ **FIXED (2026-08-24, LOW close-out)** — `sanitizeBody` redacts secret-shaped keys (secret/token/password/credential/authorization, any depth) before the body attaches to a loggable error; the diagnosis fields survive. Pinned with a fixture carrying a real-shaped secret. | `zatcaOnboardingClient.ts` |
-| ~~LOW~~ | ✅ **FIXED with C1 (2026-08-20)** — cookie `secure` and `trust proxy` are now explicit env facts (`SESSION_COOKIE_SECURE`, `TRUST_PROXY_HOPS`), not inferred from `NODE_ENV`, and production refuses to boot with Secure off. The stale `sameSite: strict` comment now states the `lax` the code has always set. | `app.ts` |
-| ~~LOW~~ | ✅ **FIXED (2026-08-24)** — `/llm/status` no longer echoes `OLLAMA_URL`; it reports `llmBackendConfigured`, the tenant-relevant fact, and keeps the topology. | `controllers/llm.controller.ts` |
-| ~~LOW~~ | ✅ **FIXED (2026-08-24)** — `tests/env-boot-refusal.test.ts`: from a proven-good production baseline, each refusal is one flipped variable — B1 mail, B2 alert, the local-dev key wrapper, `SESSION_COOKIE_SECURE=false`, and the AI-1a attestation in both directions (a near-miss string refuses). Lives in the api suite because the PACKAGE lacks test infra and the BEHAVIOR was the gap. Bonus surfaced by the baseline: the `ZATCA_ARCHIVE_DIR` absolute-path refusal, now exercised too. | `tests/env-boot-refusal.test.ts` |
-| ~~LOW~~ | ✅ **HALF FIXED, HALF ACCEPTED (2026-08-24)** — the varchar half is a CLASS fix: Postgres `22001` maps to a named 400 in the central errorHandler, so every varchar column present and future inherits it. The controller-raw-body half stays ACCEPTED as depth-in-defence (the services are allowlisted — H1); revisit only if a service allowlist regresses. | `middleware/errorHandler.ts` |
-| ~~LOW~~ | ✅ **DOCUMENTED (2026-08-24)** — the shrink-check's generated-hook blind spot is now stated at the check itself, with WHY scanning the generated client would be vacuous (it contains every spec path regardless of use) and the manual rule for hook-fixed entries. Acceptable while `KNOWN_UNREACHABLE` holds one entry. | `tests/route-reachability.test.ts` |
-| ~~LOW~~ | ✅ **DOCUMENTED (2026-08-24)** — the vault-boundary test now states its text-matching limitation in place (the identity-boundary twin) and names the grants layer as the enforcement that doesn't depend on reading source. | `tests/zatca-credential-vault.test.ts` |
-| ~~INFO~~ | ✅ **FIXED (2026-08-24)** — the canonicalisation test now claims what it proves (UBLExtensions stripped) and names where the QR/Signature exclusions ARE proven (the live compliance pass). The narrower-claim shape, corrected at the name. | `tests/zatca-crypto.test.ts` |
+### Code-level open findings — RANKED BY CONSEQUENCE, not by discovery
 
-🔴 **What the audit could NOT see** (recorded so it is not mistaken for a clean
-bill): RLS *policy* coverage was the biggest gap and is now closed by
-`tests/rls-coverage.test.ts`; still unaudited are the **permission-matrix seed
-grants** (enforcement was audited, the grants were not), **same-org
-cross-company isolation** (`app.current_company_id` at row level), **git
-history entropy-scanning** (prefix/pickaxe only, no gitleaks pass), and
-**runtime-order test vacuity** (only execution reveals it).
-✅ **The accounting core's own throws are now AUDITED (2026-08-27)** — the last
-of this list to close; findings below.
+🔴 **Re-ranked 2026-08-28 using the composition question** (§3's newest lesson):
+not "how bad is this finding" but "what does it compose with, and does the
+result become **irreversible**, **uncorrectable**, or **unnoticed**". AUD-13 is
+why: five items, each correctly triaged in isolation, that together minted a
+permanent zero-value ZATCA invoice. **Composition risk is stated per row, and it
+is the reason the order is not the severity order.**
 
-**🔴 OPERATOR SURFACE — AUDITED (2026-08-27), by REACH rather than by routes.**
-Taken next after F1 because it is the platform's only cross-tenant privileged
-path, and audited with the question the composition class demands: *what does
-operator status actually permit, including through paths nobody wrote with
-operators in mind?*
+| Rank | Item | Composes with | Why here |
+| --- | --- | --- | --- |
+| **1** | **No password recovery for a multi-org account** — DECISION PENDING, options and costs in [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30). F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question: **A** self-service email reset (moderate build, no new privilege, close template exists in `organization_invitations`), **B** operator reset (small build, but creates a standing cross-tenant takeover — the F1 shape), **C** both. Owner decides. |
+| **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **3** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
-**Verified CLEAN, and worth knowing:** operator status is **not
-self-grantable** — there is NO write path to `platform_operators` anywhere in
-the API (only `packages/db/seed.ts`); `isOperator` is consulted in exactly one
-place (`lib/operator.ts`), so operator status adds nothing inside a tenant
-context; the review state machine never allows `approved` in `allowedFrom`, so
-an operator **cannot** reject a live tenant out of the platform; the
-transition re-asserts its guard atomically; `verification_documents` is its own
-table (not shared with tenant business documents) and `findInOrg` scopes by
-docId AND orgId, so there is no operator IDOR into tenant files.
+**Open DECISIONS** (not defects — flagged so they are decided rather than
+defaulted): `platform-alarms` is classified NOT operator-runnable, so no surface
+offers it (one-line flip if manual paging tests are wanted); and
+`normalizeDigits` exists twice, pinned by a behavioural-equivalence test, pending
+a shared workspace package.
 
-🔴 **F2 — the job runner's reach was inherited, not decided. FIXED.**
-`POST /operator/zatca/jobs/:name/run` validated against
-`getScheduler().names()` — the whole registry — so the surface gained reach
-every time any milestone registered a job. **The UI offers three buttons and
-the route's comment names three; the API permitted nine.** Re-injection shows
-what that meant: pre-fix, `demo-reset` returned **200** (the route accepted it;
-only the job's own `DEMO_MODE` precondition, in another service, prevented a
-wipe) and `capture-promotion` **actually ran** — irreversibly promoting
-tenants' captures into a store that by design cannot delete, with **no audit
-record at all**. The runner was the ONLY operator route that recorded nothing,
-while being the most consequential one available (draining the outbox transmits
-tenants' invoices to a tax authority). Neither file was wrong: registering
-every job is deliberate and load-bearing (`runNow` is how a job stays operable
-with its timer off), and the route did validate against a list — **a
-registration decision silently doubled as an authorization decision.**
-Fixed by `lib/operatorJobs.ts`: the operator surface declares its OWN reach,
-every job classified with a reason, refused at the route AND the service, the
-run audited as `operator.job_run` (org-less — a job run is platform-wide).
-`tests/operator-job-reach.test.ts` fails in BOTH directions when the registry
-and the classification disagree, so a new job cannot default to runnable and a
-stale rule cannot rot. Verified by re-injection (4 red).
+**Open and unreproduced:** **B-8**, the RTL `<html dir>` loss — one candidate
+eliminated 2026-08-30 (the login page DOES have a provider; see §3's do-not-fix).
+If the attribute is lost it is a runtime fact no static check reaches.
 
-**Recorded, NOT fixed — scope observations, not vulnerabilities:**
-`getApplication` accepts ANY orgId, including an **approved, live** tenant, and
-returns its CR/VAT plus its verification documents — it is audited, and
-re-review is legitimate, but the access **never expires** and those documents
-carry third-party personal data, so it belongs with **C8 (PDPL)** rather than
-being silently fine. `onboardingStatus()` returns every company's VAT number
-across every tenant, unfiltered and unpaginated.
+🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY**, and they
+emptied themselves: the companion test failed the moment AUD-10/11/12's callers
+were built. A new entry needs a checkable reason and leaves the day it is fixed.
 
-### 🔴 OPEN QUEUE from the 2026-08-27 audits, by severity
+### Arabic coverage
 
-Nothing here is a known-exploitable hole; each is a decision or a gap that was
-found, understood and deliberately not closed in the same pass.
+Arabic is a **launch requirement**. Seven English-only pages were swept
+2026-08-30 (PR #105) — CreditNotes went 2 → 28 i18n calls. 🔴 The measurement
+that found them is the reusable part, not the fix: counting both idioms
+(`t("…"` and `lang === "ar"`) against bare JSX text nodes, across every page.
+**Re-run it before launch** — a targeted fix sees only what it was sent to fix
+(§3), so coverage has to be measured, not noticed.
 
-| Sev | Item | What would close it |
-| --- | --- | --- |
-| **MED** | **🔴 The accounting core's central precondition has no forcing function** (accounting-core services audit, first pass). `db` is a Proxy: inside a tenant transaction it resolves to the RLS-scoped client; **outside one it falls back SILENTLY to `baseDb` — the same owner connection `ownerDb` exports**, with RLS bypassed and no `app.current_org_id`. No error, no empty result: a full-privilege cross-tenant handle. The accounting core explicitly depends on this not happening — `glPosting.resolveAccounts` writes NO organization filter, justified in a comment by "this runs inside the request's tenant transaction". So the core trusts a fact its CALLER controls, and the failure mode is a wrong answer rather than a refusal — shape 1 of the composition class, in the layer with the least tolerance for it. **No live instance found in this pass** (checked, not assumed): the two jobs that touch per-tenant business data through shared services — `recurringGenerationService` and `findingsScheduleService` — both open `beginTenantConnection` per tenant; the unscoped jobs (outbox, archive, renewal, capture, alarms) are cross-tenant sweeps BY DESIGN and use raw SQL with an explicit `organization_id` parameter rather than relying on RLS. The gap is that nothing STOPS the next caller. | Export a scope predicate from `@workspace/db` and assert it at the top of `postJournalEntry` / `checkPeriodOpen` — throw when called outside a tenant transaction. Make the unscoped call inexpressible rather than merely unwise. Ships narrow and scoped, as its own change. |
-| **MED** | **No password recovery for a multi-org account.** F1's fix means an account that has EVER held a membership outside an admin's scope cannot have its password reset by that admin — and the platform has no self-service recovery at all (`/auth/change-password` requires the current password). Such a user who forgets is locked out. The strict reading is deliberate; the gap is real and now REACHABLE rather than theoretical. | An operator-level reset (audited, on the operator surface) or a self-service email flow. B1's mailer is already live, so the second is now buildable. |
-| **MED** | **`operatorService.getApplication` accepts ANY orgId, including an approved LIVE tenant** — returning its CR/VAT and its verification documents. Audited, and re-review is legitimate, but the access **never expires**, and those documents carry third-party personal data. Not a hole; an unbounded retention/access surface. | Belongs with **C8 (PDPL)** — ask whether operator readability of a verified tenant's identity documents should expire, and if so build the expiry. Not a code fix ahead of the answer. |
-| **LOW** | **`operatorZatcaService.onboardingStatus()` returns every company's VAT number across every tenant**, unfiltered and unpaginated. Operational metadata by design and operator-only, but it is the widest single cross-tenant read on the surface. | Paginate, and drop `vatNumber` unless a stated operator workflow needs it (`readyToOnboard` already carries the derived fact). |
-| **LOW** | **Manual-JE balance failure returns 400 where the status policy says 422** (semantically invalid input that passed schema validation). Pre-existing and tested; changing it is a behaviour change to a path this audit did not otherwise touch. | Align with the status policy in a pass that owns that path, updating its tests. |
-| **DECISION** | **`platform-alarms` classified NOT operator-runnable** (F2). Harmless in itself — it pages our webhook, not a tenant — but no surface offers it. Flagged for veto rather than decided silently. | One-line flip in `lib/operatorJobs.ts` plus a button, if manually testing paging is wanted. |
-| **HOUSEKEEPING** | **`CLAUDE.md` is ~142k characters** against its own stated budget of "well under 100k". This session added to it. | A pass moving narrative into `docs/history/`, which §1 already prescribes. |
+### Traps and known-dead surfaces
 
-**🔴 ACCOUNTING-CORE THROWS — AUDITED AND CLOSED (2026-08-27).** All 14 throws
-in `services/accounting/` + `services/approval/` enumerated and classified.
-**Thirteen were already correct** (typed `AppError`s in the approval engine;
-`PeriodLockedError` structured at 423; `AccountResolutionError` a deliberate
-diagnostic-500). `onApprove` failures propagate rather than being swallowed —
-the fail-closed posture holds. Two findings, both fixed:
+- **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
+- `status: 'overdue'` has **no writer** on invoices or bills (dead enum value; UIs style it, aging derives overdue from dates).
+- VAT-return **box 4 (exports) is always 0** — an export today is a 'Z' line in box 2.
+- Manual transaction create has no `kind`/`taxTreatment` fields, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
+- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (unreachable from the UI; round `paid` at the validation gate).
+- Settlement links are readable from the transaction side only — the design said "either side".
+- The income-statement **transactions-fallback** (zero journal lines only) reports gross incl. VAT.
+- The Categories UI cannot mark system accounts (`isSystem` not in the API — latent; no edit routes exist).
+- **Deferred feature:** action-level permissions for separation of duties (post-to-GL / pay / approve individually gateable).
+- 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local Supabase CLI stack where the grant work was measured.
 
-1. **The balance guard was the one untyped throw in the core** — a bare
-   `throw new Error(...)` guarding *debits equal credits*, the single most
-   important invariant in the system. The central handler duck-types on
-   `statusCode`, so it became the generic 500 wall with the two totals surviving
-   only in the log — the C5 shape (fail-closed right, diagnosis absent) on the
-   core's most consequential guard, while its two immediate neighbours in the
-   same function were both typed. Now `UnbalancedEntryError` (500, naming both
-   totals, the difference, the tolerance, and that nothing was posted).
-   🔴 **And nothing proved it fired**: the suite mentioned it twice, both in a
-   test asserting it does NOT fire. A guard whose only coverage asserts its
-   silence is the obsolete-assertion family — widen the tolerance or invert the
-   comparison and CI stays green. `tests/gl-balance-guard.test.ts` is the
-   presence assertion, with the anti-vacuity twin.
-2. **One invariant, two tolerances** — `journalEntries.service` refused a manual
-   entry at `> 0.01` while the GL refused at `> 0.005`, the user-facing gate
-   LOOSER than the ledger's. 🔴 **Not currently reachable** (checked, not
-   assumed: a manual entry posts through its own approvable and never calls
-   `postJournalEntry`), so it was latent — but it is the two-id-spaces shape,
-   and had a JE path ever reached the GL helper, an imbalance in (0.005, 0.01]
-   would have passed the 400 and died as an opaque 500 on approval. Now one
-   exported `GL_BALANCE_TOLERANCE`, imported rather than restated, with a test
-   that fails when the literal comes back (verified by re-injection).
+### What the audits could NOT see (so it is not mistaken for a clean bill)
 
-### Other open findings (small, non-blocking)
-
-Full text and history: [`docs/history/known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
-
-- **🔴 INVOICE DATING INTO CLOSED MONTHS — owner-decided 2026-08-23,
-  REASONED-NOT-VERIFIED (source: the owner, not an accountant).** Its own
-  item by owner instruction, not a leftover of the MED validation pass. The
-  policy: **an invoice must not be dated into a closed period at all** —
-  closing a month means its figures are final, and Saudi VAT files per
-  period, so a backdated document makes a filed return wrong or forces an
-  amendment. Work that genuinely happened in a closed month is **issued in
-  the current open period**; revenue that truly belongs to the closed month
-  is **an accrual made before closing**, never a backdated document after.
-  **The guard honours `document.date`** — the accounting date every report
-  and the VAT return read; `issued_at` is the ZATCA timestamp, a different
-  fact. Under that reading the existing create-path guard was RIGHT, and the
-  real gap was that nothing stopped `date` being backdated after creation —
-  **closed in the same pass**: `invoices.update` / `bills.update` now call
-  `checkPeriodOpen` on a changed date (423 `period_closed`, the M22 dialog
-  explains it for free). 🔴 **One question remains for the accountant:**
-  whether Saudi practice permits ANY exception — a grace window, or an
-  audited override. A detail; the principle stands either way.
-- **🔴 QUEUED DECISION (owner, 2026-08-24): `normalizeDigits` exists twice —
-  single-source it or accept the pin.** The canonical Arabic-Indic digit
-  normalisation lives in `apps/web/src/lib/receiptParser.ts`; AI-3b's
-  explanation verifier carries a copy in
-  `apps/api/src/services/findings.explanationVerifier.ts` because the
-  web↔api workspace boundary blocks a direct import. A
-  behavioral-equivalence test pins the copy today, but "four lines is fine;
-  a second copy that drifts isn't" (owner). The decision when taken: a small
-  shared workspace package (probable home for future shared text/number
-  utilities — the TLV-codec precedent) vs. keeping the pin. Not urgent;
-  recorded so it is a decision, not a flag decaying in a PR description.
-- ~~M-3~~ ✅ **FIXED (2026-08-24, LOW close-out)** — the signup race maps the unique-index verdict to the pre-check's own 409, keyed on the CONSTRAINT (drizzle-unwrapped) so an org-slug collision is not mislabeled as a duplicate email; pinned by a genuinely concurrent two-signup test. (The bcryptjs half of M-4 stays open.)
-- **M-4**: `bcryptjs` blocks the event loop on public endpoints; no max-length validation before `varchar(255)` (raw 500s).
-- **M-5**: magic-byte sniff is header-only (closes with C4's AV work).
-- **L-1**: security-audit write failures only `console.error` — route through `pino` and alert on the pattern.
-- **L-2**: signup 409 leaks account existence (accepted; document inline).
-- ~~L-3~~ ✅ **FIXED (2026-08-24)** — the primary-membership order is total: `createdAt, id`.
-- **L-4**: the operator queue list is unaudited (accepted trade-off).
-- **✅ `companies.fiscalYearStart` — fully closed by M20.0 + M20.1** (was: stored
-  from M11.6, applied by nothing for five milestones). Resolver (`lib/fiscalYear.ts`),
-  calendar basis, endpoint, Company Settings display (M17.2); NULL = not declared
-  as a first-class state (M20.0); every report page opens on the resolved fiscal
-  year or a labelled rolling 12 months (M20.1). Remaining fiscal-period work is
-  feature work, not a gap — tracked in §2 (M20.2/M20.3).
-- **S6/S7 traps**: `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
-- **Feature (deferred)**: action-level permissions for separation-of-duties (post-to-GL / pay / approve individually gateable).
-- **🔴 Mounted routes with NO UI (found by `tests/route-reachability.test.ts`,
-  2026-08-14 — the same class as A1/A3):** ~~`/period-locks`~~ (✅ CLOSED —
-  M18.4 gave it its first UI in the Finance Hub; **M22 (2026-08-21) added the
-  dedicated `/closed-months` page + the global 423 explanation.** 🔴 This
-  bullet itself claimed "a tenant cannot close an accounting period from the
-  product" for a WEEK after M18.4 fixed that — the guard's comment was updated
-  and this file was not, the exact §11 staleness disease, in the operating
-  file), `/audit-logs` (the admin audit trail has no reader UI, though it is
-  claimed as available to org admins), `/llm` (proposal-only, inert, parked
-  with the AI layer).
-  They are listed in the guard's `KNOWN_UNREACHABLE` with
-  reasons; the guard blocks NEW ones and fails if a listed route gains a UI
-  without leaving the list. **Also fixed in the same pass:** `ZatcaOnboarding`
-  and `CreditNotes` passed `/api/...` into `apiFetch`, which prepends `/api`
-  itself — both pages requested `/api/api/...` and 404'd on every call.
-- **✅ META-FINDING #9 — CLOSED by flaw #1 (Option A, 2026-08-14).** The ledger
-  and transaction report families used to answer the same questions from
-  disjoint stores: an income statement showing **0.00 expenses** beside a
-  dashboard showing **45,063.25**, same tenant, same month. **Accepted
-  transactions now POST to the ledger** (`transactionPosting.service.ts`), and
-  `summary.getSummary` derives income/expenses from `incomeStatement` — so the
-  dashboard and the P&L cannot drift *by construction* rather than by
-  agreement. Posting rules: gross with **no input-VAT line** (input VAT needs a
-  valid tax invoice; a bank line is not one), uncategorised → **SUSPENSE** (a
-  visible balance, never a silent expense), transfers and settlements never
-  post (one writer per effect), category TYPE decides the statement, period
-  locks apply, and editing a posted row **reverses and re-posts**. VAT/Zakat
-  payments re-typed to `liability` (migration 0036), so settling them no longer
-  reduces profit. Full record: [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md).
-- **✅ Flaw #6 CLOSED (2026-08-14) — reverse charge is representable.**
-  `tax_treatment` stays the ZATCA supply taxonomy; a new **`vat_basis`**
-  (`charged | reverse_charge | supplier_unregistered`, migration 0037) says
-  whether VAT was actually charged on the payment. **VAT is extracted only when
-  treatment='S' AND basis='charged'**, enforced by DB CHECKs. The engine flags
-  known foreign digital suppliers (Google, AWS, Meta, Microsoft, Adobe…) as
-  reverse-charge — independently of whether it can categorise the row, so a
-  hand-categorised foreign payment does not silently revert to "charged" — and
-  the review UI makes it overridable in both directions. 🔴 **The supplier list
-  is itself an ASSUMPTION** (several platforms have since registered for KSA
-  VAT on some product lines) — see C9.
-- **✅ Flaw-report item #8 — CLOSED by M17.0 (2026-08-15).** The Zakat base read
-  `is_zakat_relevant`, which **one rule out of ~40** set (Tadawul/investment),
-  so it rendered a computed-looking **0** for almost every tenant beside a nisab
-  threshold hardcoded from a 2024 gold price — and for a tenant who *did* trade,
-  something worse: investment **income** reported as a zakatable **asset**, less
-  every debit. The owner interview (Q1–Q8) defined the capability, and M17.0 removed
-  the fake one: `transactions.is_zakat_relevant`, `categories.zakat_relevant`,
-  `system_account_templates.zakat_relevant` (migration 0038, org-seed trigger
-  redefined FIRST), `GET /summary/zakat` and its schema, both UI toggles, and
-  four **vacuous** test probes that compared 0 to 0. The page now states it is
-  not implemented. Decisions + build order:
-  [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md).
-- **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
-  transaction create has no `kind`/`taxTreatment` fields, so every manual
-  VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
-  adjacent; fields worth adding); sub-cent amounts via raw API can mark a
-  document paid with a 1-halala GL residual (round `paid` at the validation
-  gate — unreachable from UI/settlement); ~~budget actuals `sum(amount)` ignores
-  debit/credit so a refund increases "spent"~~ **✅ FIXED in M19.0** — actuals
-  are now signed by account type (expense/asset debit-natural, income/liability/
-  equity credit-natural), and a negative actual is reported rather than clamped;
-  the income-statement
-  transactions-FALLBACK (zero journal lines only) reports gross incl. VAT;
-  settlement links are readable from the transaction side only (no invoice/
-  bill-side surface, design said "either side"); the Categories UI cannot mark
-  system accounts (`isSystem` not in the API — latent, no edit routes exist);
-  `status: 'overdue'` has NO writer on invoices or bills (dead enum value; UIs
-  style it, aging derives overdue from dates); VAT-return box 4 (exports) is
-  always 0 — an export today is a 'Z' line in box 2.
+RLS *policy* coverage was the biggest gap and is closed (`tests/rls-coverage.test.ts`).
+Still unaudited: the **permission-matrix seed grants** (enforcement was audited,
+the grants were not), **same-org cross-company isolation**
+(`app.current_company_id` at row level), **git-history entropy scanning**
+(prefix/pickaxe only, no gitleaks pass), and **runtime-order test vacuity**
+(only execution reveals it). 🔴 And the standing one: **nothing in the suite
+renders a page or runs at volume** — see §3's last two lessons.
 
 ## 6. Tech Stack
 
@@ -1435,11 +705,12 @@ Operating references:
 
 History (the full narrative this file used to carry):
 
+- [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md) — M13–M23, the AI track, and the 2026-08 audits, as built. **This is where §2's narrative went.**
 - [`docs/history/phase-0-platform-foundation.md`](docs/history/phase-0-platform-foundation.md) — M1–M10 as built.
 - [`docs/history/phase-1-onboarding-m11.md`](docs/history/phase-1-onboarding-m11.md) — M11.1–M11.7 + the M11.5.1 hotfix.
 - [`docs/history/phase-2-zatca-m12.md`](docs/history/phase-2-zatca-m12.md) — M12 sub-milestones, decisions, landmines, residency correction, KMS requirements.
-- [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md) — findings #1–#11, S1–S7, the named failure modes with incidents.
-- [`docs/history/known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md) — audit findings, resolved-issue history.
+- [`docs/history/findings-and-lessons.md`](docs/history/findings-and-lessons.md) — findings #1–#11, S1–S7, and the **long form of every §3 lesson** (the incident, the evidence, the countermeasure, how it was verified).
+- [`docs/history/known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md) — audit findings, resolved-issue history, and **every CLOSED pre-production queue item** with its as-built record.
 
 ## 10b. 🔴 Tooling hazards (learned the hard way)
 
@@ -1546,8 +817,15 @@ keep are still present** — the same discipline as after a stale-snapshot warni
   approvable entities replicate the zero-movement test; ingestion/tax
   milestones end with the live verification pass (standing rule 3).
 - **Milestone close-out:** run the standing check (§3, all six parts), update
-  §2 Current State here, and put the narrative record in `docs/history/` — not
-  in this file.
+  §2 Current State here (a STATUS line and a link — never the as-built story),
+  and put the narrative record in `docs/history/` — not in this file.
+- **🔴 The same commit that CLOSES a thing REMOVES it from here.** A closed queue
+  item leaves §5; a lesson's incident narrative leaves §3; a milestone's
+  as-built account never enters §2. This file grew 35k → 157k in four weeks
+  because writing is triggered by an event and deleting is triggered by nothing
+  — so deletion now has a trigger too, and
+  `tests/claude-md-budget.test.ts` fails when it is ignored. Raising the budget
+  is not a way to pass it.
 - **🔴 Docs never state current status in their own words — they DATE their
   claims and point at §2 for "now".** Any doc that carries free-standing
   status prose WILL drift: the README described Phase 0 as the frontier twenty

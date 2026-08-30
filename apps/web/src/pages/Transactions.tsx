@@ -35,6 +35,7 @@ export default function Transactions() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
+  const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ListTransactionsType | "all">("all");
@@ -48,12 +49,37 @@ export default function Transactions() {
     return () => clearTimeout(handler);
   }, [search]);
 
+/**
+ * 🔴 B6 — this list is CAPPED, and a cap the user cannot see is a wrong answer.
+ *
+ * The page previously asked for exactly `limit: 50` and rendered whatever came
+ * back, so a tenant with 300 matching transactions saw 50 and was told nothing.
+ * At dev-org size (45 rows) that is invisible, which is precisely why it
+ * survived — see the timing property in CLAUDE.md §3.
+ *
+ * Fetch ONE MORE than we show. If the extra row arrives, truncation is a FACT
+ * rather than an inference from "we got exactly the limit", and the notice
+ * below states it plainly instead of the page pretending it is complete.
+ */
+const PAGE_SIZE = 50;
+
   const { data: txList, isLoading: loadingTx } = useListTransactions({
     search: debouncedSearch || undefined,
     type: typeFilter !== "all" ? typeFilter : undefined,
     category_id: categoryFilter !== "all" ? Number(categoryFilter) : undefined,
-    limit: 50,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   });
+
+  /**
+   * 🔴 The server already returned a SQL `total`; this page was inferring
+   * truncation from a fetched extra row and then telling the reader to narrow
+   * their filter. Disclosure was honest, but the only exit was to search
+   * differently. It now reads the real count and offers the rest — "showing 50
+   * of N" with a way to page, which is what the disclosure was standing in for.
+   */
+  const visibleRows = txList?.transactions ?? [];
+  const txTotal = txList?.total ?? 0;
 
   const { data: categories } = useListCategories();
 
@@ -151,7 +177,7 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {txList?.transactions.map(tx => (
+                {visibleRows.map(tx => (
                   <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
                     <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
                     <td className="px-6 py-4 text-foreground max-w-[300px]">
@@ -254,12 +280,41 @@ export default function Transactions() {
                     </td>
                   </tr>
                 ))}
-                {txList?.transactions.length === 0 && (
+                {visibleRows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <Filter className="w-8 h-8 mb-2 opacity-20" />
                         <p>{t("No transactions match your criteria.", "لا توجد معاملات تطابق معايير البحث.")}</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {txTotal > 0 && (
+                  /* 🔴 The list is a PAGE, and the page says which one, of how
+                     many, with a way to the rest. It used to say only "showing
+                     the first 50 — narrow your search", which is honest about
+                     the cap and offers no exit. */
+                  <tr>
+                    <td colSpan={6} className="px-6 py-3 border-t border-border">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {t(
+                            `Showing ${page * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE + visibleRows.length, txTotal)} of ${txTotal}`,
+                            `عرض ${page * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE + visibleRows.length, txTotal)} من ${txTotal}`,
+                          )}
+                        </span>
+                        <span className="flex gap-2">
+                          <Button variant="outline" size="sm" disabled={page === 0}
+                            onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                            {t("Previous", "السابق")}
+                          </Button>
+                          <Button variant="outline" size="sm"
+                            disabled={page * PAGE_SIZE + visibleRows.length >= txTotal}
+                            onClick={() => setPage((p) => p + 1)}>
+                            {t("Next", "التالي")}
+                          </Button>
+                        </span>
                       </div>
                     </td>
                   </tr>

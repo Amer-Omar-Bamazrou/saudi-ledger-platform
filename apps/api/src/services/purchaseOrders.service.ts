@@ -15,6 +15,7 @@
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 /**
  * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
@@ -123,8 +124,20 @@ async function assertBilledLinesUnchanged(purchaseOrderId: number, incoming: any
 
 export const purchaseOrdersService = {
   async list(filter: PurchaseOrderListFilter) {
-    const rows = await purchaseOrdersRepository.list(filter);
-    return rows.map((r) => buildPurchaseOrderOut(r.po, r.vendor));
+    const [rows, totals, total] = await Promise.all([
+      purchaseOrdersRepository.list(filter),
+      // AUD-3: the list states a billing status, so it loads what that status
+      // is derived from.
+      purchaseOrdersRepository.billingTotals(),
+      purchaseOrdersRepository.listCount(filter),
+    ]);
+    return {
+      items: rows.map((r) =>
+        buildPurchaseOrderOut(r.po, r.vendor, undefined, undefined, undefined, undefined, totals.get(r.po.id)),
+      ),
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals: {},
+    };
   },
 
   async getById(id: number) {
@@ -158,7 +171,7 @@ export const purchaseOrdersService = {
     return buildPurchaseOrderOut(row.po, row.vendor, items, billed, variances);
   },
 
-  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
+  async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
     validateItems(items);
 
@@ -190,9 +203,6 @@ export const purchaseOrdersService = {
     );
     await auditService.created("purchase_order", po.id, po);
 
-    if (opts.autoApprove) {
-      return approvalService.approve(purchaseOrderApprovable(), po.id, { userId: userId ?? null });
-    }
     return this.getById(po.id);
   },
 
@@ -293,7 +303,18 @@ export const purchaseOrdersService = {
     return this.getById(id);
   },
 
-  async remove(id: number) {
+  /**
+   * 🔴 Named `deleteDraft`, not `remove`, because that is what it does.
+   *
+   * The route is `DELETE /<resource>/:id` — correct, it addresses the resource —
+   * but the verb implies a delete that mostly is NOT one: an issued invoice
+   * cannot be deleted at all, and the refusal ("Issued invoices must be
+   * reversed with a credit note") is the normal case rather than the edge. A
+   * service method called `remove` invites a caller to believe otherwise. The
+   * name now states the precondition the body enforces, so a reader sees it
+   * before reaching the guard.
+   */
+  async deleteDraft(id: number) {
     const [existing] = await purchaseOrdersRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (await purchaseOrdersRepository.hasConversions(id)) {

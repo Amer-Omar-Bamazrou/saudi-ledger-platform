@@ -109,6 +109,43 @@ export const transactionsRepository = {
     return { accepted: r.length, acceptedIds: r.map((x) => x.id) };
   },
 
+  /**
+   * 🔴 COUNTS OVER THE FULL SET, computed in SQL — never `array.length`.
+   *
+   * `pendingReview` below is CAPPED (200) because it feeds a review screen that
+   * renders rows. Counting its result was the defect: `unreviewedCount` in the
+   * Finance Hub saturated at 200, so a tenant with 5,000 unreviewed rows was
+   * told 200 — a wrong number presented as the answer to "are my books
+   * current?". `needsAttentionCount` was worse: it filtered WITHIN the capped
+   * page, so it was not even a proportional sample, just "of the 200 most
+   * recent".
+   *
+   * 🔴 The property that made it survive: it is invisible on any dataset small
+   * enough to develop against. The dev org has 45 transactions. It appears the
+   * month a real tenant gets busy — see CLAUDE.md §3.
+   *
+   * `needsAttention` mirrors the predicate in `transactions.service`
+   * (uncategorised non-transfer, OR low confidence and not manually
+   * overridden). Two expressions of one rule is the drift hazard the repo
+   * names elsewhere; they are kept adjacent deliberately, and the service test
+   * pins that they agree.
+   */
+  async pendingReviewCounts(autoAssignConfidence: number): Promise<{ total: number; needsAttention: number }> {
+    const [row] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        needsAttention: sql<number>`count(*) FILTER (WHERE
+          (${transactionsTable.categoryId} IS NULL AND ${transactionsTable.kind} <> 'transfer')
+          OR (${transactionsTable.confidenceScore} IS NOT NULL
+              AND ${transactionsTable.confidenceScore} < ${autoAssignConfidence}
+              AND ${transactionsTable.isManuallyOverridden} = false)
+        )::int`,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.reviewStatus, "pending_review"));
+    return { total: Number(row?.total ?? 0), needsAttention: Number(row?.needsAttention ?? 0) };
+  },
+
   /** Pending rows, most recent first — the review surface's data. */
   pendingReview(limit = 200) {
     return db
@@ -120,21 +157,41 @@ export const transactionsRepository = {
       .limit(limit);
   },
 
-  async existsIdentical(v: {
+  /**
+   * 🔴 HOW MANY identical rows this account already holds — not WHETHER it holds
+   * one.
+   *
+   * ── Why a COUNT and not a boolean ──────────────────────────────────────────
+   * This used to be `existsIdentical`, and existence is the wrong question. The
+   * key (date, description, amount, type, account) is not an identity: a real
+   * statement repeats lines all the time — two taxi fares, two identical fees,
+   * two identical transfers on one day. An existence test cannot tell
+   * "you re-uploaded the same statement" from "your business genuinely paid
+   * that twice", so it answered both with "skip", and the second real charge
+   * never reached the books. Expenses and their input VAT were understated by
+   * exactly the repeated amount, quietly.
+   *
+   * MULTIPLICITY answers both: import as many copies as the file carries MINUS
+   * as many as the account already holds. A re-upload imports nothing; a
+   * genuinely repeated line imports every copy.
+   *
+   * 🔴 Invisible to every fixture we own, because they all use unique amounts —
+   * see `tests/scale-and-collision.test.ts`.
+   *
+   * M16.2 — scoped to the ACCOUNT (null-safe): the same salary paid from two
+   * accounts is two real transactions; the duplicate case is a statement
+   * re-uploaded against its own account. `IS NOT DISTINCT FROM` keeps pre-M16.2
+   * (accountless) uploads deduplicating against each other.
+   */
+  async countIdentical(v: {
     date: string;
     description: string;
     amount: string;
     type: string;
-    /**
-     * M16.2 — duplicates are scoped to the ACCOUNT (null-safe): the same salary
-     * paid from two accounts is two real transactions; the duplicate case is a
-     * statement re-uploaded against its own account. `IS NOT DISTINCT FROM`
-     * keeps pre-M16.2 (accountless) uploads deduplicating against each other.
-     */
     bankAccountId: number | null;
-  }): Promise<boolean> {
+  }): Promise<number> {
     const [row] = await db
-      .select({ id: transactionsTable.id })
+      .select({ n: sql<number>`count(*)::int` })
       .from(transactionsTable)
       .where(
         and(
@@ -144,9 +201,8 @@ export const transactionsRepository = {
           eq(transactionsTable.type, v.type),
           sql`${transactionsTable.bankAccountId} IS NOT DISTINCT FROM ${v.bankAccountId}`,
         ),
-      )
-      .limit(1);
-    return !!row;
+      );
+    return Number(row?.n ?? 0);
   },
 
   update(id: number, values: Partial<typeof transactionsTable.$inferInsert>) {

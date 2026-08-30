@@ -206,9 +206,7 @@ describeMaybe("Audit Tier 2 — acceptance guarantee + write-boundary invariants
     const inv = await inTenant(() =>
       invoicesService.create(
         { invoiceNumber: "WB-INV-1", date: "2026-07-08", customerId, items: [{ description: "S", quantity: 1, unitPrice: 100, vatRate: 15 }] },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
     const txId = await uploadRow({ date: "2026-07-09", description: "INCOMING WB-INV-1 SETTLEMENT", amount: 115, type: "credit" }, false);

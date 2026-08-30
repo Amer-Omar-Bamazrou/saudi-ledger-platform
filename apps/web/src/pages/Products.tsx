@@ -11,6 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
+
+interface ProductTotals { serviceCount: number; productCount: number; vatApplicableCount: number; }
 
 interface Product { id: number; code?: string; name: string; nameAr?: string; type: string; unitPrice: number; unitCost?: number; unit?: string; stockQty: number; reorderPoint?: number; vatApplicable: boolean; isActive: boolean; }
 
@@ -25,10 +29,18 @@ export default function Products() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ["products", search, typeFilter],
-    queryFn: () => apiFetch(`/products?search=${encodeURIComponent(search)}${typeFilter !== "all" ? `&type=${typeFilter}` : ""}&is_active=true`),
+  const [page, setPage] = useState(0);
+  const { data: paged, isLoading } = useQuery<Paged<Product, ProductTotals>>({
+    queryKey: ["products", search, typeFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/products?search=${encodeURIComponent(search)}${typeFilter !== "all" ? `&type=${typeFilter}` : ""}` +
+          `&is_active=true&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+      ),
   });
+  const products = paged?.items ?? [];
+  // Counts from the server, over the whole catalog — never the page.
+  const counts = paged?.totals;
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/products", { method: "POST", body: JSON.stringify({ ...body, unitPrice: Number(body.unitPrice), unitCost: body.unitCost ? Number(body.unitCost) : null, stockQty: Number(body.stockQty || 0), reorderPoint: body.reorderPoint ? Number(body.reorderPoint) : null }) }),
@@ -43,7 +55,7 @@ export default function Products() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Products & Services", "المنتجات والخدمات")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Item catalog for invoices and bills", "كتالوج العناصر للفواتير")} · {products.length} {t("items", "عنصر")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Item catalog for invoices and bills", "كتالوج العناصر للفواتير")} · {paged?.page.total ?? 0} {t("items", "عنصر")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Item", "عنصر جديد")}</Button></DialogTrigger>
@@ -73,7 +85,7 @@ export default function Products() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[[t("Total Items","إجمالي العناصر"), products.length, "text-primary"],[t("Services","الخدمات"), products.filter(p=>p.type==="service").length, "text-blue-400"],[t("Products","المنتجات"), products.filter(p=>p.type==="product").length, "text-amber-400"],[t("VAT-Applicable","خاضع لضريبة القيمة المضافة"), products.filter(p=>p.vatApplicable).length, "text-muted-foreground"]].map(([l,v,c])=>(
+        {[[t("Total Items","إجمالي العناصر"), paged?.page.total ?? 0, "text-primary"],[t("Services","الخدمات"), counts?.serviceCount ?? 0, "text-blue-400"],[t("Products","المنتجات"), counts?.productCount ?? 0, "text-amber-400"],[t("VAT-Applicable","خاضع لضريبة القيمة المضافة"), counts?.vatApplicableCount ?? 0, "text-muted-foreground"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
@@ -111,6 +123,12 @@ export default function Products() {
               })}</tbody>
             </table>
           )}
+                  <ListPagination
+            page={paged?.page}
+            shown={products.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

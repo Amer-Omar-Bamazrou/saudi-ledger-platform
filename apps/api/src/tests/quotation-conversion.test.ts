@@ -23,6 +23,7 @@ import { quotationConversionService } from "../services/quotationConversion.serv
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
 import { allocateLineDiscount } from "../services/conversionArithmetic";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -242,6 +243,28 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     expect(quo.items!.every((i) => i.remainingQuantity === 0)).toBe(true);
   });
 
+  it("🔴 AUD-3: the LIST agrees with the DETAIL about conversion state", async () => {
+    /**
+     * The list never loaded items, so `conversionState` was derived from an
+     * empty array and every quotation — including this fully converted one —
+     * reported "open", with a Convert button beside it. Measured before the
+     * fix: `detail=converted list=open`.
+     *
+     * 🔴 The existing coverage asserted the state through `getById`, where
+     * items ARE loaded — proving the derivation in exactly the place the defect
+     * could not occur. This asserts the two callers AGREE, which is the
+     * property that was actually broken.
+     */
+    const detail = await inTenant(() => quotationsService.getById(quotationId));
+    const list = await inTenant(() => quotationsService.list({}));
+    const row = list.items.find((q) => q.id === quotationId)!;
+
+    expect(detail.conversionState).toBe("converted");
+    expect(row.conversionState).toBe(detail.conversionState);
+    // The value the broken list returned, named so a regression is unmistakable.
+    expect(row.conversionState).not.toBe("open");
+  });
+
   it("converting a fully-converted quotation is refused rather than making an empty invoice", async () => {
     await expect(
       inTenant(() => quotationConversionService.convert(quotationId, {}, userId)),
@@ -249,7 +272,7 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
   });
 
   it("a converted quotation cannot be DELETED — it is the record of what was agreed", async () => {
-    await expect(inTenant(() => quotationsService.remove(quotationId))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(inTenant(() => quotationsService.deleteDraft(quotationId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("only an APPROVED, live quotation converts", async () => {
@@ -340,16 +363,13 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
 
     // The same invoice, typed by hand and approved the same way.
     await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: "INV-HANDTYPED-1",
           date: DATE,
           customerId,
           items: [{ description: "Same shape", quantity: 2, unitPrice: 250, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     const arAfterManual = (await inTenant(() => reportsService.balanceSheet())).assets.accountsReceivable;
     const movedByManual = Math.round((arAfterManual - arAfterConverted) * 100) / 100;

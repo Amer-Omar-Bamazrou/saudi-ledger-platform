@@ -13,6 +13,7 @@
  * number (fixing the pre-existing 500 when it was missing/invalid), and the
  * payment posts Dr AP / Cr Cash.
  */
+import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -40,13 +41,23 @@ import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
 import { buildBillOut } from "./bills.presenter";
-import { billsRepository, type BillListFilter } from "../repositories/bills.repository";
+import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export const billsService = {
+  /** A PAGE of bills, plus the totals for the whole filtered set (see invoices). */
   async list(filter: BillListFilter) {
-    const rows = await billsRepository.list(filter);
-    return rows.map((r) => buildBillOut(r.bill, r.vendor));
+    const [rows, meta] = await Promise.all([
+      billsRepository.list(filter),
+      billsRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildBillOut(r.bill, r.vendor)),
+      page: { limit: filter.limit ?? BILL_PAGE, offset: filter.offset ?? 0, total: meta.total },
+      totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid) },
+    };
   },
 
   async getById(id: number) {
@@ -58,11 +69,47 @@ export const billsService = {
 
   async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
+
+    /**
+     * A bill must RECORD something. `POST /bills` with `items: []` and no
+     * totals returned 201 and created a SAR 0.00 liability (found with the
+     * invoice case, 2026-08-28).
+     *
+     * 🔴 Deliberately weaker than the invoice rule, and the difference is not
+     * an oversight: a bill legitimately has NO lines when it comes from the
+     * capture path, where OCR reads header amounts off a photograph and the
+     * line detail is not ours to invent. So the invariant here is "lines OR a
+     * non-zero total", not "lines". An invoice is ours to issue and ZATCA wants
+     * the detail; a supplier's bill is evidence we are recording.
+     */
+    const declaredTotal = Number(body.total ?? 0);
+    if ((!Array.isArray(items) || items.length === 0) && !(declaredTotal > 0)) {
+      throw new BusinessRuleError(400, {
+        error: "A bill needs at least one line, or a total. A bill recording nothing cannot be posted.",
+        code: "bill_records_nothing",
+        field: "items",
+      });
+    }
     // 🔴 H1 — ALLOWLIST. `status` is forced to "draft" below; `paidAmount`/
     // `paidAt` are set by the pay path; a client sets only header fields (and,
     // for a no-items bill, the totals — validated ≥ 0). The raw spread let a
     // draft be created pre-"approved", payable against an AP balance never
     // posted (a permanent GL imbalance through the pay path).
+
+    /**
+     * 🔴 Server-allocated when the caller leaves it blank — the AUD-1 fix,
+     * swept to the documents it originally missed.
+     *
+     * The browser used to mint `BILL-${Date.now().toString().slice(-6)}`, which
+     * wraps every ~16.7 minutes onto a column with NO unique index: a collision
+     * produced two financial records claiming to be the same document, and
+     * nothing refused it. A caller-supplied number is still honoured (legacy
+     * imports and a user who types their own); blank is what asks the server.
+     */
+    if (!String(body.billNumber ?? "").trim()) {
+      body.billNumber = await documentNumbersRepository.allocate("bill");
+    }
+
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total",
@@ -251,7 +298,18 @@ export const billsService = {
     }));
   },
 
-  async remove(id: number) {
+  /**
+   * 🔴 Named `deleteDraft`, not `remove`, because that is what it does.
+   *
+   * The route is `DELETE /<resource>/:id` — correct, it addresses the resource —
+   * but the verb implies a delete that mostly is NOT one: an issued invoice
+   * cannot be deleted at all, and the refusal ("Issued invoices must be
+   * reversed with a credit note") is the normal case rather than the edge. A
+   * service method called `remove` invites a caller to believe otherwise. The
+   * name now states the precondition the body enforces, so a reader sees it
+   * before reaching the guard.
+   */
+  async deleteDraft(id: number) {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be deleted.");

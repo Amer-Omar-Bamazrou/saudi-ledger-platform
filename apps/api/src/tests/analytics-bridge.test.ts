@@ -27,6 +27,7 @@ import { auditContext } from "../lib/auditContext";
 import { analyticsService } from "../services/analytics.service";
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -128,23 +129,19 @@ describeMaybe("M19.6 — the receivables bridge", () => {
   /** An approved invoice for `net` + 15% VAT, dated `date`. */
   const invoice = (date: string, net: number) =>
     inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: `BR-${++seq}`,
           date,
           dueDate: date,
           customerId,
           items: [{ description: "Service", quantity: 1, unitPrice: net, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
 
   const creditNote = (date: string, originalId: number, net: number) =>
     inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: `BR-CN-${++seq}`,
           date,
           customerId,
@@ -153,9 +150,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
           noteReason: "Agreed reduction",
           items: [{ description: "Reduction", quantity: 1, unitPrice: net, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
 
   const bridge = () => inTenant(() => analyticsService.receivablesBridge("2026-01", "2026-05"));
@@ -213,8 +208,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
     // A debit note posts like an invoice (§4 / CLAUDE.md). Treating it as a
     // reversal would understate receivables.
     await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: `BR-DN-${++seq}`,
           date: "2026-04-08",
           customerId,
@@ -223,9 +217,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
           noteReason: "Undercharged freight",
           items: [{ description: "Freight", quantity: 1, unitPrice: 1_000, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
 
     const apr = (await bridge()).find((p) => p.period === "2026-04")!;

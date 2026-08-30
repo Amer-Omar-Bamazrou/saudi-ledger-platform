@@ -7,7 +7,11 @@
  * as the org switcher. Every query is explicitly scoped by `organizationId`;
  * there is no RLS backstop here, so callers MUST authorize first (see the service).
  */
-import { db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Identity layer: membership and user lookups, which the business layer must never do (§4).
+// The `db` proxy now REFUSES a query outside a tenant transaction instead of
+// silently falling back to this connection.
+import { ownerDb as db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
 import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 
 export const membersRepository = {

@@ -776,6 +776,19 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface PendingReviewCounts {
+  /** Every row awaiting review, counted in SQL over the whole set. */
+  total: number;
+  /** Rows a human must look at (uncategorised non-transfer, or low confidence and not manually overridden). */
+  needsAttention: number;
+  /**
+     * `total - needsAttention` — exactly the set bulk accept will act on
+     * and POST to the ledger. Computed server-side so no client can derive
+     * it from a page.
+     */
+  ready: number;
+}
+
 export type PendingReviewTransactionType = typeof PendingReviewTransactionType[keyof typeof PendingReviewTransactionType];
 
 
@@ -1448,6 +1461,22 @@ export interface ConvertQuotationLine {
   quantity: number;
 }
 
+export interface InvoiceItem {
+  id: number;
+  invoiceId: number;
+  /** @nullable */
+  productId?: number | null;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+}
+
 export interface ConvertQuotationInput {
   /** Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op. */
   lines?: ConvertQuotationLine[];
@@ -1459,6 +1488,11 @@ export interface ConvertQuotationInput {
   /** Optional override; otherwise allocated server-side. */
   invoiceNumber?: string;
   notes?: string;
+  /**
+     * REQUIRED, and at least one line. An invoice with no lines is issued at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot be recovered, on a document that cannot afterwards be edited or deleted. The constraint was declared for quotations and purchase orders, which touch no ledger, and omitted here, which does.
+     * @minItems 1
+     */
+  items: InvoiceItem[];
 }
 
 export interface QuotationConversion {
@@ -1486,22 +1520,6 @@ export const InvoiceStatus = {
   overdue: 'overdue',
   cancelled: 'cancelled',
 } as const;
-
-export interface InvoiceItem {
-  id: number;
-  invoiceId: number;
-  /** @nullable */
-  productId?: number | null;
-  description: string;
-  /** @nullable */
-  descriptionAr?: string | null;
-  quantity: number;
-  unitPrice: number;
-  vatRate?: number;
-  vatAmount: number;
-  discount?: number;
-  total: number;
-}
 
 export interface Invoice {
   id: number;
@@ -2299,5 +2317,38 @@ period_from?: string | null;
  * @pattern ^\d{4}-\d{2}$
  */
 period_to?: string | null;
+};
+
+export type ListInvoicesParams = {
+status?: string;
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListInvoices200Page = {
+  limit: number;
+  offset: number;
+  /** Rows matching the filter, not rows on this page. */
+  total: number;
+};
+
+export type ListInvoices200Totals = {
+  outstanding: number;
+  collected: number;
+  overdue: number;
+};
+
+export type ListInvoices200 = {
+  items: Invoice[];
+  page: ListInvoices200Page;
+  totals: ListInvoices200Totals;
 };
 

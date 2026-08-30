@@ -262,6 +262,10 @@ export default function Findings() {
                 </p>
               )}
             </div>
+            {/* 🔴 Shown to every role, and refused by the server with a reason.
+                Acknowledging is a review decision; a bookkeeper who clicks it
+                learns that from the refusal, which is more useful than a button
+                that was never there. */}
             {f.status === "open" && (
               <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => ackMut.mutate(f.id)} disabled={ackMut.isPending}>
                 <Check className="h-3.5 w-3.5" /> {t("Acknowledge", "إقرار")}

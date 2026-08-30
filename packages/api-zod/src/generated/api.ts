@@ -177,6 +177,22 @@ export const GetPendingReviewTransactionsResponse = zod.array(GetPendingReviewTr
 
 
 /**
+ * `GET /transactions/review` returns a CAPPED page (200 rows) because it
+ * feeds a screen. Any count taken from that page saturates at the cap, so
+ * a tenant with 5,000 pending rows was told 200 — and the bulk-accept
+ * button, which acts on EVERY safe pending row and posts them to the
+ * ledger, was labelled with that capped number. This endpoint is the true
+ * total, so a label can state the real blast radius of the act.
+ * @summary How many rows are pending review, in total — counted in SQL, never off the page
+ */
+export const GetPendingReviewCountsResponse = zod.object({
+  "total": zod.number().describe('Every row awaiting review, counted in SQL over the whole set.'),
+  "needsAttention": zod.number().describe('Rows a human must look at (uncategorised non-transfer, or low confidence and not manually overridden).'),
+  "ready": zod.number().describe('`total - needsAttention` — exactly the set bulk accept will act on\nand POST to the ledger. Computed server-side so no client can derive\nit from a page.\n')
+})
+
+
+/**
  * With `ids`: deliberate, named acceptance of any pending rows. Without:
  * bulk mode — the server restricts it to rows safe to accept unread
  * (categorized or confidently-classified transfers at/above the
@@ -836,6 +852,9 @@ export const ConvertQuotationParams = zod.object({
   "id": zod.coerce.number()
 })
 
+
+
+
 export const ConvertQuotationBody = zod.object({
   "lines": zod.array(zod.object({
   "quotationItemId": zod.number(),
@@ -845,7 +864,20 @@ export const ConvertQuotationBody = zod.object({
   "dueDate": zod.string().optional(),
   "convertedOn": zod.string().optional().describe('The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date.\n'),
   "invoiceNumber": zod.string().optional().describe('Optional override; otherwise allocated server-side.'),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).min(1).describe('REQUIRED, and at least one line. An invoice with no lines is issued at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot be recovered, on a document that cannot afterwards be edited or deleted. The constraint was declared for quotations and purchase orders, which touch no ledger, and omitted here, which does.\n')
 })
 
 export const ConvertQuotationResponse = zod.object({
@@ -2847,6 +2879,80 @@ export const RejectBillParams = zod.object({
 })
 
 export const RejectBillResponse = zod.void()
+
+
+/**
+ * 🔴 Offset pagination, and the `totals` are computed in SQL over every
+ * matching row — never over the page. A page-scoped money total is a
+ * number nobody asked for, and the alternative to it is not a smaller
+ * figure but a confidently wrong one (B-6).
+ *
+ * Cursor pagination is the upgrade path if volume ever arrives; offset is
+ * deliberate while it has not.
+ * @summary A PAGE of invoices, with totals for the whole filtered set
+ */
+export const listInvoicesQueryLimitDefault = 50;
+export const listInvoicesQueryLimitMax = 200;
+
+export const listInvoicesQueryOffsetDefault = 0;
+export const listInvoicesQueryOffsetMin = 0;
+
+
+
+export const ListInvoicesQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listInvoicesQueryLimitMax).default(listInvoicesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listInvoicesQueryOffsetMin).default(listInvoicesQueryOffsetDefault)
+})
+
+export const ListInvoicesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullish(),
+  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+}))
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "outstanding": zod.number(),
+  "collected": zod.number(),
+  "overdue": zod.number()
+})
+})
 
 
 /**

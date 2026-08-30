@@ -13,6 +13,7 @@ const ASSET_FIELDS = [
 ] as const;
 import { auditService } from "./audit.service";
 import { assetsRepository } from "../repositories/assets.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { fixedAssetsTable, depreciationEntriesTable } from "@workspace/db";
 
 type Asset = typeof fixedAssetsTable.$inferSelect;
@@ -34,9 +35,17 @@ const toView = (a: Asset) => ({
 const toEntryView = (e: DepEntry) => ({ ...e, amount: toNum(e.amount), bookValueAfter: toNum(e.bookValueAfter) });
 
 export const assetsService = {
-  async list() {
-    const rows = await assetsRepository.list();
-    return rows.map(toView);
+  async list(page: { limit?: number; offset?: number } = {}) {
+    const [rows, totals] = await Promise.all([
+      assetsRepository.list(page),
+      assetsRepository.listTotals(),
+    ]);
+    const { total, ...money } = totals;
+    return {
+      items: rows.map(({ asset, categoryName }) => ({ ...toView(asset), categoryName })),
+      page: { limit: page.limit ?? DEFAULT_PAGE, offset: page.offset ?? 0, total },
+      totals: money,
+    };
   },
 
   async getById(id: number) {

@@ -6,7 +6,11 @@
  * repository only answers "is this user an operator?"; granting operator status
  * happens exclusively in the seed/CLI, never here.
  */
-import { db, platformOperatorsTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// `platform_operators` is an owner-only table, and operator status is resolved before tenant scope.
+// The `db` proxy now REFUSES a query outside a tenant transaction instead of
+// silently falling back to this connection.
+import { ownerDb as db, platformOperatorsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export const operatorsRepository = {

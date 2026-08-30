@@ -27,7 +27,7 @@ import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
 import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
-import { invoicesRepository, type InvoiceListFilter } from "../repositories/invoices.repository";
+import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
 
@@ -56,10 +56,37 @@ async function assertCustomerExists(customerId: unknown): Promise<void> {
 // The former DEFAULT_SELLER_* constants were a ZATCA SANDBOX placeholder,
 // duplicated here and in invoices.approvable.ts — see sellerIdentity.ts.
 
+/** Money rounds at the boundary; the SQL sums are float8. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export const invoicesService = {
+  /**
+   * A PAGE of invoices, plus the totals for the whole filtered set.
+   *
+   * 🔴 The envelope is the point. Returning a bare array made the page's own
+   * `reduce` the only available total, which is correct exactly while the list
+   * is unbounded and silently wrong the moment it is not — the B-6 trade in
+   * reverse. `totals` is computed in SQL over every matching row, so the
+   * headline figures do not change when the reader turns the page.
+   */
   async list(filter: InvoiceListFilter) {
-    const rows = await invoicesRepository.list(filter);
-    return rows.map((r) => buildInvoiceOut(r.inv, r.cust));
+    const [rows, meta] = await Promise.all([
+      invoicesRepository.list(filter),
+      invoicesRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildInvoiceOut(r.inv, r.cust)),
+      page: {
+        limit: filter.limit ?? DEFAULT_PAGE,
+        offset: filter.offset ?? 0,
+        total: meta.total,
+      },
+      totals: {
+        outstanding: round2(meta.outstanding),
+        collected: round2(meta.collected),
+        overdue: meta.overdue,
+      },
+    };
   },
 
   async getById(id: number) {
@@ -74,8 +101,38 @@ export const invoicesService = {
    * set (caller may approve — admin/accountant), immediately approve it so it is
    * issued in one call, preserving pre-M10 behavior for approvers.
    */
-  async create(body: Record<string, any>, userId: number | null, opts: { autoApprove?: boolean } = {}) {
+  async create(body: Record<string, any>, userId: number | null) {
     const { items = [] } = body;
+
+    /**
+     * 🔴 AN INVOICE WITH NO LINES IS NOT AN INVOICE.
+     *
+     * Found 2026-08-28 by sweeping the payload-shape class: `POST /invoices`
+     * with `items: []` returned **201**, and because an approver's own invoice
+     * is auto-approved it was ISSUED at zero — an ICV consumed, a position taken
+     * in the ZATCA hash chain, a QR minted, for SAR 0.00. None of that is
+     * recoverable: an issued invoice cannot be deleted, and `PATCH` had no
+     * caller to add lines afterwards even if it could.
+     *
+     * 🔴 The asymmetry is the tell: quotations and purchase orders — which touch
+     * NO ledger — already refused this ("A quotation needs at least one line"),
+     * while invoices and bills, which do, did not. The guard was written where
+     * the consequence was smallest.
+     *
+     * Enforced HERE, at the write boundary, rather than in the form that
+     * happened to be wrong: `Invoices.tsx` hardcoded `items: []` on every
+     * create, and a rule that lives in one caller is a rule the next caller
+     * does not have (§4).
+     */
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BusinessRuleError(400, {
+        error:
+          "An invoice needs at least one line. A zero-line invoice is issued at SAR 0.00 and, " +
+          "once issued, cannot be corrected or deleted.",
+        code: "invoice_has_no_lines",
+        field: "items",
+      });
+    }
     // 🔴 H1 — ALLOWLIST the header. Totals are computed below; status is forced
     // to "draft"; hash/QR/ICV/ZATCA identity are minted at approval. A client
     // may set only descriptive fields and the note references (validated below).
@@ -226,9 +283,6 @@ export const invoicesService = {
     await auditService.created("invoice", inv.id, inv);
 
     // Self-approve on create for approvers → issue immediately (hash + QR + GL).
-    if (opts.autoApprove) {
-      return this.approve(inv.id, userId);
-    }
     return buildInvoiceOut(inv, null);
   },
 
@@ -376,7 +430,18 @@ export const invoicesService = {
     }));
   },
 
-  async remove(id: number) {
+  /**
+   * 🔴 Named `deleteDraft`, not `remove`, because that is what it does.
+   *
+   * The route is `DELETE /<resource>/:id` — correct, it addresses the resource —
+   * but the verb implies a delete that mostly is NOT one: an issued invoice
+   * cannot be deleted at all, and the refusal ("Issued invoices must be
+   * reversed with a credit note") is the normal case rather than the edge. A
+   * service method called `remove` invites a caller to believe otherwise. The
+   * name now states the precondition the body enforces, so a reader sees it
+   * before reaching the guard.
+   */
+  async deleteDraft(id: number) {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {

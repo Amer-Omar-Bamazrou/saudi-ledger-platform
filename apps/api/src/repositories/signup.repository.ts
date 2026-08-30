@@ -6,13 +6,11 @@
  * created in ONE transaction so a half-provisioned account can never exist: an
  * organization without an admin, or a user who can log in but belongs nowhere.
  */
-import {
-  db,
-  organizationsTable,
-  companiesTable,
-  usersTable,
-  organizationMembershipsTable,
-} from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Identity layer: signup creates the organization and the user, before any tenant context exists.
+// The `db` proxy now REFUSES a query outside a tenant transaction rather than
+// falling back here silently, so this import states what was previously assumed.
+import { ownerDb as db, organizationsTable, companiesTable, usersTable, organizationMembershipsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { seedChartOfAccounts } from "@workspace/db";
 

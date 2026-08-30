@@ -4,16 +4,18 @@
  */
 import type { Request, Response } from "express";
 import { customersService } from "../services/customers.service";
-import { requireIdParam } from "../lib/httpParams";
+import { pageParams, requireIdParam } from "../lib/httpParams";
 
 export const customersController = {
   async list(req: Request, res: Response) {
     const { search, is_active } = req.query as Record<string, string>;
-    const rows = await customersService.list({
-      search,
-      isActive: is_active !== undefined ? is_active === "true" : undefined,
-    });
-    res.json(rows);
+    res.json(
+      await customersService.list({
+        search,
+        isActive: is_active !== undefined ? is_active === "true" : undefined,
+        ...pageParams(req.query as Record<string, unknown>),
+      }),
+    );
   },
 
   async get(req: Request, res: Response) {

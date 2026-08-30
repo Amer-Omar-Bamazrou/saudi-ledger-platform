@@ -11,6 +11,7 @@ import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useRepor
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface InvoiceSummaryRow {
   id: number; invoiceNumber: string; customerName: string; date: string;
@@ -35,12 +36,24 @@ export default function InvoiceSummary() {
 }
 
 function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
+  const { t } = useLanguage();
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
 
   const { data: invoices = [], isLoading } = useQuery<InvoiceSummaryRow[]>({
     queryKey: ["invoice-summary", from, to],
-    queryFn: () => apiFetch<InvoiceSummaryRow[]>(`/invoices?from=${from}&to=${to}`).catch(() => apiFetch<InvoiceSummaryRow[]>("/invoices").catch(() => [] as InvoiceSummaryRow[])),
+    /**
+     * 🔴 Reads the PAGE envelope, and no longer swallows a failure into an
+     * empty list. The old `.catch(() => [])` turned a shape mismatch into "No
+     * invoices in this date range" — a confident empty answer on a report,
+     * which is the same defensive-fallback trap that hid the AP-aging break.
+     */
+    queryFn: async () => {
+      const page = await apiFetch<{ items: InvoiceSummaryRow[] }>(
+        `/invoices?limit=200&from=${from}&to=${to}`,
+      );
+      return page.items;
+    },
   });
 
   const filtered = invoices.filter(i => i.date >= from && i.date <= to);
@@ -52,8 +65,8 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoice Summary</h1>
-          <p className="text-muted-foreground text-sm mt-1">All invoices with totals and status breakdown</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Invoice Summary", "ملخص الفواتير")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("All invoices with totals and status breakdown", "جميع الفواتير مع الإجماليات وتوزيع الحالات")}</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
@@ -63,9 +76,9 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
           <div className="flex gap-4 items-end">
-            <div><Label className="text-xs text-muted-foreground">From</Label>
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
               <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">To</Label>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
           </div>
           <div className="mt-3">
@@ -94,7 +107,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
           : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No invoices in this date range.</p>
+              <p className="text-sm">{t("No invoices in this date range.", "لا توجد فواتير في هذا النطاق الزمني.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">

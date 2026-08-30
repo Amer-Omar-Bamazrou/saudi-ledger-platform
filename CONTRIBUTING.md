@@ -97,6 +97,39 @@ Additionally, when relevant:
   (`auditService`). See the cookbook in the development guide.
 - **Touched money, the GL, tax, or tenant isolation?** Add tests. These are
   non-negotiable areas.
+- **Wrote or extended a design doc?** It needs a **"What we rejected, and why"**
+  section — see below.
+
+---
+
+## 3b. Design docs carry what they rejected
+
+🔴 **Every design document written from 2026-08-30 records the alternatives
+it turned down, and the specific reason each lost.** Name the property that
+decided it; "it was worse" is not a reason. One short section, near the
+decision it belongs to.
+
+**Why it is required rather than encouraged.** A decision recorded without its
+rejected alternatives survives as an assertion, and an assertion gets argued
+again in six months — by someone who can see only the option that won, and who
+has no way to know the others were already weighed. The section is what makes a
+decision durable instead of merely written down. It is also the cheapest thing
+in the document to write while the reasoning is still in your head, and the most
+expensive to reconstruct afterwards.
+
+**We carry it inconsistently today, which is the point.** Measured across ten
+design documents on 2026-08-30: **none** has a dedicated rejected-alternatives
+section; two (`design-analytics`, `design-quotations-purchase-orders`) reason
+about alternatives substantively in prose; the rest mention them once or not at
+all. *(Search shape: heading-level match on
+reject/alternative/considered/why-not/discarded, plus a body-level keyword
+count. A keyword count is a weak instrument — it is quoted as evidence of
+inconsistency, not as a score.)*
+
+🔴 **The existing docs are NOT being retrofitted.** Backfilling a year of
+decisions is archaeology: it moves prose between files and adds no fact. When an
+old decision gets argued again — the moment the missing section actually costs
+something — write the section then, in the doc that already holds the decision.
 
 ---
 
@@ -126,6 +159,7 @@ fills it in automatically when you open a PR). A good PR:
 - describes **what** changed and **why**, and how you verified it,
 - is small and focused on one concern,
 - keeps docs (`CLAUDE.md`, `docs/`) in sync when behavior or architecture changes,
+- carries **"What we rejected, and why"** in any design doc it adds or extends (§3b),
 - has all CI checks green.
 
 ---

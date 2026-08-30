@@ -16,6 +16,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +82,19 @@ export default function Quotations() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  /**
+   * 🔴 AUD-4 — editing, which the product could not do at all.
+   *
+   * `PATCH /quotations/:id` existed, was tested, and had NO caller anywhere in
+   * apps/web — so a typo was correctable only by deleting and retyping, and all
+   * of M21.2's edit machinery (lines reconciled BY ID so a converted line keeps
+   * its identity, plus both freeze-rule guards) was unreachable. The route
+   * guard passed throughout, because it matches the path PREFIX and never the
+   * verb.
+   *
+   * The same dialog serves both modes: `editing` null = create.
+   */
+  const [editing, setEditing] = useState<{ id: number; number: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -87,14 +104,21 @@ export default function Quotations() {
   });
   const [lines, setLines] = useState<QuotationItem[]>([emptyLine()]);
 
-  const { data: quotations = [], isLoading } = useQuery<Quotation[]>({
-    queryKey: ["quotations", statusFilter],
-    queryFn: () => apiFetch(`/quotations${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+  const [page, setPage] = useState(0);
+  const { data: quotationsPage, isLoading } = useQuery<Paged<Quotation>>({
+    queryKey: ["quotations", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/quotations?${statusFilter !== "all" ? `status=${statusFilter}&` : ""}` +
+          `limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+      ),
   });
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["customers"],
-    queryFn: () => apiFetch("/customers"),
+  const quotations = quotationsPage?.items ?? [];
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
+    queryKey: ["customers", "picker"],
+    queryFn: () => fetchPickerOptions<Customer>("/customers"),
   });
+  const customers = customersPage?.items ?? [];
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["quotations"] });
 
@@ -134,9 +158,80 @@ export default function Quotations() {
     onError: fail,
   });
 
+  /**
+   * 🔴 AUD-6 — the half of the workflow that had no surface.
+   *
+   * `send-back` and `reject` existed on the API, were covered by the approval
+   * engine's tests, and NOTHING in the product could call them: a submitted
+   * quotation could only ever go forward. P4
+   * (`state-machine-reachability.test.ts`) is the guard that now reports it,
+   * and these two controls are what turn it green.
+   */
+  const [sendBack, setSendBack] = useState<{ id: number; number: string } | null>(null);
+  const [sendBackNote, setSendBackNote] = useState("");
+  const [reject, setReject] = useState<{ id: number; number: string } | null>(null);
+
+  const updateMut = useMutation({
+    mutationFn: () =>
+      apiFetch(`/quotations/${editing!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          date: form.date,
+          validUntil: form.validUntil || undefined,
+          customerId: form.customerId ? Number(form.customerId) : undefined,
+          notes: form.notes || undefined,
+          // Lines carry their ID where they have one: the server reconciles by
+          // id, so an edited line keeps the identity any conversion points at.
+          items: lines.map((l) => ({
+            ...(l.id != null ? { id: l.id } : {}),
+            description: l.description,
+            quantity: Number(l.quantity),
+            unitPrice: Number(l.unitPrice),
+            vatRate: Number(l.vatRate),
+          })),
+        }),
+      }),
+    onSuccess: () => {
+      setOpen(false);
+      setEditing(null);
+      refresh();
+      toast({ title: t("Changes saved", "تم حفظ التعديلات") });
+    },
+    onError: fail,
+  });
+
+  /** Open the shared dialog in EDIT mode, prefilled from the full record. */
+  const openEdit = async (row: { id: number; quotationNumber: string }) => {
+    try {
+      const detail: any = await apiFetch(`/quotations/${row.id}`);
+      setForm({
+        date: detail.date ?? "",
+        validUntil: detail.validUntil ?? "",
+        customerId: String(detail.customerId ?? ""),
+        notes: detail.notes ?? "",
+      });
+      setLines(
+        (detail.items ?? []).map((i: any) => ({
+          id: i.id,
+          description: i.description,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          vatRate: i.vatRate,
+        })),
+      );
+      setEditing({ id: row.id, number: row.quotationNumber });
+      setOpen(true);
+    } catch (e) {
+      fail(e);
+    }
+  };
+
   const actionMut = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: string }) =>
-      apiFetch(`/quotations/${id}/${action}`, { method: "POST", body: JSON.stringify({}) }),
+    mutationFn: ({ id, action, note }: { id: number; action: string; note?: string }) =>
+      apiFetch(`/quotations/${id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(note != null ? { note } : {}),
+      }),
     onSuccess: () => refresh(),
     onError: fail,
   });
@@ -244,12 +339,24 @@ export default function Quotations() {
               <SelectItem value="approved">{t("Approved", "معتمد")}</SelectItem>
             </SelectContent>
           </Select>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog
+            open={open}
+            onOpenChange={(o) => {
+              setOpen(o);
+              // Leaving the dialog leaves EDIT mode, or the next "New" would
+              // silently save over the record just edited.
+              if (!o) {
+                setEditing(null);
+                setLines([emptyLine()]);
+                setForm({ date: new Date().toISOString().split("T")[0], validUntil: "", customerId: "", notes: "" });
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="w-4 h-4 me-1" />{t("New quotation", "عرض سعر جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
-              <DialogHeader><DialogTitle>{t("New quotation", "عرض سعر جديد")}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editing ? t("Edit quotation", "تعديل عرض السعر") + ` — ${editing.number}` : t("New quotation", "عرض سعر جديد")}</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
@@ -258,7 +365,7 @@ export default function Quotations() {
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select…", "اختر…")} /></SelectTrigger>
                       <SelectContent>
                         {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                      </SelectContent>
+                      <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -294,8 +401,16 @@ export default function Quotations() {
                   <span className="font-mono text-lg">{fmtNum(previewTotal)}</span>
                 </div>
 
-                <Button className="w-full" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
-                  {createMut.isPending ? t("Saving…", "جارٍ الحفظ…") : t("Create quotation", "إنشاء عرض السعر")}
+                <Button
+                  className="w-full"
+                  onClick={() => (editing ? updateMut.mutate() : createMut.mutate())}
+                  disabled={createMut.isPending || updateMut.isPending}
+                >
+                  {createMut.isPending || updateMut.isPending
+                    ? t("Saving…", "جارٍ الحفظ…")
+                    : editing
+                      ? t("Save changes", "حفظ التعديلات")
+                      : t("Create quotation", "إنشاء عرض السعر")}
                 </Button>
               </div>
             </DialogContent>
@@ -361,15 +476,48 @@ export default function Quotations() {
                         {t(...(CONVERSION_LABEL[q.conversionState] ?? ["—", "—"]))}
                       </td>
                       <td className="py-3 text-end space-x-1 whitespace-nowrap">
+                        {/* AUD-4: editing, finally reachable. Offered while the
+                            record can still change: a draft freely, and an
+                            approved one for its untouched lines — the server's
+                            freeze rules are the authority and refuse the rest. */}
+                        {!q.outcome && q.conversionState !== "converted" && (
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(q)}>
+                            {t("Edit", "تعديل")}
+                          </Button>
+                        )}
                         {q.status === "draft" && (
                           <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: q.id, action: "submit" })}>
                             {t("Submit", "إرسال")}
                           </Button>
                         )}
+                        {/* 🔴 NOT hidden by role. A control removed teaches nothing and leaves
+                            the person wondering where it went; the server refuses with a
+                            reason that names the next step ("this needs an accountant to
+                            approve it"), which teaches the workflow. Reversing AUD-7's
+                            first fix deliberately — hiding was the wrong half of D4. */}
                         {q.status === "submitted" && (
-                          <Button size="sm" onClick={() => actionMut.mutate({ id: q.id, action: "approve" })}>
-                            {t("Approve", "اعتماد")}
-                          </Button>
+                          <>
+                            <Button size="sm" onClick={() => actionMut.mutate({ id: q.id, action: "approve" })}>
+                              {t("Approve", "اعتماد")}
+                            </Button>
+                            {/* AUD-6: the two ways a review can end in something
+                                other than approval. Both existed on the API and
+                                had no control anywhere in the product. */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setSendBackNote(""); setSendBack({ id: q.id, number: q.quotationNumber }); }}
+                            >
+                              {t("Send back", "إعادة للتعديل")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setReject({ id: q.id, number: q.quotationNumber })}
+                            >
+                              {t("Reject", "رفض")}
+                            </Button>
+                          </>
                         )}
                         {q.status === "approved" && !q.outcome && q.conversionState !== "converted" && (
                           <Button size="sm" onClick={() => openConvert(q)}>
@@ -403,6 +551,12 @@ export default function Quotations() {
               </table>
             </div>
           )}
+                  <ListPagination
+            page={quotationsPage?.page}
+            shown={quotations.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
 
@@ -517,6 +671,73 @@ export default function Quotations() {
                 ? t("Converting…", "جارٍ التحويل…")
                 : t("Create draft invoice", "إنشاء مسودة فاتورة")}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AUD-6: send back for correction ─────────────────────────────── */}
+      <Dialog open={!!sendBack} onOpenChange={(o) => !o && setSendBack(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t(`Send ${sendBack?.number ?? ""} back for correction?`, `إعادة ${sendBack?.number ?? ""} للتعديل؟`)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>{t("It returns to the editor as a draft. Nothing is issued and nothing is lost.", "سيعود عرض السعر إلى المحرِّر بحالة مسودة قابلة للتعديل.")}</p>
+            <div>
+              <Label>{t("Reason (optional — the editor sees it)", "السبب (اختياري — يظهر للمحرِّر)")}</Label>
+              <Input value={sendBackNote} onChange={(ev) => setSendBackNote(ev.target.value)} className="mt-1" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setSendBack(null)}>
+                {t("Cancel", "إلغاء")}
+              </Button>
+              <Button
+                size="sm"
+                disabled={actionMut.isPending}
+                onClick={() => {
+                  if (sendBack) actionMut.mutate({ id: sendBack.id, action: "send-back", note: sendBackNote });
+                  setSendBack(null);
+                }}
+              >
+                {t("Send back", "إعادة للتعديل")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AUD-6: reject. 🔴 A HARD DELETE — the act is named before it runs,
+          per the destructive-scope rule: no archive, no undo (approval spec §4). */}
+      <Dialog open={!!reject} onOpenChange={(o) => !o && setReject(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t(`Reject ${reject?.number ?? ""}?`, `رفض ${reject?.number ?? ""}؟`)}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="font-medium">
+              {t(
+                "Rejecting DELETES the record permanently — there is no archive and no undo. To return it for correction instead, use Send back.",
+                "الرفض يحذف السجل نهائيًا — لا توجد نسخة محفوظة ولا تراجع. لإعادته للتعديل بدلًا من ذلك، استخدم \"إعادة للتعديل\"."
+              )}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setReject(null)}>
+                {t("Cancel", "إلغاء")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={actionMut.isPending}
+                onClick={() => {
+                  if (reject) actionMut.mutate({ id: reject.id, action: "reject" });
+                  setReject(null);
+                }}
+              >
+                {t("Reject and delete", "رفض وحذف")}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

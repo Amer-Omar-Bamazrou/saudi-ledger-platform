@@ -232,9 +232,7 @@ describeMaybe("M12.8 — renewal reminders and the archive sweep", () => {
             customerId,
             items: [{ description: "Item", quantity: 1, unitPrice: 100, vatRate: 15 }],
           },
-          userId,
-          { autoApprove: false },
-        ),
+          userId),
       );
       invoiceId = inv.id;
       await inTenant(() => invoicesService.approve(invoiceId, userId));

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface AgingData {
   buckets: { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number };
@@ -36,6 +37,7 @@ function agingBucket(days: number): string {
 }
 
 export default function ArAging() {
+  const { t } = useLanguage();
   const { data, isLoading } = useQuery<AgingData>({
     queryKey: ["ar-aging"],
     queryFn: () => apiFetch("/reports/ar-aging"),
@@ -45,7 +47,7 @@ export default function ArAging() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">AR Aging Report</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t("AR Aging Report", "تقرير أعمار الذمم المدينة")}</h1>
         <p className="text-muted-foreground text-sm mt-1">Outstanding customer balances by age · Auto-refreshes every minute</p>
       </div>
 
@@ -87,12 +89,12 @@ export default function ArAging() {
       )}
 
       <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Outstanding Invoices</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding Invoices", "الفواتير المستحقة")}</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">Loading...</div> : !data || data.items.length === 0 ? (
+          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data || data.items.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p>No outstanding invoices. All payments are current.</p>
+              <p>{t("No outstanding invoices. All payments are current.", "لا توجد فواتير مستحقة. جميع المدفوعات محدّثة.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">

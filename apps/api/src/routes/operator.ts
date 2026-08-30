@@ -94,7 +94,14 @@ router.get("/zatca/certificates", async (req, res) => {
 
 /** GET /api/operator/zatca/onboarding — per-company onboarding state (from the vault). */
 router.get("/zatca/onboarding", async (_req, res) => {
-  res.json(await operatorZatcaService.onboardingStatus());
+  const { limit, offset } = _req.query as Record<string, string>;
+  const n = Number(limit);
+  res.json(
+    await operatorZatcaService.onboardingStatus({
+      limit: Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined,
+      offset: Math.max(0, Number(offset) || 0),
+    }),
+  );
 });
 
 /**

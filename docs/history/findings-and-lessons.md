@@ -1776,3 +1776,1971 @@ generalisation: when a rule matters, look for the representation in which
 violating it is not a caught mistake but a THING THAT CANNOT BE SAID —
 enforcement by construction outlives enforcement by review, and it is the
 only kind that binds code not yet written.
+
+---
+
+## 2026-08-28 — THE SCALE-AND-COLLISION SWEEP (S-1 … S-4), and the class it indicts
+
+**The one-line rule is in `CLAUDE.md` §3.** This is the incident.
+
+### The premise, which is the reusable part
+
+Every fixture, dev org and sample seed in this repository is **small** and
+carries **unique** values. That is not a gap in any one test; it is a property
+of the whole verification approach, and it makes two entire families of defect
+unobservable no matter how carefully anyone reads the code:
+
+- **(a) VOLUME.** At fixture scale a capped answer and the true answer are the
+  same number. B6 named this in 2026-08-27 and fixed two instances; the class
+  was larger than the two.
+- **(b) COLLISION.** Every fixture gives its rows distinct amounts, so an
+  identity built from `(date, amount, description)` or `(customer, amount,
+  date)` looks unique forever. In a real month it is not: two invoices to the
+  same customer for the same amount on the same day is ordinary, and so is a
+  bank statement listing the same SAR 45.00 charge twice.
+
+Both appear the month a tenant gets busy — the worst possible moment.
+
+🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** A figure of
+exactly 500, exactly 200, exactly 100 is the shape of a cap, not the shape of
+data. Two of the four findings below were located by that single question, and
+the re-injection runs print it back: `expected 500 to be 537`.
+
+### S-1 — statement ingest dropped genuinely repeated lines (COLLISION, money path)
+
+`transactionsRepository.existsIdentical` asked *does an identical row exist?* on
+`(date, description, amount, type, bankAccountId)`. Existence is the wrong
+question: that tuple is not an identity. The check could not distinguish
+
+  1. "you re-uploaded the same statement" (skip is right), from
+  2. "your business genuinely paid that twice today" (skip loses money),
+
+and it answered both with skip. The second real charge never reached the books:
+**the expense and its input VAT were understated by exactly that amount**, and
+the transaction never appeared for review, categorisation or VAT treatment.
+
+🔴 **This was known and mitigated with something that had no consumer.** The
+comment above `duplicates` in `transactions.service` already named the
+conflation, and the mitigation shipped at the time was to RETURN the skipped
+rows "so the user can see WHAT was dropped and re-enter a genuine second
+payment". Checked: `duplicates` has **zero references in `apps/web`**. So the
+mitigation was a shape without a consumer, and the loss stayed silent — a fix
+that reads as thorough in the diff and does nothing in the product. Worse, its
+existence is presumably why the real fix was never made.
+
+🔴 **A test asserted the defect.** `ingest-correctness.test.ts` had a case whose
+own words were "two real parking fees on one day" and which then asserted that
+only ONE was inserted. Not the ordinary obsolete-assertion shape (correct when
+written, overtaken later) — it pinned a known loss from the day it was written,
+because the returned-rows mitigation was accepted as the fix.
+
+**Fixed by MULTIPLICITY, not existence:** `countIdentical` returns how many
+identical rows the account already holds; the upload reads that once per
+distinct key (before it inserts anything), counts occurrences within the file,
+and imports the difference. A re-upload imports nothing; a genuinely repeated
+line imports every copy.
+
+🔴 **The trade, chosen on which error is RECOVERABLE rather than which is
+rarer.** Multiplicity trusts the file's own count, so a sloppy re-export that
+lists one line twice (in two spellings that normalise to the same row) now
+imports a spurious second copy. That direction is caught twice over: the rows
+land in `pending_review` where a human sees them before anything posts, and the
+existing `duplicate_transaction` finding keys on exactly `(date, amount,
+description)`. The old direction — dropping a real charge — was caught by
+nothing. One error is visible to two mechanisms we already own; the other is
+visible to none.
+
+### S-2 — bulk accept understated its own blast radius (VOLUME, money path)
+
+The review page's button read ``Accept ready (${ready.length})`` where `ready`
+was filtered from the rows on screen — and `pendingReview` is capped at 200
+because it feeds a screen. The click then called `POST /transactions/review/accept`
+with **no ids**, which is bulk mode: the server accepts every safe pending row
+in the tenant, and acceptance **POSTS TO THE LEDGER** (flaw #1, Option A).
+
+So a tenant with 5,000 pending rows read "183" on the button and one click
+posted all of them. The label was not merely inaccurate; it understated the
+reach of an accounting act by an unbounded factor, and it did so precisely when
+the tenant was busiest.
+
+**Fixed** with `GET /transactions/review/counts` (spec-first, then codegen) —
+`total` / `needsAttention` / `ready`, all counted in SQL — which the button now
+reads. When the click reaches past the visible page a confirm names the number,
+says the rows are not on screen, and says that accepting posts to the ledger.
+🔴 That confirm does not violate the M16 principle that *accepting the match IS
+the review*: a second confirmation of what the user just reviewed is a design
+defect, but rows beyond the page were never reviewed, so naming them is not a
+second confirmation — it is the first mention. The disabled state also moved to
+the true count: every visible row needing attention does not mean nothing is
+ready beyond the page.
+
+### S-3 — the outbox alarm paged "500 document(s)" forever (VOLUME)
+
+`alarms.service` outbox-overdue took its count from
+`listOverdue(…, 500).length`, so any backlog past 500 paged the words "500
+document(s) unsubmitted" — however bad it got, and in the `context` payload too.
+This is the alarm that watches ZATCA's 24-hour reporting deadline, where
+under-reporting is the exact failure it exists to prevent: **quiet neglect
+(queue B2) wearing the costume of a working alarm.**
+
+**Fixed** with `countOverdue` (which already existed — B6 added it for the
+operator dashboard); the capped page is still fetched, but only for the oldest
+row's age.
+
+### S-4 — the operator dashboard's needsReview saturated at 500 (VOLUME)
+
+`operatorZatca.health()` reported `listNeedingReview(500).length` — sitting two
+lines below the `overdue.total` that B6 had just fixed for exactly this reason,
+inside the same `Promise.all`. **"Green fixes the case, not the class",
+demonstrated within a single function.** Fixed with a new `countNeedingReview`.
+
+### CHECKED AND ABSENT — AR aging does not double or collapse on colliding documents
+
+The sweep's opening hypothesis was that two invoices to the same customer, same
+amount, same day would double the AR aging total. **It does not**, and the claim
+carries its search shape:
+
+- `arAging` is the only AR aging path (`grep arAging|ar-aging` across the API;
+  one service, one controller, one route, one page — the page renders the
+  server's total and computes none of its own).
+- Its input is `invoicesWithCustomer`, a LEFT JOIN on `customers.id` — a join
+  on a unique key cannot multiply rows.
+- Its internal `creditedByOriginal` map is keyed on `originalInvoiceId`, also
+  unique.
+- The bucket totals accumulate once per row, and `total` is their sum.
+
+What would have falsified it: a join on a non-unique column, a `Map`/`Set` keyed
+on a value tuple, or a client-side re-aggregation. None exists. It is now a
+standing measurement rather than a reading — `tests/scale-and-collision.test.ts`
+builds three identical approved invoices, asserts the total is 3× (neither 1×
+nor 6×), asserts three individually-reachable items, and does the same for AP.
+
+🔴 Recorded because the absence is the finding: this went into the sweep as a
+premise stated with specifics, and it was checked against the data before any
+code was written (§3, *an instruction's referent is an input*). The two defects
+that WERE real — S-1 and S-2 — were found by looking for the SHAPE the premise
+described, not the location it named.
+
+### The countermeasure — `tests/scale-and-collision.test.ts`
+
+A fixture large enough to exceed every cap it touches **and** deliberately
+degenerate in its values: 237 pending transactions against a 200 cap, 537 outbox
+documents against a 500 cap, three identical invoices, three identical bills, a
+statement line repeated three times. Every cap is a named constant so an
+assertion can say *not the cap*, and every group has an anti-vacuity test
+proving the fixture really is oversized or really does collide.
+
+**A test that cannot fail on small data is not testing the property**, and until
+this file every test we had was small.
+
+Two disciplines the file records in place, because both were nearly got wrong
+while writing it:
+
+1. **Assert the thing that was broken, not the thing beneath it.** The first
+   draft asserted `countOverdue` and `countNeedingReview` — both of which were
+   already correct, so both tests would have passed against the broken alarm and
+   the broken dashboard. What was broken is *which of two numbers the caller
+   chose*, so the assertions now run through `alarmsService.runOnce` (capturing
+   the paged payload via `__setAlerterForTests`) and `operatorZatcaService.health()`.
+2. **State the limit rather than implying coverage.** Nothing here proves the
+   BUTTON renders the count it now fetches — no test in this suite renders a
+   page. The endpoint is pinned; the binding from endpoint to label is verified
+   by reading only, and the test says so.
+
+**Verified by re-injection**, each defect restored one at a time: the ingest
+existence check (`expected 2 to be 3` on the ledger), the alarm's page count
+(`expected 500 to be 537`), the dashboard's page count (`expected 500 to be
+greater than or equal to 537`). Full suite after the fixes: **102 files passed,
+1 skipped, exit 0.**
+
+### One process note
+
+`single-currency-migration-refusal.test.ts` resolves its migration file from
+`process.cwd()`, so it fails when vitest is invoked from the repo root with
+`--root apps/api` (it looks for `C:\Users\packages\db\…`). It passes from the
+package directory. Not a defect in the code under test — but it is one more
+place where a test's verdict depends on how it was launched, and the §10b rule
+applies: find out which number carries the verdict before trusting any of them.
+
+---
+
+## 2026-08-28 — THE FLOW AUDIT (capture, findings, quotations, POs, closed months, permissions, Arabic)
+
+The nine findings and their severities are in `CLAUDE.md` §5. This is the method,
+the evidence, and the three things the audit says about the process.
+
+### Method
+
+For each flow: (1) every hand-written `apiFetch<T>` in the page compared field by
+field against the service that answers it; (2) every mounted route in the domain
+grepped for a caller **by verb, not by prefix**; (3) every derived field traced
+back to whether the endpoint that serves it loads the data it derives from.
+
+Step (3) is the one that found the most, and it is new. It exists because of the
+QA audit's GL-list defect — `(lines ?? [])` making absence look like zero — which
+is not a shape mismatch and not an unreachable route. It is a **third** way for a
+correct backend to lie: a presenter given less than it thinks it has.
+
+### AUD-1 and AUD-2 — the same escape hatch, twice
+
+Both HIGH findings run through one line in `invoicesService.create`:
+
+```
+if (!String(invData.invoiceNumber ?? "").trim()) invData.invoiceNumber = await allocate(...)
+```
+
+C12 established from the primary text that a company must run **one** sequence
+covering invoices AND notes, that multiple concurrent sequences are a Prohibited
+Functionality, and that the browser must not mint numbers. It then fixed the
+allocator, removed the mint from `Invoices.tsx`, and kept a caller-supplied number
+"for legacy imports". That escape hatch is now used by two ordinary product paths:
+
+- **`CreditNotes.tsx`** always sends `CN-{Date.now().slice(-6)}` (or `DN-`), so
+  every credit and debit note is outside the company sequence. That is the second
+  series the Resolution prohibits, created by the product's own UI. The suffix is
+  the last six digits of a millisecond clock, so it wraps every ~16.7 minutes and
+  two notes at an exact multiple collide on `UNIQUE(company_id, invoice_number)`.
+- **`Invoices.tsx`'s "make recurring"** writes `invoiceNumber: "REC-<number>"`
+  into the rule template, and `generation.service` spreads the template into
+  `create`. Run 1 succeeds. Run 2 reuses the same literal number and violates the
+  unique index, so the rule fails every month thereafter.
+
+🔴 **What this says about how C12 was verified.** C12 was an exemplary piece of
+work — primary texts read, the delegation chain followed, a defect found that the
+code review had missed. And it checked the **allocator**, not the **callers**. The
+standing check's part 2 asks "does every field have a production writer"; nobody
+asked the inverse question, *which writers can bypass the one I just built*. For a
+rule enforced by "we always call the allocator", the callers ARE the enforcement,
+and there were three of them.
+
+The general form is already in §3 — *enforce invariants at the write boundary, not
+in one path* — and this is what ignoring it costs: the boundary here is
+`create`, which HAS the rule and also has an escape hatch, so the invariant is
+enforced only for callers who opt in. An invariant with an opt-out is a
+convention.
+
+### AUD-3 — a presenter reasoning about the wrong empty
+
+`conversionState(items)` carries a careful comment: *"A quotation with no lines is
+`open` — there is nothing to convert, and calling that 'converted' would be a
+confident wrong answer."* Correct, and about a quotation that genuinely has no
+lines. The LIST endpoint passes no lines because it **does not load them**, and
+those two emptinesses mean opposite things.
+
+Measured directly (`[AUDIT] detail=converted list=open`): a fully converted
+quotation reads "Open" in the list, and the list offers **Convert to invoice** on
+it. The server refuses the conversion with a 409, so no wrong document is
+produced — the damage is that the list states a commitment's status wrongly, and
+invites an act it will then refuse.
+
+🔴 The existing test asserts `conversionState` through `getById`, where items are
+loaded — **the derivation is proven in exactly the place the defect cannot
+occur.** The narrower-claim family, one level down: not a suite whose fixtures are
+too narrow, but a suite that measures a function through the caller that feeds it
+properly while a second caller starves it.
+
+### AUD-4, AUD-5, AUD-6 — three unreachable capabilities, one blind guard
+
+`PATCH /quotations/:id`, `PATCH /purchase-orders/:id`, `POST /capture/:id/discard`,
+and both entities' `send-back` / `reject` have no caller in `apps/web`. Each was
+built deliberately and tested: M21.2's edit path reconciles line ids specifically
+so a converted line survives an edit, and both freeze-rule guards were verified by
+re-injection; B3's discard deletes the image immediately *because* reporting a
+deletion that did not happen was half of that defect.
+
+All of it is unreachable, and `tests/route-reachability.test.ts` is green, because
+it matches the **prefix**: `/quotations` and `/capture` are referenced many times.
+This is the fourth defect of exactly this shape (the QA audit's bill edit was the
+third), and the guard has now missed all four for the same reason. The guard's own
+documented blind spot is generated hooks; the verb is a second one, and it is the
+one that keeps costing.
+
+🔴 AUD-5 is also the sharp end of C8: the erasure path we built for photographed
+third-party documents is the one nobody can reach.
+
+### AUD-7 and AUD-8 — the surfaces nobody demos
+
+The UI offering what the API refuses (Acknowledge to a bookkeeper, Approve to a
+non-approver) is the converse of D4's rule, which was written one way round only.
+Since B2 the refusal at least appears as a toast; before it, the button did
+nothing at all.
+
+`ScanReview` and `Approvals` are substantially English-only while Arabic is a
+stated LAUNCH requirement — including account names inside `ScanReview`'s journal
+preview, which is the moment a user is asked to confirm a posting. Both pages were
+shipped as deliberately minimal and never revisited. Nothing counts translation
+coverage, and nothing renders a page.
+
+### The three process observations
+
+1. **A verification's scope is the thing to record, not its verdict.** C12
+   verified the law and the allocator. Both verdicts still hold. What was never
+   written down is that the verification did not extend to the callers — so a
+   later reader (and a later session) inherits "invoice numbering: verified" with
+   no way to see the edge of it.
+2. **The route guard's prefix matching has now missed four defects of one shape.**
+   It should compare method+path against what the client actually calls, or it
+   should say plainly in its own output that it cannot see verbs. Today it reports
+   coverage it does not have.
+3. **Every finding above was invisible to code reading and visible in seconds of
+   use** — except AUD-2, which needs a *month* of use, and is therefore the one a
+   browser pass would also have missed. Volume, collision, and now *time* are the
+   three axes our fixtures collapse.
+
+---
+
+## 2026-08-28 — TWO LESSONS THE OWNER NAMED, recorded at their instruction
+
+### 1. A destructive act's scope must match what the user can see
+
+Named while triaging S-2: *"a user accepts what looks like one transaction and
+posts two — that's not a display bug, it's a destructive action whose scope
+doesn't match what the user sees, same family as 'delete all' deleting fifty."*
+
+The framing is the useful part. Read as a labelling bug, the fix is "make the
+number accurate" and you are done. Read as an **authority** bug, the fix is
+different and larger: the user consented to the set in front of them, so the
+system may not act on a set they were never shown, and any gap between the two
+is a defect **in the act**, not in the label. That is why S-2's fix is not only
+the true count in the button but a confirm that appears exactly when the click
+reaches past the visible page, naming the number, saying the rows are not on
+screen, and saying that accepting posts to the ledger.
+
+🔴 It also reconciles with the M16 principle that *accepting the match IS the
+review* — a second confirmation of what the user just reviewed is a design
+defect, but rows beyond the page were never reviewed, so naming them is not a
+second confirmation, it is the first mention.
+
+The display half of the same family is a surface that collapses two real rows
+into one: consent to the one silently becomes consent to both. That is what
+made S-1 and S-2 one finding in the owner's reading, even though in this
+codebase they turned out to be two mechanisms in two files.
+
+### 2. An owner's MECHANISM for a bug is an input, and can be confidently wrong
+
+S-3 was reported twice, each time with specifics:
+
+- first as **"two invoices to the same customer for the same amount on the same
+  day doubles the AR aging total"**;
+- then, after that was checked and reported absent, as **"the actual bug is
+  `Map.set` overwriting, so AR aging silently drops an invoice — under-reporting,
+  not over-reporting."**
+
+Neither exists. Checked behaviourally, not by reading: three identical approved
+invoices produce three aging items and exactly 3× the amount
+(`tests/scale-and-collision.test.ts`), so nothing doubles and nothing is dropped.
+Checked structurally for the second mechanism specifically: the only `Map` in
+that path (`creditedByOriginal`) is keyed on `originalInvoiceId` and accumulates
+with `+`, and a sweep of every `.set(` in the money-path services found none that
+overwrites on collision — each one accumulates, pushes into an array, or is keyed
+on a row id.
+
+🔴 **Why this belongs in the record.** Building to either version would have
+replaced a correct answer with a differently-wrong one — and unlike an ordinary
+bug, it would have shipped wearing a fix's credibility, with a test written to
+lock it in. The owner's own note on the first correction is the sharpest
+statement of it: *"the wrong version would have been fixed to produce a different
+wrong number."*
+
+🔴 **And why the instinct was still worth following.** The SHAPE the report
+described — a value collision in a money path, invisible to unique-valued
+fixtures — was real, twice, two files away (S-1's ingest dedupe, and the
+`duplicate_transaction` finding that keys on the same tuple). Take the shape,
+check the mechanism, report the mismatch. An owner pointing at the wrong file is
+still pointing at something.
+
+**Prior instances of the same class** (an instruction confidently wrong in its
+referent, corrected rather than built to):
+
+| Date | The instruction | What was true |
+| --- | --- | --- |
+| 2026-08-24 | A work order for a milestone, in the project's own vocabulary | The milestone did not exist; the owner had answered a plan nobody proposed. Caught because the name matched no record, so the data was queried before any code. |
+| 2026-08-28 | S-3 as double-counting in AR aging | One aging path, joined on customer id; totals correct. Nothing doubles. |
+| 2026-08-28 | S-3 as a `Map.set` overwrite dropping an invoice | No overwriting `.set` in any money path; three colliding invoices produce three rows. |
+| 2026-08-30 | A description of "our" ADR practice and architecture, pasted in as ours | **A different system entirely.** The give-away was not the missing `docs/adr/` — absence is weak evidence, since a directory we never created and one we deleted look identical. It was **`resolveTenant`**: the description assumed subdomain-per-tenant routing, and this platform resolves the tenant from the SESSION and offers an org switcher. Those are architecturally incompatible, so it could not be a decision we made and forgot. The source turned out to be someone else's prompt, pasted by mistake. |
+
+The countermeasure is unchanged and is already §3's rule — *an instruction's
+referent is an input, check it against the data* — extended by this session to
+cover the instruction's **mechanism**, not only its subject.
+
+🔴 **What the 2026-08-30 row adds: prefer POSITIVE contradicting evidence to
+absence.** The instinct on a mismatched referent is to report what is missing,
+and missing things are the weakest evidence available — a file we never wrote
+and a file we deleted look the same. What actually settled this one was a fact
+PRESENT in the code that could not coexist with the claim: session-scoped
+tenancy with an org switcher cannot be reconciled with subdomain-per-tenant.
+Owner, on being shown both: *"the `resolveTenant` evidence settles it better
+than the missing files do."*
+
+**And the value survived the referent being wrong**, the same way the S-3 rows
+did. The practice described was worth adopting even though the description was
+not about us; what was taken is the one element that generalises — a required
+**"What we rejected, and why"** section in design docs (CONTRIBUTING §3b) — and
+nothing that depended on the tenancy model it assumed. Retrofitting the past
+year's docs was rejected as archaeology. *Take the shape, check the mechanism,
+report the mismatch.*
+
+---
+
+## 2026-08-28 — B-7 and B-8, recorded at the owner's instruction (with their verification status)
+
+Both arrived as owner findings while the flow audit was being written up. The
+LESSONS are recorded because both generalise and neither depends on the
+mechanism being exactly right. The mechanisms are recorded with what was
+actually checked, because §3 requires it — an instruction's mechanism is an
+input.
+
+### B-8 — an attribute set on `<html>` from React is unreliable by construction
+
+**The lesson, which stands on its own and is the reusable part:** anything set
+OUTSIDE React's tree can be silently reverted by something inside it. React owns
+`#root` and reconciles it; `document.documentElement` is not React's, so an
+imperative write to it is a fact with no owner — nothing re-asserts it, nothing
+notices when it is lost, and the static document's version is always sitting
+there as the value it can fall back to. A correct producer, overwritten by a
+consumer, for the **third** recorded time:
+
+| # | The producer | What overwrote it |
+| --- | --- | --- |
+| 1 | The scripted removal of sixty broken Arabic regexes in `categorizer.ts` | An `Edit` call writing back a pre-script snapshot (§10b) |
+| 2 | Migration 0044 dropping the `fiscal_year_start` default | Company Settings' submit still coercing `?? 1`, re-declaring January on any save (M20.0) |
+| 3 | `LanguageContext`'s `documentElement.dir = "rtl"` | Reported: restored to the static document's value (B-8) |
+
+**The durable countermeasure is structural, not a patch:** a value React does not
+own should not be set imperatively once. Either make it something React
+re-asserts on every render, or re-assert it on navigation, or observe the
+attribute and restore it — and in all three cases, **test that it survives a
+route change**, because that is the event the current code never sees.
+
+🔴 **Verification status — what was checked here, 2026-08-28.** The stated
+mechanism ("reconciliation can restore the static document's version") was NOT
+reproduced by reading: React renders into `#root` and does not own `<html>`;
+`applyLang` is the only writer of `document.documentElement.dir`/`.lang` in the
+entire client (grepped); the other 11 `dir=` occurrences are per-field
+`dir="rtl"` on Arabic inputs and labels, all legitimate and all below the app
+root; and `index.html` ships `lang="en"` with no `dir` at all, which does mean
+the first paint is LTR until the effect runs. So the loss is real if observed —
+this codebase cannot show WHY from source alone, and the honest reading is that
+the cause is a runtime behaviour that reading cannot see. **That is itself the
+point of the entry:** nothing in the suite renders a page, so nothing can
+observe an attribute being lost.
+
+### B-7 — reported as "M21 is entirely unreachable"
+
+**The claim:** quotations and POs can be created but not approved; conversion
+requires approval; so the milestone we designed, built, tested and reviewed
+cannot be used at all — the fifth instance of the B-1 class and the largest by
+scope.
+
+🔴 **Verification status: the stated MECHANISM is contradicted by the code, on
+every link in the chain that reading can reach.** Recorded in full because a
+finding this large must not enter the record on either an assumption or a
+dismissal:
+
+| Link | Evidence |
+| --- | --- |
+| The pages are routed | `App.tsx:182` `/quotations`, `:189` `/purchase-orders` |
+| The pages are in the nav | `Layout.tsx:44`, `:53`, both with Arabic labels |
+| Create is wired | `POST /quotations` from the page's create mutation |
+| Submit is wired | Button rendered when `status === "draft"` (`Quotations.tsx:365`) |
+| **Approve is wired** | Button rendered when `status === "submitted"` (`:370`), posting to `/quotations/:id/approve`, which exists (`routes/quotations.ts:17`) |
+| Approve is PERMITTED | `PERMISSION_MATRIX`: `quotations.approve: APPROVE = ["admin","accountant"]`, seeded by `seedPermissions`, and pinned by `quotations.test.ts:384` (`rolesFor("approve") === ["accountant","admin"]`) |
+| Convert is wired | Button rendered for `approved` with no outcome — and note AUD-3 means the list's `conversionState` is always `"open"`, so the Convert button renders **more** often than intended, never less |
+| The server chain works | `quotation-conversion.test.ts` drives create → approve → partial convert → full convert against real rows |
+
+So M21 is not unreachable *by any path source can show*. What IS true, and was
+found independently in the same audit, is that M21 is **badly holed**: it cannot
+be edited (AUD-4), cannot be sent back or rejected (AUD-6), and its list
+misreports every document's conversion state (AUD-3, measured
+`detail=converted list=open`).
+
+🔴 **The reason this is recorded rather than closed:** if the failure was
+OBSERVED in a browser, the evidence outranks every line of the table above —
+it would be a runtime fact, and runtime facts are exactly what this project has
+no way to see (1,100+ tests, zero rendered pages). A confirmed B-7 would then be
+the strongest possible argument for the countermeasure, because it would mean an
+entire milestone was unusable while every static check, every test, and this
+audit's own reading all said otherwise. The open question is therefore narrow
+and worth answering precisely: **what was seen — a missing button, a button that
+did nothing, an error toast, or a blank page?** Each points at a different layer,
+and only the last two are invisible to the checks above.
+
+---
+
+## 2026-08-28 — P4, AND WHAT BUILDING IT PROVED
+
+### The decision: the class before the instances
+
+The nine findings were fixed AFTER the guard was built, deliberately. Fixing
+them first would have meant verifying nine fixes with the method that missed all
+nine — leaving the process exactly as blind — and, worse, P4 would never have
+been written, because the pressure to write it disappears the moment the visible
+symptoms are gone. **9 of 15 is the finding; the nine are its evidence.**
+
+The reconstruction, so the ratio is checkable rather than rhetorical: fifteen
+findings this session — S-1…S-4 (the scale sweep), AUD-1…AUD-9 (the flow audit),
+B-7 and B-8 (owner-reported). Nine sit in the layer a user touches: S-2, AUD-3,
+AUD-4, AUD-5, AUD-6, AUD-7, AUD-8, B-7, B-8. The other six are backend or latent:
+S-1, S-3, S-4, AUD-1, AUD-2, AUD-9. **Our process verified every layer except the
+one a user touches, and that is systematic, not a run of oversights.**
+
+### What P4 is
+
+A transition GRAPH, not a route check. Server transitions are read from the
+routers; client producers are resolved from `apps/web`; reachability is then
+COMPUTED from the states creation can produce. It reports three things: a
+transition nothing can trigger, a state nothing can produce, and — the sharp one
+— a correctly-wired control stranded behind a state no user can reach. That last
+case is invisible even to a verb-aware checker, because every file involved is
+correct; only the composition is wrong.
+
+### 🔴 The guard was wrong on its first run, in the dangerous direction
+
+P4's first execution reported all fourteen quotation and purchase-order
+transitions as unreachable. They are not: `Quotations.tsx` calls
+`` `/quotations/${id}/${action}` `` — entity literal, action interpolated — a
+call style the resolver did not know. That is **inventing** findings, the exact
+failure that killed the previous static checker at 65 false positives.
+
+It was caught only because those buttons had been read by hand the day before,
+so the guard contradicted a known fact. **A guard's own resolver is a claim, and
+it needs ground truth before anything is believed on its word.** The evidence
+rule that follows: an ambiguous match counts as REACHABLE and the guard fails
+only on no evidence at all, so it can miss a defect but cannot invent one — with
+every resolution printing the evidence that produced it, because a guard
+overstating its coverage is what let this class run for months.
+
+🔴 Then the same escaping mistake happened three more times while writing it
+(`` becoming a backspace, `\$\{` losing its escapes twice) — each one silently
+changing what the guard measured rather than failing loudly. The last resolver is
+written with plain string containment for exactly that reason.
+
+### Validated by injection, then used as the verification
+
+Assertions (b) and (c) pass trivially on a healthy tree, so they were proven
+capable of failing: removing the Approve control from `Quotations.tsx` made P4
+report `approved` unreachable AND name four correctly-wired controls (decline,
+close, reopen, convert) as stranded behind it. That is the B-7 shape, reproduced
+and detected.
+
+Then the loop the owner asked for: P4 red on AUD-6 → fix → P4 green, with no
+clicking. It also confirmed AUD-4 and AUD-5 once extended to verb level — and
+that extension is itself a finding about the guard, recorded rather than hidden:
+a state machine has nothing to say about `PATCH /:id` or `POST /capture/:id/discard`,
+because they are not transitions.
+
+### 🔴 P4's own first catch: three defects nobody had reported
+
+Within minutes of the verb-level extension: `PATCH /bills/:id` (the QA audit's
+own finding, re-derived from source), `PATCH /invoices/:id`, and no DELETE caller
+on invoices, bills or journal entries. **A mistaken draft invoice can be neither
+corrected nor removed from the product.** Quotations and purchase orders can be
+deleted; the three oldest entities in the system cannot.
+
+That is the first evidence that a static guard can see the class the browser pass
+saw — and it says the class is bigger than the audit found.
+
+### The nine, and what each fix actually was
+
+AUD-1 and AUD-2 shared one root: `create` allocates a number only when the caller
+leaves it blank, so the `if` is an opt-out and two ordinary paths took it. **An
+invariant with an opt-out is a convention** — verifying the allocator verified
+nothing about the rule. AUD-2's fix is at the write boundary (the generator
+strips a number from any template) as well as at the UI that wrote it.
+
+AUD-3 was a presenter reasoning about the wrong empty: `conversionState([])` is
+right for a quotation with no lines and wrong for a caller that did not fetch
+them. The fix loads the totals; the test asserts the LIST and the DETAIL agree,
+which is the property that was broken — the old test asserted the derivation
+through `getById`, where items are loaded, proving it exactly where the defect
+could not occur.
+
+AUD-6's controls carry the destructive-scope rule: Reject names that it deletes
+permanently with no archive, and points at Send back as the non-destructive
+alternative, before the click.
+
+---
+
+## 2026-08-28 — B-7 RETRACTED: a false finding in a report about false confidence
+
+### What was claimed, and what is true
+
+B-7 said M21 was **entirely unreachable** — quotations and POs creatable but not
+approvable, and since conversion requires approval, a milestone designed, built,
+tested and reviewed that could not be used at all. It was recorded as the fifth
+instance of the built-tested-unreachable class and the largest by scope.
+
+**It is false.** Verified by running the product, not by reading it: servers
+started, logged in through the browser, created a quotation from the Quotations
+page (auto-approved, as an admin's own quotation is), opened Convert, and got
+`INV-2026-000048` — SAR 1,150.00, draft, numbered from the server's C12 sequence
+(following 000047). The list then correctly showed the quotation as `Invoiced`
+rather than `Open`, which incidentally confirmed the AUD-3 fix in the live UI.
+
+### 🔴 Why this one matters more than an ordinary wrong finding
+
+**Nobody had ever clicked it.** The claim was derived by reading — in an audit
+whose entire premise was that reading misses this class. The report argued that
+static review cannot see reachability, and then asserted a reachability defect
+on the strength of static review. That is the failure the report was about,
+committed inside the report itself.
+
+Three specific things went wrong, each worth keeping:
+
+1. **A conclusion outran its evidence.** The audit's real findings were narrower
+   and correct: quotations/POs could not be EDITED (AUD-4) and could not be sent
+   back or rejected (AUD-6). "Badly holed" became "entirely unreachable" — the
+   step nothing supported.
+2. **The scope claim was the most quotable thing in the report**, and quotability
+   is not evidence. "An entire milestone is unusable" travels further and faster
+   than "two of six workflow actions have no control", which is what was true.
+3. **It survived a check that should have killed it.** When B-7 was recorded, the
+   mechanism was checked link by link — routes, nav, button, permission matrix,
+   service tests — and every link contradicted it. That contradiction was written
+   down and the finding was kept anyway, pending an observation that had never
+   happened. 🔴 **A finding whose every checkable link fails should be retracted,
+   not parked.** "Unreproduced" is a polite way of saying unsupported.
+
+### The countermeasure already existed and said so
+
+P4 was built the same day and reported quotations and POs fully reachable — it
+would have caught B-7's stated shape (proven by injection: removing the Approve
+control makes it report `approved` unreachable and names four stranded
+controls). So the guard, the code, and finally the browser all agreed; only the
+report disagreed. **When a new mechanism contradicts a finding, that is the
+moment to re-derive the finding, not to note the disagreement and move on.**
+
+### The correction to the headline
+
+The session's count is **8 of 15**, not 9: S-2, AUD-3, AUD-4, AUD-5, AUD-6,
+AUD-7, AUD-8 and B-8 sit in the layer a user touches. The finding itself is
+unchanged and is not weakened by losing one instance — our process verified
+every layer except the one a user touches. But the number is now one a person
+could check, which is the only kind worth printing.
+
+### A small irony, recorded because it is evidence
+
+The verification left a test quotation and its draft invoice in the dev
+organization. They cannot be removed from the product: `DELETE /invoices/:id`
+has no caller (AUD-12). Proving B-7 false produced a live instance of the
+finding that replaced it.
+
+---
+
+## 2026-08-28 — THE EXPANDED BROWSER DRIVE: what it settled, and three claims it did not support
+
+The B-7 retraction is recorded above. This entry covers the drive that followed,
+including the parts that came back negative — because an audit that only records
+its hits is the thing this whole sequence is about.
+
+### Settled by driving the product
+
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| M21 is unreachable (B-7) | **FALSE** | quotation → convert → `INV-2026-000048`, draft, correctly numbered |
+| The conversion creates nothing | **FALSE** | invoice 29170 has its line item (`Consulting engagement`, qty 1, 1000.00 → 1150.00) AND its dated conversion row (326) linking quotation 534 → invoice 29170 |
+| Quotation/PO deletion is unreachable | **QUALIFIED — true for a solo approver only** | no `draft` quotations exist in the dev org (`status: approved ×2`); creation auto-approves for an approver, so draft-gated controls never render for them. A bookkeeper's drafts do render them. |
+
+### 🔴 The one real finding: the role model, not a missing control
+
+An approver's own creation skips `draft` entirely (`autoApprove` from the RBAC
+matrix), so **Submit, Delete and Edit-while-draft are invisible to a solo
+approver** — which in a one-person tenant, the common SME case, means a
+quotation can be created and never deleted. Nothing is miswired; the state that
+reveals those controls is one that user never produces.
+
+P4 was wrong about this in the direction that matters — its verb-level block
+resolved `DELETE /quotations/:id` from a call site in the file and called it
+reachable, saying nothing about whether a user ever reaches the control.
+**A guard that reports coverage it does not have is worse than no guard**, which
+is the same criticism this file already levels at the prefix-matching route
+guard. Fixed: DELETE is now modelled as a lifecycle transition (`draft → gone`,
+which is what the services enforce), so it is judged by state reachability like
+everything else, and the seeds are role-aware.
+
+🔴 **And the first version of that fix was wrong too** — seeding an approver only
+at `approved` produced twenty false findings, because an approver's whole job is
+other people's drafts. Reachability is now the UNION of both seeds; who created
+the record is a separate question. Two corrections to one guard in one sitting,
+both in the direction of claiming too much.
+
+### Three claims the drive did not support
+
+Recorded because they arrived as findings and none of them survived contact:
+
+1. **"A conversion that succeeds and creates nothing."** Not observed. The
+   chain was complete in the database.
+2. **"The drive found four defects the audit missed."** It found one (the role
+   model above), confirmed two fixes, and left one question open. Not four.
+3. **"Every test constructs well-formed requests, so nothing had ever produced a
+   wrong-shaped one."** Half true, and the accurate half is worth keeping:
+   `audit-med-validation.test.ts` deliberately sends malformed input, so it is
+   not the case that bad input is never tested. What IS true — and is now a §3
+   line — is that **no test exercises the CLIENT's request construction**: every
+   test builds the request the way the server expects, so a client that builds
+   it differently is invisible by construction. That is the B-1 class exactly.
+
+### What could not be completed
+
+The credit-note creation was not driven to completion: the dialog's primary
+action sat below the fold at the automation viewport and the renderer stopped
+responding to scrolling after three attempts. AUD-1 is therefore verified at the
+form (the Number field reads "Assigned automatically" rather than a minted
+`CN-<clock>`) and through the service test (a note left blank takes the next
+number in the company's one sequence), **but not by a literal click**. Whether
+that dialog scrolls at an ordinary window height is unresolved and untested, and
+is left as an open question rather than a finding.
+
+🔴 **The honest summary of the drive: one new finding, two fixes confirmed, one
+false claim killed, one step incomplete.** Worth doing, and not the haul the
+first browser pass produced — which is itself information, because the flows it
+covered had just been audited and fixed.
+
+---
+
+## 2026-08-28 — AUD-13: a well-formed request, an empty array, and a 201 for creating nothing
+
+### What it was
+
+`POST /invoices` with `items: []` returned **201**. Because an approver's own
+invoice is auto-approved, what came back was ISSUED:
+
+```
+status: "sent"   icv: 8   invoiceHash / previousHash   qrCode   total: 0
+```
+
+An issued, ZATCA-stamped, SAR 0.00 tax invoice — with an ICV consumed and a
+position taken in a chain that legally must not have gaps. Not recoverable: an
+issued invoice cannot be deleted (draft only) and `PATCH /invoices/:id` had no
+caller (AUD-11) to add lines afterwards even if it could.
+
+And it was not an edge case reachable only by a hand-built request. **`Invoices.tsx`
+hardcoded `items: []` on every create**, and its New Invoice dialog collected a
+number, dates, a status, a customer and notes — **and no amount at all.** So every
+invoice created from the Invoices page was permanently zero, permanently issued,
+and permanently uncorrectable. An invoicing product whose invoice form could not
+express an amount.
+
+### 🔴 Why nothing saw it — the two roots, and both are sharper than "bad input"
+
+**1. The validation existed on the WRONG SCHEMA.** `CreateQuotationInput` and
+`CreatePurchaseOrderInput` declare `minItems: 1` in the OpenAPI spec, and their
+services enforce it by hand ("A quotation needs at least one line"). Those two
+documents **touch no ledger**. `CreateInvoiceInput` declared no `items` at all
+and nothing enforced it — for the one document that consumes an ICV. The guard
+was written where the consequence was smallest.
+
+**2. Every test bypassed the layer that had the bug.** The invoice suites call
+`invoicesService.create` with hand-built objects that always carry lines,
+because a test author writing a fixture writes a realistic one. Nothing
+exercised the shape the CLIENT actually sends. **Verified below the layer that
+matters** — the same family as the SDK differential that proved only that we
+matched a stale writer, and as the benchmark that scored the engine against
+itself.
+
+🔴 That is why the request being *well-formed* is the important detail. This was
+not caught by input fuzzing and would not have been: it is a legal payload
+asking for nothing, and the only thing that distinguishes it from a real one is
+whether a human would ever mean it.
+
+### A third root, recorded because it is the systemic one
+
+**A spec constraint that exists and is not enforced is worse than no
+constraint**, because the spec and the tests then both read as coverage. These
+routes pass `req.body` straight to the service — no route validates against the
+generated Zod schema — so `minItems` in `openapi.yaml` binds nothing at all. The
+contract said "at least one line" for quotations while the service said it
+independently; had the service ever stopped saying it, the spec would have gone
+on reassuring the next reader.
+
+### The fix, in three places because the defect was in three
+
+- **Write boundary:** an invoice needs at least one line. Bills get the weaker
+  rule — a line OR a non-zero total — deliberately, because the capture path
+  reads header amounts off a photograph and the line detail is not ours to
+  invent. The asymmetry is stated at the code so it reads as a decision.
+- **The form:** a real line editor, with a total preview, and the submit gated
+  on at least one priced line.
+- **The spec:** `items` declared required with `minItems: 1`, and the note says
+  why it was absent.
+
+`tests/payload-shape-boundary.test.ts` pins the SHAPE across all four create
+paths, not just the one that broke, plus the anti-vacuity twin (a real line
+still works) and the header-only bill (the capture path must keep working).
+
+🔴 **Seven existing tests then failed** — they created invoices and bills with
+`items: []` to test reference validation and re-dating. Their fixtures were
+updated to carry a line, and the note in that file states what changed and why
+nothing they ASSERT was weakened. One of them ("create with the tenant's OWN
+customer still succeeds") had been implicitly asserting that a line-less invoice
+is creatable; that assertion expired the day the rule landed.
+
+### What this cost in the dev database
+
+The probe that found it created `INV-2026-000049` — issued, zero-value, ICV 8,
+in the chain. It cannot be deleted. **Finding the defect produced an instance of
+it**, which is the most direct possible statement of why the rule now lives at
+the write boundary.
+
+---
+
+## 2026-08-28 — THE COMPOSITION OF FINDINGS, and INV-2026-000049
+
+### The class, named
+
+AUD-13 is the first defect in this project where **separate findings composed
+into something worse than their sum**, and the composition — not any of the
+parts — is the finding.
+
+| # | The part | Severity in isolation |
+| --- | --- | --- |
+| 1 | The New Invoice form collected **no amount** | a bad form |
+| 2 | The API **accepted none** (`items: []` → 201) | a validation gap |
+| 3 | **Auto-approve** issued it anyway | correct, intended behaviour |
+| 4 | **No edit path** (AUD-11) | MED, queued |
+| 5 | **No delete path** (AUD-12) | MED, queued |
+
+Each was survivable alone. Each was triaged at a severity that was **correct for
+that finding**. Composed, they mint a permanent, ZATCA-stamped, SAR 0.00 tax
+invoice holding a position in a chain that legally cannot have gaps —
+irreversibly, one per click.
+
+🔴 **No individual severity predicted that, and no amount of care per finding
+would have.** Severity is assigned per finding; consequence accrues to the
+PATH. Two of the five (auto-approve, and "the form is thin") would not have been
+findings at all on their own.
+
+**The countermeasure is a triage question, not a test.** For each open finding,
+ask what it COMPOSES with — specifically what makes the resulting state
+**irreversible**, **invisible**, or **uncorrectable** — and rank the list by the
+worst path a user can walk, not by the worst finding in it. Concretely, the
+three multipliers to look for:
+
+- something that **issues or posts** (auto-approve, a posting path, a
+  transmission) — turns a bad record into a permanent one;
+- something that **removes the correction** (no edit, no delete, an
+  append-only store) — turns a permanent record into an uncorrectable one;
+- something that **hides the result** (a silent catch, an unread field, a page
+  that renders zero) — turns an uncorrectable record into an unnoticed one.
+
+A finding that touches none of these is usually as bad as it looks. A finding
+that touches two is worse than its severity says.
+
+🔴 This is the composition-defect class (§3) pointed at FINDINGS rather than at
+code. Shape 1 was two correct files with a bad edge between them; this is two
+correct triage decisions with a bad path between them. The same blindness, one
+level up: **the review reads items, and the damage lives in the joins.**
+
+### 🔴 The loop the artefact closes — its sharpest illustration
+
+Checked, not reasoned (probe run against the live row, rolled back):
+INV-2026-000049 **can** be credited — but only by a **zero-value** credit note,
+because `creditNotes` refuses any note whose total exceeds what remains
+creditable, and nothing remains creditable against a SAR 0.00 invoice.
+
+So every correction path is closed or vacuous:
+
+| Path | Outcome |
+| --- | --- |
+| Edit | refused — draft only; it is issued |
+| Delete | refused — draft only; it is issued |
+| Credit note | permitted, but only at **zero value** — it would consume ANOTHER ICV and ANOTHER chain position to cancel nothing |
+
+🔴 **The correction that exists makes the situation worse.** Reversing the
+artefact leaves two permanent zero-value documents in a chain that legally
+cannot have gaps, where there was one. That is the composition class stated in a
+single row: the rule that would have prevented it cannot repair it, and the only
+available repair adds to the damage.
+
+(The mechanism matters and was checked: it is NOT that the invoice's missing
+lines block a credit note — a note carries its own lines. It is that a zero
+total leaves nothing to credit. Recorded precisely because "cannot be reversed"
+and "reversing it is pointless and costly" are different facts, and only the
+second is true.)
+
+### INV-2026-000049 — the artefact, which STAYS
+
+The probe that found AUD-13 created one:
+
+```
+INV-2026-000049   status: sent   icv: 8   total: 0.00
+invoiceHash: 38781b13…   previousHash: f7bbd4a3…   qrCode: AQ9EZWZhdWx0…
+```
+
+An issued, ZATCA-stamped, zero-value tax invoice in the dev organization's
+ledger, holding position 8 in the hash chain.
+
+**It cannot be removed, and that is the point.** `remove()` refuses anything but
+a draft ("Issued invoices must be reversed with a credit note"); `PATCH` refuses
+a non-draft too, and had no caller regardless. Deleting it directly in SQL would
+leave a gap in the ICV sequence and break the chain link that the next document
+points at — the exact damage the fail-closed posture exists to prevent. The only
+sanctioned correction is a credit note, which would leave *two* zero-value
+documents where there was one.
+
+🔴 **Owner instruction (2026-08-28): leave it.** It is the strongest artefact
+this project has produced — the probe that found the defect created an instance
+of the defect, permanently, in a ledger. It is a standing, physical answer to
+three questions this file argues about at length:
+
+1. *Why enforce at the write boundary rather than in the caller?* Because the
+   caller was already fixed and the row still exists.
+2. *Why is "we'd catch it in review" not enough?* Because the review that
+   would have caught it is the one that produced this row.
+3. *Why is an irreversible act a different category of risk?* Because everything
+   else in this session was fixed with a commit, and this cannot be.
+
+Anyone tempted to clean it up should read this entry first and then not.
+
+---
+
+## 2026-08-28 — RANK 1 FIXED: the silent fallback to the owner connection is gone
+
+### What it was, and why it ranked first with no live instance
+
+`db` is a Proxy. Inside a tenant transaction it resolved to the RLS-scoped
+client; outside one it fell back **silently** to the owner connection — RLS
+bypassed, no `app.current_org_id`, full cross-tenant reach, no error.
+
+The accounting core depended on that never happening and said so in a comment:
+`glPosting.resolveAccounts` writes no organization filter because "this runs
+inside the request's tenant transaction". The core trusted a fact its CALLER
+controlled, and the failure mode was **a wrong answer rather than a refusal** —
+one tenant's entries posted against another's accounts, silently.
+
+It was ranked **first** in the consequence-ordered triage with no live instance,
+because it is the only open item that hits all three multipliers at once: it
+posts (irreversible), under the wrong tenant (uncorrectable), with no error
+(unnoticed). That call is now vindicated twice over — see below.
+
+### The fix: inexpressible, not guarded
+
+The fallback is deleted. Any DB-reaching method on `db` outside a tenant scope
+throws `UnscopedDatabaseAccessError`, naming what it would otherwise have done
+and what to do instead. A deliberately cross-tenant call imports **`ownerDb`**
+and says so.
+
+🔴 Harmless property access is deliberately NOT refused — `then`, symbols,
+whatever `util.inspect` and drizzle's internals probe. A guard that breaks
+inspection gets reverted within a day for unrelated breakage, which is how a
+correct guard dies. Only the twelve query-building methods are refused, and
+`tests/unscoped-db-refusal.test.ts` pins both halves.
+
+### 🔴 The conversion found a live instance — the ranking was right
+
+**`operatorService.getApplication` → `documentsRepository.listByOrg`**: the
+operator surface read a tenant's `verification_documents` through the fallback.
+RLS bypassed by accident rather than by decision, on a table holding third-party
+identity documents. It is the same surface already queued for unbounded access
+(open finding: `getApplication` accepts any orgId and never expires), and now we
+know it was also unscoped by construction. Fixed by naming `ownerDb` in that
+repository, where every query already filters by `organizationId` explicitly —
+which is what makes the owner connection the right one to name rather than a
+workaround.
+
+### What the conversion measured, which is the durable part
+
+**Thirteen production files** were running unscoped through the fallback, and
+every one of them is in the same layer: auth, signup, invitations, security
+audit, user admin, members, orgs, operators, verification, onboarding, tenant
+resolution, the demo seed, and verification documents. That is the identity and
+pre-tenant layer — precisely the set §4 already says is the only correct
+consumer of those tables. **Two of them (`organization_invitations`,
+`security_audit_logs`) were already documented on `ownerDb` as owner-only and
+were reaching it through the fallback anyway**: the doc said one thing and the
+import said nothing, so the code did the right thing by accident.
+
+🔴 **No business-layer file was relying on the fallback.** The audit's original
+claim ("no live instance found") was correct for the ledger — and is now
+mechanically enforced rather than checked by reading.
+
+`demoSeed.service.ts` is the interesting one: it needs **both** handles, and now
+says which at each call. Its pre-tenant writes (organization, company, admin
+user, membership) are `ownerDb`; everything after it opens `inTenant` stays on
+`db`. A blanket switch there would have bypassed RLS for the business writes —
+the dangerous direction, avoided only by checking each call site against the
+scope boundary rather than pattern-matching the file.
+
+### The test fallout, and what it says
+
+Six test files failed because their fixtures called business services with **no
+tenant scope** — that is, they had been exercising business logic with RLS
+bypassed, which is not the configuration the product runs in. Wrapping them in
+`beginTenantConnection` makes them faithful, not lenient.
+
+🔴 One diagnosis worth keeping: five of those files failed at the FILE level with
+an FK error on `finding_runs`, and the cause was **residue from my own earlier
+broken runs** — the findings scheduler had written rows for those orgs while the
+suite was red, and the cleanups do not delete them. `Test Files 6 failed` beside
+`Tests 1 failed` is the §10b signature exactly: the test-level number said one
+thing and the verdict was elsewhere.
+
+---
+
+## 2026-08-29 — AUTO-APPROVE REMOVED, and a scripted edit that had to be reverted
+
+### The decision (owner, 2026-08-28)
+
+`create` took `autoApprove` from the RBAC matrix, so an approver's create ISSUED
+the document in one call. Removed **entirely** — no parameter remains on any of
+the three services.
+
+The owner's reasoning, recorded because it is the durable part: **its
+justification expired when M22 gave the product a real approve button.** What
+was left was a path that minted an ICV and a ZATCA stamp from a single create
+call, contradicting M10's own principle — *approval is an act about a specific
+document, and auto-approve made it an act about a setting.* On invoices it was
+**two-thirds of AUD-13's severity**: the leg that turned a thin form from
+annoying into unrecoverable. "One extra click on a legal document is not a cost
+worth arguing about."
+
+### It closed a second finding by construction
+
+The solo-approver gap — an approver never saw Submit, Delete or Edit-while-draft
+because their own creations skipped `draft` — is **gone**, not fixed. Every
+create lands as a draft for every role, so the state exists for everyone and the
+controls gated on it are reachable. P4's role-aware seeding, added two days
+earlier precisely to model that split, collapsed back to one seed.
+
+🔴 Worth noticing: the finding was closed by removing the thing that caused it
+rather than by adding surfaces to compensate. That is the same move as making
+the unscoped query inexpressible — the cheaper fix is usually upstream of the
+symptom.
+
+### 🔴 THE SCRIPTED EDIT THAT CORRUPTED 25 FILES, AND WHY IT WAS REVERTED
+
+Converting 46 test call sites, the first script used a non-greedy DOTALL regex:
+
+```
+(\w+Service)\.create\(\s*(.*?),\s*(userId|...)\s*,\s*\{ autoApprove: true \}\s*,?\s*\)
+```
+
+`.*?` does not know what a call is. Where a file had a `create(...)` with the
+option removed followed later by one that still had it, the match **spanned both
+calls** and everything between them was swallowed into a single rewritten call.
+It typechecked. The tell was a test named "a bookkeeper's create yields a DRAFT"
+that had been rewritten to `createApproved(...)` — an assertion inverted by a
+regex, not by a decision.
+
+**This is §10b's family exactly** — a scripted edit whose scope was wider than
+its author intended, like `sed` with no address. The countermeasure is the same
+one already recorded: **the ambiguous case must be inexpressible, not
+carefully avoided.** The redo scans for the *balanced closing paren* of each
+call and edits strictly inside it, so an edit **cannot** cross a call boundary
+however the file is laid out.
+
+And the response was the prescribed one: `git checkout HEAD -- apps/api/src/tests`
+and redo, rather than patch the damage. Patching would have left the swallowed
+regions to be found later by a failing assertion — or not found at all, since
+the corruption typechecked. 🔴 The verification that caught the *scale* of it was
+`git diff --numstat` per file: deletions far exceeding additions is what a
+swallowed region looks like from outside. That check is cheap and should follow
+any scripted edit across many files.
+
+### What the removal cost in tests, and what that says
+
+24 sites passed `{ autoApprove: false }` — now redundant, since a draft is the
+only outcome. 24 wanted an ISSUED document and became two acts via
+`tests/helpers/createApproved.ts`, which exists so the second act **names the
+document it approves** rather than hiding behind an option.
+
+One test had to be inverted rather than converted: *"self-approve-on-create: an
+approver's create issues immediately, identical to pre-M10"*. It asserted the
+behaviour being removed. Inverted, not deleted — "a create never issues" is the
+guarantee that replaced it and deserves its own test.
+
+---
+
+## 2026-08-29 — LEDGER LIST PAGINATION, and a fix that edits the queue
+
+### The decision, and why offset
+
+Offset pagination with **server-side totals**, on the ledger-facing lists.
+Cursor pagination is better in principle — stable under concurrent inserts, no
+deep-page cost — and **nothing in this market justifies it**: twenty pages of
+fifty is not a problem anyone here has. Recorded at the repository as the
+**upgrade path if volume ever arrives**, so the choice reads as a decision
+rather than an oversight.
+
+🔴 The two halves are one change, and neither is safe alone. `GET /invoices`
+returned the whole ledger and the page `reduce`d Outstanding and Collected over
+whatever came back. That is correct *exactly while the list is unbounded* — the
+moment anyone adds a `LIMIT` for performance, every headline figure silently
+becomes "the total of this page". **"Total on this page" is a number nobody
+asked for, and the alternative to it is not a smaller figure but a confidently
+wrong one.** Same call as B-6: the question is never "is there a limit" but
+"does the number shown describe the set the reader thinks it describes".
+
+The totals are computed in SQL over the whole filtered set, from **one shared
+predicate** used by both the rows and the aggregate — so the two can never
+describe different sets. `tests/ledger-list-pagination.test.ts` builds 73 rows
+against a 50 page and asserts the outstanding total is 73 × 100, explicitly
+**not** 50 × 100, which is the exact number a page-scoped reduce would produce.
+
+### Scoped deliberately
+
+The four ledger-facing lists first, the other eleven as their own pass. The
+consequence genuinely differs — a truncated invoice list hides a document a user
+cannot then reverse, while a truncated customer list is an inconvenience — and
+fifteen lists in one diff makes the four that matter hard to review.
+
+🔴 Honest status: **invoices and bills are done; journal entries and
+transactions are not.** Transactions already had `limit`/`offset` at the
+repository and a truncation notice in the page, so it starts from further along.
+
+### 🔴 The new triage step: a fix edits the queue
+
+Added as step 4 of the Triage Check: **after closing an item, ask what it changed
+the meaning of.** A fix does not only remove its own finding; nothing in this
+process re-examines the remaining items after one lands, so a finding can become
+worse, become moot, or change character while its row still reads as written.
+
+Two instances from this session, both checked:
+
+| The fix | What it changed |
+| --- | --- |
+| Auto-approve removed | **Closed** the solo-approver finding outright — every create lands as a draft, so the draft-gated controls became reachable |
+| The unscoped-`db` fallback removed | **Changed what `getApplication` is**: filed as a retention/PDPL question, revealed also to be an RLS bypass |
+
+It is the composition class pointed at FIXES rather than defects, and it is the
+step most easily skipped, because the fix feels finished.
+
+---
+
+## 2026-08-30 — B-8's leading candidate ELIMINATED, and a measured Arabic gap
+
+### The candidate, and why it is wrong
+
+It was proposed that `LanguageProvider` sits **inside** `AuthGuard`, so the login
+page would have no provider at all — `dir` unset, `lang` unset, the toggle inert
+— which would have explained B-8 and made it worse than "it reverts on
+navigation".
+
+**Checked, and it is the opposite.** `App.tsx` nests
+`LanguageProvider → AuthProvider → Router`, with `AuthGuard` *inside* the Router,
+per route. The login page is therefore inside the provider; `applyLang` runs on
+mount, so `dir` and `lang` ARE set there; and `Login.tsx` imports `useLanguage`
+and calls `setLang`, so the toggle is live. The placement is not accidental —
+the comment beside it explains it was put above `AuthProvider` deliberately so
+the demo banner renders on the login page ("every page including login", D7).
+
+🔴 So the record now carries an explicit **do-not-fix**: moving
+`LanguageProvider` inside `AuthGuard` would *create* the defect it was proposed
+to cure — it is the only change that would make the login toggle inert.
+
+**B-8 remains unreproduced**, and is now one candidate poorer. That is worth
+recording as progress: eliminating a plausible mechanism is how an unreproduced
+finding either becomes real or dies.
+
+### The Arabic gap, measured rather than asserted
+
+Counting BOTH idioms (`t("…"` and `lang === "ar"`) against bare JSX text nodes,
+so the figure is not an artefact of which idiom a page uses:
+
+| Page | i18n | Untranslated |
+| --- | --- | --- |
+| **CreditNotes** | 2 | **14** — every field label on a ZATCA document form |
+| ChangePassword | 1 | 5 |
+| ZatcaOnboarding · InvoiceSummary · ApAging | 0 | 3 each |
+| PayrollReport · AssetSchedule · ArAging | 0 | 2 each |
+
+🔴 **CreditNotes is the page AUD-1 was fixed on.** Its number field was corrected
+for a ZATCA compliance defect days ago, and the fact that the entire form is
+English-only — on a launch requirement — went unnoticed in the same edit. That
+is the reusable part: **a targeted fix sees the thing it was sent to fix.**
+Nothing about working on a file causes its other defects to be noticed, which is
+an argument for periodic *measurement* over relying on incidental discovery.
+
+Split from the pagination work by owner instruction: the sweep is its own
+concern, it will grow, and mixing it into a pagination diff makes both harder to
+review.
+
+### The four ledger lists are done
+
+Invoices, bills, journal entries and transactions all paginate with server-side
+totals. Journal entries deliberately report a **count only** — an entry's debits
+and credits are equal by construction, so a money total across entries would be
+either twice the turnover or zero depending which column you picked, and neither
+means anything. Transactions was the interesting one: it already had
+`limit`/`offset` and an honest truncation notice, but the only exit it offered
+was "narrow your search". The server had a real `total` all along; it now pages.
+
+---
+
+## 2026-08-30 — working the triage down to three
+
+Four items closed; the reasoning on each is the part worth keeping.
+
+### Rank 1 — a 2xx for a transaction that rolled back: made LOUD, not fixed
+
+`res.on("finish")` fires once the client already holds its 2xx, so a commit that
+then fails leaves the user believing a write happened when nothing persisted.
+**There is no way to un-send the success from where the failure is detected.**
+
+The real fix — commit BEFORE the body goes out — means intercepting
+`res.json`/`res.send`/`res.end` for every request in the product, with streaming
+and download paths to get right. That is a change to the core pipeline, and
+half-doing it is worse than not starting (the P5 rule). Queued as its own change.
+
+🔴 So it now **pages a human** instead of writing a log line nobody reads:
+a `critical` alert keyed on the CONDITION (so a storm dedupes to one page),
+naming the method, path, status and org — **metadata only**, per the Alert
+contract's rule about never carrying financial data. The distinction matters and
+is stated at the code: this is disclosure, not a fix. Previously the answer to
+"who finds out?" was "nobody, until a tenant notices an invoice is missing".
+
+### `onboardingStatus` — the widest cross-tenant read, narrowed three ways
+
+One unpaginated query over every company on the platform, projecting every
+tenant's **VAT number** — a taxpayer identifier — with a credential lookup per
+row.
+
+🔴 `vatNumber` is **dropped**, not paginated alongside the rest. The only thing
+the operator used it for is "can this tenant onboard", and `readyToOnboard`
+already carries that as a derived boolean; returning the identifier was never
+the point. **The narrowest fix was to stop answering the question, not to answer
+it more carefully.** Pagination then bounds the N+1 as a side effect.
+
+### Manual-JE balance failure: 400 → 422
+
+The status policy (2026-08-23) is 400 for a SCHEMA failure and 422 for input
+that parsed cleanly and is semantically invalid. Every line in an unbalanced
+entry is a well-formed number; they simply do not balance. It answered 400 only
+because it predates the policy. The message now carries **both totals and the
+difference** — "must balance" without them makes the user hunt for a discrepancy
+the server has already computed.
+
+### The unread `duplicates` array — shown at last
+
+The API has returned it since the audit that added it, as the stated mitigation
+for rows the import drops, and no page ever read it. 🔴 **An unread field
+standing in for a fix is worse than no fix: it makes the gap look closed**, which
+is why S-1's real defect survived as long as it did. Now that ingest counts by
+multiplicity, the list means something narrower and true — rows this account
+already held — and the import says so.
+
+### Where it stands: three open
+
+1. **No password recovery for a multi-org account** — a real lockout, bounded
+   blast radius. B1's mailer is live so it is buildable; *which* mechanism
+   (operator reset vs self-service email) is a product decision, not a code one.
+2. **`getApplication` accepts any orgId and never expires** — belongs with C8;
+   ask the advisor before building an expiry.
+3. **The M-4/M-5/L-1/L-2/L-4 tail** — M-5 closes with C4's deployment, L-2 and
+   L-4 are accepted trade-offs.
+
+🔴 **Nothing re-ranked on merit.** The consequence gradient is now flat: what
+remains is one product decision, one legal question, and an accepted tail. That
+is a different kind of list from the one this session started with, and it is
+worth saying plainly rather than continuing to rank things that no longer differ.
+
+---
+
+## 2026-08-30 — THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one
+
+### What the sweep found
+
+AUD-1 caught `CreditNotes.tsx` minting `CN-${Date.now().toString().slice(-6)}`
+and fixed invoices and credit notes by letting C12's server counter allocate.
+**It did not sweep the shape.** One grep for `Date.now()` in a number field:
+
+| Instance | Constrained? | Consequence of a collision |
+| --- | --- | --- |
+| `Invoices` / `CreditNotes` (FIXED by AUD-1) | `UNIQUE(company_id, invoice_number)` | **Refused by the database** |
+| `JournalEntries.tsx` — `JE-…` | none | Two entries claiming to be the same document, accepted |
+| `Bills.tsx` — `BILL-…` | none | Two bills claiming to be the same document, accepted |
+| `ScanReview.tsx` — `BILL-…` | none | Same, from the capture path |
+| `Assets.tsx` — `FA-…`, `Employees.tsx` — `EMP-…` | none | Duplicate reference numbers |
+
+🔴 **The audit had named the only instance the database would have caught.**
+`slice(-6)` keeps the last six digits of a millisecond clock and wraps every
+~16.7 minutes, so this is not a theoretical collision — it is a scheduled one.
+
+### The rule this earns
+
+**Fixing a reported instance without sweeping its shape leaves the reachable
+copies in place, and the reported one is often the least dangerous.** It is the
+inverse of the composition class: composition is many findings adding up to more
+than their sum; this is *one finding standing for a set nobody enumerated*.
+**The report is a sample, not an inventory.**
+
+Recorded with an uncomfortable detail: the `BILL-${Date.now()}` instance was
+NOTICED during AUD-1's fix and written down as "lower stakes — bills aren't
+ZATCA-numbered", then left. That reasoning was right about the compliance half
+and wrong about the collision half, and nothing prompted a re-read of it.
+
+### The fix, sized to the difference between the tiers
+
+Migration 0063 adds `document_number_counters` — per company, per document type,
+monotonic, seeded from existing counter-shaped numbers so a first allocation
+cannot collide with a number a tenant already uses. Allocation is one atomic
+UPSERT, the shape C12 proved necessary by re-injection (a read-then-write
+allocator collapsed 8 concurrent allocations onto 1).
+
+🔴 One series **per type**, not one shared series: C12's single-sequence rule is
+ZATCA's, about invoices and their notes. Copying it to internal references would
+invent a constraint nobody stated — the "a mirror is a hypothesis" trap. For the
+same reason there is no year prefix here.
+
+Journal entries and bills now allocate when the caller leaves the number blank;
+a supplied number is still honoured for legacy imports. **Assets and employees
+are deliberately NOT converted** — those numbers identify a thing rather than a
+posting, and giving them a server series is a decision, not a bug fix. Their
+collision risk is recorded rather than silently accepted.
+
+### A tool that reported success for doing nothing
+
+`drizzle-kit migrate` printed **"migrations applied successfully"** with the new
+file present and unapplied: the `.sql` had not been registered in
+`meta/_journal.json`, so there was simply nothing to apply, and "nothing" and
+"everything" produce the same message. It surfaced only because the new tests
+failed with `relation "document_number_counters" does not exist`.
+
+Same family as `| tail` swallowing an exit code (§10b) — **a success message
+that cannot distinguish "did the work" from "found no work"**. When a migration
+matters, assert the object exists rather than reading the tool's verdict.
+
+---
+
+## 2026-08-30 — B-8's SECOND proposed mechanism, also checked and absent
+
+### The claim
+
+That `AuthGuard` unmounts `LanguageProvider` on login, resetting the language and
+**wiping the stored preference**, so an Arabic user's choice is destroyed at
+every login — and a fix aimed at the router would have missed it entirely.
+
+### Why it cannot happen
+
+Three independent checks, all in the client:
+
+1. **`LanguageProvider` is an ANCESTOR of `AuthGuard`, not a descendant.**
+   `App.tsx` nests `LanguageProvider → AuthProvider → Router`, and `AuthGuard`
+   is used *inside* the Router's routes. A component cannot unmount its own
+   ancestor; the provider outlives every route transition, including login.
+2. **Nothing clears the preference.** `ksa_lang` is read on init and written on
+   change. The only `removeItem` anywhere in the client is
+   `sessionStorage.removeItem(SCAN_KEY)` in the scan-review store.
+3. **`logout` does not touch storage.** It calls `POST /auth/logout` and sets the
+   user to `null`. An Arabic user's preference survives login, logout, and
+   refresh.
+
+🔴 Recorded as a correction to the correction, because the instruction was to
+record it as the cause. **Writing a false mechanism into the permanent record is
+worse than leaving a finding open**: the next reader would have inherited an
+explanation that reads as settled, and any future work on B-8 would start from
+it. The reason this project checks referents is exactly this case.
+
+**B-8 has now lost two proposed mechanisms** — "the router reverts `dir` on
+navigation" and "AuthGuard unmounts the provider". Both were plausible; neither
+survived contact with `App.tsx`. That is progress of the only kind available on
+an unreproduced finding: the space of explanations is smaller, and what remains
+is a runtime behaviour no static check reaches.
+
+### The reversal that came with it: explain, do not hide
+
+AUD-7's first fix hid approve/acknowledge from roles lacking the grant. Reversed
+by owner decision, and the reasoning is the durable part: **an action whose label
+does not match its scope is the "delete all deletes fifty" shape, and hiding the
+control is not the cure — it teaches nothing and leaves the person wondering
+where the button went.** The refusal now names the next step ("this needs an
+accountant to approve it; send it for approval"), following M22's closed-period
+pattern — a structured code the client renders in words, keyed on the CODE so
+rewording copy cannot break it.
+
+🔴 The reversal also DELETED `canApprove`. A derived flag with no consumer is the
+shape-without-a-consumer failure this project has recorded repeatedly, and
+leaving it in place would have been an invitation to hide something else with it.
+
+---
+
+## 2026-08-30 — TWO REGRESSIONS I INTRODUCED, and P5's case made by accident
+
+### What happened
+
+`GET /invoices` changed from a bare array to `{ items, page, totals }`. I swept
+the **server** consumers when I made the change — a test fixture, the approvals
+dispatcher — and missed the **client** ones:
+
+| Page | How it fails |
+| --- | --- |
+| `CreditNotes.tsx` | called `.filter` on the envelope → **throws, blank page** |
+| `InvoiceSummary.tsx` | same break inside `.catch(() => [])` → renders **"No invoices in this date range"** |
+
+🔴 **The second is the one that matters.** It is a wrong statement about the
+tenant's own data that looks exactly like a true one — a report telling a person
+their period was empty when it was not. Nobody would question it, and nobody
+would report it. The defensive `.catch(() => [])` is what converts a crash into
+a lie, which is the same trade that hid the AP-aging break.
+
+### Why no test could see it
+
+**Caught by a TypeScript error two files away**, while translating an unrelated
+page. Not by any of 1,157 tests — because **nothing in the suite renders a
+page**, so a shape mismatch between a client and its API is invisible to the
+entire suite by construction. Not "was missed": *cannot be seen*.
+
+That is exactly P5's argument, and it is now quoted in P5's queue entry rather
+than left in a session report, because an argument for a project belongs where
+the project is decided.
+
+### The uncomfortable part, recorded deliberately
+
+The rule *"the report is a sample, not an inventory — sweep the shape, not the
+instance"* was written into §3 **hours earlier, by me, in this session**, after
+AUD-1's sweep found five instances of a shape the original fix had left. I then
+changed a response shape and swept one side of it.
+
+🔴 The lesson that generalises is not "be more careful". It is that **knowing a
+rule is not a mechanism for applying it** — the rule fired when I was hunting a
+class and did not fire when I was making a change. A rule that depends on
+remembering to ask it at the right moment will be missed at exactly the moments
+that matter, which is the argument for guards that ask on your behalf. P4 asks
+"is it reachable" without being invited. Nothing yet asks "did the shape you
+changed reach every consumer".
+
+**A candidate, recorded not built:** the generated OpenAPI client is the only
+thing that ties a response type to the contract, and both broken call sites used
+hand-written `apiFetch<T>` — the pattern §3 already flags as "a claim nobody
+checks". A guard could enumerate hand-written `apiFetch<T>` generics against the
+spec's response schemas. It would have caught both, and it is smaller than P5.
+
+---
+
+## 2026-08-30 — PASSWORD RECOVERY: the options, with what each costs
+
+F1's confinement means an account that has ever held a membership outside an
+admin's scope cannot be reset by that admin, and `/auth/change-password` requires
+the current password. **A user who forgets is locked out with no path back.**
+The lockout is real and reachable; it is not urgent (multi-org accounts are rare
+and there are no customers yet), which is an argument for building the right
+thing rather than the quick thing.
+
+### Option A — self-service email reset
+
+Request → single-use token emailed → set a new password.
+
+**Cost: moderate, and lower than it looks.** `organization_invitations` is a
+near-exact template already in the codebase: SHA-256 `token_hash` with the raw
+token never persisted, `expires_at`, a status machine, a public
+token-authenticated endpoint behind a rate limiter, and an atomic single-use
+claim that cannot be redeemed in a race. The work is one migration, two
+endpoints, one page, and mailer wiring that B1 already built.
+
+**What it does NOT add: any new privilege.** Nobody gains the ability to take
+over an account; the user proves control of their own mailbox.
+
+🔴 **Risks to price in.** It is auth-surface code, the highest-consequence in the
+product: token hashed at rest, short expiry, single use, timing-safe compare,
+and **all sessions invalidated on reset** (or a stolen session survives the
+recovery). It also depends on B1's *deployment* half — a verified sending domain
+— which is still open, so the flow is untestable end-to-end in production until
+that lands. And it must decide the enumeration question: L-2 already accepts
+that signup leaks account existence, so a reset endpoint that also leaks it is
+consistent rather than newly bad — but that should be a decision, not a default.
+
+### Option B — operator-level reset
+
+A platform operator resets any user's password, audited, on the operator surface.
+
+**Cost: small.** One route, one service call, one button, one audit row. No
+tokens, no email, no migration.
+
+🔴 **But it creates a standing cross-tenant account-takeover capability — the
+exact shape F1 was about.** F1's whole finding was that a privilege made a
+guard's fact forgeable; this hands the same reach to a different role
+deliberately. It is bounded by `platform_operators` having **no self-grant path**
+(seed only), and by audit, but the capability is permanent and unexpiring.
+Mitigations if chosen: notify the user by email that their password was reset,
+force a change on next login, and treat operator reset as a break-glass action
+with its own alert rather than a routine button.
+
+### Option C — both, in order
+
+B as break-glass now (small, unblocks a locked-out user today), A when B1's
+sending domain lands. **The risk is that B ships and A never does**, because the
+pain that motivates A disappears — which is how the `duplicates` array became a
+mitigation standing in for a fix.
+
+### The comparison that decides it
+
+| | A (self-service) | B (operator) |
+| --- | --- | --- |
+| New privilege | **none** | a standing cross-tenant takeover |
+| Build | moderate, template exists | small |
+| Blocked on | B1's verified sending domain | nothing |
+| Failure mode | a leaked token — bounded, expiring | a misused standing capability |
+| Fits F1's lesson | yes — the user proves their own control | it is the shape F1 warned about |
+
+**Recommendation: A**, and accept the lockout until B1's domain is verified —
+there are no customers to be locked out today, and the asymmetry between "a
+bounded, expiring token" and "a permanent takeover capability" is the whole
+argument. Take C only if a real user is locked out before A is ready, and if so
+build B *with* the break-glass framing rather than as a routine button.
+
+---
+
+# Appendix (moved 2026-08-28): the long-form named failure modes
+
+> These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
+> modes and lessons". §3 keeps one line per lesson and points here; this appendix
+> holds the incident, the evidence, the countermeasure and how it was verified.
+>
+> Moved verbatim from `CLAUDE.md` on 2026-08-28 (the 157k → operating-file
+> restructure). The one-line forms in §3 are binding; this is why they exist.
+
+### Named failure modes and lessons (one line each; full text in the findings file)
+
+- **A shape without a consumer.** Declaring a column/table/interface/flag looks
+  exactly like progress and ships unbuilt; endemic in a schema-first codebase —
+  the standing check is the countermeasure.
+- **A CONSUMER with no producer is the same failure, and it is worse** (M17.0,
+  flaw #8). The Zakat page had a column, an endpoint, a route, a nav entry, a
+  UI and four tests — everything except a writer for the flag it read (one rule
+  out of ~40). A missing consumer yields a dead column nobody sees; a missing
+  producer yields **a confident zero**, which reads as an answer, so nobody
+  reports it. Check writers as well as readers — standing-check part 2 is the
+  half that catches this, and it is the half most often skipped because the
+  feature demos fine. **Corollary: "nothing writes it" is itself a claim that
+  needs part 5's search shape.** The first pass of this very fix asserted the
+  flag had *no* writer; grepping the pre-change file found one, and that one
+  turned the finding from "always 0" into "wrong in a specific, worse way".
+- **An obsolete assertion** (a test that became a guard for the bug): a
+  correct-when-written absence assertion stays green while certifying the
+  defect. Prefer presence assertions.
+- **Two id spaces with no forcing function** will diverge invisibly until
+  something joins them. Remove the second space or add a test that fails when
+  they drift (the M15 `system_code` fix).
+- **The narrower-claim family** (findings #6, #9, #11): a suite's or page's
+  NAME describes a capability while its fixtures/endpoint/source prove
+  something narrower. Read the name as a claim; check the fixtures supply it.
+- **Assert the property, not the number** — a fixed figure derived from
+  unverified reasoning passes vacuously; change one thing, prove the figure
+  does not move, and prove something else DID move.
+- **An act about a document is not an act about a pattern.** Self-approve works
+  because the approver sees the specific document; consent to a rule in January
+  is not consent to what it produces in November. Rules never grant authority
+  their creator lacks, re-checked at generation. (Why A3 is drafts-only.)
+- **Partial data is not lenient data.** Leniency means salvaging the fields
+  that WERE readable — never returning part of a value as the whole value
+  ("150.00" truncated → "15"). Applies to every parser of data we didn't
+  produce.
+- **Who finds out?** Silence is not a neutral outcome. A "skipped" recurring
+  invoice, an unsent reminder, an undrained queue — quiet neglect needs an
+  alarm, not a dashboard (queue B1/B2; finding #10).
+- **A name says who processed a movement, not what it was** (M16.2). Keyword
+  rules keyed on an ENTITY (bank, gateway, government body) instead of an
+  ACTION (fee, charge, commission) confidently misclassify everything that
+  entity touches — the Tamara case turned revenue into expense. Check every
+  trigger token: actor or action?
+- **Green fixes the case, not the class** (finding #8). When a fix is "add a
+  scope/guard/filter to X", grep for X's siblings before accepting green as
+  done.
+- **External validators check the weakest property they plausibly could** (the
+  PIH/base64 lesson). Validate meaning locally; never infer correctness from an
+  accepted submission.
+- **🔴 COST AN OPTION AFTER VERIFYING ITS INPUTS EXIST, NOT BEFORE** (the cash
+  decision, 2026-08-16). "GL owns cash; transfers post through a contra account"
+  was offered as a lean and costed as moderate — before anyone checked whether
+  the platform records **where a transfer went**. It does not. Built on today's
+  data that option would manufacture a clearing balance for every transfer,
+  including the genuinely internal ones it was meant to leave alone. The cost
+  estimate was not slightly low; it was **about a different feature**. Before
+  recommending an approach, name the inputs it consumes and grep for each —
+  the same discipline standing-check part 2 applies to a milestone, applied to
+  a PROPOSAL.
+- **🔴 A STUB IS THE PART THAT NEEDED TESTING** (B3). When a capability is
+  implemented for one backend and stubbed for the others, the passing tests
+  prove nothing — the suite ran on the backend that worked. Test the branch you
+  did NOT write: inject a failing implementation and assert on what survives.
+  And at the interface, **a method that cannot do the thing must throw, never
+  return** — a no-op reporting success is a false statement the caller builds
+  on, where an unimplemented method is merely a gap. Same family as the SDK
+  differential that proved only that we matched a stale writer: **a test whose
+  oracle shares the defect it is meant to detect.** Ask what a failure would
+  have to be measured against, and whether that thing is independent of the code
+  under test. **Where to look:** every `resolve*Store` / `get*Provider` seam —
+  `ArchiveStore`, `KeyWrapper` (the AWS branch is lazily loaded and has never
+  executed), the mailer, the alerter.
+- **🔴 A DEPENDENCY THAT ACCEPTS YOUR INPUT HAS NOT PROMISED TO HONOUR IT**
+  (M17.2's small-ICU finding; second instance of the shape). A small-ICU Node
+  accepts `islamic-umalqura` and silently returns **Gregorian** dates — no
+  error, no missing output, just a plausible wrong answer. Same shape as the
+  ASCII `\b` that made sixty Arabic patterns match nothing: the API took the
+  input and quietly did something else. **The countermeasure generalises: when
+  a dependency can silently substitute different behaviour, probe an
+  EXTERNALLY CHECKABLE FACT at boot** — a value verifiable against a source
+  outside the dependency (1 Muharram 1447 AH = 26 June 2025), not a round-trip
+  through the thing you are testing. "It didn't throw" is not evidence.
+- **Sources rank LIVE API > SDK > PDF > secondary sources** — and an unread
+  primary source is not a licence to trust a secondary one (the residency
+  claim was the opposite of what §5.5 actually says).
+- **Enforce invariants at the WRITE BOUNDARY, not in one path** (audit
+  close-out). An invariant three writers can violate belongs in a DB CHECK or
+  a shared gate, not in per-path code — per-path enforcement is per-path
+  review, and a new path starts at zero. Corollary: **when line-level truth
+  exists, header-level arithmetic is a second computation of the same fact**
+  and will drift — classify/derive from the finer grain. Second corollary
+  (M20.0): **a REMOVED default is an invariant too — after dropping it, check
+  every path that can write the column, not just the layer that defined it.**
+  The schema stopped asserting January while Company Settings' submit still
+  coerced `?? 1`, so saving an ADDRESS would have re-declared January: the
+  migration fixed one layer and another kept re-creating the fiction. Defaults
+  live wherever a writer supplies a fallback, and each is a write path.
+- **🔴 A RULE SPELLED OUT FOR A SIBLING FIELD AND OMITTED HERE IS EVIDENCE OF
+  INTENT, NOT AN OVERSIGHT TO FILL IN** (C12, 2026-08-21). Asking "does ZATCA
+  require invoice numbers to be gapless?", the weak answer is *the word
+  "unbroken" does not appear* — an absence, which is thin evidence and invites
+  filling the silence with the stricter rule "to be safe". The strong answer
+  came from the drafting: ZATCA **did** write an explicitly gapless,
+  non-resettable requirement — in the same Annex, for the **sibling field**
+  (2.5, the tamper-resistant counter), with "counter reset" listed under
+  Prohibited Functionalities — and wrote nothing of the kind for 2.1, the
+  invoice number. A drafter who spells a constraint out for one field and not
+  its neighbour has made a choice.
+  **How to use it:** when a spec is silent on the property you care about, do
+  not stop at the absence — look for the nearest place the same author DID
+  state that property, and read the contrast. It converts "unstated, so I'll
+  assume the strict reading" into evidence. It also protects against the
+  opposite error: had 2.1 and 2.5 both been silent, the absence would prove
+  much less. (Second-order payoff here: the strict reading would have bought a
+  materially more complex allocator than the law asks for.)
+- **🔴 A DEFINITION IS NOT A RULE — FOLLOW THE DELEGATION** (C12, 2026-08-21).
+  The E-Invoicing Resolution DEFINES the invoice-number field (Annex 2, 2.1)
+  and then delegates the actual rule: *"as per Article 53(5)(b) of the VAT
+  Implementing Regulation"*. Reading only the e-invoicing documents — the
+  obvious corpus for an e-invoicing question — yields a field definition with
+  no rule in it, **and that is precisely the situation in which someone
+  reasons their way to an answer** and records the reasoning as the finding.
+  When a spec describes a field without stating its constraint, assume the
+  constraint lives somewhere else and go find it.
+  **Corollary, on sequencing:** this read was done BEFORE any code, on the
+  owner's instruction, and it caught a defect the code review had not — M21.2's
+  allocator restarted each January, which nothing in either document
+  authorises. Read-first did not merely confirm the plan; it changed it.
+- **🔴 THE VACUOUS GREEN IN THE MEASURING INSTRUMENT** (AI-1b, 2026-08-21).
+  The Arabic benchmark — the instrument built to enforce the quality gate —
+  printed "✅ Arabic gate holds" over a run in which **all 21 model calls had
+  failed**: it was comparing the deterministic engine against itself and
+  calling the tie a verdict. Worse than an ordinary vacuous test, because an
+  instrument's output is TRUSTED downstream — a model could have been pinned
+  on it. Three compounding mechanisms, each now guarded: (1) the verdict
+  didn't require any successful evidence (now: zero successes ⇒ "NOT JUDGED",
+  and every verdict prints the call count it rests on); (2) failure reasons
+  were swallowed, so the run looked slow instead of broken (now printed);
+  (3) the parser extracted the FIRST `{...}` from replies, which for a
+  reasoning model is the format placeholder inside its own `<think>` notes —
+  so a model that reasoned to the RIGHT answer scored exactly baseline while
+  looking measured (now: strip closed think-blocks, unclosed ⇒ no answer,
+  last JSON wins). 🔴 **It was caught by the OWNER running it, not by the
+  test suite** — the suite exercised the seam's failure branches but nothing
+  asserted the benchmark's verdict logic against an all-failed run. The rule:
+  **a verdict line must carry the evidence count it rests on, and an
+  instrument needs its own vacuity test — "all inputs failed" is a case the
+  instrument must name, not a case it may score.** Corollary adopted from the
+  owner: an unmeasured row reads "NOT MEASURED", never "matches baseline" —
+  an artifact that looks like a result is worse than a failure.
+  🔴 **This shape appeared TWICE in two sessions** — the gate-over-failures
+  verdict, then the parser scoring a reasoning model's placeholder — and both
+  times the instrument produced a PLAUSIBLE NUMBER rather than an obvious
+  failure, and both times a human running it caught what the suite did not.
+  The countermeasure is not more tests on the instrument; it is the rule
+  already stated — a verdict must carry the evidence count it rests on — so
+  that when the instrument fails, its output looks like a failure instead of
+  a finding.
+- **🔴 A MIRROR IS A HYPOTHESIS ABOUT THE TARGET, NOT A FACT ABOUT IT** (M21.3,
+  2026-08-20). Building purchase orders as "the mirror of quotations" carried
+  an unexamined assumption: that a BILL can hold what an INVOICE holds. It
+  cannot — `bill_items` has no `discount` column and neither does `bills`,
+  while invoices have both. A discount on a PO would therefore have been
+  silently dropped at conversion (the "partial data is not lenient data"
+  failure), and the M21.2 claim that both conversion directions need the same
+  discount rule was simply wrong.
+  **The countermeasure is cheap and mechanical: before mirroring an entity,
+  diff the two tables' columns in `information_schema` rather than reasoning
+  from the shape of the source.** One query — the same instinct the org-seed
+  trigger test encodes by comparing column SETS instead of naming columns.
+  The same check also surfaced that a quotation is DECLINED by the customer
+  while a PO is CANCELLED by us, so even the vocabulary does not mirror. Applies
+  to any "same as X but for Y" work: X's capabilities are a claim about X.
+- **🔴 A RETRY CANNOT FIX AN ORDERING PROBLEM** (C2's storage container,
+  2026-08-20). storage-api died at boot with `role "anon" does not exist`, and
+  the reflex fix is more health-retries — but the role was created by a *step*,
+  and a GitHub `services:` container starts **before the first step runs**, so
+  no amount of waiting could ever have reached a state that did not yet exist.
+  The tell is that the missing thing has a **creator** rather than a settling
+  time: if nothing is scheduled to produce it, waiting is just a slower
+  failure. Ask *what creates this, and is it scheduled before me?* before
+  reaching for a timeout — the fix was to change the ordering (start it from a
+  step), not the patience. Second half of the same incident: the wait now
+  **fails loudly and dumps the container log**, because a dead dependency that
+  degrades into "suite skipped, CI green" is the exact gap C2 exists to close.
+- **A flag's scope drifts past its name** when the thing it gates becomes
+  shared infrastructure (ZATCA_WORKER_ENABLED silently disabled every
+  non-ZATCA job). Move the gate WITH the thing the flag names.
+- **🔴 TWO CORRECT ASSERTIONS WITH A GAP BETWEEN THEM** (the reversal
+  double-negation, 2026-08-17). A suite asserted the top-line FIGURE (P&L —
+  right) and the bottom-line INVARIANT (debits = credits — held), and every
+  reversal still moved 8,750 through the layer neither speaks about: WHICH
+  accounts hold the value. A different class from a missing assertion, and
+  not caught by adding more of either kind — when an operation moves value
+  BETWEEN accounts, assert both accounts' balances, before and after. A
+  conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A DEFECT WHOSE TRIGGER IS VOLUME IS INVISIBLE TO EVERY FIXTURE WE OWN**
+  (B6, 2026-08-27 — and the timing property is the reusable part, not the bug).
+  `financeHub.booksStatus()` answered *"are my books current?"* with
+  `(await pendingReview()).length`, and that list is **capped at 200**. So a
+  tenant with 5,000 unreviewed transactions was told **200**.
+  `needsAttentionCount` was worse — it filtered WITHIN the capped page, so it
+  was not a proportional sample but "how many of the 200 most recent", printed
+  as a total. The same shape sat on `operatorZatca.health()`
+  (`listOverdue(…, 500).length`), on the one surface watching ZATCA's 24-hour
+  deadline, where under-reporting is the exact failure it exists to prevent.
+  🔴 **The timing: it is invisible on any dataset small enough to develop
+  against, and appears the month a tenant gets busy.** The dev org holds 45
+  transactions; every fixture in the suite is smaller. At that size the capped
+  answer and the true answer are the same number, so no amount of care at
+  fixture scale can find it — this is a property of the VERIFICATION APPROACH,
+  not of the reviewer. Small fixtures, dev orgs and sample seeds are
+  **structurally blind to any defect whose trigger is volume.**
+  **What else has this shape — ask it of every new surface:**
+  a count taken from a capped list (this); an aggregate `reduce`d client-side
+  over a fetched page (Assets, AssetSchedule, BankAccounts, Bills, Budgets all
+  do this today — correct only while their lists stay unbounded); pagination
+  that truncates without saying so; a bulk action whose label says "all" while
+  it acts on the loaded page; an unbounded query that is merely slow at ten rows
+  and fatal at ten thousand. 🔴 **Capped where it should be unbounded and
+  unbounded where it should be capped is ONE disease pointing both ways** — the
+  question is never "is there a limit" but "does the number shown describe the
+  set the user thinks it describes".
+  **The countermeasure is a fixture LARGER than the cap.** `counts-over-capped-lists.test.ts`
+  builds 237 rows against a 200 cap; verified by re-injection, where it reports
+  `expected 200 to be 237`. A test at fixture size passes against the broken
+  code, which is the whole point.
+
+- **🔴 NOTHING IN THIS PROCESS CHECKS WHETHER A USER CAN REACH WHAT WE BUILT**
+  (2026-08-27, and this is the finding the individual defects are evidence
+  for). **Six read-only audits found none of these. One pass with a browser
+  found four**:
+  | # | Defect | Why every static check passed |
+  | --- | --- | --- |
+  | 1 | `/ap-aging` rendered a **blank white page** | the API was correct; the page's hand-written response type was invented |
+  | 2 | Server 400s **swallowed silently** on every form | the validation worked; no default `onError` existed |
+  | 3 | The GL list showed **SAR 0.00 for all 52 entries** against a 356,328.15 ledger | `list()` never passed lines to the presenter; `(lines ?? [])` made absence look like zero |
+  | 4 | **A bill cannot be edited** — `PATCH /bills/:id` has no caller | the endpoint exists, is tested, and the route guard matches the PREFIX not the verb |
+  Every one was invisible to code reading and obvious within seconds of using
+  the product. Two of them (3 and 4) appeared *behind a button that had just
+  been fixed* — which is the compounding part: fixing a surface exposes the
+  next unreached thing behind it.
+  🔴 **The common cause is not carelessness, it is a missing layer.** The suite
+  has 1,100+ tests and **renders zero pages**. Every guard we own asks a
+  question about the code: does the route exist, does it have a caller, is the
+  invariant enforced. None asks *can a person complete this*. So the failure
+  mode they all share — a correct backend with no working surface — is
+  structurally outside what any of them can see.
+  **The countermeasure is a rendering layer, not another static guard**, and
+  the evidence for that is direct: a static "uncalled endpoint" checker was
+  built and WITHDRAWN the same day, because this client calls the API five
+  different ways (literal paths, generated hooks, and three
+  `/${entity}/${id}/${action}` dispatchers) and the false-positive rate stayed
+  at 65. A checker nobody trusts is worse than none. A browser observes what
+  was actually called regardless of how the path was built, and additionally
+  sees whether the control was reachable and whether the page rendered at all.
+  **Corollary for planning: assume any completed backend may be unreachable
+  until someone has clicked it.** "Correct is not connected" (§3 rule 1) was
+  written about production callers; this is the same rule one layer higher —
+  a caller is not a surface, and a surface is not a usable one.
+
+- **🔴 A CORRECT API AND A UI WRITTEN AGAINST AN IMAGINED ONE** (QA audit B1,
+  2026-08-27). `ApAging.tsx` declared `GET /reports/ap-aging` as returning
+  `ApAgingRow[]` and called `rows.reduce(...)`. The endpoint returns an OBJECT,
+  `{buckets, total, items[]}` — so `reduce` threw and the page rendered a
+  **completely blank screen**, zero characters, no error boundary.
+  🔴 **Every server-side check passed, because the server was right.** The
+  contract, the endpoint, its tests and the route-reachability guard were all
+  correct and all silent: the guard asks whether a UI file *references* the
+  route, and this one did. Nothing in the suite RENDERS a page, so nothing
+  could see it. `ArAging.tsx` reads the same response shape correctly — the
+  sibling diverged, which is "green fixes the case, not the class" again.
+  Two aggravating details worth carrying: `.catch(() => [])` **looked**
+  defensive but only catches a rejected fetch, so a shape mismatch sails past
+  it; and the page had been shipped, linked in nav, and typechecked clean —
+  TypeScript cannot check a hand-written interface against a real response.
+  **The countermeasure is not another static guard.** It is that a page must be
+  RENDERED by something before it counts as working — a smoke crawl that visits
+  every route authenticated and fails on a page error or an empty body. That is
+  mechanically checkable and did not exist; the audit's Playwright crawl found
+  this in one pass.
+  **Corollary, and the reason this is its own entry: any page using
+  hand-written `apiFetch<T>` with a hand-authored interface is unverified by
+  construction** — the generated OpenAPI client is the only thing that ties a
+  response type to the contract. Prefer it; where `apiFetch` is used, the type
+  is a claim nobody checks.
+
+- **🔴 A SERVER REFUSAL NOBODY SURFACES IS INDISTINGUISHABLE FROM A FROZEN UI**
+  (QA audit B2, 2026-08-27). `new QueryClient()` has no default error handling,
+  so any mutation whose `onError` was omitted failed silently: a 400 came back,
+  the dialog stayed open, and not one `[role=alert]` appeared. The validation
+  was correct; the user simply never learned it had fired, which leaves retrying
+  forever as the only rational response.
+  Fixed at the **mutation cache**, not per form — the write-boundary rule
+  applied to error surfacing, because per-form `onError` is per-form review and
+  a new form starts at zero. 🔴 **Surfacing it immediately paid for itself:**
+  the real refusal was `creditLimit must be a number`, not the 600-character
+  string the audit had assumed. An unsurfaced error is also a diagnosis nobody
+  gets — including us.
+
+- **🔴 A COMPOSITION DEFECT IS INVISIBLE TO ANY REVIEW THAT READS ONE FILE AT A
+  TIME** (named 2026-08-27, from F1; the second shape added the same day). Its
+  own class, because it explains a MISS rather than describing a bug. **F1
+  survived five audits — including two dedicated authn/authz sweeps that
+  reported "no new authz hole" — and every one of them was right about every
+  file it read.**
+  🔴 **There are TWO shapes in this class, and they need DIFFERENT
+  countermeasures. Conflating them is how one gets treated as covered by the
+  other's fix.**
+
+  **Shape 1 — the fact one file writes and another trusts.** Needs two files
+  read TOGETHER. `membersService.assign` is correct: an admin may manage their
+  org's members. `userAdminService` is correct: it refuses users outside the
+  actor's orgs. Neither file is wrong; the vulnerability is the EDGE — one
+  writes the fact the other trusts — and an edge is in neither file, so no
+  file-at-a-time review can see it, however careful. Adding reviewers does not
+  help; they each read one file too. (F1, and F2's registry-as-allowlist.)
+  **Countermeasure — a different question, asked of privileges rather than of
+  code: enumerate what a privilege can DO, not who is granted it.** "Who may
+  call `assign`?" has a correct, reassuring answer. "What can `assign`'s holder
+  cause to become TRUE, and who else trusts that fact?" finds F1 immediately.
+  Concretely: for each privilege, list the state it can WRITE; for each written
+  fact, grep every guard that READS it; a guard reading a fact the privilege
+  writes is a composition edge, and must be justified or closed. **This stays
+  human — it is a data-flow question, and no stack introspection reveals it.**
+
+  **Shape 2 — a guard that exempts a class from the thing designed to exclude
+  it.** A route on the wrong side of a guard; a business route with no
+  `requirePermission`; a privilege tier that widens because a mount moved one
+  line. These are POSITIONAL facts about the middleware stack, not data-flow
+  ones. **Countermeasure — `tests/privilege-surface-map.test.ts`**, which
+  derives what each privilege reaches from the LIVE router stack and
+  cross-checks it against the declared mounts, failing when either drifts.
+  Verified by injecting both drifts: a business router moved above
+  `requireAuth` (it appeared in the public tier) and one mounted with no
+  permission guard (it appeared as bare). Both are one-line changes no reviewer
+  would notice.
+
+  🔴 **THE MAP WOULD NOT HAVE CAUGHT F1, and must never be cited as if it
+  would.** Every route in F1 was mounted in the right tier behind the right
+  guard — the map would have rendered both as perfectly placed, because they
+  were. Shape 1 is data flow; the map measures position. Two shapes, two
+  countermeasures, and only one of them is mechanical.
+
+  🔴 **A hypothesised instance of shape 2 was checked and DOES NOT EXIST
+  (2026-08-27):** that `assertOrgAdmin` exempts platform operators, letting an
+  operator add themselves to a tenant as admin — the inversion of M11.3.
+  Checked before building, per the referent rule below. `isOperator` /
+  `platform_operators` appears in exactly FOUR places in the API —
+  `lib/operator.ts`, `repositories/operators.repository.ts`, `routes/index.ts`,
+  and a TRUNCATE list — and in NO authorization path, so `assertOrgAdmin` has
+  no way to know an operator when it sees one. Confirmed behaviourally, not
+  only by reading: `tests/operator-tenant-boundary.test.ts` has an operator
+  attempt exactly that escalation (403, zero memberships after) across nine
+  routes, with an anti-vacuity twin proving the same calls SUCCEED for the
+  tenant's own admin. The claim is now a standing measurement rather than a
+  doc-comment, which is the durable part of having checked.
+
+- **🔴 A GUARD THAT TESTS A FACT ITS OWN CALLER CAN CREATE IS NOT A BOUNDARY**
+  (F1, 2026-08-27 — cross-tenant account takeover, HIGH). M11.5.1 fixed
+  "any admin can reset any user's password" by scoping the surface to users who
+  **share an organization** with the actor. That predicate reads as a tenant
+  boundary and is not one: `POST /orgs/:orgId/members` created a membership for
+  any `userId` that EXISTED — no consent, no invitation, no email — and
+  `users.id` is a `serial`, so ids are counted, not guessed. Any admin of any
+  approved org could graft a stranger's account into their own org, then reset
+  its password, then log in as them — **into every tenant that account reached**.
+  The privilege that was self-grantable was not a role, it was MEMBERSHIP, and
+  the guard that trusted it was the previous cross-tenant hotfix itself.
+  **The test: for each fact a guard consults, ask who can WRITE that fact.** If
+  the actor can, the guard measures the actor's own behaviour. The fix replaced
+  overlap with **confinement** — the target's ENTIRE membership footprint must
+  lie inside the actor's administered orgs — because an actor can cause overlap
+  with one INSERT and cannot cause confinement at all (it would require deleting
+  another tenant's membership). 🔴 A second lesson rides along: **the scoping
+  question and the consent question were the same question wearing two hats.**
+  `assign` grafting an account without its owner's consent looked like a
+  usability wart; it was the exploit's first step. The consented path (M11.7
+  invitations) existed the whole time.
+  🔴 **And the meta-lesson, which is the expensive one: this was named twice in
+  conversation and written down nowhere**, so it survived two sessions while
+  lower-severity work shipped past it. A finding that lives only in a transcript
+  is not tracked — it is remembered, until it isn't. **A HIGH goes into this file
+  the moment it is named, before the session that named it ends** — even as one
+  line with no fix attached.
+
+- **🔴 FK CHECKS RUN OUTSIDE RLS — every plain FK between tenant-scoped
+  tables is a cross-tenant edge no policy guards** (SECURITY finding,
+  2026-08-23). Postgres evaluates FK constraints with the table owner's
+  privileges, so `invoices.customer_id → customers(id)` ACCEPTED another
+  tenant's id, and 23503-vs-success was an existence oracle across the whole
+  platform — the RLS blind spot's sibling, in a place the RLS-policy sweep
+  structurally could not see. Fixed with tenant-scoped pre-checks (422
+  `reference_not_found`; under RLS, missing and other-tenant are the same
+  fact). When auditing isolation, enumerate the FKs, not just the queries.
+- **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** (AI-6a,
+  2026-08-24, owner-named). The projection-assumption rule shipped as
+  structure: the assumption sentences are TOOL OUTPUT and the verifier
+  rejects an answer using the numbers without them — a skippable assumption
+  is unrepresentable, not discouraged. Prior unnamed instances: the derived
+  conversion axis (M21.1), the no-"fail" severity type (M18.3), the
+  delete-less ArchiveStore, the structural receivables identity. When a
+  rule matters, find the representation in which violating it cannot be
+  SAID — construction outlives review, and only construction binds code not
+  yet written.
+- **🔴 A VERIFICATION IS A CLAIM ABOUT A MOMENT, NOT A PROPERTY OF THE
+  TEXT** (AI-3b, 2026-08-24, owner-named). An explanation verified against
+  yesterday's facts becomes a lie when the row refreshes — the text
+  unchanged, the truth gone. Any validated artifact must STORE the identity
+  of what it was checked against (AI-3b: a facts hash) and gate rendering on
+  the match; a validation without a binding to its inputs ages into a false
+  credential. Same decay family as the obsolete assertion, in a cache
+  instead of a test.
+- **🔴 AN INSTRUCTION'S REFERENT IS AN INPUT — CHECK IT AGAINST THE DATA,
+  EVEN WHEN THE INSTRUCTION COMES FROM THE OWNER** (2026-08-24, recorded at
+  the owner's instruction about their own message). A work order arrived for
+  a milestone that did not exist — plausible, self-consistent, in the
+  project's own vocabulary, grounded in nothing (the owner had answered a
+  plan nobody proposed). The stop that caught it: the name matched no
+  record, so the data was queried before any code, and the mismatch was
+  REPORTED instead of built. Two standing policies from the same exchange:
+  corrections ship NARROW and scoped (never a general re-run tool — a tenant
+  cannot run a script), and a NAMED GAP that stays gapped beats a silent
+  default that ages into being trusted.
+- **🔴 A CLAIM INSIDE A MEASURING INSTRUMENT IS STILL A CLAIM — CHECK IT**
+  (AI-2, 2026-08-23). The benchmark's `hard` flag ("the engine can't solve
+  this alone") was authored by judgment; the engine solved 28 of them at
+  ≥0.65, six from the ORIGINAL corpus — each padding the baseline the gate
+  reads. And "20b decisively ahead" was nine cases talking: at 30 equal-N
+  cases the order flipped. Both now enforced by
+  `tests/benchmark-corpus.test.ts` (the flag is measured, the corpus cannot
+  shrink below verdict-safe size); flags are set by measurement, but cases
+  are never reworded until the engine fails them.
+
+- **🔴 RENDERING A VALUE THE SYSTEM CANNOT COMPUTE WITH ADVERTISES SUPPORT
+  THAT DOES NOT EXIST** (single-currency boundary, 2026-08-27, owner-named).
+  Nine tables stored `currency` and no aggregate read it — zero references in
+  `glPosting`, the reports/analytics/summary repositories and the VAT return —
+  and no exchange rate existed anywhere in the schema or the services. So a
+  USD row's bare number was summed into SAR totals and the filed return. The
+  reflex fix is to render it honestly ("USD 1,000.00"), and it is the WRONG
+  one: faithful rendering **converts a visible inconsistency into an endorsed
+  one**, telling the user the platform handles multi-currency while the ledger
+  adds dollars to riyals. When a stored value is displayed but never computed
+  with, the honest move is to **refuse the value at the write boundary** —
+  which is also what makes a hardcoded formatter correct rather than lucky.
+  Sibling of the confident zero: a missing producer yields an answer rather
+  than a gap; here a missing *consumer* yielded a label. 🔴 And the invariant
+  already existed in exactly ONE path — `transactions.service` refused non-SAR
+  statement rows (audit finding #4) while `bankAccounts.service` allowlisted
+  `currency` with no validation and a free-text input wrote through it:
+  *green fixes the case, not the class*, and the write boundary is where the
+  class lives (migration 0062).
+

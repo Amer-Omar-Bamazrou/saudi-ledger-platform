@@ -110,8 +110,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
       // Invoice via the workflow (bookkeeper path → draft, not auto-approved).
       const inv = await invoicesService.create(
         { invoiceNumber: "SWP-INV", date: DATE, customerId, items: [{ description: "Svc", quantity: 1, unitPrice: 400, vatRate: 15 }] },
-        userId, { autoApprove: false },
-      );
+        userId);
       ids.inv = inv.id;
       expect(inv.status).toBe("draft");
       expect(inv.invoiceHash).toBeNull();
@@ -192,8 +191,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
     await inTenant(async () => {
       const inv = await invoicesService.create(
         { invoiceNumber: "SWP-LC-INV", date: DATE, customerId, items: [{ description: "Svc", quantity: 1, unitPrice: 50, vatRate: 15 }] },
-        userId, { autoApprove: false },
-      );
+        userId);
       expect(inv.status).toBe("draft");
       await invoicesService.submit(inv.id, userId);
       const invBack = await invoicesService.sendBack(inv.id, "add PO", userId);

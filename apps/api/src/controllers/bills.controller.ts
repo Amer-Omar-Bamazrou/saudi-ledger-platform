@@ -2,13 +2,22 @@ import type { Request, Response } from "express";
 import { billsService } from "../services/bills.service";
 import { requireIdParam } from "../lib/httpParams";
 
+/** 1..200, default 50 — a page the caller cannot turn into "everything". */
+function clampPage(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 50;
+  return Math.min(200, Math.floor(n));
+}
+
 export const billsController = {
   async list(req: Request, res: Response) {
-    const { status, vendor_id } = req.query as Record<string, string>;
+    const { status, vendor_id, limit, offset } = req.query as Record<string, string>;
     res.json(
       await billsService.list({
         status: status || undefined,
         vendorId: vendor_id ? Number(vendor_id) : undefined,
+        limit: clampPage(limit),
+        offset: Math.max(0, Number(offset) || 0),
       }),
     );
   },
@@ -47,7 +56,7 @@ export const billsController = {
     res.json(await billsService.payments(requireIdParam(req)));
   },
   async remove(req: Request, res: Response) {
-    await billsService.remove(requireIdParam(req));
+    await billsService.deleteDraft(requireIdParam(req));
     res.status(204).send();
   },
 };

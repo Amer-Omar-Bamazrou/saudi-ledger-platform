@@ -21,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -90,7 +91,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
   it("drafts carry no hash; approvals chain continuously, skipping and outliving drafts", async () => {
     // A — approver create (self-approve) → first link, previousHash GENESIS.
     const a = await inTenant(() =>
-      invoicesService.create({ invoiceNumber: "CH-A", date: "2026-06-01", customerId, items: mkItems(100) }, userId, { autoApprove: true }),
+      createApproved(invoicesService, { invoiceNumber: "CH-A", date: "2026-06-01", customerId, items: mkItems(100) }, userId),
     );
     expect(a.status).toBe("sent");
     expect(a.invoiceHash).toBeTruthy();
@@ -98,14 +99,14 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
 
     // B — bookkeeper draft → NO hash consumed.
     const b = await inTenant(() =>
-      invoicesService.create({ invoiceNumber: "CH-B", date: "2026-06-02", customerId, items: mkItems(200) }, userId, { autoApprove: false }),
+      invoicesService.create({ invoiceNumber: "CH-B", date: "2026-06-02", customerId, items: mkItems(200) }, userId),
     );
     expect(b.status).toBe("draft");
     expect(b.invoiceHash).toBeNull();
 
     // D — another bookkeeper draft, then REJECTED (hard-deleted). Must leave no gap.
     const d = await inTenant(() =>
-      invoicesService.create({ invoiceNumber: "CH-D", date: "2026-06-03", customerId, items: mkItems(300) }, userId, { autoApprove: false }),
+      invoicesService.create({ invoiceNumber: "CH-D", date: "2026-06-03", customerId, items: mkItems(300) }, userId),
     );
     expect(d.invoiceHash).toBeNull();
     await inTenant(() => invoicesService.reject(d.id, userId));
@@ -113,7 +114,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
 
     // C — approver create AFTER the intervening draft(s) → must chain to A, not B/D.
     const c = await inTenant(() =>
-      invoicesService.create({ invoiceNumber: "CH-C", date: "2026-06-04", customerId, items: mkItems(400) }, userId, { autoApprove: true }),
+      createApproved(invoicesService, { invoiceNumber: "CH-C", date: "2026-06-04", customerId, items: mkItems(400) }, userId),
     );
     expect(c.status).toBe("sent");
     expect(c.previousHash).toBe(a.invoiceHash); // skipped the draft B and the deleted D — no gap

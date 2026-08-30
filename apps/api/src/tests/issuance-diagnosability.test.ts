@@ -145,9 +145,7 @@ describeMaybe("C5 — a blocked issuance is diagnosable, and rolls back complete
           customerId: b2bCustomerId,
           items: [{ description: "Consulting", quantity: 1, unitPrice: 500, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
 
     // 🔴 Break SIGNING, not the document — that is the case that reached the

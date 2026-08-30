@@ -178,9 +178,7 @@ describeMaybe("flaw #1 — acceptance posts to the ledger", () => {
     const inv = await inTenant(() =>
       invoicesService.create(
         { invoiceNumber: "TL-INV-1", date: "2026-11-02", customerId, items: [{ description: "S", quantity: 1, unitPrice: 1000, vatRate: 15 }] },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
     await upload([{ date: "2026-11-12", description: "INCOMING TL-INV-1 PAYMENT", amount: 1150, currency: "SAR", type: "credit" }], false);

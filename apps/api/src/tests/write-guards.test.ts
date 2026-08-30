@@ -90,9 +90,7 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
     inTenant(() =>
       invoicesService.create(
         { invoiceNumber: `H1-${Date.now()}-${Math.round(Math.random() * 1e6)}`, date: "2026-08-01", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 100, vatRate: 15 }] },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
 
   it("🔴 THE ATTACK: a draft invoice PATCHed with issued-state fields stays a draft with a clean chain", async () => {
@@ -207,9 +205,7 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
         inTenant(() =>
           invoicesService.create(
             { invoiceNumber: `H1-BAD-${Date.now()}-${Math.random()}`, date: "2026-08-01", customerId, items: [bad] } as never,
-            userId,
-            { autoApprove: false },
-          ),
+            userId),
         ),
       ).rejects.toMatchObject({ statusCode: 400 });
     }
@@ -221,9 +217,7 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
         inTenant(() =>
           invoicesService.create(
             { invoiceNumber: `H1-DATE-${Date.now()}-${Math.random()}`, date, customerId, items: [{ description: "x", quantity: 1, unitPrice: 10, vatRate: 15 }] } as never,
-            userId,
-            { autoApprove: false },
-          ),
+            userId),
         ),
       ).rejects.toMatchObject({ statusCode: 400 });
     }

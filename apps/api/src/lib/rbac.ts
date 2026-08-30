@@ -45,6 +45,12 @@ const METHOD_ACTION: Record<string, PermissionAction> = {
 // carries the same approver-only authority as `pay`.
 // `acknowledge` (AI-3a): dismissing a finding is a review decision, not data
 // entry — approver authority, same reasoning as `settle`.
+/**
+ * The actions that RELEASE something — where the refusal should explain the
+ * review step rather than read as a missing grant.
+ */
+const ACTIVATION_ACTIONS = new Set(["approve"]);
+
 const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
@@ -135,8 +141,34 @@ export function requirePermission(resource: string) {
     try {
       const permissions = await getPermissions();
       if (!permissions.has(permKey(role, resource, action))) {
+        /**
+         * 🔴 A REFUSAL THE USER CAN ACT ON, not a restatement of the rule.
+         *
+         * This said "Access denied: role 'bookkeeper' cannot approve invoices",
+         * which tells the reader what the system checked and nothing about what
+         * to DO. The closed-period refusal (M22) is the pattern: a structured
+         * code the client renders once, globally, in words that name the next
+         * step — that dialog explains every 423 from seven posting paths, keyed
+         * on the CODE so rewording copy cannot break it.
+         *
+         * 🔴 Deliberately a refusal rather than a hidden button. Removing the
+         * control teaches nothing and leaves the person wondering where it
+         * went; refusing it with a reason teaches the workflow — and it keeps
+         * D4's rule intact in both directions, since a UI that silently forbids
+         * what the API allows is the defect D4 was written about.
+         */
         res.status(403).json({
-          error: `Access denied: role '${role}' cannot ${action} ${resource}.`,
+          code: "requires_approval_authority",
+          error:
+            ACTIVATION_ACTIONS.has(action)
+              ? `This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
+                `but releasing it is a separate review step — send it for approval and someone with that ` +
+                `authority will action it.`
+              : `Your role (${role}) cannot ${action} ${resource.replace(/_/g, " ")}. ` +
+                `An admin can grant that in User Management.`,
+          role,
+          resource,
+          action,
         });
         return;
       }

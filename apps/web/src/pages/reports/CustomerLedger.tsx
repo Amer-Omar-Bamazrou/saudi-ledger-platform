@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,10 +88,11 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo,     setDateTo]     = useState(range.to);
   const [applied,    setApplied]    = useState({ customerId: "all", from: range.from, to: range.to });
 
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["customers"],
-    queryFn: () => apiFetch("/customers"),
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
+    queryKey: ["customers", "picker"],
+    queryFn: () => fetchPickerOptions<Customer>("/customers"),
   });
+  const customers = customersPage?.items ?? [];
 
   const { data, isLoading } = useQuery<LedgerData>({
     queryKey: ["customer-ledger", applied],
@@ -122,7 +125,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
                 <SelectContent>
                   <SelectItem value="all">All Customers</SelectItem>
                   {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
+                <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs text-muted-foreground">From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>

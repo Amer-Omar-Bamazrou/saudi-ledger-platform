@@ -32,6 +32,7 @@ import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
 import { buildZatcaCsr } from "../services/einvoice/crypto/csr";
+import { createApproved } from "./helpers/createApproved";
 
 const BASE =
   process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
@@ -239,8 +240,7 @@ beforeAll(async () => {
   ).rows[0].id;
 
   const inv = await inTenant(() =>
-    invoicesService.create(
-      {
+    createApproved(invoicesService, {
         invoiceNumber: "INV-LIVE-1",
         date: "2026-08-01",
         dueDate: "2026-08-31",
@@ -256,15 +256,12 @@ beforeAll(async () => {
           },
         ],
       },
-      userId,
-      { autoApprove: true },
-    ),
+      userId),
   );
   originalId = inv.id;
 
   const cn = await inTenant(() =>
-    invoicesService.create(
-      {
+    createApproved(invoicesService, {
         invoiceNumber: "CN-LIVE-1",
         date: "2026-08-02",
         customerId,
@@ -275,15 +272,12 @@ beforeAll(async () => {
           { description: "Returned freight", quantity: 2, unitPrice: 100, vatRate: 15, taxCategoryCode: "S", unitCode: "PCE" },
         ],
       },
-      userId,
-      { autoApprove: true },
-    ),
+      userId),
   );
   creditNoteId = cn.id;
 
   const dn = await inTenant(() =>
-    invoicesService.create(
-      {
+    createApproved(invoicesService, {
         invoiceNumber: "DN-LIVE-1",
         date: "2026-08-03",
         customerId,
@@ -294,9 +288,7 @@ beforeAll(async () => {
           { description: "Freight adjustment", quantity: 1, unitPrice: 50, vatRate: 15, taxCategoryCode: "S", unitCode: "PCE" },
         ],
       },
-      userId,
-      { autoApprove: true },
-    ),
+      userId),
   );
   debitNoteId = dn.id;
 

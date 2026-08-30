@@ -21,6 +21,37 @@ export function requireIdParam(req: Request, name = "id"): number {
 }
 
 /**
+ * The default page, stated ONCE so the API, the UI and the tests agree.
+ * Exported because the web client's picker limit is derived from the same
+ * ceiling rather than from a second guess.
+ */
+export const DEFAULT_PAGE = 50;
+export const MAX_PAGE = 200;
+
+/**
+ * `limit`/`offset` off the query string, bounded.
+ *
+ * 🔴 Extracted because it had already been copied into three controllers and
+ * was about to be copied into twelve more. A page size is one decision; three
+ * copies of it are three decisions that will drift, and the fourth copy is
+ * where the drift starts. Same reasoning as one-writer-per-effect, applied to
+ * a four-line helper.
+ *
+ * `limit` is CLAMPED rather than rejected: a caller asking for everything gets
+ * a page and a `total` telling them there is more, which is the honest answer
+ * to "give me all of it". NaN falls back to the default rather than reaching
+ * the driver as `LIMIT NaN`.
+ */
+export function pageParams(
+  query: Record<string, unknown>,
+  defaultLimit = DEFAULT_PAGE,
+): { limit: number; offset: number } {
+  const n = Number(query.limit);
+  const limit = Number.isFinite(n) && n > 0 ? Math.min(MAX_PAGE, Math.floor(n)) : defaultLimit;
+  return { limit, offset: Math.max(0, Number(query.offset) || 0) };
+}
+
+/**
  * A JSON payload arriving as a multipart form field (the capture route's
  * `extraction` / `fieldSources`).
  *

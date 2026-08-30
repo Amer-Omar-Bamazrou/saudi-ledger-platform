@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
+import { ApiError } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
@@ -73,7 +75,47 @@ import ActivityReport from '@/pages/reports/ActivityReport';
 import AgingReports from '@/pages/reports/AgingReports';
 import NotFound from '@/pages/not-found';
 
-const queryClient = new QueryClient();
+/**
+ * 🔴 EVERY SERVER REFUSAL IS SURFACED HERE (QA audit, B2).
+ *
+ * `new QueryClient()` carries no default error handling, so a mutation whose
+ * `onError` was omitted failed SILENTLY: the observed case was
+ * `POST /api/customers → 400`, dialog left open, zero `[role=alert]` elements,
+ * no toast, nothing. The server's validation was correct and the user could
+ * not tell the request had even been sent — indistinguishable from a frozen UI,
+ * so the only rational response is to retry forever.
+ *
+ * Fixed at the MUTATION CACHE rather than per form: this is the write-boundary
+ * rule applied to error surfacing. Per-form `onError` is per-form review, and a
+ * new form starts at zero — which is exactly how this happened. A form may
+ * still define its own `onError` for bespoke handling; that simply overrides
+ * this default, so nothing here removes an existing behaviour.
+ *
+ * `ApiError.message` is already the server's own `{ error }` text, so the
+ * refusal a user reads is the refusal the API actually gave — not a generic
+ * "something went wrong" invented on the client.
+ *
+ * 401 is deliberately excluded: `apiFetch` already routes session expiry to the
+ * login redirect, and a toast on top of a redirect is noise.
+ */
+const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) => {
+      if (mutation.options.onError) return; // the form handles it itself
+      const status = error instanceof ApiError ? error.status : 0;
+      if (status === 401) return;
+      toast({
+        variant: "destructive",
+        title:
+          status === 423 ? "This period is closed"
+          : status === 409 ? "That conflicts with the current state"
+          : status >= 500 ? "The server could not complete that"
+          : "That could not be saved",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    },
+  }),
+});
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

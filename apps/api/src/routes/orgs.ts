@@ -8,7 +8,11 @@
  */
 import { Router } from "express";
 import { and, asc, eq } from "drizzle-orm";
-import { db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
+// 🔴 The OWNER connection, named deliberately rather than inherited.
+// Identity layer: organization and membership administration, before/outside any tenant scope.
+// The `db` proxy now REFUSES a query outside a tenant transaction instead of
+// silently falling back to this connection.
+import { ownerDb as db, organizationMembershipsTable, organizationsTable } from "@workspace/db";
 import { selectActiveMembership } from "../lib/activeOrg";
 import { membersService } from "../services/members.service";
 import { invitationsService } from "../services/invitations.service";

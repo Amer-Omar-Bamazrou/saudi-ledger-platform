@@ -1,10 +1,36 @@
 /** Payroll repository — tenant-scoped via RLS. */
 import { db, payrollRunsTable, payrollItemsTable, employeesTable } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 export const payrollRepository = {
   listRuns() {
     return db.select().from(payrollRunsTable).orderBy(desc(payrollRunsTable.period));
+  },
+  /**
+   * 🔴 Per-run headcount and gross, from the ITEM rows.
+   *
+   * A payroll run stores `total_basic_salary` and `total_allowances` but no
+   * gross and no headcount, and the Payroll Report was reading `grossSalary`
+   * and `employeeCount` off the run — fields no response contained. It also
+   * filtered on `r.month`, which does not exist either, so `undefined >= "2026-01"`
+   * was false for every row and **the report rendered empty whatever the tenant
+   * had run**.
+   *
+   * Gross is SUMmed from `payroll_items.gross_salary` rather than added up from
+   * the run's two header columns, per §4: when line-level truth exists,
+   * header-level arithmetic is a second computation of the same fact and will
+   * drift. GOSI is the two employer/employee headers, which ARE the stored
+   * fact.
+   */
+  runItemTotals() {
+    return db
+      .select({
+        payrollRunId: payrollItemsTable.payrollRunId,
+        employeeCount: sql<number>`COUNT(*)::int`,
+        grossSalary: sql<number>`COALESCE(SUM(${payrollItemsTable.grossSalary}), 0)::float8`,
+      })
+      .from(payrollItemsTable)
+      .groupBy(payrollItemsTable.payrollRunId);
   },
   findRun(id: number) {
     return db.select().from(payrollRunsTable).where(eq(payrollRunsTable.id, id)).limit(1);

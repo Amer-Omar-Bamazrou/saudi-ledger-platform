@@ -4,7 +4,7 @@ import { purchaseOrderConversionService } from "../services/purchaseOrderConvers
 import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
 /** Validated, not merely coerced — see lib/httpParams. */
-import { requireIdParam as requireId } from "../lib/httpParams";
+import { pageParams, requireIdParam as requireId } from "../lib/httpParams";
 
 export const purchaseOrdersController = {
   async list(req: Request, res: Response) {
@@ -17,6 +17,7 @@ export const purchaseOrdersController = {
         status: status || undefined,
         vendorId: vendor_id ? Number(vendor_id) : undefined,
         outcome: (outcome as "live" | "cancelled" | "closed") || undefined,
+        ...pageParams(req.query as Record<string, unknown>),
       }),
     );
   },
@@ -26,11 +27,21 @@ export const purchaseOrdersController = {
   },
 
   async create(req: Request, res: Response) {
-    // An approver issues the order in one call; a bookkeeper's stays a draft.
-    // (This is the ORDER's own approval — it moves nothing either way.)
-    const role = req.tenant?.role ?? "";
-    const autoApprove = await can(role, "purchase_orders", "approve");
-    const out = await purchaseOrdersService.create(req.body, req.session?.userId ?? null, { autoApprove });
+    /**
+     * 🔴 NO AUTO-APPROVE. A create makes a DRAFT, for every role.
+     *
+     * This used to take `autoApprove` from the RBAC matrix, so an approver's
+     * create ISSUED the document in one call. Owner decision (2026-08-28):
+     * removed entirely. Its justification expired when M22 gave the product a
+     * real approve button, and what was left contradicted M10's own principle —
+     * **approval is an act about a specific document, and auto-approve made it
+     * an act about a setting**. On invoices it was also two-thirds of AUD-13's
+     * severity: it is the leg that turned a thin form from annoying into
+     * unrecoverable, minting an ICV and a ZATCA stamp from a single create call.
+     *
+     * One extra click on a legal document is not a cost worth arguing about.
+     */
+    const out = await purchaseOrdersService.create(req.body, req.session?.userId ?? null);
     res.status(201).json(out);
   },
 
@@ -90,7 +101,7 @@ export const purchaseOrdersController = {
   },
 
   async remove(req: Request, res: Response) {
-    await purchaseOrdersService.remove(requireId(req));
+    await purchaseOrdersService.deleteDraft(requireId(req));
     res.status(204).send();
   },
 };

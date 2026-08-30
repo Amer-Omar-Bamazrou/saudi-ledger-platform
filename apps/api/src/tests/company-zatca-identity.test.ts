@@ -20,6 +20,7 @@ import { computeInvoiceHash } from "../services/accounting/zatca";
 import { invoicesService } from "../services/invoices.service";
 import { companiesService } from "../services/companies.service";
 import { auditContext } from "../lib/auditContext";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -126,7 +127,7 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
 
   it("FAILS CLOSED when the company has no VAT number (no placeholder fallback)", async () => {
     await expect(
-      asTenant(() => invoicesService.create(newInvoice("ZID-000") as any, userId, { autoApprove: true })),
+      asTenant(() => createApproved(invoicesService, newInvoice("ZID-000") as any, userId)),
     ).rejects.toMatchObject({ statusCode: 400 });
 
     // Nothing was issued.
@@ -151,7 +152,7 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
 
   it("THE ACCEPTANCE TEST: the issued QR and hash carry the COMPANY's VAT + name", async () => {
     const issued: any = await asTenant(() =>
-      invoicesService.create(newInvoice("ZID-001") as any, userId, { autoApprove: true }),
+      createApproved(invoicesService, newInvoice("ZID-001") as any, userId),
     );
     expect(issued.status).toBe("sent");
     expect(issued.invoiceHash).toBeTruthy();
@@ -203,7 +204,7 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
     await asTenant(() => companiesService.updateCurrent({ vatNumber: NEW_VAT } as any));
 
     const issued: any = await asTenant(() =>
-      invoicesService.create(newInvoice("ZID-002") as any, userId, { autoApprove: true }),
+      createApproved(invoicesService, newInvoice("ZID-002") as any, userId),
     );
     const stored = (await pool.query(
       `SELECT seller_vat_number FROM invoices WHERE organization_id = $1 AND invoice_number = 'ZID-002'`,

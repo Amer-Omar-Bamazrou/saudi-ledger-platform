@@ -164,9 +164,7 @@ describeMaybe("ICV + hash chain under concurrent approvals", () => {
           customerId,
           items: [{ description: "Item", quantity: 1, unitPrice: 100, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await inTenant(companyId, () => invoicesService.approve(inv.id, userId));
   }

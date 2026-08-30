@@ -9,26 +9,45 @@ import {
   vendorsTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface PurchaseOrderListFilter {
   status?: string;
   vendorId?: number;
   outcome?: "live" | "cancelled" | "closed";
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function purchaseOrderListConditions(filter: PurchaseOrderListFilter) {
+  const conditions = [];
+  if (filter.status) conditions.push(eq(purchaseOrdersTable.status, filter.status));
+  if (filter.vendorId) conditions.push(eq(purchaseOrdersTable.vendorId, filter.vendorId));
+  if (filter.outcome === "live") conditions.push(sql`${purchaseOrdersTable.outcome} IS NULL`);
+  else if (filter.outcome) conditions.push(eq(purchaseOrdersTable.outcome, filter.outcome));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export const purchaseOrdersRepository = {
   list(filter: PurchaseOrderListFilter) {
-    const conditions = [];
-    if (filter.status) conditions.push(eq(purchaseOrdersTable.status, filter.status));
-    if (filter.vendorId) conditions.push(eq(purchaseOrdersTable.vendorId, filter.vendorId));
-    if (filter.outcome === "live") conditions.push(sql`${purchaseOrdersTable.outcome} IS NULL`);
-    else if (filter.outcome) conditions.push(eq(purchaseOrdersTable.outcome, filter.outcome));
     return db
       .select({ po: purchaseOrdersTable, vendor: vendorsTable })
       .from(purchaseOrdersTable)
       .leftJoin(vendorsTable, eq(purchaseOrdersTable.vendorId, vendorsTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(purchaseOrdersTable.date), desc(purchaseOrdersTable.id));
+      .where(purchaseOrderListConditions(filter))
+      .orderBy(desc(purchaseOrdersTable.date), desc(purchaseOrdersTable.id))
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: PurchaseOrderListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(purchaseOrdersTable)
+      .where(purchaseOrderListConditions(filter));
+    return Number(row?.total ?? 0);
   },
 
   findWithVendor(id: number) {
@@ -112,6 +131,45 @@ export const purchaseOrdersRepository = {
       .where(eq(purchaseOrderConversionsTable.purchaseOrderId, purchaseOrderId))
       .groupBy(purchaseOrderConversionItemsTable.purchaseOrderItemId);
     return new Map(rows.map((r) => [r.purchaseOrderItemId, Number(r.qty)]));
+  },
+
+  /**
+   * 🔴 AUD-3 (the purchase-order mirror) — billing totals for the LIST.
+   *
+   * `billingState` is derived from quantities and the list fetched none, so
+   * every PO — including fully billed ones — reported "open" with a Bill button
+   * beside it. Same defect, same cause, found by the same question: does the
+   * endpoint load what the field is derived from?
+   */
+  async billingTotals(): Promise<Map<number, { quantity: number; billedQuantity: number }>> {
+    const ordered = await db
+      .select({
+        purchaseOrderId: purchaseOrderItemsTable.purchaseOrderId,
+        qty: sql<string>`SUM(${purchaseOrderItemsTable.quantity})`,
+      })
+      .from(purchaseOrderItemsTable)
+      .groupBy(purchaseOrderItemsTable.purchaseOrderId);
+
+    const billed = await db
+      .select({
+        purchaseOrderId: purchaseOrderConversionsTable.purchaseOrderId,
+        qty: sql<string>`SUM(${purchaseOrderConversionItemsTable.quantity})`,
+      })
+      .from(purchaseOrderConversionItemsTable)
+      .innerJoin(
+        purchaseOrderConversionsTable,
+        eq(purchaseOrderConversionItemsTable.conversionId, purchaseOrderConversionsTable.id),
+      )
+      .groupBy(purchaseOrderConversionsTable.purchaseOrderId);
+
+    const out = new Map<number, { quantity: number; billedQuantity: number }>();
+    for (const r of ordered) out.set(r.purchaseOrderId, { quantity: Number(r.qty), billedQuantity: 0 });
+    for (const r of billed) {
+      const e = out.get(r.purchaseOrderId) ?? { quantity: 0, billedQuantity: 0 };
+      e.billedQuantity = Number(r.qty);
+      out.set(r.purchaseOrderId, e);
+    }
+    return out;
   },
 
   /**

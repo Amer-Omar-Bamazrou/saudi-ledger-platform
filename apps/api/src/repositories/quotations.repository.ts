@@ -9,27 +9,46 @@ import {
   customersTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface QuotationListFilter {
   status?: string;
   customerId?: number;
   /** `live` hides quotations the tenant has declined or closed. */
   outcome?: "live" | "declined" | "closed";
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function quotationListConditions(filter: QuotationListFilter) {
+  const conditions = [];
+  if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
+  if (filter.customerId) conditions.push(eq(quotationsTable.customerId, filter.customerId));
+  if (filter.outcome === "live") conditions.push(sql`${quotationsTable.outcome} IS NULL`);
+  else if (filter.outcome) conditions.push(eq(quotationsTable.outcome, filter.outcome));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export const quotationsRepository = {
   list(filter: QuotationListFilter) {
-    const conditions = [];
-    if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
-    if (filter.customerId) conditions.push(eq(quotationsTable.customerId, filter.customerId));
-    if (filter.outcome === "live") conditions.push(sql`${quotationsTable.outcome} IS NULL`);
-    else if (filter.outcome) conditions.push(eq(quotationsTable.outcome, filter.outcome));
     return db
       .select({ quo: quotationsTable, cust: customersTable })
       .from(quotationsTable)
       .leftJoin(customersTable, eq(quotationsTable.customerId, customersTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(quotationsTable.date), desc(quotationsTable.id));
+      .where(quotationListConditions(filter))
+      .orderBy(desc(quotationsTable.date), desc(quotationsTable.id))
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: QuotationListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(quotationsTable)
+      .where(quotationListConditions(filter));
+    return Number(row?.total ?? 0);
   },
 
   findWithCustomer(id: number) {
@@ -146,6 +165,51 @@ export const quotationsRepository = {
       .where(eq(quotationConversionsTable.quotationId, quotationId))
       .groupBy(quotationConversionItemsTable.quotationItemId);
     return new Map(rows.map((r) => [r.quotationItemId, Number(r.qty)]));
+  },
+
+  /**
+   * 🔴 AUD-3 — the totals the LIST needs, in ONE query.
+   *
+   * The list never loaded items, so `buildQuotationOut` derived
+   * `conversionState` from an empty array and every row — including fully
+   * converted ones — reported "open", with a Convert button beside it. The
+   * presenter was reasoning about a quotation with NO LINES; the list was
+   * handing it a quotation whose lines it had not fetched. Two different
+   * emptinesses, one of them a lie.
+   *
+   * Sums are sufficient for the three-way state: converted totals can never
+   * exceed ordered (over-conversion 409s), so `0`, `< ordered` and `>= ordered`
+   * separate open / partial / converted exactly as the per-item form does.
+   */
+  async conversionTotals(): Promise<Map<number, { quantity: number; convertedQuantity: number }>> {
+    const ordered = await db
+      .select({
+        quotationId: quotationItemsTable.quotationId,
+        qty: sql<string>`SUM(${quotationItemsTable.quantity})`,
+      })
+      .from(quotationItemsTable)
+      .groupBy(quotationItemsTable.quotationId);
+
+    const converted = await db
+      .select({
+        quotationId: quotationConversionsTable.quotationId,
+        qty: sql<string>`SUM(${quotationConversionItemsTable.quantity})`,
+      })
+      .from(quotationConversionItemsTable)
+      .innerJoin(
+        quotationConversionsTable,
+        eq(quotationConversionItemsTable.conversionId, quotationConversionsTable.id),
+      )
+      .groupBy(quotationConversionsTable.quotationId);
+
+    const out = new Map<number, { quantity: number; convertedQuantity: number }>();
+    for (const r of ordered) out.set(r.quotationId, { quantity: Number(r.qty), convertedQuantity: 0 });
+    for (const r of converted) {
+      const e = out.get(r.quotationId) ?? { quantity: 0, convertedQuantity: 0 };
+      e.convertedQuantity = Number(r.qty);
+      out.set(r.quotationId, e);
+    }
+    return out;
   },
 
   /** The dated conversion history, with the invoice each one produced. */

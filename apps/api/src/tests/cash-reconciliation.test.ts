@@ -23,6 +23,7 @@ import { cashService } from "../services/cash.service";
 import { monthsBetween } from "../services/analytics.service";
 import { invoicesService } from "../services/invoices.service";
 import { transactionPostingService } from "../services/transactionPosting.service";
+import { createApproved } from "./helpers/createApproved";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -225,16 +226,13 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     // `transactions_settlement_names_document`, migration 0034) — a real
     // write-boundary invariant, so the fixture supplies a real invoice.
     const settled = await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: `CASH-SET-${++seq}`,
           date: "2026-02-01",
           customerId,
           items: [{ description: "Settled work", quantity: 1, unitPrice: 3_000, vatRate: 0, taxCategoryCode: "O" }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     await pool.query(
       `INSERT INTO transactions
@@ -255,16 +253,13 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     // sign matters: attributing it the wrong way round would still sum to the
     // gap while describing the reverse of what happened.
     const inv = await inTenant(() =>
-      invoicesService.create(
-        {
+      createApproved(invoicesService, {
           invoiceNumber: `CASH-${++seq}`,
           date: "2026-03-02",
           customerId,
           items: [{ description: "Service", quantity: 1, unitPrice: 1_000, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: true },
-      ),
+        userId),
     );
     await inTenant(() =>
       invoicesService.pay(inv.id, { amount: 1_150, paidAt: "2026-03-20" }, userId),

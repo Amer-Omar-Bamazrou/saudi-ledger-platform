@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +15,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
+
+const PAGE_SIZE = 50;
+
+interface InvoicePage {
+  items: Invoice[];
+  page: { limit: number; offset: number; total: number };
+  totals: { outstanding: number; collected: number; overdue: number };
+}
 
 interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
 interface Customer { id: number; name: string; }
@@ -46,24 +56,75 @@ const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")
 
 export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
+  /**
+   * 🔴 THE LINES. This form had none — it collected a number, dates, a status,
+   * a customer and notes, and the create mutation hardcoded `items: []`. So
+   * every invoice made from this page was SAR 0.00, and because an approver's
+   * own invoice is auto-approved it was ISSUED at zero: an ICV consumed, a
+   * position taken in the ZATCA hash chain, a QR minted. It could not be
+   * corrected afterwards either — PATCH has no caller (AUD-11) and an issued
+   * invoice cannot be deleted. An invoicing product whose invoice form could
+   * not express an amount.
+   */
+  const [lines, setLines] = useState<Array<{ description: string; quantity: string; unitPrice: string; vatRate: string }>>([
+    { description: "", quantity: "1", unitPrice: "", vatRate: "15" },
+  ]);
+  const lineTotal = (l: { quantity: string; unitPrice: string; vatRate: string }) => {
+    const net = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
+    return net + (net * (Number(l.vatRate) || 0)) / 100;
+  };
+  const invoiceTotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
   const [payAmount, setPayAmount] = useState("");
+  /** AUD-11/AUD-12 — editing and deleting a DRAFT, the only states the API allows. */
+  const [editing, setEditing] = useState<Invoice | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["invoices", statusFilter],
-    queryFn: () => apiFetch(`/invoices${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+  /**
+   * 🔴 A PAGE, and totals that describe the whole set.
+   *
+   * This read the entire ledger and then `reduce`d its headline figures over
+   * whatever came back — correct only while the list stayed unbounded, which is
+   * the B-6 trade in reverse. The server now returns `page` and `totals`, so
+   * the Outstanding and Collected figures do not change when the reader turns
+   * the page.
+   */
+  const { data: pageData, isLoading } = useQuery<InvoicePage>({
+    queryKey: ["invoices", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/invoices?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}` +
+          (statusFilter !== "all" ? `&status=${statusFilter}` : ""),
+      ),
   });
 
-  const { data: customers = [] } = useQuery<Customer[]>({ queryKey: ["customers"], queryFn: () => apiFetch("/customers") });
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const customers = customersPage?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/invoices", { method: "POST", body: JSON.stringify({ ...body, customerId: Number(body.customerId), items: [] }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    mutationFn: (body: any) =>
+      apiFetch("/invoices", {
+        method: "POST",
+        body: JSON.stringify({
+          ...body,
+          customerId: Number(body.customerId),
+          items: lines
+            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
+            .map((l) => ({
+              description: l.description.trim(),
+              quantity: Number(l.quantity) || 1,
+              unitPrice: Number(l.unitPrice),
+              vatRate: Number(l.vatRate) || 0,
+            })),
+        }),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -88,7 +149,16 @@ export default function Invoices() {
         body: JSON.stringify({
           entity: "invoice",
           template: {
-            invoiceNumber: `REC-${inv.invoiceNumber}`,
+            /**
+             * 🔴 AUD-2: NO invoiceNumber. This used to carry
+             * `REC-${inv.invoiceNumber}`, a fixed literal, and the generator
+             * spreads the template straight into invoicesService.create — so
+             * every month reused ONE number. Run 1 succeeded; run 2 violated
+             * UNIQUE(company_id, invoice_number) and the rule failed for good,
+             * on a feature whose whole point is running unattended. A number is
+             * a property of a DOCUMENT, never of a pattern: the server
+             * allocates one per generated draft.
+             */
             customerId: inv.customerId,
             // Only the line FACTS — row ids and computed totals must not leak
             // into the template, or every generated draft would try to reuse
@@ -116,8 +186,74 @@ export default function Invoices() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
-  const totalOutstanding = invoices.filter(i => i.status !== "paid" && i.status !== "cancelled").reduce((s, i) => s + (i.total - i.paidAmount), 0);
-  const totalPaid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.total, 0);
+  const updateMut = useMutation({
+    mutationFn: (body: any) =>
+      apiFetch(`/invoices/${editing!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          date: body.date,
+          dueDate: body.dueDate || undefined,
+          customerId: body.customerId ? Number(body.customerId) : undefined,
+          notes: body.notes || undefined,
+          items: lines
+            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
+            .map((l) => ({
+              description: l.description.trim(),
+              quantity: Number(l.quantity) || 1,
+              unitPrice: Number(l.unitPrice),
+              vatRate: Number(l.vatRate) || 0,
+            })),
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setOpen(false); setEditing(null); setForm(emptyForm);
+      setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+      toast({ title: t("Changes saved", "تم حفظ التعديلات") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/invoices/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setConfirmDelete(null);
+      toast({ title: t("Draft deleted", "تم حذف المسودة") });
+    },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+
+  /** Open the shared dialog in EDIT mode, prefilled from the full record. */
+  const openEdit = async (row: Invoice) => {
+    try {
+      const detail: any = await apiFetch(`/invoices/${row.id}`);
+      setForm({
+        invoiceNumber: detail.invoiceNumber ?? "",
+        date: detail.date ?? "",
+        dueDate: detail.dueDate ?? "",
+        customerId: String(detail.customerId ?? ""),
+        status: detail.status ?? "draft",
+        notes: detail.notes ?? "",
+      });
+      setLines(
+        (detail.items ?? []).map((i: any) => ({
+          description: i.description ?? "",
+          quantity: String(i.quantity ?? 1),
+          unitPrice: String(i.unitPrice ?? ""),
+          vatRate: String(i.vatRate ?? 15),
+        })),
+      );
+      setEditing(row);
+      setOpen(true);
+    } catch (e) {
+      toast({ title: t("Error", "خطأ"), description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const invoices = pageData?.items ?? [];
+  const totals = pageData?.totals;
+  const pageInfo = pageData?.page;
 
   return (
     <div className="space-y-6">
@@ -126,10 +262,22 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-foreground">{t("Invoices", "الفواتير")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Customer invoices · Accounts Receivable", "فواتير العملاء · الذمم المدينة")}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              // Leaving EDIT mode explicitly, or the next "New Invoice" would
+              // silently PATCH the record just edited.
+              setEditing(null);
+              setForm(emptyForm);
+              setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+            }
+          }}
+        >
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Invoice", "فاتورة جديدة")}</Button></DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>{t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editing ? `${t("Edit invoice", "تعديل الفاتورة")} — ${editing.invoiceNumber}` : t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} placeholder={t("Assigned automatically", "يُخصص تلقائيًا")} className="mt-1 h-8 text-sm" /></div>
@@ -142,23 +290,118 @@ export default function Invoices() {
                 </div>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
-                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}<PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent></Select>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("Optional notes...", "ملاحظات اختيارية...")} /></div>
+
+              {/* ── Lines. Without these the invoice is SAR 0.00 and, once
+                  issued, permanently so: it cannot be edited or deleted. ── */}
+              <div className="space-y-2 border-t border-border pt-3">
+                <Label className="text-xs text-muted-foreground">{t("Lines", "البنود")}</Label>
+                {lines.map((l, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2">
+                    <Input
+                      className="col-span-5 h-8 text-sm"
+                      placeholder={t("Description", "الوصف")}
+                      value={l.description}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-sm"
+                      type="number"
+                      placeholder={t("Qty", "الكمية")}
+                      value={l.quantity}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-3 h-8 text-sm"
+                      type="number"
+                      placeholder={t("Unit price", "سعر الوحدة")}
+                      value={l.unitPrice}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, unitPrice: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-sm"
+                      type="number"
+                      placeholder={t("VAT %", "الضريبة %")}
+                      value={l.vatRate}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, vatRate: e.target.value } : x)))}
+                    />
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLines((p) => [...p, { description: "", quantity: "1", unitPrice: "", vatRate: "15" }])}
+                  >
+                    {t("Add line", "إضافة بند")}
+                  </Button>
+                  <span className="text-sm">
+                    <span className="text-muted-foreground me-2">{t("Total (incl. VAT)", "الإجمالي شامل الضريبة")}</span>
+                    <span className="font-mono">{fmtNum(invoiceTotal)}</span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.customerId || createMut.isPending}>
-              {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Invoice", "إنشاء فاتورة")}
+            <Button
+              className="w-full mt-4"
+              onClick={()=> (editing ? updateMut.mutate(form) : createMut.mutate(form))}
+              disabled={
+                !form.customerId ||
+                createMut.isPending ||
+                updateMut.isPending ||
+                // An invoice with no priced line is SAR 0.00 — and once issued,
+                // permanently so. The server refuses it too; this stops it here.
+                !lines.some((l) => l.description.trim() && Number(l.unitPrice) > 0)
+              }
+            >
+              {createMut.isPending || updateMut.isPending
+                ? t("Saving…", "جارٍ الحفظ…")
+                : editing
+                  ? t("Save changes", "حفظ التعديلات")
+                  : t("Create Invoice", "إنشاء فاتورة")}
             </Button>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* 🔴 Draft-only delete. The confirm names what is and is NOT possible:
+          this works because the invoice is a draft, and would be refused the
+          moment it is issued — at which point a credit note is the only
+          correction. */}
+      <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t(`Delete draft ${confirmDelete?.invoiceNumber ?? ""}?`, `حذف مسودة ${confirmDelete?.invoiceNumber ?? ""}؟`)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              {t(
+                "The draft is removed permanently. Nothing has been issued, so no number, no ledger entry and no ZATCA record is affected.",
+                "تُحذف المسودة نهائيًا. لم يتم إصدار أي شيء، فلا يتأثر أي رقم أو قيد أو سجل لدى هيئة الزكاة والضريبة.",
+              )}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>{t("Cancel", "إلغاء")}</Button>
+              <Button size="sm" variant="destructive" disabled={deleteMut.isPending}
+                onClick={() => confirmDelete && deleteMut.mutate(confirmDelete.id)}>
+                {deleteMut.isPending ? t("Deleting…", "جارٍ الحذف…") : t("Delete draft", "حذف المسودة")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-4 gap-4">
         {[
-          [t("Total Invoices", "إجمالي الفواتير"), invoices.length, "text-primary"],
-          [t("Outstanding", "المستحق"), fmtNum(totalOutstanding), "text-amber-400"],
-          [t("Collected", "المحصّل"), fmtNum(totalPaid), "text-emerald-400"],
-          [t("Overdue", "متأخر"), invoices.filter(i=>i.status==="overdue").length, "text-red-400"],
+          // Every figure here is the SERVER's, over the whole filtered set.
+          [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],
+          [t("Outstanding", "المستحق"), totals ? fmtNum(totals.outstanding) : "—", "text-amber-400"],
+          [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-emerald-400"],
+          [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-red-400"],
         ].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
@@ -200,6 +443,26 @@ export default function Invoices() {
                   <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
+                      {/*
+                        🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
+                        existed and had no caller, so a mistyped draft could be
+                        neither corrected nor removed. They are offered ONLY on a
+                        draft because that is the only state the server permits —
+                        an issued invoice is corrected by credit note, and the
+                        service says so in its refusal.
+                      */}
+                      {inv.status === "draft" && (
+                        <>
+                          <Button variant="ghost" size="sm" className="text-xs h-7"
+                            onClick={() => openEdit(inv)}>
+                            {t("Edit", "تعديل")}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400"
+                            onClick={() => setConfirmDelete(inv)}>
+                            {t("Delete", "حذف")}
+                          </Button>
+                        </>
+                      )}
                       {inv.status !== "paid" && inv.status !== "cancelled" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
@@ -221,6 +484,36 @@ export default function Invoices() {
               ))}</tbody>
             </table>
           )}
+
+            {/*
+              🔴 The page says what it is showing and of how many, and gives a
+              way to the rest. A list that silently stops at 50 is the same
+              defect as a count that saturates at 200 — the number describes a
+              set the reader does not think they are looking at (B-6).
+            */}
+            {pageInfo && pageInfo.total > 0 && (
+              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+                <span>
+                  {t(
+                    `Showing ${pageInfo.offset + 1}–${Math.min(pageInfo.offset + invoices.length, pageInfo.total)} of ${pageInfo.total}`,
+                    `عرض ${pageInfo.offset + 1}–${Math.min(pageInfo.offset + invoices.length, pageInfo.total)} من ${pageInfo.total}`,
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    {t("Previous", "السابق")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pageInfo.offset + invoices.length >= pageInfo.total}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t("Next", "التالي")}
+                  </Button>
+                </div>
+              </div>
+            )}
         </CardContent>
       </Card>
 

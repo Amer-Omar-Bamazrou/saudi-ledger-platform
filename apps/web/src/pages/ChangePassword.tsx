@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2 } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function ChangePassword() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -41,13 +43,13 @@ export default function ChangePassword() {
   return (
     <div className="max-w-md space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Change Password</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t("Change Password", "تغيير كلمة المرور")}</h1>
         <p className="text-muted-foreground text-sm mt-1">Update the password for {user?.email}</p>
       </div>
 
       <Card className="border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-base">New password</CardTitle>
+          <CardTitle className="text-base">{t("New password", "كلمة المرور الجديدة")}</CardTitle>
           <CardDescription>You'll remain logged in after changing your password.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -56,26 +58,26 @@ export default function ChangePassword() {
             {success && (
               <Alert className="border-emerald-500/30 bg-emerald-500/10">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <AlertDescription className="text-emerald-400">Password changed successfully.</AlertDescription>
+                <AlertDescription className="text-emerald-400">{t("Password changed successfully.", "تم تغيير كلمة المرور بنجاح.")}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="current">Current password</Label>
+              <Label htmlFor="current">{t("Current password", "كلمة المرور الحالية")}</Label>
               <Input
                 id="current" type="password" autoComplete="current-password"
                 value={current} onChange={e => setCurrent(e.target.value)} required
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="next">New password</Label>
+              <Label htmlFor="next">{t("New password", "كلمة المرور الجديدة")}</Label>
               <Input
                 id="next" type="password" autoComplete="new-password"
                 value={next} onChange={e => setNext(e.target.value)}
-                required minLength={8} placeholder="Min 8 characters"
+                required minLength={8} placeholder={t("Min 8 characters", "8 أحرف على الأقل")}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="confirm">Confirm new password</Label>
+              <Label htmlFor="confirm">{t("Confirm new password", "تأكيد كلمة المرور الجديدة")}</Label>
               <Input
                 id="confirm" type="password" autoComplete="new-password"
                 value={confirm} onChange={e => setConfirm(e.target.value)} required

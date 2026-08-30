@@ -104,9 +104,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
           customerId,
           items: [{ description: "Service", quantity: 1, unitPrice, vatRate: 15 }],
         },
-        userId,
-        { autoApprove: false },
-      ),
+        userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
     return inv.id;

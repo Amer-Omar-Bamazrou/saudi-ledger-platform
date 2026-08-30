@@ -12,19 +12,74 @@ import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 export interface InvoiceListFilter {
   status?: string;
   customerId?: number;
+  limit?: number;
+  offset?: number;
+}
+
+/** The default page. Stated once so the API, the UI and the tests agree. */
+export const DEFAULT_PAGE = 50;
+
+/** One predicate for the rows AND the totals — so they cannot describe different sets. */
+function invoiceListConditions(filter: InvoiceListFilter) {
+  const conditions = [];
+  if (filter.status) conditions.push(eq(invoicesTable.status, filter.status));
+  if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export const invoicesRepository = {
+  /**
+   * 🔴 PAGINATED, and the page is a page — not a silent cap.
+   *
+   * This list was UNBOUNDED, which is the other half of B-6's disease: capped
+   * where it should be unbounded and unbounded where it should be capped is one
+   * illness pointing both ways. An unbounded ledger list is merely slow at ten
+   * rows and fatal at ten thousand, and the page then `reduce`d its money
+   * totals over whatever it happened to fetch.
+   *
+   * OFFSET pagination, deliberately. Cursor pagination is better in principle —
+   * stable under concurrent inserts, no deep-page cost — and nothing in this
+   * market justifies it: twenty pages of fifty is not a problem anyone here
+   * has. 🔴 Recorded as the upgrade path if volume ever arrives, so the choice
+   * reads as a decision rather than an oversight.
+   */
   list(filter: InvoiceListFilter) {
-    const conditions = [];
-    if (filter.status) conditions.push(eq(invoicesTable.status, filter.status));
-    if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
     return db
       .select({ inv: invoicesTable, cust: customersTable })
       .from(invoicesTable)
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));
+      .where(invoiceListConditions(filter))
+      .orderBy(desc(invoicesTable.date), desc(invoicesTable.id))
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /**
+   * 🔴 The totals, computed in SQL over the WHOLE filtered set — never over the
+   * page. "Total on this page" is a number nobody asked for, and the honest
+   * alternative to a page-scoped total is not a smaller number but a
+   * confidently wrong one (B-6). The count comes from the same predicate as the
+   * rows, so the two can never disagree.
+   */
+  async listMeta(filter: InvoiceListFilter) {
+    const [row] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        outstanding: sql<number>`COALESCE(SUM(
+          CASE WHEN ${invoicesTable.status} NOT IN ('paid','cancelled')
+               THEN ${invoicesTable.total} - ${invoicesTable.paidAmount} ELSE 0 END), 0)::float8`,
+        collected: sql<number>`COALESCE(SUM(
+          CASE WHEN ${invoicesTable.status} = 'paid' THEN ${invoicesTable.total} ELSE 0 END), 0)::float8`,
+        overdue: sql<number>`COUNT(*) FILTER (WHERE ${invoicesTable.status} = 'overdue')::int`,
+      })
+      .from(invoicesTable)
+      .where(invoiceListConditions(filter));
+    return {
+      total: Number(row?.total ?? 0),
+      outstanding: Number(row?.outstanding ?? 0),
+      collected: Number(row?.collected ?? 0),
+      overdue: Number(row?.overdue ?? 0),
+    };
   },
 
   findWithCustomer(id: number) {
