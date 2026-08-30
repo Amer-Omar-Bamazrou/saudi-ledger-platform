@@ -17,6 +17,14 @@ Two boundaries, so nothing is authored twice:
 Each action carries a **Done when** that someone else could check. Ticking is
 an observation, not a feeling.
 
+🔴 **The four are NOT known to be independent, and this file used to imply they
+were** (noted 2026-08-31). A flat checklist reads as parallel work, so a
+dependency between two items is invisible unless it is written down. One is
+suspected today: **action 3 (Groq Enterprise) is likely gated by action 1 (the
+entity)**, because an enterprise contract needs a legal counterparty — see the
+entry under action 3. When an action's earliest start depends on another, say so
+**in that action**, and never let the ordering live only in the reader's head.
+
 ---
 
 ## 1. ▢ The entity — CR + VAT registration + ERAD
@@ -64,6 +72,25 @@ window or audited override on backdating into a closed period).
   pinning. It may carry synthetic and dev-org data only. **No real tenant's
   ledger, receipts, or documents** — "development" is not an exception.
 - **Not on the path to first revenue.** AI is the moat, not the wedge.
+- 🔴 **LIKELY GATED BY ACTION 1 — this action is probably NOT independent
+  (raised 2026-08-31).** An *Enterprise* agreement is a commercial contract, and
+  a contract needs a legal counterparty. If Groq requires a registered entity to
+  sign, then **action 3 cannot start until action 1 lands**, and this checklist
+  has been presenting the two as parallel.
+  - **Why it matters more than it reads:** "not on the path to first revenue"
+    invites deferring this indefinitely, on the assumption it can be picked up
+    any time. If it is entity-gated, its true earliest start is action 1's
+    completion — so the AI track's real lead time is *longer* than this file
+    implies, not shorter, and the deferral is not free.
+  - 🔴 **Not yet confirmed — this is a stated risk, not a finding.** Falsifier:
+    Groq accepting an individual or a non-Saudi entity as counterparty.
+  - **Recommended action, cheap and now: ask Groq sales what counterparty they
+    require, before action 1 completes.** The answer costs one email and changes
+    the sequencing of an entire track. Ask it early precisely *because* the
+    dependency is unconfirmed — discovering it at signature time is the
+    expensive version.
+  - Tick the confirmation here when the answer arrives, and correct this entry
+    to a dependency or delete it.
 
 ## 4. ▢ The receipt corpus
 
