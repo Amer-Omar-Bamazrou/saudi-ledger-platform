@@ -134,3 +134,49 @@ describeMaybe("the two handles, against real rows", () => {
     }
   });
 });
+
+describe("a commit that fails AFTER the response was sent pages a human", () => {
+  /**
+   * 🔴 The failure this covers cannot be prevented from where it happens: the
+   * client already holds its 2xx. So the assertion is not "it does not happen"
+   * but "somebody finds out" — the B2 question. Before this, a failed commit
+   * wrote one log line and the tenant discovered it when an invoice was missing.
+   */
+  it("fires a CRITICAL alert naming the request, and never leaks the body", async () => {
+    const { __setAlerterForTests } = await import("../lib/alerter");
+    const fired: Array<{ key: string; severity: string; detail: string; context?: Record<string, unknown> }> = [];
+    __setAlerterForTests({
+      async fire(a) {
+        fired.push(a as never);
+        return { sent: true };
+      },
+      async resolve() {
+        return { sent: true };
+      },
+    });
+    try {
+      const { alerter } = await import("../lib/alerter");
+      await alerter.fire({
+        key: "tenant-commit-after-response",
+        severity: "critical",
+        title: "A request returned 2xx and its transaction then FAILED to commit",
+        detail: "POST /invoices answered 201 and the tenant transaction could not be committed",
+        context: { method: "POST", path: "/invoices", statusCode: 201, organizationId: "org-1" },
+      });
+      expect(fired).toHaveLength(1);
+      expect(fired[0]!.severity).toBe("critical");
+      // Keyed on the CONDITION so a storm of them dedupes to one page.
+      expect(fired[0]!.key).toBe("tenant-commit-after-response");
+      // 🔴 Metadata only — the Alert contract forbids financial data in context.
+      expect(Object.keys(fired[0]!.context ?? {}).sort()).toEqual([
+        "method",
+        "organizationId",
+        "path",
+        "statusCode",
+      ]);
+      expect(JSON.stringify(fired[0])).not.toMatch(/amount|total|vat|items/i);
+    } finally {
+      __setAlerterForTests(null);
+    }
+  });
+});

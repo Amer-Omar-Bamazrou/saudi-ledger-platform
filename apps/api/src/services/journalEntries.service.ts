@@ -11,7 +11,7 @@
  *
  * Balancing, immutability guards, and reversal are preserved exactly.
  */
-import { ConflictError, NotFoundError } from "../lib/errors";
+import { ConflictError, NotFoundError, BusinessRuleError } from "../lib/errors";
 import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -74,7 +74,25 @@ export const journalEntriesService = {
     // two numbers, the user-facing one LOOSER than the ledger's. See
     // GL_BALANCE_TOLERANCE for what that gap was and why it stayed latent.
     if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
-      throw new BadRequestError("Journal entry must balance: debits must equal credits");
+      /**
+       * 🔴 422, not 400 — the status policy (2026-08-23): 400 is a SCHEMA
+       * failure, 422 is input that parsed cleanly and is semantically invalid.
+       * Every line here is a well-formed number; they simply do not balance,
+       * which is exactly the 422 case. It answered 400 only because it predates
+       * the policy.
+       *
+       * The message now carries both totals and the difference, because "must
+       * balance" without them makes the user hunt for a discrepancy the server
+       * has already computed.
+       */
+      const difference = Math.round((totalDebit - totalCredit) * 100) / 100;
+      throw new BusinessRuleError(422, {
+        error:
+          `Journal entry must balance: debits (${totalDebit.toFixed(2)}) must equal ` +
+          `credits (${totalCredit.toFixed(2)}). Difference: ${difference.toFixed(2)}.`,
+        code: "journal_entry_unbalanced",
+        field: "lines",
+      });
     }
 
     // 🔴 M13: every line must name an account. This is a BEHAVIOURAL CHANGE.

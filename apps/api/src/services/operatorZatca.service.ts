@@ -26,7 +26,7 @@
  */
 import { loadEnv } from "@workspace/config";
 import { ownerDb, companiesTable, organizationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { einvoiceOutboxRepository } from "../repositories/einvoiceOutbox.repository";
 import { einvoiceArchiveJobRepository } from "../repositories/einvoiceArchive.repository";
 import { renewalService, REMINDER_THRESHOLDS_DAYS } from "./einvoice/renewal/renewal.service";
@@ -177,21 +177,50 @@ export const operatorZatcaService = {
    * built on it would have reported that nobody had onboarded. It was dropped in
    * M12.8's migration; the vault is the single source of truth.
    */
-  async onboardingStatus() {
+  /**
+   * 🔴 PAGINATED, and no longer returning every tenant's VAT NUMBER.
+   *
+   * This was the widest single cross-tenant read on the operator surface: one
+   * unpaginated query over every company in the platform, projecting
+   * `vatNumber` — a taxpayer identifier — for all of them. Operator-only and
+   * audited, so not a hole, but the exposure was far larger than any stated
+   * workflow needs.
+   *
+   * `vatNumber` is DROPPED rather than paginated alongside the rest: the one
+   * thing the operator actually uses it for is "can this tenant onboard", and
+   * `readyToOnboard` already carries that as a derived boolean. Returning the
+   * identifier itself was never the point.
+   *
+   * 🔴 The page also bounds an N+1 that was previously unbounded — a credential
+   * lookup per company, once per row, over every company on the platform.
+   */
+  async onboardingStatus(opts: { limit?: number; offset?: number } = {}) {
     const env = loadEnv();
+    const limit = Math.min(200, Math.max(1, opts.limit ?? 50));
+    const offset = Math.max(0, opts.offset ?? 0);
+
+    const [countRow] = await ownerDb
+      .select({ total: sql<number>`count(*)::int` })
+      .from(companiesTable);
+
     const rows = await ownerDb
       .select({
         companyId: companiesTable.id,
         companyName: companiesTable.name,
         organizationId: companiesTable.organizationId,
         organizationName: organizationsTable.name,
-        vatNumber: companiesTable.vatNumber,
+        // 🔴 `vatNumber` deliberately absent — see the note above. It is still
+        // SELECTed as a boolean below, never returned.
+        hasVatNumber: sql<boolean>`(${companiesTable.vatNumber} IS NOT NULL AND ${companiesTable.vatNumber} <> '')`,
         egsSerialNumber: companiesTable.egsSerialNumber,
       })
       .from(companiesTable)
-      .leftJoin(organizationsTable, eq(companiesTable.organizationId, organizationsTable.id));
+      .leftJoin(organizationsTable, eq(companiesTable.organizationId, organizationsTable.id))
+      .orderBy(companiesTable.id)
+      .limit(limit)
+      .offset(offset);
 
-    return Promise.all(
+    const items = await Promise.all(
       rows.map(async (row) => {
         const credential = await signingService.findActiveMetadata(row.companyId, env.ZATCA_ENVIRONMENT);
         return {
@@ -200,11 +229,14 @@ export const operatorZatcaService = {
           credentialStatus: credential?.status ?? "not_onboarded",
           notAfter: credential?.notAfter ?? null,
           // A company cannot onboard without a VAT number (M11.6 fails closed),
-          // so this is the operator's first diagnostic for a stuck tenant.
-          readyToOnboard: !!row.vatNumber,
+          // so this is the operator's first diagnostic for a stuck tenant — and
+          // it is the whole reason the number was being read.
+          readyToOnboard: !!row.hasVatNumber,
         };
       }),
     );
+
+    return { items, page: { limit, offset, total: Number(countRow?.total ?? 0) } };
   },
 
   /** Run one background job on demand — the jobs are useful with the worker off. */

@@ -30,6 +30,7 @@ import {
   companiesTable,
 } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
+import { alerter } from "./alerter";
 import { auditContext } from "./auditContext";
 import { selectActiveMembership } from "./activeOrg";
 import type { UserRole } from "./auth";
@@ -148,14 +149,57 @@ export async function resolveTenant(
       role: DB_APP_ROLE,
     });
 
-    // Commit on success, roll back on error/abort. Guarded so it runs once.
+    /**
+     * Commit on success, roll back on error/abort. Guarded so it runs once.
+     *
+     * 🔴 THE COMMIT HAPPENS AFTER THE RESPONSE IS SENT, and that is a real
+     * hazard, not a stylistic one: `res.on("finish")` fires once the client
+     * already holds its 2xx, so a commit that then FAILS leaves the user
+     * believing a write happened when nothing was persisted. There is no way to
+     * un-send the success from here.
+     *
+     * 🔴 It is not fixed, it is made LOUD — deliberately, and the distinction is
+     * the point. The real fix is to commit BEFORE the body goes out, which means
+     * intercepting `res.json`/`res.send`/`res.end` for every request in the
+     * product: a change to the core pipeline, with streaming and download paths
+     * to get right, and half-doing it is worse than not starting (the P5 rule).
+     * Queued as its own change.
+     *
+     * Until then this pages a human rather than writing a line nobody reads.
+     * A silent write-loss reported as success is exactly the quiet-neglect
+     * shape B2 exists for — "who finds out?" — and the answer was previously
+     * "nobody, until a tenant notices their invoice is missing".
+     */
     let settled = false;
     const finalize = (commit: boolean): void => {
       if (settled) return;
       settled = true;
-      (commit ? conn.commit() : conn.rollback()).catch((err) =>
-        req.log.error({ err }, "tenant transaction finalize failed"),
-      );
+      (commit ? conn.commit() : conn.rollback()).catch(async (err) => {
+        req.log.error({ err }, "tenant transaction finalize failed");
+        if (!commit) return; // A failed ROLLBACK loses nothing the user was promised.
+        try {
+          await alerter.fire({
+            // The CONDITION, not the occurrence: every instance is the same bug.
+            key: "tenant-commit-after-response",
+            severity: "critical",
+            title: "A request returned 2xx and its transaction then FAILED to commit",
+            detail:
+              `${req.method} ${req.path} answered ${res.statusCode} and the tenant transaction could not be ` +
+              `committed, so the client believes a write succeeded that was never persisted. The response ` +
+              `cannot be recalled — check what this request was meant to write and whether the tenant must redo it.`,
+            // 🔴 Metadata only. Never a body, never financial data (Alert's rule).
+            context: {
+              method: req.method,
+              path: req.path,
+              statusCode: res.statusCode,
+              organizationId: tenant.organizationId,
+            },
+          });
+        } catch (alertErr) {
+          // An alerting failure must not take down the thing it was watching.
+          req.log.error({ err: alertErr }, "failed to page on commit-after-response");
+        }
+      });
     };
     res.on("finish", () => finalize(res.statusCode < 400));
     res.on("close", () => finalize(false));

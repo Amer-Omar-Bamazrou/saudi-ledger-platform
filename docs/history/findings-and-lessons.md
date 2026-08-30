@@ -2949,6 +2949,75 @@ was "narrow your search". The server had a real `total` all along; it now pages.
 
 ---
 
+## 2026-08-30 — working the triage down to three
+
+Four items closed; the reasoning on each is the part worth keeping.
+
+### Rank 1 — a 2xx for a transaction that rolled back: made LOUD, not fixed
+
+`res.on("finish")` fires once the client already holds its 2xx, so a commit that
+then fails leaves the user believing a write happened when nothing persisted.
+**There is no way to un-send the success from where the failure is detected.**
+
+The real fix — commit BEFORE the body goes out — means intercepting
+`res.json`/`res.send`/`res.end` for every request in the product, with streaming
+and download paths to get right. That is a change to the core pipeline, and
+half-doing it is worse than not starting (the P5 rule). Queued as its own change.
+
+🔴 So it now **pages a human** instead of writing a log line nobody reads:
+a `critical` alert keyed on the CONDITION (so a storm dedupes to one page),
+naming the method, path, status and org — **metadata only**, per the Alert
+contract's rule about never carrying financial data. The distinction matters and
+is stated at the code: this is disclosure, not a fix. Previously the answer to
+"who finds out?" was "nobody, until a tenant notices an invoice is missing".
+
+### `onboardingStatus` — the widest cross-tenant read, narrowed three ways
+
+One unpaginated query over every company on the platform, projecting every
+tenant's **VAT number** — a taxpayer identifier — with a credential lookup per
+row.
+
+🔴 `vatNumber` is **dropped**, not paginated alongside the rest. The only thing
+the operator used it for is "can this tenant onboard", and `readyToOnboard`
+already carries that as a derived boolean; returning the identifier was never
+the point. **The narrowest fix was to stop answering the question, not to answer
+it more carefully.** Pagination then bounds the N+1 as a side effect.
+
+### Manual-JE balance failure: 400 → 422
+
+The status policy (2026-08-23) is 400 for a SCHEMA failure and 422 for input
+that parsed cleanly and is semantically invalid. Every line in an unbalanced
+entry is a well-formed number; they simply do not balance. It answered 400 only
+because it predates the policy. The message now carries **both totals and the
+difference** — "must balance" without them makes the user hunt for a discrepancy
+the server has already computed.
+
+### The unread `duplicates` array — shown at last
+
+The API has returned it since the audit that added it, as the stated mitigation
+for rows the import drops, and no page ever read it. 🔴 **An unread field
+standing in for a fix is worse than no fix: it makes the gap look closed**, which
+is why S-1's real defect survived as long as it did. Now that ingest counts by
+multiplicity, the list means something narrower and true — rows this account
+already held — and the import says so.
+
+### Where it stands: three open
+
+1. **No password recovery for a multi-org account** — a real lockout, bounded
+   blast radius. B1's mailer is live so it is buildable; *which* mechanism
+   (operator reset vs self-service email) is a product decision, not a code one.
+2. **`getApplication` accepts any orgId and never expires** — belongs with C8;
+   ask the advisor before building an expiry.
+3. **The M-4/M-5/L-1/L-2/L-4 tail** — M-5 closes with C4's deployment, L-2 and
+   L-4 are accepted trade-offs.
+
+🔴 **Nothing re-ranked on merit.** The consequence gradient is now flat: what
+remains is one product decision, one legal question, and an accepted tail. That
+is a different kind of list from the one this session started with, and it is
+worth saying plainly rather than continuing to rank things that no longer differ.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
