@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { arabicFieldStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -119,7 +120,7 @@ export default function Customers() {
                   <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays}d</Badge></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
                   <td className="py-3 pe-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-amber-400":"text-emerald-400"}`}>{fmtNum(c.balance??0)}</span></td>
-                  <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></td>
+                  <td className="py-3"><Link href={`/customers/${c.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>
             </table>

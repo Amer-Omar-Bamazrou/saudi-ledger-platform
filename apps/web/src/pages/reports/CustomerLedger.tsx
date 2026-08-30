@@ -82,11 +82,31 @@ export default function CustomerLedger() {
   return <CustomerLedgerInner range={range} />;
 }
 
+/**
+ * 🔴 The deep link carries a customer, so the report must READ it.
+ *
+ * `CustomerDetail` links here as "Open statement" with `?customer_id=<id>`.
+ * This page supported the filter all along — the dropdown sets it — but the
+ * initial state was hardcoded to "all", so arriving from a specific customer's
+ * page silently produced every customer's statement. Nothing errored and no
+ * number was wrong; the act just did not carry the scope the user chose, which
+ * is the navigation half of "a destructive act's scope must match what the
+ * user can see". Found by clicking it, not by a test.
+ */
+function initialCustomerId(): string {
+  if (typeof window === "undefined") return "all";
+  const raw = new URLSearchParams(window.location.search).get("customer_id");
+  // Only a positive integer is a customer id; anything else falls back to "all"
+  // rather than being sent to the API as a filter that matches nothing.
+  return raw && /^\d+$/.test(raw) && Number(raw) > 0 ? raw : "all";
+}
+
 function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
-  const [customerId, setCustomerId] = useState("all");
+  const initialCustomer = initialCustomerId();
+  const [customerId, setCustomerId] = useState(initialCustomer);
   const [dateFrom,   setDateFrom]   = useState(range.from);
   const [dateTo,     setDateTo]     = useState(range.to);
-  const [applied,    setApplied]    = useState({ customerId: "all", from: range.from, to: range.to });
+  const [applied,    setApplied]    = useState({ customerId: initialCustomer, from: range.from, to: range.to });
 
   const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
     queryKey: ["customers", "picker"],

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { arabicFieldStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -113,7 +114,7 @@ export default function Vendors() {
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
                   <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-red-400":"text-emerald-400"}`}>{fmtNum(v.balance??0)}</span></td>
-                  <td className="py-3"><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></td>
+                  <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>
             </table>
