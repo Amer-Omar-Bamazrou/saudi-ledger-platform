@@ -21,7 +21,7 @@ interface InvoiceRow { id: number; invoiceNumber: string; date: string; dueDate:
 interface CustomerBalance { customerId: number; customerName: string; taxNumber: string | null; invoices: InvoiceRow[]; totalInvoiced: number; totalPaid: number; balance: number; }
 interface LedgerData { customers: CustomerBalance[]; totalBalance: number; }
 
-const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-blue-500/20 text-blue-400", paid: "bg-emerald-500/20 text-emerald-400", overdue: "bg-red-500/20 text-red-400", partial: "bg-amber-500/20 text-amber-400" };
+const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-blue-500/20 text-blue-400", paid: "bg-emerald-500/20 text-emerald-400", partial: "bg-amber-500/20 text-amber-400" };
 
 function CustomerRow({ cust }: { cust: CustomerBalance }) {
   const [expanded, setExpanded] = useState(true);

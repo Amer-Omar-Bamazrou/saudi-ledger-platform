@@ -12,6 +12,8 @@ import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 export interface InvoiceListFilter {
   status?: string;
   customerId?: number;
+  /** Derived, not stored — see `OVERDUE`. `status` is ignored when this is set. */
+  overdue?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -19,10 +21,38 @@ export interface InvoiceListFilter {
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
 
+/**
+ * 🔴 OVERDUE IS DERIVED FROM DATES, AND THIS IS THE ONLY PLACE IT IS DEFINED.
+ *
+ * `invoices.status` used to carry an `'overdue'` value that **nothing ever
+ * wrote**: the KPI counting it rendered a permanent, confident 0 and the filter
+ * chip returned a clean-looking empty set. A status column would have been a
+ * second representation of a fact the dates already hold, and two
+ * representations of one fact drift — so the value is gone and the question is
+ * answered from `dueDate`.
+ *
+ * The rule matches the aging computation in the web client's `partyDetail.ts`
+ * exactly, INCLUDING the `COALESCE(due_date, date)` fallback — a document with
+ * no due date ages from its own date rather than never ageing at all. Deriving
+ * it here is what makes the two agree instead of requiring them to be kept in
+ * step.
+ *
+ * Not-yet-issued documents cannot be overdue (the zero-movement standard), and
+ * a fully-paid one is not outstanding.
+ */
+const OVERDUE = sql`(
+  COALESCE(NULLIF(${invoicesTable.dueDate}, ''), ${invoicesTable.date})::date < CURRENT_DATE
+  AND ${invoicesTable.status} NOT IN ('draft','submitted','rejected','paid')
+  AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0)) > 0
+)`;
+
 /** One predicate for the rows AND the totals — so they cannot describe different sets. */
 function invoiceListConditions(filter: InvoiceListFilter) {
   const conditions = [];
-  if (filter.status) conditions.push(eq(invoicesTable.status, filter.status));
+  // `overdue` is a derived view of the same set, so it replaces a status filter
+  // rather than narrowing one — asking for both would describe no rows.
+  if (filter.overdue) conditions.push(OVERDUE);
+  else if (filter.status) conditions.push(eq(invoicesTable.status, filter.status));
   if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
@@ -66,11 +96,13 @@ export const invoicesRepository = {
       .select({
         total: sql<number>`count(*)::int`,
         outstanding: sql<number>`COALESCE(SUM(
-          CASE WHEN ${invoicesTable.status} NOT IN ('paid','cancelled')
+          CASE WHEN ${invoicesTable.status} <> 'paid'
                THEN ${invoicesTable.total} - ${invoicesTable.paidAmount} ELSE 0 END), 0)::float8`,
         collected: sql<number>`COALESCE(SUM(
           CASE WHEN ${invoicesTable.status} = 'paid' THEN ${invoicesTable.total} ELSE 0 END), 0)::float8`,
-        overdue: sql<number>`COUNT(*) FILTER (WHERE ${invoicesTable.status} = 'overdue')::int`,
+        // Counted from the SAME predicate the filter uses, so the KPI and the
+        // chip can never describe different sets.
+        overdue: sql<number>`COUNT(*) FILTER (WHERE ${OVERDUE})::int`,
       })
       .from(invoicesTable)
       .where(invoiceListConditions(filter));
@@ -346,7 +378,7 @@ export const invoicesRepository = {
         and(
           isNotNull(invoicesTable.invoiceHash),
           eq(invoicesTable.documentType, "invoice"),
-          sql`${invoicesTable.status} NOT IN ('draft','submitted','paid','cancelled')`,
+          sql`${invoicesTable.status} NOT IN ('draft','submitted','paid')`,
           sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0)) >= 0.01`,
         ),
       )

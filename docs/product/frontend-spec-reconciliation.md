@@ -533,7 +533,7 @@ entity-independent and belongs here. The **Groq Enterprise agreement** may not b
 | # | Step | Why here |
 | --- | --- | --- |
 | 1 | **Own-or-track on `components/ui/**`** · **+ the COGS / chart-of-accounts account decision** | Two decisions, no code. Own-or-track gates the first token commit (§6.4). The COGS decision gates inventory, and it is *not* a token dependency — which is why it is hoisted here rather than discovered inside step 4. |
-| 2 | **Fix items 8 and 15** (`overdue` / `cancelled`) | Small, live, and it **deletes controls** — restyling chips that are about to be removed is waste. Before any page work, not after. |
+| 2 | ✅ **DONE 2026-08-31** — **Fix items 8 and 15** (`overdue` / `cancelled`) | Small, live, and it **deletes controls** — restyling chips that are about to be removed is waste. Before any page work, not after. |
 | 3 | **Token layer + nav settlement**, time-boxed | See §6.4. Not a page-by-page restyle. |
 | 4 | **Inventory / COGS** | The owner's #1. Its only technical dependency is the token layer (step 3) and the account decision (step 1) — both satisfied. |
 | 5 | **PDF** | Its §4.2 status decision is free and can be taken now; the *renderer* waits on step 3 for Arabic shaping, font embedding and numeric alignment. |

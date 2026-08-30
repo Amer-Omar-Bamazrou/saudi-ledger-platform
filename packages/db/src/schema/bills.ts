@@ -28,7 +28,8 @@ export const billsTable = pgTable(
     // Draft/approval workflow (M10.3): draft = editable, not in books nor in the
     // approval queue; submitted = awaiting approval (locked); received = approved
     // & posted to the GL (in AP/expense/VAT). paid/overdue are post-approval.
-    status: text("status").notNull().default("draft"), // draft | submitted | received | approved | paid | overdue
+    // `overdue` removed — DERIVED from due_date (see bills.repository `OVERDUE`).
+    status: text("status").notNull().default("draft"), // draft | submitted | received | approved | paid
     subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull().default("0"),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     total: numeric("total", { precision: 15, scale: 2 }).notNull().default("0"),

@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
   sent: "bg-blue-500/20 text-blue-400",
   paid: "bg-emerald-500/20 text-emerald-400",
-  overdue: "bg-red-500/20 text-red-400",
+
   partial: "bg-amber-500/20 text-amber-400",
 };
 

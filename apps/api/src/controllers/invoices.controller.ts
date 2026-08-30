@@ -13,9 +13,17 @@ function clampPage(raw: string | undefined): number {
 export const invoicesController = {
   async list(req: Request, res: Response) {
     const { status, customer_id, limit, offset } = req.query as Record<string, string>;
+    /**
+     * `status=overdue` is answered from the DATES, not from a status value.
+     * The value no longer exists on the column; the query alias stays because
+     * overdue is what a user is asking for, and the repository is the single
+     * place that decides what it means.
+     */
+    const overdue = status === "overdue";
     res.json(
       await invoicesService.list({
-        status: status || undefined,
+        status: overdue ? undefined : status || undefined,
+        overdue: overdue || undefined,
         customerId: customer_id ? Number(customer_id) : undefined,
         // Bounded so a hand-built request cannot ask for the whole ledger, and
         // NaN falls back to the default rather than to `LIMIT NaN`.
