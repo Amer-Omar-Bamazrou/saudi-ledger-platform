@@ -1,10 +1,20 @@
 /** Fixed assets repository — tenant-scoped via RLS. */
-import { db, fixedAssetsTable, depreciationEntriesTable } from "@workspace/db";
+import { db, fixedAssetsTable, depreciationEntriesTable, categoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export const assetsRepository = {
+  /**
+   * 🔴 The category NAME is joined, because the Fixed Asset Schedule has a
+   * Category column and the row carries only `category_id`. The page had been
+   * reading `a.category` — a field no response ever contained — so the column
+   * rendered blank beside four other invented fields that rendered NaN.
+   */
   list() {
-    return db.select().from(fixedAssetsTable).orderBy(fixedAssetsTable.purchaseDate);
+    return db
+      .select({ asset: fixedAssetsTable, categoryName: categoriesTable.name })
+      .from(fixedAssetsTable)
+      .leftJoin(categoriesTable, eq(fixedAssetsTable.categoryId, categoriesTable.id))
+      .orderBy(fixedAssetsTable.purchaseDate);
   },
   findById(id: number) {
     return db.select().from(fixedAssetsTable).where(eq(fixedAssetsTable.id, id)).limit(1);

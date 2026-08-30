@@ -7,9 +7,20 @@ import { Package, Download } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+/**
+ * 🔴 These are GET /assets' real field names, checked by
+ * `tests/list-response-shape.test.ts` against the live response.
+ *
+ * This interface previously named five fields the endpoint has never returned
+ * (`category`, `cost`, `usefulLife`, `depreciation`, `bookValue`).
+ * `apiFetch<T>` is a cast, so TypeScript agreed — and every money cell on this
+ * schedule, including the totals row, rendered **NaN**, with "undefinedy" in
+ * the Useful Life column.
+ */
 interface AssetRow {
-  id: number; name: string; category: string; purchaseDate: string; cost: number;
-  usefulLife: number; depreciation: string; accumulatedDepreciation: number; bookValue: number; status: string;
+  id: number; name: string; categoryName: string | null; purchaseDate: string; purchaseCost: number;
+  usefulLifeYears: number; depreciationMethod: string; accumulatedDepreciation: number;
+  currentBookValue: number; status: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -25,9 +36,9 @@ export default function AssetSchedule() {
     queryFn: () => apiFetch<AssetRow[]>("/assets").catch(() => [] as AssetRow[]),
   });
 
-  const totalCost = assets.reduce((s, a) => s + a.cost, 0);
+  const totalCost = assets.reduce((s, a) => s + a.purchaseCost, 0);
   const totalAccumDep = assets.reduce((s, a) => s + a.accumulatedDepreciation, 0);
-  const totalBookValue = assets.reduce((s, a) => s + a.bookValue, 0);
+  const totalBookValue = assets.reduce((s, a) => s + a.currentBookValue, 0);
 
   return (
     <div className="space-y-6">
@@ -75,13 +86,13 @@ export default function AssetSchedule() {
                 {assets.map(a => (
                   <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pe-3 font-medium text-xs">{a.name}</td>
-                    <td className="py-2 pe-3 text-muted-foreground text-xs">{a.category}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs">{a.categoryName ?? "—"}</td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
-                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.cost)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLife}y</td>
-                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciation}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.purchaseCost)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLifeYears}y</td>
+                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciationMethod}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(a.accumulatedDepreciation)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.bookValue)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs font-semibold text-emerald-400">{fmtNum(a.currentBookValue)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status.replace("_", " ")}</Badge></td>
                   </tr>
                 ))}

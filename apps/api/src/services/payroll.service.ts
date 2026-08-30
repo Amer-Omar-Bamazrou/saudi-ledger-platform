@@ -20,8 +20,19 @@ import { payrollRepository } from "../repositories/payroll.repository";
 
 export const payrollService = {
   async list() {
-    const rows = await payrollRepository.listRuns();
-    return rows.map(runToOut);
+    const [rows, itemTotals] = await Promise.all([
+      payrollRepository.listRuns(),
+      payrollRepository.runItemTotals(),
+    ]);
+    const byRun = new Map(itemTotals.map((t) => [t.payrollRunId, t]));
+    return rows.map((r) => {
+      const t = byRun.get(r.id);
+      return {
+        ...runToOut(r),
+        employeeCount: Number(t?.employeeCount ?? 0),
+        grossSalary: Number(t?.grossSalary ?? 0),
+      };
+    });
   },
 
   async getById(id: number) {

@@ -24,17 +24,39 @@ export interface VendorMatchResult {
 }
 
 export const vendorsService = {
-  list(filter: VendorListFilter) {
-    return vendorsRepository.list(filter);
+  /**
+   * 🔴 The list carries each vendor's AP, because the page shows it — and did
+   * not, so "Total AP" and "Total Billed" read 0.00 for every tenant. Two
+   * queries, not N+1: the balances come back grouped and are matched in memory.
+   */
+  async list(filter: VendorListFilter) {
+    const [rows, balances] = await Promise.all([
+      vendorsRepository.list(filter),
+      vendorsRepository.vendorBalances(),
+    ]);
+    const byVendor = new Map(balances.map((b) => [b.vendorId, b]));
+    return rows.map((v) => {
+      const bal = byVendor.get(v.id);
+      const totalBilled = Number(bal?.totalBilled ?? 0);
+      const totalPaid = Number(bal?.totalPaid ?? 0);
+      return { ...v, totalBilled, totalPaid, balance: totalBilled - totalPaid };
+    });
   },
 
   async getById(id: number) {
     const [vendor] = await vendorsRepository.findById(id);
     if (!vendor) throw new NotFoundError("Vendor not found");
-    const bills = await vendorsRepository.billsByVendor(id);
-    const totalBilled = bills.reduce((s, b) => s + Number(b.total), 0);
-    const totalPaid = bills.reduce((s, b) => s + Number(b.paidAmount ?? 0), 0);
-    return { ...vendor, totalBilled, totalPaid, balance: totalBilled - totalPaid, billCount: bills.length };
+    // Same aggregate the list reads, so the two cannot disagree about what we owe.
+    const [bal] = await vendorsRepository.vendorBalances(id);
+    const totalBilled = Number(bal?.totalBilled ?? 0);
+    const totalPaid = Number(bal?.totalPaid ?? 0);
+    return {
+      ...vendor,
+      totalBilled,
+      totalPaid,
+      balance: totalBilled - totalPaid,
+      billCount: Number(bal?.billCount ?? 0),
+    };
   },
 
   async match({ vatNumber, vendorName }: VendorMatchInput): Promise<VendorMatchResult> {

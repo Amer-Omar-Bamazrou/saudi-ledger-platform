@@ -36,7 +36,7 @@ const toEntryView = (e: DepEntry) => ({ ...e, amount: toNum(e.amount), bookValue
 export const assetsService = {
   async list() {
     const rows = await assetsRepository.list();
-    return rows.map(toView);
+    return rows.map(({ asset, categoryName }) => ({ ...toView(asset), categoryName }));
   },
 
   async getById(id: number) {

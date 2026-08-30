@@ -4,7 +4,6 @@
  */
 import { NotFoundError } from "../lib/errors";
 import { pick, assertAmount } from "../lib/writeGuards";
-import { documentSign } from "../repositories/reports.repository";
 import { auditService } from "./audit.service";
 import { customersRepository, type CustomerListFilter } from "../repositories/customers.repository";
 import type { customersTable } from "@workspace/db";
@@ -25,9 +24,26 @@ const toView = (c: Customer) => ({
 });
 
 export const customersService = {
+  /**
+   * 🔴 The list carries each customer's AR, because the page shows it.
+   *
+   * It did not, and the page summed `c.balance ?? 0` over a field that was
+   * never in the response — so "Total AR" and "Total Billed" read 0.00 for
+   * every tenant, forever, looking exactly like a true answer. Two queries,
+   * not N+1: the balances come back grouped and are matched in memory.
+   */
   async list(filter: CustomerListFilter) {
-    const rows = await customersRepository.list(filter);
-    return rows.map(toView);
+    const [rows, balances] = await Promise.all([
+      customersRepository.list(filter),
+      customersRepository.customerBalances(),
+    ]);
+    const byCustomer = new Map(balances.map((b) => [b.customerId, b]));
+    return rows.map((c) => {
+      const bal = byCustomer.get(c.id);
+      const totalBilled = Number(bal?.totalBilled ?? 0);
+      const totalPaid = Number(bal?.totalPaid ?? 0);
+      return { ...toView(c), totalBilled, totalPaid, balance: totalBilled - totalPaid };
+    });
   },
 
   async getById(id: number) {
@@ -45,20 +61,21 @@ export const customersService = {
      *  2. Credit notes reduce the balance; debit notes add to it. Amounts are
      *     stored positive, so the sign is applied explicitly (see
      *     `documentSign`).
+     *
+     * 🔴 Both rules now live in `customerBalances`, in SQL, so this page and the
+     * list cannot answer the same question differently. The rules did not
+     * change; where they are stated did.
      */
-    const invoices = await customersRepository.issuedInvoicesByCustomer(id);
-    const totalBilled = invoices.reduce((s, i) => s + documentSign(i.documentType) * Number(i.total), 0);
-    const totalPaid = invoices.reduce(
-      (s, i) => s + documentSign(i.documentType) * Number(i.paidAmount ?? 0),
-      0,
-    );
+    const [bal] = await customersRepository.customerBalances(id);
+    const totalBilled = Number(bal?.totalBilled ?? 0);
+    const totalPaid = Number(bal?.totalPaid ?? 0);
 
     return {
       ...toView(customer),
       totalBilled,
       totalPaid,
       balance: totalBilled - totalPaid,
-      invoiceCount: invoices.length,
+      invoiceCount: Number(bal?.invoiceCount ?? 0),
     };
   },
 
