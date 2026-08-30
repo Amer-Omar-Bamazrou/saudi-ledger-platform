@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, pool } from "./index";
+import { ownerDb, pool } from "./index";
 import {
   organizationsTable,
   companiesTable,
@@ -34,7 +34,7 @@ export interface SeededTenant {
 }
 
 export async function seedDefaultTenant(): Promise<SeededTenant> {
-  return db.transaction(async (tx) => {
+  return ownerDb.transaction(async (tx) => {
     // --- Organization (unique by slug) ---
     let created = { organization: false, company: false };
 
@@ -141,7 +141,7 @@ export async function seedAdminUser(organizationId: string): Promise<SeededAdmin
 
   // (1) Ensure the admin user row exists; capture its id either way.
   let created = false;
-  let [user] = await db
+  let [user] = await ownerDb
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(eq(usersTable.email, email))
@@ -149,7 +149,7 @@ export async function seedAdminUser(organizationId: string): Promise<SeededAdmin
 
   if (!user) {
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    [user] = await db
+    [user] = await ownerDb
       .insert(usersTable)
       .values({ email, name, passwordHash, role: "admin", isActive: true })
       .returning({ id: usersTable.id });
@@ -158,7 +158,7 @@ export async function seedAdminUser(organizationId: string): Promise<SeededAdmin
 
   // (2) Ensure an active admin membership in the default org. Idempotent via the
   //     unique (user_id, organization_id) constraint — re-running never dupes.
-  const inserted = await db
+  const inserted = await ownerDb
     .insert(organizationMembershipsTable)
     .values({ userId: user!.id, organizationId, role: "admin", status: "active" })
     .onConflictDoNothing({
@@ -210,7 +210,7 @@ export async function seedPlatformOperator(): Promise<SeededOperator> {
 
   // (1) Ensure the operator user exists (global identity, NO membership).
   let created = false;
-  let [user] = await db
+  let [user] = await ownerDb
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(eq(usersTable.email, email))
@@ -218,7 +218,7 @@ export async function seedPlatformOperator(): Promise<SeededOperator> {
 
   if (!user) {
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    [user] = await db
+    [user] = await ownerDb
       .insert(usersTable)
       .values({ email, name, passwordHash, role: "viewer", isActive: true })
       .returning({ id: usersTable.id });
@@ -226,7 +226,7 @@ export async function seedPlatformOperator(): Promise<SeededOperator> {
   }
 
   // (2) Grant operator status. Idempotent on the unique user_id.
-  const inserted = await db
+  const inserted = await ownerDb
     .insert(platformOperatorsTable)
     .values({ userId: user!.id })
     .onConflictDoNothing({ target: platformOperatorsTable.userId })

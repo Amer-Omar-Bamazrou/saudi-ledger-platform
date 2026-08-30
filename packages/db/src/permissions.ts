@@ -1,4 +1,4 @@
-import { db } from "./index";
+import { ownerDb } from "./index";
 import { permissionsTable } from "./schema";
 
 /**
@@ -193,12 +193,12 @@ export interface SeededPermissions {
  * pruning stale grants is a deliberate, separate operation.
  */
 export async function seedPermissions(): Promise<SeededPermissions> {
-  const inserted = await db
+  const inserted = await ownerDb
     .insert(permissionsTable)
     .values(PERMISSION_MATRIX)
     .onConflictDoNothing()
     .returning({ id: permissionsTable.id });
 
-  const all = await db.select({ id: permissionsTable.id }).from(permissionsTable);
+  const all = await ownerDb.select({ id: permissionsTable.id }).from(permissionsTable);
   return { inserted: inserted.length, total: all.length };
 }
