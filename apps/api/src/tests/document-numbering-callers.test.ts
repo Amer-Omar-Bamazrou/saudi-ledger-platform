@@ -233,3 +233,92 @@ describeMaybe("the allocator's callers, exercised against real rows", () => {
     expect(numbers.filter((n: string) => n.startsWith("REC-"))).toEqual([]);
   });
 });
+
+describeMaybe("THE SWEEP — the same mint in the documents AUD-1 did not cover", () => {
+  /**
+   * 🔴 AUD-1 fixed invoices and credit notes and did not sweep the shape. The
+   * sweep found FIVE instances of `${PREFIX}-${Date.now().slice(-N)}`, of which
+   * the fix had covered two — and the unfixed ones were worse, because none of
+   * those columns has a unique index. A collision on an invoice number was
+   * REFUSED; a collision on an entry or bill number was accepted silently.
+   */
+  let orgId = "";
+  let companyId = "";
+  let userId = 0;
+  const SLUG2 = "doc-number-sweep";
+
+  const wipe = async () => {
+    const org = `(SELECT id FROM organizations WHERE slug = '${SLUG2}')`;
+    await pool.query(`DELETE FROM journal_entry_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE organization_id IN ${org})`);
+    await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bill_items WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
+    await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM document_number_counters WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
+    const { rows } = await pool.query(`SELECT user_id FROM organization_memberships WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM organization_memberships WHERE organization_id IN ${org}`);
+    for (const r of rows) await pool.query(`DELETE FROM users WHERE id = $1`, [r.user_id]);
+    await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG2}'`);
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    orgId = (await pool.query(
+      `INSERT INTO organizations (name, slug, verification_status) VALUES ('Sweep Org','${SLUG2}','approved') RETURNING id`,
+    )).rows[0].id;
+    companyId = (await pool.query(
+      `INSERT INTO companies (organization_id, name) VALUES ($1,'Sweep Co') RETURNING id`, [orgId],
+    )).rows[0].id;
+    userId = (await pool.query(
+      `INSERT INTO users (email, password_hash, name) VALUES ($1,'x','Sweeper') RETURNING id`,
+      [`doc-sweep-${Date.now()}@example.test`],
+    )).rows[0].id;
+    await pool.query(
+      `INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`,
+      [orgId, userId],
+    );
+  });
+
+  afterAll(wipe);
+
+  it("🔴 a BILL left blank takes the next number in its own series", async () => {
+    const { billsService } = await import("../services/bills.service");
+    const a = await inTenant(orgId, companyId, userId, () =>
+      billsService.create({ date: "2026-08-01", total: 100, items: [] } as never, userId));
+    const b = await inTenant(orgId, companyId, userId, () =>
+      billsService.create({ date: "2026-08-02", total: 200, items: [] } as never, userId));
+    expect((a as { billNumber: string }).billNumber).toMatch(/^BILL-\d{6}$/);
+    expect(Number((b as { billNumber: string }).billNumber.slice(-6)))
+      .toBe(Number((a as { billNumber: string }).billNumber.slice(-6)) + 1);
+    // Never the shape the browser used to mint.
+    expect((a as { billNumber: string }).billNumber).not.toMatch(/^BILL-\d{1,5}$/);
+  });
+
+  it("🔴 a JOURNAL ENTRY left blank takes the next number in a SEPARATE series", async () => {
+    const { journalEntriesService } = await import("../services/journalEntries.service");
+    // M13: every line must name an account, so the fixture uses the org's own
+    // seeded chart rather than inventing accountless lines.
+    const { rows: cats } = await pool.query(
+      `SELECT id FROM categories WHERE organization_id = $1 ORDER BY id LIMIT 2`, [orgId]);
+    const je = await inTenant(orgId, companyId, userId, () =>
+      journalEntriesService.create({
+        date: "2026-08-01",
+        description: "Sweep",
+        lines: [
+          { accountId: cats[0].id, accountName: "Cash", debitAmount: 10, creditAmount: 0 },
+          { accountId: cats[1].id, accountName: "Sales", debitAmount: 0, creditAmount: 10 },
+        ],
+      } as never, userId));
+    // Its own counter: the bill series above is at 2 and this starts at 1.
+    expect((je as { entryNumber: string }).entryNumber).toBe("JE-000001");
+  });
+
+  it("a caller-supplied number is still honoured — legacy imports keep their series", async () => {
+    const { billsService } = await import("../services/bills.service");
+    const own = await inTenant(orgId, companyId, userId, () =>
+      billsService.create({ date: "2026-08-03", billNumber: "SUPPLIER-77", total: 50, items: [] } as never, userId));
+    expect((own as { billNumber: string }).billNumber).toBe("SUPPLIER-77");
+  });
+});

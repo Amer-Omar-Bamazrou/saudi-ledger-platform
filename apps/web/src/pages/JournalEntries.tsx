@@ -34,7 +34,7 @@ export default function JournalEntries() {
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [form, setForm] = useState({ entryNumber: `JE-${Date.now().toString().slice(-6)}`, date: new Date().toISOString().split("T")[0], description: "", reference: "", notes: "" });
+  const [form, setForm] = useState({ entryNumber: "", date: new Date().toISOString().split("T")[0], description: "", reference: "", notes: "" });
   const [lines, setLines] = useState<JELine[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();

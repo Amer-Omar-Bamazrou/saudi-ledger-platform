@@ -3018,6 +3018,72 @@ worth saying plainly rather than continuing to rank things that no longer differ
 
 ---
 
+## 2026-08-30 — THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one
+
+### What the sweep found
+
+AUD-1 caught `CreditNotes.tsx` minting `CN-${Date.now().toString().slice(-6)}`
+and fixed invoices and credit notes by letting C12's server counter allocate.
+**It did not sweep the shape.** One grep for `Date.now()` in a number field:
+
+| Instance | Constrained? | Consequence of a collision |
+| --- | --- | --- |
+| `Invoices` / `CreditNotes` (FIXED by AUD-1) | `UNIQUE(company_id, invoice_number)` | **Refused by the database** |
+| `JournalEntries.tsx` — `JE-…` | none | Two entries claiming to be the same document, accepted |
+| `Bills.tsx` — `BILL-…` | none | Two bills claiming to be the same document, accepted |
+| `ScanReview.tsx` — `BILL-…` | none | Same, from the capture path |
+| `Assets.tsx` — `FA-…`, `Employees.tsx` — `EMP-…` | none | Duplicate reference numbers |
+
+🔴 **The audit had named the only instance the database would have caught.**
+`slice(-6)` keeps the last six digits of a millisecond clock and wraps every
+~16.7 minutes, so this is not a theoretical collision — it is a scheduled one.
+
+### The rule this earns
+
+**Fixing a reported instance without sweeping its shape leaves the reachable
+copies in place, and the reported one is often the least dangerous.** It is the
+inverse of the composition class: composition is many findings adding up to more
+than their sum; this is *one finding standing for a set nobody enumerated*.
+**The report is a sample, not an inventory.**
+
+Recorded with an uncomfortable detail: the `BILL-${Date.now()}` instance was
+NOTICED during AUD-1's fix and written down as "lower stakes — bills aren't
+ZATCA-numbered", then left. That reasoning was right about the compliance half
+and wrong about the collision half, and nothing prompted a re-read of it.
+
+### The fix, sized to the difference between the tiers
+
+Migration 0063 adds `document_number_counters` — per company, per document type,
+monotonic, seeded from existing counter-shaped numbers so a first allocation
+cannot collide with a number a tenant already uses. Allocation is one atomic
+UPSERT, the shape C12 proved necessary by re-injection (a read-then-write
+allocator collapsed 8 concurrent allocations onto 1).
+
+🔴 One series **per type**, not one shared series: C12's single-sequence rule is
+ZATCA's, about invoices and their notes. Copying it to internal references would
+invent a constraint nobody stated — the "a mirror is a hypothesis" trap. For the
+same reason there is no year prefix here.
+
+Journal entries and bills now allocate when the caller leaves the number blank;
+a supplied number is still honoured for legacy imports. **Assets and employees
+are deliberately NOT converted** — those numbers identify a thing rather than a
+posting, and giving them a server series is a decision, not a bug fix. Their
+collision risk is recorded rather than silently accepted.
+
+### A tool that reported success for doing nothing
+
+`drizzle-kit migrate` printed **"migrations applied successfully"** with the new
+file present and unapplied: the `.sql` had not been registered in
+`meta/_journal.json`, so there was simply nothing to apply, and "nothing" and
+"everything" produce the same message. It surfaced only because the new tests
+failed with `relation "document_number_counters" does not exist`.
+
+Same family as `| tail` swallowing an exit code (§10b) — **a success message
+that cannot distinguish "did the work" from "found no work"**. When a migration
+matters, assert the object exists rather than reading the tool's verdict.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

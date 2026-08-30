@@ -224,7 +224,10 @@ export default function ScanReview() {
       const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
         method: "POST",
         body: JSON.stringify({
-          billNumber:      `BILL-${Date.now().toString().slice(-6)}`,
+          // 🔴 Blank: the server allocates from the company's bill counter.
+          // See the note in Bills.tsx — this was the second instance of the
+          // same mint, and the sweep is why it was found.
+          billNumber:      undefined,
           vendorReference: fields.invoiceNumber || undefined,
           date:            fields.date,
           vendorId,

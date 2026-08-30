@@ -45,7 +45,14 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const makeEmpty = () => ({
-  billNumber: `BILL-${Date.now().toString().slice(-6)}`,
+  /**
+   * 🔴 BLANK — the server allocates. This minted `BILL-${Date.now().slice(-6)}`,
+   * which wraps every ~16.7 minutes onto a column with NO unique index, so a
+   * collision produced two bills claiming to be the same document and nothing
+   * refused it. Same defect AUD-1 fixed for invoices; found by sweeping the
+   * shape rather than the instance.
+   */
+  billNumber: "",
   vendorReference: "",
   date: new Date().toISOString().split("T")[0],
   dueDate: "",

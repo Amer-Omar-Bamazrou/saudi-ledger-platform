@@ -13,6 +13,7 @@
  * number (fixing the pre-existing 500 when it was missing/invalid), and the
  * payment posts Dr AP / Cr Cash.
  */
+import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -94,6 +95,21 @@ export const billsService = {
     // for a no-items bill, the totals — validated ≥ 0). The raw spread let a
     // draft be created pre-"approved", payable against an AP balance never
     // posted (a permanent GL imbalance through the pay path).
+
+    /**
+     * 🔴 Server-allocated when the caller leaves it blank — the AUD-1 fix,
+     * swept to the documents it originally missed.
+     *
+     * The browser used to mint `BILL-${Date.now().toString().slice(-6)}`, which
+     * wraps every ~16.7 minutes onto a column with NO unique index: a collision
+     * produced two financial records claiming to be the same document, and
+     * nothing refused it. A caller-supplied number is still honoured (legacy
+     * imports and a user who types their own); blank is what asks the server.
+     */
+    if (!String(body.billNumber ?? "").trim()) {
+      body.billNumber = await documentNumbersRepository.allocate("bill");
+    }
+
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total",

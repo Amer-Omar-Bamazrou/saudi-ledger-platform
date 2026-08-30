@@ -12,6 +12,7 @@
  * Balancing, immutability guards, and reversal are preserved exactly.
  */
 import { ConflictError, NotFoundError, BusinessRuleError } from "../lib/errors";
+import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
@@ -49,6 +50,21 @@ export const journalEntriesService = {
     // can NEVER come from the client: a POST with `{status:"posted"}` used to
     // bypass approval straight into every report. The entry is always a draft;
     // posting is the approval transition.
+
+    /**
+     * 🔴 Server-allocated when the caller leaves it blank — the AUD-1 fix,
+     * swept to the documents it originally missed.
+     *
+     * The browser used to mint `JE-${Date.now().toString().slice(-6)}`, which
+     * wraps every ~16.7 minutes onto a column with NO unique index: a collision
+     * produced two financial records claiming to be the same document, and
+     * nothing refused it. A caller-supplied number is still honoured (legacy
+     * imports and a user who types their own); blank is what asks the server.
+     */
+    if (!String(body.entryNumber ?? "").trim()) {
+      body.entryNumber = await documentNumbersRepository.allocate("journal_entry");
+    }
+
     const jeData = pick<{ entryNumber: string; date: string; description: string; reference: string; notes: string }>(
       body,
       ["entryNumber", "date", "description", "reference", "notes"],
