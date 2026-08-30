@@ -18,6 +18,7 @@
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { customersRepository } from "../repositories/customers.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 /**
  * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
@@ -154,15 +155,20 @@ async function assertConvertedLinesUnchanged(quotationId: number, incoming: any[
 
 export const quotationsService = {
   async list(filter: QuotationListFilter) {
-    const [rows, totals] = await Promise.all([
+    const [rows, totals, total] = await Promise.all([
       quotationsRepository.list(filter),
       // AUD-3: the list states a conversion status, so it must load what that
       // status is derived from. One grouped query for the page.
       quotationsRepository.conversionTotals(),
+      quotationsRepository.listCount(filter),
     ]);
-    return rows.map((r) =>
-      buildQuotationOut(r.quo, r.cust, undefined, undefined, undefined, totals.get(r.quo.id)),
-    );
+    return {
+      items: rows.map((r) =>
+        buildQuotationOut(r.quo, r.cust, undefined, undefined, undefined, totals.get(r.quo.id)),
+      ),
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals: {},
+    };
   },
 
   async getById(id: number) {

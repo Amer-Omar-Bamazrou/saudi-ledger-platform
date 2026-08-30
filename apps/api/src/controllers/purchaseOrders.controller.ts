@@ -4,7 +4,7 @@ import { purchaseOrderConversionService } from "../services/purchaseOrderConvers
 import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
 /** Validated, not merely coerced — see lib/httpParams. */
-import { requireIdParam as requireId } from "../lib/httpParams";
+import { pageParams, requireIdParam as requireId } from "../lib/httpParams";
 
 export const purchaseOrdersController = {
   async list(req: Request, res: Response) {
@@ -17,6 +17,7 @@ export const purchaseOrdersController = {
         status: status || undefined,
         vendorId: vendor_id ? Number(vendor_id) : undefined,
         outcome: (outcome as "live" | "cancelled" | "closed") || undefined,
+        ...pageParams(req.query as Record<string, unknown>),
       }),
     );
   },

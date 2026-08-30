@@ -9,26 +9,45 @@ import {
   vendorsTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface PurchaseOrderListFilter {
   status?: string;
   vendorId?: number;
   outcome?: "live" | "cancelled" | "closed";
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function purchaseOrderListConditions(filter: PurchaseOrderListFilter) {
+  const conditions = [];
+  if (filter.status) conditions.push(eq(purchaseOrdersTable.status, filter.status));
+  if (filter.vendorId) conditions.push(eq(purchaseOrdersTable.vendorId, filter.vendorId));
+  if (filter.outcome === "live") conditions.push(sql`${purchaseOrdersTable.outcome} IS NULL`);
+  else if (filter.outcome) conditions.push(eq(purchaseOrdersTable.outcome, filter.outcome));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export const purchaseOrdersRepository = {
   list(filter: PurchaseOrderListFilter) {
-    const conditions = [];
-    if (filter.status) conditions.push(eq(purchaseOrdersTable.status, filter.status));
-    if (filter.vendorId) conditions.push(eq(purchaseOrdersTable.vendorId, filter.vendorId));
-    if (filter.outcome === "live") conditions.push(sql`${purchaseOrdersTable.outcome} IS NULL`);
-    else if (filter.outcome) conditions.push(eq(purchaseOrdersTable.outcome, filter.outcome));
     return db
       .select({ po: purchaseOrdersTable, vendor: vendorsTable })
       .from(purchaseOrdersTable)
       .leftJoin(vendorsTable, eq(purchaseOrdersTable.vendorId, vendorsTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(purchaseOrdersTable.date), desc(purchaseOrdersTable.id));
+      .where(purchaseOrderListConditions(filter))
+      .orderBy(desc(purchaseOrdersTable.date), desc(purchaseOrdersTable.id))
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: PurchaseOrderListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(purchaseOrdersTable)
+      .where(purchaseOrderListConditions(filter));
+    return Number(row?.total ?? 0);
   },
 
   findWithVendor(id: number) {

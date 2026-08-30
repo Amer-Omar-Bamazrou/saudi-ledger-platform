@@ -9,27 +9,46 @@ import {
   customersTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface QuotationListFilter {
   status?: string;
   customerId?: number;
   /** `live` hides quotations the tenant has declined or closed. */
   outcome?: "live" | "declined" | "closed";
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function quotationListConditions(filter: QuotationListFilter) {
+  const conditions = [];
+  if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
+  if (filter.customerId) conditions.push(eq(quotationsTable.customerId, filter.customerId));
+  if (filter.outcome === "live") conditions.push(sql`${quotationsTable.outcome} IS NULL`);
+  else if (filter.outcome) conditions.push(eq(quotationsTable.outcome, filter.outcome));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export const quotationsRepository = {
   list(filter: QuotationListFilter) {
-    const conditions = [];
-    if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
-    if (filter.customerId) conditions.push(eq(quotationsTable.customerId, filter.customerId));
-    if (filter.outcome === "live") conditions.push(sql`${quotationsTable.outcome} IS NULL`);
-    else if (filter.outcome) conditions.push(eq(quotationsTable.outcome, filter.outcome));
     return db
       .select({ quo: quotationsTable, cust: customersTable })
       .from(quotationsTable)
       .leftJoin(customersTable, eq(quotationsTable.customerId, customersTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(quotationsTable.date), desc(quotationsTable.id));
+      .where(quotationListConditions(filter))
+      .orderBy(desc(quotationsTable.date), desc(quotationsTable.id))
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: QuotationListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(quotationsTable)
+      .where(quotationListConditions(filter));
+    return Number(row?.total ?? 0);
   },
 
   findWithCustomer(id: number) {

@@ -5,7 +5,7 @@ import { can } from "../lib/rbac";
 import { BadRequestError } from "../lib/errors";
 // Ids validated, not merely coerced — this controller's local helper became
 // lib/httpParams when the queued ~9-controller finding was fixed (2026-08-23).
-import { requireIdParam as requireId } from "../lib/httpParams";
+import { pageParams, requireIdParam as requireId } from "../lib/httpParams";
 
 export const quotationsController = {
   async list(req: Request, res: Response) {
@@ -18,6 +18,7 @@ export const quotationsController = {
         status: status || undefined,
         customerId: customer_id ? Number(customer_id) : undefined,
         outcome: (outcome as "live" | "declined" | "closed") || undefined,
+        ...pageParams(req.query as Record<string, unknown>),
       }),
     );
   },

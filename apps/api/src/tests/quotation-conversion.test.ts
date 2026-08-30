@@ -257,7 +257,7 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
      */
     const detail = await inTenant(() => quotationsService.getById(quotationId));
     const list = await inTenant(() => quotationsService.list({}));
-    const row = list.find((q) => q.id === quotationId)!;
+    const row = list.items.find((q) => q.id === quotationId)!;
 
     expect(detail.conversionState).toBe("converted");
     expect(row.conversionState).toBe(detail.conversionState);

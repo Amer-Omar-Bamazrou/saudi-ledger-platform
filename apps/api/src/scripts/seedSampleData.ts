@@ -151,7 +151,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // first. Keying on the first would make a half-finished run report "already
   // seeded" over an incomplete org — which is how the first draft failed.
   const priorPos = await inTenant(() => purchaseOrdersService.list({} as never));
-  if (priorPos.length > 0) {
+  if (priorPos.page.total > 0) {
     console.log("[sample] already seeded — nothing to do (re-running is a no-op by design).");
     return;
   }

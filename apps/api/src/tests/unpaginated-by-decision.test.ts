@@ -18,6 +18,7 @@
  *                   accounts a tenant cannot then post to.
  *   /budgets        one per category per period
  *   /payroll        one run per month
+ *   /recurring      a handful of rules a tenant set up by hand
  *
  * Paginating them would add a control nobody needs and, for the two picker
  * sources, would quietly remove options — the worse half of the same disease.
@@ -73,7 +74,7 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
 
   const wipe = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
-    for (const t of ["payroll_runs", "budgets", "bank_accounts", "categories"]) {
+    for (const t of ["recurring_runs", "recurring_rules", "payroll_runs", "budgets", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
@@ -118,6 +119,19 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
       [orgId, companyId],
     );
 
+    const ruleValues: string[] = [];
+    for (let i = 0; i < ROWS; i++) {
+      ruleValues.push(
+        `($1, $2, 'invoice', '{}'::jsonb, 'monthly', 1, '2026-01-01', '2026-02-01')`,
+      );
+    }
+    await pool.query(
+      `INSERT INTO recurring_rules (organization_id, company_id, entity, template, frequency,
+                                    day_of_month, starts_on, next_run_on)
+       VALUES ${ruleValues.join(",")}`,
+      [orgId, companyId],
+    );
+
     // Budgets need a category; one is enough, the period makes each row distinct.
     const catId = (
       await pool.query(`SELECT id FROM categories WHERE organization_id = $1 LIMIT 1`, [orgId])
@@ -152,6 +166,7 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
     ["/bank-accounts", "bank_accounts", async () => (await import("../services/bankAccounts.service")).bankAccountsService.list()],
     ["/budgets", "budgets", async () => (await import("../services/budgets.service")).budgetsService.list()],
     ["/payroll", "payroll_runs", async () => (await import("../services/payroll.service")).payrollService.list()],
+    ["/recurring", "recurring_rules", async () => (await import("../services/recurring/recurring.service")).recurringService.list()],
   ];
 
   for (const [endpoint, table, list] of cases) {
