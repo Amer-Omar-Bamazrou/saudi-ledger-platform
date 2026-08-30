@@ -2157,10 +2157,28 @@ referent, corrected rather than built to):
 | 2026-08-24 | A work order for a milestone, in the project's own vocabulary | The milestone did not exist; the owner had answered a plan nobody proposed. Caught because the name matched no record, so the data was queried before any code. |
 | 2026-08-28 | S-3 as double-counting in AR aging | One aging path, joined on customer id; totals correct. Nothing doubles. |
 | 2026-08-28 | S-3 as a `Map.set` overwrite dropping an invoice | No overwriting `.set` in any money path; three colliding invoices produce three rows. |
+| 2026-08-30 | A description of "our" ADR practice and architecture, pasted in as ours | **A different system entirely.** The give-away was not the missing `docs/adr/` — absence is weak evidence, since a directory we never created and one we deleted look identical. It was **`resolveTenant`**: the description assumed subdomain-per-tenant routing, and this platform resolves the tenant from the SESSION and offers an org switcher. Those are architecturally incompatible, so it could not be a decision we made and forgot. The source turned out to be someone else's prompt, pasted by mistake. |
 
 The countermeasure is unchanged and is already §3's rule — *an instruction's
 referent is an input, check it against the data* — extended by this session to
 cover the instruction's **mechanism**, not only its subject.
+
+🔴 **What the 2026-08-30 row adds: prefer POSITIVE contradicting evidence to
+absence.** The instinct on a mismatched referent is to report what is missing,
+and missing things are the weakest evidence available — a file we never wrote
+and a file we deleted look the same. What actually settled this one was a fact
+PRESENT in the code that could not coexist with the claim: session-scoped
+tenancy with an org switcher cannot be reconciled with subdomain-per-tenant.
+Owner, on being shown both: *"the `resolveTenant` evidence settles it better
+than the missing files do."*
+
+**And the value survived the referent being wrong**, the same way the S-3 rows
+did. The practice described was worth adopting even though the description was
+not about us; what was taken is the one element that generalises — a required
+**"What we rejected, and why"** section in design docs (CONTRIBUTING §3b) — and
+nothing that depended on the tenancy model it assumed. Retrofitting the past
+year's docs was rejected as archaeology. *Take the shape, check the mechanism,
+report the mismatch.*
 
 ---
 
