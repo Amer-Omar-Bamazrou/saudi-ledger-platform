@@ -80,10 +80,18 @@ export default function CreditNotes() {
   const { t } = useLanguage();
   const qc = useQueryClient();
 
-  const { data: all = [], isLoading } = useQuery<Invoice[]>({
+  /**
+   * 🔴 `/invoices` answers with a PAGE envelope since the pagination change.
+   * This read it as a bare array and called `.filter` on it, which throws —
+   * the blank-page defect B-1 named, reintroduced by a shape change whose
+   * client consumers were not swept. Caught by a typecheck error two files
+   * away, not by a test: nothing renders this page.
+   */
+  const { data: invoicePage, isLoading } = useQuery<{ items: Invoice[] }>({
     queryKey: ["invoices"],
-    queryFn: () => apiFetch<Invoice[]>("/invoices"),
+    queryFn: () => apiFetch<{ items: Invoice[] }>("/invoices?limit=200"),
   });
+  const all = invoicePage?.items ?? [];
 
   const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
   // Only ISSUED invoices can be corrected — a draft has nothing in the books.
@@ -138,10 +146,12 @@ export default function CreditNotes() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Credit &amp; debit notes</h1>
+          <h1 className="text-2xl font-semibold">{t("Credit & debit notes", "الإشعارات الدائنة والمدينة")}</h1>
           <p className="text-muted-foreground">
-            Corrections to issued invoices. A credit note reduces what the customer owes; a debit
-            note charges more.
+            {t(
+              "Corrections to issued invoices. A credit note reduces what the customer owes; a debit note charges more.",
+              "تصحيحات على الفواتير الصادرة. الإشعار الدائن يخفّض المبلغ المستحق على العميل؛ والإشعار المدين يزيده.",
+            )}
           </p>
         </div>
 
@@ -154,11 +164,11 @@ export default function CreditNotes() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{isCredit ? "New credit note" : "New debit note"}</DialogTitle>
+              <DialogTitle>{isCredit ? t("New credit note", "إشعار دائن جديد") : t("New debit note", "إشعار مدين جديد")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <Label>Type</Label>
+                <Label>{t("Type", "النوع")}</Label>
                 <Select
                   value={form.documentType}
                   onValueChange={(v) =>
@@ -170,19 +180,19 @@ export default function CreditNotes() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="credit_note">Credit note — reduce the amount owed</SelectItem>
-                    <SelectItem value="debit_note">Debit note — charge more</SelectItem>
+                    <SelectItem value="credit_note">{t("Credit note — reduce the amount owed", "إشعار دائن — تخفيض المبلغ المستحق")}</SelectItem>
+                    <SelectItem value="debit_note">{t("Debit note — charge more", "إشعار مدين — زيادة المبلغ")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label>Original invoice</Label>
+                <Label>{t("Original invoice", "الفاتورة الأصلية")}</Label>
                 <Select
                   value={form.originalInvoiceId}
                   onValueChange={(v) => setForm({ ...form, originalInvoiceId: v })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select an issued invoice" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("Select an issued invoice", "اختر فاتورة صادرة")} /></SelectTrigger>
                   <SelectContent>
                     {correctable.map((i) => (
                       <SelectItem key={i.id} value={String(i.id)}>
@@ -194,19 +204,19 @@ export default function CreditNotes() {
               </div>
 
               <div>
-                <Label>Number</Label>
+                <Label>{t("Number", "الرقم")}</Label>
                 {/* Left blank = the server allocates the next number in the
                     company's single sequence (C12). A value typed here is
                     honoured for legacy imports and judged by the unique
                     constraint, exactly as on the invoice form. */}
                 <Input
                   value={form.invoiceNumber}
-                  placeholder="Assigned automatically"
+                  placeholder={t("Assigned automatically", "يُخصص تلقائيًا")}
                   onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Date</Label>
+                <Label>{t("Date", "التاريخ")}</Label>
                 <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                 <p className="text-xs text-muted-foreground mt-1">
                   The note posts to ITS OWN period. Correcting an invoice from a closed period is
@@ -214,28 +224,28 @@ export default function CreditNotes() {
                 </p>
               </div>
               <div>
-                <Label>Reason</Label>
+                <Label>{t("Reason", "السبب")}</Label>
                 <Input
                   value={form.noteReason}
                   onChange={(e) => setForm({ ...form, noteReason: e.target.value })}
                   placeholder={isCredit ? "Goods returned" : "Price correction"}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Required by ZATCA (BR-KSA-17) — every note must say why it was issued.
+                  {t("Required by ZATCA (BR-KSA-17) — every note must say why it was issued.", "مطلوب من هيئة الزكاة والضريبة (BR-KSA-17) — يجب أن يذكر كل إشعار سبب إصداره.")}
                 </p>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-3">
-                  <Label>Description</Label>
+                  <Label>{t("Description", "الوصف")}</Label>
                   <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Qty</Label>
+                  <Label>{t("Qty", "الكمية")}</Label>
                   <Input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Unit price</Label>
+                  <Label>{t("Unit price", "سعر الوحدة")}</Label>
                   <Input value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
                 </div>
                 <div>
@@ -256,7 +266,7 @@ export default function CreditNotes() {
                 disabled={!form.originalInvoiceId || !form.noteReason || !form.unitPrice || create.isPending}
                 onClick={() => create.mutate()}
               >
-                {create.isPending ? "Creating…" : "Create note"}
+                {create.isPending ? t("Creating…", "جارٍ الإنشاء…") : t("Create note", "إنشاء الإشعار")}
               </Button>
             </div>
           </DialogContent>
@@ -277,7 +287,7 @@ export default function CreditNotes() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <FileMinus className="h-4 w-4" /> Total credited
+              <FileMinus className="h-4 w-4" /> {t("Total credited", "إجمالي الإشعارات الدائنة")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{fmtNum(totalCredited)}</CardContent>
@@ -285,7 +295,7 @@ export default function CreditNotes() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <FilePlus className="h-4 w-4" /> Total debited
+              <FilePlus className="h-4 w-4" /> {t("Total debited", "إجمالي الإشعارات المدينة")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{fmtNum(totalDebited)}</CardContent>
@@ -300,19 +310,19 @@ export default function CreditNotes() {
           {isLoading ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : notes.length === 0 ? (
-            <p className="text-muted-foreground">No credit or debit notes yet.</p>
+            <p className="text-muted-foreground">{t("No credit or debit notes yet.", "لا توجد إشعارات دائنة أو مدينة بعد.")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted-foreground">
-                    <th className="py-2">Number</th>
-                    <th>Type</th>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                    <th className="text-right">Amount</th>
+                    <th className="py-2">{t("Number", "الرقم")}</th>
+                    <th>{t("Type", "النوع")}</th>
+                    <th>{t("Date", "التاريخ")}</th>
+                    <th>{t("Customer", "العميل")}</th>
+                    <th>{t("Reason", "السبب")}</th>
+                    <th>{t("Status", "الحالة")}</th>
+                    <th className="text-right">{t("Amount", "المبلغ")}</th>
                   </tr>
                 </thead>
                 <tbody>

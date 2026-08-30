@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Download } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface AssetRow {
   id: number; name: string; category: string; purchaseDate: string; cost: number;
@@ -18,6 +19,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function AssetSchedule() {
+  const { t } = useLanguage();
   const { data: assets = [], isLoading } = useQuery<AssetRow[]>({
     queryKey: ["asset-schedule"],
     queryFn: () => apiFetch<AssetRow[]>("/assets").catch(() => [] as AssetRow[]),
@@ -31,8 +33,8 @@ export default function AssetSchedule() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Fixed Asset Schedule</h1>
-          <p className="text-muted-foreground text-sm mt-1">Asset register with cost, depreciation, and net book value</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Fixed Asset Schedule", "جدول الأصول الثابتة")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Asset register with cost, depreciation, and net book value", "سجل الأصول مع التكلفة والإهلاك وصافي القيمة الدفترية")}</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
@@ -57,7 +59,7 @@ export default function AssetSchedule() {
           : assets.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Package className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No fixed assets registered.</p>
+              <p className="text-sm">{t("No fixed assets registered.", "لا توجد أصول ثابتة مسجّلة.")}</p>
               <p className="text-xs mt-1 opacity-60">Add assets in Assets &amp; Inventory to see them here.</p>
             </div>
           ) : (
@@ -86,7 +88,7 @@ export default function AssetSchedule() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-border font-semibold">
-                  <td colSpan={3} className="pt-3 text-xs text-muted-foreground">Total</td>
+                  <td colSpan={3} className="pt-3 text-xs text-muted-foreground">{t("Total", "الإجمالي")}</td>
                   <td className="pt-3 font-mono text-xs">{fmtNum(totalCost)}</td>
                   <td colSpan={2} />
                   <td className="pt-3 font-mono text-xs text-red-400">{fmtNum(totalAccumDep)}</td>

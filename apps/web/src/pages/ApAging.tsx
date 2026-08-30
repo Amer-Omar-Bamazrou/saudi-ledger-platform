@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, Download } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 /**
  * 🔴 THIS PAGE WAS WRITTEN AGAINST AN API THAT DOES NOT EXIST (QA audit, B1).
@@ -64,6 +65,7 @@ const BUCKET_LABELS: Record<string, string> = {
 };
 
 export default function ApAging() {
+  const { t } = useLanguage();
   // 🔴 No `.catch(() => …)` here. A failed request must reach the error state
   // rather than be disguised as an empty report — "no outstanding payables" and
   // "we could not load your payables" are different facts.
@@ -79,8 +81,8 @@ export default function ApAging() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">AP Aging</h1>
-          <p className="text-muted-foreground text-sm mt-1">Accounts Payable aging — overdue bills by vendor</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("AP Aging", "أعمار الذمم الدائنة")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable aging — overdue bills by vendor", "أعمار الذمم الدائنة — الفواتير المتأخرة حسب المورّد")}</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
@@ -107,14 +109,14 @@ export default function ApAging() {
                answer about money owed. */
             <div className="text-center py-16 text-muted-foreground">
               <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40 text-red-400" />
-              <p className="text-sm text-red-400">Could not load accounts payable.</p>
+              <p className="text-sm text-red-400">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</p>
               <p className="text-xs mt-1 opacity-60">{(error as Error)?.message ?? "Please try again."}</p>
             </div>
           ) : report.items.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No outstanding payables.</p>
-              <p className="text-xs mt-1 opacity-60">All bills are paid or no bills have been created.</p>
+              <p className="text-sm">{t("No outstanding payables.", "لا توجد ذمم دائنة مستحقة.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("All bills are paid or no bills have been created.", "جميع الفواتير مدفوعة أو لم يتم إنشاء أي فاتورة.")}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -133,7 +135,7 @@ export default function ApAging() {
                       <td className="py-3 pe-4 font-mono text-xs text-primary">{item.billNumber}</td>
                       <td className="py-3 pe-4 font-medium">{item.vendorName}</td>
                       <td className="py-3 pe-4 text-xs text-muted-foreground">
-                        {item.dueDate ? <DualDate date={item.dueDate} /> : <span className="opacity-60">No due date</span>}
+                        {item.dueDate ? <DualDate date={item.dueDate} /> : <span className="opacity-60">{t("No due date", "بدون تاريخ استحقاق")}</span>}
                       </td>
                       <td className="py-3 pe-4">
                         <span className={`font-mono text-xs ${BUCKET_COLORS[bucket]}`}>
@@ -148,7 +150,7 @@ export default function ApAging() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-border font-semibold">
-                  <td className="pt-3 text-xs text-muted-foreground" colSpan={4}>Total outstanding</td>
+                  <td className="pt-3 text-xs text-muted-foreground" colSpan={4}>{t("Total outstanding", "إجمالي المستحق")}</td>
                   <td className="pt-3 font-mono text-xs font-bold">{fmtNum(report.total)}</td>
                 </tr>
               </tfoot>

@@ -10,6 +10,7 @@ import { Banknote, Download } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PayrollRow {
   id: number; month: string; employeeCount: number;
@@ -32,6 +33,7 @@ export default function PayrollReport() {
 }
 
 function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
+  const { t } = useLanguage();
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
 
@@ -49,8 +51,8 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Payroll Summary</h1>
-          <p className="text-muted-foreground text-sm mt-1">Monthly payroll costs — gross, GOSI, and net</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Payroll Summary", "ملخص الرواتب")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Monthly payroll costs — gross, GOSI, and net", "تكاليف الرواتب الشهرية — الإجمالي والتأمينات والصافي")}</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
@@ -60,9 +62,9 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
           <div className="flex gap-4 items-end">
-            <div><Label className="text-xs text-muted-foreground">From</Label>
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
               <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">To</Label>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
           </div>
           <div className="mt-3">
@@ -90,7 +92,7 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
           : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No payroll runs in this period.</p>
+              <p className="text-sm">{t("No payroll runs in this period.", "لا توجد مسيّرات رواتب في هذه الفترة.")}</p>
               <p className="text-xs mt-1 opacity-60">Process payroll in HR &amp; Payroll to see data here.</p>
             </div>
           ) : (
