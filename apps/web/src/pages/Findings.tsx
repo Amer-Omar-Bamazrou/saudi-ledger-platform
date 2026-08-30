@@ -107,7 +107,6 @@ interface FindingsStatus {
 export default function Findings() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const { canApprove } = useAuth();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<"open" | "acknowledged" | "resolved" | "">("open");
@@ -263,9 +262,11 @@ export default function Findings() {
                 </p>
               )}
             </div>
-            {/* AUD-7: acknowledging is a REVIEW decision — approver-only at the
-                API. Offering it to a bookkeeper produced a guaranteed 403. */}
-            {f.status === "open" && canApprove && (
+            {/* 🔴 Shown to every role, and refused by the server with a reason.
+                Acknowledging is a review decision; a bookkeeper who clicks it
+                learns that from the refusal, which is more useful than a button
+                that was never there. */}
+            {f.status === "open" && (
               <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => ackMut.mutate(f.id)} disabled={ackMut.isPending}>
                 <Check className="h-3.5 w-3.5" /> {t("Acknowledge", "إقرار")}
               </Button>

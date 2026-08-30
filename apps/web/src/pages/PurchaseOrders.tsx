@@ -25,7 +25,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, FileText, Clock, CheckCircle, XCircle, Trash2, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { DualDate } from "@/components/DualDate";
 
 interface PriceVariance {
@@ -85,8 +84,6 @@ const emptyLine = (): Partial<PoItem> => ({ description: "", quantity: 1, unitPr
 export default function PurchaseOrders() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  // AUD-7: do not offer an act the server will refuse for this role.
-  const { canApprove } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   /**
@@ -463,7 +460,12 @@ export default function PurchaseOrders() {
                             {t("Submit", "إرسال")}
                           </Button>
                         )}
-                        {po.status === "submitted" && canApprove && (
+                        {/* 🔴 NOT hidden by role. A control removed teaches nothing and leaves
+                            the person wondering where it went; the server refuses with a
+                            reason that names the next step ("this needs an accountant to
+                            approve it"), which teaches the workflow. Reversing AUD-7's
+                            first fix deliberately — hiding was the wrong half of D4. */}
+                        {po.status === "submitted" && (
                           <>
                             <Button size="sm" onClick={() => actionMut.mutate({ id: po.id, action: "approve" })}>
                               {t("Approve", "اعتماد")}

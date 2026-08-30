@@ -3084,6 +3084,58 @@ matters, assert the object exists rather than reading the tool's verdict.
 
 ---
 
+## 2026-08-30 — B-8's SECOND proposed mechanism, also checked and absent
+
+### The claim
+
+That `AuthGuard` unmounts `LanguageProvider` on login, resetting the language and
+**wiping the stored preference**, so an Arabic user's choice is destroyed at
+every login — and a fix aimed at the router would have missed it entirely.
+
+### Why it cannot happen
+
+Three independent checks, all in the client:
+
+1. **`LanguageProvider` is an ANCESTOR of `AuthGuard`, not a descendant.**
+   `App.tsx` nests `LanguageProvider → AuthProvider → Router`, and `AuthGuard`
+   is used *inside* the Router's routes. A component cannot unmount its own
+   ancestor; the provider outlives every route transition, including login.
+2. **Nothing clears the preference.** `ksa_lang` is read on init and written on
+   change. The only `removeItem` anywhere in the client is
+   `sessionStorage.removeItem(SCAN_KEY)` in the scan-review store.
+3. **`logout` does not touch storage.** It calls `POST /auth/logout` and sets the
+   user to `null`. An Arabic user's preference survives login, logout, and
+   refresh.
+
+🔴 Recorded as a correction to the correction, because the instruction was to
+record it as the cause. **Writing a false mechanism into the permanent record is
+worse than leaving a finding open**: the next reader would have inherited an
+explanation that reads as settled, and any future work on B-8 would start from
+it. The reason this project checks referents is exactly this case.
+
+**B-8 has now lost two proposed mechanisms** — "the router reverts `dir` on
+navigation" and "AuthGuard unmounts the provider". Both were plausible; neither
+survived contact with `App.tsx`. That is progress of the only kind available on
+an unreproduced finding: the space of explanations is smaller, and what remains
+is a runtime behaviour no static check reaches.
+
+### The reversal that came with it: explain, do not hide
+
+AUD-7's first fix hid approve/acknowledge from roles lacking the grant. Reversed
+by owner decision, and the reasoning is the durable part: **an action whose label
+does not match its scope is the "delete all deletes fifty" shape, and hiding the
+control is not the cure — it teaches nothing and leaves the person wondering
+where the button went.** The refusal now names the next step ("this needs an
+accountant to approve it; send it for approval"), following M22's closed-period
+pattern — a structured code the client renders in words, keyed on the CODE so
+rewording copy cannot break it.
+
+🔴 The reversal also DELETED `canApprove`. A derived flag with no consumer is the
+shape-without-a-consumer failure this project has recorded repeatedly, and
+leaving it in place would have been an invitation to hide something else with it.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
