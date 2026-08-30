@@ -54,17 +54,18 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-08-28.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-08-28 → 30 — five passes, all merged or in PR #104.** Full record:
+**2026-08-28 → 30 — six passes** (merged, or in PR #104/#105). Full record:
 [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
 - 🔴 **8 of 15 findings sat in the layer a user touches**; every automated test
-  runs a layer below it. **P5** (§5) is the project that closes that.
-- **P4** computes reachability from the transition graph; its gap lists are now
-  empty, and they emptied themselves.
-- **AUD-13** is the composition class's worked example; the artefact it left,
+  runs a layer below it. **P5** (§5) closes that, and now carries the incident
+  that proves it.
+- **P4** computes reachability from the transition graph; its gap lists emptied
+  themselves.
+- **AUD-13** is the composition class's worked example; its artefact,
   `INV-2026-000049`, stays deliberately.
-- **Auto-approve is gone** — a create makes a draft for every role (§4).
-- **`db` refuses an unscoped query** (§4); ledger lists paginate with SQL totals.
+- **No auto-approve**, **`db` refuses an unscoped query**, **ledger lists
+  paginate with SQL totals**, **document numbers are server-allocated** (§4).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -241,7 +242,7 @@ rules at the top of this file, rule 2).
 - **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
 - **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
 - **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
-- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS** (2026-08-30). AUD-1 fixed the browser minting invoice numbers from a clock. Sweeping the shape found **five** instances; the fix had covered two. 🔴 The three left behind were WORSE: `invoices` has `UNIQUE(company_id, invoice_number)`, so a collision was REFUSED — while `journal_entries`, `bills`, `fixed_assets` and `employees` have no such index, so the identical collision was ACCEPTED, producing two financial records claiming to be the same document. **The audit had named the only instance the database would have caught.** This is the inverse of the composition class: composition is many findings adding up to more than their sum, this is one finding standing for a set nobody enumerated. A shape found in several places on first look is not a coincidence — **the report is a sample, not an inventory**, so treat every fix as "which other callers write this shape" before treating it as done.
+- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** AUD-1 fixed the browser minting invoice numbers from a clock; sweeping found **five** instances and the fix had covered two. 🔴 The three left behind were WORSE: `invoices` has a unique index so a collision was REFUSED, while the others have none, so the identical collision was ACCEPTED. **The audit had named the only instance the database would have caught.** The inverse of the composition class — one finding standing for a set nobody enumerated. **The report is a sample, not an inventory.**
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
 - **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each, before recommending it. The cash estimate was not slightly low; it was about a different feature.
@@ -258,7 +259,7 @@ rules at the top of this file, rule 2).
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after. A conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
-- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). The first fix HID approve/acknowledge from roles that lack the grant. That was the wrong half of D4: a control removed teaches nothing and leaves the person wondering where it went, while a refusal that names the next step — *"this needs an accountant to approve it; send it for approval"* — teaches the workflow. `requirePermission` now answers with a structured `requires_approval_authority` code and words the user can act on, following M22's closed-period pattern (one client-side explanation, keyed on the CODE so rewording copy cannot break it). 🔴 The reversal also removed `canApprove` entirely — a derived flag with no consumer is the shape-without-a-consumer failure, and leaving it would have invited the hiding back.
+- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed by owner decision). Hiding an action from a role that lacks the grant teaches nothing and leaves the person wondering where the button went; a refusal naming the next step (*"this needs an accountant to approve it"*) teaches the workflow. `requirePermission` answers with a structured code, following M22's closed-period pattern. 🔴 The reversal deleted `canApprove` — a derived flag with no consumer invites the hiding back.
 - **🔴 THE LOGIN PAGE'S LANGUAGE TOGGLE WORKS, AND ITS PROVIDER PLACEMENT IS DELIBERATE** (checked twice, 2026-08-30). `LanguageProvider` wraps `AuthProvider`, which wraps the Router; `AuthGuard` is INSIDE the Router, so it cannot unmount its own ancestor. `ksa_lang` is read on init and written on change, and **nothing in the client clears it** — not `logout`, which only calls the API and drops the user object. 🔴 **Do not "fix" this by moving `LanguageProvider` inside `AuthGuard`**: that is the only change that would make the toggle inert and the preference resettable. Two proposed B-8 mechanisms have now died here.
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change.**
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it (**P5**, §5).
@@ -461,6 +462,23 @@ run, flake management, and ongoing maintenance — and a flaky E2E suite that
 people learn to re-run is a guard that reports coverage it does not have, which
 is the failure this whole sequence has been about.
 
+🔴 **THE ARGUMENT, IN ONE INCIDENT (2026-08-30).** A response shape changed
+(`GET /invoices` began returning `{items, page, totals}`). The *server*
+consumers were swept; two *client* ones were missed:
+
+| Page | How it failed |
+| --- | --- |
+| `CreditNotes.tsx` | called `.filter` on the envelope — **throws, blank page** |
+| `InvoiceSummary.tsx` | same break inside `.catch(() => [])` — renders **"No invoices in this date range"** |
+
+The second is the one to keep. **It is a wrong statement about the tenant's own
+data that looks exactly like a true one** — a report saying the period is empty
+when it is not. Both were caught by a **typecheck error two files away**, not by
+any of 1,157 tests, because **nothing renders these pages**: a shape mismatch in
+a page is invisible to the entire suite by construction. That is P5's case, made
+by accident, on a change made by the person who had written the rule about
+sweeping shapes hours earlier.
+
 **Why it is not a nice-to-have.** It is the ONLY method that has reached this
 class. Every automated test we own runs a layer below the one that broke:
 
@@ -513,7 +531,7 @@ is the reason the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **No password recovery for a multi-org account.** F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | A real lockout with a bounded blast radius. B1's mailer is live, so a self-service flow is buildable — but WHICH (operator reset vs email) is a product decision, not a code one. |
+| **1** | **No password recovery for a multi-org account** — DECISION PENDING, options and costs in [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30). F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question: **A** self-service email reset (moderate build, no new privilege, close template exists in `organization_invitations`), **B** operator reset (small build, but creates a standing cross-tenant takeover — the F1 shape), **C** both. Owner decides. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
@@ -531,18 +549,14 @@ If the attribute is lost it is a runtime fact no static check reaches.
 emptied themselves: the companion test failed the moment AUD-10/11/12's callers
 were built. A new entry needs a checkable reason and leaves the day it is fixed.
 
-### 🔴 ARABIC COVERAGE — MEASURED 2026-08-30, queued as its own pass
+### Arabic coverage
 
-Arabic is a **launch requirement** (owner, confirmed again 2026-08-30). Measured
-across all 49 pages by counting both i18n idioms (`t("…"` and `lang === "ar"`)
-against bare JSX text nodes, so the count is not an artefact of which idiom a
-page happens to use:
-
-Worst offenders: **CreditNotes** (2 i18n calls, 14 untranslated field labels on a ZATCA form), ChangePassword, ZatcaOnboarding, InvoiceSummary, ApAging, PayrollReport, AssetSchedule, ArAging. Full table in the findings file.
-
-Split from the pagination work deliberately (owner, 2026-08-30): the sweep is
-its own concern and it will grow, and keeping it inside a pagination PR makes
-both harder to review.
+Arabic is a **launch requirement**. Seven English-only pages were swept
+2026-08-30 (PR #105) — CreditNotes went 2 → 28 i18n calls. 🔴 The measurement
+that found them is the reusable part, not the fix: counting both idioms
+(`t("…"` and `lang === "ar"`) against bare JSX text nodes, across every page.
+**Re-run it before launch** — a targeted fix sees only what it was sent to fix
+(§3), so coverage has to be measured, not noticed.
 
 ### Traps and known-dead surfaces
 

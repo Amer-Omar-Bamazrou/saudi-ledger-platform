@@ -3136,6 +3136,132 @@ leaving it in place would have been an invitation to hide something else with it
 
 ---
 
+## 2026-08-30 — TWO REGRESSIONS I INTRODUCED, and P5's case made by accident
+
+### What happened
+
+`GET /invoices` changed from a bare array to `{ items, page, totals }`. I swept
+the **server** consumers when I made the change — a test fixture, the approvals
+dispatcher — and missed the **client** ones:
+
+| Page | How it fails |
+| --- | --- |
+| `CreditNotes.tsx` | called `.filter` on the envelope → **throws, blank page** |
+| `InvoiceSummary.tsx` | same break inside `.catch(() => [])` → renders **"No invoices in this date range"** |
+
+🔴 **The second is the one that matters.** It is a wrong statement about the
+tenant's own data that looks exactly like a true one — a report telling a person
+their period was empty when it was not. Nobody would question it, and nobody
+would report it. The defensive `.catch(() => [])` is what converts a crash into
+a lie, which is the same trade that hid the AP-aging break.
+
+### Why no test could see it
+
+**Caught by a TypeScript error two files away**, while translating an unrelated
+page. Not by any of 1,157 tests — because **nothing in the suite renders a
+page**, so a shape mismatch between a client and its API is invisible to the
+entire suite by construction. Not "was missed": *cannot be seen*.
+
+That is exactly P5's argument, and it is now quoted in P5's queue entry rather
+than left in a session report, because an argument for a project belongs where
+the project is decided.
+
+### The uncomfortable part, recorded deliberately
+
+The rule *"the report is a sample, not an inventory — sweep the shape, not the
+instance"* was written into §3 **hours earlier, by me, in this session**, after
+AUD-1's sweep found five instances of a shape the original fix had left. I then
+changed a response shape and swept one side of it.
+
+🔴 The lesson that generalises is not "be more careful". It is that **knowing a
+rule is not a mechanism for applying it** — the rule fired when I was hunting a
+class and did not fire when I was making a change. A rule that depends on
+remembering to ask it at the right moment will be missed at exactly the moments
+that matter, which is the argument for guards that ask on your behalf. P4 asks
+"is it reachable" without being invited. Nothing yet asks "did the shape you
+changed reach every consumer".
+
+**A candidate, recorded not built:** the generated OpenAPI client is the only
+thing that ties a response type to the contract, and both broken call sites used
+hand-written `apiFetch<T>` — the pattern §3 already flags as "a claim nobody
+checks". A guard could enumerate hand-written `apiFetch<T>` generics against the
+spec's response schemas. It would have caught both, and it is smaller than P5.
+
+---
+
+## 2026-08-30 — PASSWORD RECOVERY: the options, with what each costs
+
+F1's confinement means an account that has ever held a membership outside an
+admin's scope cannot be reset by that admin, and `/auth/change-password` requires
+the current password. **A user who forgets is locked out with no path back.**
+The lockout is real and reachable; it is not urgent (multi-org accounts are rare
+and there are no customers yet), which is an argument for building the right
+thing rather than the quick thing.
+
+### Option A — self-service email reset
+
+Request → single-use token emailed → set a new password.
+
+**Cost: moderate, and lower than it looks.** `organization_invitations` is a
+near-exact template already in the codebase: SHA-256 `token_hash` with the raw
+token never persisted, `expires_at`, a status machine, a public
+token-authenticated endpoint behind a rate limiter, and an atomic single-use
+claim that cannot be redeemed in a race. The work is one migration, two
+endpoints, one page, and mailer wiring that B1 already built.
+
+**What it does NOT add: any new privilege.** Nobody gains the ability to take
+over an account; the user proves control of their own mailbox.
+
+🔴 **Risks to price in.** It is auth-surface code, the highest-consequence in the
+product: token hashed at rest, short expiry, single use, timing-safe compare,
+and **all sessions invalidated on reset** (or a stolen session survives the
+recovery). It also depends on B1's *deployment* half — a verified sending domain
+— which is still open, so the flow is untestable end-to-end in production until
+that lands. And it must decide the enumeration question: L-2 already accepts
+that signup leaks account existence, so a reset endpoint that also leaks it is
+consistent rather than newly bad — but that should be a decision, not a default.
+
+### Option B — operator-level reset
+
+A platform operator resets any user's password, audited, on the operator surface.
+
+**Cost: small.** One route, one service call, one button, one audit row. No
+tokens, no email, no migration.
+
+🔴 **But it creates a standing cross-tenant account-takeover capability — the
+exact shape F1 was about.** F1's whole finding was that a privilege made a
+guard's fact forgeable; this hands the same reach to a different role
+deliberately. It is bounded by `platform_operators` having **no self-grant path**
+(seed only), and by audit, but the capability is permanent and unexpiring.
+Mitigations if chosen: notify the user by email that their password was reset,
+force a change on next login, and treat operator reset as a break-glass action
+with its own alert rather than a routine button.
+
+### Option C — both, in order
+
+B as break-glass now (small, unblocks a locked-out user today), A when B1's
+sending domain lands. **The risk is that B ships and A never does**, because the
+pain that motivates A disappears — which is how the `duplicates` array became a
+mitigation standing in for a fix.
+
+### The comparison that decides it
+
+| | A (self-service) | B (operator) |
+| --- | --- | --- |
+| New privilege | **none** | a standing cross-tenant takeover |
+| Build | moderate, template exists | small |
+| Blocked on | B1's verified sending domain | nothing |
+| Failure mode | a leaked token — bounded, expiring | a misused standing capability |
+| Fits F1's lesson | yes — the user proves their own control | it is the shape F1 warned about |
+
+**Recommendation: A**, and accept the lockout until B1's domain is verified —
+there are no customers to be locked out today, and the asymmetry between "a
+bounded, expiring token" and "a permanent takeover capability" is the whole
+argument. Take C only if a real user is locked out before A is ready, and if so
+build B *with* the break-glass framing rather than as a routine button.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure
