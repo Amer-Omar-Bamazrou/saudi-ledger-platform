@@ -284,6 +284,7 @@ rules at the top of this file, rule 2).
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
 - **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
+- **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
 
 ## 4. Active constraints — do not break these
 
@@ -551,7 +552,7 @@ that found them is the reusable part, not the fix: counting both idioms
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
-- `status: 'overdue'` has **no writer** on invoices or bills (dead enum value; UIs style it, aging derives overdue from dates).
+
 - VAT-return **box 4 (exports) is always 0** — an export today is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment` fields, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (unreachable from the UI; round `paid` at the validation gate).
