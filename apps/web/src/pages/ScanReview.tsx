@@ -16,6 +16,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { loadAndClearScanData } from "@/lib/scanReviewStore";
 import { validateReceipt } from "@/lib/receiptValidator";
@@ -101,10 +103,11 @@ export default function ScanReview() {
   const [isPosting, setIsPosting] = useState(false);
 
   // ── vendors dropdown (for manual override) ────────────────────────────────
-  const { data: allVendors = [] } = useQuery<Vendor[]>({
-    queryKey: ["vendors"],
-    queryFn: () => apiFetch("/vendors"),
+  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
+    queryKey: ["vendors", "picker"],
+    queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
   });
+  const allVendors = vendorsPage?.items ?? [];
 
   // ── load the scan: handoff store first, staged capture as the fallback ────
   useEffect(() => {
@@ -648,7 +651,7 @@ export default function ScanReview() {
                   {allVendors.map(v => (
                     <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
                   ))}
-                </SelectContent>
+                <PickerLimitNotice shown={allVendors.length} total={vendorsPage?.total ?? allVendors.length} /></SelectContent>
               </Select>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0"
                 disabled={createVendorMut.isPending}

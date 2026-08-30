@@ -16,6 +16,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,10 +106,11 @@ export default function Quotations() {
     queryKey: ["quotations", statusFilter],
     queryFn: () => apiFetch(`/quotations${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
   });
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["customers"],
-    queryFn: () => apiFetch("/customers"),
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
+    queryKey: ["customers", "picker"],
+    queryFn: () => fetchPickerOptions<Customer>("/customers"),
   });
+  const customers = customersPage?.items ?? [];
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["quotations"] });
 
@@ -354,7 +357,7 @@ export default function Quotations() {
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select…", "اختر…")} /></SelectTrigger>
                       <SelectContent>
                         {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                      </SelectContent>
+                      <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
                     </Select>
                   </div>
                   <div>

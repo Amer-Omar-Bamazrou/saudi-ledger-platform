@@ -9,6 +9,7 @@ const VENDOR_FIELDS = [
 ] as const;
 import { auditService } from "./audit.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { vendorsTable } from "@workspace/db";
 
 type Vendor = typeof vendorsTable.$inferSelect;
@@ -30,17 +31,24 @@ export const vendorsService = {
    * queries, not N+1: the balances come back grouped and are matched in memory.
    */
   async list(filter: VendorListFilter) {
-    const [rows, balances] = await Promise.all([
+    const [rows, balances, total, totals] = await Promise.all([
       vendorsRepository.list(filter),
       vendorsRepository.vendorBalances(),
+      vendorsRepository.listCount(filter),
+      vendorsRepository.listTotals(filter),
     ]);
     const byVendor = new Map(balances.map((b) => [b.vendorId, b]));
-    return rows.map((v) => {
+    const items = rows.map((v) => {
       const bal = byVendor.get(v.id);
       const totalBilled = Number(bal?.totalBilled ?? 0);
       const totalPaid = Number(bal?.totalPaid ?? 0);
       return { ...v, totalBilled, totalPaid, balance: totalBilled - totalPaid };
     });
+    return {
+      items,
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals,
+    };
   },
 
   async getById(id: number) {

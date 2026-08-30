@@ -5,10 +5,21 @@
  */
 import { db, customersTable, invoicesTable } from "@workspace/db";
 import { and, eq, ilike, notInArray, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface CustomerListFilter {
   search?: string;
   isActive?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function customerListConditions(filter: CustomerListFilter) {
+  const conditions = [];
+  if (filter.search) conditions.push(ilike(customersTable.name, `%${filter.search}%`));
+  if (filter.isActive !== undefined) conditions.push(eq(customersTable.isActive, filter.isActive));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 /**
@@ -20,14 +31,42 @@ const NOT_IN_BOOKS = ["draft", "submitted"];
 
 export const customersRepository = {
   list(filter: CustomerListFilter) {
-    const conditions = [];
-    if (filter.search) conditions.push(ilike(customersTable.name, `%${filter.search}%`));
-    if (filter.isActive !== undefined) conditions.push(eq(customersTable.isActive, filter.isActive));
     return db
       .select()
       .from(customersTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(customersTable.name);
+      .where(customerListConditions(filter))
+      .orderBy(customersTable.name)
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: CustomerListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(customersTable)
+      .where(customerListConditions(filter));
+    return Number(row?.total ?? 0);
+  },
+
+  /**
+   * 🔴 Total AR across every customer MATCHING THE FILTER — never across the
+   * page. The same predicate as the rows, so the headline and the table can
+   * never describe different sets (B-6).
+   */
+  async listTotals(filter: CustomerListFilter) {
+    const sign = sql`CASE WHEN ${invoicesTable.documentType} = 'credit_note' THEN -1 ELSE 1 END`;
+    const [row] = await db
+      .select({
+        totalBilled: sql<number>`COALESCE(SUM(${sign} * ${invoicesTable.total}), 0)::float8`,
+        totalPaid: sql<number>`COALESCE(SUM(${sign} * COALESCE(${invoicesTable.paidAmount}, 0)), 0)::float8`,
+      })
+      .from(invoicesTable)
+      .innerJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
+      .where(and(notInArray(invoicesTable.status, NOT_IN_BOOKS), customerListConditions(filter)));
+    const totalBilled = Number(row?.totalBilled ?? 0);
+    const totalPaid = Number(row?.totalPaid ?? 0);
+    return { totalBilled, totalPaid, balance: totalBilled - totalPaid };
   },
 
   findById(id: number) {

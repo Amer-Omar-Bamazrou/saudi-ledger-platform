@@ -71,25 +71,43 @@ function walk(dir: string): string[] {
 }
 
 /**
- * Finds `useQuery<Foo[]>({ … apiFetch("/endpoint") … })` and pairs it with the
- * page's own `interface Foo`. Deliberately narrow: it only claims to cover the
- * list-of-entities shape, which is where every one of the five defects lived.
- * A shape it cannot parse is simply not reported — and the count assertion
- * below is what stops that silence from growing.
+ * Finds a page's list query and pairs it with the page's own `interface Foo`.
+ *
+ * 🔴 THREE call shapes, because the codebase has three, and a scanner that
+ * knows only one silently under-reports. That is not hypothetical: this pass
+ * converted several pages from shape 1 to shapes 2 and 3, and the shrink-check
+ * below went red — pages had dropped out of coverage while every assertion
+ * stayed green. The guard caught its own blind spot, which is the only reason
+ * the number is here.
+ *
+ *   1. useQuery<Foo[]>({ … apiFetch("/endpoint") … })              a bare array
+ *   2. useQuery<Paged<Foo, …>>({ … apiFetch(`/endpoint?…`) … })    the envelope
+ *   3. useQuery<{ items: Foo[]; … }>({ … fetchPickerOptions<Foo>("/endpoint") }) a picker
+ *
+ * A shape it cannot parse is not reported — and the count assertion is what
+ * stops that silence from growing.
  */
 function scanDeclarations(): Declaration[] {
   const out: Declaration[] = [];
+  const ELEMENT_TYPE = [
+    /useQuery<(\w+)\[\]>\s*\(\{([\s\S]{0,400}?)\}\)/g, // bare array
+    /useQuery<Paged<(\w+)[^>]*>>\s*\(\{([\s\S]{0,400}?)\}\)/g, // the paged envelope
+    /useQuery<\{\s*items:\s*(\w+)\[\][^}]*\}>\s*\(\{([\s\S]{0,400}?)\}\)/g, // a picker
+  ];
   for (const file of walk(PAGES_DIR)) {
     const src = readFileSync(file, "utf8");
     const rel = file.slice(repoRoot.length + 1).split("\\").join("/");
-    for (const m of src.matchAll(/useQuery<(\w+)\[\]>\s*\(\{([\s\S]{0,400}?)\}\)/g)) {
-      const [, type, body] = m;
-      const ep = /apiFetch(?:<[^>]*>)?\(\s*[`"']([^`"'?$]+)/.exec(body);
-      if (!ep) continue;
-      const iface = new RegExp(`interface\\s+${type}\\s*\\{([\\s\\S]*?)\\n?\\}`).exec(src);
-      if (!iface) continue;
-      const fields = [...iface[1].matchAll(/([a-zA-Z_]\w*)\s*\??\s*:/g)].map((f) => f[1]);
-      out.push({ file: rel, type, endpoint: ep[1].replace(/\/$/, ""), fields });
+    for (const pattern of ELEMENT_TYPE) {
+      for (const m of src.matchAll(pattern)) {
+        const [, type, body] = m;
+        // `apiFetch("/x")`, `apiFetch(`/x?…`)`, or `fetchPickerOptions<T>("/x")`.
+        const ep = /(?:apiFetch|fetchPickerOptions)(?:<[^>]*>)?\(\s*[`"']([^`"'?$]+)/.exec(body);
+        if (!ep) continue;
+        const iface = new RegExp(`interface\\s+${type}\\s*\\{([\\s\\S]*?)\\n?\\}`).exec(src);
+        if (!iface) continue;
+        const fields = [...iface[1].matchAll(/([a-zA-Z_]\w*)\s*\??\s*:/g)].map((f) => f[1]);
+        out.push({ file: rel, type, endpoint: ep[1].replace(/\/$/, ""), fields });
+      }
     }
   }
   return out;
@@ -103,7 +121,7 @@ function scanDeclarations(): Declaration[] {
  * That is the shrink-check `route-reachability` already carries, for the same
  * reason.
  */
-const DECLARATIONS_AT_WRITING = 24;
+const DECLARATIONS_AT_WRITING = 30;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 
@@ -148,8 +166,10 @@ interface Ctx {
 /** endpoint → the real response, via the real service, inside a tenant transaction. */
 const FIXTURES: Record<string, () => Promise<unknown[]>> = {
   "/assets": async () => (await import("../services/assets.service")).assetsService.list(),
-  "/customers": async () => (await import("../services/customers.service")).customersService.list({}),
-  "/vendors": async () => (await import("../services/vendors.service")).vendorsService.list({}),
+  "/customers": async () =>
+    ((await (await import("../services/customers.service")).customersService.list({})).items as unknown[]),
+  "/vendors": async () =>
+    ((await (await import("../services/vendors.service")).vendorsService.list({})).items as unknown[]),
   "/employees": async () => (await import("../services/employees.service")).employeesService.list({}),
   "/bank-accounts": async () => (await import("../services/bankAccounts.service")).bankAccountsService.list(),
   "/products": async () => (await import("../services/products.service")).productsService.list({}),
@@ -172,7 +192,7 @@ const FIXTURES: Record<string, () => Promise<unknown[]>> = {
 };
 
 /** Endpoints whose real response is an envelope rather than a bare array. */
-const ENVELOPE_ENDPOINTS = new Set(["/invoices"]);
+const ENVELOPE_ENDPOINTS = new Set(["/invoices", "/customers", "/vendors"]);
 
 async function inTenant<T>(ctx: Ctx, fn: () => Promise<T>): Promise<T> {
   const { beginTenantConnection } = await import("@workspace/db");
@@ -343,8 +363,9 @@ describeMaybe("a page's declared list type matches the real response", () => {
     for (const d of declarations) {
       if (!ENVELOPE_ENDPOINTS.has(d.endpoint)) continue;
       const src = readFileSync(join(repoRoot, d.file), "utf8");
-      // The page must dereference `items` somewhere — the paginated shape.
-      if (!src.includes(".items")) {
+      // The page must dereference `items` somewhere — the paginated shape. A
+      // picker goes through `fetchPickerOptions`, which unwraps it already.
+      if (!src.includes(".items") && !src.includes("fetchPickerOptions")) {
         problems.push(`${d.file} declares ${d.type}[] for GET ${d.endpoint}, which returns {items, page, totals}`);
       }
     }

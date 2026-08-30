@@ -6,6 +6,7 @@ import { NotFoundError } from "../lib/errors";
 import { pick, assertAmount } from "../lib/writeGuards";
 import { auditService } from "./audit.service";
 import { customersRepository, type CustomerListFilter } from "../repositories/customers.repository";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { customersTable } from "@workspace/db";
 
 /** H1 allowlist — user-settable customer fields (system columns excluded). */
@@ -33,17 +34,24 @@ export const customersService = {
    * not N+1: the balances come back grouped and are matched in memory.
    */
   async list(filter: CustomerListFilter) {
-    const [rows, balances] = await Promise.all([
+    const [rows, balances, total, totals] = await Promise.all([
       customersRepository.list(filter),
       customersRepository.customerBalances(),
+      customersRepository.listCount(filter),
+      customersRepository.listTotals(filter),
     ]);
     const byCustomer = new Map(balances.map((b) => [b.customerId, b]));
-    return rows.map((c) => {
+    const items = rows.map((c) => {
       const bal = byCustomer.get(c.id);
       const totalBilled = Number(bal?.totalBilled ?? 0);
       const totalPaid = Number(bal?.totalPaid ?? 0);
       return { ...toView(c), totalBilled, totalPaid, balance: totalBilled - totalPaid };
     });
+    return {
+      items,
+      page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
+      totals,
+    };
   },
 
   async getById(id: number) {

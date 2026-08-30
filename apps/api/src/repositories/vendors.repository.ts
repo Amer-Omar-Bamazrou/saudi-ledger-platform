@@ -1,10 +1,21 @@
 /** Vendors repository — all vendor/AP data access (tenant-scoped via RLS). */
 import { db, vendorsTable, billsTable } from "@workspace/db";
 import { and, eq, ilike, notInArray, or, sql } from "drizzle-orm";
+import { DEFAULT_PAGE } from "../lib/httpParams";
 
 export interface VendorListFilter {
   search?: string;
   isActive?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/** One predicate for the rows AND the count — so they cannot describe different sets. */
+function vendorListConditions(filter: VendorListFilter) {
+  const conditions = [];
+  if (filter.search) conditions.push(ilike(vendorsTable.name, `%${filter.search}%`));
+  if (filter.isActive !== undefined) conditions.push(eq(vendorsTable.isActive, filter.isActive));
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 /**
@@ -18,14 +29,41 @@ const NOT_IN_BOOKS = ["draft", "submitted"];
 
 export const vendorsRepository = {
   list(filter: VendorListFilter) {
-    const conditions = [];
-    if (filter.search) conditions.push(ilike(vendorsTable.name, `%${filter.search}%`));
-    if (filter.isActive !== undefined) conditions.push(eq(vendorsTable.isActive, filter.isActive));
     return db
       .select()
       .from(vendorsTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(vendorsTable.name);
+      .where(vendorListConditions(filter))
+      .orderBy(vendorsTable.name)
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
+  /** Rows matching the filter — not rows on this page. */
+  async listCount(filter: VendorListFilter) {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(vendorsTable)
+      .where(vendorListConditions(filter));
+    return Number(row?.total ?? 0);
+  },
+
+  /**
+   * 🔴 Total AP across every vendor MATCHING THE FILTER — never across the page.
+   * Same predicate as the rows, so the headline and the table cannot describe
+   * different sets (B-6).
+   */
+  async listTotals(filter: VendorListFilter) {
+    const [row] = await db
+      .select({
+        totalBilled: sql<number>`COALESCE(SUM(${billsTable.total}), 0)::float8`,
+        totalPaid: sql<number>`COALESCE(SUM(COALESCE(${billsTable.paidAmount}, 0)), 0)::float8`,
+      })
+      .from(billsTable)
+      .innerJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
+      .where(and(notInArray(billsTable.status, NOT_IN_BOOKS), vendorListConditions(filter)));
+    const totalBilled = Number(row?.totalBilled ?? 0);
+    const totalPaid = Number(row?.totalPaid ?? 0);
+    return { totalBilled, totalPaid, balance: totalBilled - totalPaid };
   },
 
   findById(id: number) {

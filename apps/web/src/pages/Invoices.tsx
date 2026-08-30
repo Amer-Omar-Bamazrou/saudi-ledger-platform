@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { fetchPickerOptions } from "@/lib/pagedList";
+import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,7 +104,8 @@ export default function Invoices() {
       ),
   });
 
-  const { data: customers = [] } = useQuery<Customer[]>({ queryKey: ["customers"], queryFn: () => apiFetch("/customers") });
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const customers = customersPage?.items ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: any) =>
@@ -287,7 +290,7 @@ export default function Invoices() {
                 </div>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
-                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}<PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent></Select>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("Optional notes...", "ملاحظات اختيارية...")} /></div>
 

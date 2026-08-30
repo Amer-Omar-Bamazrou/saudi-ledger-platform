@@ -11,23 +11,33 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ListPagination } from "@/components/ListPagination";
+import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
 interface Vendor { id: number; name: string; nameAr: string; taxNumber: string; crNumber: string; phone: string; email: string; city: string; iban: string; paymentTermsDays: string; isActive: boolean; totalBilled?: number; totalPaid?: number; balance?: number; }
+
+interface VendorTotals { totalBilled: number; totalPaid: number; balance: number; }
 
 const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30" };
 
 export default function Vendors() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
-    queryKey: ["vendors", search],
-    queryFn: () => apiFetch(`/vendors?search=${encodeURIComponent(search)}&is_active=true`),
+  const { data: paged, isLoading } = useQuery<Paged<Vendor, VendorTotals>>({
+    queryKey: ["vendors", search, page],
+    queryFn: () =>
+      apiFetch(
+        `/vendors?search=${encodeURIComponent(search)}&is_active=true` +
+          `&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+      ),
   });
+  const vendors = paged?.items ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: typeof emptyForm) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
@@ -35,14 +45,20 @@ export default function Vendors() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
-  const totalAP = vendors.reduce((s, v) => s + (v.balance ?? 0), 0);
+  /**
+   * 🔴 From the server, over every matching vendor — never `reduce`d over the
+   * page. Both figures used to sum a field the API did not send, so each read
+   * 0.00 for every tenant.
+   */
+  const totalAP = paged?.totals.balance ?? 0;
+  const totalBilled = paged?.totals.totalBilled ?? 0;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Vendors", "الموردون")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable", "الحسابات الدائنة")} — {vendors.length} {t("active vendors", "مورد نشط")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable", "الحسابات الدائنة")} — {paged?.page.total ?? 0} {t("active vendors", "مورد نشط")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Vendor", "مورد جديد")}</Button></DialogTrigger>
@@ -64,8 +80,8 @@ export default function Vendors() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Vendors", "إجمالي الموردين")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{vendors.length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total AP", "إجمالي الحسابات الدائنة")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(vendors.reduce((s,v)=>s+(v.totalBilled??0),0))}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Vendors", "إجمالي الموردين")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AP", "الحسابات الدائنة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${totalAP > 0 ? "text-red-400" : "text-emerald-400"}`}>{fmtNum(totalAP)}</div></CardContent></Card>
       </div>
 
@@ -102,6 +118,12 @@ export default function Vendors() {
               ))}</tbody>
             </table>
           )}
+          <ListPagination
+            page={paged?.page}
+            shown={vendors.length}
+            onPrev={() => setPage((p) => Math.max(0, p - 1))}
+            onNext={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>
