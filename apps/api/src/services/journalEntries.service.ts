@@ -20,13 +20,20 @@ import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
-import { journalEntriesRepository } from "../repositories/journalEntries.repository";
+import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE } from "../repositories/journalEntries.repository";
 import type { journalEntriesTable } from "@workspace/db";
 
 export const journalEntriesService = {
-  async list(status?: string) {
-    const rows = await journalEntriesRepository.list(status);
-    return rows.map((r) => buildJEOut(r));
+  /** A PAGE of entries, plus the count for the whole filtered set. */
+  async list(filter: { status?: string; limit?: number; offset?: number } = {}) {
+    const [rows, meta] = await Promise.all([
+      journalEntriesRepository.list(filter),
+      journalEntriesRepository.listMeta(filter),
+    ]);
+    return {
+      items: rows.map((r) => buildJEOut(r)),
+      page: { limit: filter.limit ?? JE_PAGE, offset: filter.offset ?? 0, total: meta.total },
+    };
   },
 
   async getById(id: number) {

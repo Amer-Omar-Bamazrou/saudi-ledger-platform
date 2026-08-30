@@ -4,8 +4,15 @@ import { requireIdParam } from "../lib/httpParams";
 
 export const journalEntriesController = {
   async list(req: Request, res: Response) {
-    const { status } = req.query as Record<string, string>;
-    res.json(await journalEntriesService.list(status));
+    const { status, limit, offset } = req.query as Record<string, string>;
+    const n = Number(limit);
+    res.json(
+      await journalEntriesService.list({
+        status: status || undefined,
+        limit: Number.isFinite(n) && n > 0 ? Math.min(200, Math.floor(n)) : 50,
+        offset: Math.max(0, Number(offset) || 0),
+      }),
+    );
   },
   async get(req: Request, res: Response) {
     res.json(await journalEntriesService.getById(requireIdParam(req)));

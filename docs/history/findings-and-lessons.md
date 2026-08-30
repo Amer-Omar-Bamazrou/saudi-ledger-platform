@@ -2889,6 +2889,66 @@ step most easily skipped, because the fix feels finished.
 
 ---
 
+## 2026-08-30 — B-8's leading candidate ELIMINATED, and a measured Arabic gap
+
+### The candidate, and why it is wrong
+
+It was proposed that `LanguageProvider` sits **inside** `AuthGuard`, so the login
+page would have no provider at all — `dir` unset, `lang` unset, the toggle inert
+— which would have explained B-8 and made it worse than "it reverts on
+navigation".
+
+**Checked, and it is the opposite.** `App.tsx` nests
+`LanguageProvider → AuthProvider → Router`, with `AuthGuard` *inside* the Router,
+per route. The login page is therefore inside the provider; `applyLang` runs on
+mount, so `dir` and `lang` ARE set there; and `Login.tsx` imports `useLanguage`
+and calls `setLang`, so the toggle is live. The placement is not accidental —
+the comment beside it explains it was put above `AuthProvider` deliberately so
+the demo banner renders on the login page ("every page including login", D7).
+
+🔴 So the record now carries an explicit **do-not-fix**: moving
+`LanguageProvider` inside `AuthGuard` would *create* the defect it was proposed
+to cure — it is the only change that would make the login toggle inert.
+
+**B-8 remains unreproduced**, and is now one candidate poorer. That is worth
+recording as progress: eliminating a plausible mechanism is how an unreproduced
+finding either becomes real or dies.
+
+### The Arabic gap, measured rather than asserted
+
+Counting BOTH idioms (`t("…"` and `lang === "ar"`) against bare JSX text nodes,
+so the figure is not an artefact of which idiom a page uses:
+
+| Page | i18n | Untranslated |
+| --- | --- | --- |
+| **CreditNotes** | 2 | **14** — every field label on a ZATCA document form |
+| ChangePassword | 1 | 5 |
+| ZatcaOnboarding · InvoiceSummary · ApAging | 0 | 3 each |
+| PayrollReport · AssetSchedule · ArAging | 0 | 2 each |
+
+🔴 **CreditNotes is the page AUD-1 was fixed on.** Its number field was corrected
+for a ZATCA compliance defect days ago, and the fact that the entire form is
+English-only — on a launch requirement — went unnoticed in the same edit. That
+is the reusable part: **a targeted fix sees the thing it was sent to fix.**
+Nothing about working on a file causes its other defects to be noticed, which is
+an argument for periodic *measurement* over relying on incidental discovery.
+
+Split from the pagination work by owner instruction: the sweep is its own
+concern, it will grow, and mixing it into a pagination diff makes both harder to
+review.
+
+### The four ledger lists are done
+
+Invoices, bills, journal entries and transactions all paginate with server-side
+totals. Journal entries deliberately report a **count only** — an entry's debits
+and credits are equal by construction, so a money total across entries would be
+either twice the turnover or zero depending which column you picked, and neither
+means anything. Transactions was the interesting one: it already had
+`limit`/`offset` and an honest truncation notice, but the only exit it offered
+was "narrow your search". The server had a real `total` all along; it now pages.
+
+---
+
 # Appendix (moved 2026-08-28): the long-form named failure modes
 
 > These are the FULL long-form versions of the entries in `CLAUDE.md` §3 "Named failure

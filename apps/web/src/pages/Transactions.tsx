@@ -35,6 +35,7 @@ export default function Transactions() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
+  const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ListTransactionsType | "all">("all");
@@ -66,12 +67,19 @@ const PAGE_SIZE = 50;
     search: debouncedSearch || undefined,
     type: typeFilter !== "all" ? typeFilter : undefined,
     category_id: categoryFilter !== "all" ? Number(categoryFilter) : undefined,
-    limit: PAGE_SIZE + 1,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   });
 
-  const allRows = txList?.transactions ?? [];
-  const isTruncated = allRows.length > PAGE_SIZE;
-  const visibleRows = isTruncated ? allRows.slice(0, PAGE_SIZE) : allRows;
+  /**
+   * 🔴 The server already returned a SQL `total`; this page was inferring
+   * truncation from a fetched extra row and then telling the reader to narrow
+   * their filter. Disclosure was honest, but the only exit was to search
+   * differently. It now reads the real count and offers the rest — "showing 50
+   * of N" with a way to page, which is what the disclosure was standing in for.
+   */
+  const visibleRows = txList?.transactions ?? [];
+  const txTotal = txList?.total ?? 0;
 
   const { data: categories } = useListCategories();
 
@@ -282,18 +290,32 @@ const PAGE_SIZE = 50;
                     </td>
                   </tr>
                 )}
-                {isTruncated && (
-                  /* 🔴 The list is capped. Say so, rather than letting the page
-                     imply it is showing everything. Derived from an extra row
-                     actually arriving, so it is a fact, not an inference. */
+                {txTotal > 0 && (
+                  /* 🔴 The list is a PAGE, and the page says which one, of how
+                     many, with a way to the rest. It used to say only "showing
+                     the first 50 — narrow your search", which is honest about
+                     the cap and offers no exit. */
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center border-t border-border">
-                      <p className="text-xs text-amber-400">
-                        {t(
-                          `Showing the first ${PAGE_SIZE} transactions. More match your criteria — narrow the search, type or category to see them.`,
-                          `يتم عرض أول ${PAGE_SIZE} معاملة فقط. توجد معاملات أخرى مطابقة — يرجى تضييق نطاق البحث أو النوع أو التصنيف لعرضها.`,
-                        )}
-                      </p>
+                    <td colSpan={6} className="px-6 py-3 border-t border-border">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {t(
+                            `Showing ${page * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE + visibleRows.length, txTotal)} of ${txTotal}`,
+                            `عرض ${page * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE + visibleRows.length, txTotal)} من ${txTotal}`,
+                          )}
+                        </span>
+                        <span className="flex gap-2">
+                          <Button variant="outline" size="sm" disabled={page === 0}
+                            onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                            {t("Previous", "السابق")}
+                          </Button>
+                          <Button variant="outline" size="sm"
+                            disabled={page * PAGE_SIZE + visibleRows.length >= txTotal}
+                            onClick={() => setPage((p) => p + 1)}>
+                            {t("Next", "التالي")}
+                          </Button>
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 )}

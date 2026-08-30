@@ -14,6 +14,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 
 interface JELine { accountId?: number; accountName: string; description?: string; debitAmount: number; creditAmount: number; }
+const JE_PAGE_SIZE = 50;
+
+interface JournalEntryPage {
+  items: JournalEntry[];
+  page: { limit: number; offset: number; total: number };
+}
+
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string; status: string; totalDebit: number; totalCredit: number; lines: JELine[]; }
 interface Category { id: number; name: string; type: string; }
 
@@ -23,6 +30,7 @@ const emptyLine: JELine = { accountName: "", description: "", debitAmount: 0, cr
 
 export default function JournalEntries() {
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -32,7 +40,13 @@ export default function JournalEntries() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: entries = [], isLoading } = useQuery<JournalEntry[]>({ queryKey: ["journal-entries"], queryFn: () => apiFetch("/journal-entries") });
+  /** A PAGE plus the set-wide count — see the note on Invoices.tsx. */
+  const { data: jePage, isLoading } = useQuery<JournalEntryPage>({
+    queryKey: ["journal-entries", page],
+    queryFn: () => apiFetch(`/journal-entries?limit=${JE_PAGE_SIZE}&offset=${page * JE_PAGE_SIZE}`),
+  });
+  const entries = jePage?.items ?? [];
+  const jePageInfo = jePage?.page;
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: () => apiFetch("/categories") });
   const selectedEntry = entries.find(e => e.id === selectedId);
 
@@ -125,6 +139,36 @@ export default function JournalEntries() {
                 </tbody>
               </table>
               {!balanced && <p className="text-xs text-red-400 mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
+
+            {/*
+              🔴 The page says what it is showing and of how many, and gives a
+              way to the rest. A list that silently stops at 50 is the same
+              defect as a count that saturates at 200 — the number describes a
+              set the reader does not think they are looking at (B-6).
+            */}
+            {jePageInfo && jePageInfo.total > 0 && (
+              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+                <span>
+                  {t(
+                    `Showing ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} of ${jePageInfo.total}`,
+                    `عرض ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} من ${jePageInfo.total}`,
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    {t("Previous", "السابق")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={jePageInfo.offset + entries.length >= jePageInfo.total}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t("Next", "التالي")}
+                  </Button>
+                </div>
+              </div>
+            )}
             </div>
 
             <Button className="w-full mt-4" onClick={()=>createMut.mutate({...form,lines:lines.map(l=>({...l,debitAmount:String(l.debitAmount),creditAmount:String(l.creditAmount)}))})} disabled={!form.description||!balanced||createMut.isPending}>

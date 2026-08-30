@@ -54,22 +54,17 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-08-28.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-08-28 — the scale/collision sweep, the flow audit, P4, and AUD-13
-(merged, PR #102).** Nineteen findings; the full record, every lesson and the
-retraction of one false finding are in
+**2026-08-28 → 30 — five passes, all merged or in PR #104.** Full record:
 [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
-What a future session needs to know in four lines:
-
-- 🔴 **8 of 15 findings sat in the layer a user touches.** Our automated tests
-  all run a layer below it. That is the standing gap, and **P5** (§5) is the
-  project that closes it.
-- **P4** (`tests/state-machine-reachability.test.ts`) now computes what a user
-  can REACH from the transition graph; it found three defects on its first run.
-- **AUD-13** is the worked example of §3's newest lesson: five separately-minor
-  findings composed into a permanent zero-value ZATCA invoice.
-- **CLAUDE.md is budget-enforced** (`tests/claude-md-budget.test.ts`). If it
-  fails, evict — see the three rules at the top.
+- 🔴 **8 of 15 findings sat in the layer a user touches**; every automated test
+  runs a layer below it. **P5** (§5) is the project that closes that.
+- **P4** computes reachability from the transition graph; its gap lists are now
+  empty, and they emptied themselves.
+- **AUD-13** is the composition class's worked example; the artefact it left,
+  `INV-2026-000049`, stays deliberately.
+- **Auto-approve is gone** — a create makes a draft for every role (§4).
+- **`db` refuses an unscoped query** (§4); ledger lists paginate with SQL totals.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -262,10 +257,11 @@ rules at the top of this file, rule 2).
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after. A conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
-- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8, owner-named 2026-08-28). Setting an attribute on `<html>` imperatively — `documentElement.dir` for RTL — is unreliable **by construction**: React reconciles `#root`, nothing re-asserts what lives above it, nothing notices when it is lost, and the static document's value is always there to fall back to. Generalises past the DOM: any fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. Third instance of a correct producer overwritten by a consumer (the scripted regex fix reverted by a stale `Edit`; migration 0044's dropped default re-created by a `?? 1` in a form). **Test that it survives a route change** — that is the event the current code never sees.
+- **🔴 THE LOGIN PAGE'S LANGUAGE TOGGLE IS DELIBERATE, AND SO IS ITS PROVIDER PLACEMENT** (checked 2026-08-30). `LanguageProvider` wraps `AuthProvider`, which wraps the Router; `AuthGuard` is inside, per route. So the login page HAS a provider, `dir`/`lang` are applied on mount, and the toggle works — verified in `App.tsx` and `Login.tsx`. The placement is already documented there for the demo banner ("every page including login"). 🔴 Recorded because the opposite was proposed as a defect: **do not "fix" this by moving `LanguageProvider` inside `AuthGuard`** — it would take the provider away from the login page, which is the only thing that would make the toggle inert.
+- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change.**
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** (2026-08-28, from the browser drive). Every test in the suite builds its request the way the SERVER expects — calling a service or controller with a hand-made object — so a client that builds one differently is invisible by construction. That is the whole B-1 class in one sentence: `ApAging.tsx` declared a response shape nobody checked, `CreditNotes.tsx` minted a number the allocator was meant to own, and no amount of server-side testing could see either, because the request never came from the client. 🔴 The suite DOES send malformed input deliberately (`audit-med-validation.test.ts`) — the gap is not "we never test bad input", it is that **the client is never the thing under test**. Only something that drives the real client closes it.
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13, 2026-08-28). Five items, each survivable alone and each triaged at a severity correct in isolation, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding, and rank on the worst path rather than the worst item. This is the composition-defect class pointed at FINDINGS instead of code: two correct triage decisions with a bad path between them.
-- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13, 2026-08-28 — the sharpest form of the class). `POST /invoices` with `items: []` returned **201** and, under auto-approve, an ISSUED zero-value tax invoice: an ICV consumed, a ZATCA chain position taken, a QR minted, none of it recoverable. It was **not a malformed request** — it was well-formed with an empty array. Two things made it invisible: **the validation existed on the wrong schema** (`minItems: 1` is declared and enforced for quotations and purchase orders, which touch NO ledger, and was absent for invoices, which consume an ICV — the guard written where the consequence was smallest), and **every test bypassed the layer that had the bug** (service-level fixtures always carry realistic lines, while the CLIENT hardcoded `items: []`). Same family as the SDK differential that proved only that we matched a stale writer: ask what layer the defect lives in, and whether anything tests THAT layer rather than the one below it.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema (declared for quotations and POs, which touch no ledger; absent for invoices, which consume an ICV), and every test built its request the way the server expects. Ask which layer the defect lives in, and whether anything tests THAT one. Full record in the findings file.
 - **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing on its own: these routes pass `req.body` straight to the service, so every constraint in the contract is decorative unless a service re-states it by hand. Either generate the check from the contract or treat the contract as documentation — but never let a reader believe a declared constraint is an enforced one.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). The same class as unreachable navigation, pointed at DATA instead: every control works, every request succeeds, and what lands is a row that no later step can act on — a record born unusable. **No reachability guard can see it**, because nothing is unreachable; the form reached the endpoint and the endpoint said 200. P4 asks whether a user can get somewhere; this asks whether what they created can go anywhere, and the two are independent. The tell is a field the WRITE path treats as optional and a READ path treats as required — check what every consumer of a new record needs BEFORE checking that the form submits.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28). "Accept ready (183)" that accepts 5,000 and posts them is not a display bug — it is an authority bug, the same family as *delete all* deleting fifty: the user consented to what was in front of them and the system acted on a set they were never shown. The rule is not "label it accurately" but **name the true scope BEFORE the act**, and treat any gap between the visible set and the acted-on set as a defect in the act, not in the label. The display half of the same family is a surface that collapses two real rows into one — consent to the one becomes consent to both.
@@ -317,7 +313,7 @@ rules at the top of this file, rule 2).
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
 - **🔴 `db` REFUSES a query outside a tenant transaction.** The proxy used to fall back SILENTLY to the owner connection — RLS bypassed, no `app.current_org_id`, full cross-tenant reach, no error. It now throws `UnscopedDatabaseAccessError` for any DB-reaching method. A deliberately cross-tenant call (a platform job, migration, seeding, auth, tenant resolution, or an owner-only table) imports **`ownerDb`** and says so; thirteen production files now name their connection instead of inheriting one. 🔴 The conversion found a live instance: the operator surface read a tenant's `verification_documents` through the fallback. **Never re-add a fallback here** — making the unscoped query inexpressible is the whole point (§3).
-- **🔴 NO AUTO-APPROVE. A create makes a DRAFT, for every role** (owner decision, 2026-08-28). `invoicesService.create` / `quotationsService.create` / `purchaseOrdersService.create` took `autoApprove` from the RBAC matrix, so an approver's create ISSUED the document in one call. Removed **entirely** — no parameter remains to pass. Its justification expired when M22 gave the product a real approve button, and what was left contradicted M10's own principle: **approval is an act about a specific document, and auto-approve made it an act about a setting.** On invoices it was also two-thirds of AUD-13's severity — the leg that turned a thin form from annoying into unrecoverable by minting an ICV and a ZATCA stamp from one call. Seeds and fixtures that want an issued document now create then approve (`tests/helpers/createApproved.ts`). 🔴 It also CLOSED the solo-approver finding by construction: with every create landing as a draft, the draft-gated controls (Submit, Delete, Edit) are reachable by whoever may create.
+- **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
   human approves.
@@ -536,6 +532,29 @@ attribute is lost it is a runtime fact no static check reaches. Its lesson is in
 (AUD-10, AUD-11, AUD-12), each with a companion test that FAILS if a listed
 route gains a caller and stays listed — so closing them cannot leave the list
 stale.
+
+### 🔴 ARABIC COVERAGE — MEASURED 2026-08-30, queued as its own pass
+
+Arabic is a **launch requirement** (owner, confirmed again 2026-08-30). Measured
+across all 49 pages by counting both i18n idioms (`t("…"` and `lang === "ar"`)
+against bare JSX text nodes, so the count is not an artefact of which idiom a
+page happens to use:
+
+| Page | i18n calls | Untranslated text nodes |
+| --- | --- | --- |
+| **CreditNotes** | 2 | **14** — every field label on a ZATCA document form (Type, Original invoice, Number, Date, Reason, Description, Unit price) |
+| ChangePassword | 1 | 5 |
+| ZatcaOnboarding, InvoiceSummary, ApAging | 0 | 3 each |
+| PayrollReport, AssetSchedule, ArAging | 0 | 2 each |
+
+🔴 **CreditNotes is the page AUD-1 was fixed on.** The number field was corrected
+for a ZATCA compliance defect and the fact that the whole form is English-only
+went unnoticed in the same edit — a launch blocker sitting one line from a
+compliance fix. Recorded because it says what a targeted fix does NOT see.
+
+Split from the pagination work deliberately (owner, 2026-08-30): the sweep is
+its own concern and it will grow, and keeping it inside a pagination PR makes
+both harder to review.
 
 ### Traps and known-dead surfaces
 
