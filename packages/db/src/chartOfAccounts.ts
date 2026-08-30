@@ -1,4 +1,6 @@
-import { db } from "./index";
+// `ownerDb` is the SEEDING path (deliberately cross-tenant, per CLAUDE.md §4);
+// `db` stays tenant-scoped for the runtime read in loadSystemAccounts().
+import { db, ownerDb } from "./index";
 import { categoriesTable } from "./schema";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
@@ -152,7 +154,7 @@ export const LEGACY_NAME_TO_CODE: Record<string, SystemAccountCode> = Object.fro
  */
 export async function seedChartOfAccounts(
   organizationId: string,
-  client: { insert: typeof db.insert } = db,
+  client: { insert: typeof ownerDb.insert } = ownerDb,
 ): Promise<{ inserted: number }> {
   const rows = SYSTEM_CHART_OF_ACCOUNTS.map((a) => ({
     organizationId,
@@ -182,7 +184,7 @@ export async function seedChartOfAccounts(
 
 /** Seed every organization that does not yet have the system accounts. */
 export async function seedChartOfAccountsForAllOrgs(): Promise<{ organizations: number; inserted: number }> {
-  const orgs = await db.execute<{ id: string }>(sql`SELECT id FROM organizations`);
+  const orgs = await ownerDb.execute<{ id: string }>(sql`SELECT id FROM organizations`);
   let inserted = 0;
   for (const row of orgs.rows) {
     const r = await seedChartOfAccounts(row.id);

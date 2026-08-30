@@ -115,6 +115,44 @@ three. Two sequencing notes:
   defines what the chart-of-accounts classification has to be able to express,
   and M17.3 builds that classification.
 
+### 🔴 CROSS-MILESTONE DEPENDENCY — M17.3 and the chart-of-accounts restructure
+
+**Added 2026-08-30.** A separate design
+([`design-chart-of-accounts-structure.md`](design-chart-of-accounts-structure.md))
+gives `categories` a **hierarchy** (classes → groups → accounts →
+sub-accounts), tenant-defined accounts and an import path. **M17.3 and that
+design alter the same table**, and M17.3 was specified before it existed.
+
+Three couplings, recorded so neither milestone discovers them mid-build:
+
+1. **Same migration surface.** Both add columns to `categories`, so both must
+   add the matching column to `system_account_templates` and redefine
+   `seed_org_chart_of_accounts()` (CLAUDE.md §4, guarded by
+   `tests/org-seed-trigger.test.ts`). Whichever lands second must re-read the
+   trigger rather than assume its shape.
+
+2. **The seeded chart supplies the base.** Q4 builds the base from
+   balance-sheet accounts; the seeded chart is what provides them. Whether the
+   seeded chart should be *designed against* the worksheet is now **advisor
+   Block E, question E2**.
+
+3. 🔴 **Hierarchy creates a grain question M17.3 does not currently have.**
+   Against a flat chart, "which worksheet line does this account feed" has one
+   possible grain: per account. Against a tree, there is a real choice —
+   **does `zakat_classification` attach only to leaves, or to a group and
+   inherit downward?**
+
+   Inheritance saves typing and is how a wrong answer gets in quietly: an
+   inherited classification on a tenant-created child nobody reviewed would
+   enter the Zakat base **silently**, in the direction that gets a taxpayer
+   assessed. Leaf-only is more typing with no silent mode.
+
+   **This is M17.3's decision to make, not the chart design's** — recorded here
+   because M17.3 cannot make it without knowing the chart became a tree.
+
+**Status (2026-08-30):** the chart restructure is an approved design with
+nothing built. Current state authority: CLAUDE.md §2.
+
 ---
 
 ## 5. Technical notes for the milestones ahead

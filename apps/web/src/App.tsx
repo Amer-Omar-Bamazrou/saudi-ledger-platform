@@ -27,6 +27,7 @@ import VatReport from '@/pages/VatReport';
 import ZakatReport from '@/pages/ZakatReport';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
+import CustomerDetail from '@/pages/CustomerDetail';
 // Both BUILT (M21) — real routes, real persistence. The last two façades the
 // 2026-08-20 audit found are gone; `KNOWN_UNBACKED` is now empty.
 import Quotations from '@/pages/Quotations';
@@ -34,6 +35,7 @@ import PurchaseOrders from '@/pages/PurchaseOrders';
 import Invoices from '@/pages/Invoices';
 import CreditNotes from '@/pages/CreditNotes';
 import Vendors from '@/pages/Vendors';
+import VendorDetail from '@/pages/VendorDetail';
 import Bills from '@/pages/Bills';
 import JournalEntries from '@/pages/JournalEntries';
 import Employees from '@/pages/Employees';
@@ -179,6 +181,7 @@ function Router() {
               <Route path="/upload" component={Upload} />
               {/* Sales */}
               <Route path="/customers" component={Customers} />
+              <Route path="/customers/:id" component={CustomerDetail} />
               <Route path="/quotations" component={Quotations} />
               <Route path="/invoices" component={Invoices} />
               <Route path="/credit-notes" component={CreditNotes} />
@@ -186,6 +189,7 @@ function Router() {
               <Route path="/scan-review" component={ScanReview} />
               {/* Purchases */}
               <Route path="/vendors" component={Vendors} />
+              <Route path="/vendors/:id" component={VendorDetail} />
               <Route path="/purchase-orders" component={PurchaseOrders} />
               <Route path="/bills" component={Bills} />
               {/* Report pages (each backed by a mounted API route) */}

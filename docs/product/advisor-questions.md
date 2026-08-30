@@ -1,17 +1,21 @@
-# Advisor question package — ONE conversation, not four
+# Advisor question package — ONE conversation, not one per question
 
-**Purpose.** Three separate workstreams are blocked on professional advice, and
-all three questions are cheap to ask together and expensive to ask serially.
-This file is the single package. It exists so nobody re-derives the questions
-from scattered queue entries, and so the answers land in one place.
+**Purpose.** Several separate workstreams are blocked on professional advice,
+and the questions are cheap to ask together and expensive to ask serially. This
+file is the single package. It exists so nobody re-derives the questions from
+scattered queue entries, and so the answers land in one place.
 
 **Assembled 2026-08-15** (owner instruction, at the M17.0 close-out).
+**Blocks are appended as they arise** — the title is deliberately not a count,
+because it was already wrong once (it read "not four" while carrying five).
 
 | Block | Queue item | Blocks |
 | --- | --- | --- |
 | **A** | C7 | Retention duration for INBOUND supplier documents (A1 capture) |
 | **B** | C8 | PDPL — erasure rights vs. our no-delete archive |
 | **C** | Zakat design §4 | The Zakat base computation itself (M17.4) |
+| **D** | C12 | Invoice numbering in practice — gaps, and the Arabic reading |
+| **E** | CoA design §9.4 | The seeded chart of accounts — and its **shared dependency with M17.3** |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -278,3 +282,56 @@ residual risk.
 **Specifically worth a second pair of eyes:** whether the Arabic for
 "sequential" (متسلسل) carries a stronger connotation of *unbroken* than the
 English does. That is the single word our reading rests on.
+
+---
+
+## Block E — the seeded chart of accounts (added 2026-08-30)
+
+**Context for the advisor.** The platform seeds every new organization with a
+minimal 40-account chart — the accounts the automated posting path needs, plus a
+handful of ordinary expense categories. It was deliberately minimal: a fuller
+chart was recorded at the time as "a product feature needing its own research".
+A separate design now adds hierarchy (classes → groups → accounts →
+sub-accounts), tenant-defined accounts, and an import path for tenants migrating
+from another platform.
+
+**Why we are not answering these ourselves.** They are questions about Saudi
+accounting practice and about the Zakat regulations, and this project has a
+standing rule against reasoning tax content from general knowledge — the same
+rule that holds M17.3/M17.4 pending Block C.
+
+### E1. Is a standard Saudi chart of accounts expected — or do firms build their own?
+
+Some jurisdictions publish or effectively mandate a national chart; in others
+every firm builds one and an imposed template is an obstacle rather than a help.
+
+**What each answer changes for us:**
+
+- **A standard is expected** ⇒ we seed a fuller conventional chart, and the
+  import path's job becomes *reconciling* the tenant's chart to it.
+- **Firms build their own** ⇒ we keep the minimal seed, invest in the import and
+  the account-management UI, and treat our numbering as a default the tenant is
+  expected to replace.
+
+The structure being built works either way, so this decides **how many accounts
+we seed**, not the design. It is not blocking.
+
+### E2. 🔴 Should the seeded chart align with the Zakat worksheet mapping?
+
+**This is the more important question, and it is the reason this block exists.**
+
+M17.3 puts a `zakat_classification` on chart-of-accounts entries — which
+worksheet line each GL account feeds (capital, retained earnings, a provision, a
+long-term liability, a deductible long-term asset). The Zakat base is built from
+**balance-sheet accounts**.
+
+So the seeded chart and the Zakat worksheet are two views of the same accounts.
+
+**The question:** should the seeded chart be *designed against* the Zakat
+worksheet — so that every account a Saudi taxpayer needs for the base exists,
+named and grouped the way the worksheet expects — or are they independent, with
+the classification simply mapped on afterwards?
+
+**A "yes" means the two milestones cannot be designed separately**, and the
+seeded chart is partly determined by Zakat requirements we have not yet
+confirmed. See the dependency recorded in both design documents.
