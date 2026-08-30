@@ -462,22 +462,11 @@ run, flake management, and ongoing maintenance — and a flaky E2E suite that
 people learn to re-run is a guard that reports coverage it does not have, which
 is the failure this whole sequence has been about.
 
-🔴 **THE ARGUMENT, IN ONE INCIDENT (2026-08-30).** A response shape changed
-(`GET /invoices` began returning `{items, page, totals}`). The *server*
-consumers were swept; two *client* ones were missed:
-
-| Page | How it failed |
-| --- | --- |
-| `CreditNotes.tsx` | called `.filter` on the envelope — **throws, blank page** |
-| `InvoiceSummary.tsx` | same break inside `.catch(() => [])` — renders **"No invoices in this date range"** |
-
-The second is the one to keep. **It is a wrong statement about the tenant's own
-data that looks exactly like a true one** — a report saying the period is empty
-when it is not. Both were caught by a **typecheck error two files away**, not by
-any of 1,157 tests, because **nothing renders these pages**: a shape mismatch in
-a page is invisible to the entire suite by construction. That is P5's case, made
-by accident, on a change made by the person who had written the rule about
-sweeping shapes hours earlier.
+🔴 **THE ARGUMENT, IN ONE INCIDENT (2026-08-30):** a changed response shape
+broke two client pages — one blank, one rendering a confident "No invoices in
+this date range" about a period that was not empty. Caught by a typecheck error
+two files away, by none of 1,157 tests, because nothing renders these pages.
+Incident: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
 **Why it is not a nice-to-have.** It is the ONLY method that has reached this
 class. Every automated test we own runs a layer below the one that broke:
