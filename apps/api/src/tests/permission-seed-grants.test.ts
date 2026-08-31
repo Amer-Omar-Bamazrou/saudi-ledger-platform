@@ -225,7 +225,19 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
      * a re-seed that never ran, a hand-edited row, a migration that added a
      * resource. `requirePermission` reads the TABLE, not this file, so the
      * table is what actually governs access.
+     *
+     * 🔴 The test SEEDS FOR ITSELF first, because CI's test lane has a migrated
+     * but unseeded database and the first run failed there with "the table is
+     * empty". Self-seeding does not weaken the check: `seedPermissions` is an
+     * upsert that NEVER DELETES ("pruning stale grants is a deliberate,
+     * separate operation" — its own words), so a row the code does not define
+     * survives seeding and the extra-rows assertion below still catches it.
+     * That direction — the database granting access the code never defined —
+     * is the one that matters.
      */
+    const { seedPermissions } = await import("@workspace/db");
+    await seedPermissions();
+
     const db = await pool.query<{ role: string; resource: string; action: string }>(
       `SELECT role, resource, action FROM permissions`,
     );

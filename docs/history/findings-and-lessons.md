@@ -4907,3 +4907,104 @@ new finding, and it is now a standing CI job.
 checkout scans one commit, which would make it a diff check wearing a history
 check's name — and the finding it exists for is a credential committed once and
 removed later, which a shallow scan cannot see by construction.
+
+---
+
+## 2026-08-31 — THE RTL DECISION: THE THIRD OPTION, AND THE EXCLUSION LIST THAT DECIDES IT
+
+The RTL question had been open in PR #112 with two costed options, neither of
+which was the answer:
+
+| Option | Cost | Why it was not taken |
+| --- | --- | --- |
+| Own the vendored components | 127 occurrences across 26 files | Converting code we deliberately do not own, then re-doing it when the redesign lands |
+| Defer to the redesign | none now | RTL is a LAUNCH requirement and the redesign has no date |
+
+**The third option, proposed by an external report and taken by the owner:** an
+override CSS layer keyed on the UTILITY rather than the component. The unit of
+work becomes the utility class, so the cost is **39 distinct utilities** rather
+than 127 occurrences or 26 files. It touches no vendored file and is deleted
+whole when the redesign owns those components.
+
+### 🔴 The exclusion list is what makes it safe, and it is not optional
+
+The obvious version — flip every `left`/`right` utility — is wrong, visibly, in
+the language the change exists for. Only **24 of the 39 are unambiguously
+directional**. Two ways the blunt version breaks:
+
+1. **Centring is not direction.** `left-[50%]` / `left-1/2` is always paired
+   with `-translate-x-1/2` — in `dialog`, `alert-dialog`, `carousel`,
+   `resizable` and `sidebar`. Centred is centred in both directions; flipping it
+   moves every modal off-centre in Arabic and nowhere else.
+2. **The same utility is directional in one component and geometric in
+   another.** `left-0` is directional in `navigation-menu` and `sidebar`, and
+   geometric in `resizable`, where it resets the handle for a *vertical* panel
+   group. A global rule cannot tell them apart, because CSS sees the class and
+   not the intent.
+
+So the layer flips 24 (padding, margin, radius, border — where most of the
+visual wrongness lives) and leaves 15 positioning utilities to a hand audit.
+🔴 **An unflipped padding looks slightly wrong; a wrongly flipped dialog looks
+broken.** That asymmetry is the whole argument for stopping short.
+
+Animation utilities (`slide-in-from-left-*`) are out of scope *by construction*:
+they compile to translate transforms, not `left`/`right` properties, so nothing
+in this layer can reach them.
+
+Verified in a real browser: with `dir="rtl"`, `pl-8` computes to
+`padding-left: 0; padding-right: 32px`.
+
+### 🔴 AND THE GUARD WAS VACUOUS TWICE — CAUGHT ONLY BY FAULT-INJECTING IT
+
+The test pinning the exclusions passed green while failing to check anything, in
+two different ways, one after the other:
+
+**First:** its patterns were built with `new RegExp` from template literals, and
+the heredoc that wrote the file collapsed the escapes — `\b` became `\b`, which
+in a JS template literal is a **backspace character**, not a word boundary.
+Every pattern matched nothing, so both exclusion assertions passed *and would
+have passed with every excluded utility present*. Only the **paired presence
+assertion** — "the layer does flip the safe ones" — went red and exposed it.
+
+**Second, after that fix:** the matcher used a literal string search, and a CSS
+class containing `/`, `.`, `[`, `]` or `%` **must be escaped in a selector** —
+`left-1/2` is written `.left-1\/2`. Searching for `.left-1/2` matched nothing.
+The exclusion assertions passed again *while a flip for an excluded utility sat
+three lines above them in the same file*. Caught by adding that forbidden rule
+deliberately and watching the suite stay green.
+
+Two lessons, both already in §3 and both earning themselves here:
+
+> **Assert presence AND absence.** The absence half was broken twice; the
+> presence half caught it both times.
+>
+> **A guard that has never been shown to fail is a guard nobody has tested.**
+> Fault injection is not a nicety for important tests — it is the only thing
+> that distinguishes a passing check from a check that cannot fail.
+
+The matcher is now tested before it is trusted: the first assertion in the file
+checks that `flips("pl-8")` is true and `flips("definitely-not-a-utility")` is
+false, which is the assertion the original version needed and did not have.
+
+---
+
+## 2026-08-31 — SEQUENCING DECISION: NO TABLE MIGRATION BEFORE THE CONTRACT WORK
+
+An external report proposed migrating the app's tables to TanStack Table,
+presented as cheap. Measured: **49 hand-rolled `<table>` elements across 39
+files, zero using the vendored table component, and `@tanstack/react-table` is
+not even a dependency.** Not cheap — but the owner's ruling turned on the
+sequencing objection, which is stronger than the count:
+
+> **Do not migrate 49 money surfaces onto interfaces nobody has verified.**
+
+Tables are where this project's money defects have lived — the `accountId` key
+bug, the unkeyed fragments, the counts taken off capped lists. Every one of the
+49 renders figures through a hand-written interface, and the contract-coverage
+gap (above) is precisely that those interfaces are unchecked claims. A migration
+now would re-encode unverified types into new code and stamp them "modernised".
+
+**The order is: contract work first (the fourth coverage gap), then any table
+migration consumes GENERATED types rather than hand-written ones.** The
+migration's real value arrives only in that order; in the reverse order it
+launders the defect class it should have eliminated.

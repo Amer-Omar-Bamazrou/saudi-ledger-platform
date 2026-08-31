@@ -491,3 +491,30 @@ contract* tells them why they must not.
 All four were answered by the owner on 2026-08-31; see **Owner answers** above,
 which is the single writer for those decisions. This heading is kept so a reader
 arriving from an older link does not conclude the questions are still open.
+
+## A competing view, recorded 2026-08-31 — not acted on
+
+An external competitive-readiness report recommended **removing Coming Soon
+entries from the navigation entirely**. This directly contradicts the owner's
+2026-08-31 decision above, and it was NOT acted on — but it is recorded with its
+argument rather than discarded, at the owner's instruction, so it can be
+revisited deliberately rather than reversed by the next report that says it.
+
+**The report's case:** unbuilt features in a product tour read as an unfinished
+product. A prospect being demonstrated to sees promises, not scope; a
+competitor's demo shows only what works.
+
+**The standing decision's case:** hiding absence makes scope illegible. "Not
+built" invites someone to build what cannot ship; a named blocker tells them why
+they must not. The placeholder becomes the work order the day its blocker
+clears.
+
+**The axis between them is the READER.** The report optimises for a prospect;
+the decision optimises for an operator or contributor. Both are real audiences
+and they want opposite things from the same sidebar.
+
+🔴 **The decision is not binary, and that should not be lost:** the navigation
+tree is DATA (`src/nav/tree.ts`), so a per-audience filter — hide `coming-soon`
+entries in demo mode, show them everywhere else — is a small change if the
+owner ever wants the demo to read as finished while the working product stays
+legible. If this is revisited, that is the version to cost first.
