@@ -588,7 +588,7 @@ findings file.
 | Data fetching | TanStack Query (React Query v5)                                          |
 | ORM           | Drizzle ORM                                                              |
 | Database      | PostgreSQL (via Supabase — Postgres only, NOT Supabase Auth)             |
-| Cache / queue | **None.** No Redis — rate limiting is in-memory per-process (queue C1); background work runs on the in-process scheduler in `apps/api/src/jobs/`. Add an entry here **when it runs**, not when it is decided. |
+| Cache / queue | **None.** No Redis — rate limiting shares a Postgres store across processes (C1, code half landed); background work runs on the in-process scheduler in `apps/api/src/jobs/`. Add an entry here **when it runs**, not when it is decided. |
 | Auth          | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
 | API contract  | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen      |
 | Validation    | Zod (generated into `@workspace/api-zod`)                                |
