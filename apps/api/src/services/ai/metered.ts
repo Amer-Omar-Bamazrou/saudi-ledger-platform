@@ -14,6 +14,7 @@
  * error). A failed insert is logged and the completion still returns.
  */
 import { db, aiUsageTable } from "@workspace/db";
+import { logger } from "../../lib/logger";
 import type { AiProvider, AiChatRequest, AiVisionRequest, AiCompletion } from "./provider";
 
 async function record(row: {
@@ -28,8 +29,28 @@ async function record(row: {
   try {
     await db.insert(aiUsageTable).values(row);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("[ai-usage] failed to record a usage row (the call itself is unaffected):", err);
+    /**
+     * 🔴 NOT `console.error`. This exact catch hid a total metering outage.
+     *
+     * `ai_usage.company_id` was NOT NULL with a GUC-derived default, so every
+     * insert from the SCHEDULED findings run — which is org-wide and sets no
+     * company — violated the constraint. The model calls succeeded, tokens
+     * were spent, and not one row was recorded for any scheduled AI work. The
+     * only trace was a `console.error` in a server log nobody reads, and the
+     * usage curve simply omitted a whole class of consumption.
+     *
+     * Swallowing stays correct — the caller already has its completion, and a
+     * metering hiccup must not turn a successful answer into an error. What
+     * was wrong was swallowing QUIETLY. A structured `logger.error` carries
+     * the operation and provider, goes wherever logs actually go, and can be
+     * alerted on. **Silence is not a neutral outcome**, least of all on the
+     * one number the business model rests on.
+     */
+    logger.error(
+      { err, operation: row.operation, provider: row.provider, model: row.model },
+      "[ai-usage] failed to record a usage row — THE METER IS MISSING THIS CALL " +
+        "(the completion itself is unaffected)",
+    );
   }
 }
 

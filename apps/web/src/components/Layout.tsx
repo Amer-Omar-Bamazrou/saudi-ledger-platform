@@ -186,6 +186,12 @@ function NavGroup({
     <div>
       <button
         onClick={() => setOpen((p) => !p)}
+        // Announced, not merely drawn: the chevron is the only cue a sighted
+        // user gets, and a screen reader gets nothing from it. It also gives
+        // `rtl-direction.spec.ts` a deterministic way to open every section
+        // instead of guessing which ones happen to be expanded.
+        aria-expanded={open}
+        data-nav-section={section.label}
         className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors"
       >
         {lang === "ar" ? section.labelAr : section.label}

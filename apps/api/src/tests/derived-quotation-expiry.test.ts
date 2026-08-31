@@ -13,7 +13,7 @@
  * proves nothing. A filter that returned an empty set would satisfy "no
  * unexpired quotation appears" perfectly. So every case below asserts both
  * that the right rows are PRESENT and that each wrong row is ABSENT for its
- * own distinct reason — six quotations, five arms of the predicate, so a
+ * own distinct reason — seven quotations, six arms of the predicate, so a
  * predicate that drops any one arm returns a different list rather than the
  * same one by luck.
  *
@@ -111,8 +111,13 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
      *                      does not un-accept it
      *   QUO-EX-5  not      DECLINED and lapsed (see the header — excluded by a
      *                      different term than the one aimed at it)
-     *   QUO-EX-6  EXPIRED  draft, lapsed — follows the instruction as written;
-     *                      see the OPEN QUESTION on the predicate
+     *   QUO-EX-7  EXPIRED  submitted, lapsed — a second live row, so the
+     *                      expected set is not a single row that could match
+     *                      by accident
+     *   QUO-EX-6  not      DRAFT and lapsed. 🔴 The owner closed this the
+     *                      other way on 2026-08-31: a draft is not an offer
+     *                      anyone received, so it cannot lapse — matching the
+     *                      invoice precedent, where OVERDUE excludes drafts.
      */
     await pool.query(
       `INSERT INTO quotations
@@ -124,7 +129,8 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
          ($1,$2,$3,'QUO-EX-3','${PAST}',NULL,       100,0,100,'submitted',NULL),
          ($1,$2,$3,'QUO-EX-4','${PAST}','${PAST}',  100,0,100,'approved', NULL),
          ($1,$2,$3,'QUO-EX-5','${PAST}','${PAST}',  100,0,100,'approved', 'declined'),
-         ($1,$2,$3,'QUO-EX-6','${PAST}','${PAST}',  100,0,100,'draft',    NULL)`,
+         ($1,$2,$3,'QUO-EX-6','${PAST}','${PAST}',  100,0,100,'draft',    NULL),
+         ($1,$2,$3,'QUO-EX-7','${PAST}','${PAST}',  100,0,100,'submitted',NULL)`,
       [orgId, companyId, customerId],
     );
   });
@@ -133,14 +139,14 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
 
   it("the fixture actually landed (anti-vacuity — an empty org passes every assertion below)", async () => {
     const q = await pool.query(`SELECT count(*)::int n FROM quotations WHERE organization_id = $1`, [orgId]);
-    expect(q.rows[0].n).toBe(6);
+    expect(q.rows[0].n).toBe(7);
   });
 
   it("🔴 the expired filter returns exactly the two lapsed-and-live quotations", async () => {
     const { quotationsService } = await import("../services/quotations.service");
     const out = await inTenant(orgId, companyId, () => quotationsService.list({ expired: true }));
     const numbers = out.items.map((q: QuotationRow) => q.quotationNumber).sort();
-    expect(numbers).toEqual(["QUO-EX-1", "QUO-EX-6"]);
+    expect(numbers).toEqual(["QUO-EX-1", "QUO-EX-7"]);
   });
 
   it("🔴 each excluded quotation is excluded for its OWN reason", async () => {
@@ -151,6 +157,12 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
     expect(numbers, "NULL valid_until never expires — the column's stated rule").not.toContain("QUO-EX-3");
     expect(numbers, "an accepted quotation is not expired").not.toContain("QUO-EX-4");
     expect(numbers, "a declined quotation is terminated, not expired").not.toContain("QUO-EX-5");
+    expect(
+      numbers,
+      "🔴 a DRAFT cannot expire — it is not an offer anyone received. This arm was " +
+        "decided the opposite way at first and closed by the owner on 2026-08-31, " +
+        "matching the invoice precedent where OVERDUE excludes drafts.",
+    ).not.toContain("QUO-EX-6");
   });
 
   it("🔴 the figure MOVES — it is not a constant that happens to match", async () => {
@@ -166,7 +178,7 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
     );
     const after = await inTenant(orgId, companyId, () => quotationsService.list({ expired: true }));
     expect(after.page.total).toBe(1);
-    expect(after.items.map((q: QuotationRow) => q.quotationNumber)).toEqual(["QUO-EX-6"]);
+    expect(after.items.map((q: QuotationRow) => q.quotationNumber)).toEqual(["QUO-EX-7"]);
 
     await pool.query(
       `UPDATE quotations SET valid_until = '${PAST}' WHERE organization_id = $1 AND quotation_number = 'QUO-EX-1'`,
@@ -204,6 +216,6 @@ describeMaybe("expired is derived from valid_until, and no row stores it", () =>
     // it proves the filter is not returning everything.
     expect(out.page.total).toBe(0);
     const all = await inTenant(orgId, companyId, () => quotationsService.list({}));
-    expect(all.page.total).toBe(6);
+    expect(all.page.total).toBe(7);
   });
 });

@@ -20,8 +20,14 @@ export const aiUsageTable = pgTable(
       .notNull()
       .default(sql`app_default_org_id()`)
       .references(() => organizationsTable.id),
+    /**
+     * 🔴 NULLABLE, and the NULL means something: this AI call was not
+     * attributable to one company. Org-wide work — the scheduled findings run
+     * — has no company in scope, and recording an arbitrary one would put a
+     * precise, plausible, wrong number into the figure we intend to bill from.
+     * See migration 0064 for the defect this closes.
+     */
     companyId: uuid("company_id")
-      .notNull()
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id, { onDelete: "cascade" }),
     operation: text("operation").notNull(),

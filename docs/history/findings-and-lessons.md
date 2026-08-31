@@ -4256,3 +4256,99 @@ assertion on the EDGE between the two existing checks (*every navigation
 destination is a route the smoke crawl renders*), which is the composition
 stated in code rather than assumed — the deliberate opposite of the
 *two correct assertions with a gap between them* shape.
+
+---
+
+## 2026-08-31 — 🔴 P5 JUSTIFIED ITSELF ON ITS FIRST REAL RUN: THE UNKEYED FRAGMENT
+
+**Owner-named**, and worth recording precisely because it is unspectacular. The
+browser suite's first red on a real PR was not an exotic integration failure. It
+was this, in `AuditTrail.tsx`:
+
+```tsx
+{logs.map((l) => (
+  <>                              {/* ← the array element. No key. */}
+    <tr key={l.id}> … </tr>       {/* ← keys, on the wrong nodes */}
+    {expanded === l.id && <tr key={`${l.id}-detail`}> … </tr>}
+  </>
+))}
+```
+
+Every key present, every key on a child *inside* the fragment, and the element
+React actually keys — the fragment itself — carrying none. TypeScript is content:
+a fragment takes no required props. ESLint's `react/jsx-key` does not fire on a
+shorthand `<>` in this position. The page renders, the rows are correct, the
+data is right. **The only artefact is a console error, and the only thing in
+this repository that reads a console is a browser.**
+
+That is the whole argument for P5 in one defect. 1,100+ tests call services with
+hand-built objects; not one of them mounts a component. The scoreboard in §5 —
+*found by a browser: six real defects; found by 1,179 tests: none of them* —
+gained an entry on the suite's first genuine run, in a file that had been
+reviewed and shipped.
+
+### 🔴 AND THE SECOND HALF, WHICH IS THE LARGER FINDING
+
+Sweeping the shape rather than the instance (§3) turned up **two more identical
+maps**: `TrialBalance.tsx` and `reports/AccountSummary.tsx`, both
+`typeOrder.filter(t => byType[t]?.length > 0).map(type => <>`.
+
+**Both pages passed the crawl.** Not because they were correct — they had the
+same defect — but because the seeded organisation has no account rows of those
+types, so `filter(length > 0)` yields an empty array, the map never executes,
+and React is never asked to key anything.
+
+**A test that passes because the code under it never ran is not a passing test.**
+It is a vacuous green wearing a passing test's clothes, and it is indistinguishable
+from a real pass in every report we produce. This is the fixture-scale blindness
+already recorded — *our verification is structurally blind to volume and
+collision* — arriving in a THIRD place: not a count off a capped list, not an
+identity built from colliding values, but **a rendering branch no fixture is
+large enough to enter.**
+
+The generalisation is worth stating on its own, because it is the one that keeps
+catching us:
+
+> **Our fixtures are small, and small fixtures do not merely test less — they
+> test differently.** A guard whose subject is reached only under data we never
+> seed reports on nothing while reporting success. Ask of any new check: *what
+> data does this need in order to execute at all, and does our fixture supply
+> it?*
+
+The reported instance was, once again, the least dangerous of the three: the one
+that happened to sit on a page the fixture populates.
+
+---
+
+## 2026-08-31 — B-8: NOT REPRODUCED, AND THE NEGATIVE IS THE RESULT
+
+`e2e/rtl-direction.spec.ts` runs the mechanism B-8's own lesson named — *test
+that it survives a route change* — and `<html dir>` holds. Five tests: toggle to
+Arabic then walk five routes across sections **by clicking**; a full reload; a
+route change *after* a reload (the composition most likely to catch a provider
+that only re-applies `dir` in its own click handler); and a switch back to
+English, asserting the value MOVES rather than merely equalling "rtl".
+
+🔴 **The search shape, so the negative is reviewable rather than merely
+asserted:** exactly one writer of `document.documentElement.dir` in application
+code (`LanguageContext.tsx:52`); no package under `@radix-ui`, `vaul` or `cmdk`
+writes `documentElement.dir` or `documentElement.setAttribute`; navigation is
+performed by clicking because a `goto` is a document load that remounts the
+provider and would repair the loss before it could be observed. **What would
+falsify the negative:** a loss on a surface not on that walk, one triggered by a
+portal or dialog, or a path that unmounts the provider.
+
+**B-8 is not closed — it is tested.** That is a better state than
+"unreproduced", and the distinction matters: the guard earns its place whether
+or not the original report was real, because the CLASS is real. A value the
+framework does not own, written once and never re-asserted, is a hope. The
+observation half now exists.
+
+### Found on the way
+
+`apps/web/index.html` carries `lang="en"` and **no `dir` attribute at all**.
+Nothing is *lost* — it was never set — so this is not B-8; but every load paints
+left-to-right until the provider's effect runs, which is a real RTL defect
+against a launch requirement. The fix is an inline script reading `ksa_lang`
+before first paint, and that is a decision about render-blocking scripts, so it
+is flagged rather than taken.

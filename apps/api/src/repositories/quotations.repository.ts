@@ -59,18 +59,29 @@ export interface QuotationListFilter {
  * below says what is actually meant, on the axis that actually carries it,
  * instead of resting on a constraint two files away.
  *
- * 🔴 ONE QUESTION IS LEFT OPEN RATHER THAN DEFAULTED: the predicate as agreed
- * lets a DRAFT expire. The invoice precedent goes the other way — `OVERDUE`
- * excludes `draft` and `submitted`, on the ground that a document not yet
- * issued cannot be late. Both readings are defensible for a quotation (an
- * internal draft that lapsed is arguably just stale), so this follows the
- * written instruction rather than silently substituting the sibling rule.
- * Flagged for the owner; changing it is one line here and nowhere else.
+ * ── 🔴 A DRAFT CANNOT EXPIRE (owner, 2026-08-31) ──────────────────────────
+ * The predicate as first agreed let a DRAFT expire. Raised as an open question
+ * rather than defaulted, and the owner closed it the other way:
+ *
+ *   > A draft is not an offer anyone received, so it can't lapse. Consistency
+ *   > between the two matters more than either reading on its own.
+ *
+ * So `draft` is excluded here exactly as `OVERDUE` excludes it on invoices,
+ * and the two documents now answer "has this lapsed?" by the same rule. The
+ * reasoning that binds them is one sentence — **an expiry date is a promise
+ * made to someone, and nobody has been promised anything by a draft** — which
+ * is why the consistency is a fact about the domain rather than a tidiness
+ * preference.
+ *
+ * `submitted` still CAN expire, and that is not an inconsistency with the
+ * invoice rule: a submitted quotation is awaiting OUR approval, but its
+ * validity date is a promise to the CUSTOMER that ages on its own regardless
+ * of where it sits in our workflow.
  */
 const EXPIRED = sql`(
   ${quotationsTable.validUntil} IS NOT NULL
   AND NULLIF(${quotationsTable.validUntil}, '')::date < CURRENT_DATE
-  AND ${quotationsTable.status} <> 'approved'
+  AND ${quotationsTable.status} NOT IN ('approved', 'draft')
   AND ${quotationsTable.outcome} IS NULL
 )`;
 
