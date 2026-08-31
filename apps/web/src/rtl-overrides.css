@@ -1,0 +1,126 @@
+/*
+ * RTL OVERRIDE LAYER — the third option, taken 2026-08-31 (owner decision).
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * `apps/web/src/components/ui/**` is vendored shadcn, deliberately NOT owned
+ * (`design-pass-inherited-decisions.md`). It uses PHYSICAL properties — `pl-*`,
+ * `ml-*`, `left-*`, `rounded-l-*` — which do not flip in Arabic, so RTL is
+ * visibly incomplete. Two options had been costed and neither was the answer:
+ *
+ *   own the vendored components   convert 127 occurrences across 26 files in
+ *                                 code we chose not to own, then re-do it when
+ *                                 the redesign lands
+ *   defer to the redesign         leaves RTL broken until then, and RTL is a
+ *                                 LAUNCH requirement
+ *
+ * This is the third: an override layer keyed on the UTILITY rather than the
+ * component. The unit of work is the utility class, so the cost is proportional
+ * to DISTINCT utilities (39) rather than occurrences (127) or files (26). It
+ * touches no vendored file, and it is DELETED WHOLE when the redesign owns
+ * these components — no migration, no leftovers.
+ *
+ * ── 🔴 THE EXCLUSION LIST IS THE DESIGN, NOT A CAVEAT ──────────────────────
+ * A blanket "flip every left/right utility" is the obvious version of this idea
+ * and it is WRONG — visibly, in the language the change exists for. Of the 39
+ * distinct utilities, only 24 are unambiguously directional. The other 15 are
+ * POSITIONING, and positioning is where physical properties stop meaning
+ * "start/end" and start meaning "geometry".
+ *
+ * Two ways a blanket flip breaks:
+ *
+ *   1. CENTRING IS NOT DIRECTION. `left-[50%]` / `left-1/2` is always paired
+ *      with `-translate-x-1/2` — in `dialog`, `alert-dialog`, `carousel`,
+ *      `resizable` and `sidebar`. Centred is centred in both directions;
+ *      flipping it moves every modal off-centre in Arabic.
+ *
+ *   2. THE SAME UTILITY IS DIRECTIONAL IN ONE COMPONENT AND GEOMETRIC IN
+ *      ANOTHER. `left-0` is directional in `navigation-menu` and `sidebar`,
+ *      and geometric in `resizable`, where it resets the handle for a VERTICAL
+ *      panel group. A global rule cannot tell those apart, because CSS sees the
+ *      class and not the intent.
+ *
+ * So this layer flips the 24 that are safe globally — spacing, margins, radius,
+ * borders, which is where most of the visual wrongness lives — and leaves the
+ * 15 positioning utilities alone. Those are listed at the bottom as a
+ * hand-audit backlog, because a wrong flip there is worse than no flip: an
+ * unflipped padding looks slightly off, an off-centre dialog looks broken.
+ *
+ * 🔴 Animation utilities (`slide-in-from-left-*`, `slide-out-to-right-full`)
+ * are OUT OF SCOPE by construction, not by omission: they compile to translate
+ * transforms, not to `left`/`right` properties, so nothing here can affect
+ * them. Directional animation is a separate, smaller piece of work.
+ *
+ * ── MECHANICS ──────────────────────────────────────────────────────────────
+ * Unlayered on purpose. Tailwind v4 puts utilities in `@layer utilities`, and
+ * unlayered rules beat layered ones regardless of specificity — so these win
+ * without `!important` and without a specificity arms race. Guarded by
+ * `[dir='rtl']`, which the pre-paint script in `index.html` sets before first
+ * paint, so the flip is applied on the first frame rather than after hydration.
+ *
+ * Covered by `apps/api/src/tests/rtl-override-layer.test.ts`, which asserts the
+ * exclusions are still excluded — the part most likely to be "tidied up" by
+ * someone who sees an incomplete-looking list.
+ */
+
+/* ── Padding: always directional ─────────────────────────────────────────── */
+[dir='rtl'] .pl-2   { padding-left: 0; padding-right: calc(var(--spacing) * 2); }
+[dir='rtl'] .pl-2\.5 { padding-left: 0; padding-right: calc(var(--spacing) * 2.5); }
+[dir='rtl'] .pl-3   { padding-left: 0; padding-right: calc(var(--spacing) * 3); }
+[dir='rtl'] .pl-4   { padding-left: 0; padding-right: calc(var(--spacing) * 4); }
+[dir='rtl'] .pl-7   { padding-left: 0; padding-right: calc(var(--spacing) * 7); }
+[dir='rtl'] .pl-8   { padding-left: 0; padding-right: calc(var(--spacing) * 8); }
+[dir='rtl'] .pr-0   { padding-right: 0; padding-left: 0; }
+[dir='rtl'] .pr-1   { padding-right: 0; padding-left: calc(var(--spacing) * 1); }
+[dir='rtl'] .pr-2   { padding-right: 0; padding-left: calc(var(--spacing) * 2); }
+[dir='rtl'] .pr-2\.5 { padding-right: 0; padding-left: calc(var(--spacing) * 2.5); }
+[dir='rtl'] .pr-3   { padding-right: 0; padding-left: calc(var(--spacing) * 3); }
+[dir='rtl'] .pr-8   { padding-right: 0; padding-left: calc(var(--spacing) * 8); }
+
+/* ── Margin: always directional ──────────────────────────────────────────── */
+[dir='rtl'] .ml-0    { margin-left: 0; margin-right: 0; }
+[dir='rtl'] .ml-1    { margin-left: 0; margin-right: calc(var(--spacing) * 1); }
+[dir='rtl'] .ml-2    { margin-left: 0; margin-right: calc(var(--spacing) * 2); }
+[dir='rtl'] .ml-4    { margin-left: 0; margin-right: calc(var(--spacing) * 4); }
+[dir='rtl'] .ml-auto { margin-left: 0; margin-right: auto; }
+[dir='rtl'] .mr-2    { margin-right: 0; margin-left: calc(var(--spacing) * 2); }
+
+/* ── Border radius: directional (a "leading" corner follows the reading order) */
+[dir='rtl'] .rounded-l-md   { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+[dir='rtl'] .rounded-l-none { border-top-left-radius: revert; border-bottom-left-radius: revert;
+                              border-top-right-radius: 0; border-bottom-right-radius: 0; }
+[dir='rtl'] .rounded-r-md   { border-radius: var(--radius-md) 0 0 var(--radius-md); }
+[dir='rtl'] .rounded-r-none { border-top-right-radius: revert; border-bottom-right-radius: revert;
+                              border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+/* ── Borders: directional ────────────────────────────────────────────────── */
+[dir='rtl'] .border-l-0           { border-left-width: revert; border-right-width: 0; }
+[dir='rtl'] .border-l-transparent { border-left-color: revert; border-right-color: transparent; }
+
+/*
+ * ── 🔴 DELIBERATELY NOT FLIPPED — the hand-audit backlog ───────────────────
+ *
+ * Fifteen POSITIONING utilities. Each needs a per-occurrence judgement about
+ * whether it means "start/end" or "geometry", which CSS cannot make:
+ *
+ *   left-[50%] left-1/2      CENTRING, always with -translate-x-1/2.
+ *                            NEVER flip: centred is centred in both directions.
+ *   left-0  right-0          BOTH. Directional in navigation-menu and sidebar;
+ *                            geometric in resizable (a vertical-layout reset).
+ *   left-2  right-2          Mostly icon insets inside inputs/selects —
+ *                            directional, but several sit on absolutely
+ *                            positioned decorations that also carry translates.
+ *   left-4  right-4          As above.
+ *   left-1  right-1          As above.
+ *   right-3                  As above.
+ *   left-12 right-12         Carousel previous/next arrows. Directional, and
+ *                            flipping them ALSO requires swapping which arrow
+ *                            means "next" — a behaviour change, not a style one.
+ *   left-52 right-52         Animation offsets in navigation-menu; translate-
+ *                            based, so out of this layer's reach anyway.
+ *   left-full right-full     Sidebar offcanvas pseudo-element and toast exits;
+ *                            geometry relative to the element's own box.
+ *
+ * 🔴 An unflipped padding looks slightly wrong. A wrongly flipped dialog looks
+ * BROKEN. That asymmetry is why this layer stops here rather than guessing.
+ */
+

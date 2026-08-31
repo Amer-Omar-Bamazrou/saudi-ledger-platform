@@ -83,7 +83,7 @@ so the check enumerates rather than samples. Record:
 | **Automation** | A1 capture ✅, A3 recurring (drafts only) ✅, **A2 bank feeds not started** | [`feature-spec-automation`](docs/product/feature-spec-automation.md) |
 | **Demo deployment** | ✅ Codebase demo-ready; **nothing is deployed** | [`demo-deployment-decisions`](docs/product/demo-deployment-decisions.md) |
 | **Billing** | 🔴 **Does not exist** (queue R1) | §5 |
-| **Security** | F1 (cross-tenant account takeover) and F2 (operator job reach) CLOSED; G-1 checked and absent; privilege surface map live | [`hld`](docs/hld.md) §security, findings file |
+| **Security** | F1 + F2 CLOSED; G-1 checked and absent; privilege surface map live; permission grants, cross-company isolation and git history all audited 2026-08-31 | [`hld`](docs/hld.md) §3, findings file |
 
 **Owner-approved audit order, in flight:** operator surface ✅ → accounting-core
 services ✅ → **the write paths** (next).
@@ -246,21 +246,21 @@ rules at the top of this file, rule 2).
 - **🔴 A dependency that accepts your input has not promised to honour it** — small-ICU Node accepts `islamic-umalqura` and returns Gregorian. When a dependency can silently substitute behaviour, probe an EXTERNALLY CHECKABLE FACT at boot. "It didn't throw" is not evidence.
 - **Sources rank LIVE API > SDK > PDF > secondary** — and an unread primary source is not a licence to trust a secondary one.
 - **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollary: when line-level truth exists, header-level arithmetic is a second computation of the same fact and will drift. Corollary: **a REMOVED default is an invariant too** — defaults live wherever a writer supplies a fallback, and each is a write path.
-- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement, so verifying the allocator verifies nothing. Ask what can reach the same effect without going through it, and prefer a boundary with no override to one with a documented escape hatch.
+- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement, so verifying the allocator verifies nothing. **Ask what can reach the same effect without going through it**, and prefer a boundary with no override to one with a documented escape hatch.
 - **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
 - **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
 - **🔴 The vacuous green in the measuring instrument** — a verdict line must carry the evidence count it rests on, and an instrument needs its own vacuity test: "all inputs failed" is a case it must NAME, not score. An unmeasured row reads "NOT MEASURED", never "matches baseline". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
 - **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
 - **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
-- **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after. A conservation law can hold while the conserved thing is in the wrong place.
-- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an `idle_in_transaction_session_timeout` did its job and killed the API PROCESS (an unhandled `error` on the severed pg client is fatal in Node). Ask of every severance — timeout, abort, socket destroy, termination, failover: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts`. 🔴 **STANDARD ADVICE APPLIED WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only; the checked-out one still killed the server, and the comment beside the fix then falsely asserted it was handled.
+- **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
+- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout did its job and killed the API PROCESS (an unhandled `error` on the severed pg client is fatal in Node). Ask of every severance: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts`, which also RECORDS the points needing no guard. 🔴 **STANDARD ADVICE APPLIED WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only; the checked-out one still killed the server. 🔴 **A WRONG FIX WITH A CONFIDENT COMMENT IS A CLAIM NOBODY RECHECKS.**
 - **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TrialBalance declared `id`, the API sends `accountId`, so every row keyed on `undefined` (a React warning, and rows mis-reconciled on re-render = a wrong figure in the wrong account). TypeScript checks a hand-written interface against the COMPONENT, never against the response. 🔴 Measured cause: **15 report endpoints are mounted, 1 is in `openapi.yaml`** — so "OpenAPI-first" is real for CRUD and largely absent for reports, which is where the money figures are. Incident: findings file.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
-- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE so rewording copy cannot break it. Incident: findings file.
-- **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout, so the login toggle works. Checked twice; two proposed B-8 mechanisms died here. Incident: findings file.
-- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change** — done 2026-08-31 (`e2e/rtl-direction.spec.ts`, green, by CLICKING: a `goto` remounts the provider and repairs the loss before it can be seen). Not reproduced; now tested rather than unreproduced. Incident: findings file.
-- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it — **P5**, the browser suite, now does (`apps/web/e2e`).
+- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
+- **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
+- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership needs re-assertion or observation, never a single write. Tested 2026-08-31 (`e2e/rtl-direction.spec.ts`, green, by CLICKING — a `goto` repairs the loss before it can be seen). Now tested rather than unreproduced.
+- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client closes it: **P5** (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13). Five items, each survivable alone and each correctly triaged, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding and rank on the worst PATH. Incident: findings file.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Incident: findings file.
 - **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing: these routes pass `req.body` straight to the service, so every contract constraint is decorative unless a service re-states it. Generate the check, or treat the contract as documentation — never let a reader believe a declared constraint is an enforced one.
@@ -271,7 +271,7 @@ rules at the top of this file, rule 2).
 - **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — P5 went 65-green, then a readiness wait was added to make it *more* reliable, pointing at a path assumed rather than checked; the step meant to remove flake is the one that broke the suite. **Re-run the thing you just hardened** — a change made for reliability earns no exemption from the run that proves it. (Earned again 2026-08-31: a `pool.on("error")` fix believed correct crashed the next run identically.) Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
 - **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
-- **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated OpenAPI client; a page must be RENDERED before it counts as working. Measured wrong on five pages, 18 fields; `tests/list-response-shape.test.ts` is the countermeasure. Incident: findings file.
+- **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated client; a page must be RENDERED before it counts as working. (See the contract-coverage gap in §5 for how widespread this is.) Incident: findings file.
 - **🔴 A server refusal nobody surfaces is indistinguishable from a frozen UI** — surface errors at the mutation cache, not per form (the write-boundary rule applied to error surfacing). An unsurfaced error is also a diagnosis nobody gets, including us.
 - **🔴 A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures, never conflated.** *Shape 1 (data flow):* one file writes the fact another trusts; both files are correct and the EDGE is the hole. The countermeasure is human — enumerate what a privilege can WRITE, then grep every guard that READS that fact. *Shape 2 (position):* a route on the wrong side of a guard. The countermeasure is mechanical — `tests/privilege-surface-map.test.ts`. 🔴 **The map would NOT have caught F1** and must never be cited as if it would.
 - **🔴 A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it. F1's fix replaced overlap with CONFINEMENT, because an actor can cause overlap with one INSERT and cannot cause confinement at all. Corollary: **a HIGH goes into this file the moment it is named**, before the session that named it ends — a finding that lives only in a transcript is remembered, until it isn't.
@@ -281,7 +281,7 @@ rules at the top of this file, rule 2).
 - **🔴 An instruction's referent is an INPUT — check it against the data, even when it comes from the owner.** A work order once arrived for a milestone that did not exist; a bug was reported twice with a confident mechanism that was absent both times. 🔴 **An instruction's MECHANISM is an input too** — take the shape it describes, check the mechanism, and REPORT the mismatch rather than building the plausible thing. Corrections ship narrow and scoped; a named gap beats a silent default. (Seven instances this session; the table is in the findings file.)
 - **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
-- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Every fixture we own is *small*, carries *unique* values, and populates *few tables*, so three families are invisible at fixture scale: volume (a count off a capped list), collision (an identity built from date+amount+description), and BREADTH (a branch no seeded row reaches — an unkeyed fragment survived on two pages because `filter(length>0)` never yielded a row). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces, and nothing inside the suite can enumerate what was missed** — which is why breadth is SEEDED deliberately and asserted, not hoped for. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`. 🔴 **Breadth measured 2026-08-31** (11 tables populated, 40 empty; 17 of 54 crawled routes rendered a row). Method and numbers: findings file.
+- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Three families are invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), and BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces, and nothing inside the suite can enumerate what was missed** — so breadth is SEEDED and asserted, never hoped for. 🔴 **A suspiciously ROUND count is a diagnosis.** Incidents: findings file.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
 - **🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY** (nav tree, 2026-08-31) — checking that every SPEC entry points at something real cannot see a real page the spec never listed. Five working report pages were about to become unreachable in the same commit that made the navigation "complete"; the coverage assertion found them, reading did not. **Whenever a map replaces a map, assert BOTH directions — every entry points at something, and everything is pointed at.** Incident: findings file.
 - **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
@@ -388,21 +388,20 @@ rules at the top of this file, rule 2).
   evidence of compliance (it passed byte-for-byte while the live API rejected
   the QR). Divergence log:
   [`docs/zatca/spec-vs-implementation-divergences.md`](docs/zatca/spec-vs-implementation-divergences.md).
-- **Sandbox traps:** it accepts ANY OTP; `requestID` is a constant stub; the
-  sandbox PCSID is a shared canned certificate not bound to our key
-  (`activateCredential` verifies the key and refuses a mismatch); a PCSID is
-  issued even when compliance documents FAIL — assert compliance results
-  directly, never infer from certificate issuance.
+- **Sandbox traps:** any OTP is accepted; `requestID` is a constant stub; the
+  sandbox PCSID is a shared canned certificate not bound to our key; and **a
+  PCSID is issued even when compliance documents FAIL** — assert compliance
+  results directly, never infer them from certificate issuance.
 - **Issuance FAILS CLOSED for onboarded companies** (deliberate, owner-approved):
   if the document cannot be built/signed, the approval rolls back — a KMS
   outage stops invoicing rather than minting an unreachable invoice and a
   permanent ICV gap. Companies with no active credential are skipped silently
   and issue as before. Revisit diagnosability before a real taxpayer (queue C5).
 - **The chain needs two mechanisms:** allocation serialised by
-  `lockCompanySequence` (advisory lock covering the ICV read AND chain-head
-  read), and ordering by **`icv DESC NULLS LAST, id DESC`** — never row id.
+  `lockCompanySequence` (the lock covers the ICV read AND the chain-head read),
+  and ordering by **`icv DESC NULLS LAST, id DESC`** — never row id.
   `unique(company_id, icv)` is a backstop that structurally cannot see a fork.
-  Out-of-order approvals fork the chain **sequentially** — this is not purely a
+  Out-of-order approvals fork the chain **sequentially** — not purely a
   concurrency bug.
 - **Our homegrown hash chain is NOT ZATCA's chain.** `invoices.invoice_hash` /
   `previous_hash` are the homegrown tamper-evidence mechanism; the legally
@@ -418,12 +417,10 @@ rules at the top of this file, rule 2).
   round-trip assertion.** The org-seed trigger copies template→category
   **column by column**, and plpgsql resolves names at EXECUTION time, so both
   failure directions are silent at deploy: a **dropped** column the trigger
-  still names breaks the next *signup* (M17.0/0038), and an **added** column the
-  trigger omits seeds the next org with NULLs nobody asked for (M18.1/0041).
-  Both happened; both were caught by hand. `tests/org-seed-trigger.test.ts` is
-  the standing countermeasure — it compares the two tables' column sets rather
-  than knowing any column's name, so it covers future migrations without being
-  edited, and it has been verified to fail in **both** directions. Do not
+  still names breaks the next *signup*, and an **added** column the trigger
+  omits seeds the next org with NULLs. Both happened. `tests/org-seed-trigger.test.ts`
+  compares the two tables' COLUMN SETS rather than knowing any column's name, so
+  it covers future migrations unedited, and fails in both directions. Do not
   weaken it to a list of known columns.
 - **Owner-only tables must REVOKE explicitly.** Supabase's base
   `ALTER DEFAULT PRIVILEGES` re-grants `TRUNCATE`/`REFERENCES`/`TRIGGER` on
@@ -433,7 +430,6 @@ rules at the top of this file, rule 2).
   never estimate from the schema.
 - **Certificate renewal requires the TENANT's own OTP** — the platform cannot
   renew unattended; lead time is the entire value of the reminders (queue B1).
-- **All four `EInvoiceProvider` methods route through the seam**
   (onboard / renewCertificate / buildDocument / submit) — it is one of the two
   mandatory hedges behind the build-direct decision. Do not bypass it.
 
@@ -467,6 +463,7 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
 | **C6** | **Residency / hosting, now also the AI hosting decision.** (1) 🔴 Negotiate + sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier is in use for development and routes globally, and "development" is not an exception. (2) Confirm an Arabic-acceptable vision model in the Dammam region. (3) The platform-hosting half (region + KMS) is unchanged. No hosted Supabase project exists yet. |
 | **C6a** | 🔴 **BLOCKING BEFORE THE AI LAYER IS ENABLED — a code change, not a contract.** `findings.schedule.service.ts` calls the AI provider **inside an open tenant transaction**; the 15s idle-in-transaction guardrail fires and kills the connection (and killed the whole process until 2026-08-31). This is what the **e-invoice outbox already solved** — a synchronous call to an external API cannot live inside the request transaction. Move the pass out (read inside, call outside, write back in a short second transaction). Invisible only because the layer is dark. |
+| **C13** | 🔴 **COMMIT-AFTER-RESPONSE — promoted 2026-08-31.** `lib/tenant.ts` commits in `res.on("finish")`: the client holds its 2xx before the commit runs, so a failed commit means a write reported as saved that never persisted. Documented at the site, paged as critical, and production cannot boot unalerted — **known and alarmed, not hidden**. Promoted because the trigger stopped being hypothetical (connection-death mid-request happened 2026-08-31): **an alarm tells you a write was lost; it does not prevent it.** Fix = commit BEFORE the body goes out; a core-pipeline change with streaming paths to get right, and half-doing it is worse than not starting. |
 
 ### Advisor package — one conversation, four blocks
 
@@ -547,12 +544,38 @@ coverage is measured, never noticed. Last sweep 2026-08-30; history has it.
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
 RLS *policy* coverage was the biggest gap and is closed (`tests/rls-coverage.test.ts`).
-Still unaudited: the **permission-matrix seed grants** (enforcement was audited,
-the grants were not), **same-org cross-company isolation**
-(`app.current_company_id` at row level), **git-history entropy scanning**
-(prefix/pickaxe only, no gitleaks pass), and **runtime-order test vacuity**
-(only execution reveals it). 🔴 And the standing one: **nothing in the suite
-renders a page or runs at volume** — see §3's last two lessons.
+**Three more closed 2026-08-31:**
+
+- **Permission-matrix seed grants** — clean (`tests/permission-seed-grants.test.ts`):
+  viewer read-only, bookkeeper never holds `approve`/`delete`, no dead policy,
+  DB rows asserted to match the code. Two deliberate read restrictions are now
+  NAMED rather than assumed.
+- 🔴 **Same-org cross-company isolation — THE ANSWER IS NO**
+  (`tests/cross-company-isolation.test.ts`). `app.current_company_id` is a column
+  DEFAULT only and appears in **no RLS policy**: a connection scoped to company A
+  reads company B's rows. **15 repositories over company-scoped tables never
+  mention company, `reports` and `analytics` among them** — so a two-company
+  org's trial balance, GL, income statement and VAT return ADD BOTH SETS OF BOOKS
+  TOGETHER. Not cross-tenant and not exploitable today, but multi-company is a
+  shipped feature the reporting does not honour. 🔴 **A DECISION, NOT A PATCH** —
+  company-scoping every policy would break the org-level reads that legitimately
+  span companies. List pinned so it only shrinks. Detail: findings file.
+- **Git-history secret scanning** — full gitleaks pass: **380 commits, 4 findings,
+  all four verified false positives**. Reasons in `.gitleaks.toml`; now a standing
+  CI job with `fetch-depth: 0` (a shallow scan cannot see a credential committed
+  once and later removed).
+
+Still unaudited: **runtime-order test vacuity** (only execution reveals it).
+
+🔴 **CONTRACT COVERAGE — the fourth gap, and the largest** (measured
+2026-08-31; owner-sequenced AFTER the three above — they are bounded, this is a
+milestone). The web calls **~104 endpoints through hand-written `apiFetch`; ~35
+are in `openapi.yaml`, ~69 are not**, and only 14 of those are reports — **~55
+are ordinary CRUD.** 12 web files use the generated client; 53 use `apiFetch`.
+**"OpenAPI-first with codegen" therefore describes the CONTRACT, not how the
+frontend consumes it.** This is the class the trial balance produced a wrong
+figure from, and TypeScript cannot see it. Numbers, endpoint list and scope:
+findings file.
 
 ## 6. Tech Stack
 
@@ -565,7 +588,7 @@ renders a page or runs at volume** — see §3's last two lessons.
 | Data fetching | TanStack Query (React Query v5)                                          |
 | ORM           | Drizzle ORM                                                              |
 | Database      | PostgreSQL (via Supabase — Postgres only, NOT Supabase Auth)             |
-| Cache / queue | **None.** No Redis — rate limiting is in-memory per-process (queue C1); background work runs on the in-process scheduler in `apps/api/src/jobs/`. Add an entry here **when it runs**, not when it is decided. |
+| Cache / queue | **None.** No Redis — rate limiting shares a Postgres store across processes (C1, code half landed); background work runs on the in-process scheduler in `apps/api/src/jobs/`. Add an entry here **when it runs**, not when it is decided. |
 | Auth          | Express session auth (`express-session` + `connect-pg-simple`, bcryptjs) |
 | API contract  | OpenAPI-first (`packages/api-spec/openapi.yaml`) with orval codegen      |
 | Validation    | Zod (generated into `@workspace/api-zod`)                                |
@@ -674,12 +697,12 @@ Operating references:
   rule that keeps AI parked (state WHERE a change came from, never WHY).
 - [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md)
   — 🔴 what the UI redesign INHERITS, with measured costs: the vendored
-  `components/ui/**` deliberately not owned (**120 tokens / 25 files** of
-  physical properties still un-converted, so **RTL is incomplete** and becomes a
-  launch blocker if the design pass slips past launch), the dead `.dark` block,
-  and numeric alignment in RTL.
-- [`docs/product/hub-structure-decision.md`](docs/product/hub-structure-decision.md),
-  [`docs/product/design-transaction-accounting.md`](docs/product/design-transaction-accounting.md),
+  `components/ui/**` deliberately not owned, the dead `.dark` block, and numeric
+  alignment in RTL. 🔴 **RTL CLOSED 2026-08-31 by a THIRD option** (owner):
+  neither owning the components nor deferring, but an override layer keyed on
+  the UTILITY (`src/rtl-overrides.css`) — 24 of 39 utilities flipped globally,
+  15 positioning ones left to a hand audit because centring is not direction.
+  Deleted whole when the redesign lands. Guard: `tests/rtl-override-layer.test.ts`.
   [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
   [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md)
   — product decisions in force.
@@ -707,10 +730,8 @@ reported success. It was caught only because a test that had just passed
 started failing again.
 
 **Why it matters more than it sounds:** the reverted change was invisible in
-review (Arabic regex literals), and the failing test was the only signal. Had
-the test not existed, the fix would have been "applied", reported, committed
-and absent.
-
+review and a failing test was the only signal. Had the test not existed, the fix
+would have been "applied", reported, committed and absent.
 **Mitigations:**
 1. When a file has been modified by a SCRIPT (python/sed/node) in this session,
    keep editing it the same way — do not mix scripted edits and `Edit` calls on
@@ -723,38 +744,18 @@ and absent.
    invisible to reading.
 
 **🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
-VERDICT (2026-08-21).** A local full-suite run was reported here as "905
-passed" and was not green: the line directly above said **`Test Files 1
-failed`**. A teardown (`afterAll`) had thrown, which vitest reports at FILE
-level while every individual test still counts as passed — so the metric I
-read said 905/905 while the run had failed. CI caught it on the next push.
-
-Two mechanisms, both worth fixing in the habit:
-1. **`npx vitest run 2>&1 | tail -6` exits with `tail`'s status, not
-   vitest's.** The pipeline reported success regardless of the suite. Use
-   `${PIPESTATUS[0]}`, or don't pipe the command whose status you need.
-2. **Read `Test Files`, not just `Tests`.** A hook failure, an import error and
-   an unhandled rejection all fail the FILE without failing a test.
-
-Same family as the merge-on-completion mistake above: in both, a metric that
-looked green was read in place of the one that carried the verdict. The
-general form — *when a tool reports several numbers, find out which one is the
-verdict before trusting any of them* — is the reusable part.
-
-**🔴 A CI poll that waits for COMPLETION is not a merge gate (2026-08-17).**
-PR #54 was merged with a RED test check: the polling loop waited for every
-check to reach `status: completed` and the merge step never looked at
-`conclusion`. "The checks finished" and "the checks passed" are different
-facts, and the loop's author had conflated them for four green PRs in a row —
-green outcomes hid the missing predicate (an obsolete-assertion cousin: the
-gate was never tested by a failure until one arrived). The failure was real
-(B4's sequences lacked `USAGE` on CI's plain Postgres — an environment
-difference local Supabase masked; fixed forward as 0047 within minutes).
-**Rule: a merge step must assert every check's `conclusion == success`, and a
-wait-loop is only a wait-loop.**
-
-**🔴 AN EMPTY VARIABLE TURNS A TARGETED EDIT INTO AN EDIT OF EVERY LINE — THE
-`rm -rf` SHAPE (2026-08-27).** With no address to match on, `sed` applied an
+VERDICT (2026-08-21).** A run reported here as "905 passed" was not green — the
+line directly above said **`Test Files 1 failed`**: a teardown (`afterAll`) had
+thrown, which vitest reports at FILE level while every individual test still
+counts as passed. Two mechanisms, both worth fixing in the habit:
+1. **`npx vitest run 2>&1 | tail -6` exits with `tail`'s status, not vitest's.**
+   Use `${PIPESTATUS[0]}`, or don't pipe the command whose status you need.
+2. **Read `Test Files` and the EXIT CODE, never `Tests`.** A hook failure, an
+   import error and an unhandled rejection all fail the FILE without failing a
+   test.
+🔴 Earned again 2026-08-31: an injected fault reported "Tests 2 passed" with
+exit 1. **When a tool reports several numbers, find out which one is the verdict
+before trusting any of them.**
 append to **every line in the file**, and reported success. Same shape as
 `rm -rf "$DIR"/` with `DIR` unset: **a command that cannot distinguish "no
 target" from "all targets", and whose default on that ambiguity is maximal

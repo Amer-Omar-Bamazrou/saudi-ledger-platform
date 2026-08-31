@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+/* The RTL override layer — imported AFTER tailwind so its unlayered rules win
+   over `@layer utilities` without !important. See the file's own header for the
+   exclusion list, which is the design rather than a caveat. */
+@import './rtl-overrides.css';
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));

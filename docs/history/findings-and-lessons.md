@@ -4707,3 +4707,304 @@ envelope endpoints, none of them a report.
 **Both defects in this report were unreachable before this week**, and the
 sentence is the argument for breadth in one line: *with no journal lines, the
 table and the total were both empty and agreed perfectly.*
+
+---
+
+## 2026-08-31 — CONTRACT COVERAGE: "OpenAPI-first" DESCRIBES THE CONTRACT, NOT THE FRONTEND
+
+Scoped at the owner's request after the trial-balance defect, and **measured
+rather than estimated** — the answer is broader than the reports framing that
+prompted it.
+
+### The measurement
+
+Every endpoint the web calls through the hand-written `apiFetch`, normalised to
+the spec's `{param}` shape, compared against every path `openapi.yaml` declares:
+
+    paths declared in openapi.yaml            81
+
+    distinct endpoints called via apiFetch   104
+      of which IN the spec                    35
+      of which NOT in the spec                69
+        …report-shaped                        14
+        …ORDINARY CRUD                        55
+
+    web files importing the generated client  12
+    web files calling apiFetch                53
+
+*(A handful of the 104 are normalisation artifacts of template literals that
+begin with an interpolation. The magnitude is the finding, not the exact count.)*
+
+### 🔴 What it means, plainly
+
+The gap is **not** a reports problem. Reports are 14 of 69. The other 55 are the
+core of the product:
+
+    /invoices/{id}/pay      /bills/{id}/post        /journal-entries/{id}/reverse
+    /journal-entries/{id}   /customers              /vendors
+    /products               /employees              /payroll
+    /assets/{id}/depreciate /bank-accounts          /budgets/{id}
+    /orgs/*                 /auth/*                 /operator/*
+    /onboarding/*           /invitations/*
+
+And the second number matters as much as the first: **even for the 35 endpoints
+the spec DOES declare, the web mostly hand-writes the type anyway** — 12 files
+use the generated client against 53 that call `apiFetch`.
+
+> **"OpenAPI-first with codegen" is an accurate description of the contract and
+> an inaccurate description of how the frontend consumes it.**
+
+That is worth stating in exactly those words because the rule is written in the
+operating file as though it governs both, and a reader — including a future
+contributor deciding how to add a page — would reasonably conclude the generated
+client is the norm. It is the exception.
+
+### Why it is the largest of the four coverage gaps
+
+The other three are audits: they establish whether something already true is
+true. This one is a **standing defect generator**. Every hand-written interface
+is an independent claim about a response that nothing checks, and TypeScript
+cannot help — it checks the declaration against the *component*, never against
+the API. `tests/list-response-shape.test.ts` exists for this class and covers
+four envelope endpoints.
+
+The trial balance is the worked example and it produced a wrong figure: a
+declared `id` the response never contained, on a money report, mis-keying rows
+so a re-render could leave a figure from one date range sitting in a row that
+belongs to a different account.
+
+### Scope of the work (owner-sequenced AFTER the three bounded gaps)
+
+1. **Bring the endpoints into `openapi.yaml`.** The mechanical part, and the
+   bulk of the effort. Response schemas must be written from what the services
+   actually return, not from the hand-written interfaces — those are the thing
+   under suspicion, and copying them forward would launder the defect into the
+   contract.
+2. **Regenerate** the client and Zod schemas.
+3. **Replace the hand-written interfaces**, page by page, with generated types.
+   Each replacement is where a mismatch surfaces; expect more `id`/`accountId`
+   discoveries, and treat each as a finding rather than a merge conflict.
+4. **Then the constraint question.** 🔴 A declared constraint still binds
+   nothing — these routes pass `req.body` to services directly. Bringing paths
+   into the contract makes the TYPES real; it does not make `minItems` real.
+   Deciding whether to generate request validation from the contract is a
+   separate decision, and leaving it undecided would recreate the
+   spec-constraint-that-is-not-enforced trap at a larger scale.
+
+**Cost:** a milestone, not a pass — call it comparable to a mid-sized feature
+milestone. The endpoint count is the visible part; step 3 is where the time
+goes, because every mismatch found is a real defect to understand rather than a
+mechanical substitution. Step 1 alone is bounded and could land first, but on
+its own it buys documentation, not safety: **the safety arrives only when the
+frontend consumes the generated types.**
+
+---
+
+## 2026-08-31 — THE THREE COVERAGE GAPS, AUDITED
+
+`CLAUDE.md` §5 had listed four things the audits could not see. Three were
+bounded and are now closed. One of the three found something real.
+
+### 1. Permission-matrix seed grants — clean
+
+**The gap:** enforcement was audited (`requirePermission` is the single seam,
+the privilege surface map checks routes sit on the right side of it); the
+GRANTS never were. **A guard that correctly consults a matrix is worth nothing
+if the matrix says the wrong thing** — and those are different questions, so
+passing the first says nothing about the second.
+
+Three failure directions, none visible to enforcement testing: OVER-GRANT (a
+role holds an action it must not — silent, the wrong person simply succeeds),
+UNDER-GRANT (a guarded route with no grant — a permanent 403 on a working
+feature, loud for the user and invisible to us), and DEAD POLICY (a grant for a
+resource nothing guards — harmless today, and it reads as deliberate policy to
+whoever adds the route later).
+
+**Result: clean.** Viewer holds `read` and nothing else. Bookkeeper never holds
+`approve` or `delete` — the separation the four-role model exists for, given
+that `approve` gates posting to the ledger, paying a bill, and issuing a ZATCA
+tax document. `delete` is admin-only everywhere. Period locks are admin-only in
+both directions. And the DATABASE rows are asserted to match the code that
+defines them, because `requirePermission` reads the table, not the file.
+
+🔴 **The check improved by failing first.** Its first draft asserted "every
+guarded resource is readable by every role" and went red on two: `audit_logs`
+(admin-only by design) and `categorize` (an action endpoint with no read route).
+Both are deliberate and both are now NAMED with their reasons, which is the
+distinction the matrix stated in prose and nothing verified. An unexplained
+exemption is indistinguishable from a suppressed finding.
+
+### 2. 🔴 Same-org cross-company isolation — AUDITED, AND THE ANSWER IS NO
+
+**The question nobody had asked:** an organization is the tenant and the unit of
+RLS; a company is the reporting entity inside it, with its own document
+sequences, fiscal calendar and period locks. Two companies in one organization
+are **separate sets of books**. Does anything stop a request scoped to company A
+from reading company B's rows?
+
+**No — not at the database level.** `app.current_company_id` is used only as a
+column DEFAULT. It appears in **no policy's `USING` or `WITH CHECK` clause**;
+every `tenant_isolation` policy tests `organization_id` alone. Verified from
+`pg_policies` rather than from a migration file, and demonstrated: a connection
+scoped to company A returns both companies' invoices.
+
+So separation is enforced **per query, in the repositories** — exactly the shape
+§4 warns about: *per-path enforcement is per-path review, and a new path starts
+at zero.*
+
+🔴 **And the exposure is not theoretical. Fifteen repositories query
+company-scoped tables and never mention company at all:**
+
+    reports      transactions, invoices, invoice_items, bills, bill_items,
+                 journal_entries, journal_entry_lines
+    analytics    journal_entries, journal_entry_lines, transactions,
+                 invoices, bills
+    journalEntries · bills · transactions · payments · payroll · assets ·
+    budgets · bankAccounts · employees · categorize · summary · customers ·
+    vendors
+
+**For an organization with two companies, the trial balance, the general
+ledger, the income statement, the balance sheet, the VAT return and analytics
+add both companies' books together and present the result as one entity's
+figures.** Not a leak between tenants — for an accounting product, arguably
+worse: a confident, wrong, auditable number, with nothing on the page saying it
+spans two sets of books.
+
+**Multi-company is a shipped feature (M11).** This is the narrower-claim shape
+at the level of a whole capability: the model supports two companies and the
+reporting does not separate them.
+
+🔴 **Recorded, not "fixed", and deliberately.** Company-scoping every policy is
+a schema-wide change whose failure mode is an empty report rather than an error,
+and it would break the org-level reads that legitimately span companies (the
+operator surface, org settings, anything aggregating across the tenant). That is
+a design decision with an owner. What the test does is make the situation
+**impossible to be wrong about** — the list is pinned so it can only shrink, and
+nobody can read "RLS is enforced" and conclude companies are isolated by the
+database.
+
+### 3. Git-history secret scanning — clean
+
+**The gap:** the repository had only ever been checked with prefix and pickaxe
+searches, which find a string you already suspect and nothing you do not.
+
+First full gitleaks pass: **380 commits, ~21.5 MB, 4 findings, all four false
+positives.**
+
+- Three `jwt` matches in the CI workflow. Verified by **decoding the claims
+  rather than assuming**: `iss: "supabase-demo"`, the keys Supabase publishes
+  for every local `supabase start` stack — identical on every machine and valid
+  against nothing but a local container. Also already removed from the current
+  workflow; the findings are historical.
+- One `generic-api-key`: a literal `X-API-Key:` header in a REST-design
+  documentation example.
+
+**No real credential has ever been committed.** The reasons live in
+`.gitleaks.toml` so a future scan does not re-report a resolved judgement as a
+new finding, and it is now a standing CI job.
+
+🔴 **`fetch-depth: 0` is the whole point of that job.** The default shallow
+checkout scans one commit, which would make it a diff check wearing a history
+check's name — and the finding it exists for is a credential committed once and
+removed later, which a shallow scan cannot see by construction.
+
+---
+
+## 2026-08-31 — THE RTL DECISION: THE THIRD OPTION, AND THE EXCLUSION LIST THAT DECIDES IT
+
+The RTL question had been open in PR #112 with two costed options, neither of
+which was the answer:
+
+| Option | Cost | Why it was not taken |
+| --- | --- | --- |
+| Own the vendored components | 127 occurrences across 26 files | Converting code we deliberately do not own, then re-doing it when the redesign lands |
+| Defer to the redesign | none now | RTL is a LAUNCH requirement and the redesign has no date |
+
+**The third option, proposed by an external report and taken by the owner:** an
+override CSS layer keyed on the UTILITY rather than the component. The unit of
+work becomes the utility class, so the cost is **39 distinct utilities** rather
+than 127 occurrences or 26 files. It touches no vendored file and is deleted
+whole when the redesign owns those components.
+
+### 🔴 The exclusion list is what makes it safe, and it is not optional
+
+The obvious version — flip every `left`/`right` utility — is wrong, visibly, in
+the language the change exists for. Only **24 of the 39 are unambiguously
+directional**. Two ways the blunt version breaks:
+
+1. **Centring is not direction.** `left-[50%]` / `left-1/2` is always paired
+   with `-translate-x-1/2` — in `dialog`, `alert-dialog`, `carousel`,
+   `resizable` and `sidebar`. Centred is centred in both directions; flipping it
+   moves every modal off-centre in Arabic and nowhere else.
+2. **The same utility is directional in one component and geometric in
+   another.** `left-0` is directional in `navigation-menu` and `sidebar`, and
+   geometric in `resizable`, where it resets the handle for a *vertical* panel
+   group. A global rule cannot tell them apart, because CSS sees the class and
+   not the intent.
+
+So the layer flips 24 (padding, margin, radius, border — where most of the
+visual wrongness lives) and leaves 15 positioning utilities to a hand audit.
+🔴 **An unflipped padding looks slightly wrong; a wrongly flipped dialog looks
+broken.** That asymmetry is the whole argument for stopping short.
+
+Animation utilities (`slide-in-from-left-*`) are out of scope *by construction*:
+they compile to translate transforms, not `left`/`right` properties, so nothing
+in this layer can reach them.
+
+Verified in a real browser: with `dir="rtl"`, `pl-8` computes to
+`padding-left: 0; padding-right: 32px`.
+
+### 🔴 AND THE GUARD WAS VACUOUS TWICE — CAUGHT ONLY BY FAULT-INJECTING IT
+
+The test pinning the exclusions passed green while failing to check anything, in
+two different ways, one after the other:
+
+**First:** its patterns were built with `new RegExp` from template literals, and
+the heredoc that wrote the file collapsed the escapes — `\b` became `\b`, which
+in a JS template literal is a **backspace character**, not a word boundary.
+Every pattern matched nothing, so both exclusion assertions passed *and would
+have passed with every excluded utility present*. Only the **paired presence
+assertion** — "the layer does flip the safe ones" — went red and exposed it.
+
+**Second, after that fix:** the matcher used a literal string search, and a CSS
+class containing `/`, `.`, `[`, `]` or `%` **must be escaped in a selector** —
+`left-1/2` is written `.left-1\/2`. Searching for `.left-1/2` matched nothing.
+The exclusion assertions passed again *while a flip for an excluded utility sat
+three lines above them in the same file*. Caught by adding that forbidden rule
+deliberately and watching the suite stay green.
+
+Two lessons, both already in §3 and both earning themselves here:
+
+> **Assert presence AND absence.** The absence half was broken twice; the
+> presence half caught it both times.
+>
+> **A guard that has never been shown to fail is a guard nobody has tested.**
+> Fault injection is not a nicety for important tests — it is the only thing
+> that distinguishes a passing check from a check that cannot fail.
+
+The matcher is now tested before it is trusted: the first assertion in the file
+checks that `flips("pl-8")` is true and `flips("definitely-not-a-utility")` is
+false, which is the assertion the original version needed and did not have.
+
+---
+
+## 2026-08-31 — SEQUENCING DECISION: NO TABLE MIGRATION BEFORE THE CONTRACT WORK
+
+An external report proposed migrating the app's tables to TanStack Table,
+presented as cheap. Measured: **49 hand-rolled `<table>` elements across 39
+files, zero using the vendored table component, and `@tanstack/react-table` is
+not even a dependency.** Not cheap — but the owner's ruling turned on the
+sequencing objection, which is stronger than the count:
+
+> **Do not migrate 49 money surfaces onto interfaces nobody has verified.**
+
+Tables are where this project's money defects have lived — the `accountId` key
+bug, the unkeyed fragments, the counts taken off capped lists. Every one of the
+49 renders figures through a hand-written interface, and the contract-coverage
+gap (above) is precisely that those interfaces are unchecked claims. A migration
+now would re-encode unverified types into new code and stamp them "modernised".
+
+**The order is: contract work first (the fourth coverage gap), then any table
+migration consumes GENERATED types rather than hand-written ones.** The
+migration's real value arrives only in that order; in the reverse order it
+launders the defect class it should have eliminated.
