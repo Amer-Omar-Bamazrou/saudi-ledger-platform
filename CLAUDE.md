@@ -51,7 +51,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-28.** Full as-built narrative for everything below:
+**Last updated: 2026-08-31.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-08-28 → 30 — six passes** (merged, or in PR #104/#105). Full record:
@@ -66,6 +66,13 @@ When in doubt, favor evolving the existing system over replacing it.
   `INV-2026-000049`, stays deliberately.
 - **No auto-approve**, **`db` refuses an unscoped query**, **ledger lists
   paginate with SQL totals**, **document numbers are server-allocated** (§4).
+
+**2026-08-31 — the navigation tree** (owner-approved, built). The §4 hierarchy
+is live: filters renamed to real statuses and deep-linked, quotation expiry
+derived from `valid_until`, ~40 Coming Soon pages each naming its blocker, and
+`e2e/nav-tree.spec.ts` walking every entry. The tree is DATA (`src/nav/tree.ts`)
+so the check enumerates rather than samples. Record:
+[`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -285,6 +292,7 @@ rules at the top of this file, rule 2).
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
 - **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
+- **🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY** (nav tree, 2026-08-31) — checking that every SPEC entry points at something real cannot see a real page the spec never listed. Five working report pages were about to become unreachable in the same commit that made the navigation "complete"; the coverage assertion found them, reading did not. **Whenever a map replaces a map, assert BOTH directions — every entry points at something, and everything is pointed at.** Incident: findings file.
 - **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
 
 ## 4. Active constraints — do not break these

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { EXPECTATIONS, type Kind } from "./routes";
 
 /**
  * THE SMOKE CRAWL — every route, authenticated, failing on a page error or an
@@ -28,99 +29,6 @@ function declaredRoutes(): string[] {
   return [...new Set(found)].sort();
 }
 
-type Kind =
-  /** Authenticated app page: must render real content. */
-  | "app"
-  /** Reachable only when logged OUT; visiting it authenticated redirects. */
-  | "anonymous"
-  /** Requires the platform-operator role, which the tenant admin does not have. */
-  | "operator"
-  /** Needs a path parameter — supplied from the seed. */
-  | "param"
-  /**
-   * Authenticated, but rendered OUTSIDE the app shell, so there is no `<main>`.
-   *
-   * 🔴 Discovered by this crawl, not assumed: `/verification` is
-   * `<AuthGuard><VerificationStatus /></AuthGuard>` with no `Layout`, because it
-   * is the M11.2 gate shown to an org whose verification is still pending — a
-   * tenant that must NOT reach business routes. The missing `<main>` is the
-   * design, and the crawl's first run said so by failing.
-   *
-   * This kind exists so that fact is written down. Relaxing the `<main>`
-   * assertion for everything would have hidden it, which is how a guard quietly
-   * stops guarding.
-   */
-  | "authenticated-no-shell";
-
-/**
- * Every route, classified. 🔴 Add a route to `App.tsx` and this file goes red
- * until you say what the route is — that is the point, not an inconvenience.
- */
-const EXPECTATIONS: Record<string, Kind> = {
-  "/": "app",
-  "/analytics": "app",
-  "/ap-aging": "app",
-  "/approvals": "app",
-  "/ar-aging": "app",
-  "/assets": "app",
-  "/asset-schedule": "app",
-  "/audit-trail": "app",
-  "/balance-sheet": "app",
-  "/bank-accounts": "app",
-  "/bills": "app",
-  "/budgets": "app",
-  "/cash-flow": "app",
-  "/categories": "app",
-  "/categorize": "app",
-  "/change-password": "app",
-  "/closed-months": "app",
-  "/company": "app",
-  "/credit-notes": "app",
-  "/customers": "app",
-  "/employees": "app",
-  "/finance-hub": "app",
-  "/findings": "app",
-  "/income-statement": "app",
-  "/invoices": "app",
-  "/invoice-summary": "app",
-  "/journal-entries": "app",
-  "/payroll": "app",
-  "/payroll-report": "app",
-  "/products": "app",
-  "/purchase-orders": "app",
-  "/quotations": "app",
-  "/recurring": "app",
-  "/reports": "app",
-  "/reports/account-statement": "app",
-  "/reports/account-summary": "app",
-  "/reports/activity": "app",
-  "/reports/aging": "app",
-  "/reports/customer-ledger": "app",
-  "/reports/general-ledger": "app",
-  "/reports/journal-report": "app",
-  "/reports/owner-equity": "app",
-  "/reports/tax-journal-entries": "app",
-  "/review": "app",
-  "/scan-review": "app",
-  "/transactions": "app",
-  "/trial-balance": "app",
-  "/upload": "app",
-  "/users": "app",
-  "/vat": "app",
-  "/vendors": "app",
-  "/verification": "authenticated-no-shell",
-  "/zakat": "app",
-  "/zatca": "app",
-
-  "/login": "anonymous",
-  "/signup": "anonymous",
-  "/accept-invite": "anonymous",
-
-  "/operator": "operator",
-
-  "/customers/:id": "param",
-  "/vendors/:id": "param",
-};
 
 function ids(): SeededIds {
   return JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
@@ -131,6 +39,8 @@ function concrete(route: string): string {
   const { customerId, vendorId } = ids();
   if (route === "/customers/:id") return `/customers/${customerId}`;
   if (route === "/vendors/:id") return `/vendors/${vendorId}`;
+  // A slug that must exist in `lib/comingSoon.ts`; `nav-tree.spec.ts` asserts it.
+  if (route === "/coming-soon/:slug") return "/coming-soon/transfers";
   return route;
 }
 

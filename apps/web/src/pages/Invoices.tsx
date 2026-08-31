@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { FilterScope } from "@/components/FilterScope";
+import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 
@@ -51,8 +53,14 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", status: "draft", notes: "" };
 
 export default function Invoices() {
-  const [statusFilter, setStatusFilter] = useState("all");
+  /**
+   * 🔴 The filter is read from the URL, so a nav deep-link lands with it
+   * applied. Five nav entries point here — Drafts, Pending Approval, Issued,
+   * Paid, Overdue — and each is a claim about what this page will show.
+   */
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(INVOICE_FILTERS));
   const [page, setPage] = useState(0);
+  const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
   const [open, setOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -80,7 +88,7 @@ export default function Invoices() {
   const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   /**
    * 🔴 A PAGE, and totals that describe the whole set.
@@ -408,9 +416,14 @@ export default function Invoices() {
           <div className="flex gap-2 flex-wrap">
             {/* "overdue" is answered from the dates by the API; "cancelled" is gone —
                 an invoice that must not stand is reversed by a credit note. */}
-            {["all","draft","sent","paid","overdue"].map(s=>(
-              <Button key={s} variant={statusFilter===s?"default":"ghost"} size="sm" className="h-7 text-xs capitalize" onClick={()=>setStatusFilter(s)}>{s}</Button>
+            {INVOICE_FILTERS.map(o=>(
+              <Button key={o.value} variant={statusFilter===o.value?"default":"ghost"} size="sm" className="h-7 text-xs" onClick={()=>applyFilter(o.value)}>
+                {lang === "ar" ? o.labelAr : o.label}
+              </Button>
             ))}
+          </div>
+          <div className="mt-3">
+            <FilterScope options={INVOICE_FILTERS} value={statusFilter} total={pageInfo?.total} onClear={() => applyFilter("all")} />
           </div>
         </CardHeader>
         <CardContent>

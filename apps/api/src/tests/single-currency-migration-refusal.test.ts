@@ -19,7 +19,8 @@
  */
 import { describe, expect, it, beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { pool } from "@workspace/db";
 
 const url = process.env.DATABASE_URL;
@@ -31,10 +32,24 @@ if (!REAL_DB) {
 
 /** The DO block, lifted verbatim from the migration rather than restated. */
 function guardSql(): string {
-  const file = join(
-    process.cwd(),
-    "../../packages/db/migrations/0062_single_currency_write_boundary.sql",
-  );
+  /**
+   * 🔴 Resolved from THIS FILE, not from `process.cwd()`.
+   *
+   * It used to be `join(process.cwd(), "../../packages/db/...")`, which is only
+   * correct when vitest is invoked from `apps/api` — the way CI runs it
+   * (`pnpm --filter @workspace/api-server run test`). Run from the repo root
+   * (`npx vitest run --root apps/api`, which is what a full-suite run looks
+   * like locally) the same expression climbs two levels ABOVE the repository
+   * and reads nothing: `ENOENT ... C:\Users\packages\db\migrations\...`.
+   *
+   * Both failures then wore the wrong face. The ENOENT surfaced through
+   * `raised.message`, so the test reported "the guard raised with no violating
+   * rows" — a confident, specific, and entirely false claim about the
+   * migration. A test whose location depends on how it was invoked is a test
+   * that reports on the harness while appearing to report on the code.
+   */
+  const here = dirname(fileURLToPath(import.meta.url));
+  const file = join(here, "../../../../packages/db/migrations/0062_single_currency_write_boundary.sql");
   const sql = readFileSync(file, "utf8");
   const block = sql.split("--> statement-breakpoint")[0];
   const start = block.indexOf("DO $$");

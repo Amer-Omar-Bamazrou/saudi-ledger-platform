@@ -16,14 +16,84 @@ export interface QuotationListFilter {
   customerId?: number;
   /** `live` hides quotations the tenant has declined or closed. */
   outcome?: "live" | "declined" | "closed";
+  /** Derived from `valid_until`, never stored — see `EXPIRED`. Replaces `status`. */
+  expired?: boolean;
+  /** Derived from the conversion rows, never stored — see `CONVERTED`. */
+  converted?: boolean;
   limit?: number;
   offset?: number;
 }
 
+/**
+ * 🔴 EXPIRED IS DERIVED FROM `valid_until`, AND THIS IS THE ONLY PLACE IT IS
+ * DEFINED — the same treatment `OVERDUE` gets in the invoices repository, for
+ * the same reason: a stored `expired` status would be a second representation
+ * of a fact the date already holds, and two representations of one fact drift.
+ * No column was added; `valid_until` has existed since M21.1.
+ *
+ * NULL `valid_until` never expires. The column's own comment already settled
+ * that — "NULL = no expiry was stated, a first-class state" — so a quotation
+ * with no stated expiry is live forever rather than expiring immediately.
+ *
+ * ── 🔴 THE AGREED PREDICATE NAMES TWO VALUES THAT CANNOT APPEAR WHERE IT
+ *    LOOKS FOR THEM — AND IS RIGHT ANYWAY. BOTH HALVES MATTER. ─────────────
+ * The reconciliation doc specified:
+ *
+ *     status NOT IN ('approved','declined','closed')
+ *
+ * `declined` and `closed` are not status values. `status` is the APPROVAL axis
+ * only — CHECK-constrained to draft | submitted | approved — and the two
+ * terminal acts live on `outcome`, a separate column, because the design keeps
+ * the axes orthogonal on purpose.
+ *
+ * 🔴 But the predicate is NOT wrong in effect, and the reason is a second
+ * constraint: `quotations_outcome_needs_approval_check` requires
+ * `outcome IS NULL OR status = 'approved'` — a quotation nobody ever issued
+ * cannot have been declined by a customer who never saw it. So EVERY declined
+ * or closed quotation is also `approved`, and the `approved` term excludes all
+ * of them. The two extra terms are dead weight, not a defect.
+ *
+ * Recorded rather than quietly cleaned up, because a reader would otherwise
+ * conclude this predicate consults the outcome axis — and because the dead
+ * terms are load-bearing the moment that CHECK is relaxed. `outcome IS NULL`
+ * below says what is actually meant, on the axis that actually carries it,
+ * instead of resting on a constraint two files away.
+ *
+ * 🔴 ONE QUESTION IS LEFT OPEN RATHER THAN DEFAULTED: the predicate as agreed
+ * lets a DRAFT expire. The invoice precedent goes the other way — `OVERDUE`
+ * excludes `draft` and `submitted`, on the ground that a document not yet
+ * issued cannot be late. Both readings are defensible for a quotation (an
+ * internal draft that lapsed is arguably just stale), so this follows the
+ * written instruction rather than silently substituting the sibling rule.
+ * Flagged for the owner; changing it is one line here and nowhere else.
+ */
+const EXPIRED = sql`(
+  ${quotationsTable.validUntil} IS NOT NULL
+  AND NULLIF(${quotationsTable.validUntil}, '')::date < CURRENT_DATE
+  AND ${quotationsTable.status} <> 'approved'
+  AND ${quotationsTable.outcome} IS NULL
+)`;
+
+/**
+ * "Has been converted, in whole or in part" — an EXISTS over the conversion
+ * rows, which are the only record of the conversion axis (the design refuses
+ * to collapse it into `status`). Deliberately not "fully converted": the nav
+ * entry a user clicks says "Converted to Invoice", and a partially-converted
+ * quotation belongs in that answer.
+ */
+const CONVERTED = sql`EXISTS (
+  SELECT 1 FROM quotation_conversions qc WHERE qc.quotation_id = ${quotationsTable.id}
+)`;
+
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 function quotationListConditions(filter: QuotationListFilter) {
   const conditions = [];
-  if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
+  // The derived views REPLACE a status filter rather than narrowing one:
+  // asking for both `status=draft` and `expired` describes a set the caller
+  // did not mean, so the controller sends one or the other.
+  if (filter.expired) conditions.push(EXPIRED);
+  else if (filter.status) conditions.push(eq(quotationsTable.status, filter.status));
+  if (filter.converted) conditions.push(CONVERTED);
   if (filter.customerId) conditions.push(eq(quotationsTable.customerId, filter.customerId));
   if (filter.outcome === "live") conditions.push(sql`${quotationsTable.outcome} IS NULL`);
   else if (filter.outcome) conditions.push(eq(quotationsTable.outcome, filter.outcome));

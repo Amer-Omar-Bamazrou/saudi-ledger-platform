@@ -12,6 +12,8 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
 import Login from '@/pages/Login';
+import ComingSoon from '@/pages/ComingSoon';
+import Integrations from '@/pages/Integrations';
 import Signup from '@/pages/Signup';
 import VerificationStatus from '@/pages/VerificationStatus';
 import AcceptInvite from '@/pages/AcceptInvite';
@@ -240,6 +242,14 @@ function Router() {
               <Route path="/zatca" component={ZatcaOnboarding} />
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />
+              {/*
+                Every COMING SOON entry in the navigation resolves here, by
+                slug. One route rather than forty, for the reason given in
+                `lib/comingSoon.ts`: the placeholder convention only holds if
+                the blocker is a required FIELD rather than an instruction.
+              */}
+              <Route path="/integrations" component={Integrations} />
+              <Route path="/coming-soon/:slug" component={ComingSoon} />
               <Route component={NotFound} />
             </Switch>
           </Layout>

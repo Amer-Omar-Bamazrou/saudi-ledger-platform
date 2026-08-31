@@ -6,138 +6,28 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDeployment } from "@/hooks/useDeployment";
 import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
-import {
-  LayoutDashboard, ListOrdered, ListChecks, BrainCog, UploadCloud,
-  Receipt, Landmark, Tags, Users, Building2, FileText, FileInput,
-  BookOpen, Scale, TrendingUp, BarChart3, Waves, UserCheck, Banknote,
-  Package, ShoppingBag, CreditCard, Target, AlertCircle, ChevronDown,
-  ChevronRight, LogOut, KeyRound, UserCog, ClipboardList, FileMinus,
-  ShoppingCart, PieChart, Languages, ShieldCheck, Repeat, CalendarClock, ScrollText,
-  SearchCheck, Clock,
-} from "lucide-react";
-
-type NavItem = {
-  href?: string;
-  label: string;
-  labelAr: string;
-  icon: React.ElementType;
-  children?: NavItem[];
-  /** Hide from non-admins — HONESTY about the 403 the API would return
-      (`requirePermission` is the boundary), never the boundary itself. */
-  adminOnly?: boolean;
-};
+import { NAV_TREE, type NavEntry, type NavSection } from "@/nav/tree";
+import { ChevronDown, ChevronRight, LogOut, Languages, Clock } from "lucide-react";
 
 /**
- * 🔴 SEVEN SECTIONS, and the count is not meant to grow (owner decision,
- * 2026-08-30). The nav had ten sections carrying 38 entries, distributed
- * 4/4/3/3/9/2/2/2/1/8 — one section with nine items, one with a single item,
- * and Trial Balance listed twice. The regroup rule is that a thing sits under
- * the activity it belongs to, not under a systems-level category: a quotation
- * lives beside invoices because that is where a user looks for it, not in a
- * "commitments" group. "Documents" is banned as a section name outright —
- * every item here is a document, so it reads as a catch-all, not a category.
+ * 🔴 THE NAVIGATION IS NO LONGER DEFINED HERE. It lives in `@/nav/tree`, as
+ * data, because P5's checks must cover EVERY entry rather than a sample — and
+ * a tree written as JSX in this file cannot be enumerated by anything except a
+ * scraper, which would test the scraper.
  *
- * 🔴 `NavItem.children` is TYPED AND FILTERED BUT NEVER RENDERED (see the
- * NavGroup renderer below). Do not nest — a child added here vanishes silently.
+ * This file is now the RENDERER only. Three things follow from that:
+ *
+ *   1. Children ARE rendered now. The previous note here said the opposite —
+ *      "typed and filtered but NEVER rendered; do not nest, a child added here
+ *      vanishes silently" — which was true and is the reason the approved
+ *      §4 hierarchy could not have been expressed in the old shape at all.
+ *   2. Section membership, labels and markers are decisions recorded in
+ *      `nav-tree-reconciliation.md`. Change them there, not here.
+ *   3. A COMING SOON entry is an ordinary link to a real placeholder page. It
+ *      is deliberately NOT greyed out or disabled: a control that looks broken
+ *      teaches nothing, while a page that names its blocker teaches why the
+ *      feature is not there.
  */
-const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
-  {
-    label: "Overview", labelAr: "نظرة عامة",
-    items: [
-      { href: "/",             label: "Dashboard",   labelAr: "لوحة التحكم",  icon: LayoutDashboard },
-      { href: "/finance-hub",  label: "Finance Hub", labelAr: "لوحة المالية", icon: ShieldCheck },
-      // AI-3a — deterministic observations; "Findings", never "audit" (design-ai-layer §9).
-      { href: "/findings",     label: "Findings",    labelAr: "الملاحظات",    icon: SearchCheck },
-      { href: "/analytics",    label: "Analytics",   labelAr: "التحليلات",    icon: TrendingUp },
-    ],
-  },
-  {
-    // A quotation is a SALES activity that becomes an invoice — it belongs
-    // beside invoices, which is where a user goes looking for it.
-    label: "Sales", labelAr: "المبيعات",
-    items: [
-      { href: "/customers",    label: "Customers",    labelAr: "العملاء",             icon: Users },
-      { href: "/quotations",   label: "Quotations",   labelAr: "عروض الأسعار",        icon: ClipboardList },
-      { href: "/invoices",     label: "Invoices",     labelAr: "الفواتير",            icon: FileText },
-      { href: "/credit-notes", label: "Credit Notes", labelAr: "إشعارات الدائن",      icon: FileMinus },
-      { href: "/ar-aging",     label: "AR Aging",     labelAr: "أعمار الذمم المدينة", icon: Clock },
-    ],
-  },
-  {
-    // A purchase order is a PURCHASE activity that becomes a bill.
-    label: "Purchases", labelAr: "المشتريات",
-    items: [
-      { href: "/vendors",         label: "Vendors",         labelAr: "الموردون",            icon: Building2 },
-      { href: "/purchase-orders", label: "Purchase Orders", labelAr: "أوامر الشراء",        icon: ShoppingCart },
-      { href: "/bills",           label: "Bills",           labelAr: "فواتير الموردين",     icon: FileInput },
-      { href: "/ap-aging",        label: "AP Aging",        labelAr: "أعمار الذمم الدائنة", icon: Clock },
-    ],
-  },
-  {
-    // Money moving through the bank, and the tools that classify it. Review and
-    // the categorization engine sit here because both answer "what WAS this
-    // bank line" — they were previously split across Overview and AI Tools.
-    label: "Banking", labelAr: "البنوك",
-    items: [
-      { href: "/transactions",  label: "Transactions",          labelAr: "المعاملات",        icon: ListOrdered },
-      { href: "/review",        label: "Review",                labelAr: "المراجعة",         icon: ListChecks },
-      { href: "/categorize",    label: "Categorization Engine", labelAr: "محرك التصنيف",     icon: BrainCog },
-      { href: "/upload",        label: "Upload Data",           labelAr: "رفع البيانات",     icon: UploadCloud },
-      { href: "/bank-accounts", label: "Bank Accounts",         labelAr: "الحسابات البنكية", icon: CreditCard },
-    ],
-  },
-  {
-    // 🔴 The largest section at 13, knowingly: the ledger, the statements built
-    // from it, and the subledgers (payroll, fixed assets) that post into it.
-    // Trial Balance appears ONCE, here — it used to be in two sections.
-    label: "Accounting", labelAr: "المحاسبة",
-    items: [
-      { href: "/journal-entries",  label: "Journal Entries",  labelAr: "قيود اليومية",       icon: BookOpen },
-      { href: "/approvals",        label: "Approvals",        labelAr: "الموافقات",          icon: ClipboardList },
-      { href: "/trial-balance",    label: "Trial Balance",    labelAr: "ميزان المراجعة",     icon: Scale },
-      { href: "/reports",          label: "Reports Hub",      labelAr: "مركز التقارير",      icon: BarChart3 },
-      { href: "/income-statement", label: "Income Statement", labelAr: "قائمة الدخل",        icon: TrendingUp },
-      { href: "/balance-sheet",    label: "Balance Sheet",    labelAr: "الميزانية العمومية", icon: BarChart3 },
-      { href: "/cash-flow",        label: "Cash Flow",        labelAr: "التدفق النقدي",      icon: Waves },
-      { href: "/budgets",          label: "Budgets",          labelAr: "الميزانيات",         icon: Target },
-      { href: "/employees",        label: "Employees",        labelAr: "الموظفون",           icon: UserCheck },
-      { href: "/payroll",          label: "Payroll",          labelAr: "الرواتب",            icon: Banknote },
-      { href: "/payroll-report",   label: "Payroll Report",   labelAr: "تقرير الرواتب",      icon: BarChart3 },
-      { href: "/assets",           label: "Fixed Assets",     labelAr: "الأصول الثابتة",     icon: Package },
-      { href: "/asset-schedule",   label: "Asset Schedule",   labelAr: "جدول الأصول",        icon: PieChart },
-    ],
-  },
-  {
-    // Named to match the Finance Hub's own "Tax & Compliance" block, so the
-    // same three things are not called two different names in one product.
-    // M18.5 (Q6): the VAT return is reached from the Hub AND directly at /vat.
-    // M17.0 — Zakat states the working paper is not built yet; the entry stays
-    // so users who relied on the old (fabricated) figure find the notice.
-    label: "Tax & Compliance", labelAr: "الضرائب والامتثال",
-    items: [
-      { href: "/vat",   label: "VAT Return",        labelAr: "إقرار ضريبة القيمة المضافة", icon: Receipt },
-      { href: "/zakat", label: "Zakat",             labelAr: "الزكاة",                     icon: Landmark },
-      { href: "/zatca", label: "ZATCA e-invoicing", labelAr: "الفوترة الإلكترونية",        icon: ShieldCheck },
-    ],
-  },
-  {
-    label: "Settings", labelAr: "الإعدادات",
-    items: [
-      { href: "/categories",      label: "Chart of Accounts",   labelAr: "دليل الحسابات",     icon: Tags },
-      { href: "/products",        label: "Products & Services", labelAr: "المنتجات والخدمات", icon: ShoppingBag },
-      // Hub decision: Automation is settings, not a destination — rules live
-      // here, the "↻ Make recurring" entry point lives on the Invoices page.
-      { href: "/recurring",       label: "Automation Rules",    labelAr: "قواعد الأتمتة",     icon: Repeat },
-      { href: "/company",         label: "Company Settings",    labelAr: "إعدادات الشركة",    icon: Building2 },
-      { href: "/closed-months",   label: "Closed Months",       labelAr: "الأشهر المُقفلة",   icon: CalendarClock },
-      { href: "/users",           label: "User Management",     labelAr: "إدارة المستخدمين",  icon: UserCog },
-      // Admin-only in the API (audit_logs read = admin); the adminOnly flag
-      // hides it from roles that would only meet a 403.
-      { href: "/audit-trail",     label: "Audit Trail",         labelAr: "سجل التدقيق",       icon: ScrollText, adminOnly: true },
-      { href: "/change-password", label: "Change Password",     labelAr: "تغيير كلمة المرور", icon: KeyRound },
-    ],
-  },
-];
 
 /**
  * Routes the demo refuses at the server, so their nav entries go too.
@@ -156,54 +46,162 @@ const ROLE_AR: Record<string, string> = {
   admin: "مدير", accountant: "محاسب", viewer: "مشاهد",
 };
 
-function NavGroup({
-  group,
+/**
+ * One nav entry. A leaf, or a parent that discloses its children.
+ *
+ * 🔴 The active test compares PATHNAMES, not hrefs. A filter entry's href
+ * carries a query string (`/invoices?status=sent`) and wouter's `useLocation`
+ * returns the path alone, so comparing the two directly would leave every
+ * filter entry permanently inactive — a whole class of nav item that silently
+ * never highlights. The query is compared separately, against the real
+ * `window.location.search`, so "Issued" lights up on `/invoices?status=sent`
+ * and does not on `/invoices?status=paid`.
+ */
+function NavLink({
+  entry,
   location,
+  search,
+  lang,
+  depth,
+}: {
+  entry: NavEntry;
+  location: string;
+  search: string;
+  lang: "en" | "ar";
+  depth: number;
+}) {
+  const Icon = entry.icon;
+  const [path, query] = entry.href.split("?");
+  const isActive =
+    location === path && (query ? search === `?${query}` : !search.includes("status="));
+
+  return (
+    <Link
+      href={entry.href}
+      data-nav-marker={entry.marker}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md text-sm transition-colors",
+        depth === 0 ? "px-3 py-2 font-medium gap-3" : "ps-9 pe-3 py-1.5 text-[13px]",
+        isActive
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+      )}
+    >
+      {Icon && <Icon className="w-4 h-4 shrink-0" />}
+      <span className="truncate">{lang === "ar" ? entry.labelAr : entry.label}</span>
+      {/*
+        🔴 A quiet marker, not a warning. A Coming Soon entry is a real link to
+        a real page that explains itself; dressing it as broken would teach the
+        user to distrust the sidebar instead of teaching them what is missing.
+      */}
+      {entry.marker === "coming-soon" && (
+        <Clock className="w-3 h-3 shrink-0 ms-auto opacity-40" aria-hidden />
+      )}
+    </Link>
+  );
+}
+
+function NavItemNode({
+  entry,
+  location,
+  search,
   lang,
 }: {
-  group: typeof navGroupsData[0];
+  entry: NavEntry;
   location: string;
+  search: string;
   lang: "en" | "ar";
 }) {
-  const hasActive = group.items.some(i => i.href === location);
-  const [open, setOpen] = useState(
-    // "Financial Reports" was a stale name here — that section had already been
-    // renamed, so it silently never matched and the group defaulted to collapsed.
-    hasActive || ["Overview", "Sales", "Purchases"].includes(group.label)
+  const children = entry.children ?? [];
+  const containsActive = children.some((c) => c.href.split("?")[0] === location);
+  const [open, setOpen] = useState(containsActive);
+
+  if (children.length === 0) {
+    return <NavLink entry={entry} location={location} search={search} lang={lang} depth={0} />;
+  }
+
+  return (
+    <div>
+      <div className="flex items-center">
+        <div className="flex-1 min-w-0">
+          <NavLink entry={entry} location={location} search={search} lang={lang} depth={0} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={lang === "ar" ? `توسيع ${entry.labelAr}` : `Expand ${entry.label}`}
+          className="p-1.5 me-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-secondary/60"
+        >
+          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-0.5 mt-0.5">
+          {children.map((child) => (
+            <NavLink
+              key={`${child.href}-${child.label}`}
+              entry={child}
+              location={location}
+              search={search}
+              lang={lang}
+              depth={1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
+}
+
+function NavGroup({
+  section,
+  location,
+  search,
+  lang,
+  defaultOpen,
+}: {
+  section: NavSection;
+  location: string;
+  search: string;
+  lang: "en" | "ar";
+  defaultOpen: boolean;
+}) {
+  /**
+   * 🔴 Open if it CONTAINS the current page, compared on pathnames and
+   * including children. The previous version matched a section label against a
+   * hardcoded list that had been renamed out from under it, so the check
+   * silently never fired — an obsolete assertion living in the UI rather than
+   * in a test. Deriving it from the tree means a renamed section cannot break
+   * it.
+   */
+  const contains = section.items.some(
+    (i) =>
+      i.href.split("?")[0] === location ||
+      (i.children ?? []).some((c) => c.href.split("?")[0] === location),
+  );
+  const [open, setOpen] = useState(contains || defaultOpen);
 
   return (
     <div>
       <button
-        onClick={() => setOpen(p => !p)}
+        onClick={() => setOpen((p) => !p)}
         className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors"
       >
-        {lang === "ar" ? group.labelAr : group.label}
+        {lang === "ar" ? section.labelAr : section.label}
         {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
       </button>
       {open && (
         <div className="space-y-0.5 mt-0.5 mb-2">
-          {group.items.map(link => {
-            const Icon = link.icon;
-            const isActive = location === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href!}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
-                )}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">
-                  {lang === "ar" ? link.labelAr : link.label}
-                </span>
-              </Link>
-            );
-          })}
+          {section.items.map((item) => (
+            <NavItemNode
+              key={`${item.href}-${item.label}`}
+              entry={item}
+              location={location}
+              search={search}
+              lang={lang}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -221,24 +219,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
    * The refusal is the real control — this only keeps the sidebar honest, so a
    * deliberately narrowed demo does not read as a product full of dead links.
    */
-  const visible = (i: NavItem) =>
-    (!demoMode || !i.href || !DEMO_HIDDEN.has(i.href)) &&
+  const visible = (i: NavEntry) =>
+    (!demoMode || !DEMO_HIDDEN.has(i.href.split("?")[0])) &&
     (!i.adminOnly || user?.organizationRole === "admin");
   // 🔴 Filtered UNCONDITIONALLY, not only on the demo. The first wiring of
   // `adminOnly` applied `visible` inside the demo branch alone, which made
   // the flag a no-op for every real tenant — a consumer that consumed nothing
   // in the path that matters. DEMO_HIDDEN is scoped to demoMode inside
   // `visible` itself, so unifying the branches changes nothing for it.
-  const navGroups = navGroupsData
-    .map((g) => ({
-      ...g,
-      // Nested items too: a hidden route inside a collapsible group is
-      // still a dead link.
-      items: g.items
-        .filter(visible)
-        .map((i) => (i.children ? { ...i, children: i.children.filter(visible) } : i)),
-    }))
-    .filter((g) => g.items.length > 0);
+  //
+  // 🔴 A parent whose children are ALL hidden is dropped with them. Left in,
+  // it would be a disclosure triangle that opens on nothing — the empty-state
+  // cousin of a dead link, and just as much a lie about what is there.
+  const navSections: NavSection[] = NAV_TREE.map((section) => ({
+    ...section,
+    items: section.items
+      .filter(visible)
+      .map((i) => (i.children ? { ...i, children: i.children.filter(visible) } : i))
+      .filter((i) => !i.children || i.children.length > 0),
+  })).filter((s) => s.items.length > 0);
+
+  /**
+   * The query string, read from the browser rather than from wouter — its
+   * `useLocation` returns the pathname alone, and the filter entries in the
+   * navigation are distinguished only by their query.
+   */
+  const search = typeof window === "undefined" ? "" : window.location.search;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -261,8 +267,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto">
-          {navGroups.map(g => (
-            <NavGroup key={g.label} group={g} location={location} lang={lang} />
+          {navSections.map((s, idx) => (
+            <NavGroup
+              key={s.label}
+              section={s}
+              location={location}
+              search={search}
+              lang={lang}
+              // The first three sections open by default. Twelve collapsed
+              // sections is a wall; twelve expanded ones is a scroll.
+              defaultOpen={idx < 3}
+            />
           ))}
         </nav>
 
