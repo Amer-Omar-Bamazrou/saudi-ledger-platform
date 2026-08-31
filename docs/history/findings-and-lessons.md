@@ -4565,3 +4565,145 @@ external dependencies and provider seams, and deployment posture.
 migration checklist, an audit scope, a release note — the enumeration is the
 work, and the prose is the rendering of it. Writing prose first and hoping the
 enumeration falls out reverses the dependency, and the failure mode is silent.
+
+---
+
+## 2026-08-31 — 🔴 A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER
+
+**Owner-named as the widest-reach finding of the breadth pass**, and it is,
+because the amplifier is not specific to the bug that revealed it.
+
+### The chain
+
+Breadth gave the scheduled findings run real work for the first time. It calls
+the AI provider once per open finding — **inside an open tenant transaction**.
+The deliberate `idle_in_transaction_session_timeout = '15s'` guardrail fired,
+exactly as designed, and terminated the connection.
+
+`node-postgres` then emitted `error` on the client. **An `error` event with no
+listener is fatal in Node** (`throw er; // Unhandled 'error' event`). The API
+process exited, and every request after it was ECONNREFUSED. 62 of 153 browser
+tests failed, not one of them for the reason it named.
+
+> **A defence designed to kill a TRANSACTION was killing the SERVER.**
+
+### 🔴 Why the reach is wide
+
+The amplifier sits behind *every* mechanism that works by severing something —
+a timeout, an abort, a socket destroy, a backend termination, a failover, a
+restart, an operator running `pg_terminate_backend`. None of those is exotic.
+The guardrail here was one of the good ones: deliberate, documented, and the
+reason the e-invoice outbox exists. **The better the defence, the more often it
+fires, and the more often the amplifier gets its chance.**
+
+The question to ask of any severance:
+
+> **When this deliberately terminates something, does an unhandled event on the
+> severed thing take down more than was intended?**
+
+### 🔴 THE SECOND TRAP: STANDARD ADVICE APPLIED WITHOUT CHECKING WHICH CASE YOU HAVE
+
+The recommended fix for this in `pg` is `pool.on("error", …)`. It was applied,
+with a considered comment, and believed correct.
+
+**The next full browser run crashed identically.**
+
+`pool.on("error")` covers clients sitting **idle** in the pool. A client that is
+**checked out** emits `error` on itself, the pool does not forward it, and the
+process still dies. The tenant connection is checked out for the whole
+transaction — the exact window in which the guardrail fires.
+
+Two lessons, and the second is the general one:
+
+1. *Re-run the thing you just hardened* — already a standing rule, here earning
+   itself against a fix written **for** that rule's own class.
+2. 🔴 **Standard advice applied without checking which case you have is its own
+   trap.** The advice was not wrong; it addressed the other half. It looked
+   right, it is what every guide says, and it left the defect fully intact —
+   which is worse than not fixing it, because the comment beside it now asserted
+   the problem was handled.
+
+### The sweep, and its result
+
+Swept the shape rather than the instance (§3). Every deliberate severance in
+`apps/api/src` and `packages/db/src`:
+
+| Severance point | Verdict |
+| --- | --- |
+| tenant connection (`LazyTenantClient`) vs the idle-in-transaction guardrail | 🔴 **was the bug** — listener now on the checked-out client |
+| `demoReset.service.ts` — a long TRUNCATE transaction on a scheduled job | 🔴 **second instance, found by the sweep** — same shape, no listener; fixed |
+| `pool` / `sessionPool` idle clients | guarded |
+| `ClamdScanner` socket destroy | **correct** — `socket.on("error")` is registered before any destroy path |
+| AI provider request timeout (`AbortController`) | **needs no guard** — aborting a `fetch` rejects a promise, and a rejection has a caller; there is no emitter to leave unlistened |
+| `SIGTERM`/`SIGINT` → `server.close()` | shutdown, not a severance of a subordinate |
+
+The reported instance was, again, not the only one. **Countermeasure:**
+`tests/severance-amplifier.test.ts` asserts the property structurally — every
+`pool.connect()` attaches a client error listener, every Pool has an idle
+handler, every deliberately destroyed socket has an error listener — and
+records the points that need no guard, so *"we checked and there was nothing to
+guard"* stays distinguishable from *"we did not look"*. Fault-injected: removing
+the demo-reset listener turns it red and names the file.
+
+### The pipeline change this leaves open
+
+🔴 **The AI call inside the tenant transaction is BLOCKING before the AI layer
+is enabled — not merely latent.** The e-invoice outbox exists precisely because
+*a synchronous call to an external API cannot live inside the request
+transaction*; the findings run repeats that solved problem with a different
+external API. It is invisible today only because the layer is dark. Enabling
+Groq without moving the call out re-lights a defect the project already knows
+how to fix. Tracked in `CLAUDE.md` §5.
+
+---
+
+## 2026-08-31 — 🔴 A HAND-WRITTEN INTERFACE TYPESCRIPT CANNOT CHECK, AND WHY THIS ONE WAS HAND-WRITTEN
+
+`TrialBalance.tsx` declared:
+
+```ts
+interface TrialBalanceRow { id: number | null; name: string; … }
+```
+
+and the API has never sent `id`. `reports.service.ts` returns **`accountId`**.
+So `row.id` was `undefined` on every row, and `<tr key={row.id}>` gave every row
+in the table the same key.
+
+**The React warning is the visible part. The wrong number is the real one.**
+Rows sharing a key can be mis-reconciled on re-render: change the date range and
+a figure computed for the previous range can be left sitting in a row that now
+belongs to a different account. In the one report whose entire purpose is that
+it adds up, presented with no error at all.
+
+### 🔴 Would generated types have caught it? Yes — and the reason they did not is measurable
+
+Unambiguously yes. The defect is a declared field name that the response does
+not contain, which is precisely what codegen eliminates by construction: there
+is no second declaration to drift.
+
+**Why this interface was hand-written: there was nothing to generate from.**
+
+    report endpoints mounted:            15
+    report endpoints in openapi.yaml:     1   (/reports/vat-return)
+
+`/reports/trial-balance` is not in the contract. Neither are the general ledger,
+the balance sheet, the income statement, the cash flow statement, AR/AP aging,
+the customer ledger, owner's equity, the journal report, the account statement,
+the account summary, activity, or tax journal entries. Every page consuming them
+*must* hand-write its interface, because the generated client has no type for a
+path the spec never declared.
+
+The wider measurement, for scope:
+
+    page files using hand-written apiFetch:      53
+    page files using the generated client:        8
+
+🔴 **So "OpenAPI-first with codegen" is real for the CRUD surface and largely
+absent for reports — and reports are where the money figures live.** That is not
+a rule being violated; it is a rule whose coverage nobody had measured. The
+`list-response-shape` guard exists for exactly this class and covers four
+envelope endpoints, none of them a report.
+
+**Both defects in this report were unreachable before this week**, and the
+sentence is the argument for breadth in one line: *with no journal lines, the
+table and the total were both empty and agreed perfectly.*
