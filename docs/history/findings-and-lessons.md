@@ -4109,3 +4109,62 @@ finding about the code.
 The tell is worth naming because it is cheap: **the instrument disagreed with
 itself.** Four pairs identical and four different, in a mechanism that treats all
 eight the same way, is not a result — it is a reason to doubt the apparatus.
+
+---
+
+## 2026-08-31 — 🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED
+
+**Named at the owner's instruction**, alongside *a targeted fix sees only what it
+was sent to fix*. The two are siblings: both are about the blind spot a change
+carries with it, but they point in opposite directions in TIME.
+
+### What happened
+
+P5's browser suite ran green: **65 passed, exit 0**. Then, preparing the CI job,
+a readiness wait was added to `global-setup.ts` so the login could not race the
+API's start — a change made purely for reliability, on a suite that had just
+demonstrated it worked.
+
+It pointed at `/api/health`. **That route does not exist.** The health route is
+mounted at `/api/healthz`; `/api/health` falls through to the authenticated
+catch-all and answers 401 forever, so the wait could never succeed. The suite
+went from green to unable to start.
+
+The path was **assumed, not checked** — a referent error inside a change whose
+entire purpose was to make the suite more trustworthy.
+
+### Why the shape is worth naming separately
+
+A targeted fix's blind spot is **spatial**: attention narrows to the defect being
+hunted, so the file's other problems go unseen. That is why coverage questions
+must be asked mechanically against the whole surface.
+
+A hardening step's blind spot is **temporal**: it arrives *after* the evidence,
+so the run that would have contradicted it has already happened. And it is
+uniquely likely to escape re-running, because:
+
+- it is not a feature, so it does not feel like it needs a test;
+- it is small, and framed as risk-reduction;
+- **the suite it modifies was green minutes ago**, which reads as licence.
+
+The last is the trap. "It passed" was true of the code *before* the change, and
+that truth is what makes re-running feel redundant precisely when it is not.
+
+### The rule
+
+**Re-run the thing you just hardened.** A change made for reliability earns no
+exemption from the run that proves it — it needs that run *more* than a feature
+does, because nobody will suspect it later. Its failure mode is not a wrong
+answer but a suite that cannot start, which looks like infrastructure trouble
+rather than a defect someone introduced.
+
+### The corollary that caught it
+
+This was found by CI, three minutes after the push, not by review. Two other
+harness faults surfaced in the same run — a job-wide `PORT` that made vite bind
+the API's port, and a hand-enumerated wipe that broke when a background job wrote
+a `finding_runs` row. **All three were in the harness; none was in the product.**
+That is the expected shape for a new test suite's first CI run, and it is an
+argument for landing such a suite as a NON-REQUIRED check until it has been green
+across real PRs — which is how P5's job was configured, before any of this
+happened.
