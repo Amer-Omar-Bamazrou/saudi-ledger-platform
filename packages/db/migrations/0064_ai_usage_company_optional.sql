@@ -1,0 +1,45 @@
+-- 0064 — ai_usage.company_id becomes OPTIONAL, because org-wide work has no company.
+--
+-- 🔴 THE DEFECT THIS CLOSES: A METER THAT SILENTLY RECORDED NOTHING.
+--
+-- `ai_usage.company_id` was NOT NULL with DEFAULT app_default_company_id(),
+-- which reads the `app.current_company_id` GUC. Every request-scoped AI call
+-- sets that GUC and inserted fine. The SCHEDULED findings run does not: it
+-- opens its tenant connection with an organization and no company
+-- (`findings.schedule.service.ts`), because it runs across the whole org.
+--
+-- So the default evaluated to NULL, the insert violated NOT NULL, and
+-- `services/ai/metered.ts` caught the error and wrote it to the console. The
+-- model call itself succeeded — tokens spent, latency real — and **no row was
+-- ever recorded for any scheduled AI work.** Nothing failed, nothing alerted,
+-- and the usage curve simply omitted an entire class of consumption.
+--
+-- 🔴 Why that matters more than its size: metering is the measurement half of
+-- R1 (billing). A figure we intend to bill from cannot have a category of
+-- usage missing from it, and the gap was invisible precisely because the
+-- write was best-effort — the "who finds out?" shape, sitting on the one
+-- number the business model rests on.
+--
+-- ── WHY NULL AND NOT A CHOSEN COMPANY (owner, 2026-08-31) ──────────────────
+--   > An org-wide run with no single company should record the org and leave
+--   > company NULL. An arbitrary attribution is worse than an absent one for
+--   > a figure we'll bill from.
+--
+-- NULL is honest: it says the work was not attributable to one company, which
+-- is a true fact about an org-wide run. Picking the "first" or "default"
+-- company would produce a number that is precise, plausible, and wrong — and
+-- billable, which is the combination that makes it worse than a blank.
+--
+-- ── WHY THIS IS SAFE ───────────────────────────────────────────────────────
+-- Checked before writing, not assumed:
+--   * The `tenant_isolation` policy on ai_usage is ORG-scoped only (0055) —
+--     `company_id` plays no part in row-level isolation, so relaxing it
+--     weakens no boundary.
+--   * No consumer reads the column. Every query in the repository filters on
+--     `organization_id` and `operation` (the two benchmarks, the AI provider
+--     tests). There is no aggregate that would silently start counting NULLs.
+--   * The DEFAULT stays. A request-scoped call still records its company
+--     exactly as before; only the org-wide case, which previously recorded
+--     NOTHING, now records a row with a NULL company.
+
+ALTER TABLE "ai_usage" ALTER COLUMN "company_id" DROP NOT NULL;

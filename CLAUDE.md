@@ -54,18 +54,9 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-08-31.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-08-28 → 30 — six passes** (merged, or in PR #104/#105). Full record:
-[`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
-
-- 🔴 **8 of 15 findings sat in the layer a user touches**; every automated test
-  runs a layer below it. **P5** — the browser suite — now closes that; it is
-  built and running in CI (`apps/web/e2e`).
-- **P4** computes reachability from the transition graph; its gap lists emptied
-  themselves.
-- **AUD-13** is the composition class's worked example; its artefact,
-  `INV-2026-000049`, stays deliberately.
-- **No auto-approve**, **`db` refuses an unscoped query**, **ledger lists
-  paginate with SQL totals**, **document numbers are server-allocated** (§4).
+**2026-08-28 → 31 — six passes, P5, and the navigation tree.** All merged.
+Record: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
+The invariants they left behind are in §4; the lessons are in §3.
 
 **2026-08-31 — the navigation tree** (owner-approved, built). The §4 hierarchy
 is live: filters renamed to real statuses and deep-linked, quotation expiry
@@ -268,7 +259,7 @@ rules at the top of this file, rule 2).
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step — *"this needs an accountant to approve it; send it for approval"* — teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE like M22's closed-period dialog so rewording copy cannot break it. The reversal also deleted `canApprove`: a derived flag with no consumer would have invited the hiding back. Incident: findings file.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout, so the login toggle works. Checked twice; two proposed B-8 mechanisms died here. Incident: findings file.
-- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change.**
+- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change** — done 2026-08-31 (`e2e/rtl-direction.spec.ts`, green); the *observation* half now exists even though the loss did not reproduce, which is the point: the guard is worth having whether or not today's bug is real.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it — **P5**, the browser suite, now does (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13, 2026-08-28). Five items, each survivable alone and each triaged at a severity correct in isolation, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding, and rank on the worst path rather than the worst item. This is the composition-defect class pointed at FINDINGS instead of code: two correct triage decisions with a bad path between them.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema (declared for quotations and POs, which touch no ledger; absent for invoices, which consume an ICV), and every test built its request the way the server expects. Ask which layer the defect lives in, and whether anything tests THAT one. Full record in the findings file.
@@ -499,7 +490,7 @@ is the reason the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **No password recovery for a multi-org account** — DECISION PENDING, options and costs in [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30). F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question: **A** self-service email reset (moderate build, no new privilege, close template exists in `organization_invitations`), **B** operator reset (small build, but creates a standing cross-tenant takeover — the F1 shape), **C** both. Owner decides. |
+| **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
@@ -509,22 +500,35 @@ offers it (one-line flip if manual paging tests are wanted); and
 `normalizeDigits` exists twice, pinned by a behavioural-equivalence test, pending
 a shared workspace package.
 
-**Open and unreproduced:** **B-8**, the RTL `<html dir>` loss — one candidate
-eliminated 2026-08-30 (the login page DOES have a provider; see §3's do-not-fix).
-If the attribute is lost it is a runtime fact no static check reaches.
+**B-8 — NOT REPRODUCED, and now under a standing guard** (2026-08-31).
+`e2e/rtl-direction.spec.ts` executes the mechanism the lesson itself named:
+toggle to Arabic, then walk five routes across sections **by clicking**, plus a
+reload, a route change after a reload, and a switch back. Five tests, all
+green — `dir` and `lang` hold throughout. 🔴 **Search shape**, so the negative
+is reviewable: exactly ONE writer in app code (`LanguageContext.tsx:52`), no
+`@radix-ui`/`vaul`/`cmdk` package writes `documentElement.dir` or
+`.setAttribute`, and clicking is used deliberately because a `goto` remounts the
+provider and would repair the loss before it could be seen. **What would
+falsify:** a loss triggered by a surface not on that walk, a portal/dialog, or a
+path that unmounts the provider. B-8 is not closed — it is now *tested* rather
+than merely unreproduced, which is a different and better state.
 
-🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY**, and they
-emptied themselves: the companion test failed the moment AUD-10/11/12's callers
-were built. A new entry needs a checkable reason and leaves the day it is fixed.
+🔴 **Found while doing it:** `apps/web/index.html` has `lang="en"` and **no
+`dir` at all**, so every load paints left-to-right until the provider's effect
+runs. Not B-8 (nothing is *lost*; it was never set), but a real RTL defect
+against a launch requirement, and the cheap fix — an inline script reading
+`ksa_lang` before first paint — is a decision about blocking scripts, so it is
+flagged rather than taken.
+
+🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY.** A new entry
+needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**. Seven English-only pages were swept
-2026-08-30 (PR #105) — CreditNotes went 2 → 28 i18n calls. 🔴 The measurement
-that found them is the reusable part, not the fix: counting both idioms
-(`t("…"` and `lang === "ar"`) against bare JSX text nodes, across every page.
-**Re-run it before launch** — a targeted fix sees only what it was sent to fix
-(§3), so coverage has to be measured, not noticed.
+Arabic is a **launch requirement**. 🔴 **Re-measure before launch, mechanically:**
+count both idioms (`t("…"` and `lang === "ar"`) against bare JSX text nodes,
+across every page. A targeted fix sees only what it was sent to fix (§3), so
+coverage is measured, never noticed. Last sweep 2026-08-30; history has it.
 
 ### Traps and known-dead surfaces
 

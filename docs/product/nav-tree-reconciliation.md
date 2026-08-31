@@ -50,6 +50,38 @@ not exist, so the product's scope is legible from the navigation.
 to real statuses rather than dropping them where a real status exists; drop
 anything pointing at nothing; Coming Soon entries get a real page.
 
+> ## 🔴 THE FOURTH RULE — ASSERT BOTH DIRECTIONS
+>
+> **Added permanently, 2026-08-31, because this pass proved it the hard way.**
+>
+> The three rules above all point one way: *does every entry in the spec point
+> at something real?* That question was answered carefully, entry by entry,
+> across ~250 rows — and it is, by construction, incapable of noticing a real
+> page the spec never listed.
+>
+> Five did not appear here: **account statement, account summary, owner's
+> equity, tax journal entries, activity.** All five work, all five are crawled
+> by the browser suite, none is in the §4 specification. Building the
+> navigation from this document alone would have made every one of them
+> unreachable **in the same commit that made the navigation "complete"** — and
+> they would have gone on passing every test in the repository while no user
+> could reach them.
+>
+> **The rule, for every future reconciliation of one map against another** —
+> a route table, a permission matrix, a chart of accounts, a status vocabulary,
+> a config schema:
+>
+> 1. **Every entry points at something.** (The forward direction. The one
+>    people check, because it is what the new map is *for*.)
+> 2. **Everything is pointed at.** (The reverse. Where the losses are, because
+>    a thing that falls out of a map leaves no trace *in* the map.)
+>
+> Rule 2 cannot be satisfied by reading the document — there is nothing in the
+> input to read. It needs an enumeration of the real thing, taken from the
+> code, compared mechanically. Here that is `every crawlable route is reachable
+> from the navigation` in `e2e/nav-tree.spec.ts`, with an EXEMPT list where
+> each exemption carries a reason.
+
 ---
 
 ## 1. 📊 DASHBOARD
