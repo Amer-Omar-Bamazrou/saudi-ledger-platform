@@ -20,6 +20,8 @@ import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { FilterScope } from "@/components/FilterScope";
+import { BILL_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 
@@ -115,7 +117,7 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
 
 export default function Bills() {
   const [, navigate] = useLocation();
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(BILL_FILTERS));
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
   /** AUD-10/AUD-12 — editing and deleting a DRAFT bill, the only state the API allows. */
@@ -130,7 +132,8 @@ export default function Bills() {
   const [payAmount, setPayAmount] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
 
   /** A PAGE plus set-wide totals — see the note on Invoices.tsx. */
   const { data: billPage, isLoading } = useQuery<BillPage>({
@@ -516,12 +519,15 @@ export default function Bills() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <div className="flex gap-2 flex-wrap">
-            {["all", "draft", "received", "approved", "paid", "overdue"].map(s => (
-              <Button key={s} variant={statusFilter === s ? "default" : "ghost"} size="sm"
-                className="h-7 text-xs capitalize" onClick={() => setStatusFilter(s)}>
-                {s}
+            {BILL_FILTERS.map(o => (
+              <Button key={o.value} variant={statusFilter === o.value ? "default" : "ghost"} size="sm"
+                className="h-7 text-xs" onClick={() => applyFilter(o.value)}>
+                {lang === "ar" ? o.labelAr : o.label}
               </Button>
             ))}
+          </div>
+          <div className="mt-3">
+            <FilterScope options={BILL_FILTERS} value={statusFilter} total={billPageInfo?.total} onClear={() => applyFilter("all")} />
           </div>
         </CardHeader>
         <CardContent>

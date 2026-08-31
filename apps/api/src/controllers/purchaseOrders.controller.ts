@@ -12,9 +12,12 @@ export const purchaseOrdersController = {
     if (outcome && !["live", "cancelled", "closed"].includes(outcome)) {
       throw new BadRequestError("outcome must be one of: live, cancelled, closed");
     }
+    /** `status=converted` is derived from the conversion rows — see the repository. */
+    const converted = status === "converted";
     res.json(
       await purchaseOrdersService.list({
-        status: status || undefined,
+        status: converted ? undefined : status || undefined,
+        converted: converted || undefined,
         vendorId: vendor_id ? Number(vendor_id) : undefined,
         outcome: (outcome as "live" | "cancelled" | "closed") || undefined,
         ...pageParams(req.query as Record<string, unknown>),

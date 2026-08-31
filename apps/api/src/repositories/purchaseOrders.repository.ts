@@ -15,13 +15,27 @@ export interface PurchaseOrderListFilter {
   status?: string;
   vendorId?: number;
   outcome?: "live" | "cancelled" | "closed";
+  /** Derived from the conversion rows, never stored — see `CONVERTED`. */
+  converted?: boolean;
   limit?: number;
   offset?: number;
 }
 
+/**
+ * "Has been billed, in whole or in part" — the purchase-order twin of the
+ * quotation `CONVERTED` predicate, and derived for the same reason: the
+ * conversion axis is deliberately not a column, because one status string
+ * cannot say "approved AND partially billed".
+ */
+const CONVERTED = sql`EXISTS (
+  SELECT 1 FROM purchase_order_conversions pc
+  WHERE pc.purchase_order_id = ${purchaseOrdersTable.id}
+)`;
+
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 function purchaseOrderListConditions(filter: PurchaseOrderListFilter) {
   const conditions = [];
+  if (filter.converted) conditions.push(CONVERTED);
   if (filter.status) conditions.push(eq(purchaseOrdersTable.status, filter.status));
   if (filter.vendorId) conditions.push(eq(purchaseOrdersTable.vendorId, filter.vendorId));
   if (filter.outcome === "live") conditions.push(sql`${purchaseOrdersTable.outcome} IS NULL`);

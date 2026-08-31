@@ -12,6 +12,8 @@ import { Plus, BookOpen, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import { FilterScope } from "@/components/FilterScope";
+import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 
 interface JELine { accountId?: number; accountName: string; description?: string; debitAmount: number; creditAmount: number; }
 const JE_PAGE_SIZE = 50;
@@ -38,12 +40,26 @@ export default function JournalEntries() {
   const [lines, setLines] = useState<JELine[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  /**
+   * 🔴 This page had NO status filter, while the API had accepted `status`
+   * all along — the honest-message shape: nothing here was untrue, a
+   * capability simply never surfaced. Three nav entries now point at it
+   * (Drafts, Posted, Reversed). There is deliberately no "Pending Approval":
+   * a journal entry has no `submitted` state, so that chip would have
+   * returned a permanently empty set.
+   */
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(JOURNAL_ENTRY_FILTERS));
+  const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
 
   /** A PAGE plus the set-wide count — see the note on Invoices.tsx. */
   const { data: jePage, isLoading } = useQuery<JournalEntryPage>({
-    queryKey: ["journal-entries", page],
-    queryFn: () => apiFetch(`/journal-entries?limit=${JE_PAGE_SIZE}&offset=${page * JE_PAGE_SIZE}`),
+    queryKey: ["journal-entries", statusFilter, page],
+    queryFn: () =>
+      apiFetch(
+        `/journal-entries?limit=${JE_PAGE_SIZE}&offset=${page * JE_PAGE_SIZE}` +
+          (statusFilter !== "all" ? `&status=${statusFilter}` : ""),
+      ),
   });
   const entries = jePage?.items ?? [];
   const jePageInfo = jePage?.page;
@@ -178,11 +194,49 @@ export default function JournalEntries() {
         </Dialog>
       </div>
 
+      {/*
+        🔴 THESE COUNTS USED TO DESCRIBE THE PAGE AND CLAIM TO DESCRIBE THE SET.
+        All three were computed from `entries` — one fetched page of 50 — so
+        "Total Entries" read 50 on an org with 4,000, and "Posted" counted the
+        posted rows that happened to be on screen. That is the volume defect
+        exactly: a count taken from a capped list, invisible to every fixture we
+        own because our fixtures are smaller than the cap.
+
+        Adding a status filter would have made it worse (the counts would then
+        describe the filtered page), so they are replaced rather than carried
+        forward: ONE figure, the server's total for the set actually being
+        shown. The per-status breakdown is not re-derived here — the chips below
+        answer that question by asking the server, which is the only place the
+        real count exists.
+      */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Entries", "إجمالي القيود")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{entries.length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Posted", "مرحّل")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-positive">{entries.filter(e=>e.status==="posted").length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Drafts", "مسودات")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-attention">{entries.filter(e=>e.status==="draft").length}</div></CardContent></Card>
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">{t("Entries", "القيود")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-primary">
+              {jePageInfo ? jePageInfo.total.toLocaleString() : "—"}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex gap-2 flex-wrap">
+            {JOURNAL_ENTRY_FILTERS.map(o => (
+              <Button key={o.value} variant={statusFilter === o.value ? "default" : "ghost"} size="sm"
+                className="h-7 text-xs" onClick={() => applyFilter(o.value)}>
+                {lang === "ar" ? o.labelAr : o.label}
+              </Button>
+            ))}
+          </div>
+          <div className="mt-3">
+            <FilterScope options={JOURNAL_ENTRY_FILTERS} value={statusFilter} total={jePageInfo?.total} onClear={() => applyFilter("all")} />
+          </div>
+        </CardHeader>
+      </Card>
 
       <div className="grid grid-cols-5 gap-4">
         <Card className="col-span-3 border-border bg-card">

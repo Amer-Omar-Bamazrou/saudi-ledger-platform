@@ -29,6 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, FileText, Clock, CheckCircle, XCircle, Trash2, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { FilterScope } from "@/components/FilterScope";
+import { PURCHASE_ORDER_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 
 interface PriceVariance {
@@ -86,8 +88,9 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 const emptyLine = (): Partial<PoItem> => ({ description: "", quantity: 1, unitPrice: undefined, vatRate: 15 });
 
 export default function PurchaseOrders() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
+  const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   /**
@@ -103,7 +106,7 @@ export default function PurchaseOrders() {
    * The same dialog serves both modes: `editing` null = create.
    */
   const [editing, setEditing] = useState<{ id: number; number: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(PURCHASE_ORDER_FILTERS));
   const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
   const [lines, setLines] = useState<Partial<PoItem>[]>([emptyLine()]);
 
@@ -324,13 +327,13 @@ export default function PurchaseOrders() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-40 text-sm"><SelectValue /></SelectTrigger>
+          {/* "Converted to Bill" is DERIVED from the conversion rows. */}
+          <Select value={statusFilter} onValueChange={applyFilter}>
+            <SelectTrigger className="h-9 w-52 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t("All statuses", "كل الحالات")}</SelectItem>
-              <SelectItem value="draft">{t("Draft", "مسودة")}</SelectItem>
-              <SelectItem value="submitted">{t("Submitted", "مُرسل للاعتماد")}</SelectItem>
-              <SelectItem value="approved">{t("Approved", "معتمد")}</SelectItem>
+              {PURCHASE_ORDER_FILTERS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{lang === "ar" ? o.labelAr : o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Dialog
@@ -413,7 +416,12 @@ export default function PurchaseOrders() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">{t("Purchase Orders", "أوامر الشراء")}</CardTitle></CardHeader>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{t("Purchase Orders", "أوامر الشراء")}</CardTitle>
+          <div className="mt-3">
+            <FilterScope options={PURCHASE_ORDER_FILTERS} value={statusFilter} total={ordersPage?.page?.total} onClear={() => applyFilter("all")} />
+          </div>
+        </CardHeader>
         <CardContent>
           {isLoading ? (
             <p className="text-sm text-muted-foreground py-6 text-center">{t("Loading…", "جارٍ التحميل…")}</p>

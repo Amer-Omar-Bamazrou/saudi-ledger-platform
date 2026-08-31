@@ -13,9 +13,20 @@ export const quotationsController = {
     if (outcome && !["live", "declined", "closed"].includes(outcome)) {
       throw new BadRequestError("outcome must be one of: live, declined, closed");
     }
+    /**
+     * `status=expired` and `status=converted` are answered from the DATES and
+     * the CONVERSION ROWS, not from a status value — the same shape as
+     * `status=overdue` on invoices and bills. Expired/converted is what a user
+     * is asking for; the repository is the single place either is defined.
+     */
+    const expired = status === "expired";
+    const converted = status === "converted";
+    const derived = expired || converted;
     res.json(
       await quotationsService.list({
-        status: status || undefined,
+        status: derived ? undefined : status || undefined,
+        expired: expired || undefined,
+        converted: converted || undefined,
         customerId: customer_id ? Number(customer_id) : undefined,
         outcome: (outcome as "live" | "declined" | "closed") || undefined,
         ...pageParams(req.query as Record<string, unknown>),
