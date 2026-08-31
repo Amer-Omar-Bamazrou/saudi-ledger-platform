@@ -251,6 +251,101 @@ jobs:
       - name: Web unit tests (receipt parser)
         run: pnpm --filter @workspace/bookkeeping run test
 
+  # ── P5: the browser suite — the only layer that has ever caught this class ──
+  # Every other job here runs BELOW the layer that breaks. The scoreboard in
+  # CLAUDE.md §5: a browser found the blank AP-aging page, swallowed refusals,
+  # a GL showing SAR 0.00, an uneditable bill, AUD-13's zero-value tax invoice
+  # and a statement link that dropped its customer; 1,179 unit tests found none
+  # of them.
+  #
+  # 🔴 NOT a required check on day one, deliberately. A new browser suite's
+  # first weeks are when its flakes surface, and a flaky REQUIRED check teaches
+  # people to re-run rather than to read — which is the exact failure P5 exists
+  # to prevent, imported into the guard itself. Promote it to required in branch
+  # protection once it has been green across a stretch of real PRs. Until then
+  # it reports, loudly, and blocks nothing.
+  e2e:
+    name: e2e (browser)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PORT: "3000"
+      SESSION_SECRET: e2e-session-secret-at-least-32-characters-long
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      BASE_PATH: /
+      # A throwaway tenant's fixture password, not a secret — the suite creates
+      # the account it logs into, and CI must reproduce the run exactly.
+      E2E_PASSWORD: e2e-smoke-password-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Same non-owner roles the `test` job creates: migration 0004 grants to
+      # `authenticated`, and the app's per-request transactions drop to it.
+      - name: Bootstrap non-owner roles
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            DO \$\$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+            END \$\$;
+            GRANT authenticated TO postgres;"
+
+      - name: Apply migrations
+        run: pnpm --filter @workspace/db run migrate
+
+      # Cache the browser binary on the resolved Playwright version, so a normal
+      # run does not re-download ~150 MB. Keyed on the lockfile so a version
+      # bump invalidates it rather than silently running the old browser.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # `--with-deps` on a miss only: it installs system libraries too, which is
+      # what a bare ubuntu runner lacks. On a cache hit the binary is present and
+      # the deps are already part of the image layer.
+      - name: Install Playwright browser
+        run: pnpm --filter @workspace/bookkeeping exec playwright install --with-deps chromium
+
+      # Playwright starts BOTH servers itself (see playwright.config.ts), so the
+      # local run and this run are the same run. A CI-only start sequence would
+      # make "works locally" and "works in CI" two different claims.
+      - name: Browser suite
+        run: pnpm --filter @workspace/bookkeeping run test:e2e
+
+      # With retries at zero, the trace from the single failure is the whole
+      # diagnosis. Keep it.
+      - name: Upload traces and report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
+
   # ── Production build of every app/package ──────────────────────────────────
   build:
     name: build

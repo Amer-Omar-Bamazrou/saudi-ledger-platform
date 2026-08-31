@@ -630,3 +630,80 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](../hi
   style it, aging derives overdue from dates); VAT-return box 4 (exports) is
   always 0 — an export today is a 'Z' line in box 2.
 
+
+---
+
+## P5 — BROWSER TESTS IN CI — CLOSED 2026-08-31
+
+Queued 2026-08-28 as its own project, deliberately not half-built inside a
+bug-fix pass. Built as `apps/web/e2e` with a non-blocking `e2e` job in CI.
+
+### Why it was the only unblocked work worth doing
+
+Every other test in the repo runs a layer below the one that breaks:
+
+| Found by | Defects |
+| --- | --- |
+| a browser | the blank AP-aging page, swallowed server refusals, the GL showing SAR 0.00, an uneditable bill, AUD-13's issued zero-value tax invoice, and the statement link that dropped its customer |
+| 1,179 tests | none of them |
+
+### What it does
+
+- **Smoke crawl over every route**, authenticated, failing on an uncaught
+  exception, a 5xx the page swallowed, a console error, or an empty body. Not
+  "did it 200" — every browser-found defect in this project returned 200.
+- **The route list is DERIVED from `App.tsx`, never typed.** A hand-maintained
+  list would be a second representation of the route table. The forcing function
+  is a `EXPECTATIONS` map: every derived route must be classified, an
+  unclassified one fails the suite, and a classification for a route that no
+  longer exists also fails. P4's known-gap pattern, pointed at pages.
+- **404 recording closes P4's blind spot from the other side.** P4 proves a call
+  SITE exists; this proves the call the running app actually makes resolves to a
+  mounted route.
+- **The lost-scope check** — for a link carrying a query parameter, assert the
+  DESTINATION reflects it. Written from the 2026-08-31 incident.
+
+### 🔴 Flake management, which is the part that decides whether it is worth having
+
+`retries: 0`, deliberately. A suite people learn to re-run is a guard reporting
+coverage it does not have — the failure P5 exists to prevent, imported into the
+tool built to prevent it. `retries: 2` would hide exactly that: the second pass
+goes green, nobody reads the first, and the real signal quietly becomes "it
+passed at least once in three".
+
+What pays for that strictness: one worker (the app has one database and one
+tenant; `test-suite-notes.md` already records cross-fork collisions), data
+seeded once under a slug the suite owns, no `waitForTimeout` anywhere, and both
+servers started by Playwright so "the page failed" can never mean "the server
+was not up yet".
+
+**The job is NOT a required check on day one**, also deliberately. A new browser
+suite's first weeks are when its flakes surface, and a flaky *required* check
+teaches people to re-run rather than to read. Promote it in branch protection
+once it has been green across a stretch of real PRs.
+
+### What the first run found
+
+Two failures, and neither was a product defect — which is itself the useful
+result, because both were discovered rather than assumed:
+
+1. **`/verification` has no `<main>`.** It is
+   `<AuthGuard><VerificationStatus /></AuthGuard>` with no `Layout` — the M11.2
+   gate for an org whose verification is pending, which must not reach business
+   routes. The missing shell is the design. Recorded as its own route kind
+   (`authenticated-no-shell`) rather than by relaxing the assertion for
+   everything, which is how a guard quietly stops guarding.
+2. **A race in the test, not the app.** The deep-link check read the DOM once
+   and caught `"Loading…"`; the report resolves its fiscal-year range before it
+   fetches, so content arrives after `networkidle`. Fixed with web-first
+   assertions that poll the condition. With `retries: 0` the only honest fixes
+   are to assert on the condition or delete the test.
+
+### Verified to fail for the right reason
+
+The deep-link guard was checked against the real bug: reverting
+`CustomerLedger`'s `initialCustomerId()` to `"all"` turns it red with the
+intended message, and restoring it turns it green. A guard never seen to fail is
+the CI-merge-gate mistake in another costume.
+
+**Result: 65 tests, 3.1 minutes, exit 0.**
