@@ -124,8 +124,25 @@ export interface DemoResetOutcome {
  * a banner that says sample data is here — the "fail loudly, never partially"
  * requirement is met by the transaction, not by ordering.
  */
+/** Shared so it can be removed again — an anonymous closure per call leaks listeners. */
+function onDemoClientError(err: Error): void {
+  logger.error({ err }, "[demo-reset] the connection failed while checked out; the process stays up");
+}
+
 export async function runDemoReset(): Promise<DemoResetOutcome> {
   const client = await pool.connect();
+  /**
+   * 🔴 A CHECKED-OUT CLIENT NEEDS AN `error` LISTENER, or a connection that
+   * dies underneath it takes the whole API process with it — an `error` event
+   * with no listener is fatal in Node, and `pool.on("error")` covers IDLE
+   * clients only.
+   *
+   * Found by sweeping the shape after the same defect killed the server from
+   * the tenant-connection path (2026-08-31). This one is a long TRUNCATE
+   * transaction on a scheduled job — exactly the profile a restart, failover
+   * or admin termination interrupts. The listener is removed on release.
+   */
+  client.on("error", onDemoClientError);
   let runId: number | null = null;
 
   try {
@@ -188,6 +205,7 @@ export async function runDemoReset(): Promise<DemoResetOutcome> {
     logger.error({ err, runId }, "[demo-reset] FAILED");
     return { status: "failed", detail };
   } finally {
+    client.off("error", onDemoClientError);
     client.release();
   }
 }
