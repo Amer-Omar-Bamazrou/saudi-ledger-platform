@@ -387,7 +387,30 @@ dropped:
 | Live Bank Feeds | **COMING SOON** | Kept in **BANKING** only — the duplicate here is dropped. |
 | ZATCA Fatoora | **DROPPED** | Duplicate of the TAX section's entry, which is BUILT. |
 
-### 4. Placeholders name their blocker
+### 4. The COMING SOON convention — and the reason it has a rule
+
+🔴 **A placeholder that says "coming soon" when the truth is "waiting on a
+commercial agreement" is less honest than it could be** (owner, 2026-08-31).
+
+**The rule, stated so future placeholders follow it rather than copying the
+table below:**
+
+> **Every COMING SOON page names what it is waiting on, and names it
+> specifically.** Where the blocker is not build effort — a contract, a
+> registration, an advisor's answer, a legal question, an undesigned decision —
+> the page says which, by name.
+
+**Why it is a rule and not a nicety:** *"Not built" invites someone to build it;
+"waiting on a contract" tells them why they must not.* A generic placeholder is
+an open invitation to spend effort on something that cannot ship, and the person
+most likely to accept that invitation is a future contributor with time and no
+context — which is exactly who a placeholder is written for. The blocker's name
+is the part that does the work.
+
+**Corollary:** when the blocker clears, the page's own text says so, so the
+placeholder becomes the work order. A page reading *"waiting on the Groq
+Enterprise agreement"* is a queue item the day that agreement is signed.
+
 
 🔴 **A placeholder that says "coming soon" when the truth is "waiting on a
 commercial agreement" is less honest than it could be** (owner, 2026-08-31).
