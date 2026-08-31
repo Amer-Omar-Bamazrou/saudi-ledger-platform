@@ -1,8 +1,32 @@
 # §4 navigation tree — reconciled, entry by entry
 
-**Status (2026-08-31): NOTHING HERE IS BUILT YET.** This is the review artefact
-the owner asked for before any code. Current state authority:
-[CLAUDE.md §2](../../CLAUDE.md).
+**Status (2026-08-31): APPROVED AND BUILT.** This began as the review artefact
+the owner asked for before any code; the tree was approved on 2026-08-31 with
+all four questions answered, and built in the order the owner set — filters
+renamed → `valid_until` derivation → Coming Soon pages → the navigation →
+`e2e/nav-tree.spec.ts`. It is now the RECORD of what was decided, not a
+proposal. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
+
+🔴 **Two things the build found that this document could not**, both recorded
+in full in [`findings-and-lessons.md`](../history/findings-and-lessons.md):
+
+1. **Five real report pages are absent from the §4 spec** — account statement,
+   account summary, owner's equity, tax journal entries, activity. Reconciling
+   the spec entry by entry cannot see a page the spec never listed, so all five
+   would have become unreachable in the commit that made the navigation
+   "complete". They are in the tree under Operational Reports.
+2. **The agreed EXPIRED predicate names `declined`/`closed` as `status`
+   values**, which that column cannot hold — they live on `outcome`. It is
+   right anyway, because a CHECK constraint means every declined quotation is
+   also `approved`; the two terms are dead weight rather than a defect, and
+   become load-bearing the moment that constraint is relaxed.
+
+🔴 **One question is left open rather than defaulted:** the predicate as agreed
+lets a **DRAFT** quotation expire, where the invoice precedent goes the other
+way (`OVERDUE` excludes drafts, on the ground that an unissued document cannot
+be late). Both readings are defensible; the instruction was followed as written
+rather than silently swapped for the sibling rule. Changing it is one line in
+`quotations.repository.ts` and nowhere else.
 
 **Source:** [`frontend-implementation-spec.pdf`](frontend-implementation-spec.pdf)
 §4.1 "Sidebar Menu – Full Hierarchy", PDF pages 6–18, copied into the repo

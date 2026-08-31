@@ -4101,3 +4101,91 @@ That is the expected shape for a new test suite's first CI run, and it is an
 argument for landing such a suite as a NON-REQUIRED check until it has been green
 across real PRs — which is how P5's job was configured, before any of this
 happened.
+
+---
+
+## 2026-08-31 — 🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY
+
+**Found by a mechanical assertion during the navigation build, not by reading** —
+and the reading had been careful. `nav-tree-reconciliation.md` walked ~250 spec
+entries one at a time, marked each BUILT / FILTER-OF / COMING SOON / DROPPED,
+argued all thirteen drops, and was reviewed and approved. It was also, by
+construction, incapable of finding this.
+
+### What happened
+
+The reconciliation asked, of every entry in the §4 specification: *does this
+point at something real?* The new navigation tree was then built from the
+answers. The first run of `e2e/nav-tree.spec.ts` failed on a check that asks the
+opposite question — *is every real page still pointed at?* — and named five:
+
+    /reports/account-statement
+    /reports/account-summary
+    /reports/owner-equity
+    /reports/tax-journal-entries
+    /reports/activity
+
+Five real, working, tested report pages. The smoke crawl renders all five and
+always had. They were absent from the §4 spec, so no amount of care spent
+reconciling the spec could surface them — **there was nothing in the input to
+reconcile them against.** Replacing the old navigation with the new tree would
+have made all five unreachable in the same commit that made the navigation
+"complete", and the pages would have kept passing every test in the repository
+while no user could get to them.
+
+### Why it is its own lesson and not an instance of an existing one
+
+It is adjacent to *nothing in this process checks whether a USER can reach what
+we built*, but it is sharper and more general: this was not an absent check, it
+was a check pointed one way. The reconciliation's method was sound and its
+output was correct. **A map-to-map reconciliation has two directions, and doing
+one thoroughly gives no information at all about the other.**
+
+The general form, which applies well beyond navigation:
+
+> **Whenever one map replaces another — a route table, a permission matrix, a
+> chart of accounts, a status vocabulary, a config schema — assert BOTH
+> directions: every entry points at something, and everything is pointed at.**
+
+The forward direction is the one people check, because it is the one the new map
+is *for*. The reverse direction is where the losses are, because a thing that
+falls out of a map leaves no trace in the map. It is the same asymmetry as
+`tests/route-reachability.test.ts`'s two halves (every mounted route has a
+terminus; every URL the web calls is mounted), which exists for exactly this
+reason and had already earned itself once.
+
+### The countermeasure
+
+`e2e/nav-tree.spec.ts`, *every crawlable route is reachable from the
+navigation*: the declared routes minus an EXEMPT list, each exemption carrying a
+reason. It is deliberately the inverse of the check beside it, and the two are
+named as a pair so neither reads as sufficient alone.
+
+---
+
+## 2026-08-31 — copying a check's SHAPE without its TIMING reproduces the check, not its meaning
+
+A smaller one from the same build, kept because it cost fourteen red tests and
+three minutes of believing the product was broken.
+
+`nav-tree.spec.ts` needed "the page rendered something", a check `smoke-crawl`
+already had. The shape was copied — `goto`, read `<main>`, assert the text is
+longer than 20 characters — but with `waitUntil: "domcontentloaded"` instead of
+`"networkidle"`. Fourteen data-driven pages were still showing **"Loading…"**
+— eight characters — at that moment. Fourteen failures, not one a defect.
+
+The original had `networkidle` for a reason nobody had written down, because to
+its author it was not a decision. **A check is its assertion AND the moment it
+is taken; copying only the assertion produces something that looks identical and
+measures a different instant.** Same family as the vacuous-green lesson: the
+instrument disagreed with the code, and the instrument was wrong.
+
+🔴 The second half is the more useful one. Once the timing was fixed, the check
+**bought nothing** — every destination it crawled was already crawled harder by
+`smoke-crawl`, with console-error and 5xx assertions on top. Sixty duplicate
+page loads had tripled the suite's runtime for a second opinion on covered
+pages, and a slow suite is one people learn to skip. It was replaced by an
+assertion on the EDGE between the two existing checks (*every navigation
+destination is a route the smoke crawl renders*), which is the composition
+stated in code rather than assumed — the deliberate opposite of the
+*two correct assertions with a gap between them* shape.
