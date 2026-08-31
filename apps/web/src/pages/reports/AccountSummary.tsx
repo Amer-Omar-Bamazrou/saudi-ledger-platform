@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,8 +97,8 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
               </thead>
               <tbody>
                 {typeOrder.filter(t => byType[t]?.length > 0).map(type => (
-                  <>
-                    <tr key={`hdr-${type}`} className="bg-secondary/20">
+                  <Fragment key={type}>
+                    <tr className="bg-secondary/20">
                       <td colSpan={6} className={cn("py-2 px-2 text-xs font-bold uppercase tracking-widest", TYPE_COLOR[type] ?? "text-muted-foreground")}>{type}</td>
                     </tr>
                     {byType[type].map((r, i) => (
@@ -111,14 +111,14 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
                         <td className={cn("py-2.5 font-mono text-xs font-semibold", r.closingBalance < 0 ? "text-negative" : "")}>{fmtNum(r.closingBalance)}</td>
                       </tr>
                     ))}
-                    <tr key={`sub-${type}`} className="border-b-2 border-border/50">
+                    <tr className="border-b-2 border-border/50">
                       <td className="py-2 ps-4 text-xs text-muted-foreground" colSpan={2}>Subtotal — {type}</td>
                       <td className="py-2 font-mono text-xs pe-4">{fmtNum(byType[type].reduce((s, r) => s + r.openingBalance, 0))}</td>
                       <td className="py-2 font-mono text-xs pe-4 text-info">{fmtNum(byType[type].reduce((s, r) => s + r.periodDebit, 0))}</td>
                       <td className="py-2 font-mono text-xs pe-4 text-positive">{fmtNum(byType[type].reduce((s, r) => s + r.periodCredit, 0))}</td>
                       <td className="py-2 font-mono text-xs font-bold">{fmtNum(byType[type].reduce((s, r) => s + r.closingBalance, 0))}</td>
                     </tr>
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

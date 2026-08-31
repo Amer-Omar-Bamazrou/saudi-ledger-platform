@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -95,8 +95,8 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
               </thead>
               <tbody>
                 {typeOrder.filter(tp => byType[tp]?.length > 0).map(type => (
-                  <>
-                    <tr key={`header-${type}`} className="bg-secondary/20">
+                  <Fragment key={type}>
+                    <tr className="bg-secondary/20">
                       <td colSpan={4} className={`py-2 px-2 text-xs font-bold uppercase tracking-widest ${TYPE_STYLES[type] ?? "text-muted-foreground"}`}>{type}</td>
                     </tr>
                     {byType[type].map(row => (
@@ -110,13 +110,13 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                         <td className="py-2.5 text-end font-mono text-sm">{row.credit > 0 ? fmtNum(row.credit) : <span className="text-muted-foreground">—</span>}</td>
                       </tr>
                     ))}
-                    <tr key={`subtotal-${type}`} className="border-b-2 border-border">
+                    <tr className="border-b-2 border-border">
                       <td className="py-2 ps-2 text-xs text-muted-foreground">{t("Subtotal", "المجموع الفرعي")} — {type}</td>
                       <td />
                       <td className="py-2 pe-4 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.debit,0))}</td>
                       <td className="py-2 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.credit,0))}</td>
                     </tr>
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>

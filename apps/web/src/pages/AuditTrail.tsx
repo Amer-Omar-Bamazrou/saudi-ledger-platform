@@ -9,7 +9,7 @@
  * admin), so the nav entry is gated the same way — hiding it from others is
  * honesty about the 403 they would get, not the security boundary itself.
  */
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -145,9 +145,8 @@ export default function AuditTrail() {
                 </thead>
                 <tbody>
                   {logs.map((l) => (
-                    <>
+                    <Fragment key={l.id}>
                       <tr
-                        key={l.id}
                         className="border-b border-border/50 cursor-pointer hover:bg-secondary/30"
                         onClick={() => setExpanded(expanded === l.id ? null : l.id)}
                       >
@@ -174,7 +173,7 @@ export default function AuditTrail() {
                         <td className="py-2 pe-4 font-mono text-xs text-muted-foreground">{l.ipAddress ?? "—"}</td>
                       </tr>
                       {expanded === l.id && (
-                        <tr key={`${l.id}-detail`} className="border-b border-border/50 bg-secondary/20">
+                        <tr className="border-b border-border/50 bg-secondary/20">
                           <td></td>
                           <td colSpan={5} className="py-3 pe-4">
                             <div className="grid md:grid-cols-2 gap-3 text-xs">
@@ -194,7 +193,7 @@ export default function AuditTrail() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
