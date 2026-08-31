@@ -33,9 +33,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITLEAKS_CONFIG: .gitleaks.toml
+      # 🔴 The container, not `gitleaks/gitleaks-action`. The action carries its
+      # own token and licence semantics that differ between personal and
+      # organization repos, and it failed here on first use. This is the exact
+      # invocation verified locally against the full history — running something
+      # other than what was verified is how a green check stops meaning anything.
+      - name: gitleaks (full history)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --no-banner --redact --exit-code 1
 
   typecheck:
     name: typecheck
