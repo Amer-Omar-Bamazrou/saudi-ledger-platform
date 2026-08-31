@@ -4458,3 +4458,110 @@ paths of the thirty-seven routes that currently show an empty state.
 Re-deriving these numbers takes one probe run against the e2e org; the method is
 recorded here rather than left as a standing always-passing test, because a test
 that cannot fail is noise in a suite whose whole value is its verdict.
+
+---
+
+## 2026-08-31 — 🔴 A DESIGN RATIONALE AGES FASTER THAN A CAVEAT
+
+**Owner-named**, from measuring the HLD rewrite rather than assuming it. The old
+`docs/hld.md` was **four days old** when it was replaced, and the drift split
+cleanly along one line.
+
+### What had NOT rotted
+
+Every passage stating a LIMIT was still exactly right. §7's "what is proven and
+what is not" against ZATCA — the sandbox verifications, the never-submitted
+production path, the local-only archive and transport — held perfectly. So did
+the deployment posture, the blocked-on-a-registration framing, and the sandbox
+traps.
+
+That is not luck. **A caveat describes a fact about the world that only changes
+when the world changes**, and these facts were gated on a company registration
+that had not happened.
+
+### What HAD rotted
+
+Every passage explaining **why the design is right**.
+
+The clearest case is also the document's most confidently argued section. §3.2
+presented the information architecture with a diagram of eight sidebar
+destinations and stated:
+
+> Automation and AI have **no navigation entry of their own**, and that is the
+> design rather than an omission
+
+followed by three bullets defending it — a recurring rule is a property *of an
+invoice*; an AI suggestion is useful only at the moment of the decision it
+informs; every additional entry is something a small-business owner must learn.
+It closed: *"The measure of success is that the user does not think about them."*
+
+The owner reversed that decision on 2026-08-31. The shipped navigation has an
+**AI & Automation section**. So the most rhetorically committed passage in the
+document described **the opposite of what ships**, four days after being
+written — and a reader had no way to tell, because the argument reads as
+settled reasoning rather than as a claim with a date on it.
+
+Also rotted, and all in the same category: a hardcoded test count, an RTL
+occurrence count, and a measurement quoted without a re-measurement trigger.
+
+### 🔴 Why this happens, and the countermeasure that follows from it
+
+A rationale is a *re-statement of a decision taken elsewhere*. The moment a
+document explains why a decision is right, it has become a **second writer for
+that decision** — and the one-writer rule says the copies drift. The copy that
+drifts is always the one nobody is watching, which is the document, because the
+decision record is what people edit when they change their minds.
+
+> **A rationale POINTS AT the decision record instead of restating the
+> argument.** Revisiting the decision then updates one place, not two.
+
+Applied in the rewrite: where the new HLD needs to convey *why*, it states the
+constraint in one line and names the record — and where it states a design
+property, it states it as a property rather than as an argument for it.
+
+---
+
+## 2026-08-31 — 🔴 A READER CANNOT DETECT AN ABSENCE
+
+**Owner-named**, and the sharper half of the same finding — sharper because it
+defeats the reader's own care.
+
+The old HLD's *wrong* statements were at least findable. Someone who knew the
+system could read the AI-navigation section and say "that changed". Its
+**omissions** were invisible by construction: nothing in a document hints at the
+section that was never written, and no amount of careful reading recovers it.
+
+### The example that makes the case
+
+**G-1.** A hypothesised privilege escalation — that `assertOrgAdmin` might exempt
+platform operators, letting an operator add themselves to a tenant as an admin —
+was investigated and found **not to exist**. Operator status is consulted in four
+places, none of them an authorization path, and the boundary is now pinned
+*behaviourally* by `tests/operator-tenant-boundary.test.ts`.
+
+That is precisely what someone performing technical diligence wants to see: not
+just "we have a boundary" but "we hypothesised its most plausible failure,
+checked, and pinned the answer". **The document simply did not have it.** Nor
+did it have the derived-status decisions, the single-currency write boundary,
+the unscoped-`db` refusal, or the guard set as a set.
+
+A reader would have finished the old HLD with an accurate impression of
+everything it mentioned and no signal at all about what it left out.
+
+### The countermeasure
+
+> **A document whose job is COMPLETENESS is generated from, or checked against,
+> a list of what it must cover — never written from memory of what matters.**
+
+Memory produces the sections the author was thinking about that week, which is
+exactly the selection bias that omitted a security result from a security
+section. The coverage list is the artifact to maintain; the prose is checked
+against it. The list for the HLD is the brief it was rewritten to: product,
+architecture, tenancy and security including the operator boundary, the data
+model, ZATCA, the AI layer with its constraints and dark status, the guard set,
+external dependencies and provider seams, and deployment posture.
+
+**The general form:** for anything meant to be complete — a design document, a
+migration checklist, an audit scope, a release note — the enumeration is the
+work, and the prose is the rendering of it. Writing prose first and hoping the
+enumeration falls out reverses the dependency, and the failure mode is silent.

@@ -136,7 +136,7 @@ export default function Recurring() {
       )}
 
       {rules.map((rule) => (
-        <Card key={rule.id}>
+        <Card data-row key={rule.id}>
           <CardHeader className="pb-2">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
               <Badge variant="outline">{rule.entity}</Badge>

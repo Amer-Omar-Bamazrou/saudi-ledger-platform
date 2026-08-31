@@ -105,3 +105,66 @@ export const EXPECTATIONS: Record<string, Kind> = {
   // exists so a change to the ComingSoon component is caught here too.
   "/coming-soon/:slug": "param",
 };
+
+/**
+ * 🔴 ROUTES THAT MUST RENDER A ROW — the half that makes breadth mean anything.
+ *
+ * Seeding more tables is just more rows unless something FAILS when a page
+ * falls back to its empty state. Measured 2026-08-31: 37 of 54 crawled app
+ * routes rendered no rows at all and passed the crawl anyway, because "the body
+ * has more than 20 characters" is satisfied by a heading and "No X found." Those
+ * pages were covered by the smoke crawl with none of their row-rendering code
+ * executed — which is how an unkeyed fragment survived on two of them.
+ *
+ * 🔴 THE LIMIT THIS EXISTS TO WORK AROUND, stated plainly because it is a
+ * property of the defect and not of our tooling: **a vacuous pass is
+ * indistinguishable from a real pass in every report the suite produces, and no
+ * measurement taken from inside the suite can enumerate what was missed.** The
+ * suite cannot tell "this assertion held" from "this assertion was never
+ * reached". Coverage instrumentation would narrow that and still not close it,
+ * because a line can execute against data too uniform to expose a collision.
+ *
+ * The only answer is to seed breadth DELIBERATELY and then assert on it. This
+ * list is that assertion. A route belongs here when the fixture seeds data it
+ * must display; when a page appears here and renders nothing, either the
+ * fixture regressed or the page did, and both are worth a red.
+ *
+ * A route NOT in this list is not exempt — it is unseeded, and that is the
+ * backlog. The number is the coverage figure worth watching.
+ */
+export const ROWS_EXPECTED: ReadonlySet<string> = new Set([
+  "/invoices",
+  "/bills",
+  "/customers",
+  "/vendors",
+  "/credit-notes",
+  "/quotations",
+  "/purchase-orders",
+  "/journal-entries",
+  "/transactions",
+  "/bank-accounts",
+  "/products",
+  "/employees",
+  "/payroll",
+  "/assets",
+  "/budgets",
+  "/recurring",
+  "/closed-months",
+  "/categories",
+  "/trial-balance",
+  // 🔴 NOT "/reports/general-ledger": it renders nothing until the user picks
+  // an account and clicks Generate, and that is the design — "Select an account
+  // and date range, then click Generate." Listing it here would have been a
+  // permanent false red, and the fix people reach for under a false red is to
+  // weaken the assertion. An expected-empty page needs its own reason, not a
+  // loosened rule.
+  "/reports/journal-report",
+  "/reports/account-summary",
+  "/ar-aging",
+  "/ap-aging",
+  "/reports/aging",
+  "/reports/customer-ledger",
+  "/audit-trail",
+  "/invoice-summary",
+  "/vat",
+]);

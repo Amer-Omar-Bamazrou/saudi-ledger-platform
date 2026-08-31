@@ -45,7 +45,16 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
     return acc;
   }, {} as Record<string, AccountSummaryRow[]>) : {};
 
-  const typeOrder = ["asset", "liability", "equity", "income", "expense"];
+  /** See the note in `TrialBalance.tsx`: a fixed list silently DROPPED any
+   *  account type it did not name — including "other", which the service
+   *  assigns to journal lines whose account resolves to no category — while
+   *  the server-side totals still counted them. Derived from the data so a
+   *  type cannot go missing. */
+  const KNOWN_TYPES = ["asset", "liability", "equity", "income", "expense"];
+  const typeOrder = [
+    ...KNOWN_TYPES.filter(t => byType[t]?.length),
+    ...Object.keys(byType).filter(t => !KNOWN_TYPES.includes(t)).sort(),
+  ];
 
   return (
     <div className="space-y-6">

@@ -1,757 +1,652 @@
 # Saudi Ledger Platform — High-Level Design
 
-**Status (2026-08-27): describes the system as built on this date. Current state authority: [`CLAUDE.md` §2](../CLAUDE.md).**
+**Status (2026-08-31): describes the system as it exists on this date.**
+**Current state authority: [`CLAUDE.md` §2](../CLAUDE.md).** This document
+describes *shape* — what the parts are and why they are arranged this way. It
+deliberately does not restate progress, because a second writer for "now"
+drifts from the first. Where something is planned rather than built, it says
+so in those words.
 
-This document is written for someone who has never seen the codebase — a
-technical advisor doing diligence, a prospective partner, or a developer
-joining the team. It describes **what exists**. Where something is decided but
-not built, it says so explicitly and marks it **PLANNED**.
+**No figures that age.** Test counts, entry counts and coverage percentages are
+not quoted here; they are true for a week and wrong for a month. Where a number
+matters, this points at the thing that produces it.
 
-It deliberately does **not** restate current status, because a second copy of
-"where we are" ages silently. For that, read `CLAUDE.md` §2, which is the single
-writer for it.
+> **Who this is for.** Someone who has never seen the system: a joining
+> developer, technical diligence, a prospective partner. It assumes no context
+> and hides nothing material — including the parts that are unfinished, unproven
+> or blocked, which are marked 🔴.
 
 ---
 
 ## 1. What the product is
 
-An **AI-powered accounting and finance platform for Saudi Arabia**, intended to
-extend to the wider GCC. It began as a single-tenant bookkeeping application and
-was refactored into a multi-tenant SaaS platform.
+An **AI-assisted accounting and finance platform for Saudi Arabia**, built for
+small and medium businesses and their accountants, with the GCC as the later
+market.
 
-The accounting core is real and in use: invoices, bills, journal entries,
-double-entry general-ledger posting, period locks, VAT returns, and financial
-reporting all work today against real Postgres data.
+It began as a single-tenant bookkeeping application and was refactored into a
+multi-tenant SaaS platform. The accounting core is real: invoices, bills,
+journal entries, double-entry posting to a general ledger, period locks, VAT,
+and Zakat scope all work today, and are the most heavily tested part of the
+codebase.
 
 Three things distinguish it from generic accounting software:
 
-1. **ZATCA Phase 2 e-invoicing** — Saudi Arabia's tax authority requires
-   invoices to be cryptographically signed, chained, and cleared or reported
-   through its API. This is implemented natively rather than bolted on.
-2. **Arabic as a first-class requirement** — both directions of the UI (RTL) and
-   Arabic financial text in the AI layer. An English-strong, Arabic-poor
-   component fails regardless of its other qualities.
-3. **A deliberately constrained AI layer** — the model classifies, explains and
-   answers from tools; it never writes to the ledger and never authors a tax
-   position.
+1. **ZATCA e-invoicing is native**, not an add-on. Saudi Arabia mandates
+   structured, cryptographically signed e-invoices; the document pipeline,
+   signing, QR generation and submission transport are built into the invoice
+   approval path rather than bolted on afterwards (§5).
+2. **Arabic is a first-class language**, not a translation layer. The UI is
+   bilingual and right-to-left aware; documents carry Arabic fields.
+3. **AI proposes, never posts.** Categorisation, receipt capture, findings and
+   grounded answers are all suggestion surfaces. Nothing AI produces reaches the
+   ledger without a human act (§6).
 
 ### What it is not
 
-- It is **not deployed**. See §10.
-- It has **no billing mechanism** — no subscriptions, no plans, no payment
-  provider. This is tracked as a known gap, not an oversight.
-- It has **no customers yet**, which is why schema changes and reversals remain
-  cheap and are used freely.
+- **Not a payroll bureau or an ERP.** Payroll and fixed assets exist as
+  subledgers that post into the GL, not as standalone products.
+- **Not a tax filing agent.** It computes VAT and Zakat figures; it does not
+  file returns. ZATCA e-invoicing is *invoice clearance and reporting*, which is
+  a different obligation from filing a VAT return.
+- 🔴 **Not a business that can take money yet.** There is no billing,
+  subscription or plan gating anywhere in the codebase. This is tracked as the
+  first item of the pre-production queue in `CLAUDE.md` §5.
 
 ---
 
-## 2. System overview
+## 2. Architecture
 
-```mermaid
-graph TB
-    subgraph Client
-        WEB["React 19 SPA<br/>Vite · Tailwind · shadcn/ui<br/>Arabic + English, RTL-aware"]
-    end
+### 2.1 Monorepo
 
-    subgraph "API — Express 5 (TypeScript, ESM)"
-        MW["Middleware ladder<br/>session → auth → tenant → RBAC"]
-        SVC["Services<br/>business logic"]
-        CORE["Accounting core<br/>GL posting · period locks · ZATCA"]
-        JOBS["In-process job scheduler"]
-    end
+pnpm workspaces, three groups: `apps/*`, `packages/*`, `scripts`.
 
-    subgraph Data
-        PG[("PostgreSQL<br/>row-level security<br/>40 tables · 63 migrations")]
-    end
+| Workspace | Package | What it is |
+| --- | --- | --- |
+| `apps/api` | `@workspace/api-server` | Express 5 backend, TypeScript ESM, bundled with esbuild |
+| `apps/web` | `@workspace/bookkeeping` | React 19 + Vite frontend |
+| `packages/db` | `@workspace/db` | Drizzle schema, the pg pools, tenant-transaction machinery, SQL migrations — the source of truth for the data model |
+| `packages/api-spec` | — | `openapi.yaml` plus the orval config that generates from it |
+| `packages/api-zod` | `@workspace/api-zod` | Generated Zod schemas and types |
+| `packages/api-client-react` | — | Generated React Query client |
+| `packages/config` | `@workspace/config` | Validated environment (`loadEnv`, fail-fast) |
+| `packages/zatca-tlv` | — | TLV encoding for the ZATCA QR payload |
 
-    subgraph External
-        ZATCA["ZATCA Fatoora API<br/>clearance / reporting"]
-        KMS["AWS KMS<br/>signing-key wrapping"]
-        GROQ["Groq<br/>LLM inference"]
-        OBJ["Object storage<br/>document archive"]
-        MAIL["Email + alerting<br/>Resend / Postmark · webhook"]
-    end
+There is deliberately **no `packages/auth`**: authentication and RBAC live in
+`apps/api/src/lib/` after several milestones of work there, and the empty
+scaffold was deleted rather than left as an invitation.
 
-    WEB -->|"REST, cookie session<br/>OpenAPI-generated client"| MW
-    MW --> SVC --> CORE --> PG
-    SVC --> PG
-    JOBS --> SVC
-    CORE --> ZATCA
-    CORE --> KMS
-    CORE --> OBJ
-    SVC --> GROQ
-    JOBS --> MAIL
-```
+The workspace pins `minimumReleaseAge: 1440` — a package version must have been
+published for a day before pnpm will install it. That is a supply-chain
+control, not a preference.
 
-**Reading the diagram:** every client request enters through the middleware
-ladder, which is where tenancy and authorization are established (§5). Business
-logic never talks to the database directly — it goes through repositories, with
-one sanctioned exception (§4). Background work runs in-process, not on a queue
-service.
-
----
-
-## 3. What a user can actually do, and how it is organised
-
-An outsider reading only the architecture would not learn what the product
-*is* from a user's seat. This is the shipped surface as of 2026-08-27 — pages
-that exist and are reachable, not a roadmap.
-
-### 3.1 The capability surface
-
-| Area | What exists |
-|---|---|
-| **Sales** | Customers, products, **quotations**, invoices, credit notes, receivables ageing, customer ledger |
-| **Purchases** | Vendors, **purchase orders**, bills, payables ageing |
-| **Banking** | Bank accounts, statement upload, an automatic categoriser, a review surface for held rows, bank reconciliation with match *suggestions* |
-| **Ledger** | Chart of accounts, journal entries, trial balance, general ledger, account statements |
-| **Statements** | Income statement, balance sheet, cash flow, owner's equity — each with prior-period comparison |
-| **Tax & compliance** | VAT return (box-structured, filed from documents), tax journal entries, ZATCA onboarding and transmission |
-| **Payroll & assets** | Employees, payroll runs, fixed assets and depreciation schedules |
-| **Controls** | Draft/approval workflow, **closed months**, audit trail, user management, budgets |
-| **Automation** | Recurring documents (**drafts only**), document capture by phone photograph with OCR and QR decoding |
-| **Insight** | Finance Hub, Analytics, deterministic **findings** |
-| **Operator** | Sign-up review queue, ZATCA operations panel |
-
-Two capabilities are **PLANNED, not built**: the Zakat working paper (the page
-currently states it is not implemented, deliberately, rather than showing a
-computed-looking zero), and bank feeds.
-
-### 3.2 The information architecture, and why it is shaped that way
-
-Product structure was decided by owner interview
-([`hub-structure-decision.md`](product/hub-structure-decision.md), 2026-08-12):
-**two destinations, two capabilities woven in.**
-
-```mermaid
-graph LR
-    subgraph "Sidebar — destinations"
-        D["Dashboard"]
-        S["Sales"]
-        P["Purchases"]
-        B["Banking"]
-        FH["Finance Hub"]
-        AN["Analytics"]
-        R["Reports"]
-        SET["Settings"]
-    end
-    S -.->|"woven in"| W1["↻ Make recurring · ✨ suggest"]
-    P -.->|"woven in"| W2["📷 Scan document · ✨ match supplier"]
-    B -.->|"woven in"| W3["✨ categorise"]
-```
-
-Automation and AI have **no navigation entry of their own**, and that is the
-design rather than an omission:
-
-- A recurring-invoice rule is a property *of an invoice*. A separate Automation
-  section would mean leaving the invoice you are looking at to configure
-  something about it.
-- An AI suggestion is useful only *at the moment of the decision it informs* —
-  beside the category field, not in a gallery elsewhere.
-- The intended customer is a small-business owner, not an accountant. Every
-  additional navigation entry is something they must learn before the product is
-  useful.
-
-**The measure of success is that the user does not think about them.**
-
-### 3.3 One interaction principle worth stating
-
-**Accepting the match *is* the review.** Where the system proposes something —
-a reconciliation match, a category — one user action both accepts the proposal
-and records its effect. A second confirmation dialog asking about the same fact
-is treated as a design defect rather than extra safety.
-
-The counterpart: the system **never auto-applies**, however exact a match is.
-Suggestions arrive pre-selected; a human clicks.
-
-## 4. Architecture
-
-### 4.1 Monorepo
-
-pnpm workspaces. `pnpm` is enforced — a preinstall guard rejects npm and yarn.
+### 2.2 Layered backend
 
 ```
-apps/
-  api/       Express 5 backend (@workspace/api-server)
-  web/       React 19 frontend (@workspace/bookkeeping)
-packages/
-  db/                Drizzle schema, migrations, connection management
-  api-spec/          OpenAPI specification + codegen config
-  api-zod/           GENERATED Zod schemas and types
-  api-client-react/  GENERATED React Query client
-  config/            validated environment (fail-fast at boot)
-scripts/
-docs/
+Route  →  Controller  →  Service  →  Repository  →  Postgres
 ```
 
-### 4.2 Layered backend
-
-Strictly enforced, and the layering is the thing most likely to be violated by a
-newcomer:
-
-```mermaid
-graph LR
-    R["Route<br/>HTTP only"] --> C["Controller<br/>orchestrate + shape"] --> S["Service<br/>business logic"] --> Rep["Repository<br/>ALL database access<br/>tenant-scoped"] --> DB[("Postgres")]
-    S -.->|"sanctioned exception"| Core["Accounting core<br/>direct db access"]
-    Core --> DB
-```
-
-- **Routes** validate and delegate. No business logic.
+- **Routes** are thin: validate, delegate. No business logic.
 - **Controllers** orchestrate and shape responses. No database access.
 - **Services** hold business logic.
-- **Repositories** own every query and are tenant-scoped.
-- **The accounting core** (`services/accounting/` — GL posting, period locks,
-  ZATCA — and `services/categorization/`) is the one sanctioned exception with
-  direct database access. It is the oldest, most heavily tested code and is
-  extended rather than rewritten.
+- **Repositories** hold *all* Drizzle access, tenant-scoped.
 
-### 4.3 API contract: OpenAPI-first with codegen
+One sanctioned exception: the **accounting core** —
+`services/accounting/` (GL posting, period locks, ZATCA) and
+`services/categorization/` — reaches the database directly. That is recorded as
+a decision rather than tolerated as drift.
 
-`packages/api-spec/openapi.yaml` is the contract. The workflow is: change the
-spec → run codegen → implement. The generated React Query client and Zod
-schemas are never hand-edited.
+### 2.3 API contract: OpenAPI-first
 
-One deliberate exception: `packages/api-client-react/src/custom-fetch.ts` is
-hand-maintained, because it carries cookie credentials and a verification-gate
-hook that codegen cannot express.
+`packages/api-spec/openapi.yaml` is the contract. The flow is: change the spec,
+run codegen, then implement. Generated output under `src/generated/**` is never
+hand-edited.
 
-### 4.4 Frontend
+🔴 **One exception, deliberately hand-maintained:**
+`packages/api-client-react/src/custom-fetch.ts` — orval's mutator, carrying
+cookie credentials and the verification-gate error hook.
 
-React 19 + Vite, Wouter for routing, TanStack Query for data fetching, Tailwind
-v4 with shadcn/ui primitives.
+🔴 **A constraint in the spec binds nothing on its own.** These routes pass
+`req.body` to services directly, so a declared `minItems` or `maxLength` is
+documentation until a service re-states it. This was learned expensively: a
+`minItems` constraint existed for quotations and purchase orders, was absent for
+invoices, and an invoice with no lines was accepted and issued at zero value.
+Read the contract as documentation; the enforcement is in the code.
 
-**Internationalisation** is a custom `LanguageContext` rather than a library:
-Arabic and English, with `document.documentElement.dir` driven by the active
-language. Layout uses CSS **logical properties** (`ms-`/`me-`, `text-start`) so
-direction actually flips.
+### 2.4 Frontend
 
-> **Known limit (2026-08-27):** the vendored shadcn primitives — dropdowns,
-> menus, sheets, sidebar — still use physical properties (120 occurrences across
-> 25 files). **RTL is therefore incomplete** in those components. This is a
-> recorded decision, not an oversight: rewriting vendored files creates
-> permanent drift against upstream, for a component layer due to be redesigned.
-> See [`design-pass-inherited-decisions.md`](product/design-pass-inherited-decisions.md).
+React 19 + Vite, TypeScript, Tailwind CSS v4, shadcn/ui primitives, **wouter**
+for routing, **TanStack Query** for data fetching, a custom `LanguageContext`
+for Arabic/English with RTL.
 
-### 4.5 Background work
+The navigation is **data, not JSX** (`apps/web/src/nav/tree.ts`). Every entry
+carries a marker — `built`, `filter`, or `coming-soon` — and filter entries
+carry the destination and status they apply. That shape exists so the browser
+suite can walk every entry mechanically instead of sampling (§7).
 
-An **in-process scheduler** (`apps/api/src/jobs/`), not Redis, not a queue
-service. Nine registered jobs: e-invoice transmission, archive sweep,
-certificate-renewal reminders, document capture promotion and purge, recurring
-document generation, platform alarms, demo reset, and scheduled findings.
+🔴 **Coming Soon pages are real pages that name their blocker.** Roughly a third
+of the navigation points at features that do not exist. Each resolves to a
+placeholder stating specifically what it is waiting on — a contract, a
+registration, an advisor's answer, an undesigned decision — and what the work
+becomes the day that clears. *"Not built" invites someone to build it; "waiting
+on a contract" tells them why they must not.*
 
-Two properties worth knowing:
+### 2.5 Background work
 
-- A job can be **registered but not scheduled**. That is how e-invoice
-  transmission stays a deliberate act behind a flag without that flag silently
-  disabling every unrelated job.
-- **Registration is not authorization.** Which jobs a platform operator may
-  trigger is declared separately in `lib/operatorJobs.ts` and pinned by a test
-  that fails when the two lists disagree. This followed an audit finding — see
-  §5.6.
+An **in-process scheduler** (`apps/api/src/jobs/`), not a queue system. There is
+no Redis and no external broker; rate limiting is in-memory per process.
+
+Registered jobs include the e-invoice outbox worker, the archive sweep,
+certificate renewal checks, document-capture promotion and purge, recurring
+document generation, platform alarms, and scheduled findings. Some are
+registered but gated off by configuration so that an operator can still trigger
+them manually.
+
+🔴 **Planned, not built:** a durable queue. The current design is honest about
+being single-process; horizontal scaling would need one.
 
 ---
 
-## 5. Multi-tenancy and the security model
+## 3. Multi-tenancy and the security model
 
-This is the most developed part of the system, and the part most shaped by
-repeated adversarial review.
+This is the part of the system most worth understanding, and the part where the
+most has been learned the hard way.
 
-### 5.1 The core mechanism: RLS on a non-owner role
+### 3.1 The core mechanism: RLS on a non-owner role
 
-Every business table carries a `NOT NULL organization_id` and a
-`tenant_isolation` row-level-security policy keyed on a Postgres session
-variable, `app.current_org_id`.
-
-Isolation is not enforced by remembering to write `WHERE organization_id = ...`
-in every query. It is enforced by the database:
+Every business table carries `organization_id NOT NULL` and a `tenant_isolation`
+row-level-security policy keyed on the `app.current_org_id` GUC. Enforcement is
+at runtime: each request runs inside a **transaction** on a **non-owner
+Postgres role**, with the tenant GUCs set transaction-locally.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant A as requireAuth
+    participant A as Auth middleware
     participant T as resolveTenant
-    participant P as requirePermission
-    participant H as Handler
-    participant DB as Postgres
-
-    C->>A: request + session cookie
+    participant PG as Postgres
+    C->>A: request with session cookie
     A->>A: valid session? else 401
-    A->>T: 
-    T->>DB: load active memberships (owner connection)
-    T->>T: pick active org; VERIFICATION GATE<br/>non-approved org ⇒ 403 here
-    T->>DB: BEGIN as non-owner role<br/>SET app.current_org_id / current_company_id
-    T->>P: run rest of request inside that transaction
-    P->>P: role × resource × action, fail-closed
-    P->>H: 
-    H->>DB: every query filtered by RLS
-    H-->>C: response
-    Note over T,DB: COMMIT on success · ROLLBACK on error or abort
+    A->>T: userId
+    T->>T: pick active org · VERIFICATION GATE<br/>non-approved org ⇒ 403 here
+    T->>PG: BEGIN
+    T->>PG: SET LOCAL ROLE authenticated
+    T->>PG: SET LOCAL idle_in_transaction_session_timeout = 15s
+    T->>PG: set_config('app.current_org_id', …, true)
+    Note over PG: every query now filtered by RLS
+    T->>PG: COMMIT / ROLLBACK
 ```
 
-The per-request transaction runs as a **non-owner role**, so RLS actually
-applies (a table owner bypasses it). The transaction commits on a successful
-response and rolls back on error or client abort, so tenant context can never
-leak across pooled connections.
+Three properties are worth naming:
 
-**The verification gate short-circuits before the transaction opens.** An
-organization that has not been approved by a platform operator gets a 403 with
-no tenant context ever established — so even a route mounted by mistake finds no
-context, matches zero rows, and cannot write.
+- **The connection is acquired lazily.** A request that issues no query never
+  takes one, so routes that touch no data cannot starve the pool.
+- **The 15-second idle-in-transaction guardrail is deliberate.** It is why a
+  synchronous call to an external API cannot live inside a request transaction —
+  the reason the e-invoice outbox exists (§5).
+- 🔴 **A connection error must not kill the process.** `node-postgres` emits
+  `error` on a client whose connection dies; an unhandled `error` event is fatal
+  in Node. Listeners are attached both to the pools *and to each checked-out
+  client*, because the pool does not forward errors for clients in use. Pinned
+  by an executable test that terminates a live backend and requires the process
+  to survive.
 
-### 5.2 The identity layer sits outside RLS — deliberately
+`db` **refuses** a query issued outside a tenant transaction. It used to fall
+back silently to the owner connection — RLS bypassed, no error. A deliberately
+cross-tenant caller imports **`ownerDb`** and says so in the code.
+
+### 3.2 The identity layer sits outside RLS, deliberately
 
 `organizations`, `users` and `organization_memberships` are **not** RLS-scoped.
-They are read before tenancy exists (you cannot scope by organization while
-deciding which organization you are in).
+They cannot be: resolving which tenant a request belongs to has to happen before
+a tenant exists to scope to.
 
-The rule that follows: **business-layer code must never read those three
-tables.** A forgotten filter there is a silent cross-tenant leak with no
-database backstop. Only the identity layer — pre-tenant, on the owner
-connection, with explicit authorization — may touch them. A build-time test
-enforces the import boundary.
+The consequence is a rule with a guard behind it: **business-layer code must not
+read those tables.** A forgotten filter there is a silent cross-tenant leak that
+nothing catches. Only the identity layer — pre-`resolveTenant`, on the owner
+connection, with explicit authorization — is a correct consumer.
+`tests/identity-table-boundary.test.ts` enforces it by import analysis, and is
+honest about its limit: raw SQL slips past.
 
-### 5.3 Authorization
+### 3.3 Authorization
 
-Three distinct mechanisms, used for three distinct things:
+Explicit and scoped, never ambient:
 
-| Mechanism | Used for | Source of truth |
-|---|---|---|
-| `requirePermission(resource)` | tenant business routes | seeded role × resource × action matrix; fail-closed |
-| explicit admin-of-**this**-org checks | identity-layer routes (members, invitations) | `organization_memberships` |
-| `requirePlatformOperator` | the cross-tenant operator surface | `platform_operators` |
+- `requirePermission` for capability checks, answering refusals with a
+  **structured code** rather than prose, so re-wording copy cannot break a
+  client that keys on it.
+- admin-of-*this*-org checks for organization administration.
+- `requirePlatformOperator` for the platform surface.
 
-A user's authority comes from their **membership role** in the active
-organization. The global `users.role` column is vestigial and must never gate
-access — it was once self-grantable via public signup, which invalidated every
-guard that trusted it.
+🔴 **`users.role` is vestigial and must never gate access.** The
+`organization_memberships` role governs.
 
-That incident produced a standing rule: **a privilege that becomes
-self-grantable invalidates every guard that trusts it.** When a change makes a
-role, flag or capability obtainable by a less-trusted party, every guard reading
-it must be re-audited.
+🔴 **A refusal explains; it does not hide the control.** A hidden button teaches
+nothing; a refusal naming the next step teaches the workflow. This was reversed
+into the product deliberately.
 
-### 5.4 The platform-operator boundary
+### 3.4 The platform-operator boundary
 
-Platform operators review and approve organization sign-ups. They are the only
-cross-tenant privileged role.
+Platform operators review and approve organization sign-ups. The boundary is
+that **operators hold no tenant membership**, so `resolveTenant` blocks them from
+every business route. `/operator` is a separate surface.
 
-**The guarantee: operator status grants nothing whatsoever inside a tenant.**
-Operators hold no organization membership, so the tenant middleware has nothing
-to resolve for them and every business route is closed.
+🔴 **G-1 — checked, and absent.** A hypothesised escalation was investigated:
+that `assertOrgAdmin` might exempt platform operators, letting an operator add
+themselves to a tenant as an admin. It **does not exist**. Operator status is
+consulted in four places and none of them is an authorization path. That is now
+pinned *behaviourally* by `tests/operator-tenant-boundary.test.ts` rather than
+asserted in a comment — the specific escalation it rules out is an operator
+joining a tenant and acting inside it.
 
-As of 2026-08-27 that guarantee is a **measurement, not a comment**: a test
-suite has an operator attempt to add themselves to a tenant as admin, add
-others, list and modify members, reach the user-administration surface, invite,
-read security events, and call business routes — all refused — with an
-anti-vacuity twin proving the same calls succeed for the tenant's own admin.
+🔴 **Two operator findings that were real, and are closed:**
 
-Structurally, operator status is consulted in exactly **four** places in the
-API, none of them an authorization path, and there is **no write path** to the
-`platform_operators` table anywhere in the application: it is granted only by
-the seed. Operator status is not self-grantable.
+- **F1 — cross-tenant account takeover (HIGH).** Any admin of any approved
+  organization could graft a stranger's account into their own organization
+  (adding a member required no consent, and user ids are sequential), then reset
+  its password and log in — into every tenant that account could reach. Fixed by
+  **confinement** (`lib/accountScope.ts`): an actor can cause an overlap with one
+  INSERT, and cannot cause confinement at all. The lesson generalises: **a guard
+  that tests a fact its own caller can create is not a boundary.**
+- **F2 — operator job reach was inherited, not decided.** The operator job
+  runner could reach every job in the scheduler registry rather than a declared
+  set. Fixed by having the operator surface **declare its own reach**
+  (`lib/operatorJobs.ts`), refused at both route and service, and audited.
 
-### 5.5 What the audits taught
+Both are executable regression tests, verified by re-injecting the attack.
 
-The security posture has been shaped by repeated adversarial review rather than
-designed once. Two lessons are worth stating in a design document because they
-changed how the system is built, not just what was fixed:
+### 3.5 The privilege surface map, and what it does not cover
 
-**Enforce invariants at the write boundary, not in one path.** An invariant that
-three writers can violate belongs in a database CHECK constraint or a shared
-gate, not in per-path code — per-path enforcement is per-path review, and a new
-path starts at zero. Several invariants live in migrations for this reason.
+`tests/privilege-surface-map.test.ts` derives what each privilege reaches from
+the **live router stack** and fails when that drifts.
 
-**A composition defect is invisible to any review that reads one file at a
-time.** This one is structural. There are two shapes:
+🔴 **It would not have caught F1, and must never be cited as though it would.**
+There are two composition shapes and they need different countermeasures:
 
-- *A fact one file writes and another trusts.* Each file is correct in
-  isolation; the vulnerability is the edge between them. One such defect
-  survived five audits — including two dedicated authorization sweeps — and
-  every one of them was right about every file it read. The countermeasure is a
-  different question, asked of privileges rather than code: **for each
-  privilege, list the state it can write; for each written fact, find every
-  guard that reads it.** This stays a human activity.
-- *A guard that exempts a class from the thing designed to exclude it* — a route
-  on the wrong side of a guard, a business route with no permission check, a
-  privilege tier that widens because a mount moved one line. These are
-  **positional** facts, and they are now mechanically checked (§5.6).
+| Shape | What it looks like | Countermeasure |
+| --- | --- | --- |
+| **Position** — a route on the wrong side of a guard | mechanical | the surface map |
+| **Data flow** — one file writes the fact another guard trusts; both files are correct and the *edge* is the hole | human | enumerate what a privilege can WRITE, then grep every guard that READS that fact |
 
-### 5.6 The privilege surface map
+F1 was the second shape.
 
-A test derives **what each privilege can reach** from the live Express router
-stack — the middleware layers in the order the framework will actually execute
-them — and cross-checks that against the mounts declared in source. Either side
-drifting fails the build.
+🔴 **Foreign keys run outside RLS.** Every plain FK between tenant-scoped tables
+is a cross-tenant edge no policy guards, and a foreign-key violation versus
+success is an existence oracle. When auditing isolation, enumerate the FKs, not
+only the queries.
 
-```
-public           4  /healthz /deployment /auth /invitations
-authenticated    2  /orgs /onboarding
-operator         1  /operator
-tenant          29  /companies /transactions /invoices /reports ...
-```
+### 3.6 Other properties worth knowing
 
-It pins the public surface (anything above the auth guard needs no session at
-all, and mount **order** is the only thing deciding that), the operator surface,
-the two authenticated routes that run before tenancy and therefore have no RLS
-backstop, and the fact that no tenant route is mounted without a guard.
-
-> **What it does not cover, stated so it is not oversold:** it measures
-> positions, not data flow. It would not have caught the composition defect
-> described above, because every route involved in that defect was correctly
-> placed. Two shapes, two countermeasures, and only one of them is mechanical.
-
-### 5.7 Other properties worth knowing
-
-- **Auth** is Express sessions (`express-session` + `connect-pg-simple`, bcrypt),
-  not Supabase Auth. Supabase is used as Postgres only.
-- **Rate limiting** is backed by a shared Postgres store, so limits hold across
-  processes; it fails **closed** if the store errors.
-- **Audit trails**: business actions go to `audit_logs` (tenant-scoped);
-  identity and security events go to a separate `security_audit_logs`. Several
-  tables are append-only at the grant level — the record of when money arrived
-  is exactly the row someone would want to quietly fix.
-- **Foreign keys are checked outside RLS.** Postgres evaluates FK constraints
-  with the table owner's privileges, so a plain FK between tenant-scoped tables
-  is a cross-tenant edge no policy guards. Tenant-scoped pre-checks close this.
+- **Auth is Express sessions** (`express-session` + `connect-pg-simple`,
+  bcryptjs). Supabase is used as **Postgres only** — not Supabase Auth.
+- The session store has its **own pool**, isolated from the request-transaction
+  pool, so a slow request holding a tenant transaction cannot starve logins.
+- **Owner-only tables REVOKE explicitly.** Supabase's base default privileges
+  re-grant `TRUNCATE`/`REFERENCES`/`TRIGGER` on every `CREATE TABLE`, and
+  **TRUNCATE bypasses RLS**. The defaults are narrowed and a guard test pins it.
+- **Audit trail is append-only at the grants**, and has a reader UI.
 
 ---
 
-## 6. The data model, conceptually
+## 4. The data model, conceptually
 
-40 tables, 63 migrations. Rather than enumerate them, here are the clusters and
-the rules that govern them.
+Not a table listing — `packages/db/src/schema/` is the source of truth. What
+follows is the shape and the rules that are not visible from column names.
 
 ```mermaid
-erDiagram
-    ORGANIZATION ||--o{ COMPANY : "has"
-    ORGANIZATION ||--o{ MEMBERSHIP : "has"
-    USER ||--o{ MEMBERSHIP : "holds"
-    COMPANY ||--o{ INVOICE : "issues"
-    COMPANY ||--o{ BILL : "receives"
-    COMPANY ||--o{ PERIOD_LOCK : "closes months with"
-    COMPANY ||--o{ ZATCA_CREDENTIAL : "onboards"
-    INVOICE ||--o{ INVOICE_ITEM : "has lines"
-    INVOICE ||--o{ PAYMENT : "is settled by"
-    INVOICE ||--o| EINVOICE_DOCUMENT : "produces"
-    QUOTATION ||--o{ INVOICE : "converts to"
-    PURCHASE_ORDER ||--o{ BILL : "is billed by"
-    JOURNAL_ENTRY ||--o{ JOURNAL_LINE : "balances across"
-    CATEGORY ||--o{ JOURNAL_LINE : "classifies"
-    TRANSACTION }o--|| CATEGORY : "categorised into"
-    TRANSACTION ||--o| JOURNAL_ENTRY : "posts to"
+graph TD
+    ORG["organization<br/><i>the tenant</i>"] --> CO["company<br/><i>the reporting entity</i>"]
+    CO --> INV["invoices"]
+    CO --> BILL["bills"]
+    CO --> JE["journal entries"]
+    CO --> TX["transactions<br/><i>bank movements</i>"]
+    INV --> EI["einvoice_documents<br/><i>the ZATCA chain</i>"]
+    JE --> JEL["journal entry lines"]
+    INV -.->|posts| JE
+    BILL -.->|posts| JE
+    TX -.->|reconciles against| INV
+    TX -.->|reconciles against| BILL
+    CO --> SUB["subledgers:<br/>payroll · fixed assets · budgets"]
+    SUB -.->|post| JE
 ```
 
-**Organization → Company.** An organization is the tenant and the unit of
-billing and membership. A company is the legal entity that holds the VAT
-registration and issues invoices. One organization may hold several companies;
-period locks, ZATCA credentials and invoice numbering are **company**-scoped.
+**Two levels of tenancy.** An `organization` is the tenant and the unit of RLS.
+A `company` is the reporting entity inside it — its own document sequences, its
+own fiscal calendar, its own period locks. Most business tables carry both.
 
-**The general ledger is the source of truth for money.** Journal entries and
-their lines are the ledger; every other money view derives from them. Documents
-(invoices, bills) post to the ledger through one path. Bank transactions, once
-accepted, also post — so the dashboard and the profit-and-loss statement cannot
-disagree by construction rather than by agreement.
+**The invariants that are not obvious:**
 
-**Invariants that are structural rather than conventional:**
-
-- **Amounts are stored positive**; direction lives in the document type, and
-  every consumer applies the sign explicitly. A credit note reverses; a debit
-  note does not.
+- **Documents FILE; transactions RECONCILE.** The VAT return reads invoices and
+  bills, line by line, credit-note-correct and box-structured. The
+  transaction-derived figure is a *reconciliation view only*.
+- **Amounts are stored positive; direction lives in `document_type`.** Every
+  consumer applies an explicit sign function. A credit note reverses; a **debit
+  note does not** — it posts like an invoice.
+- 🔴 **A journal entry with `status = 'reversed'` is still IN the books.** The
+  status marks that a cancelling mirror exists; it is not an eraser. Filtering
+  aggregations to `posted` only double-negates every reversal. This was found
+  live, moving real money in a development organization.
+- **Transfers and settlements are excluded from income, expense, VAT, Zakat and
+  budget aggregates** — the bank balance moved though nothing was earned or
+  spent. Transfers *do* post to the GL (cash against a clearing or equity
+  account) with no P&L, tax or budget line ever. Settlements never post; their
+  cash effect belongs to the payment paths.
 - **Nothing affects the books before approval.** Drafts and submitted records
-  move zero in every report, and this is asserted by test for each approvable
-  entity.
-- **A reversed journal entry is still *in* the books.** The status marks that a
-  cancelling mirror exists; it is not an eraser. Filtering aggregations to
-  "posted only" double-negates every reversal — a real defect that was found
-  live.
-- **Transfers and settlements are excluded from income, expense and tax
-  aggregates.** The bank balance moved, but nothing was earned or spent.
-- **Documents file; transactions reconcile.** The VAT return is computed from
-  invoices and bills at line level; the transaction-derived figure is a
-  reconciliation view shown beside it, never the filing figure.
-- **Period locks are company-scoped**, in both the posting path and the routes.
-  A correction to a closed period posts in the current open period; it is never
-  re-dated backwards and never silently skipped.
+  move zero in every report, and this is asserted per entity as a standard.
+- **Period locks are company-scoped.** A correction to a closed period posts in
+  the current open period — never re-dated into a closed one, and never silently
+  skipped.
+- **Derived, never stored:** *overdue* on invoices and bills, *expired* on
+  quotations, and the conversion axis on quotations and purchase orders. Each is
+  defined in exactly one place, in the repository, because a stored copy of a
+  fact the dates already hold will drift from it.
+- **Single currency (SAR) is enforced at the write boundary**, not assumed.
 
-**Fiscal calendars.** Gregorian or **Umm al-Qura Hijri**. Hijri conversion is
-done by binary search over the platform's ICU tables — an arithmetic
-approximation was tried and is wrong, because Hijri months are tabulated, not
-computed. The API refuses to boot on a runtime whose ICU build would silently
-substitute Gregorian dates.
+🔴 **The chart of accounts is seeded by a database trigger** that copies a
+template table column by column. A migration touching either side must redefine
+the trigger function, and a standing test compares the two column sets rather
+than knowing any column's name — it has been verified to fail in both
+directions.
 
 ---
 
-## 7. ZATCA e-invoicing integration
+## 5. ZATCA e-invoicing
 
-Saudi Arabia's Phase 2 e-invoicing requires each invoice to be built as UBL XML,
-signed with a certificate issued by the tax authority, chained to its
-predecessor, carry a TLV-encoded QR code, and be **cleared** (standard invoices,
-before issue) or **reported** (simplified invoices, within 24 hours).
+Saudi Arabia's e-invoicing mandate (Fatoora) requires invoices to be generated
+in a structured format, cryptographically signed, chained, and either **cleared**
+(standard invoices, before issue) or **reported** (simplified invoices, after).
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant INV as Invoice service
-    participant SIGN as Signing (KMS-wrapped key)
-    participant OUT as Outbox
-    participant Z as ZATCA API
-    participant AR as Archive
-
-    U->>INV: approve invoice
-    INV->>INV: allocate ICV + read chain head<br/>(inside an advisory lock)
-    INV->>SIGN: build UBL, hash, sign (secp256k1, XAdES)
-    SIGN-->>INV: signed document + QR
-    INV->>OUT: enqueue (same transaction)
-    Note over INV: fail-closed — if it cannot be built or signed,<br/>the approval ROLLS BACK
-    OUT->>Z: clearance or reporting
-    Z-->>OUT: cleared / reported / rejected
-    OUT->>AR: archive (no delete, by regulation)
+    participant U as User approves invoice
+    participant SVC as invoice approval
+    participant SIGN as document build + sign
+    participant OB as outbox (durable)
+    participant W as worker (background)
+    participant Z as ZATCA
+    U->>SVC: approve
+    SVC->>SVC: allocate ICV + read chain head<br/>(under an advisory lock)
+    SVC->>SIGN: build UBL, hash, sign (secp256k1, XAdES), QR
+    SIGN-->>SVC: signed document
+    SVC->>OB: enqueue — same transaction as the ledger effect
+    Note over SVC,OB: commit
+    W->>OB: claim
+    W->>Z: submit
+    Z-->>W: cleared / reported / rejected
 ```
 
-**Design decisions that matter:**
+**Why the outbox exists, and it is not the timeout.** If the request transaction
+rolled back *after* ZATCA accepted an invoice, the ledger would hold no record
+of a document ZATCA considers issued — a permanently consumed counter value and
+a gap in a legally required sequence that cannot be repaired. Committing the
+queue row in the same transaction as the ledger effect makes that impossible.
 
-- **Issuance fails closed.** If a document cannot be built or signed, the
-  approval rolls back. A key-management outage stops invoicing rather than
-  minting an invoice with an unrecoverable gap in the counter.
-- **Two mechanisms protect the chain**: allocation is serialised by an advisory
-  lock covering both the counter read and the chain-head read, and ordering is
-  by counter rather than row id. A unique constraint is a backstop that
-  structurally cannot detect a fork.
-- **The archive cannot delete.** The regulation forbids deletion, so the archive
-  interface has no delete method at all — and a test asserts it never gains one.
-  Deletable staging is a separate interface.
-- **Invoice numbering** is a per-company monotonic counter that never resets;
-  the year in `INV-2026-000045` is a display prefix. This was verified against
-  the primary legal texts, which require "a sequential number which uniquely
-  identifies the Tax Invoice" — sequential and unique, not gapless.
+**The chain needs two mechanisms**, and this is easy to get wrong:
 
-### 🔴 What is proven, and what is not — stated plainly
+1. **Allocation serialised by an advisory lock** covering both the counter read
+   and the chain-head read.
+2. **Ordering by counter, not by row id.** A unique constraint on
+   `(company, counter)` is a backstop that structurally cannot see a fork.
+   Out-of-order approvals fork the chain *sequentially* — this is not purely a
+   concurrency problem.
 
-**Confirmed against the live ZATCA sandbox:** certificate signing requests and
-the `secp256k1` curve, the XAdES signature properties, all nine QR tags, six
-compliance documents across invoice/credit-note/debit-note in both standard and
-simplified flows, and the full path from real Postgres rows to a ZATCA-accepted
-document.
+🔴 **Two hash chains exist and must not be confused.** `invoices.invoice_hash` /
+`previous_hash` are a homegrown tamper-evidence mechanism. The legally
+meaningful chain lives on `einvoice_documents`, and the previous-invoice hash
+comes from there only, read inside the sequence lock.
 
-**Not verified: an invoice has never been submitted to ZATCA in any
-environment.** The compliance pass exercises document *construction* against an
-onboarding endpoint. The production clearance and reporting endpoints have never
-been called. The transport is proven against a mock; the archive has only been
-exercised on local disk.
+**Issuance fails closed for onboarded companies**, deliberately: if the document
+cannot be built or signed, the approval rolls back. A key-management outage stops
+invoicing rather than minting an unreachable invoice and a permanent gap.
+Companies with no active credential are skipped silently and issue as before.
 
-This is blocked on a **registered Saudi company with an active VAT registration
-and tax-authority credentials**, which does not exist yet. It is not a technical
-step.
+**The archive has no delete, by design** (the regulation forbids deletion).
+Deletable staging is a separate interface. Archive filenames use the
+*generation* timestamp, never clearance.
+
+### 🔴 What is proven, and what is not
+
+This distinction is the most important paragraph in this document for anyone
+assessing readiness.
+
+**Verified against the live ZATCA sandbox:** the certificate signing request and
+the `secp256k1` curve, the XAdES signature properties and both digest encodings,
+all nine QR tags, six compliance documents (standard and simplified × invoice /
+credit note / debit note, plus zero-rated), and a path built from real Postgres
+rows produced by the product's own write path.
+
+🔴 **NOT verified — no invoice has ever been submitted to ZATCA, in any
+environment.** The compliance pass covers document **construction**, which is an
+onboarding gate. The production path has never been called. Also local-only: the
+outbox transport (proven against a mock), the archive (local filesystem only),
+renewal reminders (synthetic dates), and the enqueue path (a self-signed
+certificate, not a real production credential).
+
+**Sandbox traps, recorded because they mislead:** it accepts any one-time
+password; a request identifier is a constant stub; the sandbox credential is a
+shared canned certificate not bound to our key; and **a credential is issued
+even when compliance documents fail** — so compliance results must be asserted
+directly and never inferred from certificate issuance.
+
+🔴 **Blocked on a registration, not on engineering.** Simulation and the
+production pilot both require a registered Saudi company entity with an active
+VAT registration and government credentials. That entity does not exist. No
+rework is expected when it arrives, because the sandbox exercises the same API
+surface.
+
+**Trust order for sources: live API > SDK > PDF > secondary.** A green SDK
+differential is not evidence of compliance — one passed byte-for-byte while the
+live API rejected the QR.
 
 ---
 
-## 8. The AI layer
+## 6. The AI layer
 
-The layer is deliberately constrained, and the constraints are the design.
+### 6.1 The governing rules
 
-### 8.1 The governing rules
+1. **AI proposes; it never posts.** The general ledger is written only through
+   the established posting path. AI output is drafts and suggestions a human
+   approves.
+2. **Nothing is auto-applied**, however exact the match. Suggestions may be
+   pre-selected; the human clicks.
+3. **An act about a document is not an act about a pattern.** Consenting to a
+   recurring rule in January is not consenting to what it produces in November —
+   which is why recurring generation produces drafts only.
+4. **Answers are grounded and show their work**, and the layer states *where* a
+   change came from, never *why*.
 
-- **AI proposes; it never posts.** The general ledger is written only through
-  the established posting path. Model output is drafts and suggestions a human
-  approves.
-- **The model SELECTS; it never AUTHORS a tax position.** It may choose among
-  classifications the system defines. It does not compose tax reasoning.
-- **The deterministic engine stays the brain.** The rules-based categoriser
-  decides; the model is consulted as a second opinion only below a confidence
-  threshold.
-- **One writer per effect.** No debit/credit ever originates from a model.
+### 6.2 What exists
 
-### 8.2 Architecture
+Categorisation assistance, a receipt-capture pipeline (QR decode, OCR fallback,
+supplier matching), a deterministic findings engine with model-phrased
+explanations that are mechanically verified before being shown, scheduled
+findings runs, and grounded question answering over the tenant's own records.
+
+Every model call goes through a **metered wrapper** that records usage beside
+the call — including failures, because a provider outage that vanished from the
+meter would make the usage curve lie.
+
+### 6.3 🔴 The layer is DARK by construction
+
+The boot boundary **refuses to send tenant data to the model provider** until a
+Groq Enterprise agreement is signed. The free tier routes globally, and
+development is not treated as an exception to that.
+
+This is not a feature flag someone can flip by accident: the code is built and
+tested, and the data boundary is the gate. In the navigation, the AI assistant
+resolves to a placeholder that names the contract it waits on.
+
+🔴 **One design item must be resolved before the layer is enabled.** The
+scheduled findings run currently calls the model provider **inside an open
+tenant transaction**. That is the pattern the e-invoice outbox exists to prevent
+for ZATCA, repeated for a different external API: the 15-second guardrail fires
+and terminates the connection. It is latent only because the layer is dark.
+Recorded in `CLAUDE.md` §5.
+
+---
+
+## 7. The guard set
+
+Guards here are tests that assert a *structural property* rather than a
+behaviour, because this project's expensive defects have almost all been
+structural.
 
 ```mermaid
-graph TB
-    subgraph Deterministic
-        ENG["Rule engine<br/>categoriser · findings checks"]
+graph TD
+    subgraph "Static / structural"
+        RR["route reachability<br/><i>every mounted route has a terminus</i>"]
+        SR["state-machine reachability (P4)<br/><i>every state is reachable</i>"]
+        PS["privilege surface map<br/><i>positional shape only</i>"]
+        RLS["RLS coverage"]
+        IB["identity table boundary"]
+        SH["list + payload shape guards"]
+        WB["write-boundary invariants"]
+        SC["scale and collision"]
     end
-    subgraph Model-assisted
-        SEAM["Provider seam<br/>chat + vision, injectable"]
-        VER["Verifier<br/>generate-then-verify"]
+    subgraph "Rendering (P5) — a real browser"
+        SM["smoke crawl<br/><i>every route renders, no console error, no 5xx</i>"]
+        NT["nav tree<br/><i>every entry, not a sample</i>"]
+        DL["deep-link scope"]
+        RTL["RTL direction"]
     end
-    subgraph Record
-        USE[("ai_usage<br/>per-tenant metering<br/>failures are rows too")]
-        ANS[("grounded_answers<br/>append-only")]
-    end
-
-    ENG -->|"confidence < threshold"| SEAM
-    SEAM --> VER
-    VER -->|"verified"| UI["Rendered BESIDE<br/>the deterministic facts"]
-    VER -->|"rejected"| DROP["Discarded + logged<br/>never retried, never stored"]
-    SEAM --> USE
-    UI --> ANS
 ```
 
-**The verifier is the interesting part, and its contract is honest about what it
-can and cannot prove.** For model-written explanations of a finding:
+**Why the rendering layer exists.** Six read-only audits found none of four
+defects that one pass with a browser found in seconds. The service tests build
+their requests the way the server expects, so a client that builds one
+differently is invisible to them *by construction*. A correct backend with no
+working surface is structurally outside what any of them can see.
 
-- The **numeric and entity class is proven mechanically** — every number and
-  named entity in the generated text must match a real fact from the finding,
-  with cross-script matching so Arabic-Indic digits are handled.
-- The **qualitative class is only argued** — a second pass must return empty.
+**Four properties of the browser suite worth knowing:**
 
-Because the second guarantee is weaker, the interface renders the deterministic
-facts **beside** the explanation, never instead of it. Rejected text is
-discarded and logged, never retried and never stored.
+- **Retries are zero, deliberately.** A suite people learn to re-run reports
+  coverage it does not have.
+- **The navigation check walks every entry** — a built entry points at a real
+  route, a filter entry's destination *reflects* the filter, a coming-soon entry
+  names a blocker. That is possible because the tree is data.
+- 🔴 **Some routes must render a row.** An empty state satisfies every other
+  assertion — `<main>` exists, the body has content, no console error — so a
+  page can be fully "covered" with none of its row-rendering code executed. The
+  fixture seeds breadth on purpose and the suite asserts on it.
+- **A check is its assertion *and* the moment it is taken.** The RTL first-paint
+  test waits only for the navigation commit, because any later wait lets React
+  mount and repair the thing under test.
 
-A related rule: **a verification is a claim about a moment, not a property of
-the text.** An explanation verified against yesterday's facts becomes false when
-the underlying row changes — the words unchanged, the truth gone. So validated
-output stores a hash of what it was checked against, and rendering is gated on
-the match.
+🔴 **The limit, stated because it is a property of the defect and not of the
+tooling:** *a vacuous pass is indistinguishable from a real pass in every report
+the suite produces.* The suite cannot tell "this assertion held" from "this
+assertion was never reached". Coverage instrumentation would narrow that and not
+close it, because a line can execute against data too uniform to expose a
+collision. This is the argument for seeding breadth deliberately rather than
+hoping coverage finds it.
 
-**Grounded answers** (the question-answering surface) work the same way: the
-model selects one of a fixed set of tools and never authors a number. Where a
-projection is involved, its assumptions are *tool output* and an answer that
-uses the numbers without them is rejected — the assumption is not
-discouraged-but-skippable, it is unrepresentable.
+**Also enforced mechanically:** the operating file's size budget, the
+organization-seed trigger's column symmetry, demo-mode reset safety, and
+single-currency at the write boundary.
 
-### 8.3 The data boundary
-
-**No hosted model may see tenant data until a specific commercial agreement
-exists.** The constraint ranking is residency > quality > cost.
-
-Enforcement is at **boot**: production refuses to start with the hosted provider
-enabled unless a typed attestation environment variable is present. Development
-uses the provider's free tier with synthetic and development-organization data
-only — and the free tier means requests route globally, so it must not touch any
-real tenant's ledger, receipts or documents.
-
-**PLANNED / BLOCKING:** the enterprise agreement providing in-region processing
-and contractual zero data retention does not exist yet. Until it is signed, the
-AI layer stays dark for tenant data. The provider seam keeps the choice
-reversible.
-
-### 8.4 Measurement
-
-Model selection is gated on a benchmark, not on impressions: a hand-curated
-corpus of 153 cases with Arabic and English scored **separately**, because an
-English-strong, Arabic-poor model fails regardless of its other scores.
-
-The benchmark carries its own guards, after it once printed a confident verdict
-over a run in which every model call had failed. Two rules came out of that and
-generalise beyond this project: **a verdict line must carry the evidence count
-it rests on**, and **an unmeasured row reads "NOT MEASURED", never "matches
-baseline"** — an artefact that looks like a result is worse than a failure.
+For what the suite currently reports, run it — see §9. This document quotes no
+count.
 
 ---
 
-## 9. External dependencies and provider seams
+## 8. External dependencies and provider seams
 
-Every external dependency sits behind an interface with a runtime-selected
-implementation, so the vendor is a deployment choice rather than a code change.
+Every external capability sits behind an interface with a resolver, so the
+choice of vendor is a deployment decision rather than a rewrite.
 
-| Seam | Implementations | Notes |
-|---|---|---|
-| `ArchiveStore` | local filesystem, object storage | **No delete method**, by regulation |
-| `StagingBackend` | local filesystem, object storage | Separate interface *because* it must delete |
-| `KeyWrapper` | local development, AWS KMS | Wraps ZATCA signing keys |
-| `EInvoiceProvider` | direct ZATCA integration | All four operations route through the seam |
-| Mailer | Resend, Postmark | Production refuses to boot with none configured |
-| Alerter | generic JSON webhook | Reaches PagerDuty, Opsgenie or Slack |
-| Malware scanner | clamd | Wired into both file-upload paths |
-| AI provider | Groq (REST, dependency-free) | Injectable transport for testing |
-| Rate-limit store | Postgres | Shared across processes; fails closed |
+| Seam | What it abstracts | Status |
+| --- | --- | --- |
+| `EInvoiceProvider` | onboard · renew certificate · build document · submit | Implemented in-house; **all four methods route through the seam** — one of two mandatory hedges behind the build-direct decision |
+| `KeyWrapper` | credential encryption | 🔴 Key-management deployment unverified |
+| `ArchiveStore` | e-invoice archival, **no delete by design** | Local filesystem only; cloud is permitted — the binding constraint is a direct audit link |
+| `Mailer` | transactional email | Code complete; 🔴 **no provider wired** |
+| `Alerter` | operational alarms | Code complete; 🔴 **no destination wired** |
+| `MalwareScanner` | uploaded-file scanning | 🔴 Header-only magic-byte sniff until a scanner sidecar is deployed |
+| `AiProvider` | chat and vision | Groq; 🔴 **dark until the agreement is signed** |
 
-**A design rule learned the hard way:** a method that cannot do its job must
-**throw**, never return successfully. A no-op reporting success is a false
-statement the caller builds on, whereas an unimplemented method is merely a gap.
-This came from a real defect where a delete succeeded on one backend and
-silently did nothing on the others, orphaning files while destroying the only
-index to them.
+🔴 **A stub is the part that needed testing.** At any of these interfaces, a
+method that cannot do the thing must **throw**, never return: a no-op reporting
+success is a false statement the caller builds on.
 
-The corollary for testing: **a stub is the part that needed testing.** When a
-capability is implemented for one backend and stubbed for others, passing tests
-prove nothing — the suite ran on the backend that worked. The practice is to
-inject a failing implementation and assert on what survives.
+🔴 **A dependency that accepts your input has not promised to honour it.** A
+small-ICU Node accepts an Islamic calendar identifier and returns Gregorian
+dates. Where a dependency can silently substitute behaviour, an externally
+checkable fact is probed at boot. "It did not throw" is not evidence.
+
+**Runtime dependencies:** PostgreSQL (via Supabase, Postgres only). **No Redis,
+no message broker, no object store in use.**
 
 ---
 
-## 10. Deployment posture — honestly
+## 9. Deployment posture — honestly
 
-**Nothing is deployed. There is no hosted environment, no production database,
-and no customers.**
+🔴 **Nothing is deployed.** There is no hosted environment, no hosted Supabase
+project, and no production or staging URL. The codebase is demo-ready; a demo
+has not been stood up. Everything described in this document runs locally and
+in continuous integration.
 
-- No hosted Postgres project exists. All measurements in this document come from
-  a local stack and continuous integration.
-- The hosting region and key-management region are **undecided**, and are
-  coupled to a data-residency question that has legal as well as technical
-  inputs.
-- **Billing does not exist.** No subscription, plan, or payment provider. AI
-  usage is metered per tenant, but nothing turns a tenant into a paying one.
-  This is the last mechanical requirement between a working product and revenue.
+### Items that cannot be closed from code
 
-**Demo mode** exists and is the closest thing to a deployable configuration. It
-*removes* capabilities rather than weakening guards: document capture, sign-up
-and tax-authority onboarding are refused at the route, transmission is refused
-at boot, a bilingual banner renders on every page including login, and a weekly
-reset wipes and re-seeds in one transaction. The reset's safety is **structural,
-not a flag** — it refuses unless the database contains exactly one organization
-and that organization is the demo.
+These are not engineering tasks. They are decisions or acts that must happen in
+a real environment, and each is tracked in `CLAUDE.md` §5:
 
-### Deployment-time items that cannot be closed from code
-
-Recorded here because they are invisible in the repository and each is a real
-prerequisite:
-
-- the true proxy count in front of the API, which decides whether IP-keyed rate
-  limits and secure cookies behave correctly (a wrong value is unsafe in both
-  directions);
-- a malware-scanning sidecar;
-- mail and alerting providers pointed at real destinations — an unwired alarm is
-  precisely the failure alerting exists to prevent;
-- key-management policy: deletion windows, break-glass access, an alarm on
-  deletion attempts, and a multi-region replica. If the master key is lost,
-  every tenant must re-onboard with the tax authority.
+- **Hosting and residency**, including the region and key-management deployment.
+- **The AI provider agreement** — required before any tenant data reaches the
+  model provider.
+- **A mail provider and a verified sending domain**, and an alert destination
+  pointed somewhere real. *An unwired alarm is the thing the alerting work
+  exists to prevent.*
+- **The real proxy count** in front of the application, because a wrong number
+  makes the rate limiter spoofable in either direction.
+- **A malware scanner sidecar.**
+- **The Saudi entity registration**, which gates ZATCA simulation and the
+  production pilot, and open-banking connectivity.
 
 ### Continuous integration
 
-Every pull request runs typecheck, build, and the full test suite against a real
-Postgres instance with object storage, so database-dependent suites genuinely
-execute rather than skipping. At the time of writing: **99 test files, 1,103
-tests.**
+GitHub Actions runs typecheck, the test suite, a build, and the browser suite
+against a real Postgres service container with migrations applied.
 
-Two conventions worth adopting if you work here: a merge gate must assert every
-check's **conclusion**, not merely that checks completed; and when a tool reports
-several numbers, find out which one carries the verdict before trusting any of
-them.
+🔴 **The browser job was landed as a non-required check on purpose**, until it
+had been green across real pull requests — a new suite's first failures are
+usually its own harness, and blocking merges on that teaches people to ignore
+it.
+
+**A merge gate must assert every check's *conclusion*, not that checks
+completed.** A pull request was once merged with a red check because a polling
+loop waited for `status: completed` and never looked at `conclusion`.
 
 ---
 
-## 11. Where to go next
+## 10. Where to go next
 
-| For | Read |
-|---|---|
-| **Current state — the authority** | [`CLAUDE.md` §2](../CLAUDE.md) |
-| Operating rules and active constraints | [`CLAUDE.md`](../CLAUDE.md) §3–§4 |
-| Running it locally | [`docs/local-setup.md`](local-setup.md) |
-| Backend conventions before writing code | [`docs/development-guide.md`](development-guide.md) |
-| ZATCA: what is proven and where | [`docs/zatca/m12-status.md`](zatca/m12-status.md) |
-| Specification-vs-implementation divergences | [`docs/zatca/spec-vs-implementation-divergences.md`](zatca/spec-vs-implementation-divergences.md) |
-| The AI layer's decisions and constraints | [`docs/product/design-ai-layer.md`](product/design-ai-layer.md) |
-| Findings, incidents and the lessons drawn | [`docs/history/findings-and-lessons.md`](history/findings-and-lessons.md) |
-| Open legal and tax questions | [`docs/product/advisor-questions.md`](product/advisor-questions.md) |
+| You want | Read |
+| --- | --- |
+| Current status, the open queue, the standing rules | [`CLAUDE.md`](../CLAUDE.md) |
+| Layering, tenancy, RBAC, "add a new domain" | [`development-guide.md`](development-guide.md) |
+| Running it locally | [`local-setup.md`](local-setup.md) |
+| ZATCA specifics and what is proven where | [`zatca/`](zatca/) |
+| Why a decision was made the way it was | [`history/findings-and-lessons.md`](history/findings-and-lessons.md) |
+| The navigation decision and its markers | [`product/nav-tree-reconciliation.md`](product/nav-tree-reconciliation.md) |
+| Test-suite ordering and timing fragilities | [`test-suite-notes.md`](test-suite-notes.md) |
 
 ---
 
 ## Appendix — technology summary
 
 | Layer | Technology |
-|---|---|
+| --- | --- |
 | Monorepo | pnpm workspaces |
-| Backend | Express 5, TypeScript, Node.js (ESM), esbuild |
-| Frontend | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui |
-| Routing (frontend) | Wouter |
-| Data fetching | TanStack Query v5 |
+| Backend | Express 5, TypeScript (ESM), esbuild bundle |
+| Frontend | React 19, Vite, Tailwind CSS v4, shadcn/ui |
+| Routing (FE) | wouter |
+| Data fetching | TanStack Query |
 | ORM | Drizzle |
-| Database | PostgreSQL (via Supabase — Postgres only, not Supabase Auth) |
-| Cache / queue | **None.** In-process scheduler; Postgres-backed rate limiting |
-| Auth | Express sessions + bcrypt |
-| API contract | OpenAPI-first with orval codegen |
+| Database | PostgreSQL (Supabase — Postgres only, **not** Supabase Auth) |
+| Cache / queue | **None** — in-process scheduler, in-memory rate limiting |
+| Auth | `express-session` + `connect-pg-simple`, bcryptjs |
+| API contract | OpenAPI-first, orval codegen |
 | Validation | Zod (generated) |
-| Internationalisation | Custom context, Arabic/English, RTL-aware |
-| Logging | pino |
-| Testing | Vitest, against a real database in CI |
+| i18n | Custom `LanguageContext`, Arabic/English, RTL-aware |
+| Logging | pino / pino-http |
+| Browser tests | Playwright |

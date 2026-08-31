@@ -81,7 +81,7 @@ export default function BankAccounts() {
       ) : (
         <div className="grid grid-cols-2 gap-4">
           {accounts.map(acc=>(
-            <Card key={acc.id} className={`border-border bg-card transition-colors hover:border-primary/30 ${acc.isDefault?"border-primary/30":""}`}>
+            <Card data-row key={acc.id} className={`border-border bg-card transition-colors hover:border-primary/30 ${acc.isDefault?"border-primary/30":""}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div>
