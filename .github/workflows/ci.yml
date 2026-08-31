@@ -316,6 +316,19 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @workspace/db run migrate
 
+      # 🔴 SEED THE PERMISSION MATRIX. Migrations create the `permissions` table;
+      # only the seed populates its 235 rows, and `requirePermission` denies
+      # everything against an empty matrix. Without this the suite authenticates
+      # fine and then every API call answers **403** — which is how the second CI
+      # run failed: 55 authenticated tests red while the anonymous ones passed,
+      # because a session was never the problem.
+      #
+      # A developer's database has been seeded long ago, so this is invisible
+      # locally and only ever appears on a fresh database. That is precisely the
+      # environment difference CI exists to expose.
+      - name: Seed permissions and the default tenant
+        run: pnpm --filter @workspace/db run seed
+
       # Cache the browser binary on the resolved Playwright version, so a normal
       # run does not re-download ~150 MB. Keyed on the lockfile so a version
       # bump invalidates it rather than silently running the old browser.
