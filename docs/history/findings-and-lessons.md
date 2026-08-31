@@ -4045,6 +4045,73 @@ parameter it never reads.
 
 ---
 
+## 2026-08-31 — the orphan shape in the DESIGN layer, and an instrument wrong before the code
+
+Two findings from the token-layer pass, kept because each is a known class
+appearing somewhere the class had not been looked for.
+
+### 1. Five semantic tokens, defined and consumed by nobody
+
+`index.css` defined `--color-income`, `--color-expense`, `--color-asset`,
+`--color-liability` and `--color-equity`. `badge.tsx` turned them into five
+`Badge` variants. **No page used any of them.** Measured across all 107 app
+files outside `components/ui`: zero consumers.
+
+Meanwhile **604** raw palette classes across **56** files did exactly that job
+by hand.
+
+This is *a shape without a consumer* — the first named lesson in CLAUDE.md §3 —
+and everything that makes it hard to see applies here with extra force:
+
+- It looks more like progress than most orphans. A design system with named
+  semantic tokens reads as maturity, and the tokens were real, correct, and
+  wired into a component. Only the last link was missing.
+- **No guard could have seen it.** Route reachability watches routes; the shape
+  guard watches response fields. Nothing watched CSS custom properties, because
+  nobody had thought of the design layer as a place where the orphan shape
+  lives.
+
+🔴 **The reusable part: when a class of defect is named, ask which LAYERS have
+been swept for it, and treat the unswept ones as unmeasured rather than clean.**
+The orphan shape had been swept for in routes, columns, interfaces and flags.
+The design layer had never been looked at, so its count was not low — it was
+unknown, and it turned out to be five.
+
+The countermeasure is in `design-token-adoption.test.ts`, which asserts each
+token has a real consumer as well as ratcheting adoption.
+
+### 2. 🔴 The instrument was wrong before the code was — again
+
+Verifying that the new tokens rendered identically, the first probe created
+elements at runtime and compared computed styles:
+
+    text-emerald-400   -> text-positive            IDENTICAL
+    text-emerald-500   -> text-positive-surface    *** DIFFERENT ***
+
+The `-surface` result was **an artefact of the probe, not a defect.** Tailwind's
+JIT generates utilities only for classes it finds in SOURCE. `text-positive`
+existed in a converted file, so it was generated; `text-positive-surface`
+existed nowhere, so the class was never emitted and the probe measured an
+unstyled element. Re-probed with classes that appear in the source, all ten
+pairs were identical.
+
+**Second time this week** that a measuring instrument was wrong before the code
+was — after the benchmark whose "hard" flag and headline verdict were both
+authored and both wrong.
+
+The rule already in §3 is *a claim inside a measuring instrument is still a
+claim*. This adds the sharper corollary: **an instrument that CONSTRUCTS its own
+inputs must construct them the way the system under test would.** A probe that
+invents a class, a fixture that invents a row, a benchmark that invents a case —
+each measures a path production never takes, and reports the difference as a
+finding about the code.
+
+The tell is worth naming because it is cheap: **the instrument disagreed with
+itself.** Four pairs identical and four different, in a mechanism that treats all
+eight the same way, is not a result — it is a reason to doubt the apparatus.
+
+---
+
 ## 2026-08-31 — 🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED
 
 **Named at the owner's instruction**, alongside *a targeted fix sees only what it
