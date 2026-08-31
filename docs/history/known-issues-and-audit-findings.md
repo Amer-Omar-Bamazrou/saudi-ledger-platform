@@ -707,3 +707,40 @@ intended message, and restoring it turns it green. A guard never seen to fail is
 the CI-merge-gate mistake in another costume.
 
 **Result: 65 tests, 3.1 minutes, exit 0.**
+
+### P5's first CI run went red — three causes, all in the harness
+
+Recorded because the suite's own config comment claimed local and CI were "the
+same run", and the first CI run disproved it within three minutes.
+
+1. **`Port 3000 is already in use`.** The CI job set `PORT` once for the whole
+   job; both `vite.config.ts` and the API read `PORT` at load, so vite tried to
+   bind the API's port. **Green locally, red in CI — exactly what starting both
+   servers from `playwright.config.ts` was supposed to make impossible.** The
+   claim was right and the ambient environment made the runs different anyway.
+   Fixed by naming each port per server in the config, so the suite no longer
+   depends on what surrounds it.
+2. **`/api/health` does not exist.** The health route is mounted at
+   **`/api/healthz`**; `/api/health` falls through to the authenticated
+   catch-all and answers 401 forever. The readiness wait therefore never
+   succeeded. A path assumed rather than checked — and it was introduced *after*
+   the run that passed 65 tests, so it was a regression added by a hardening
+   step.
+3. **The wipe enumerated its tables by hand** and broke the moment the
+   scheduled-findings job wrote a `finding_runs` row for the seeded org. A
+   hand-kept list of org-scoped tables is a second representation of the schema
+   and rots as tables are added. Now derived from `information_schema` — every
+   table carrying an `organization_id` — with FK triggers disabled for the wipe
+   so the dependency ORDER need not be known either.
+
+🔴 **And a fourth, in the instrument again.** Reproducing the CI condition
+locally, `export BASE_PATH=/` in Git Bash was rewritten by MSYS path conversion
+into `C:/Program Files/Git/`, so vite served the app under that base and 59 of
+65 tests failed on 404s. Nothing was wrong with the code; the harness was.
+**Third time this week** an instrument was wrong before the code was, after the
+Tailwind probe inventing classes and the benchmark's authored verdict. The tell
+was the same each time — the instrument disagreed with itself, 6 passing beside
+59 failing in a mechanism that treats them identically.
+
+Verified after the fixes by reproducing the exact CI condition (`PORT=3000` set
+globally): **65 passed, exit 0.**

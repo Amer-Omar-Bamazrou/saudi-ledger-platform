@@ -283,7 +283,11 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      PORT: "3000"
+      # 🔴 PORT is NOT set here. Both servers read it at load, and one job-wide
+      # value made vite try to bind the API's port ("Port 3000 is already in
+      # use") — green locally, red in CI, which is exactly what starting both
+      # servers from playwright.config was meant to make impossible. Each port
+      # is now named per server there.
       SESSION_SECRET: e2e-session-secret-at-least-32-characters-long
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       BASE_PATH: /

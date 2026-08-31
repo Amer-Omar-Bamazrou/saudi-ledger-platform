@@ -50,20 +50,63 @@ export default async function globalSetup(): Promise<void> {
   const db = new Client({ connectionString });
   await db.connect();
 
-  const org = `(SELECT id FROM organizations WHERE slug = '${E2E.slug}')`;
-  // Idempotent: the suite owns this slug, so it rebuilds it rather than
-  // accumulating across runs. Ordered by FK dependency.
-  await db.query(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
-  await db.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM bill_items WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
-  await db.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM organization_memberships WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
-  await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
-  await db.query(`DELETE FROM organizations WHERE slug = $1`, [E2E.slug]);
+  /**
+   * 🔴 THE WIPE IS DERIVED, NOT ENUMERATED.
+   *
+   * The first version listed the child tables by hand and broke the moment the
+   * scheduled-findings job wrote a `finding_runs` row for the seeded org:
+   *   `update or delete on "organizations" violates foreign key constraint
+   *    "finding_runs_organization_id_organizations_id_fk"`.
+   *
+   * A hand-kept list of org-scoped tables is a second representation of the
+   * schema, and it rots silently every time a table is added — the same shape
+   * as the hand-kept route list this suite already refuses to have. So the set
+   * is read from `information_schema` at run time: every table carrying an
+   * `organization_id` column is cleared.
+   *
+   * FK triggers are disabled for the wipe (`session_replication_role`), which
+   * removes the need to know the dependency ORDER as well as the table set.
+   * Child rows that hang off a document rather than the org (invoice_items,
+   * bill_items) are cleared first, since they carry no `organization_id` and
+   * would otherwise be orphaned.
+   */
+  const { rows: orgRows } = await db.query<{ id: string }>(
+    `SELECT id FROM organizations WHERE slug = $1`,
+    [E2E.slug],
+  );
+
+  if (orgRows.length > 0) {
+    const ids = orgRows.map((r) => r.id);
+    const { rows: scoped } = await db.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND column_name = 'organization_id'`,
+    );
+
+    await db.query(`SET session_replication_role = replica`);
+    try {
+      await db.query(
+        `DELETE FROM invoice_items WHERE invoice_id IN
+           (SELECT id FROM invoices WHERE organization_id = ANY($1::uuid[]))`,
+        [ids],
+      );
+      await db.query(
+        `DELETE FROM bill_items WHERE bill_id IN
+           (SELECT id FROM bills WHERE organization_id = ANY($1::uuid[]))`,
+        [ids],
+      );
+      for (const { table_name } of scoped) {
+        // Identifier interpolation is safe here: the names come from
+        // information_schema, not from input, and are quoted.
+        await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
+      }
+      await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
+      await db.query(`DELETE FROM organizations WHERE slug = $1`, [E2E.slug]);
+    } finally {
+      await db.query(`SET session_replication_role = DEFAULT`);
+    }
+  } else {
+    await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
+  }
 
   const orgId = (
     await db.query(
@@ -144,7 +187,7 @@ export default async function globalSetup(): Promise<void> {
   let ready = false;
   for (let i = 0; i < 120 && !ready; i++) {
     try {
-      ready = (await ctx.get("/api/health")).ok();
+      ready = (await ctx.get("/api/healthz")).ok();
     } catch {
       /* not up yet */
     }

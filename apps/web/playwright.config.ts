@@ -84,11 +84,27 @@ export default defineConfig({
   webServer: [
     {
       command: "pnpm --filter @workspace/api-server run dev",
-      url: `http://localhost:${API_PORT}/api/health`,
+      // `/api/healthz`, not `/api/health` — the latter falls through to the
+      // authenticated catch-all and answers 401 forever. Checked in routes/index.ts.
+      url: `http://localhost:${API_PORT}/api/healthz`,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       stdout: "pipe",
       stderr: "pipe",
+      /**
+       * 🔴 PORT IS SET PER SERVER, NOT INHERITED FROM THE ENVIRONMENT.
+       *
+       * Both `vite.config.ts` and the API read `PORT` at load. CI set it once
+       * for the whole job, so vite took the API's 3000 and died with
+       * "Port 3000 is already in use" — a run that was green locally and red in
+       * CI, which is precisely what starting both servers here was supposed to
+       * make impossible. The claim was right and the ambient environment made
+       * the two runs different anyway.
+       *
+       * Naming each port here means the suite no longer depends on what the
+       * surrounding environment happens to hold.
+       */
+      env: { PORT: String(API_PORT) },
     },
     {
       command: "pnpm --filter @workspace/bookkeeping run dev",
@@ -97,6 +113,7 @@ export default defineConfig({
       timeout: 120_000,
       stdout: "pipe",
       stderr: "pipe",
+      env: { PORT: String(WEB_PORT) },
     },
   ],
 });
