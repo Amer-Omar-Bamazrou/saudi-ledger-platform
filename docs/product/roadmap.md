@@ -34,6 +34,7 @@ here, so this file cannot drift into a second schedule.
 | **Product reporting** | Sales and margin by product — which needs products to carry cost, so it follows inventory | Inventory |
 | **Live feeds** | Real-time account/document activity | Overlaps **A2 bank feeds**, which is entity-gated. Scope the two against each other before either is built |
 | **E-commerce** | Storefront or marketplace integration | Payment gateways, which are CR-gated (see §5 of the reconciliation) |
+| **Cash flow — indirect method** | We produce the **direct** method (`reports.service.ts:268` classifies actual cash movements by activity). The indirect method — net income adjusted for non-cash items and working-capital movements — is not built | None. The income statement it would start from already exists. Recorded 2026-08-31 (owner) so its absence reads as a decision, not a gap |
 
 ## What is deliberately NOT here
 
