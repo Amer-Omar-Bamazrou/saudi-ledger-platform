@@ -158,9 +158,7 @@ These are short forms; the rules are binding, the history explains why.
 3. **Re-run the LIVE VERIFICATION PASS at the end of every milestone touching
    the ingestion/tax path** (owner-mandated for all of M16; keep it beyond).
    Same fixture, live path (real HTTP → engine → Postgres), OBSERVED values —
-   not test results. The M15 pass proved why: a test-verified fix coexisted
-   with a live path still recording SAR 260.87 of phantom VAT through a rule
-   no test asserted.
+   not test results. (M15 proved why; the incident is in the findings file.)
 
 ### 🔴 THE TRIAGE CHECK (apply to every finding, before ranking it)
 
@@ -240,7 +238,7 @@ rules at the top of this file, rule 2).
 - **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
 - **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
 - **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
-- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** AUD-1 fixed the browser minting invoice numbers from a clock; sweeping found **five** instances and the fix had covered two. 🔴 The three left behind were WORSE: `invoices` has a unique index so a collision was REFUSED, while the others have none, so the identical collision was ACCEPTED. **The audit had named the only instance the database would have caught.** The inverse of the composition class — one finding standing for a set nobody enumerated. **The report is a sample, not an inventory.**
+- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** Twice now: AUD-1's clock-minted document numbers (5 instances, 2 fixed, and the reported one was the only one the DB would have caught), and the unkeyed fragment (3 instances, 2 invisible because no fixture reaches them). **The report is a sample, not an inventory.** Incidents: findings file.
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
 - **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each, before recommending it. The cash estimate was not slightly low; it was about a different feature.
@@ -257,7 +255,7 @@ rules at the top of this file, rule 2).
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after. A conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A defect whose trigger is VOLUME is invisible to every fixture we own** — a count taken from a capped list, an aggregate reduced client-side over a fetched page, a bulk action whose label counts one page. Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways: the question is never "is there a limit" but "does the number shown describe the set the user thinks it describes".
-- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step — *"this needs an accountant to approve it; send it for approval"* — teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE like M22's closed-period dialog so rewording copy cannot break it. The reversal also deleted `canApprove`: a derived flag with no consumer would have invited the hiding back. Incident: findings file.
+- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE so rewording copy cannot break it. Incident: findings file.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout, so the login toggle works. Checked twice; two proposed B-8 mechanisms died here. Incident: findings file.
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change** — done 2026-08-31 (`e2e/rtl-direction.spec.ts`, green); the *observation* half now exists even though the loss did not reproduce, which is the point: the guard is worth having whether or not today's bug is real.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it — **P5**, the browser suite, now does (`apps/web/e2e`).
@@ -281,7 +279,7 @@ rules at the top of this file, rule 2).
 - **🔴 An instruction's referent is an INPUT — check it against the data, even when it comes from the owner.** A work order once arrived for a milestone that did not exist; a bug was reported twice with a confident mechanism that was absent both times. 🔴 **An instruction's MECHANISM is an input too** — take the shape it describes, check the mechanism, and REPORT the mismatch rather than building the plausible thing. Corrections ship narrow and scoped; a named gap beats a silent default. (Seven instances this session; the table is in the findings file.)
 - **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
-- **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`.
+- **🔴 OUR VERIFICATION APPROACH IS STRUCTURALLY BLIND TO VOLUME AND COLLISION.** Every fixture, dev org and seed we own is *small* and carries *unique* values, so nothing that only breaks at volume (a count off a capped list, a bulk act sized by a page) or only when values collide (an identity built from date+amount+description) can be seen at fixture scale. 🔴 **A suspiciously ROUND count is a diagnosis, not a coincidence.** The countermeasure is a fixture larger than every cap AND deliberately degenerate: `tests/scale-and-collision.test.ts`. 🔴 **A third axis, measured 2026-08-31: BREADTH.** The browser fixture populates 11 tenant tables and leaves 40 empty (`invoice_items` among them), and **17 of 54 crawled routes render a row while 37 show an empty state** — covered by the crawl with none of their row-rendering code executed. Volume on four entities does not enter those paths. Numbers and method: findings file.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
 - **🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY** (nav tree, 2026-08-31) — checking that every SPEC entry points at something real cannot see a real page the spec never listed. Five working report pages were about to become unreachable in the same commit that made the navigation "complete"; the coverage assertion found them, reading did not. **Whenever a map replaces a map, assert BOTH directions — every entry points at something, and everything is pointed at.** Incident: findings file.
 - **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
@@ -513,12 +511,12 @@ falsify:** a loss triggered by a surface not on that walk, a portal/dialog, or a
 path that unmounts the provider. B-8 is not closed — it is now *tested* rather
 than merely unreproduced, which is a different and better state.
 
-🔴 **Found while doing it:** `apps/web/index.html` has `lang="en"` and **no
-`dir` at all**, so every load paints left-to-right until the provider's effect
-runs. Not B-8 (nothing is *lost*; it was never set), but a real RTL defect
-against a launch requirement, and the cheap fix — an inline script reading
-`ksa_lang` before first paint — is a decision about blocking scripts, so it is
-flagged rather than taken.
+🔴 **Direction is now set BEFORE FIRST PAINT** (owner decision, 2026-08-31): a
+minimal render-blocking script in `index.html` reads `ksa_lang` and sets `dir`
+and `lang`. It cannot be done from inside React — by the time a component runs,
+the paint has happened. **Do not delete it as an oddity**; it carries its own
+rationale and a test that fails on its removal (`waitUntil: "commit"`, because
+any later wait lets React repair it and the check passes either way).
 
 🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY.** A new entry
 needs a checkable reason and leaves the day it is fixed.

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
@@ -16,6 +16,49 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!--
+      🔴 DIRECTION BEFORE FIRST PAINT. DO NOT REMOVE THIS AS AN ODDITY.
+      Owner decision, 2026-08-31.
+
+      This document used to ship `lang="en"` and NO `dir` at all. The direction
+      was applied by `LanguageContext`'s mount effect, which runs after the
+      bundle has been fetched, parsed and executed — so every single load
+      painted LEFT-TO-RIGHT first and flipped once React woke up. For an Arabic
+      user that is a visible flash on every page load, against a stated launch
+      requirement, and no amount of care inside React can fix it: by the time
+      any component runs, the first paint has already happened.
+
+      It is deliberately RENDER-BLOCKING, and deliberately tiny. Blocking is the
+      entire point — a script that does not block cannot beat the paint it
+      exists to correct. One synchronous localStorage read of one key, two
+      attribute writes, nothing else. Do not grow it: anything more here is
+      startup latency on every load for every user.
+
+      `ksa_lang` is the same key `LanguageContext` reads for its initial state,
+      so this cannot disagree with the application — it renders the same
+      decision earlier. The provider still applies direction on mount and on
+      change; this does not replace it, and removing the provider's write would
+      break switching. Both are needed, and neither is redundant.
+
+      Wrapped in try/catch because a browser with site data blocked throws on
+      the read, and a page that fails to render at all is a far worse outcome
+      than a page that renders in the wrong direction.
+
+      Covered by `e2e/rtl-direction.spec.ts`.
+    -->
+    <script>
+      (function () {
+        try {
+          var l = localStorage.getItem("ksa_lang");
+          if (l === "ar") {
+            document.documentElement.dir = "rtl";
+            document.documentElement.lang = "ar";
+          }
+        } catch (e) {
+          /* site data blocked — fall through to the document's own defaults */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
