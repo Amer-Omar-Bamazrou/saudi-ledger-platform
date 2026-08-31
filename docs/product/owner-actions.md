@@ -1,9 +1,14 @@
 # Owner actions — the standing checklist
 
-**This file is LIVE, and it is the single writer for where the four owner
-actions stand.** Tick an item here when it moves; do not restate an action's
-state anywhere else. It has no "as of" date because it is never history — a
-dated status line here would be the drift it exists to prevent.
+**This file is LIVE, and it is the single writer for where the owner actions
+stand.** Tick an item here when it moves; do not restate an action's state
+anywhere else. It has no "as of" date because it is never history — a dated
+status line here would be the drift it exists to prevent.
+
+🔴 **The list is deliberately NOT a count** (2026-08-31). It was "the four owner
+actions" until a fifth arrived, and a count in a title ages the moment the list
+does — the same reason `advisor-questions.md` says its title is not a count.
+Actions are appended as they arise.
 
 Two boundaries, so nothing is authored twice:
 
@@ -17,7 +22,7 @@ Two boundaries, so nothing is authored twice:
 Each action carries a **Done when** that someone else could check. Ticking is
 an observation, not a feeling.
 
-🔴 **The four are NOT known to be independent, and this file used to imply they
+🔴 **They are NOT known to be independent, and this file used to imply they
 were** (noted 2026-08-31). A flat checklist reads as parallel work, so a
 dependency between two items is invisible unless it is written down. One is
 suspected today: **action 3 (Groq Enterprise) is likely gated by action 1 (the
@@ -98,6 +103,51 @@ window or audited override on backdating into a closed period).
 - **Done when:** real receipt images are in the vision harness and the §2a
   Arabic gate prints a **verdict carrying the evidence count it rests on** —
   never "NOT RUN", and never a verdict over failed calls.
+
+---
+
+## 5. ▢ 🔴 RTL — DECIDE, do not inherit (opened 2026-08-31)
+
+**This is a decision, not an errand, and it is currently making itself.**
+
+**The situation.** Arabic is a launch requirement (CLAUDE.md §2). RTL is
+incomplete: **120 un-converted physical properties across 25 vendored
+`components/ui` files**, 53 of them in four files — the sidebar, dropdowns,
+context menus and menubar align and open the wrong way in Arabic, `sheet.tsx`
+slides in from the physical side, and input icons can overlap text.
+
+Own-or-track (2026-08-27) decided **not to own** those files, which was correct
+*as a decision about vendored code* — and it left RTL waiting on the design
+pass. So a launch requirement now depends on a discretionary redesign, and if
+the redesign slips, Arabic ships broken. **Nothing currently forces that to be
+noticed before launch**, which is the shape this project removes everywhere
+else: a consequence inherited rather than a decision taken.
+
+**The two options, and what each costs.** Full reasoning:
+[`design-pass-inherited-decisions.md`](design-pass-inherited-decisions.md) D-4.
+
+| | **A — the design pass lands before launch** | **B — own RTL separately from the design pass** |
+| --- | --- | --- |
+| Work now | None | The 120 properties, or an override layer |
+| What it costs | A schedule dependency between a launch requirement and discretionary work. The failure is **silent and late** — discovered when Arabic is looked at seriously, which is near launch | Work the redesign may supersede, plus (if owned by forking) a merge conflict against every future `shadcn` upgrade — the exact cost own-or-track declined to pay |
+| Fails if | The design pass slips | Nothing. It is bounded work with a known size |
+| Reversible? | Yes until launch | Yes — an override layer can be deleted when the redesign lands |
+
+🔴 **B has two shapes with very different costs, and the cheaper one was never
+priced.** Forking the components pays the upgrade-conflict cost forever.
+An **override layer** — logical-property rules that win over the vendored
+physical ones, living in one file — does not touch the vendored files at all, so
+`shadcn add` stays cheap and the layer is deleted when the redesign arrives.
+That shape was not costed when own-or-track was taken, and it may make B
+substantially cheaper than the decision assumed.
+
+- **Gates:** launch, if Arabic is a launch requirement and the design pass slips.
+- **Depends on:** nothing. Neither option needs the entity, the advisor, or a
+  provider. This is decidable today.
+- **Done when:** either (A) the design pass has a date that precedes launch and
+  RTL is explicitly in its scope, or (B) an approach for owning RTL separately
+  is chosen and queued — and in both cases the choice is written down here, so
+  the next session inherits a decision rather than a default.
 
 ---
 

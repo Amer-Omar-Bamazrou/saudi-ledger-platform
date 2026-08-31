@@ -439,6 +439,50 @@ whatever is easiest to build.
 
 ---
 
+### 4.4 🔴 The spec's §4 navigation tree — REJECTED AS NAVIGATION, ACCEPTED AS ROADMAP (owner, 2026-08-31)
+
+**One artefact, two different things, and conflating them is what makes a
+four-level sidebar look like a plan.** The spec's §4 proposes a navigation tree
+of roughly 200 leaves. As a *sidebar hierarchy* it is rejected; as a *statement
+of what the product should eventually do* it is accepted.
+
+**Rejected as navigation, on three grounds this document already established:**
+
+1. **Most entries are FILTERS, not destinations.** *Invoices → Drafts / Pending /
+   Issued / Sent / Paid* is one page with a status filter, not five places. A
+   sidebar that lists filters teaches that they are separate screens, and then
+   the product has to keep that promise.
+2. **It reintroduces things deleted as facades.** Debit Notes is the worked
+   example (§3.3 item 1): the *capability* is live, the standalone *page* was
+   deleted 2026-08-20, and §4 puts the page back.
+3. **"AI & AUTOMATION" as a top-level section contradicts
+   `hub-structure-decision.md`**, which `Layout.tsx` cites: *Finance Hub* and
+   *Analytics* get entries; *Automation* and *AI* get **no navigation entry at
+   all** and appear inside the flows they serve.
+
+**Accepted as roadmap.** The features in it that do not exist — inventory,
+templates, customer groups, product reporting, live feeds, e-commerce — are real
+things the product should eventually do. They go to
+[`roadmap.md`](roadmap.md) and get built properly.
+
+🔴 **Their nav entries appear WHEN THEY EXIST, NOT BEFORE.** Nav-first is the
+facade pattern again: a sidebar entry is a promise, and an entry pointing at a
+page that pretends is exactly what was deleted in August. The rule is the same
+one Categorization follows in reverse — **the entry point moves with the
+capability, never ahead of it.**
+
+**What stands now:** the seven-section structure of 2026-08-30, plus step 3's
+Categorization correction — *in-flow entry point added first, sidebar item
+removed second*, because `/categorize` and `/upload` are reachable only from the
+sidebar and removing the entry alone strands the route.
+
+⚠️ **The owner asked that "P8" block nav-first. There is no P8** — the queue has
+P4 (route reachability) and P5 (browser tests in CI), and nothing numbered
+higher exists anywhere in the repo. Flagged rather than invented. The two
+existing candidates for the guard: **P4** already fails a UI call to an unmounted
+route, and **P5**'s crawl would fail a nav entry whose page renders empty. Which
+of those the owner meant — or whether a new queue item is wanted — is open.
+
 ## 5. Integrations — corrected
 
 ### 5.1 🔴 SiFi is not a payment gateway (owner correction, 2026-08-30)
