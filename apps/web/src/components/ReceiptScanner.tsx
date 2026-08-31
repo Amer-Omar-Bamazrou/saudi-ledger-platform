@@ -237,10 +237,10 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
           {/* ── error ────────────────────────────────────────────────────── */}
           {phase === "error" && (
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-                <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-negative-surface/10 border border-negative-surface/30">
+                <AlertCircle className="w-5 h-5 text-negative shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-red-400">OCR failed</p>
+                  <p className="text-sm font-medium text-negative">OCR failed</p>
                   <p className="text-xs text-muted-foreground mt-1">{errorMsg}</p>
                 </div>
               </div>
@@ -263,7 +263,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
                 {/* extracted fields */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-emerald-400">
+                  <div className="flex items-center gap-2 text-sm font-medium text-positive">
                     <CheckCircle2 className="w-4 h-4" /> Extracted fields
                   </div>
                   <Field label="Vendor" value={result.vendorName || "—"} />

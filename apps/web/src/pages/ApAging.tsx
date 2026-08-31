@@ -49,10 +49,10 @@ function bucketOf(days: number): keyof ApAgingData["buckets"] {
 }
 
 const BUCKET_COLORS: Record<string, string> = {
-  current: "text-emerald-400",
-  days_1_30: "text-amber-400",
+  current: "text-positive",
+  days_1_30: "text-attention",
   days_31_60: "text-orange-400",
-  days_61_90: "text-red-400",
+  days_61_90: "text-negative",
   over_90: "text-red-600",
 };
 
@@ -108,8 +108,8 @@ export default function ApAging() {
                payables" when the request failed would be a confident wrong
                answer about money owed. */
             <div className="text-center py-16 text-muted-foreground">
-              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40 text-red-400" />
-              <p className="text-sm text-red-400">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</p>
+              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40 text-negative" />
+              <p className="text-sm text-negative">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</p>
               <p className="text-xs mt-1 opacity-60">{(error as Error)?.message ?? "Please try again."}</p>
             </div>
           ) : report.items.length === 0 ? (

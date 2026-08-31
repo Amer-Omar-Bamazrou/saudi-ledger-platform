@@ -323,12 +323,12 @@ export default function ScanReview() {
             href={`/api/capture/${captureId}/image`}
             target="_blank"
             rel="noreferrer"
-            className="ms-auto inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"
+            className="ms-auto inline-flex items-center gap-1 rounded border border-positive-surface/30 bg-positive-surface/10 px-2 py-1 text-xs text-positive-surface"
           >
             <CheckCircle2 className="w-3.5 h-3.5" /> {t("Source photograph stored — view", "الصورة المصدرية محفوظة — عرض")}
           </a>
         ) : (
-          <span className="ms-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
+          <span className="ms-auto inline-flex items-center gap-1 rounded border border-attention-surface/30 bg-attention-surface/10 px-2 py-1 text-xs text-attention-surface">
             <AlertTriangle className="w-3.5 h-3.5" /> {t("Photograph not stored", "الصورة غير محفوظة")}
           </span>
         )}
@@ -359,8 +359,8 @@ export default function ScanReview() {
 
       {/* The confirm names what is destroyed and what is not. */}
       {confirmDiscard && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 space-y-2">
-          <p className="text-sm font-medium text-red-500">
+        <div className="rounded-lg border border-negative-surface/40 bg-negative-surface/10 px-4 py-3 space-y-2">
+          <p className="text-sm font-medium text-negative-surface">
             {t(
               "Delete the stored photograph and abandon this review?",
               "حذف الصورة المحفوظة وإلغاء هذه المراجعة؟",
@@ -384,8 +384,8 @@ export default function ScanReview() {
       )}
 
       {signatureStatus === "failed" && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
-          <p className="text-sm font-medium text-red-500 flex items-center gap-2">
+        <div className="rounded-lg border border-negative-surface/40 bg-negative-surface/10 px-4 py-3">
+          <p className="text-sm font-medium text-negative-surface flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             This invoice&apos;s ZATCA cryptographic stamp did NOT verify
           </p>
@@ -406,8 +406,8 @@ export default function ScanReview() {
         difference between "check this" and "verify all of it".
       */}
       {source === "qr" ? (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-          <p className="text-sm font-medium text-emerald-500 flex items-center gap-2">
+        <div className="rounded-lg border border-positive-surface/30 bg-positive-surface/10 px-4 py-3">
+          <p className="text-sm font-medium text-positive-surface flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
             Read directly from the invoice&apos;s ZATCA QR code — these figures are exact
           </p>
@@ -417,7 +417,7 @@ export default function ScanReview() {
             {isPhase2 && " This invoice is cryptographically stamped."}
           </p>
           {qrMissing.length > 0 && (
-            <p className="text-xs text-amber-500 mt-1">
+            <p className="text-xs text-attention-surface mt-1">
               Not carried by the QR code, please check: {qrMissing.join(", ")}.
             </p>
           )}
@@ -439,19 +439,19 @@ export default function ScanReview() {
       {flags.length > 0 && (
         <div className="space-y-2">
           {errors.map((f, i) => (
-            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-negative-surface/10 border border-negative-surface/30 text-sm">
+              <AlertCircle className="w-4 h-4 text-negative shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-red-400 capitalize">{f.field.replace("_", " ")}: </span>
+                <span className="font-semibold text-negative capitalize">{f.field.replace("_", " ")}: </span>
                 <span className="text-foreground">{f.message}</span>
               </div>
             </div>
           ))}
           {warnings.map((f, i) => (
-            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-attention-surface/10 border border-attention-surface/30 text-sm">
+              <AlertTriangle className="w-4 h-4 text-attention shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-amber-400 capitalize">{f.field.replace("_", " ")}: </span>
+                <span className="font-semibold text-attention capitalize">{f.field.replace("_", " ")}: </span>
                 <span className="text-foreground">{f.message}</span>
               </div>
             </div>
@@ -478,9 +478,9 @@ export default function ScanReview() {
               <Label className="text-xs text-muted-foreground">
                 Supplier VAT Registration #
                 {fields.supplierVatNumber && /^3\d{13}3$/.test(fields.supplierVatNumber)
-                  ? <span className="text-emerald-400 ms-1">✓</span>
+                  ? <span className="text-positive ms-1">✓</span>
                   : fields.supplierVatNumber
-                    ? <span className="text-red-400 ms-1">✗ invalid format</span>
+                    ? <span className="text-negative ms-1">✗ invalid format</span>
                     : null}
               </Label>
               <Input value={fields.supplierVatNumber}
@@ -514,14 +514,14 @@ export default function ScanReview() {
               <Label className="text-xs text-muted-foreground">VAT Amount (SAR)</Label>
               <Input type="number" step="0.01" value={fields.vatAmount}
                 onChange={e => setFields(p => ({ ...p, vatAmount: e.target.value }))}
-                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-red-500" : ""}`}
+                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-negative-surface" : ""}`}
                 placeholder="0.00" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Total (SAR)</Label>
               <Input type="number" step="0.01" value={fields.total}
                 onChange={e => setFields(p => ({ ...p, total: e.target.value }))}
-                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-red-500" : ""}`}
+                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-negative-surface" : ""}`}
                 placeholder="0.00" />
             </div>
           </div>
@@ -567,9 +567,9 @@ export default function ScanReview() {
 
           {/* exact match */}
           {!matchLoading && matchResult?.matchType === "exact" && matchResult.vendor && (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-positive-surface/10 border border-positive-surface/30">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-positive shrink-0" />
                 <div>
                   <p className="text-sm font-medium">{matchResult.vendor.name}</p>
                   {matchResult.vendor.taxNumber && (
@@ -577,14 +577,14 @@ export default function ScanReview() {
                   )}
                 </div>
               </div>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">{t("Exact match", "تطابق تام")}</Badge>
+              <Badge className="bg-positive-surface/20 text-positive border-positive-surface/30 text-xs">{t("Exact match", "تطابق تام")}</Badge>
             </div>
           )}
 
           {/* fuzzy suggestions */}
           {!matchLoading && matchResult?.matchType === "fuzzy" && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-amber-400">
+              <div className="flex items-center gap-2 text-sm text-attention">
                 <AlertTriangle className="w-4 h-4" />
                 Possible matches found — please select the correct supplier or create a new one
               </div>
@@ -616,7 +616,7 @@ export default function ScanReview() {
                     className="accent-primary" />
                   <Plus className="w-3.5 h-3.5 text-primary" />
                   <span className="text-sm">{t("Create new supplier — ", "إنشاء مورّد جديد — ")}<em className="text-muted-foreground">{fields.vendorName || "unnamed"}</em></span>
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs ms-auto">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
+                  <Badge className="bg-attention-surface/20 text-attention border-attention-surface/30 text-xs ms-auto">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
                 </label>
               </div>
             </div>
@@ -624,14 +624,14 @@ export default function ScanReview() {
 
           {/* no match */}
           {!matchLoading && matchResult?.matchType === "none" && (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
-              <p className="font-medium text-amber-400 flex items-center gap-1.5">
+            <div className="p-3 rounded-lg bg-attention-surface/10 border border-attention-surface/30 text-sm">
+              <p className="font-medium text-attention flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4" /> No existing supplier found
               </p>
               <p className="text-muted-foreground text-xs mt-1">
                 A new supplier will be created from the extracted name and VAT number — please confirm the details above are correct.
               </p>
-              <Badge className="mt-2 bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
+              <Badge className="mt-2 bg-attention-surface/20 text-attention border-attention-surface/30 text-xs">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
             </div>
           )}
 
@@ -742,7 +742,7 @@ export default function ScanReview() {
           </div>
           {previewSubtotal + previewVat > 0 && previewTotal > 0 &&
            Math.abs(previewSubtotal + previewVat - previewTotal) > 0.02 && (
-            <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-negative mt-2 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
               Journal entry does not balance — fix the amounts before posting.
             </p>

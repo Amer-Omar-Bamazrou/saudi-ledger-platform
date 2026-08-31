@@ -24,7 +24,7 @@ interface JournalEntryPage {
 interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string; status: string; totalDebit: number; totalCredit: number; lines: JELine[]; }
 interface Category { id: number; name: string; type: string; }
 
-const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", posted: "bg-emerald-500/20 text-emerald-400", reversed: "bg-red-500/20 text-red-400" };
+const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", posted: "bg-positive-surface/20 text-positive", reversed: "bg-negative-surface/20 text-negative" };
 
 const emptyLine: JELine = { accountName: "", description: "", debitAmount: 0, creditAmount: 0 };
 
@@ -132,13 +132,13 @@ export default function JournalEntries() {
                   ))}
                   <tr className="border-t border-border font-semibold">
                     <td colSpan={2} className="py-1 text-xs text-muted-foreground">{t("Totals", "الإجماليات")}</td>
-                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalDebit)}</td>
-                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-emerald-400":"text-red-400"}`}>{fmtNum(totalCredit)}</td>
+                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-positive":"text-negative"}`}>{fmtNum(totalDebit)}</td>
+                    <td className={`py-1 font-mono text-xs text-end ${balanced?"text-positive":"text-negative"}`}>{fmtNum(totalCredit)}</td>
                     <td />
                   </tr>
                 </tbody>
               </table>
-              {!balanced && <p className="text-xs text-red-400 mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
+              {!balanced && <p className="text-xs text-negative mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
 
             {/*
               🔴 The page says what it is showing and of how many, and gives a
@@ -180,8 +180,8 @@ export default function JournalEntries() {
 
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Entries", "إجمالي القيود")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-primary">{entries.length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Posted", "مرحّل")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-emerald-400">{entries.filter(e=>e.status==="posted").length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Drafts", "مسودات")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-amber-400">{entries.filter(e=>e.status==="draft").length}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Posted", "مرحّل")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-positive">{entries.filter(e=>e.status==="posted").length}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Drafts", "مسودات")}</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold font-mono text-attention">{entries.filter(e=>e.status==="draft").length}</div></CardContent></Card>
       </div>
 
       <div className="grid grid-cols-5 gap-4">
@@ -205,16 +205,16 @@ export default function JournalEntries() {
                     <td className="py-2 pe-3 font-mono text-xs text-primary">{e.entryNumber}</td>
                     <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
                     <td className="py-2 pe-3 max-w-[140px] truncate">{e.description}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-emerald-400">{fmtNum(e.totalDebit)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-red-400">{fmtNum(e.totalCredit)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-positive">{fmtNum(e.totalDebit)}</td>
+                    <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(e.totalCredit)}</td>
                     <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
                     <td className="py-2">
-                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-emerald-400" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
+                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
                       {/* 🔴 AUD-12: draft-only delete. `DELETE /journal-entries/:id`
                           existed with no caller, so a mistyped draft entry could not
                           be removed. A POSTED entry is corrected by a reversing
                           entry — the service refuses it and says so. */}
-                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-red-400" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
+                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-negative" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
                       {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
                     </td>
                   </tr>
@@ -241,11 +241,11 @@ export default function JournalEntries() {
                   <tbody>{selectedEntry.lines.map((l, i) => (
                     <tr key={i} className="border-b border-border/30">
                       <td className="py-1 pe-2 text-foreground">{l.accountName}</td>
-                      <td className={`py-1 pe-2 font-mono ${l.debitAmount>0?"text-emerald-400":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
-                      <td className={`py-1 font-mono ${l.creditAmount>0?"text-red-400":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
+                      <td className={`py-1 pe-2 font-mono ${l.debitAmount>0?"text-positive":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
+                      <td className={`py-1 font-mono ${l.creditAmount>0?"text-negative":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
                     </tr>
                   ))}</tbody>
-                  <tfoot><tr className="font-semibold border-t border-border"><td className="py-1 text-muted-foreground">{t("Total", "الإجمالي")}</td><td className="py-1 font-mono text-emerald-400">{fmtNum(selectedEntry.totalDebit)}</td><td className="py-1 font-mono text-red-400">{fmtNum(selectedEntry.totalCredit)}</td></tr></tfoot>
+                  <tfoot><tr className="font-semibold border-t border-border"><td className="py-1 text-muted-foreground">{t("Total", "الإجمالي")}</td><td className="py-1 font-mono text-positive">{fmtNum(selectedEntry.totalDebit)}</td><td className="py-1 font-mono text-negative">{fmtNum(selectedEntry.totalCredit)}</td></tr></tfoot>
                 </table>
               </div>
             )}

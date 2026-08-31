@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 interface PayrollRun { id: number; period: string; status: string; totalBasicSalary: number; totalAllowances: number; totalGosiEmployee: number; totalGosiEmployer: number; totalNetPay: number; processedAt: string | null; }
 interface PayrollDetail extends PayrollRun { items: Array<{ id: number; employeeName: string; employeeNumber: string; basicSalary: number; grossSalary: number; gosiEmployee: number; gosiEmployer: number; netPay: number; }>; }
 
-const STATUS_STYLES: Record<string, string> = { draft: "bg-amber-500/20 text-amber-400", approved: "bg-emerald-500/20 text-emerald-400", paid: "bg-blue-500/20 text-blue-400" };
+const STATUS_STYLES: Record<string, string> = { draft: "bg-attention-surface/20 text-attention", approved: "bg-positive-surface/20 text-positive", paid: "bg-info-surface/20 text-info" };
 
 export default function Payroll() {
   const [open, setOpen] = useState(false);
@@ -66,8 +66,8 @@ export default function Payroll() {
             [t("Net Pay", "صافي الراتب"), fmtNum(last.totalNetPay), "text-primary"],
             [t("Basic Salary", "الراتب الأساسي"), fmtNum(last.totalBasicSalary), "text-foreground"],
             [t("Allowances", "البدلات"), fmtNum(last.totalAllowances), "text-muted-foreground"],
-            [t("GOSI (Employee)", "GOSI (الموظف)"), fmtNum(last.totalGosiEmployee), "text-amber-400"],
-            [t("GOSI (Employer)", "GOSI (صاحب العمل)"), fmtNum(last.totalGosiEmployer), "text-red-400"],
+            [t("GOSI (Employee)", "GOSI (الموظف)"), fmtNum(last.totalGosiEmployee), "text-attention"],
+            [t("GOSI (Employer)", "GOSI (صاحب العمل)"), fmtNum(last.totalGosiEmployer), "text-negative"],
           ].map(([l,v,c])=>(
             <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-bold font-mono ${c}`}>{v}</div><div className="text-xs text-muted-foreground mt-1">{last.period}</div></CardContent></Card>
           ));
@@ -90,7 +90,7 @@ export default function Payroll() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{r.status}</Badge>
-                      {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-emerald-400" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
+                      {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                     </div>
                   </div>
                 ))}
@@ -109,18 +109,18 @@ export default function Payroll() {
                   <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
                     <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div></td>
                     <td className="py-2 pe-3 font-mono">{fmtNum(item.basicSalary)}</td>
-                    <td className="py-2 pe-3 font-mono text-amber-400">{fmtNum(item.gosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-red-400">{fmtNum(item.gosiEmployer)}</td>
-                    <td className="py-2 font-mono font-semibold text-emerald-400 text-sm">{fmtNum(item.netPay)}</td>
+                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(item.gosiEmployee)}</td>
+                    <td className="py-2 pe-3 font-mono text-negative">{fmtNum(item.gosiEmployer)}</td>
+                    <td className="py-2 font-mono font-semibold text-positive text-sm">{fmtNum(item.netPay)}</td>
                   </tr>
                 ))}</tbody>
                 <tfoot>
                   <tr className="border-t border-border font-semibold text-sm">
                     <td className="py-2 text-muted-foreground">{t("Total", "الإجمالي")}</td>
                     <td className="py-2 font-mono">{fmtNum(detail.totalBasicSalary)}</td>
-                    <td className="py-2 font-mono text-amber-400">{fmtNum(detail.totalGosiEmployee)}</td>
-                    <td className="py-2 font-mono text-red-400">{fmtNum(detail.totalGosiEmployer)}</td>
-                    <td className="py-2 font-mono text-emerald-400">{fmtNum(detail.totalNetPay)}</td>
+                    <td className="py-2 font-mono text-attention">{fmtNum(detail.totalGosiEmployee)}</td>
+                    <td className="py-2 font-mono text-negative">{fmtNum(detail.totalGosiEmployer)}</td>
+                    <td className="py-2 font-mono text-positive">{fmtNum(detail.totalNetPay)}</td>
                   </tr>
                 </tfoot>
               </table>

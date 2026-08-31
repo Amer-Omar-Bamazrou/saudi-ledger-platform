@@ -15,7 +15,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 interface TrialBalanceRow { id: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
 interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; totalCredit: number; balanced: boolean; }
 
-const TYPE_STYLES: Record<string, string> = { income: "text-emerald-400", expense: "text-red-400", asset: "text-blue-400", liability: "text-amber-400", equity: "text-purple-400" };
+const TYPE_STYLES: Record<string, string> = { income: "text-positive", expense: "text-negative", asset: "text-info", liability: "text-attention", equity: "text-purple-400" };
 
 export default function TrialBalance() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -64,9 +64,9 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Apply", "تطبيق")}</Button>
             {data && (
-              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${data.balanced ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
-                {data.balanced ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                <span className={`text-sm font-medium ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>{data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}</span>
+              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${data.balanced ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
+                {data.balanced ? <CheckCircle className="w-4 h-4 text-positive" /> : <XCircle className="w-4 h-4 text-negative" />}
+                <span className={`text-sm font-medium ${data.balanced ? "text-positive" : "text-negative"}`}>{data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}</span>
               </div>
             )}
           </div>
@@ -120,7 +120,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                 ))}
               </tbody>
               <tfoot>
-                <tr className={`font-bold text-sm ${data.balanced ? "text-emerald-400" : "text-red-400"}`}>
+                <tr className={`font-bold text-sm ${data.balanced ? "text-positive" : "text-negative"}`}>
                   <td className="py-4 pe-4 ps-2 uppercase tracking-wide">{t("Total", "الإجمالي")}</td>
                   <td />
                   <td className="py-4 pe-4 text-end font-mono text-base">{fmtNum(data.totalDebit)}</td>

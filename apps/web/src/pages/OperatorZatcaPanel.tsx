@@ -59,15 +59,15 @@ interface Onboarding {
 }
 
 const CRED_COLOR: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  pending_csr: "bg-amber-500/20 text-amber-500 border-amber-500/30",
+  active: "bg-positive-surface/20 text-positive border-positive-surface/30",
+  pending_csr: "bg-attention-surface/20 text-attention-surface border-attention-surface/30",
   not_onboarded: "bg-muted text-muted-foreground border-border",
-  superseded: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  revoked: "bg-red-500/20 text-red-400 border-red-500/30",
+  superseded: "bg-info-surface/20 text-info border-info-surface/30",
+  revoked: "bg-negative-surface/20 text-negative border-negative-surface/30",
 };
 
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: "warn" | "danger" }) {
-  const color = tone === "danger" ? "text-red-400" : tone === "warn" ? "text-amber-500" : "text-foreground";
+  const color = tone === "danger" ? "text-negative" : tone === "warn" ? "text-attention-surface" : "text-foreground";
   return (
     <div className="rounded-md border border-border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -215,7 +215,7 @@ export default function OperatorZatcaPanel() {
                     {/* A window that passed with no reminder recorded is the gap
                         an operator can act on by contacting the tenant. */}
                     {c.remindersMissing.length > 0 && (
-                      <span className="flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-xs text-amber-500">
+                      <span className="flex items-center gap-1 rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention-surface">
                         <AlertTriangle className="h-3 w-3" />
                         {t(`T-${c.remindersMissing.join("/T-")} not sent`, `لم تُرسل`)}
                       </span>
@@ -223,9 +223,9 @@ export default function OperatorZatcaPanel() {
                     <span
                       className={`rounded border px-2 py-0.5 text-xs ${
                         c.expired
-                          ? "border-red-500/30 bg-red-500/20 text-red-400"
+                          ? "border-negative-surface/30 bg-negative-surface/20 text-negative"
                           : (c.daysRemaining ?? 999) <= 30
-                            ? "border-amber-500/30 bg-amber-500/20 text-amber-500"
+                            ? "border-attention-surface/30 bg-attention-surface/20 text-attention-surface"
                             : "border-border bg-muted text-muted-foreground"
                       }`}
                     >
@@ -261,7 +261,7 @@ export default function OperatorZatcaPanel() {
                   </div>
                   <div className="flex items-center gap-2">
                     {!c.readyToOnboard && (
-                      <span className="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-xs text-amber-500">
+                      <span className="rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention-surface">
                         {t("No VAT number", "لا يوجد رقم ضريبي")}
                       </span>
                     )}

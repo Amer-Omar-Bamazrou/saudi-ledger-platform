@@ -246,7 +246,7 @@ export default function FinanceHub() {
               numbers (design §5.2).
             */}
             {liq.observations.length > 0 && (
-              <p className="text-xs text-amber-500">
+              <p className="text-xs text-attention-surface">
                 {t(
                   "As a rule of thumb a ratio below 1 is worth watching — it varies a lot by industry, so treat it as a prompt to look, not a verdict.",
                   "كقاعدة عامة، النسبة الأقل من 1 تستحق المتابعة — وهي تختلف كثيراً حسب القطاع، فاعتبرها دعوة للمراجعة لا حكماً نهائياً.",

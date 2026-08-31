@@ -21,7 +21,7 @@ interface InvoiceRow { id: number; invoiceNumber: string; date: string; dueDate:
 interface CustomerBalance { customerId: number; customerName: string; taxNumber: string | null; invoices: InvoiceRow[]; totalInvoiced: number; totalPaid: number; balance: number; }
 interface LedgerData { customers: CustomerBalance[]; totalBalance: number; }
 
-const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-blue-500/20 text-blue-400", paid: "bg-emerald-500/20 text-emerald-400", partial: "bg-amber-500/20 text-amber-400" };
+const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-info-surface/20 text-info", paid: "bg-positive-surface/20 text-positive", partial: "bg-attention-surface/20 text-attention" };
 
 function CustomerRow({ cust }: { cust: CustomerBalance }) {
   const [expanded, setExpanded] = useState(true);
@@ -39,8 +39,8 @@ function CustomerRow({ cust }: { cust: CustomerBalance }) {
         </div>
         <div className="flex items-center gap-6 text-sm font-mono">
           <span className="text-muted-foreground">Invoiced: <span className="text-foreground">{fmtNum(cust.totalInvoiced)}</span></span>
-          <span className="text-muted-foreground">Paid: <span className="text-emerald-400">{fmtNum(cust.totalPaid)}</span></span>
-          <span className="text-muted-foreground">Balance: <span className={cust.balance > 0 ? "text-red-400 font-bold" : "text-emerald-400"}>{fmtNum(cust.balance)}</span></span>
+          <span className="text-muted-foreground">Paid: <span className="text-positive">{fmtNum(cust.totalPaid)}</span></span>
+          <span className="text-muted-foreground">Balance: <span className={cust.balance > 0 ? "text-negative font-bold" : "text-positive"}>{fmtNum(cust.balance)}</span></span>
         </div>
       </button>
       {expanded && (
@@ -59,10 +59,10 @@ function CustomerRow({ cust }: { cust: CustomerBalance }) {
                 <td className="py-2 px-4 text-xs text-muted-foreground"><DualDate date={inv.date} /></td>
                 <td className="py-2 px-4 text-xs text-muted-foreground"><DualDate date={inv.dueDate} /></td>
                 <td className="py-2 px-4 font-mono text-xs">{fmtNum(inv.subtotal)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-amber-400">{fmtNum(inv.vatAmount)}</td>
+                <td className="py-2 px-4 font-mono text-xs text-attention">{fmtNum(inv.vatAmount)}</td>
                 <td className="py-2 px-4 font-mono text-xs font-semibold">{fmtNum(inv.total)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-emerald-400">{fmtNum(inv.paidAmount)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-red-400">{fmtNum(inv.outstanding)}</td>
+                <td className="py-2 px-4 font-mono text-xs text-positive">{fmtNum(inv.paidAmount)}</td>
+                <td className="py-2 px-4 font-mono text-xs text-negative">{fmtNum(inv.outstanding)}</td>
                 <td className="py-2 px-4"><Badge className={`text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{inv.status}</Badge></td>
               </tr>
             ))}
@@ -127,7 +127,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Customer Ledger Report <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">New</span></h1>
+          <h1 className="text-2xl font-bold text-foreground">Customer Ledger Report <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">New</span></h1>
           <p className="text-muted-foreground text-sm mt-1">All invoices and balances per customer</p>
         </div>
         <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
@@ -162,8 +162,8 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
         <div className="grid grid-cols-3 gap-4">
           {[
             ["Customers", data.customers.length, "text-primary"],
-            ["Total AR Balance", fmtNum(data.totalBalance), "text-red-400"],
-            ["Zero Balance", data.customers.filter(c => c.balance <= 0).length, "text-emerald-400"],
+            ["Total AR Balance", fmtNum(data.totalBalance), "text-negative"],
+            ["Zero Balance", data.customers.filter(c => c.balance <= 0).length, "text-positive"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>

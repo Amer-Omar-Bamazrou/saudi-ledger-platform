@@ -56,9 +56,9 @@ export default function ChangePassword() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             {success && (
-              <Alert className="border-emerald-500/30 bg-emerald-500/10">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <AlertDescription className="text-emerald-400">{t("Password changed successfully.", "تم تغيير كلمة المرور بنجاح.")}</AlertDescription>
+              <Alert className="border-positive-surface/30 bg-positive-surface/10">
+                <CheckCircle2 className="w-4 h-4 text-positive" />
+                <AlertDescription className="text-positive">{t("Password changed successfully.", "تم تغيير كلمة المرور بنجاح.")}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-1.5">

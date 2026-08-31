@@ -147,8 +147,8 @@ const navGroupsData: { label: string; labelAr: string; items: NavItem[] }[] = [
 const DEMO_HIDDEN = new Set(["/zatca"]);
 
 const ROLE_COLOR: Record<string, string> = {
-  admin:      "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  accountant: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  admin:      "bg-attention-surface/20 text-attention border-attention-surface/30",
+  accountant: "bg-info-surface/20 text-info border-info-surface/30",
   viewer:     "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
 };
 
@@ -300,7 +300,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-negative transition-colors"
                   title={t("Sign out", "تسجيل الخروج")}
                 >
                   <LogOut className="w-3 h-3" />

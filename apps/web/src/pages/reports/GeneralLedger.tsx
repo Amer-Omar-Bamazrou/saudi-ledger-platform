@@ -90,8 +90,8 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
           {[
             [t("Account", "الحساب"), n(data.accountName, data.accountNameAr), "text-primary"],
             [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), "text-primary"],
-            [t("Total Debits", "إجمالي المدين"), fmtNum(data.totalDebit), "text-blue-400"],
-            [t("Total Credits", "إجمالي الدائن"), fmtNum(data.totalCredit), "text-emerald-400"],
+            [t("Total Debits", "إجمالي المدين"), fmtNum(data.totalDebit), "text-info"],
+            [t("Total Credits", "إجمالي الدائن"), fmtNum(data.totalCredit), "text-positive"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -143,18 +143,18 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
                     <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
                     <td className="py-2 pe-4 text-xs">{m.description}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
-                    <td className={cn("py-2 font-mono text-xs font-semibold", m.balance < 0 ? "text-red-400" : "")}>{fmtNum(m.balance)}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-info">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-positive">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
+                    <td className={cn("py-2 font-mono text-xs font-semibold", m.balance < 0 ? "text-negative" : "")}>{fmtNum(m.balance)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-border font-bold">
                   <td colSpan={4} className="pt-3 text-xs font-semibold text-muted-foreground">{t("Closing Balance", "الرصيد الختامي")}</td>
-                  <td className="pt-3 font-mono text-xs text-blue-400">{fmtNum(data.totalDebit)}</td>
-                  <td className="pt-3 font-mono text-xs text-emerald-400">{fmtNum(data.totalCredit)}</td>
-                  <td className={cn("pt-3 font-mono text-sm font-bold", data.closingBalance < 0 ? "text-red-400" : "")}>{fmtNum(data.closingBalance)}</td>
+                  <td className="pt-3 font-mono text-xs text-info">{fmtNum(data.totalDebit)}</td>
+                  <td className="pt-3 font-mono text-xs text-positive">{fmtNum(data.totalCredit)}</td>
+                  <td className={cn("pt-3 font-mono text-sm font-bold", data.closingBalance < 0 ? "text-negative" : "")}>{fmtNum(data.closingBalance)}</td>
                 </tr>
               </tfoot>
             </table>

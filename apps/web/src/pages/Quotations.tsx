@@ -65,8 +65,8 @@ interface Customer { id: number; name: string }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  submitted: "bg-amber-500/20 text-amber-400",
-  approved: "bg-blue-500/20 text-blue-400",
+  submitted: "bg-attention-surface/20 text-attention",
+  approved: "bg-info-surface/20 text-info",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {

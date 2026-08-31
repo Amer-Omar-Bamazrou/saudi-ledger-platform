@@ -86,8 +86,8 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
         <div className="grid grid-cols-4 gap-4">
           {[
             ["Account", data.account.name, "text-primary"],
-            ["Opening Balance", fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-blue-400" : "text-red-400"],
-            ["Closing Balance", fmtNum(data.closingBalance), data.closingBalance >= 0 ? "text-emerald-400" : "text-red-400"],
+            ["Opening Balance", fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],
+            ["Closing Balance", fmtNum(data.closingBalance), data.closingBalance >= 0 ? "text-positive" : "text-negative"],
             ["Movements", data.movements.length, "text-primary"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
@@ -134,16 +134,16 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
                     <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
                     <td className="py-2 pe-4 text-xs">{m.description}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-blue-400">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-emerald-400">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-info">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
+                    <td className="py-2 pe-4 font-mono text-xs text-positive">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
                     <td className="py-2 font-mono text-xs font-semibold">{fmtNum(m.balance)}</td>
                   </tr>
                 ))}
                 {/* Closing row */}
                 <tr className="border-t-2 border-border font-bold">
                   <td colSpan={4} className="pt-3 text-xs font-semibold">Closing Balance</td>
-                  <td className="pt-3 font-mono text-xs text-blue-400">{fmtNum(data.totalDebit)}</td>
-                  <td className="pt-3 font-mono text-xs text-emerald-400">{fmtNum(data.totalCredit)}</td>
+                  <td className="pt-3 font-mono text-xs text-info">{fmtNum(data.totalDebit)}</td>
+                  <td className="pt-3 font-mono text-xs text-positive">{fmtNum(data.totalCredit)}</td>
                   <td className="pt-3 font-mono text-sm font-bold">{fmtNum(data.closingBalance)}</td>
                 </tr>
               </tbody>

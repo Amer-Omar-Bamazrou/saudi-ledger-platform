@@ -96,7 +96,7 @@ const CATEGORIES: ReportCategory[] = [
 function NewBadge() {
   const { t } = useLanguage();
   return (
-    <span className="ms-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20 leading-none">
+    <span className="ms-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-attention-surface/15 text-attention border border-attention-surface/20 leading-none">
       {t("New", "جديد")}
     </span>
   );
@@ -121,8 +121,8 @@ function CategoryCard({ cat }: { cat: ReportCategory }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-blue-400" />
+        <div className="w-9 h-9 rounded-full bg-info-surface/10 flex items-center justify-center shrink-0">
+          <Icon className="w-4 h-4 text-info" />
         </div>
         <h2 className="font-bold text-foreground text-sm tracking-tight leading-tight">{t(cat.label, cat.labelAr)}</h2>
       </div>

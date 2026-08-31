@@ -31,8 +31,8 @@ interface PayrollRow {
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  processed: "bg-blue-500/20 text-blue-400",
-  paid: "bg-emerald-500/20 text-emerald-400",
+  processed: "bg-info-surface/20 text-info",
+  paid: "bg-positive-surface/20 text-positive",
 };
 
 export default function PayrollReport() {
@@ -91,8 +91,8 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
       <div className="grid grid-cols-3 gap-4">
         {[
           [t("Total Gross", "إجمالي الرواتب"), fmtNum(totalGross), "text-primary"],
-          [t("GOSI (Employer)", "التأمينات (صاحب العمل)"), fmtNum(totalGosiEmployer), "text-amber-400"],
-          [t("Total Net Paid", "صافي المدفوع"), fmtNum(totalNet), "text-red-400"],
+          [t("GOSI (Employer)", "التأمينات (صاحب العمل)"), fmtNum(totalGosiEmployer), "text-attention"],
+          [t("Total Net Paid", "صافي المدفوع"), fmtNum(totalNet), "text-negative"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -130,10 +130,10 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-3 font-medium">{r.period}</td>
                     <td className="py-2 pe-3 font-mono">{r.employeeCount}</td>
                     <td className="py-2 pe-3 font-mono">{fmtNum(r.grossSalary)}</td>
-                    <td className="py-2 pe-3 font-mono text-amber-400">{fmtNum(r.totalGosiEmployer)}</td>
-                    <td className="py-2 pe-3 font-mono text-amber-400">{fmtNum(r.totalGosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-emerald-400">{fmtNum(r.totalAllowances)}</td>
-                    <td className="py-2 pe-3 font-mono text-red-400">{fmtNum(r.totalDeductions)}</td>
+                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployer)}</td>
+                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployee)}</td>
+                    <td className="py-2 pe-3 font-mono text-positive">{fmtNum(r.totalAllowances)}</td>
+                    <td className="py-2 pe-3 font-mono text-negative">{fmtNum(r.totalDeductions)}</td>
                     <td className="py-2 pe-3 font-mono font-semibold">{fmtNum(r.totalNetPay)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</Badge></td>
                   </tr>

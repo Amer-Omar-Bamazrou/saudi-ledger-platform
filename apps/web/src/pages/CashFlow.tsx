@@ -49,7 +49,7 @@ function CFBlock({ title, data, color, icon, prior }: { title: string; data: CFS
             ) : data.items.slice(0, 10).map((item, i) => (
               <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
                 <td className="py-1.5 pe-2 text-foreground">{item.name}</td>
-                <td className={`py-1.5 text-end font-mono ${item.amount >= 0 ? "text-emerald-400" : "text-red-400"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
+                <td className={`py-1.5 text-end font-mono ${item.amount >= 0 ? "text-positive" : "text-negative"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
               </tr>
             ))}
             {data.items.length > 10 && <tr><td colSpan={2} className="py-1 text-center text-muted-foreground text-xs">+{data.items.length - 10} {t("more items", "بنود إضافية")}</td></tr>}
@@ -136,15 +136,15 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {data && (
-        <div className={`rounded-lg border px-6 py-4 flex items-center justify-between ${data.netChange >= 0 ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10"}`}>
+        <div className={`rounded-lg border px-6 py-4 flex items-center justify-between ${data.netChange >= 0 ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
           <div>
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{t("Net Change in Cash", "صافي التغير في النقدية")}</div>
-            <div className={`text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
+            <div className={`text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-positive" : "text-negative"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
           </div>
           <div className="text-end text-xs text-muted-foreground space-y-1">
-            <div>{t("Operating", "التشغيلية")}: <span className={data.operating.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.operating.total)}</span></div>
-            <div>{t("Investing", "الاستثمارية")}: <span className={data.investing.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.investing.total)}</span></div>
-            <div>{t("Financing", "التمويلية")}: <span className={data.financing.total >= 0 ? "text-emerald-400 font-mono" : "text-red-400 font-mono"}>{fmtNum(data.financing.total)}</span></div>
+            <div>{t("Operating", "التشغيلية")}: <span className={data.operating.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.operating.total)}</span></div>
+            <div>{t("Investing", "الاستثمارية")}: <span className={data.investing.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.investing.total)}</span></div>
+            <div>{t("Financing", "التمويلية")}: <span className={data.financing.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.financing.total)}</span></div>
             {comparing && priorData && (
               <div className="pt-1 border-t border-border/50 font-mono">
                 {t("prior net", "الصافي السابق")} {fmtNum(priorData.netChange)} · Δ {data.netChange - priorData.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange - priorData.netChange)}
@@ -156,14 +156,14 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
         <div className="grid grid-cols-3 gap-4">
-          <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} color={data.operating.total >= 0 ? "text-emerald-400" : "text-red-400"} icon={<ArrowUpRight className="w-4 h-4 text-emerald-400" />} prior={comparing ? priorData!.operating.total : undefined} />
-          <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} color={data.investing.total >= 0 ? "text-emerald-400" : "text-amber-400"} icon={<Minus className="w-4 h-4 text-amber-400" />} prior={comparing ? priorData!.investing.total : undefined} />
-          <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} color={data.financing.total >= 0 ? "text-emerald-400" : "text-blue-400"} icon={<ArrowDownRight className="w-4 h-4 text-blue-400" />} prior={comparing ? priorData!.financing.total : undefined} />
+          <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} color={data.operating.total >= 0 ? "text-positive" : "text-negative"} icon={<ArrowUpRight className="w-4 h-4 text-positive" />} prior={comparing ? priorData!.operating.total : undefined} />
+          <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} color={data.investing.total >= 0 ? "text-positive" : "text-attention"} icon={<Minus className="w-4 h-4 text-attention" />} prior={comparing ? priorData!.investing.total : undefined} />
+          <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} color={data.financing.total >= 0 ? "text-positive" : "text-info"} icon={<ArrowDownRight className="w-4 h-4 text-info" />} prior={comparing ? priorData!.financing.total : undefined} />
           {/* Transfers between own accounts + invoice/bill settlements: the
               bank moved, no P&L activity occurred. Previously these were
               mis-bucketed under Operating as "Uncategorized". */}
           {data.internal && data.internal.items.length > 0 && (
-            <CFBlock title={t("Internal Movements", "التحويلات الداخلية")} data={data.internal} color={data.internal.total >= 0 ? "text-emerald-400" : "text-muted-foreground"} icon={<Minus className="w-4 h-4 text-muted-foreground" />} prior={comparing ? priorData!.internal?.total ?? 0 : undefined} />
+            <CFBlock title={t("Internal Movements", "التحويلات الداخلية")} data={data.internal} color={data.internal.total >= 0 ? "text-positive" : "text-muted-foreground"} icon={<Minus className="w-4 h-4 text-muted-foreground" />} prior={comparing ? priorData!.internal?.total ?? 0 : undefined} />
           )}
         </div>
       )}

@@ -195,10 +195,10 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
       {data && (
         <div className="grid grid-cols-4 gap-4">
           {[
-            [t("Total Revenue", "إجمالي الإيرادات"), fmtNum(data.totalRevenue), "text-emerald-400"],
-            [t("Total Expenses", "إجمالي المصروفات"), fmtNum(data.totalExpenses), "text-red-400"],
-            [t("Net Income", "صافي الدخل"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-primary" : "text-red-400"],
-            [t("Net Margin", "هامش الربح الصافي"), `${data.netIncomeMargin.toFixed(1)}%`, data.netIncomeMargin >= 0 ? "text-emerald-400" : "text-red-400"],
+            [t("Total Revenue", "إجمالي الإيرادات"), fmtNum(data.totalRevenue), "text-positive"],
+            [t("Total Expenses", "إجمالي المصروفات"), fmtNum(data.totalExpenses), "text-negative"],
+            [t("Net Income", "صافي الدخل"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-primary" : "text-negative"],
+            [t("Net Margin", "هامش الربح الصافي"), `${data.netIncomeMargin.toFixed(1)}%`, data.netIncomeMargin >= 0 ? "text-positive" : "text-negative"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -210,23 +210,23 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
         <div className="grid grid-cols-2 gap-4">
-          {section("Revenue", "الإيرادات", data.revenue, priorData?.revenue, data.totalRevenue, priorData?.totalRevenue, "text-emerald-400", "border-emerald-500/30", <TrendingUp className="w-4 h-4 text-emerald-400" />, "Total Revenue", "إجمالي الإيرادات")}
-          {section("Expenses", "المصروفات", data.expenses, priorData?.expenses, data.totalExpenses, priorData?.totalExpenses, "text-red-400", "border-red-500/30", <TrendingDown className="w-4 h-4 text-red-400" />, "Total Expenses", "إجمالي المصروفات")}
+          {section("Revenue", "الإيرادات", data.revenue, priorData?.revenue, data.totalRevenue, priorData?.totalRevenue, "text-positive", "border-positive-surface/30", <TrendingUp className="w-4 h-4 text-positive" />, "Total Revenue", "إجمالي الإيرادات")}
+          {section("Expenses", "المصروفات", data.expenses, priorData?.expenses, data.totalExpenses, priorData?.totalExpenses, "text-negative", "border-negative-surface/30", <TrendingDown className="w-4 h-4 text-negative" />, "Total Expenses", "إجمالي المصروفات")}
 
           {/* Net Income summary */}
           <Card className="col-span-2 border-border bg-card">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between py-3 border-b border-border">
                 <span className="text-muted-foreground text-sm">{t("Total Revenue", "إجمالي الإيرادات")}</span>
-                <span className="font-mono font-semibold text-emerald-400">{fmtNum(data.totalRevenue)}</span>
+                <span className="font-mono font-semibold text-positive">{fmtNum(data.totalRevenue)}</span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-border">
                 <span className="text-muted-foreground text-sm">{t("Total Expenses", "إجمالي المصروفات")}</span>
-                <span className="font-mono font-semibold text-red-400">({fmtNum(data.totalExpenses)})</span>
+                <span className="font-mono font-semibold text-negative">({fmtNum(data.totalExpenses)})</span>
               </div>
-              <div className={`flex items-center justify-between py-4 rounded-lg px-3 mt-2 ${data.netIncome >= 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-red-500/10 border border-red-500/20"}`}>
-                <span className={`font-bold uppercase tracking-wide ${data.netIncome >= 0 ? "text-emerald-400" : "text-red-400"}`}>{data.netIncome >= 0 ? t("Net Income", "صافي الدخل") : t("Net Loss", "صافي الخسارة")}</span>
-                <span className={`font-mono font-bold text-xl ${data.netIncome >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmtNum(Math.abs(data.netIncome))}</span>
+              <div className={`flex items-center justify-between py-4 rounded-lg px-3 mt-2 ${data.netIncome >= 0 ? "bg-positive-surface/10 border border-positive-surface/20" : "bg-negative-surface/10 border border-negative-surface/20"}`}>
+                <span className={`font-bold uppercase tracking-wide ${data.netIncome >= 0 ? "text-positive" : "text-negative"}`}>{data.netIncome >= 0 ? t("Net Income", "صافي الدخل") : t("Net Loss", "صافي الخسارة")}</span>
+                <span className={`font-mono font-bold text-xl ${data.netIncome >= 0 ? "text-positive" : "text-negative"}`}>{fmtNum(Math.abs(data.netIncome))}</span>
               </div>
               {comparing && priorData && (
                 <div className="flex items-center justify-between py-2 px-3 text-xs text-muted-foreground">

@@ -40,9 +40,9 @@ interface Vendor { id: number; name: string; }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  received: "bg-blue-500/20 text-blue-400",
-  approved: "bg-amber-500/20 text-amber-400",
-  paid: "bg-emerald-500/20 text-emerald-400",
+  received: "bg-info-surface/20 text-info",
+  approved: "bg-attention-surface/20 text-attention",
+  paid: "bg-positive-surface/20 text-positive",
 
 };
 
@@ -105,7 +105,7 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
         </tbody>
       </table>
       {subtotal > 0 && total > 0 && !reconciled && (
-        <div className="px-3 py-1.5 text-red-400 bg-red-500/5 border-t border-red-500/20 text-xs">
+        <div className="px-3 py-1.5 text-negative bg-negative-surface/5 border-t border-negative-surface/20 text-xs">
           ⚠ {t("Totals don't reconcile — server will reject this unless corrected.", "الإجماليات غير متطابقة — سيرفض الخادم هذا القيد ما لم يتم تصحيحه.")}
         </div>
       )}
@@ -501,9 +501,9 @@ export default function Bills() {
         {[
           // Server figures, over the whole filtered set — not this page.
           [t("Total Bills", "إجمالي الفواتير"), billPageInfo?.total ?? "—", "text-primary"],
-          [t("Outstanding AP", "الذمم الدائنة المستحقة"), billTotals ? fmtNum(billTotals.outstanding) : "—", "text-red-400"],
-          [t("Paid", "مدفوع"), billTotals ? fmtNum(billTotals.paid) : "—", "text-emerald-400"],
-          [t("Overdue", "متأخر"), billTotals?.overdue ?? "—", "text-red-400"],
+          [t("Outstanding AP", "الذمم الدائنة المستحقة"), billTotals ? fmtNum(billTotals.outstanding) : "—", "text-negative"],
+          [t("Paid", "مدفوع"), billTotals ? fmtNum(billTotals.paid) : "—", "text-positive"],
+          [t("Overdue", "متأخر"), billTotals?.overdue ?? "—", "text-negative"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -576,19 +576,19 @@ export default function Bills() {
                         </Button>
                       )}
                       {b.status === "draft" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400"
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-negative"
                           onClick={() => setConfirmDeleteBill(b)}>
                           {t("Delete", "حذف")}
                         </Button>
                       )}
                       {b.status === "draft" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-400"
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-info"
                           onClick={() => { setPostReviewOpen(b); setPostDebitAccount(DEFAULT_EXPENSE_ACCOUNT); }}>
                           {t("Post", "ترحيل")}
                         </Button>
                       )}
                       {b.status !== "paid" && b.status !== "draft" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400"
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive"
                           onClick={() => { setPayOpen(b.id); setPayAmount(String(b.total - b.paidAmount)); }}>
                           {t("Pay", "دفع")}
                         </Button>
