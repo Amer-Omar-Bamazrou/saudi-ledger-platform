@@ -149,6 +149,43 @@ test.describe("B-8 — the RTL direction attribute", () => {
     expect((await direction(page)).dir).toBe("ltr");
   });
 
+  test("🔴 dir is RTL on the very first paint, before React runs", async ({ page }) => {
+    /**
+     * The pre-paint script in `index.html`, asserted at the only moment that
+     * proves anything: before the bundle has executed.
+     *
+     * 🔴 `waitUntil: "commit"` is load-bearing. Any later wait — `load`,
+     * `domcontentloaded`, `networkidle` — gives React time to mount, and the
+     * provider's effect then sets `dir` correctly, so the test would pass
+     * whether or not the inline script existed. That is the same shape as
+     * clicking-versus-goto in the test above: **a check taken at the wrong
+     * moment reproduces the assertion and not its meaning**, and reports the
+     * identical green either way.
+     */
+    await page.goto("/", { waitUntil: "networkidle" });
+    await switchToArabic(page);
+
+    // Fresh document. `commit` resolves as soon as the navigation is committed
+    // and the HTML starts arriving — head scripts have run, the module bundle
+    // has not.
+    await page.goto("/invoices", { waitUntil: "commit" });
+    const early = await page.evaluate(() => ({
+      dir: document.documentElement.getAttribute("dir"),
+      hasRoot: !!document.getElementById("root")?.childElementCount,
+    }));
+
+    expect(
+      early.dir,
+      "🔴 the document painted LTR for an Arabic user. The pre-paint script in " +
+        "index.html is missing or broken — direction cannot be fixed from inside " +
+        "React, because by the time any component runs the first paint has happened.",
+    ).toBe("rtl");
+    expect(
+      early.hasRoot,
+      "React had already rendered, so this assertion proved nothing about first paint",
+    ).toBe(false);
+  });
+
   test("🔴 the check is not vacuous — dir is a real attribute with a real writer", async ({ page }) => {
     /**
      * The anti-vacuity guard. Every assertion above compares against a string;

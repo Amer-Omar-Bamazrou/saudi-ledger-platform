@@ -4352,3 +4352,109 @@ left-to-right until the provider's effect runs, which is a real RTL defect
 against a launch requirement. The fix is an inline script reading `ksa_lang`
 before first paint, and that is a decision about render-blocking scripts, so it
 is flagged rather than taken.
+
+---
+
+## 2026-08-31 — RTL BEFORE FIRST PAINT, and the decision recorded so it survives
+
+`index.html` shipped `lang="en"` and no `dir`. Direction was applied by
+`LanguageContext`'s mount effect — after the bundle is fetched, parsed and
+executed — so **every load painted left-to-right and flipped once React woke
+up.** For an Arabic user that is a visible flash on every page load, against a
+stated launch requirement, and it cannot be fixed from inside React: by the time
+any component runs, the first paint has happened.
+
+**Owner decision, 2026-08-31: take the render-blocking script.** Read one
+localStorage key, set `dir` and `lang`, nothing else. Blocking is the entire
+point — a script that does not block cannot beat the paint it exists to correct
+— and the cost is one synchronous read of one key.
+
+🔴 **Why it is recorded rather than merely written.** A tiny inline script in
+`index.html` is exactly the thing a future contributor deletes as an oddity
+during a cleanup: it looks like a stray, it duplicates something React appears
+to do already, and removing it breaks nothing any test would notice — the app
+still ends up in the right direction a few hundred milliseconds later. So it
+carries its own comment block AND a test that fails on its removal.
+
+**The test only works because of when it looks.** `waitUntil: "commit"` — the
+moment the HTML starts arriving, after head scripts and before the module
+bundle. Any later wait (`load`, `domcontentloaded`, `networkidle`) gives React
+time to mount, the provider's effect sets `dir` correctly, and the test passes
+whether or not the inline script exists. Same shape as clicking-versus-`goto`
+in the B-8 tests one file over: **a check taken at the wrong moment reproduces
+the assertion and not its meaning, and reports the identical green either way.**
+Verified by disabling the script and watching the test go red.
+
+---
+
+## 2026-08-31 — 🔴 HOW MUCH OF THE PRODUCT DOES THE FIXTURE ACTUALLY REACH? MEASURED.
+
+Asked as a direct question by the owner after the unkeyed-fragment sweep, whose
+second and larger half was that **two pages passed the crawl because the seeded
+org has no rows of those types** — the map never executed, so React was never
+asked to key anything.
+
+### The measurement
+
+Three numbers, all taken rather than estimated.
+
+**1. Tables.** Of the tenant-scoped business tables, the browser fixture
+populates **11** and leaves **40** empty:
+
+    populated  ai_usage, audit_logs, bills, categories, companies, customers,
+               finding_runs, findings, invoices, organization_memberships,
+               vendors
+    empty      bank_accounts, bill_items, bill_payments, branches, budgets,
+               captured_documents, departments, depreciation_entries,
+               document_number_counters, einvoice_archive, einvoice_documents,
+               employees, feature_flags, finding_schedules, fixed_assets,
+               grounded_answers, invoice_items, invoice_number_counters,
+               invoice_payments, journal_entries, journal_entry_lines,
+               organization_invitations, payroll_items, payroll_runs,
+               period_locks, products, purchase_order_conversion_items,
+               purchase_order_conversions, purchase_order_items,
+               purchase_orders, quotation_conversion_items,
+               quotation_conversions, quotation_items, quotations,
+               recurring_rules, recurring_runs, security_audit_logs,
+               transactions, verification_documents, verification_reviews
+
+🔴 **`invoice_items` and `bill_items` are among the empty ones.** The four
+seeded invoices have NO LINES, so every render path that maps over a document's
+lines is unexecuted — on the document type that carries the ZATCA chain.
+
+**2. Render sites.** 123 data-driven `.map(` render sites across 58 files in
+`apps/web/src` (excluding the vendored `components/ui`).
+
+**3. Reach.** Visiting every crawled app route and counting rendered rows:
+**17 of 54 render at least one row; 37 render none.** Those 37 satisfy the
+crawl's "the body has more than 20 characters" assertion with an empty-state
+message and a heading. They are covered by the smoke crawl and have none of
+their row-rendering code executed.
+
+### 🔴 The honest limit, which is the part that matters
+
+**This bounds the problem; it does not enumerate it, and it cannot.** A vacuous
+pass is indistinguishable from a real pass in every report the suite produces —
+that is the defining property of the defect, not an accident of our tooling. No
+measurement taken *from inside* the suite can list the branches that were never
+entered, because the suite has no way to distinguish "this assertion held" from
+"this assertion was never reached". Coverage instrumentation would narrow it
+further and still not close it: a line can execute with data too uniform to
+expose a collision, which is the other half of the same disease.
+
+So the answer to *what else is only reached under data we never seed* is:
+**most of the product's list-rendering code, and we can bound that but not
+enumerate it.** The measurable proxy is the reach number above.
+
+### What it argues for
+
+The queued **scale-and-collision fixture** — larger than every cap and
+deliberately degenerate — with one addition this measurement makes obvious:
+it must also be *broad*. The existing scale work targets volume and collision
+on the entities we already seed. What this shows is a third axis: **40 tables
+with nothing in them at all.** Volume on four entities does not enter the render
+paths of the thirty-seven routes that currently show an empty state.
+
+Re-deriving these numbers takes one probe run against the e2e org; the method is
+recorded here rather than left as a standing always-passing test, because a test
+that cannot fail is noise in a suite whose whole value is its verdict.
