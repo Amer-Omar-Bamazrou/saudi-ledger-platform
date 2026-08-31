@@ -1,0 +1,328 @@
+<title>Saudi Ledger Platform HLD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#F7F8F7; --surface:#FFFFFF; --ink:#16201C; --muted:#5E6B65;
+    --accent:#1B5E4A; --accent-soft:#E4EEE9; --warn:#9C3B2E; --warn-soft:#F6E9E6;
+    --rule:#DCE3E0; --rule-soft:#EBEFED;
+    --display:"Newsreader",Georgia,"Times New Roman",serif;
+    --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#101614; --surface:#161E1B; --ink:#E7EDEA; --muted:#94A39C;
+      --accent:#5FBF9E; --accent-soft:#172A23; --warn:#E5988A; --warn-soft:#2A1C19;
+      --rule:#25302C; --rule-soft:#1C2522;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#101614; --surface:#161E1B; --ink:#E7EDEA; --muted:#94A39C;
+    --accent:#5FBF9E; --accent-soft:#172A23; --warn:#E5988A; --warn-soft:#2A1C19;
+    --rule:#25302C; --rule-soft:#1C2522;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);
+       font-size:16.5px;line-height:1.68;-webkit-font-smoothing:antialiased}
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr);
+        max-width:1180px;margin:0 auto;padding:0 24px 96px}
+  @media(min-width:1040px){ .wrap{grid-template-columns:210px minmax(0,var(--measure));
+        gap:64px;justify-content:center} }
+
+  header.mast{grid-column:1/-1;padding:64px 0 28px;border-bottom:1px solid var(--rule);margin-bottom:44px}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
+           text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h1{font-family:var(--display);font-weight:600;font-size:clamp(2.1rem,4.6vw,3.1rem);
+     line-height:1.1;margin:0;text-wrap:balance;letter-spacing:-.012em}
+  .sub{color:var(--muted);max-width:60ch;margin:16px 0 0;font-size:16px}
+  .stamp{display:inline-flex;align-items:center;gap:8px;margin-top:22px;padding:7px 13px;
+         border:1px solid var(--rule);border-radius:2px;background:var(--surface);
+         font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+  .stamp b{color:var(--ink);font-weight:500}
+
+  nav.rail{display:none}
+  @media(min-width:1040px){
+    nav.rail{display:block;position:sticky;top:28px;align-self:start;
+             max-height:calc(100vh - 56px);overflow:auto;padding-bottom:20px}
+    nav.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+    nav.rail a{display:grid;grid-template-columns:22px 1fr;gap:6px;padding:5px 8px;
+               border-radius:3px;text-decoration:none;color:var(--muted);font-size:13.5px;line-height:1.35}
+    nav.rail a:hover{background:var(--rule-soft);color:var(--ink)}
+    nav.rail a .n{font-family:var(--mono);font-size:11px;color:var(--accent);padding-top:2px}
+  }
+
+  main{min-width:0}
+  h2{font-family:var(--display);font-weight:600;font-size:1.72rem;line-height:1.2;
+     margin:64px 0 18px;padding-top:14px;border-top:1px solid var(--rule);
+     display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline;text-wrap:balance}
+  h2 .num{font-family:var(--mono);font-size:.72em;color:var(--accent);font-weight:400}
+  h2 .num:empty{display:none}
+  h3{font-family:var(--body);font-weight:600;font-size:1.02rem;letter-spacing:.005em;
+     margin:36px 0 10px;color:var(--ink)}
+  p{margin:0 0 15px;max-width:var(--measure)}
+  ul,ol{margin:0 0 16px;padding-left:22px;max-width:var(--measure)}
+  li{margin:0 0 7px}
+  strong{font-weight:600}
+  a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;
+    text-decoration-thickness:1px}
+  hr{border:0;height:1px;background:var(--rule-soft);margin:38px 0}
+  code{font-family:var(--mono);font-size:.855em;background:var(--rule-soft);
+       padding:1.5px 5px;border-radius:3px;word-break:break-word}
+  .ref{font-family:var(--mono);font-size:.855em;color:var(--muted)}
+  blockquote{margin:22px 0;padding:16px 20px;background:var(--surface);
+             border:1px solid var(--rule);border-left:2px solid var(--accent);border-radius:2px}
+  blockquote p{margin:0 0 8px}
+  blockquote p:last-child{margin:0}
+
+  .flag{display:inline-block;width:.62em;height:.62em;border-radius:50%;
+        background:var(--warn);margin-right:.42em;vertical-align:.04em}
+  p.caveat{background:var(--warn-soft);border-left:2px solid var(--warn);
+           padding:13px 17px;border-radius:2px;max-width:var(--measure)}
+
+  .scroll{overflow-x:auto;margin:0 0 22px;border:1px solid var(--rule);
+          border-radius:3px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:14.5px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);
+        vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+     color:var(--muted);font-weight:500;background:var(--rule-soft);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  pre.code{font-family:var(--mono);font-size:13px;line-height:1.6;margin:0;
+           padding:16px 18px;white-space:pre;color:var(--ink)}
+  pre.mermaid{background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+              padding:20px;margin:0 0 24px;overflow-x:auto;text-align:center}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+
+  footer.end{grid-column:1/-1;margin-top:72px;padding-top:20px;border-top:1px solid var(--rule);
+             color:var(--muted);font-size:13px;font-family:var(--mono)}
+
+  @media print{
+    :root{--paper:#fff;--surface:#fff;--ink:#111;--muted:#444;--rule:#bbb;--rule-soft:#e9e9e9;
+          --warn-soft:#f3f3f3;--accent:#1B5E4A}
+    nav.rail{display:none}
+    .wrap{grid-template-columns:1fr;max-width:none;padding:0}
+    h2{break-before:page;break-after:avoid}
+    h2:first-of-type{break-before:auto}
+    h3,table,pre,blockquote{break-inside:avoid}
+    p.caveat{border-left:2px solid #444}
+    a{color:inherit}
+  }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">High-Level Design</p>
+    <h1>Saudi Ledger Platform</h1>
+    <p class="sub">An AI-assisted accounting and finance platform for Saudi Arabia — what it is, how it is
+    built, what is proven, and what is not. Written for someone who has never seen it.</p>
+    <span class="stamp">Describes the system as at <b>2026-08-31</b> · current-state authority: <b>CLAUDE.md §2</b></span>
+  </header>
+  <nav class="rail" aria-label="Sections"><ol><li><a href="#s1"><span class="n">1</span><span>What the product is</span></a></li><li><a href="#s2"><span class="n">2</span><span>Architecture</span></a></li><li><a href="#s3"><span class="n">3</span><span>Multi-tenancy and the security model</span></a></li><li><a href="#s4"><span class="n">4</span><span>The data model, conceptually</span></a></li><li><a href="#s5"><span class="n">5</span><span>ZATCA e-invoicing</span></a></li><li><a href="#s6"><span class="n">6</span><span>The AI layer</span></a></li><li><a href="#s7"><span class="n">7</span><span>The guard set</span></a></li><li><a href="#s8"><span class="n">8</span><span>External dependencies and provider seams</span></a></li><li><a href="#s9"><span class="n">9</span><span>Deployment posture — honestly</span></a></li><li><a href="#s10"><span class="n">10</span><span>Where to go next</span></a></li><li><a href="#s11"><span class="n">—</span><span>Appendix — technology summary</span></a></li></ol></nav>
+  <main><p><strong>Status (2026-08-31): describes the system as it exists on this date.</strong></p>
+<p><strong>Current state authority: <span class="ref"><code>CLAUDE.md</code> §2</span>.</strong> This document describes <em>shape</em> — what the parts are and why they are arranged this way. It deliberately does not restate progress, because a second writer for "now" drifts from the first. Where something is planned rather than built, it says so in those words.</p>
+<p><strong>No figures that age.</strong> Test counts, entry counts and coverage percentages are not quoted here; they are true for a week and wrong for a month. Where a number matters, this points at the thing that produces it.</p>
+<blockquote><p><strong>Who this is for.</strong> Someone who has never seen the system: a joining</p><p>developer, technical diligence, a prospective partner. It assumes no context</p><p>and hides nothing material — including the parts that are unfinished, unproven</p><p>or blocked, which are marked <span class="flag" aria-label="caveat">●</span>.</p></blockquote>
+<hr />
+<h2 id="s1"><span class="num">1</span>What the product is</h2>
+<p>An <strong>AI-assisted accounting and finance platform for Saudi Arabia</strong>, built for small and medium businesses and their accountants, with the GCC as the later market.</p>
+<p>It began as a single-tenant bookkeeping application and was refactored into a multi-tenant SaaS platform. The accounting core is real: invoices, bills, journal entries, double-entry posting to a general ledger, period locks, VAT, and Zakat scope all work today, and are the most heavily tested part of the codebase.</p>
+<p>Three things distinguish it from generic accounting software:</p>
+<ol><li><strong>ZATCA e-invoicing is native</strong>, not an add-on. Saudi Arabia mandates structured, cryptographically signed e-invoices; the document pipeline, signing, QR generation and submission transport are built into the invoice approval path rather than bolted on afterwards (§5).</li><li><strong>Arabic is a first-class language</strong>, not a translation layer. The UI is bilingual and right-to-left aware; documents carry Arabic fields.</li><li><strong>AI proposes, never posts.</strong> Categorisation, receipt capture, findings and grounded answers are all suggestion surfaces. Nothing AI produces reaches the ledger without a human act (§6).</li></ol>
+<h3>What it is not</h3>
+<ul><li><strong>Not a payroll bureau or an ERP.</strong> Payroll and fixed assets exist as subledgers that post into the GL, not as standalone products.</li><li><strong>Not a tax filing agent.</strong> It computes VAT and Zakat figures; it does not file returns. ZATCA e-invoicing is <em>invoice clearance and reporting</em>, which is a different obligation from filing a VAT return.</li><li><span class="flag" aria-label="caveat">●</span> <strong>Not a business that can take money yet.</strong> There is no billing, subscription or plan gating anywhere in the codebase. This is tracked as the first item of the pre-production queue in <code>CLAUDE.md</code> §5.</li></ul>
+<hr />
+<h2 id="s2"><span class="num">2</span>Architecture</h2>
+<h3>2.1 Monorepo</h3>
+<p>pnpm workspaces, three groups: <code>apps/<em></code>, <code>packages/</em></code>, <code>scripts</code>.</p>
+<div class="scroll"><table><thead><tr><th>Workspace</th><th>Package</th><th>What it is</th></tr></thead><tbody><tr><td><code>apps/api</code></td><td><code>@workspace/api-server</code></td><td>Express 5 backend, TypeScript ESM, bundled with esbuild</td></tr><tr><td><code>apps/web</code></td><td><code>@workspace/bookkeeping</code></td><td>React 19 + Vite frontend</td></tr><tr><td><code>packages/db</code></td><td><code>@workspace/db</code></td><td>Drizzle schema, the pg pools, tenant-transaction machinery, SQL migrations — the source of truth for the data model</td></tr><tr><td><code>packages/api-spec</code></td><td>—</td><td><code>openapi.yaml</code> plus the orval config that generates from it</td></tr><tr><td><code>packages/api-zod</code></td><td><code>@workspace/api-zod</code></td><td>Generated Zod schemas and types</td></tr><tr><td><code>packages/api-client-react</code></td><td>—</td><td>Generated React Query client</td></tr><tr><td><code>packages/config</code></td><td><code>@workspace/config</code></td><td>Validated environment (<code>loadEnv</code>, fail-fast)</td></tr><tr><td><code>packages/zatca-tlv</code></td><td>—</td><td>TLV encoding for the ZATCA QR payload</td></tr></tbody></table></div>
+<p>There is deliberately <strong>no <code>packages/auth</code></strong>: authentication and RBAC live in</p>
+<p><code>apps/api/src/lib/</code> after several milestones of work there, and the empty scaffold was deleted rather than left as an invitation.</p>
+<p>The workspace pins <code>minimumReleaseAge: 1440</code> — a package version must have been published for a day before pnpm will install it. That is a supply-chain control, not a preference.</p>
+<h3>2.2 Layered backend</h3>
+<div class="scroll"><pre class="code">Route  →  Controller  →  Service  →  Repository  →  Postgres</pre></div>
+<ul><li><strong>Routes</strong> are thin: validate, delegate. No business logic.</li><li><strong>Controllers</strong> orchestrate and shape responses. No database access.</li><li><strong>Services</strong> hold business logic.</li><li><strong>Repositories</strong> hold <em>all</em> Drizzle access, tenant-scoped.</li></ul>
+<p>One sanctioned exception: the <strong>accounting core</strong> —</p>
+<p><code>services/accounting/</code> (GL posting, period locks, ZATCA) and</p>
+<p><code>services/categorization/</code> — reaches the database directly. That is recorded as a decision rather than tolerated as drift.</p>
+<h3>2.3 API contract: OpenAPI-first</h3>
+<p><code>packages/api-spec/openapi.yaml</code> is the contract. The flow is: change the spec, run codegen, then implement. Generated output under <code>src/generated/**</code> is never hand-edited.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>One exception, deliberately hand-maintained:</strong></p>
+<p><code>packages/api-client-react/src/custom-fetch.ts</code> — orval's mutator, carrying cookie credentials and the verification-gate error hook.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>A constraint in the spec binds nothing on its own.</strong> These routes pass</p>
+<p><code>req.body</code> to services directly, so a declared <code>minItems</code> or <code>maxLength</code> is documentation until a service re-states it. This was learned expensively: a</p>
+<p><code>minItems</code> constraint existed for quotations and purchase orders, was absent for invoices, and an invoice with no lines was accepted and issued at zero value. Read the contract as documentation; the enforcement is in the code.</p>
+<h3>2.4 Frontend</h3>
+<p>React 19 + Vite, TypeScript, Tailwind CSS v4, shadcn/ui primitives, <strong>wouter</strong> for routing, <strong>TanStack Query</strong> for data fetching, a custom <code>LanguageContext</code> for Arabic/English with RTL.</p>
+<p>The navigation is <strong>data, not JSX</strong> (<code>apps/web/src/nav/tree.ts</code>). Every entry carries a marker — <code>built</code>, <code>filter</code>, or <code>coming-soon</code> — and filter entries carry the destination and status they apply. That shape exists so the browser suite can walk every entry mechanically instead of sampling (§7).</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Coming Soon pages are real pages that name their blocker.</strong> Roughly a third of the navigation points at features that do not exist. Each resolves to a placeholder stating specifically what it is waiting on — a contract, a registration, an advisor's answer, an undesigned decision — and what the work becomes the day that clears. <em>"Not built" invites someone to build it; "waiting on a contract" tells them why they must not.</em></p>
+<h3>2.5 Background work</h3>
+<p>An <strong>in-process scheduler</strong> (<code>apps/api/src/jobs/</code>), not a queue system. There is no Redis and no external broker; rate limiting is in-memory per process.</p>
+<p>Registered jobs include the e-invoice outbox worker, the archive sweep, certificate renewal checks, document-capture promotion and purge, recurring document generation, platform alarms, and scheduled findings. Some are registered but gated off by configuration so that an operator can still trigger them manually.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Planned, not built:</strong> a durable queue. The current design is honest about being single-process; horizontal scaling would need one.</p>
+<hr />
+<h2 id="s3"><span class="num">3</span>Multi-tenancy and the security model</h2>
+<p>This is the part of the system most worth understanding, and the part where the most has been learned the hard way.</p>
+<h3>3.1 The core mechanism: RLS on a non-owner role</h3>
+<p>Every business table carries <code>organization_id NOT NULL</code> and a <code>tenant_isolation</code> row-level-security policy keyed on the <code>app.current_org_id</code> GUC. Enforcement is at runtime: each request runs inside a <strong>transaction</strong> on a <strong>non-owner Postgres role</strong>, with the tenant GUCs set transaction-locally.</p>
+<pre class="mermaid">sequenceDiagram
+    participant C as Client
+    participant A as Auth middleware
+    participant T as resolveTenant
+    participant PG as Postgres
+    C-&gt;&gt;A: request with session cookie
+    A-&gt;&gt;A: valid session? else 401
+    A-&gt;&gt;T: userId
+    T-&gt;&gt;T: pick active org · VERIFICATION GATE&lt;br/&gt;non-approved org ⇒ 403 here
+    T-&gt;&gt;PG: BEGIN
+    T-&gt;&gt;PG: SET LOCAL ROLE authenticated
+    T-&gt;&gt;PG: SET LOCAL idle_in_transaction_session_timeout = 15s
+    T-&gt;&gt;PG: set_config('app.current_org_id', …, true)
+    Note over PG: every query now filtered by RLS
+    T-&gt;&gt;PG: COMMIT / ROLLBACK</pre>
+<p>Three properties are worth naming:</p>
+<ul><li><strong>The connection is acquired lazily.</strong> A request that issues no query never takes one, so routes that touch no data cannot starve the pool.</li><li><strong>The 15-second idle-in-transaction guardrail is deliberate.</strong> It is why a synchronous call to an external API cannot live inside a request transaction — the reason the e-invoice outbox exists (§5).</li><li><span class="flag" aria-label="caveat">●</span> <strong>A connection error must not kill the process.</strong> <code>node-postgres</code> emits <code>error</code> on a client whose connection dies; an unhandled <code>error</code> event is fatal in Node. Listeners are attached both to the pools <em>and to each checked-out client</em>, because the pool does not forward errors for clients in use. Pinned by an executable test that terminates a live backend and requires the process to survive.</li></ul>
+<p><code>db</code> <strong>refuses</strong> a query issued outside a tenant transaction. It used to fall back silently to the owner connection — RLS bypassed, no error. A deliberately cross-tenant caller imports <strong><code>ownerDb</code></strong> and says so in the code.</p>
+<h3>3.2 The identity layer sits outside RLS, deliberately</h3>
+<p><code>organizations</code>, <code>users</code> and <code>organization_memberships</code> are <strong>not</strong> RLS-scoped. They cannot be: resolving which tenant a request belongs to has to happen before a tenant exists to scope to.</p>
+<p>The consequence is a rule with a guard behind it: <strong>business-layer code must not read those tables.</strong> A forgotten filter there is a silent cross-tenant leak that nothing catches. Only the identity layer — pre-<code>resolveTenant</code>, on the owner connection, with explicit authorization — is a correct consumer.</p>
+<p><code>tests/identity-table-boundary.test.ts</code> enforces it by import analysis, and is honest about its limit: raw SQL slips past.</p>
+<h3>3.3 Authorization</h3>
+<p>Explicit and scoped, never ambient:</p>
+<ul><li><code>requirePermission</code> for capability checks, answering refusals with a <strong>structured code</strong> rather than prose, so re-wording copy cannot break a client that keys on it.</li><li>admin-of-<em>this</em>-org checks for organization administration.</li><li><code>requirePlatformOperator</code> for the platform surface.</li></ul>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong><code>users.role</code> is vestigial and must never gate access.</strong> The</p>
+<p><code>organization_memberships</code> role governs.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>A refusal explains; it does not hide the control.</strong> A hidden button teaches nothing; a refusal naming the next step teaches the workflow. This was reversed into the product deliberately.</p>
+<h3>3.4 The platform-operator boundary</h3>
+<p>Platform operators review and approve organization sign-ups. The boundary is that <strong>operators hold no tenant membership</strong>, so <code>resolveTenant</code> blocks them from every business route. <code>/operator</code> is a separate surface.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>G-1 — checked, and absent.</strong> A hypothesised escalation was investigated: that <code>assertOrgAdmin</code> might exempt platform operators, letting an operator add themselves to a tenant as an admin. It <strong>does not exist</strong>. Operator status is consulted in four places and none of them is an authorization path. That is now pinned <em>behaviourally</em> by <code>tests/operator-tenant-boundary.test.ts</code> rather than asserted in a comment — the specific escalation it rules out is an operator joining a tenant and acting inside it.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Two operator findings that were real, and are closed:</strong></p>
+<ul><li><strong>F1 — cross-tenant account takeover (HIGH).</strong> Any admin of any approved organization could graft a stranger's account into their own organization (adding a member required no consent, and user ids are sequential), then reset its password and log in — into every tenant that account could reach. Fixed by <strong>confinement</strong> (<code>lib/accountScope.ts</code>): an actor can cause an overlap with one INSERT, and cannot cause confinement at all. The lesson generalises: <strong>a guard that tests a fact its own caller can create is not a boundary.</strong></li><li><strong>F2 — operator job reach was inherited, not decided.</strong> The operator job runner could reach every job in the scheduler registry rather than a declared set. Fixed by having the operator surface <strong>declare its own reach</strong> (<code>lib/operatorJobs.ts</code>), refused at both route and service, and audited.</li></ul>
+<p>Both are executable regression tests, verified by re-injecting the attack.</p>
+<h3>3.5 The privilege surface map, and what it does not cover</h3>
+<p><code>tests/privilege-surface-map.test.ts</code> derives what each privilege reaches from the <strong>live router stack</strong> and fails when that drifts.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>It would not have caught F1, and must never be cited as though it would.</strong> There are two composition shapes and they need different countermeasures:</p>
+<div class="scroll"><table><thead><tr><th>Shape</th><th>What it looks like</th><th>Countermeasure</th></tr></thead><tbody><tr><td><strong>Position</strong> — a route on the wrong side of a guard</td><td>mechanical</td><td>the surface map</td></tr><tr><td><strong>Data flow</strong> — one file writes the fact another guard trusts; both files are correct and the <em>edge</em> is the hole</td><td>human</td><td>enumerate what a privilege can WRITE, then grep every guard that READS that fact</td></tr></tbody></table></div>
+<p>F1 was the second shape.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Foreign keys run outside RLS.</strong> Every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and a foreign-key violation versus success is an existence oracle. When auditing isolation, enumerate the FKs, not only the queries.</p>
+<h3>3.6 Other properties worth knowing</h3>
+<ul><li><strong>Auth is Express sessions</strong> (<code>express-session</code> + <code>connect-pg-simple</code>, bcryptjs). Supabase is used as <strong>Postgres only</strong> — not Supabase Auth.</li><li>The session store has its <strong>own pool</strong>, isolated from the request-transaction pool, so a slow request holding a tenant transaction cannot starve logins.</li><li><strong>Owner-only tables REVOKE explicitly.</strong> Supabase's base default privileges re-grant <code>TRUNCATE</code>/<code>REFERENCES</code>/<code>TRIGGER</code> on every <code>CREATE TABLE</code>, and <strong>TRUNCATE bypasses RLS</strong>. The defaults are narrowed and a guard test pins it.</li><li><strong>Audit trail is append-only at the grants</strong>, and has a reader UI.</li></ul>
+<hr />
+<h2 id="s4"><span class="num">4</span>The data model, conceptually</h2>
+<p>Not a table listing — <code>packages/db/src/schema/</code> is the source of truth. What follows is the shape and the rules that are not visible from column names.</p>
+<pre class="mermaid">graph TD
+    ORG["organization&lt;br/&gt;&lt;i&gt;the tenant&lt;/i&gt;"] --&gt; CO["company&lt;br/&gt;&lt;i&gt;the reporting entity&lt;/i&gt;"]
+    CO --&gt; INV["invoices"]
+    CO --&gt; BILL["bills"]
+    CO --&gt; JE["journal entries"]
+    CO --&gt; TX["transactions&lt;br/&gt;&lt;i&gt;bank movements&lt;/i&gt;"]
+    INV --&gt; EI["einvoice_documents&lt;br/&gt;&lt;i&gt;the ZATCA chain&lt;/i&gt;"]
+    JE --&gt; JEL["journal entry lines"]
+    INV -.-&gt;|posts| JE
+    BILL -.-&gt;|posts| JE
+    TX -.-&gt;|reconciles against| INV
+    TX -.-&gt;|reconciles against| BILL
+    CO --&gt; SUB["subledgers:&lt;br/&gt;payroll · fixed assets · budgets"]
+    SUB -.-&gt;|post| JE</pre>
+<p><strong>Two levels of tenancy.</strong> An <code>organization</code> is the tenant and the unit of RLS. A <code>company</code> is the reporting entity inside it — its own document sequences, its own fiscal calendar, its own period locks. Most business tables carry both.</p>
+<p><strong>The invariants that are not obvious:</strong></p>
+<ul><li><strong>Documents FILE; transactions RECONCILE.</strong> The VAT return reads invoices and bills, line by line, credit-note-correct and box-structured. The transaction-derived figure is a <em>reconciliation view only</em>.</li><li><strong>Amounts are stored positive; direction lives in <code>document_type</code>.</strong> Every consumer applies an explicit sign function. A credit note reverses; a <strong>debit note does not</strong> — it posts like an invoice.</li><li><span class="flag" aria-label="caveat">●</span> <strong>A journal entry with <code>status = 'reversed'</code> is still IN the books.</strong> The status marks that a cancelling mirror exists; it is not an eraser. Filtering aggregations to <code>posted</code> only double-negates every reversal. This was found live, moving real money in a development organization.</li><li><strong>Transfers and settlements are excluded from income, expense, VAT, Zakat and budget aggregates</strong> — the bank balance moved though nothing was earned or spent. Transfers <em>do</em> post to the GL (cash against a clearing or equity account) with no P&amp;L, tax or budget line ever. Settlements never post; their cash effect belongs to the payment paths.</li><li><strong>Nothing affects the books before approval.</strong> Drafts and submitted records move zero in every report, and this is asserted per entity as a standard.</li><li><strong>Period locks are company-scoped.</strong> A correction to a closed period posts in the current open period — never re-dated into a closed one, and never silently skipped.</li><li><strong>Derived, never stored:</strong> <em>overdue</em> on invoices and bills, <em>expired</em> on quotations, and the conversion axis on quotations and purchase orders. Each is defined in exactly one place, in the repository, because a stored copy of a fact the dates already hold will drift from it.</li><li><strong>Single currency (SAR) is enforced at the write boundary</strong>, not assumed.</li></ul>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>The chart of accounts is seeded by a database trigger</strong> that copies a template table column by column. A migration touching either side must redefine the trigger function, and a standing test compares the two column sets rather than knowing any column's name — it has been verified to fail in both directions.</p>
+<hr />
+<h2 id="s5"><span class="num">5</span>ZATCA e-invoicing</h2>
+<p>Saudi Arabia's e-invoicing mandate (Fatoora) requires invoices to be generated in a structured format, cryptographically signed, chained, and either <strong>cleared</strong> (standard invoices, before issue) or <strong>reported</strong> (simplified invoices, after).</p>
+<pre class="mermaid">sequenceDiagram
+    participant U as User approves invoice
+    participant SVC as invoice approval
+    participant SIGN as document build + sign
+    participant OB as outbox (durable)
+    participant W as worker (background)
+    participant Z as ZATCA
+    U-&gt;&gt;SVC: approve
+    SVC-&gt;&gt;SVC: allocate ICV + read chain head&lt;br/&gt;(under an advisory lock)
+    SVC-&gt;&gt;SIGN: build UBL, hash, sign (secp256k1, XAdES), QR
+    SIGN--&gt;&gt;SVC: signed document
+    SVC-&gt;&gt;OB: enqueue — same transaction as the ledger effect
+    Note over SVC,OB: commit
+    W-&gt;&gt;OB: claim
+    W-&gt;&gt;Z: submit
+    Z--&gt;&gt;W: cleared / reported / rejected</pre>
+<p><strong>Why the outbox exists, and it is not the timeout.</strong> If the request transaction rolled back <em>after</em> ZATCA accepted an invoice, the ledger would hold no record of a document ZATCA considers issued — a permanently consumed counter value and a gap in a legally required sequence that cannot be repaired. Committing the queue row in the same transaction as the ledger effect makes that impossible.</p>
+<p><strong>The chain needs two mechanisms</strong>, and this is easy to get wrong:</p>
+<ol><li><strong>Allocation serialised by an advisory lock</strong> covering both the counter read and the chain-head read.</li><li><strong>Ordering by counter, not by row id.</strong> A unique constraint on <code>(company, counter)</code> is a backstop that structurally cannot see a fork. Out-of-order approvals fork the chain <em>sequentially</em> — this is not purely a concurrency problem.</li></ol>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Two hash chains exist and must not be confused.</strong> <code>invoices.invoice_hash</code> /</p>
+<p><code>previous_hash</code> are a homegrown tamper-evidence mechanism. The legally meaningful chain lives on <code>einvoice_documents</code>, and the previous-invoice hash comes from there only, read inside the sequence lock.</p>
+<p><strong>Issuance fails closed for onboarded companies</strong>, deliberately: if the document cannot be built or signed, the approval rolls back. A key-management outage stops invoicing rather than minting an unreachable invoice and a permanent gap. Companies with no active credential are skipped silently and issue as before.</p>
+<p><strong>The archive has no delete, by design</strong> (the regulation forbids deletion). Deletable staging is a separate interface. Archive filenames use the</p>
+<p><em>generation</em> timestamp, never clearance.</p>
+<h3><span class="flag" aria-label="caveat">●</span> What is proven, and what is not</h3>
+<p>This distinction is the most important paragraph in this document for anyone assessing readiness.</p>
+<p><strong>Verified against the live ZATCA sandbox:</strong> the certificate signing request and the <code>secp256k1</code> curve, the XAdES signature properties and both digest encodings, all nine QR tags, six compliance documents (standard and simplified × invoice / credit note / debit note, plus zero-rated), and a path built from real Postgres rows produced by the product's own write path.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>NOT verified — no invoice has ever been submitted to ZATCA, in any environment.</strong> The compliance pass covers document <strong>construction</strong>, which is an onboarding gate. The production path has never been called. Also local-only: the outbox transport (proven against a mock), the archive (local filesystem only), renewal reminders (synthetic dates), and the enqueue path (a self-signed certificate, not a real production credential).</p>
+<p><strong>Sandbox traps, recorded because they mislead:</strong> it accepts any one-time password; a request identifier is a constant stub; the sandbox credential is a shared canned certificate not bound to our key; and <strong>a credential is issued even when compliance documents fail</strong> — so compliance results must be asserted directly and never inferred from certificate issuance.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Blocked on a registration, not on engineering.</strong> Simulation and the production pilot both require a registered Saudi company entity with an active VAT registration and government credentials. That entity does not exist. No rework is expected when it arrives, because the sandbox exercises the same API surface.</p>
+<p><strong>Trust order for sources: live API &gt; SDK &gt; PDF &gt; secondary.</strong> A green SDK differential is not evidence of compliance — one passed byte-for-byte while the live API rejected the QR.</p>
+<hr />
+<h2 id="s6"><span class="num">6</span>The AI layer</h2>
+<h3>6.1 The governing rules</h3>
+<ol><li><strong>AI proposes; it never posts.</strong> The general ledger is written only through the established posting path. AI output is drafts and suggestions a human approves.</li><li><strong>Nothing is auto-applied</strong>, however exact the match. Suggestions may be pre-selected; the human clicks.</li><li><strong>An act about a document is not an act about a pattern.</strong> Consenting to a recurring rule in January is not consenting to what it produces in November — which is why recurring generation produces drafts only.</li><li><strong>Answers are grounded and show their work</strong>, and the layer states <em>where</em> a change came from, never <em>why</em>.</li></ol>
+<h3>6.2 What exists</h3>
+<p>Categorisation assistance, a receipt-capture pipeline (QR decode, OCR fallback, supplier matching), a deterministic findings engine with model-phrased explanations that are mechanically verified before being shown, scheduled findings runs, and grounded question answering over the tenant's own records.</p>
+<p>Every model call goes through a <strong>metered wrapper</strong> that records usage beside the call — including failures, because a provider outage that vanished from the meter would make the usage curve lie.</p>
+<h3>6.3 <span class="flag" aria-label="caveat">●</span> The layer is DARK by construction</h3>
+<p>The boot boundary <strong>refuses to send tenant data to the model provider</strong> until a Groq Enterprise agreement is signed. The free tier routes globally, and development is not treated as an exception to that.</p>
+<p>This is not a feature flag someone can flip by accident: the code is built and tested, and the data boundary is the gate. In the navigation, the AI assistant resolves to a placeholder that names the contract it waits on.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>One design item must be resolved before the layer is enabled.</strong> The scheduled findings run currently calls the model provider <strong>inside an open tenant transaction</strong>. That is the pattern the e-invoice outbox exists to prevent for ZATCA, repeated for a different external API: the 15-second guardrail fires and terminates the connection. It is latent only because the layer is dark. Recorded in <code>CLAUDE.md</code> §5.</p>
+<hr />
+<h2 id="s7"><span class="num">7</span>The guard set</h2>
+<p>Guards here are tests that assert a <em>structural property</em> rather than a behaviour, because this project's expensive defects have almost all been structural.</p>
+<pre class="mermaid">graph TD
+    subgraph "Static / structural"
+        RR["route reachability&lt;br/&gt;&lt;i&gt;every mounted route has a terminus&lt;/i&gt;"]
+        SR["state-machine reachability (P4)&lt;br/&gt;&lt;i&gt;every state is reachable&lt;/i&gt;"]
+        PS["privilege surface map&lt;br/&gt;&lt;i&gt;positional shape only&lt;/i&gt;"]
+        RLS["RLS coverage"]
+        IB["identity table boundary"]
+        SH["list + payload shape guards"]
+        WB["write-boundary invariants"]
+        SC["scale and collision"]
+    end
+    subgraph "Rendering (P5) — a real browser"
+        SM["smoke crawl&lt;br/&gt;&lt;i&gt;every route renders, no console error, no 5xx&lt;/i&gt;"]
+        NT["nav tree&lt;br/&gt;&lt;i&gt;every entry, not a sample&lt;/i&gt;"]
+        DL["deep-link scope"]
+        RTL["RTL direction"]
+    end</pre>
+<p><strong>Why the rendering layer exists.</strong> Six read-only audits found none of four defects that one pass with a browser found in seconds. The service tests build their requests the way the server expects, so a client that builds one differently is invisible to them <em>by construction</em>. A correct backend with no working surface is structurally outside what any of them can see.</p>
+<p><strong>Four properties of the browser suite worth knowing:</strong></p>
+<ul><li><strong>Retries are zero, deliberately.</strong> A suite people learn to re-run reports coverage it does not have.</li><li><strong>The navigation check walks every entry</strong> — a built entry points at a real route, a filter entry's destination <em>reflects</em> the filter, a coming-soon entry names a blocker. That is possible because the tree is data.</li><li><span class="flag" aria-label="caveat">●</span> <strong>Some routes must render a row.</strong> An empty state satisfies every other assertion — <code>&lt;main&gt;</code> exists, the body has content, no console error — so a page can be fully "covered" with none of its row-rendering code executed. The fixture seeds breadth on purpose and the suite asserts on it.</li><li>**A check is its assertion <em>and</em> the moment it is taken.** The RTL first-paint test waits only for the navigation commit, because any later wait lets React mount and repair the thing under test.</li></ul>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>The limit, stated because it is a property of the defect and not of the tooling:</strong> <em>a vacuous pass is indistinguishable from a real pass in every report the suite produces.</em> The suite cannot tell "this assertion held" from "this assertion was never reached". Coverage instrumentation would narrow that and not close it, because a line can execute against data too uniform to expose a collision. This is the argument for seeding breadth deliberately rather than hoping coverage finds it.</p>
+<p><strong>Also enforced mechanically:</strong> the operating file's size budget, the organization-seed trigger's column symmetry, demo-mode reset safety, and single-currency at the write boundary.</p>
+<p>For what the suite currently reports, run it — see §9. This document quotes no count.</p>
+<hr />
+<h2 id="s8"><span class="num">8</span>External dependencies and provider seams</h2>
+<p>Every external capability sits behind an interface with a resolver, so the choice of vendor is a deployment decision rather than a rewrite.</p>
+<div class="scroll"><table><thead><tr><th>Seam</th><th>What it abstracts</th><th>Status</th></tr></thead><tbody><tr><td><code>EInvoiceProvider</code></td><td>onboard · renew certificate · build document · submit</td><td>Implemented in-house; <strong>all four methods route through the seam</strong> — one of two mandatory hedges behind the build-direct decision</td></tr><tr><td><code>KeyWrapper</code></td><td>credential encryption</td><td><span class="flag" aria-label="caveat">●</span> Key-management deployment unverified</td></tr><tr><td><code>ArchiveStore</code></td><td>e-invoice archival, <strong>no delete by design</strong></td><td>Local filesystem only; cloud is permitted — the binding constraint is a direct audit link</td></tr><tr><td><code>Mailer</code></td><td>transactional email</td><td>Code complete; <span class="flag" aria-label="caveat">●</span> <strong>no provider wired</strong></td></tr><tr><td><code>Alerter</code></td><td>operational alarms</td><td>Code complete; <span class="flag" aria-label="caveat">●</span> <strong>no destination wired</strong></td></tr><tr><td><code>MalwareScanner</code></td><td>uploaded-file scanning</td><td><span class="flag" aria-label="caveat">●</span> Header-only magic-byte sniff until a scanner sidecar is deployed</td></tr><tr><td><code>AiProvider</code></td><td>chat and vision</td><td>Groq; <span class="flag" aria-label="caveat">●</span> <strong>dark until the agreement is signed</strong></td></tr></tbody></table></div>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>A stub is the part that needed testing.</strong> At any of these interfaces, a method that cannot do the thing must <strong>throw</strong>, never return: a no-op reporting success is a false statement the caller builds on.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>A dependency that accepts your input has not promised to honour it.</strong> A small-ICU Node accepts an Islamic calendar identifier and returns Gregorian dates. Where a dependency can silently substitute behaviour, an externally checkable fact is probed at boot. "It did not throw" is not evidence.</p>
+<p><strong>Runtime dependencies:</strong> PostgreSQL (via Supabase, Postgres only). <strong>No Redis, no message broker, no object store in use.</strong></p>
+<hr />
+<h2 id="s9"><span class="num">9</span>Deployment posture — honestly</h2>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>Nothing is deployed.</strong> There is no hosted environment, no hosted Supabase project, and no production or staging URL. The codebase is demo-ready; a demo has not been stood up. Everything described in this document runs locally and in continuous integration.</p>
+<h3>Items that cannot be closed from code</h3>
+<p>These are not engineering tasks. They are decisions or acts that must happen in a real environment, and each is tracked in <code>CLAUDE.md</code> §5:</p>
+<ul><li><strong>Hosting and residency</strong>, including the region and key-management deployment.</li><li><strong>The AI provider agreement</strong> — required before any tenant data reaches the model provider.</li><li><strong>A mail provider and a verified sending domain</strong>, and an alert destination pointed somewhere real. <em>An unwired alarm is the thing the alerting work exists to prevent.</em></li><li><strong>The real proxy count</strong> in front of the application, because a wrong number makes the rate limiter spoofable in either direction.</li><li><strong>A malware scanner sidecar.</strong></li><li><strong>The Saudi entity registration</strong>, which gates ZATCA simulation and the production pilot, and open-banking connectivity.</li></ul>
+<h3>Continuous integration</h3>
+<p>GitHub Actions runs typecheck, the test suite, a build, and the browser suite against a real Postgres service container with migrations applied.</p>
+<p class="caveat"><span class="flag" aria-label="caveat">●</span> <strong>The browser job was landed as a non-required check on purpose</strong>, until it had been green across real pull requests — a new suite's first failures are usually its own harness, and blocking merges on that teaches people to ignore it.</p>
+<p>**A merge gate must assert every check's <em>conclusion</em>, not that checks completed.** A pull request was once merged with a red check because a polling loop waited for <code>status: completed</code> and never looked at <code>conclusion</code>.</p>
+<hr />
+<h2 id="s10"><span class="num">10</span>Where to go next</h2>
+<div class="scroll"><table><thead><tr><th>You want</th><th>Read</th></tr></thead><tbody><tr><td>Current status, the open queue, the standing rules</td><td><span class="ref"><code>CLAUDE.md</code></span></td></tr><tr><td>Layering, tenancy, RBAC, "add a new domain"</td><td><span class="ref"><code>development-guide.md</code></span></td></tr><tr><td>Running it locally</td><td><span class="ref"><code>local-setup.md</code></span></td></tr><tr><td>ZATCA specifics and what is proven where</td><td><span class="ref"><code>zatca/</code></span></td></tr><tr><td>Why a decision was made the way it was</td><td><span class="ref"><code>history/findings-and-lessons.md</code></span></td></tr><tr><td>The navigation decision and its markers</td><td><span class="ref"><code>product/nav-tree-reconciliation.md</code></span></td></tr><tr><td>Test-suite ordering and timing fragilities</td><td><span class="ref"><code>test-suite-notes.md</code></span></td></tr></tbody></table></div>
+<hr />
+<h2 id="s11"><span class="num"></span>Appendix — technology summary</h2>
+<div class="scroll"><table><thead><tr><th>Layer</th><th>Technology</th></tr></thead><tbody><tr><td>Monorepo</td><td>pnpm workspaces</td></tr><tr><td>Backend</td><td>Express 5, TypeScript (ESM), esbuild bundle</td></tr><tr><td>Frontend</td><td>React 19, Vite, Tailwind CSS v4, shadcn/ui</td></tr><tr><td>Routing (FE)</td><td>wouter</td></tr><tr><td>Data fetching</td><td>TanStack Query</td></tr><tr><td>ORM</td><td>Drizzle</td></tr><tr><td>Database</td><td>PostgreSQL (Supabase — Postgres only, <strong>not</strong> Supabase Auth)</td></tr><tr><td>Cache / queue</td><td><strong>None</strong> — in-process scheduler, in-memory rate limiting</td></tr><tr><td>Auth</td><td><code>express-session</code> + <code>connect-pg-simple</code>, bcryptjs</td></tr><tr><td>API contract</td><td>OpenAPI-first, orval codegen</td></tr><tr><td>Validation</td><td>Zod (generated)</td></tr><tr><td>i18n</td><td>Custom <code>LanguageContext</code>, Arabic/English, RTL-aware</td></tr><tr><td>Logging</td><td>pino / pino-http</td></tr><tr><td>Browser tests</td><td>Playwright</td></tr></tbody></table></div></main>
+  <footer class="end">A red dot (<span class="flag"></span>) marks a caveat, a limit, or something not yet true.</footer>
+</div>

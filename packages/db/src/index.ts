@@ -20,6 +20,59 @@ export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
  */
 export const sessionPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
+/**
+ * 🔴 A CONNECTION ERROR MUST NOT KILL THE PROCESS.
+ *
+ * Found 2026-08-31, by giving the browser fixture real data for the first
+ * time. `node-postgres` emits `error` on a pooled client when the connection
+ * dies underneath it — an idle-in-transaction timeout firing, a database
+ * restart, a failover, a network blip. **An `error` event with no listener is
+ * fatal in Node**: `throw er; // Unhandled 'error' event`, and the entire API
+ * process exits.
+ *
+ * That is exactly what happened. The 15-second `idle_in_transaction_session_timeout`
+ * guardrail below did its job and terminated a transaction that had been left
+ * open across an external AI call — and the server died with it. Every request
+ * afterwards was ECONNREFUSED.
+ *
+ * 🔴 The shape is worth naming: **a guardrail designed to kill a TRANSACTION
+ * was killing the SERVER.** Any defence that works by severing a connection
+ * had the same amplifier behind it, so this was never specific to one bug.
+ *
+ * Logging and continuing is correct here. The pool discards the broken client
+ * and hands out a healthy one; the in-flight query rejects and its own caller
+ * handles it. `console.error` rather than the app logger because this module
+ * sits below the API and must not import from it.
+ */
+function guardPool(p: pg.Pool, name: string): void {
+  p.on("error", (err: Error) => {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[db] ${name}: a pooled connection failed and was discarded. ` +
+        `The pool recovers; this is logged because silence here once looked like a crash.`,
+      err,
+    );
+  });
+}
+guardPool(pool, "pool");
+guardPool(sessionPool, "sessionPool");
+
+/**
+ * The listener attached to each CHECKED-OUT tenant client (see
+ * `LazyTenantClient.acquire`). Shared and named so it can be removed again —
+ * an anonymous closure per acquisition would leak listeners on a reused
+ * client and eventually warn about a possible memory leak.
+ */
+function onClientError(err: Error): void {
+  // eslint-disable-next-line no-console
+  console.error(
+    "[db] a tenant connection failed while checked out (idle-in-transaction " +
+      "guardrail, restart, or failover). The in-flight query rejects and its " +
+      "caller handles it; the process stays up.",
+    err,
+  );
+}
+
 type DB = NodePgDatabase<typeof schema>;
 
 /**
@@ -185,6 +238,28 @@ class LazyTenantClient {
     if (!this.opening) {
       this.opening = (async () => {
         const client = await pool.connect();
+        /**
+         * 🔴 A CHECKED-OUT CLIENT NEEDS ITS OWN `error` LISTENER.
+         *
+         * `pool.on("error")` — the standard advice, and applied below — covers
+         * IDLE clients only. A client that is checked out emits `error` on
+         * ITSELF, the pool does not forward it, and an `error` event with no
+         * listener is fatal in Node: the whole API process exits.
+         *
+         * This is not hypothetical. The guardrail two lines down —
+         * `idle_in_transaction_session_timeout` — fires on a transaction held
+         * open too long and terminates the connection. That is exactly a
+         * checked-out client, so the mechanism designed to kill a TRANSACTION
+         * was killing the SERVER, and every request after it was ECONNREFUSED.
+         *
+         * 🔴 Adding `pool.on("error")` alone did NOT fix it, and the browser
+         * suite proved that on the next run. Recorded because the pool handler
+         * is what every guide recommends and it is only half the answer.
+         *
+         * The listener is removed in `finish()`: pg reuses clients, so adding
+         * one per acquisition without removing it leaks listeners.
+         */
+        client.on("error", onClientError);
         try {
           await client.query("BEGIN");
           await client.query(`SET LOCAL ROLE "${this.scope.role}"`);
@@ -193,6 +268,7 @@ class LazyTenantClient {
           await client.query("SELECT set_config('app.current_company_id', $1, true)", [this.scope.companyId ?? ""]);
         } catch (err) {
           this.opening = null;
+          client.off("error", onClientError);
           client.release();
           throw err;
         }
@@ -223,7 +299,15 @@ class LazyTenantClient {
     this.client = null;
     try {
       await client.query(action);
+    } catch (err) {
+      // The connection may already be gone (the idle-in-transaction guardrail,
+      // a restart, a failover). COMMIT/ROLLBACK on a dead client rejects; the
+      // transaction is not committed either way, and the caller's own error
+      // handling is what should surface. Swallowing here would be wrong for a
+      // COMMIT, so it is rethrown — but the client is still released below.
+      throw err;
     } finally {
+      client.off("error", onClientError);
       client.release();
     }
   }

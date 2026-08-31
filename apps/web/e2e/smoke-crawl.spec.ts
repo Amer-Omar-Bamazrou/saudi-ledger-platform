@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
-import { EXPECTATIONS, type Kind } from "./routes";
+import { EXPECTATIONS, ROWS_EXPECTED, type Kind } from "./routes";
 
 /**
  * THE SMOKE CRAWL — every route, authenticated, failing on a page error or an
@@ -142,6 +142,30 @@ test.describe("authenticated smoke crawl", () => {
         `${route} rendered an EMPTY body. The route resolved and the shell drew, ` +
           `and nothing inside it did — the blank-page shape that six read-only audits missed.`,
       ).toBeGreaterThan(20);
+
+      /**
+       * 🔴 A PAGE THAT SHOWS ITS EMPTY STATE PASSES EVERY ASSERTION ABOVE.
+       *
+       * `<main>` exists, the body has content, no console error, no 5xx — an
+       * empty state satisfies all four. Until this check, 37 of 54 crawled
+       * routes were passing exactly that way, with none of their row-rendering
+       * code executed. Two of them carried an unkeyed-fragment defect the whole
+       * time, invisible because `filter(length > 0)` never yielded a row.
+       */
+      if (ROWS_EXPECTED.has(route)) {
+        // `tbody tr` OR an explicit `data-row`: several pages render their list
+        // as cards or list items rather than a table, and a check that only
+        // understood tables would report those as empty — a false red that
+        // teaches people to loosen the assertion.
+        const rows = await page.locator("tbody tr, [data-row]").count();
+        expect(
+          rows,
+          `${route} is seeded with data and rendered NO rows.\n` +
+            `Either the fixture regressed or the page did — and note that every\n` +
+            `other assertion in this test passed, because an empty state renders\n` +
+            `perfectly well. That is the whole reason this check exists.`,
+        ).toBeGreaterThan(0);
+      }
 
       assertClean(route, problems);
     });

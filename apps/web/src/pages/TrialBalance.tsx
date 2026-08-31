@@ -12,7 +12,24 @@ import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useRepor
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
-interface TrialBalanceRow { id: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
+/**
+ * 🔴 `accountId`, NOT `id`. This interface declared `id` and the API has never
+ * sent one — `reports.service.ts` returns `accountId`. So `row.id` was
+ * `undefined` on every row, and the table keyed all of its rows on `undefined`.
+ *
+ * Two consequences, and the second is the one that matters:
+ *   1. A React key warning — invisible until the fixture first seeded a
+ *      journal entry, because with no rows there was nothing to key.
+ *   2. 🔴 Rows sharing a key can be MIS-RECONCILED on re-render — changing the
+ *      date range could leave a figure from the previous range sitting in a
+ *      row that now belongs to a different account. A wrong number, quietly,
+ *      in the one report whose purpose is that it adds up.
+ *
+ * The hand-written-interface class again ("a correct API and a UI written
+ * against an imagined one"), which TypeScript cannot catch: it checks this
+ * declaration against the component, never against the response.
+ */
+interface TrialBalanceRow { accountId: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
 interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; totalCredit: number; balanced: boolean; }
 
 const TYPE_STYLES: Record<string, string> = { income: "text-positive", expense: "text-negative", asset: "text-info", liability: "text-attention", equity: "text-purple-400" };
@@ -44,7 +61,35 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
     return acc;
   }, {} as Record<string, TrialBalanceRow[]>) : {};
 
-  const typeOrder = ["income", "expense", "asset", "liability", "equity"];
+  /**
+   * 🔴 EVERY TYPE PRESENT IN THE DATA IS RENDERED — the known ones in a chosen
+   * order, then anything else.
+   *
+   * This was a fixed list of five, and the service assigns `type: "other"` to
+   * any journal line whose account does not resolve to a category
+   * (`reports.service.ts`: `cat?.type ?? "other"`). `account_id` is nullable
+   * and the manual journal-entry form lets a user type a free-text account
+   * name, so "other" is reachable from the product's own UI.
+   *
+   * The result was a TRIAL BALANCE THAT DID NOT FOOT. Those rows were dropped
+   * from the table, while `totalDebit` / `totalCredit` in the tfoot come from
+   * the SERVER and included them — so the visible rows summed to less than the
+   * stated total, with nothing saying so. A trial balance is the one report
+   * whose entire purpose is that it adds up.
+   *
+   * 🔴 Found only when the fixture first seeded a journal entry (2026-08-31).
+   * No test could have caught it before: with no journal lines at all, both the
+   * table and the total were empty and agreed perfectly.
+   *
+   * Deriving the order from the data rather than listing it makes the silent
+   * drop INEXPRESSIBLE — a new account type appears in the report instead of
+   * vanishing from it.
+   */
+  const KNOWN_TYPES = ["income", "expense", "asset", "liability", "equity"];
+  const typeOrder = [
+    ...KNOWN_TYPES.filter(t => byType[t]?.length),
+    ...Object.keys(byType).filter(t => !KNOWN_TYPES.includes(t)).sort(),
+  ];
 
   return (
     <div className="space-y-6">
@@ -100,7 +145,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                       <td colSpan={4} className={`py-2 px-2 text-xs font-bold uppercase tracking-widest ${TYPE_STYLES[type] ?? "text-muted-foreground"}`}>{type}</td>
                     </tr>
                     {byType[type].map(row => (
-                      <tr key={row.id} className="border-b border-border/30 hover:bg-secondary/10">
+                      <tr key={row.accountId ?? row.name} className="border-b border-border/30 hover:bg-secondary/10">
                         <td className="py-2.5 pe-4 ps-2">
                           <span className="text-foreground">{n(row.name, row.nameAr)}</span>
                           {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ms-2" dir="rtl">{row.nameAr}</span>}

@@ -200,7 +200,7 @@ export default function ClosedMonths() {
           ) : (
             <ul className="divide-y divide-border/60">
               {sorted.map((l) => (
-                <li key={l.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
+                <li data-row key={l.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <p className="font-medium flex items-center gap-2">
                       <Lock className="w-3.5 h-3.5 text-muted-foreground" />
