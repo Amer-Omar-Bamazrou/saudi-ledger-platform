@@ -17,6 +17,26 @@ concurrency:
 
 jobs:
   # ── Type safety across the whole monorepo ──────────────────────────────────
+  # ── Secret scanning over the FULL history ──────────────────────────────────
+  #
+  # 🔴 `fetch-depth: 0` is the whole point. The default shallow checkout scans
+  # one commit, which would make this a diff check wearing a history check's
+  # name — and the finding it exists for is a credential committed once and
+  # removed later, which a shallow scan cannot see by construction.
+  #
+  # First full pass 2026-08-31: 380 commits, ~21.5 MB, four findings, all four
+  # verified false positives (see `.gitleaks.toml`, which carries the reasons).
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+
   typecheck:
     name: typecheck
     runs-on: ubuntu-latest

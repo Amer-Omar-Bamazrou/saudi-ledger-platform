@@ -1,0 +1,45 @@
+# Gitleaks configuration — secret scanning over the FULL git history.
+#
+# ── 🔴 WHY THIS FILE EXISTS, AND WHY THE ALLOWLIST CARRIES REASONS ─────────
+# `CLAUDE.md` §5 listed "git-history entropy scanning" as unaudited: the repo
+# had only ever been checked with prefix and pickaxe searches, which find a
+# string you already suspect and nothing you do not.
+#
+# First full pass, 2026-08-31: **380 commits, ~21.5 MB, 4 findings, all four
+# false positives.** No real credential has ever been committed.
+#
+# The allowlist below is the record of that judgement. Each entry states WHY it
+# is not a secret, because an unexplained exemption is indistinguishable from a
+# suppressed finding — and the next person to run this needs to know which of
+# those they are looking at.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Supabase LOCAL-DEVELOPMENT demo keys in the CI workflow.
+
+Verified by decoding the claims rather than by assumption: iss = "supabase-demo",
+role = service_role/anon. These are the keys Supabase publishes for every local
+`supabase start` stack — identical on every developer's machine, documented in
+Supabase's own quickstart, and signed with the demo secret. They authenticate
+against nothing but a local container.
+
+🔴 They are ALSO already gone from the current workflow; the findings are
+historical (commit de1cb9f, 2026-08-20). Kept allowlisted so a future full-history
+scan does not re-report a resolved judgement as a new one.
+
+If a key ever appears here with a different `iss`, it is a real project key and
+this allowlist must NOT be widened to cover it.
+"""
+paths = ['''^\.github/workflows/ci\.yml$''']
+regexes = ['''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9''']
+
+[[allowlists]]
+description = """
+Documentation examples. `.claude/skills/**` are authoring guides, and the match
+is a literal `X-API-Key:` header in a REST-design example — a placeholder in
+prose, not a credential.
+"""
+paths = ['''^\.claude/skills/.*\.md$''']
