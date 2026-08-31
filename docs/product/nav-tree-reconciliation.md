@@ -332,11 +332,83 @@ real:
 12–13. *(the two duplicate Live Bank Feeds entries, if the INTEGRATIONS section
     is kept — one in BANKING, one in INTEGRATIONS.)*
 
-## Open questions before building
+## Owner answers — 2026-08-31
 
-1. **Quotations → Expired**: derive from a validity date, or rename to `closed`?
-2. **Cash Flow → Direct/Indirect Method**: which do we produce?
-3. **The whole INTEGRATIONS section**: §5.3 cut it and that cut has not been
-   reversed. Build it as Coming Soon, or leave it cut?
-4. **Vendor Statements** is Coming Soon while Customer Statements is built —
-   confirm the asymmetry is intended rather than an oversight to fill in.
+All four open items are settled. Recorded here so the build has no inherited
+defaults.
+
+### 1. Quotations → Expired = DERIVED from `valid_until`
+
+Same reasoning as Overdue: dates hold the truth, and a stored status is a second
+representation to keep in sync.
+
+✅ **This is a small change, not a bigger one.** `quotations.valid_until` already
+exists (`schema/quotations.ts:81`, nullable) and its comment already states the
+semantics this needs: *"NULL = no expiry was stated, a first-class state."* So
+no column is added, and the NULL case is already decided — a quotation with no
+stated expiry never expires, rather than expiring immediately.
+
+The predicate mirrors the invoice one, defined once in the repository and used
+by both the count and the filter:
+
+    valid_until IS NOT NULL
+      AND valid_until::date < CURRENT_DATE
+      AND status NOT IN ('approved','declined','closed')
+
+### 2. Cash Flow = the DIRECT method
+
+**We produce the direct method.** `reports.service.ts:268` walks transactions and
+classifies actual cash movements into operating / investing / financing by
+`kind`. There is no net-income-plus-adjustments chain — the `netIncome` nearby
+belongs to the owner-equity report, a different computation.
+
+**The indirect method is not built and is not being built.** It goes to
+[`roadmap.md`](roadmap.md); the nav shows only what we produce, so there is no
+"Direct/Indirect" toggle offering a choice of one.
+
+### 3. INTEGRATIONS — kept, and §5.3 is overridden deliberately
+
+**Owner decision, 2026-08-31.** §5.3 cut the integrations hub ("the extensibility
+need is an `EInvoiceProvider`-shaped code seam, not a screen"). That cut is
+**reversed**: the reversal covers the navigation tree as a whole, and
+Integrations is part of it — recorded with a date and a reason so nobody later
+treats §5.3 as current, exactly as with the AI section.
+
+**Scoped to three things.** Everything else in that subtree is Coming Soon or
+dropped:
+
+| Entry | Marker | Notes |
+| --- | --- | --- |
+| **MyFatoorah** | **COMING SOON** | Payment acceptance. UNCOSTED (§5.2) and CR-gated. |
+| **SiFi** | **COMING SOON** | 🔴 **NOT under Payment Gateways.** §5.1 (owner correction, 2026-08-30): SiFi is a SAMA-licensed **EMI doing spend management** — corporate cards, expense management, vendor payments. It does not accept a customer payment against an invoice. The integration is **outbound** and sits **adjacent to A2 (bank connectivity)**. Filing it beside MyFatoorah would repeat the error §5.1 exists to correct. |
+| **Add integration** | **BUILT (as a slot)** | The extensibility affordance — an empty state that says what an integration is and how to ask for one. This is the part §5.3 was right about: the seam is code, but the *slot* is a legible place for it. |
+| PayTabs · HyperPay · Shopify · WooCommerce · POS · ERP · Lean · Tarabut · Integration Logs | **DROPPED** | Not in the agreed scope. They return when someone asks for them, with a design and an estimate. |
+| Email Providers | **COMING SOON** | B1's mailer code is done; only provider wiring is missing. Genuinely buildable once a provider is chosen. |
+| Live Bank Feeds | **COMING SOON** | Kept in **BANKING** only — the duplicate here is dropped. |
+| ZATCA Fatoora | **DROPPED** | Duplicate of the TAX section's entry, which is BUILT. |
+
+### 4. Placeholders name their blocker
+
+🔴 **A placeholder that says "coming soon" when the truth is "waiting on a
+commercial agreement" is less honest than it could be** (owner, 2026-08-31).
+Where a feature is blocked on something other than build effort, the page says
+what:
+
+| Feature | The page says it is waiting on |
+| --- | --- |
+| AI Assistant, AI Explanations, Vision Model | **the Groq Enterprise agreement** (owner action 3) — the code is built and dark by construction |
+| ZATCA Production Submission | **a registered Saudi entity with VAT + ERAD** (owner action 1, M12.9) |
+| Zakat Calculation, Zakat Base, Zakat Settings | **advisor Block C** — the mechanism is decided, the tax content is not |
+| Billing & Subscription | **R1 is undesigned** — provider, plan shape, and what a plan gates |
+| Data Export | **advisor Block C8 (PDPL)** — do not build ahead of the answer |
+| Live Bank Feeds, SiFi, MyFatoorah, Open Banking | **the CR** — signatures need the entity |
+| Inventory / COGS | **advisor Block E** — the account decision gates it |
+
+The distinction matters: *not built* invites someone to build it. *Waiting on a
+contract* tells them why they must not.
+
+## Open questions — NONE REMAIN
+
+All four were answered by the owner on 2026-08-31; see **Owner answers** above,
+which is the single writer for those decisions. This heading is kept so a reader
+arriving from an older link does not conclude the questions are still open.
