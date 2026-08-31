@@ -61,3 +61,8 @@ docs/zatca/specs/*.pdf
 # docs/zatca/sdk-manifest.md records the URL, checksum and full inventory.
 docs/zatca/sdk/
 docs/ai/receipt-benchmark/images/
+
+# P5 browser suite — generated per run, never committed.
+apps/web/e2e/.auth/
+apps/web/playwright-report/
+apps/web/test-results/

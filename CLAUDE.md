@@ -58,8 +58,8 @@ When in doubt, favor evolving the existing system over replacing it.
 [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 
 - 🔴 **8 of 15 findings sat in the layer a user touches**; every automated test
-  runs a layer below it. **P5** (§5) closes that, and now carries the incident
-  that proves it.
+  runs a layer below it. **P5** — the browser suite — now closes that; it is
+  built and running in CI (`apps/web/e2e`).
 - **P4** computes reachability from the transition graph; its gap lists emptied
   themselves.
 - **AUD-13** is the composition class's worked example; its artefact,
@@ -262,7 +262,7 @@ rules at the top of this file, rule 2).
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30 by owner decision). A hidden control teaches nothing; a refusal naming the next step — *"this needs an accountant to approve it; send it for approval"* — teaches the workflow. `requirePermission` answers with a structured `requires_approval_authority` code, keyed on the CODE like M22's closed-period dialog so rewording copy cannot break it. The reversal also deleted `canApprove`: a derived flag with no consumer would have invited the hiding back. Incident: findings file.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout, so the login toggle works. Checked twice; two proposed B-8 mechanisms died here. Incident: findings file.
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — setting `documentElement.dir` imperatively is unreliable by construction: nothing re-asserts it and nothing notices when it is lost. Generalises past the DOM — a fact produced outside a system's ownership and consumed inside it needs re-assertion or observation, never a single write. **Test that it survives a route change.**
-- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it (**P5**, §5).
+- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. That is the B-1 class in one sentence, and only something that drives the real client closes it — **P5**, the browser suite, now does (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13, 2026-08-28). Five items, each survivable alone and each triaged at a severity correct in isolation, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding, and rank on the worst path rather than the worst item. This is the composition-defect class pointed at FINDINGS instead of code: two correct triage decisions with a bad path between them.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema (declared for quotations and POs, which touch no ledger; absent for invoices, which consume an ICV), and every test built its request the way the server expects. Ask which layer the defect lives in, and whether anything tests THAT one. Full record in the findings file.
 - **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing on its own: these routes pass `req.body` straight to the service, so every constraint in the contract is decorative unless a service re-states it by hand. Either generate the check from the contract or treat the contract as documentation — but never let a reader believe a declared constraint is an enforced one.
@@ -270,6 +270,7 @@ rules at the top of this file, rule 2).
 - **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING, EVEN WHERE NOBODY WOULD CHALLENGE IT** (journal-entry lists) — every other paginated list got money totals; this one got a COUNT, because an entry's debits and credits are equal by construction, so a total across entries is twice the turnover or zero depending which column you pick. It would have looked authoritative and been questioned by no one. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** (transactions list) — the page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; a capability simply never surfaced, so the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
 - **🔴 A TARGETED FIX SEES THE THING IT WAS SENT TO FIX — SO MEASURE, DO NOT RELY ON INCIDENTAL DISCOVERY** (2026-08-30). AUD-1 corrected `CreditNotes.tsx`'s number field for a ZATCA compliance defect; the same edit passed over a form whose *every field label* is English-only, against a stated launch requirement. Not carelessness — attention narrows to the defect it is hunting, which is what makes it effective. The corollary is structural: **working on a file causes none of its other defects to be noticed**, so coverage questions ("how much of the product is translated", "how many lists are unbounded", "which endpoints have no caller") must be asked PERIODICALLY and MECHANICALLY, against the whole surface, or they are only ever answered where someone happened to be looking. Every mechanical sweep this project has run — the privilege map, P4, the Arabic count — found something that repeated targeted work had not.
+- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — P5 went 65-green, then a readiness wait was added to make it *more* reliable, pointing at `/api/health`, a path assumed rather than checked (it is `/api/healthz`, so it answered 401 forever). The step meant to remove flake is the one that broke the suite, and it arrived after the evidence it would have contradicted. **Re-run the thing you just hardened** — a change made for reliability earns no exemption from the run that proves it. Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28). "Accept ready (183)" that accepts 5,000 and posts them is not a display bug — it is an authority bug, the same family as *delete all* deleting fifty: the user consented to what was in front of them and the system acted on a set they were never shown. The rule is not "label it accurately" but **name the true scope BEFORE the act**, and treat any gap between the visible set and the acted-on set as a defect in the act, not in the label. The display half of the same family is a surface that collapses two real rows into one — consent to the one becomes consent to both.
 - **🔴 Nothing in this process checks whether a USER can reach what we built** — six read-only audits found none of four defects that one pass with a browser found in seconds. The suite has 1,100+ tests and renders zero pages, so a correct backend with no working surface is structurally outside what any of them can see. The countermeasure is a rendering layer, not another static guard. Assume any completed backend may be unreachable until someone has clicked it.
 - **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated OpenAPI client; a page must be RENDERED before it counts as working. Measured wrong on five pages, 18 fields; `tests/list-response-shape.test.ts` is the countermeasure. Incident: findings file.
@@ -456,38 +457,6 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
 
-### 🔴 P5 — BROWSER TESTS IN CI, as its own project (queued 2026-08-28, NOT started)
-
-**Why it is queued rather than started: half-building it inside a bug-fix pass
-is worse than not starting.** It needs a browser in CI, seeded tenant data per
-run, flake management, and ongoing maintenance — and a flaky E2E suite that
-people learn to re-run is a guard that reports coverage it does not have, which
-is the failure this whole sequence has been about.
-
-🔴 **THE ARGUMENT, IN ONE INCIDENT (2026-08-30):** a changed response shape
-broke two client pages — one blank, one rendering a confident "No invoices in
-this date range" about a period that was not empty. Caught by a typecheck error
-two files away, by none of 1,157 tests, because nothing renders these pages.
-Incident: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
-
-**Why it is not a nice-to-have.** It is the ONLY method that has reached this
-class. Every automated test we own runs a layer below the one that broke:
-
-| Found by | Defects |
-| --- | --- |
-| A browser | the blank AP-aging page, swallowed server refusals, the GL showing SAR 0.00, an uneditable bill — and AUD-13, an issued zero-value tax invoice |
-| 1,100+ tests | none of them |
-
-The two 2026-08-28 lessons in §3 say why in one line each: **no test exercises
-the client's request construction**, and AUD-13 was **verified below the layer
-that had the bug**. A suite that calls services with hand-built objects cannot
-see a client that builds them differently, however many assertions it carries.
-
-**Scope when it is taken:** a smoke crawl over every route (authenticated,
-failing on a page error or empty body) that also RECORDS every request the app
-makes, so the recorded call set can be asserted against the mounted route table
-— which closes P4's remaining blind spot (P4 proves a call site exists, not that
-a control renders). Deferred deliberately; not deferred quietly.
 
 ### Deployment-time — cannot be closed from code
 
