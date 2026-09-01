@@ -5373,3 +5373,98 @@ receives.
   payload) and a **report** that asked the server a question it never heard.
   Each batch has found a different layer wrong; none of the three was visible
   from the layer above it.
+
+## 2026-09-01 — CONTRACT BATCH 4: THE LEDGER PAGE'S CONFIDENT ZERO, AND THE 25 BY SHAPE
+
+**Scope (owner-sequenced):** the approvals queue, journal entries, payroll and
+assets — with Approvals.tsx HELD for a design call (below). Ratchet
+**31 → 25, zero joins**: JournalEntries, Payroll, PayrollReport, Employees,
+Assets, AssetSchedule left.
+
+### What entered the contract
+`GET/POST /journal-entries`, `GET/DELETE /journal-entries/{id}`, `/post`,
+`/reverse`; `GET/POST /payroll`, `GET /payroll/{id}`; employees and assets
+(list/get/create/update/delete, `/assets/{id}/depreciate`). Bodies parsed with
+the generated Zod in every controller. `PayrollRun`, already in the spec,
+required four of its thirteen always-emitted fields; corrected.
+`tests/ledger-contract-conformance.test.ts` proves all of it on real rows: a
+balanced entry created, listed, fetched, posted and reversed (the original
+stays `reversed` — in the books); Saudi and non-Saudi employees with derived
+GOSI; a payroll run from them, approved to the GL; an asset created,
+depreciated one month, its history read back.
+
+### 🔴 What the batch made visible
+1. **Every journal-entry list row said 0.00 / 0.00.** `list()` built each row
+   with `buildJEOut(header)` and no lines, so `totalDebit`, `totalCredit` were
+   `0` and `lines` was `[]` — for every entry, forever. The ledger page printed
+   those zeros in its debit/credit columns, its detail panel read `lines` from
+   the same rows (an entry with no lines and a zero total, whichever you
+   clicked), and the approvals queue showed 0.00 against every pending entry.
+   Nothing errored; the page rendered; P5's crawl saw rows. A confident zero on
+   the ledger itself. Fixed with one grouped aggregate per page of entries
+   (`lineTotals`), asserted on real rows; the detail panel now fetches
+   `/journal-entries/{id}`.
+2. **PayrollReport still carried `.catch(() => [])`** — the defensive fallback
+   that turns a failed fetch into "no payroll", the exact shape that hid the
+   AP-aging break. Removed with the migration.
+3. **`JournalEntryLineInput.accountId` is REQUIRED.** The service refuses a
+   line without an account ("cannot appear on any statement"); the first draft
+   of the contract had it nullable, and conformance refused the draft. The
+   page's form line is now derived from the generated input with the account
+   not yet chosen, and the mutate call sends numbers, not strings.
+
+### Why the chain proof mattered here specifically (owner-requested)
+A single approved invoice carries `icv`, `invoiceHash`, `previousHash`,
+`zatcaUuid`, `qrCode` — every field of the shape — and could still be an island:
+an ICV allocated from the wrong counter, a `previousHash` copied from nowhere,
+would parse identically. The ZATCA chain is a property of the SEQUENCE, and the
+sequence is what the regulator audits. Only the second approval — `icv` equal
+to the first plus one, `previousHash` equal to the first invoice's hash — shows
+that the allocator and the chain-head read are the ones §4 describes, under the
+same sequence lock, in this build. One row proves the presenter; two rows prove
+the mechanism. That is the difference between a legal artifact's SHAPE and its
+VALIDITY, and the shape was never the risk.
+
+### 🔴 Approvals.tsx — the design call (held for the owner)
+One hand-written `Row { id, label, status, amount }` is built from four
+entities by four `(r: any) => Row` mappers over `apiFetch<any>("/${key}")`. A
+mechanical migration would produce a union that is really four shapes wearing
+one name. Two defects found while reading it, independent of the migration:
+- 🔴 **The queue is CAPPED.** It fetches the default page (50) of `/invoices`,
+  `/bills`, `/journal-entries` and filters for `draft`/`submitted` client-side.
+  A tenant with more than 50 invoices has pending drafts older than the newest
+  50 that the queue never shows — "nothing pending" while money is waiting.
+  The list endpoints accept `status=`; the queue never sends it.
+- Journal-entry amounts were 0.00 (finding 1 above); now real.
+Options:
+- **A. Server-side queue endpoint** — `GET /approvals/pending` returning
+  `{ entity, id, label, status, amount }[]` computed on the server from all
+  four tables, unbounded and status-filtered. The union becomes an honest
+  server-built row; the page consumes one generated type; the cap defect
+  disappears; the contract describes the queue rather than four lists. Cost:
+  one route/controller/service + spec + conformance, ~half a batch.
+  **Recommended** — it is the only option that fixes the cap by construction.
+- **B. Four generated types, status filters, a page-side view model** — the
+  page calls each list with `status=draft` and `status=submitted` (eight
+  calls), maps each generated type to a local `type ApprovalRow` view model.
+  Honest and cheap, but the view model stays hand-written (a view model, not a
+  response claim — the ratchet cannot tell the difference, so it would need a
+  named exemption), and pagination still applies per call.
+- **C. Leave it on the ratchet** until the worklist UX redesign the file
+  header already promises, fixing only the cap (send `status=`). Cheapest;
+  leaves one `any` on the surface where money is released.
+
+### The 25 remaining, by SHAPE (owner-requested)
+| Shape | Files | Note |
+| --- | --- | --- |
+| **Money surfaces** (documents, ledger, cash) | Approvals (held), Budgets, PurchaseOrders, Quotations, Recurring, TransactionReview, Upload (statement import), BankAccounts, ScanReview, ZakatReport | 10 — Quotations/POs have list schemas already corrected; Recurring/TransactionReview/ScanReview are automation write paths |
+| **Operator / identity / onboarding** | OperatorReview, OperatorZatcaPanel, UserManagement, AcceptInvite, VerificationStatus, ZatcaOnboarding, OrgSwitcher, CompanySettings | 8 — no tenant money; the operator surface is audited separately |
+| **AI / findings** | AskYourBooks, Findings, Dashboard (`/findings/status`) | 3 — dark by construction until Groq |
+| **Read-only / infra** | AuditTrail, ClosedMonths, Products (a pricing master), `lib/pagedList.ts` (the `Paged` envelope itself) | 4 |
+Pickers embedded in remaining money pages (Vendor in PurchaseOrders, Customer in
+Quotations, Category in Budgets) leave with their page. **Reading:** ten of the
+25 are money surfaces, and four of those (Quotations, PurchaseOrders, Budgets,
+Recurring) are where the next batch's value is; the operator/identity eight and
+the AI three carry no tenant money and can be burned down as a low-priority
+sweep or left pinned with the ratchet holding the line. The milestone's
+remaining value is roughly one more money batch, not four.

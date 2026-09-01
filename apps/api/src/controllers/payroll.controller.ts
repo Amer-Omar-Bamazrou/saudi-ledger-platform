@@ -1,6 +1,14 @@
 import type { Request, Response } from "express";
+import { CreatePayrollRunBody } from "@workspace/api-zod";
 import { payrollService } from "../services/payroll.service";
 import { requireIdParam } from "../lib/httpParams";
+import { BadRequestError } from "../lib/errors";
+
+/** Contract batch 4: the declared body constraint is the enforced one. */
+function parseOr400<T>(result: { success: true; data: T } | { success: false; error: { issues: { path: (string | number)[]; message: string }[] } }): T {
+  if (result.success) return result.data;
+  throw new BadRequestError(result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
+}
 
 export const payrollController = {
   async list(_req: Request, res: Response) {
@@ -10,7 +18,7 @@ export const payrollController = {
     res.json(await payrollService.getById(requireIdParam(req)));
   },
   async create(req: Request, res: Response) {
-    res.status(201).json(await payrollService.create(req.body, req.session?.userId ?? null));
+    res.status(201).json(await payrollService.create(parseOr400(CreatePayrollRunBody.safeParse(req.body)), req.session?.userId ?? null));
   },
   // Draft/approval workflow (M10.5).
   async submit(req: Request, res: Response) {

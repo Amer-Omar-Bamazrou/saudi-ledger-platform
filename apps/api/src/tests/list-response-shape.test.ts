@@ -132,8 +132,10 @@ function scanDeclarations(): Declaration[] {
  * onto the generated Customer/Vendor types. Same reason, same direction.
  * 25 → 22 (batch 3): the Invoices/Bills pickers, CreditNotes, InvoiceSummary
  * and PaymentHistory moved onto generated types.
+ * 22 → 16 (batch 4): JournalEntries (and its Category picker), Payroll,
+ * PayrollReport, Employees, Assets and AssetSchedule moved onto generated types.
  */
-const DECLARATIONS_AT_WRITING = 22;
+const DECLARATIONS_AT_WRITING = 16;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 

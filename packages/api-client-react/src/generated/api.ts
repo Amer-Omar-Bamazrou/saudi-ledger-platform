@@ -29,6 +29,9 @@ import type {
   ArAgingReport,
   AskInput,
   AskResult,
+  Asset,
+  AssetDetail,
+  AssetInputFields,
   AuditLogPage,
   BalanceSheetReport,
   Bill,
@@ -50,9 +53,13 @@ import type {
   Company,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
+  CreateAssetInput,
   CreateBillInput,
   CreateCustomerInput,
+  CreateEmployeeInput,
   CreateInvoiceInput,
+  CreateJournalEntryInput,
+  CreatePayrollRunInput,
   CreatePurchaseOrderInput,
   CreateQuotationInput,
   CreateRecurringRuleInput,
@@ -63,7 +70,11 @@ import type {
   CustomerLedgerReport,
   Decomposition,
   DeploymentBanner,
+  DepreciateInput,
+  DepreciationEntry,
   DiscardResult,
+  Employee,
+  EmployeeInputFields,
   ErrorResponse,
   FinancialSummary,
   Finding,
@@ -100,17 +111,24 @@ import type {
   IncomeStatementReport,
   Invoice,
   JournalEntry,
+  JournalEntryReversal,
   JournalReport,
   Liquidity,
+  ListAssets200,
+  ListAssetsParams,
   ListAuditLogsParams,
   ListBills200,
   ListBillsParams,
   ListBudgetsParams,
   ListCustomers200,
   ListCustomersParams,
+  ListEmployees200,
+  ListEmployeesParams,
   ListFindingsParams,
   ListInvoices200,
   ListInvoicesParams,
+  ListJournalEntries200,
+  ListJournalEntriesParams,
   ListPurchaseOrders200,
   ListPurchaseOrdersParams,
   ListQuotations200,
@@ -122,6 +140,8 @@ import type {
   Payment,
   PaymentInput,
   PayrollRun,
+  PayrollRunDetail,
+  PayrollRunListItem,
   PendingReviewCounts,
   PendingReviewTransaction,
   PeriodLock,
@@ -7559,6 +7579,1461 @@ export function useGetActivityReport<TData = Awaited<ReturnType<typeof getActivi
 
 
 
+
+export const getListJournalEntriesUrl = (params?: ListJournalEntriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journal-entries?${stringifiedParams}` : `/api/journal-entries`
+}
+
+/**
+ * Each row carries ITS OWN `totalDebit`/`totalCredit`, aggregated from its
+ * lines. There is deliberately no set-wide money total: an entry's debits
+ * equal its credits, so a cross-entry sum is a number with no meaning.
+ * List rows carry `lines: []`; fetch `/journal-entries/{id}` for lines.
+ * @summary A PAGE of journal entries with each entry's own debit/credit totals
+ */
+export const listJournalEntries = async (params?: ListJournalEntriesParams, options?: RequestInit): Promise<ListJournalEntries200> => {
+
+  return customFetch<ListJournalEntries200>(getListJournalEntriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJournalEntriesQueryKey = (params?: ListJournalEntriesParams,) => {
+    return [
+    `/api/journal-entries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListJournalEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listJournalEntries>>, TError = ErrorType<unknown>>(params?: ListJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJournalEntriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalEntries>>> = ({ signal }) => listJournalEntries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJournalEntries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJournalEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof listJournalEntries>>>
+export type ListJournalEntriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A PAGE of journal entries with each entry's own debit/credit totals
+ */
+
+export function useListJournalEntries<TData = Awaited<ReturnType<typeof listJournalEntries>>, TError = ErrorType<unknown>>(
+ params?: ListJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJournalEntriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJournalEntryUrl = () => {
+
+
+
+
+  return `/api/journal-entries`
+}
+
+/**
+ * @summary Create a DRAFT journal entry — lines must balance
+ */
+export const createJournalEntry = async (createJournalEntryInput: CreateJournalEntryInput, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getCreateJournalEntryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createJournalEntryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateJournalEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournalEntry>>, TError,{data: BodyType<CreateJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJournalEntry>>, TError,{data: BodyType<CreateJournalEntryInput>}, TContext> => {
+
+const mutationKey = ['createJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJournalEntry>>, {data: BodyType<CreateJournalEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createJournalEntry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createJournalEntry>>>
+    export type CreateJournalEntryMutationBody = BodyType<CreateJournalEntryInput>
+    export type CreateJournalEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a DRAFT journal entry — lines must balance
+ */
+export const useCreateJournalEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournalEntry>>, TError,{data: BodyType<CreateJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJournalEntry>>,
+        TError,
+        {data: BodyType<CreateJournalEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateJournalEntryMutationOptions(options));
+    }
+
+export const getGetJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}`
+}
+
+/**
+ * @summary One journal entry with its lines
+ */
+export const getJournalEntry = async (id: number, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getGetJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJournalEntryQueryKey = (id: number,) => {
+    return [
+    `/api/journal-entries/${id}`
+    ] as const;
+    }
+
+
+export const getGetJournalEntryQueryOptions = <TData = Awaited<ReturnType<typeof getJournalEntry>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalEntry>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJournalEntryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJournalEntry>>> = ({ signal }) => getJournalEntry(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJournalEntry>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJournalEntryQueryResult = NonNullable<Awaited<ReturnType<typeof getJournalEntry>>>
+export type GetJournalEntryQueryError = ErrorType<void>
+
+
+/**
+ * @summary One journal entry with its lines
+ */
+
+export function useGetJournalEntry<TData = Awaited<ReturnType<typeof getJournalEntry>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalEntry>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJournalEntryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}`
+}
+
+/**
+ * @summary Delete a DRAFT journal entry
+ */
+export const deleteJournalEntry = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteJournalEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteJournalEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteJournalEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteJournalEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteJournalEntry>>>
+
+    export type DeleteJournalEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a DRAFT journal entry
+ */
+export const useDeleteJournalEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteJournalEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteJournalEntryMutationOptions(options));
+    }
+
+export const getPostJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}/post`
+}
+
+/**
+ * @summary Post a draft to the GL (alias of approve)
+ */
+export const postJournalEntry = async (id: number, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getPostJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPostJournalEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postJournalEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['postJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postJournalEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postJournalEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof postJournalEntry>>>
+
+    export type PostJournalEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Post a draft to the GL (alias of approve)
+ */
+export const usePostJournalEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof postJournalEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPostJournalEntryMutationOptions(options));
+    }
+
+export const getReverseJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}/reverse`
+}
+
+/**
+ * The original keeps `status = reversed` and STAYS IN THE BOOKS (§4); the mirror is a new posted entry.
+ * @summary Reverse a posted entry with a mirror entry in the current open period
+ */
+export const reverseJournalEntry = async (id: number, options?: RequestInit): Promise<JournalEntryReversal> => {
+
+  return customFetch<JournalEntryReversal>(getReverseJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReverseJournalEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reverseJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseJournalEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reverseJournalEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof reverseJournalEntry>>>
+
+    export type ReverseJournalEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Reverse a posted entry with a mirror entry in the current open period
+ */
+export const useReverseJournalEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseJournalEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReverseJournalEntryMutationOptions(options));
+    }
+
+export const getListPayrollRunsUrl = () => {
+
+
+
+
+  return `/api/payroll`
+}
+
+/**
+ * @summary Every payroll run, newest first, with its employee count and gross
+ */
+export const listPayrollRuns = async ( options?: RequestInit): Promise<PayrollRunListItem[]> => {
+
+  return customFetch<PayrollRunListItem[]>(getListPayrollRunsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollRunsQueryKey = () => {
+    return [
+    `/api/payroll`
+    ] as const;
+    }
+
+
+export const getListPayrollRunsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollRunsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollRuns>>> = ({ signal }) => listPayrollRuns({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollRunsQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollRuns>>>
+export type ListPayrollRunsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every payroll run, newest first, with its employee count and gross
+ */
+
+export function useListPayrollRuns<TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollRunsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollRunUrl = () => {
+
+
+
+
+  return `/api/payroll`
+}
+
+/**
+ * @summary Create a DRAFT run for a period from every active employee
+ */
+export const createPayrollRun = async (createPayrollRunInput: CreatePayrollRunInput, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getCreatePayrollRunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollRunInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollRunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{data: BodyType<CreatePayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{data: BodyType<CreatePayrollRunInput>}, TContext> => {
+
+const mutationKey = ['createPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollRun>>, {data: BodyType<CreatePayrollRunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPayrollRun(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollRun>>>
+    export type CreatePayrollRunMutationBody = BodyType<CreatePayrollRunInput>
+    export type CreatePayrollRunMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a DRAFT run for a period from every active employee
+ */
+export const useCreatePayrollRun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{data: BodyType<CreatePayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollRun>>,
+        TError,
+        {data: BodyType<CreatePayrollRunInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollRunMutationOptions(options));
+    }
+
+export const getGetPayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}`
+}
+
+/**
+ * @summary One run with its per-employee items
+ */
+export const getPayrollRun = async (id: number, options?: RequestInit): Promise<PayrollRunDetail> => {
+
+  return customFetch<PayrollRunDetail>(getGetPayrollRunUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollRunQueryKey = (id: number,) => {
+    return [
+    `/api/payroll/${id}`
+    ] as const;
+    }
+
+
+export const getGetPayrollRunQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollRun>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollRunQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollRun>>> = ({ signal }) => getPayrollRun(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollRunQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollRun>>>
+export type GetPayrollRunQueryError = ErrorType<void>
+
+
+/**
+ * @summary One run with its per-employee items
+ */
+
+export function useGetPayrollRun<TData = Awaited<ReturnType<typeof getPayrollRun>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollRunQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListEmployeesUrl = (params?: ListEmployeesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/employees?${stringifiedParams}` : `/api/employees`
+}
+
+/**
+ * @summary A PAGE of employees with derived gross and GOSI, plus set-wide totals
+ */
+export const listEmployees = async (params?: ListEmployeesParams, options?: RequestInit): Promise<ListEmployees200> => {
+
+  return customFetch<ListEmployees200>(getListEmployeesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeesQueryKey = (params?: ListEmployeesParams,) => {
+    return [
+    `/api/employees`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEmployeesQueryOptions = <TData = Awaited<ReturnType<typeof listEmployees>>, TError = ErrorType<unknown>>(params?: ListEmployeesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployees>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployees>>> = ({ signal }) => listEmployees(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployees>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeesQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployees>>>
+export type ListEmployeesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A PAGE of employees with derived gross and GOSI, plus set-wide totals
+ */
+
+export function useListEmployees<TData = Awaited<ReturnType<typeof listEmployees>>, TError = ErrorType<unknown>>(
+ params?: ListEmployeesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployees>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmployeeUrl = () => {
+
+
+
+
+  return `/api/employees`
+}
+
+export const createEmployee = async (createEmployeeInput: CreateEmployeeInput, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getCreateEmployeeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createEmployeeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEmployeeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployee>>, TError,{data: BodyType<CreateEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmployee>>, TError,{data: BodyType<CreateEmployeeInput>}, TContext> => {
+
+const mutationKey = ['createEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmployee>>, {data: BodyType<CreateEmployeeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEmployee(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof createEmployee>>>
+    export type CreateEmployeeMutationBody = BodyType<CreateEmployeeInput>
+    export type CreateEmployeeMutationError = ErrorType<void>
+
+    export const useCreateEmployee = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployee>>, TError,{data: BodyType<CreateEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmployee>>,
+        TError,
+        {data: BodyType<CreateEmployeeInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEmployeeMutationOptions(options));
+    }
+
+export const getGetEmployeeUrl = (id: number,) => {
+
+
+
+
+  return `/api/employees/${id}`
+}
+
+export const getEmployee = async (id: number, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getGetEmployeeUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeeQueryKey = (id: number,) => {
+    return [
+    `/api/employees/${id}`
+    ] as const;
+    }
+
+
+export const getGetEmployeeQueryOptions = <TData = Awaited<ReturnType<typeof getEmployee>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployee>>> = ({ signal }) => getEmployee(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeeQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployee>>>
+export type GetEmployeeQueryError = ErrorType<void>
+
+
+
+export function useGetEmployee<TData = Awaited<ReturnType<typeof getEmployee>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeeQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateEmployeeUrl = (id: number,) => {
+
+
+
+
+  return `/api/employees/${id}`
+}
+
+export const updateEmployee = async (id: number,
+    employeeInputFields: EmployeeInputFields, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getUpdateEmployeeUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(employeeInputFields)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployee>>, TError,{id: number;data: BodyType<EmployeeInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployee>>, TError,{id: number;data: BodyType<EmployeeInputFields>}, TContext> => {
+
+const mutationKey = ['updateEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployee>>, {id: number;data: BodyType<EmployeeInputFields>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEmployee(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployee>>>
+    export type UpdateEmployeeMutationBody = BodyType<EmployeeInputFields>
+    export type UpdateEmployeeMutationError = ErrorType<void>
+
+    export const useUpdateEmployee = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployee>>, TError,{id: number;data: BodyType<EmployeeInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployee>>,
+        TError,
+        {id: number;data: BodyType<EmployeeInputFields>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeMutationOptions(options));
+    }
+
+export const getDeleteEmployeeUrl = (id: number,) => {
+
+
+
+
+  return `/api/employees/${id}`
+}
+
+export const deleteEmployee = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteEmployeeUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEmployeeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEmployee>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteEmployee(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEmployee>>>
+
+    export type DeleteEmployeeMutationError = ErrorType<unknown>
+
+    export const useDeleteEmployee = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEmployee>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteEmployeeMutationOptions(options));
+    }
+
+export const getListAssetsUrl = (params?: ListAssetsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assets?${stringifiedParams}` : `/api/assets`
+}
+
+/**
+ * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ */
+export const listAssets = async (params?: ListAssetsParams, options?: RequestInit): Promise<ListAssets200> => {
+
+  return customFetch<ListAssets200>(getListAssetsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetsQueryKey = (params?: ListAssetsParams,) => {
+    return [
+    `/api/assets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssetsQueryOptions = <TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(params?: ListAssetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssets>>> = ({ signal }) => listAssets(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssets>>>
+export type ListAssetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ */
+
+export function useListAssets<TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(
+ params?: ListAssetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAssetUrl = () => {
+
+
+
+
+  return `/api/assets`
+}
+
+export const createAsset = async (createAssetInput: CreateAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getCreateAssetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAssetInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<CreateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<CreateAssetInput>}, TContext> => {
+
+const mutationKey = ['createAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAsset>>, {data: BodyType<CreateAssetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAsset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof createAsset>>>
+    export type CreateAssetMutationBody = BodyType<CreateAssetInput>
+    export type CreateAssetMutationError = ErrorType<void>
+
+    export const useCreateAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<CreateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAsset>>,
+        TError,
+        {data: BodyType<CreateAssetInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAssetMutationOptions(options));
+    }
+
+export const getGetAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}`
+}
+
+/**
+ * @summary One asset with its depreciation history
+ */
+export const getAsset = async (id: number, options?: RequestInit): Promise<AssetDetail> => {
+
+  return customFetch<AssetDetail>(getGetAssetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAssetQueryKey = (id: number,) => {
+    return [
+    `/api/assets/${id}`
+    ] as const;
+    }
+
+
+export const getGetAssetQueryOptions = <TData = Awaited<ReturnType<typeof getAsset>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAssetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAsset>>> = ({ signal }) => getAsset(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAssetQueryResult = NonNullable<Awaited<ReturnType<typeof getAsset>>>
+export type GetAssetQueryError = ErrorType<void>
+
+
+/**
+ * @summary One asset with its depreciation history
+ */
+
+export function useGetAsset<TData = Awaited<ReturnType<typeof getAsset>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAssetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}`
+}
+
+export const updateAsset = async (id: number,
+    assetInputFields: AssetInputFields, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getUpdateAssetUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assetInputFields)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<AssetInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<AssetInputFields>}, TContext> => {
+
+const mutationKey = ['updateAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAsset>>, {id: number;data: BodyType<AssetInputFields>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAsset(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof updateAsset>>>
+    export type UpdateAssetMutationBody = BodyType<AssetInputFields>
+    export type UpdateAssetMutationError = ErrorType<void>
+
+    export const useUpdateAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<AssetInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAsset>>,
+        TError,
+        {id: number;data: BodyType<AssetInputFields>},
+        TContext
+      > => {
+      return useMutation(getUpdateAssetMutationOptions(options));
+    }
+
+export const getDeleteAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}`
+}
+
+export const deleteAsset = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAssetUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAsset>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAsset>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAsset>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAsset(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAssetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAsset>>>
+
+    export type DeleteAssetMutationError = ErrorType<unknown>
+
+    export const useDeleteAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAsset>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAsset>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAssetMutationOptions(options));
+    }
+
+export const getDepreciateAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}/depreciate`
+}
+
+/**
+ * @summary Record one month of straight-line depreciation
+ */
+export const depreciateAsset = async (id: number,
+    depreciateInput: DepreciateInput, options?: RequestInit): Promise<DepreciationEntry> => {
+
+  return customFetch<DepreciationEntry>(getDepreciateAssetUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(depreciateInput)
+  }
+);}
+
+
+
+
+
+export const getDepreciateAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext> => {
+
+const mutationKey = ['depreciateAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depreciateAsset>>, {id: number;data: BodyType<DepreciateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  depreciateAsset(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DepreciateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof depreciateAsset>>>
+    export type DepreciateAssetMutationBody = BodyType<DepreciateInput>
+    export type DepreciateAssetMutationError = ErrorType<void>
+
+    /**
+ * @summary Record one month of straight-line depreciation
+ */
+export const useDepreciateAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof depreciateAsset>>,
+        TError,
+        {id: number;data: BodyType<DepreciateInput>},
+        TContext
+      > => {
+      return useMutation(getDepreciateAssetMutationOptions(options));
+    }
 
 export const getApproveJournalEntryUrl = (id: number,) => {
 

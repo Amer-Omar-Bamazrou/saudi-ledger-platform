@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Banknote, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface PayrollRun { id: number; period: string; status: string; totalBasicSalary: number; totalAllowances: number; totalGosiEmployee: number; totalGosiEmployer: number; totalNetPay: number; processedAt: string | null; }
-interface PayrollDetail extends PayrollRun { items: Array<{ id: number; employeeName: string; employeeNumber: string; basicSalary: number; grossSalary: number; gosiEmployee: number; gosiEmployer: number; netPay: number; }>; }
+import type { CreatePayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
+
+/** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b) };
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-attention-surface/20 text-attention", approved: "bg-positive-surface/20 text-positive", paid: "bg-info-surface/20 text-info" };
 
@@ -24,11 +26,11 @@ export default function Payroll() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: runs = [], isLoading } = useQuery<PayrollRun[]>({ queryKey: ["payroll"], queryFn: () => apiFetch("/payroll") });
-  const { data: detail } = useQuery<PayrollDetail>({ queryKey: ["payroll", selectedId], queryFn: () => apiFetch(`/payroll/${selectedId}`), enabled: selectedId !== null });
+  const { data: runs = [], isLoading } = useQuery<PayrollRunListItem[]>({ queryKey: ["payroll"], queryFn: () => apiFetch("/payroll") });
+  const { data: detail } = useQuery<PayrollRunDetail>({ queryKey: ["payroll", selectedId], queryFn: () => apiFetch(`/payroll/${selectedId}`), enabled: selectedId !== null });
 
   const generateMut = useMutation({
-    mutationFn: (p: string) => apiFetch("/payroll", { method: "POST", body: JSON.stringify({ period: p }) }),
+    mutationFn: (p: string) => apiFetch("/payroll", { method: "POST", body: json.create({ period: p }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setOpen(false); toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

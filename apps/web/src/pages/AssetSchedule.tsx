@@ -20,11 +20,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
  * schedule, including the totals row, rendered **NaN**, with "undefinedy" in
  * the Useful Life column.
  */
-interface AssetRow {
-  id: number; name: string; categoryName: string | null; purchaseDate: string; purchaseCost: number;
-  usefulLifeYears: number; depreciationMethod: string; accumulatedDepreciation: number;
-  currentBookValue: number; status: string;
-}
+import type { AssetListItem, AssetTotals } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = {
   active: "bg-positive-surface/20 text-positive",
@@ -32,12 +28,11 @@ const STATUS_STYLES: Record<string, string> = {
   fully_depreciated: "bg-secondary text-muted-foreground",
 };
 
-interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDepreciation: number; currentBookValue: number; }
 
 export default function AssetSchedule() {
   const [page, setPage] = useState(0);
   const { t } = useLanguage();
-  const { data: paged, isLoading } = useQuery<Paged<AssetRow, AssetTotals>>({
+  const { data: paged, isLoading } = useQuery<Paged<AssetListItem, AssetTotals>>({
     queryKey: ["asset-schedule", page],
     queryFn: () => apiFetch(`/assets?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
   });

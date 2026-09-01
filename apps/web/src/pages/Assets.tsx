@@ -15,9 +15,11 @@ import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 
-interface AssetTotals { activeCount: number; purchaseCost: number; accumulatedDepreciation: number; currentBookValue: number; }
+import type { AssetListItem, AssetTotals, CreateAssetInput, DepreciateInput } from "@workspace/api-client-react";
 
-interface Asset { id: number; assetNumber: string; name: string; nameAr?: string; purchaseDate: string; purchaseCost: number; salvageValue: number; usefulLifeYears: number; accumulatedDepreciation: number; currentBookValue: number; annualDepreciation: number; monthlyDepreciation: number; depreciationMethod: string; status: string; location?: string; }
+/** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreateAssetInput) => JSON.stringify(b), depreciate: (b: DepreciateInput) => JSON.stringify(b) };
+
 
 const STATUS_STYLES: Record<string, string> = { active: "bg-positive-surface/20 text-positive", "fully-depreciated": "bg-secondary text-muted-foreground", disposed: "bg-negative-surface/20 text-negative", sold: "bg-info-surface/20 text-info" };
 
@@ -33,20 +35,20 @@ export default function Assets() {
   const { t } = useLanguage();
 
   const [page, setPage] = useState(0);
-  const { data: paged, isLoading } = useQuery<Paged<Asset, AssetTotals>>({
+  const { data: paged, isLoading } = useQuery<Paged<AssetListItem, AssetTotals>>({
     queryKey: ["assets", page],
     queryFn: () => apiFetch(`/assets?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
   });
   const assets = paged?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/assets", { method: "POST", body: JSON.stringify({ ...body, purchaseCost: Number(body.purchaseCost), salvageValue: Number(body.salvageValue), usefulLifeYears: Number(body.usefulLifeYears) }) }),
+    mutationFn: (body: typeof emptyForm) => apiFetch("/assets", { method: "POST", body: json.create({ ...body, purchaseCost: Number(body.purchaseCost), salvageValue: Number(body.salvageValue), usefulLifeYears: Number(body.usefulLifeYears) }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assets"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Asset registered", "تم تسجيل الأصل") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const depMut = useMutation({
-    mutationFn: ({ id, period }: { id: number; period: string }) => apiFetch(`/assets/${id}/depreciate`, { method: "POST", body: JSON.stringify({ period }) }),
+    mutationFn: ({ id, period }: { id: number; period: string }) => apiFetch(`/assets/${id}/depreciate`, { method: "POST", body: json.depreciate({ period }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assets"] }); setDepOpen(null); toast({ title: t("Depreciation recorded", "تم تسجيل الاستهلاك") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

@@ -3222,6 +3222,776 @@ export const GetActivityReportResponse = zod.object({
 
 
 /**
+ * Each row carries ITS OWN `totalDebit`/`totalCredit`, aggregated from its
+ * lines. There is deliberately no set-wide money total: an entry's debits
+ * equal its credits, so a cross-entry sum is a number with no meaning.
+ * List rows carry `lines: []`; fetch `/journal-entries/{id}` for lines.
+ * @summary A PAGE of journal entries with each entry's own debit/credit totals
+ */
+export const listJournalEntriesQueryLimitDefault = 50;
+export const listJournalEntriesQueryLimitMax = 200;
+
+export const listJournalEntriesQueryOffsetDefault = 0;
+export const listJournalEntriesQueryOffsetMin = 0;
+
+
+
+export const ListJournalEntriesQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listJournalEntriesQueryLimitMax).default(listJournalEntriesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listJournalEntriesQueryOffsetMin).default(listJournalEntriesQueryOffsetDefault)
+})
+
+export const ListJournalEntriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+})
+})
+
+
+/**
+ * @summary Create a DRAFT journal entry — lines must balance
+ */
+
+
+export const createJournalEntryBodyLinesItemDebitAmountMin = 0;
+
+export const createJournalEntryBodyLinesItemCreditAmountMin = 0;
+
+export const createJournalEntryBodyLinesMin = 2;
+
+
+
+export const CreateJournalEntryBody = zod.object({
+  "entryNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
+  "date": zod.string(),
+  "description": zod.string().min(1),
+  "reference": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().describe('Required — a line with no account cannot appear on any statement.'),
+  "accountName": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number().min(createJournalEntryBodyLinesItemDebitAmountMin),
+  "creditAmount": zod.number().min(createJournalEntryBodyLinesItemCreditAmountMin)
+})).min(createJournalEntryBodyLinesMin)
+})
+
+export const CreateJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})
+
+
+/**
+ * @summary One journal entry with its lines
+ */
+export const GetJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})
+
+
+/**
+ * @summary Delete a DRAFT journal entry
+ */
+export const DeleteJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteJournalEntryResponse = zod.void()
+
+
+/**
+ * @summary Post a draft to the GL (alias of approve)
+ */
+export const PostJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})
+
+
+/**
+ * The original keeps `status = reversed` and STAYS IN THE BOOKS (§4); the mirror is a new posted entry.
+ * @summary Reverse a posted entry with a mirror entry in the current open period
+ */
+export const ReverseJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReverseJournalEntryResponse = zod.object({
+  "message": zod.string(),
+  "reversalId": zod.number(),
+  "reversal": zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullish(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "reversalOf": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "postedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string(),
+  "description": zod.string().nullish(),
+  "debitAmount": zod.number(),
+  "creditAmount": zod.number()
+}))
+})
+})
+
+
+/**
+ * @summary Every payroll run, newest first, with its employee count and gross
+ */
+export const ListPayrollRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "employeeCount": zod.number(),
+  "grossSalary": zod.number()
+}))
+export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
+
+
+/**
+ * @summary Create a DRAFT run for a period from every active employee
+ */
+export const CreatePayrollRunBody = zod.object({
+  "period": zod.string().describe('YYYY-MM'),
+  "notes": zod.string().nullish()
+})
+
+export const CreatePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary One run with its per-employee items
+ */
+export const GetPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "payrollRunId": zod.number(),
+  "employeeId": zod.number().nullable(),
+  "basicSalary": zod.number(),
+  "housingAllowance": zod.number(),
+  "transportAllowance": zod.number(),
+  "otherAllowances": zod.number(),
+  "grossSalary": zod.number(),
+  "gosiEmployee": zod.number(),
+  "gosiEmployer": zod.number(),
+  "additions": zod.number(),
+  "deductions": zod.number(),
+  "netPay": zod.number(),
+  "employeeName": zod.string().nullable(),
+  "employeeNumber": zod.string().nullable(),
+  "createdAt": zod.string().optional()
+}))
+}))
+
+
+/**
+ * @summary A PAGE of employees with derived gross and GOSI, plus set-wide totals
+ */
+export const listEmployeesQueryLimitDefault = 50;
+export const listEmployeesQueryLimitMax = 200;
+
+export const listEmployeesQueryOffsetDefault = 0;
+export const listEmployeesQueryOffsetMin = 0;
+
+
+
+export const ListEmployeesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "department": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listEmployeesQueryLimitMax).default(listEmployeesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listEmployeesQueryOffsetMin).default(listEmployeesQueryOffsetDefault)
+})
+
+export const ListEmployeesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "nationalId": zod.string().nullable(),
+  "nationality": zod.string().nullable(),
+  "jobTitle": zod.string().nullable(),
+  "jobTitleAr": zod.string(),
+  "department": zod.string().nullable(),
+  "basicSalary": zod.number(),
+  "housingAllowance": zod.number(),
+  "transportAllowance": zod.number(),
+  "otherAllowances": zod.number(),
+  "gosiNumber": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "bank": zod.string().nullable(),
+  "joiningDate": zod.string().nullable(),
+  "endDate": zod.string().nullable(),
+  "status": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
+  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
+  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "saudiCount": zod.number(),
+  "grossSalary": zod.number(),
+  "gosiEmployer": zod.number()
+})
+})
+
+
+
+
+export const createEmployeeBodyBasicSalaryMin = 0;
+
+export const createEmployeeBodyHousingAllowanceMin = 0;
+
+export const createEmployeeBodyTransportAllowanceMin = 0;
+
+export const createEmployeeBodyOtherAllowancesMin = 0;
+
+
+
+export const CreateEmployeeBody = zod.object({
+  "employeeNumber": zod.string().min(1),
+  "name": zod.string().min(1),
+  "nameAr": zod.string().optional(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "jobTitleAr": zod.string().optional(),
+  "department": zod.string().nullish(),
+  "basicSalary": zod.number().min(createEmployeeBodyBasicSalaryMin),
+  "housingAllowance": zod.number().min(createEmployeeBodyHousingAllowanceMin).optional(),
+  "transportAllowance": zod.number().min(createEmployeeBodyTransportAllowanceMin).optional(),
+  "otherAllowances": zod.number().min(createEmployeeBodyOtherAllowancesMin).optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
+  "joiningDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "nationalId": zod.string().nullable(),
+  "nationality": zod.string().nullable(),
+  "jobTitle": zod.string().nullable(),
+  "jobTitleAr": zod.string(),
+  "department": zod.string().nullable(),
+  "basicSalary": zod.number(),
+  "housingAllowance": zod.number(),
+  "transportAllowance": zod.number(),
+  "otherAllowances": zod.number(),
+  "gosiNumber": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "bank": zod.string().nullable(),
+  "joiningDate": zod.string().nullable(),
+  "endDate": zod.string().nullable(),
+  "status": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
+  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
+  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+})
+
+
+export const GetEmployeeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "nationalId": zod.string().nullable(),
+  "nationality": zod.string().nullable(),
+  "jobTitle": zod.string().nullable(),
+  "jobTitleAr": zod.string(),
+  "department": zod.string().nullable(),
+  "basicSalary": zod.number(),
+  "housingAllowance": zod.number(),
+  "transportAllowance": zod.number(),
+  "otherAllowances": zod.number(),
+  "gosiNumber": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "bank": zod.string().nullable(),
+  "joiningDate": zod.string().nullable(),
+  "endDate": zod.string().nullable(),
+  "status": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
+  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
+  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+})
+
+
+export const UpdateEmployeeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+export const updateEmployeeBodyBasicSalaryMin = 0;
+
+export const updateEmployeeBodyHousingAllowanceMin = 0;
+
+export const updateEmployeeBodyTransportAllowanceMin = 0;
+
+export const updateEmployeeBodyOtherAllowancesMin = 0;
+
+
+
+export const UpdateEmployeeBody = zod.object({
+  "employeeNumber": zod.string().min(1).optional(),
+  "name": zod.string().min(1).optional(),
+  "nameAr": zod.string().optional(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "jobTitleAr": zod.string().optional(),
+  "department": zod.string().nullish(),
+  "basicSalary": zod.number().min(updateEmployeeBodyBasicSalaryMin).optional(),
+  "housingAllowance": zod.number().min(updateEmployeeBodyHousingAllowanceMin).optional(),
+  "transportAllowance": zod.number().min(updateEmployeeBodyTransportAllowanceMin).optional(),
+  "otherAllowances": zod.number().min(updateEmployeeBodyOtherAllowancesMin).optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
+  "joiningDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "nationalId": zod.string().nullable(),
+  "nationality": zod.string().nullable(),
+  "jobTitle": zod.string().nullable(),
+  "jobTitleAr": zod.string(),
+  "department": zod.string().nullable(),
+  "basicSalary": zod.number(),
+  "housingAllowance": zod.number(),
+  "transportAllowance": zod.number(),
+  "otherAllowances": zod.number(),
+  "gosiNumber": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "bank": zod.string().nullable(),
+  "joiningDate": zod.string().nullable(),
+  "endDate": zod.string().nullable(),
+  "status": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
+  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
+  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+})
+
+
+export const DeleteEmployeeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteEmployeeResponse = zod.void()
+
+
+/**
+ * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ */
+export const listAssetsQueryLimitDefault = 50;
+export const listAssetsQueryLimitMax = 200;
+
+export const listAssetsQueryOffsetDefault = 0;
+export const listAssetsQueryOffsetMin = 0;
+
+
+
+export const ListAssetsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listAssetsQueryLimitMax).default(listAssetsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listAssetsQueryOffsetMin).default(listAssetsQueryOffsetDefault)
+})
+
+export const ListAssetsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "categoryId": zod.number().nullable(),
+  "purchaseDate": zod.string(),
+  "purchaseCost": zod.number(),
+  "salvageValue": zod.number(),
+  "usefulLifeYears": zod.number(),
+  "depreciationMethod": zod.string(),
+  "accumulatedDepreciation": zod.number(),
+  "currentBookValue": zod.number(),
+  "location": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "status": zod.string(),
+  "disposalDate": zod.string().nullable(),
+  "disposalValue": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
+  "monthlyDepreciation": zod.number()
+}).and(zod.object({
+  "categoryName": zod.string().nullable()
+}))),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "activeCount": zod.number(),
+  "purchaseCost": zod.number(),
+  "accumulatedDepreciation": zod.number(),
+  "currentBookValue": zod.number()
+})
+})
+
+
+
+
+export const createAssetBodyPurchaseCostMin = 0;
+
+export const createAssetBodySalvageValueMin = 0;
+
+export const createAssetBodyUsefulLifeYearsExclusiveMin = 0;
+
+
+
+export const CreateAssetBody = zod.object({
+  "assetNumber": zod.string().min(1),
+  "name": zod.string().min(1),
+  "nameAr": zod.string().optional(),
+  "categoryId": zod.number().nullish(),
+  "purchaseDate": zod.string(),
+  "purchaseCost": zod.number().min(createAssetBodyPurchaseCostMin),
+  "salvageValue": zod.number().min(createAssetBodySalvageValueMin).optional(),
+  "usefulLifeYears": zod.number().gt(createAssetBodyUsefulLifeYearsExclusiveMin),
+  "depreciationMethod": zod.string().optional(),
+  "location": zod.string().nullish(),
+  "serialNumber": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "disposalDate": zod.string().nullish(),
+  "disposalValue": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "categoryId": zod.number().nullable(),
+  "purchaseDate": zod.string(),
+  "purchaseCost": zod.number(),
+  "salvageValue": zod.number(),
+  "usefulLifeYears": zod.number(),
+  "depreciationMethod": zod.string(),
+  "accumulatedDepreciation": zod.number(),
+  "currentBookValue": zod.number(),
+  "location": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "status": zod.string(),
+  "disposalDate": zod.string().nullable(),
+  "disposalValue": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
+  "monthlyDepreciation": zod.number()
+})
+
+
+/**
+ * @summary One asset with its depreciation history
+ */
+export const GetAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "categoryId": zod.number().nullable(),
+  "purchaseDate": zod.string(),
+  "purchaseCost": zod.number(),
+  "salvageValue": zod.number(),
+  "usefulLifeYears": zod.number(),
+  "depreciationMethod": zod.string(),
+  "accumulatedDepreciation": zod.number(),
+  "currentBookValue": zod.number(),
+  "location": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "status": zod.string(),
+  "disposalDate": zod.string().nullable(),
+  "disposalValue": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
+  "monthlyDepreciation": zod.number()
+}).and(zod.object({
+  "depreciationHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "bookValueAfter": zod.number(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+export const UpdateAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+export const updateAssetBodyPurchaseCostMin = 0;
+
+export const updateAssetBodySalvageValueMin = 0;
+
+export const updateAssetBodyUsefulLifeYearsExclusiveMin = 0;
+
+
+
+export const UpdateAssetBody = zod.object({
+  "assetNumber": zod.string().min(1).optional(),
+  "name": zod.string().min(1).optional(),
+  "nameAr": zod.string().optional(),
+  "categoryId": zod.number().nullish(),
+  "purchaseDate": zod.string().optional(),
+  "purchaseCost": zod.number().min(updateAssetBodyPurchaseCostMin).optional(),
+  "salvageValue": zod.number().min(updateAssetBodySalvageValueMin).optional(),
+  "usefulLifeYears": zod.number().gt(updateAssetBodyUsefulLifeYearsExclusiveMin).optional(),
+  "depreciationMethod": zod.string().optional(),
+  "location": zod.string().nullish(),
+  "serialNumber": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "disposalDate": zod.string().nullish(),
+  "disposalValue": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "categoryId": zod.number().nullable(),
+  "purchaseDate": zod.string(),
+  "purchaseCost": zod.number(),
+  "salvageValue": zod.number(),
+  "usefulLifeYears": zod.number(),
+  "depreciationMethod": zod.string(),
+  "accumulatedDepreciation": zod.number(),
+  "currentBookValue": zod.number(),
+  "location": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "status": zod.string(),
+  "disposalDate": zod.string().nullable(),
+  "disposalValue": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
+  "monthlyDepreciation": zod.number()
+})
+
+
+export const DeleteAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAssetResponse = zod.void()
+
+
+/**
+ * @summary Record one month of straight-line depreciation
+ */
+export const DepreciateAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DepreciateAssetBody = zod.object({
+  "period": zod.string().describe('YYYY-MM')
+})
+
+export const DepreciateAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "bookValueAfter": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * Draft/approval workflow (M10.2). Approving a draft (pending) journal entry fires its activation path — the period-lock check and the post-to-GL transition — so it becomes active in the ledger. Only an approver (admin/accountant) may call this; a bookkeeper is denied.
  * @summary Approve a draft journal entry (posts it to the general ledger)
  */
@@ -4804,15 +5574,15 @@ export const SubmitPayrollRunResponse = zod.object({
   "id": zod.number(),
   "period": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
-  "totalBasicSalary": zod.number().optional(),
-  "totalAllowances": zod.number().optional(),
-  "totalGosiEmployee": zod.number().optional(),
-  "totalGosiEmployer": zod.number().optional(),
-  "totalDeductions": zod.number().optional(),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
-  "processedAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
   "createdAt": zod.string()
 })
 
@@ -4833,15 +5603,15 @@ export const SendBackPayrollRunResponse = zod.object({
   "id": zod.number(),
   "period": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
-  "totalBasicSalary": zod.number().optional(),
-  "totalAllowances": zod.number().optional(),
-  "totalGosiEmployee": zod.number().optional(),
-  "totalGosiEmployer": zod.number().optional(),
-  "totalDeductions": zod.number().optional(),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
-  "processedAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
   "createdAt": zod.string()
 })
 
@@ -4858,15 +5628,15 @@ export const ApprovePayrollRunResponse = zod.object({
   "id": zod.number(),
   "period": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
-  "totalBasicSalary": zod.number().optional(),
-  "totalAllowances": zod.number().optional(),
-  "totalGosiEmployee": zod.number().optional(),
-  "totalGosiEmployer": zod.number().optional(),
-  "totalDeductions": zod.number().optional(),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
-  "processedAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
   "createdAt": zod.string()
 })
 

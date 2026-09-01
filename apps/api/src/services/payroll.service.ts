@@ -49,7 +49,7 @@ export const payrollService = {
     };
   },
 
-  async create(body: { period?: string; notes?: string }, userId: number | null) {
+  async create(body: { period: string; notes?: string | null }, userId: number | null) {
     const { period, notes } = body;
     const employees = await payrollRepository.activeEmployees();
     if (employees.length === 0) throw new BadRequestError("No active employees found");

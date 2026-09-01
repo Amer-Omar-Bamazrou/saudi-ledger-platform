@@ -31,8 +31,12 @@ export const journalEntriesService = {
       journalEntriesRepository.list(filter),
       journalEntriesRepository.listMeta(filter),
     ]);
+    // Each row's OWN totals, aggregated from its lines — never zero because the
+    // lines were not loaded (see lineTotals). Lines themselves stay off the
+    // list; the detail endpoint carries them.
+    const totals = await journalEntriesRepository.lineTotals(rows.map((r) => r.id));
     return {
-      items: rows.map((r) => buildJEOut(r)),
+      items: rows.map((r) => ({ ...buildJEOut(r), ...(totals.get(r.id) ?? { totalDebit: 0, totalCredit: 0 }) })),
       page: { limit: filter.limit ?? JE_PAGE, offset: filter.offset ?? 0, total: meta.total },
     };
   },

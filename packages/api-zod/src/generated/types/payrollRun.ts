@@ -11,17 +11,17 @@ export interface PayrollRun {
   id: number;
   period: string;
   status: PayrollRunStatus;
-  totalBasicSalary?: number;
-  totalAllowances?: number;
-  totalGosiEmployee?: number;
-  totalGosiEmployer?: number;
-  totalDeductions?: number;
+  totalBasicSalary: number;
+  totalAllowances: number;
+  totalGosiEmployee: number;
+  totalGosiEmployer: number;
+  totalDeductions: number;
   totalNetPay: number;
   /** @nullable */
-  processedAt?: string | null;
+  processedAt: string | null;
   /** @nullable */
-  reviewNote?: string | null;
+  reviewNote: string | null;
   /** @nullable */
-  notes?: string | null;
+  notes: string | null;
   createdAt: string;
 }

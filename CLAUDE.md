@@ -61,9 +61,10 @@ The invariants they left behind are in §4; the lessons are in §3.
 **2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
 record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
 **2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
-**2026-09-01 — contract milestone, batches 1–3:** reports, customers, vendors,
-invoices and bills (detail + write paths, the approval artifact proven) in the
-spec, conformance-tested on real rows; ratchet 55 → 31, zero joins. Record: findings file.
+**2026-09-01 — contract milestone, batches 1–4:** reports, parties, invoices,
+bills, journal entries, payroll, employees and assets in the spec, conformance-
+tested on real rows (the approval artifact proven, the ICV chained); ratchet
+55 → 25, zero joins. Approvals.tsx HELD for an owner design call. Record: findings file.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -240,7 +241,7 @@ rules at the top of this file, rule 2).
 - **An obsolete assertion** — a correct-when-written absence assertion stays green while certifying the defect it now guards. Prefer presence assertions.
 - **Two id spaces with no forcing function** diverge invisibly until something joins them. Remove the second, or add a test that fails when they drift.
 - **The narrower-claim family** — a suite's or page's NAME describes a capability while its fixtures prove something narrower. Read the name as a claim; check the fixtures supply it.
-- **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID.
+- **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID. 🔴 **When the property is a CHAIN, assert two links** — one response can carry every field of the shape (`icv`, `previousHash`) and still not be part of any chain; only the second approval's `icv + 1` and `previousHash = first hash` prove the sequence exists. (Batch 3; the ZATCA chain is exactly the property a single-row assertion cannot see.)
 - **An act about a document is not an act about a pattern** — consent to a rule in January is not consent to what it produces in November. (Why A3 is drafts-only.)
 - **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
 - **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
@@ -328,7 +329,7 @@ rules at the top of this file, rule 2).
   `organization_memberships` role governs. Prefer explicit, scoped authz
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
-- **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no `app.current_org_id`, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** The conversion found a live instance (the operator surface reading a tenant's `verification_documents`) and named the thirteen identity-layer files that had been running unscoped.
+- **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (The conversion found a live unscoped read; incident: findings file.)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
@@ -421,15 +422,11 @@ rules at the top of this file, rule 2).
   clearance. Cloud storage is permitted; the binding constraint is a direct
   audit link (`ArchiveStore.directLink`).
 - **🔴 A MIGRATION THAT TOUCHES `categories` OR `system_account_templates` MUST
-  REDEFINE `seed_org_chart_of_accounts()` — and be covered by a trigger
-  round-trip assertion.** The org-seed trigger copies template→category
-  **column by column**, and plpgsql resolves names at EXECUTION time, so both
-  failure directions are silent at deploy: a **dropped** column the trigger
-  still names breaks the next *signup*, and an **added** column the trigger
-  omits seeds the next org with NULLs. Both happened. `tests/org-seed-trigger.test.ts`
-  compares the two tables' COLUMN SETS rather than knowing any column's name, so
-  it covers future migrations unedited, and fails in both directions. Do not
-  weaken it to a list of known columns.
+  REDEFINE `seed_org_chart_of_accounts()`.** The org-seed trigger copies
+  template→category column by column and plpgsql resolves names at EXECUTION
+  time, so a dropped column breaks the next signup and an added one seeds NULLs
+  — both silent at deploy, both happened. `tests/org-seed-trigger.test.ts`
+  compares the two tables' COLUMN SETS; do not weaken it to a list of names.
 - **Owner-only tables must REVOKE explicitly.** Supabase's base
   `ALTER DEFAULT PRIVILEGES` re-grants `TRUNCATE`/`REFERENCES`/`TRIGGER` on
   every `CREATE TABLE`, and **TRUNCATE bypasses RLS**. The defaults are
@@ -571,8 +568,13 @@ approval (ICV, hash, previous hash, UUID, QR present; two approvals chain), and
 controllers parse every write body with the generated Zod. 🔴 A leave and a join
 in one milestone is the generator running — stop, do not net. 🔴 **A `type` alias
 that satisfies the detector is the ratchet GAMED — a file leaves by consuming the
-generated type, never by rephrasing.** Next: the 31; TanStack waits. Record:
-findings file.
+generated type, never by rephrasing.** **Batch 4 (journal entries, payroll,
+employees, assets): 31 → 25** — the journal-entry LIST had carried
+`totalDebit: 0, totalCredit: 0, lines: []` on every row (built from headers
+alone), and the ledger page and the approvals queue printed those zeros; fixed
+and asserted. 🔴 **Approvals.tsx is HELD** (one hand-written `Row` across four
+entities — a design call, not a migration). Next: the 25, by shape (findings
+file has the inventory); TanStack waits. Record: findings file.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |

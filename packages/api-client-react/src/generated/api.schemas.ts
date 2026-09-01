@@ -2104,18 +2104,18 @@ export interface PayrollRun {
   id: number;
   period: string;
   status: PayrollRunStatus;
-  totalBasicSalary?: number;
-  totalAllowances?: number;
-  totalGosiEmployee?: number;
-  totalGosiEmployer?: number;
-  totalDeductions?: number;
+  totalBasicSalary: number;
+  totalAllowances: number;
+  totalGosiEmployee: number;
+  totalGosiEmployer: number;
+  totalDeductions: number;
   totalNetPay: number;
   /** @nullable */
-  processedAt?: string | null;
+  processedAt: string | null;
   /** @nullable */
-  reviewNote?: string | null;
+  reviewNote: string | null;
   /** @nullable */
-  notes?: string | null;
+  notes: string | null;
   createdAt: string;
 }
 
@@ -2966,6 +2966,322 @@ export type CreateBillInput = BillHeaderInput & {
  */
 export type UpdateBillInput = BillHeaderInput;
 
+export interface JournalEntryLineInput {
+  /** Required — a line with no account cannot appear on any statement. */
+  accountId: number;
+  /** @minLength 1 */
+  accountName: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minimum 0 */
+  debitAmount: number;
+  /** @minimum 0 */
+  creditAmount: number;
+}
+
+export interface CreateJournalEntryInput {
+  /** Allocated by the server when omitted or blank. */
+  entryNumber?: string;
+  date: string;
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  reference?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @minItems 2 */
+  lines: JournalEntryLineInput[];
+}
+
+export interface JournalEntryReversal {
+  message: string;
+  reversalId: number;
+  reversal: JournalEntry;
+}
+
+export interface PayrollItem {
+  id: number;
+  payrollRunId: number;
+  /** @nullable */
+  employeeId: number | null;
+  basicSalary: number;
+  housingAllowance: number;
+  transportAllowance: number;
+  otherAllowances: number;
+  grossSalary: number;
+  gosiEmployee: number;
+  gosiEmployer: number;
+  additions: number;
+  deductions: number;
+  netPay: number;
+  /** @nullable */
+  employeeName: string | null;
+  /** @nullable */
+  employeeNumber: string | null;
+  createdAt?: string;
+}
+
+export type PayrollRunListItem = PayrollRun & {
+  employeeCount: number;
+  grossSalary: number;
+};
+
+export type PayrollRunDetail = PayrollRun & {
+  items: PayrollItem[];
+};
+
+export interface CreatePayrollRunInput {
+  /** YYYY-MM */
+  period: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface Employee {
+  id: number;
+  employeeNumber: string;
+  name: string;
+  nameAr: string;
+  /** @nullable */
+  nationalId: string | null;
+  /** @nullable */
+  nationality: string | null;
+  /** @nullable */
+  jobTitle: string | null;
+  jobTitleAr: string;
+  /** @nullable */
+  department: string | null;
+  basicSalary: number;
+  housingAllowance: number;
+  transportAllowance: number;
+  otherAllowances: number;
+  /** @nullable */
+  gosiNumber: string | null;
+  /** @nullable */
+  iban: string | null;
+  /** @nullable */
+  bank: string | null;
+  /** @nullable */
+  joiningDate: string | null;
+  /** @nullable */
+  endDate: string | null;
+  status: string;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  /** DERIVED — basic + the three allowances. */
+  grossSalary: number;
+  /** DERIVED from nationality and basic salary (SA 9.75%; others 0). */
+  gosiEmployee: number;
+  /** DERIVED (SA 11.75%; others 2%). */
+  gosiEmployer: number;
+}
+
+export interface EmployeeTotals {
+  saudiCount: number;
+  grossSalary: number;
+  gosiEmployer: number;
+}
+
+export interface EmployeeInputFields {
+  /** @minLength 1 */
+  employeeNumber?: string;
+  /** @minLength 1 */
+  name?: string;
+  nameAr?: string;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  jobTitle?: string | null;
+  jobTitleAr?: string;
+  /** @nullable */
+  department?: string | null;
+  /** @minimum 0 */
+  basicSalary?: number;
+  /** @minimum 0 */
+  housingAllowance?: number;
+  /** @minimum 0 */
+  transportAllowance?: number;
+  /** @minimum 0 */
+  otherAllowances?: number;
+  /** @nullable */
+  gosiNumber?: string | null;
+  /** @nullable */
+  iban?: string | null;
+  /** @nullable */
+  bank?: string | null;
+  /** @nullable */
+  joiningDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
+  status?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface CreateEmployeeInput {
+  /** @minLength 1 */
+  employeeNumber: string;
+  /** @minLength 1 */
+  name: string;
+  nameAr?: string;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  jobTitle?: string | null;
+  jobTitleAr?: string;
+  /** @nullable */
+  department?: string | null;
+  /** @minimum 0 */
+  basicSalary: number;
+  /** @minimum 0 */
+  housingAllowance?: number;
+  /** @minimum 0 */
+  transportAllowance?: number;
+  /** @minimum 0 */
+  otherAllowances?: number;
+  /** @nullable */
+  gosiNumber?: string | null;
+  /** @nullable */
+  iban?: string | null;
+  /** @nullable */
+  bank?: string | null;
+  /** @nullable */
+  joiningDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
+  status?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type UpdateEmployeeInput = EmployeeInputFields;
+
+export interface Asset {
+  id: number;
+  assetNumber: string;
+  name: string;
+  nameAr: string;
+  /** @nullable */
+  categoryId: number | null;
+  purchaseDate: string;
+  purchaseCost: number;
+  salvageValue: number;
+  usefulLifeYears: number;
+  depreciationMethod: string;
+  accumulatedDepreciation: number;
+  currentBookValue: number;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  serialNumber: string | null;
+  status: string;
+  /** @nullable */
+  disposalDate: string | null;
+  /** @nullable */
+  disposalValue: number | null;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  /** DERIVED — (cost − salvage) / useful life. */
+  annualDepreciation: number;
+  monthlyDepreciation: number;
+}
+
+export type AssetListItem = Asset & ({
+  /** @nullable */
+  categoryName: string | null;
+});
+
+export interface DepreciationEntry {
+  id: number;
+  assetId: number;
+  period: string;
+  amount: number;
+  bookValueAfter: number;
+  createdAt: string;
+}
+
+export type AssetDetail = Asset & {
+  depreciationHistory: DepreciationEntry[];
+};
+
+export interface AssetTotals {
+  activeCount: number;
+  purchaseCost: number;
+  accumulatedDepreciation: number;
+  currentBookValue: number;
+}
+
+export interface AssetInputFields {
+  /** @minLength 1 */
+  assetNumber?: string;
+  /** @minLength 1 */
+  name?: string;
+  nameAr?: string;
+  /** @nullable */
+  categoryId?: number | null;
+  purchaseDate?: string;
+  /** @minimum 0 */
+  purchaseCost?: number;
+  /** @minimum 0 */
+  salvageValue?: number;
+  /** @exclusiveMinimum 0 */
+  usefulLifeYears?: number;
+  depreciationMethod?: string;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  serialNumber?: string | null;
+  status?: string;
+  /** @nullable */
+  disposalDate?: string | null;
+  /** @nullable */
+  disposalValue?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface CreateAssetInput {
+  /** @minLength 1 */
+  assetNumber: string;
+  /** @minLength 1 */
+  name: string;
+  nameAr?: string;
+  /** @nullable */
+  categoryId?: number | null;
+  purchaseDate: string;
+  /** @minimum 0 */
+  purchaseCost: number;
+  /** @minimum 0 */
+  salvageValue?: number;
+  /** @exclusiveMinimum 0 */
+  usefulLifeYears: number;
+  depreciationMethod?: string;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  serialNumber?: string | null;
+  status?: string;
+  /** @nullable */
+  disposalDate?: string | null;
+  /** @nullable */
+  disposalValue?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type UpdateAssetInput = AssetInputFields;
+
+export interface DepreciateInput {
+  /** YYYY-MM */
+  period: string;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -3285,6 +3601,63 @@ date_to?: string;
 export type GetActivityReportParams = {
 date_from?: string;
 date_to?: string;
+};
+
+export type ListJournalEntriesParams = {
+status?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListJournalEntries200 = {
+  items: JournalEntry[];
+  page: PageInfo;
+};
+
+export type ListEmployeesParams = {
+search?: string;
+status?: string;
+department?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListEmployees200 = {
+  items: Employee[];
+  page: PageInfo;
+  totals: EmployeeTotals;
+};
+
+export type ListAssetsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListAssets200 = {
+  items: AssetListItem[];
+  page: PageInfo;
+  totals: AssetTotals;
 };
 
 export type ListCustomersParams = {
