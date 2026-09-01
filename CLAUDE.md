@@ -579,6 +579,7 @@ fails any NEW `apiFetch`+interface pairing (fault-injected 2026-09-01). The
 milestone burns the pinned list down: spec → codegen → each page consumes
 generated types and leaves the list. TanStack waits for it — 49 money surfaces
 do not get migrated onto unverified interfaces. Numbers and scope: findings file.
+## 6. Tech Stack
 
 | Layer         | Technology                                                               |
 | ------------- | ------------------------------------------------------------------------ |
