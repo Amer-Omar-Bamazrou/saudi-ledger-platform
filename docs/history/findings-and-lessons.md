@@ -5008,3 +5008,65 @@ now would re-encode unverified types into new code and stamp them "modernised".
 migration consumes GENERATED types rather than hand-written ones.** The
 migration's real value arrives only in that order; in the reverse order it
 launders the defect class it should have eliminated.
+
+---
+
+## 2026-09-01 — THE FIRST CORE-PATH WALK: TWO LAUNCH BLOCKERS NOTHING ELSE COULD SEE
+
+An external report proposed a launch-readiness metric: *a Saudi business owner
+can sign up, create an invoice, send it to a customer, record payment, view
+cash position, and file a VAT return — in Arabic, on mobile, without
+documentation.* The owner asked for the path to be walked honestly rather than
+the metric adopted. The walk found more than the report's item list did, and it
+is now **standing rule 4** (§3): a path finds what a list cannot.
+
+### The walk, leg by leg
+
+| Leg | Verdict |
+| --- | --- |
+| Sign up | Breaks earlier than expected: signup lands in `pending_review` and the verification gate 403s every business route until a platform operator approves. Deliberate KYC — but "sign up and start" is "sign up and wait for us", and the wait is undefined. → **L3** |
+| Create an invoice | Works. |
+| **Send it to a customer** | 🔴 **Fails on three independent legs**: no PDF or print rendering anywhere (checked for jspdf/pdfkit/puppeteer/`window.print` — nothing), the mailer unwired (B1), no share link. The signed XML and QR are minted at approval **and reach nobody**. Found on the way: `InvoiceSummary.tsx`'s Export button has no `onClick` — a dead control. → **L1** |
+| Record payment | Works. |
+| View cash position | Works. |
+| File a VAT return | A metric-wording issue, not a gap: `/vat` produces the box-structured bilingual return; the platform deliberately does not *file* (a reasoned drop — ZATCA e-invoicing is not VAT-return filing). |
+| In Arabic | Substantially yes; the mechanical re-measurement stays queued before it is claimed. |
+| **On mobile** | 🔴 **Fails**: `Layout.tsx` has zero responsive breakpoints — a fixed 240px sidebar, no collapse, no drawer. `useIsMobile` exists and is consumed only by the unused vendored sidebar. On a phone the app is a horizontal-scroll desktop page, for a mobile-first customer. → **L2** |
+
+### 🔴 Why nothing else found L1 and L2
+
+Six audits, ~1,200 tests, the browser suite, the reachability guards, the shape
+guards — none of them could have, **because nothing was broken. Things were
+missing.** Every existing instrument answers "does what exists behave?"; a
+missing capability produces no wrong number, no console error, no unreachable
+route, no failing assertion. This is *a reader cannot detect an absence*,
+pointed at the QUEUE itself: §5 tracks defects and decisions, which are lists,
+and an absence leaves no row in a list.
+
+The regulatory sharpening makes L1 the higher of the two (owner): **a
+simplified invoice's QR exists to be presented to the customer, and the product
+produces no artifact that can present it.** The core compliance feature is
+built, verified against the live sandbox — and undeliverable.
+
+### The rule
+
+> **Periodically walk the core user path end to end, as the user, and before
+> any launch conversation.** The queue review and the walk are different
+> instruments: the queue finds what went wrong; the walk finds what was never
+> there.
+
+### Also settled in the same assessment
+
+- **bcryptjs DoS framing (external report): overstated.** All hot-path calls
+  are async (bcryptjs interleaves CPU across ticks; degradation, not a stall);
+  signup is 5/hour/IP and login 10/15min/IP on a **Postgres-backed,
+  cross-process store** (C1's code half — the tech table had gone stale and was
+  corrected). The real caveat is the known one: limits are IP-keyed and
+  `TRUST_PROXY_HOPS` is unverified until deployment. M-4 stays in the tail.
+- **AssetSchedule NaN and PayrollReport's `month` filter (external report):
+  both real, both already fixed in #106** — each file's own comment records
+  exactly the reported defect. With CreditNotes and TrialBalance, that is four
+  hand-written-interface money defects: **#106 fixed the instances and the
+  class regrew within weeks, because the generator is still there.** That
+  sentence is the contract milestone's argument, and is now stated on the
+  milestone itself.

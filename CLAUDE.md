@@ -58,12 +58,9 @@ When in doubt, favor evolving the existing system over replacing it.
 Record: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md).
 The invariants they left behind are in §4; the lessons are in §3.
 
-**2026-08-31 — the navigation tree** (owner-approved, built). The §4 hierarchy
-is live: filters renamed to real statuses and deep-linked, quotation expiry
-derived from `valid_until`, ~40 Coming Soon pages each naming its blocker, and
-`e2e/nav-tree.spec.ts` walking every entry. The tree is DATA (`src/nav/tree.ts`)
-so the check enumerates rather than samples. Record:
-[`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md).
+**2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
+record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
+**2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -159,6 +156,13 @@ These are short forms; the rules are binding, the history explains why.
    the ingestion/tax path** (owner-mandated for all of M16; keep it beyond).
    Same fixture, live path (real HTTP → engine → Postgres), OBSERVED values —
    not test results. (M15 proved why; the incident is in the findings file.)
+4. **🔴 PERIODICALLY WALK THE CORE USER PATH END TO END — a path finds what a
+   list cannot** (owner-mandated 2026-09-01). Sign up → invoice → send →
+   payment → cash position → VAT return, in Arabic, on mobile. The queue is a
+   LIST, and a reader cannot detect an absence in one: the first walk found
+   L1, L2 and L3 — nothing broken, things MISSING — which no audit or suite
+   could see. Walk after any milestone touching the path, and before any
+   launch conversation. Record: findings file.
 
 ### 🔴 THE TRIAGE CHECK (apply to every finding, before ranking it)
 
@@ -238,24 +242,24 @@ rules at the top of this file, rule 2).
 - **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
 - **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
 - **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
-- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** Three times now: AUD-1's clock-minted document numbers (5 instances, 2 fixed), the unkeyed fragment (3 instances, 2 invisible to every fixture), and the severance amplifier (2 instances, the second found only by sweeping). **The report is a sample, not an inventory.**
+- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** Three times: AUD-1's clock-minted numbers, the unkeyed fragment, the severance amplifier. **The report is a sample, not an inventory.** Incidents: findings file.
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
 - **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each, before recommending it. The cash estimate was not slightly low; it was about a different feature.
 - **🔴 A stub is the part that needed testing** — test the branch you did NOT write (inject a failing implementation). At an interface, a method that cannot do the thing must THROW, never return: a no-op reporting success is a false statement the caller builds on. Look at every `resolve*Store` / `get*Provider` seam.
 - **🔴 A dependency that accepts your input has not promised to honour it** — small-ICU Node accepts `islamic-umalqura` and returns Gregorian. When a dependency can silently substitute behaviour, probe an EXTERNALLY CHECKABLE FACT at boot. "It didn't throw" is not evidence.
 - **Sources rank LIVE API > SDK > PDF > secondary** — and an unread primary source is not a licence to trust a secondary one.
-- **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollary: when line-level truth exists, header-level arithmetic is a second computation of the same fact and will drift. Corollary: **a REMOVED default is an invariant too** — defaults live wherever a writer supplies a fallback, and each is a write path.
-- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement, so verifying the allocator verifies nothing. **Ask what can reach the same effect without going through it**, and prefer a boundary with no override to one with a documented escape hatch.
+- **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollaries: header-level arithmetic over line-level truth WILL drift; and **a REMOVED default is an invariant too** — every writer supplying a fallback is a write path.
+- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it; prefer a boundary with no override.
 - **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
 - **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
-- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry the evidence count it rests on, and an instrument needs its own vacuity test: "all inputs failed" is a case it must NAME, not score. An unmeasured row reads "NOT MEASURED", never "matches baseline". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
+- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry its evidence count; "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads "NOT MEASURED". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
 - **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
 - **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
-- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout did its job and killed the API PROCESS (an unhandled `error` on the severed pg client is fatal in Node). Ask of every severance: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts`, which also RECORDS the points needing no guard. 🔴 **STANDARD ADVICE APPLIED WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only; the checked-out one still killed the server. 🔴 **A WRONG FIX WITH A CONFIDENT COMMENT IS A CLAIM NOBODY RECHECKS.**
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TrialBalance declared `id`, the API sends `accountId`, so every row keyed on `undefined` (a React warning, and rows mis-reconciled on re-render = a wrong figure in the wrong account). TypeScript checks a hand-written interface against the COMPONENT, never against the response. 🔴 Measured cause: **15 report endpoints are mounted, 1 is in `openapi.yaml`** — so "OpenAPI-first" is real for CRUD and largely absent for reports, which is where the money figures are. Incident: findings file.
+- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client is fatal in Node). Ask of every severance: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts` (which also records the points needing no guard). 🔴 **STANDARD ADVICE WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only. 🔴 **A WRONG FIX WITH A CONFIDENT COMMENT IS A CLAIM NOBODY RECHECKS.**
+- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never against the response; TrialBalance keyed every row on a field the API does not send. Cause measured: 15 report endpoints mounted, 1 in the spec. The class and its milestone: §5's contract-coverage entry.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
@@ -263,17 +267,17 @@ rules at the top of this file, rule 2).
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client closes it: **P5** (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13). Five items, each survivable alone and each correctly triaged, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding and rank on the worst PATH. Incident: findings file.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Incident: findings file.
-- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT**, because the spec AND the tests then both read as coverage. `minItems` in `openapi.yaml` binds nothing: these routes pass `req.body` straight to the service, so every contract constraint is decorative unless a service re-states it. Generate the check, or treat the contract as documentation — never let a reader believe a declared constraint is an enforced one.
+- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — the spec AND the tests then both read as coverage. Routes pass `req.body` straight to services, so a declared `minItems` is decorative unless a service re-states it. Never let a reader believe a declared constraint is an enforced one.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell is a field the WRITE path treats as optional and a READ path treats as required: check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
-- **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING, EVEN WHERE NOBODY WOULD CHALLENGE IT** (journal-entry lists) — every other paginated list got money totals; this one got a COUNT, because an entry's debits and credits are equal by construction, so a total across entries is twice the turnover or zero depending which column you pick. It would have looked authoritative and been questioned by no one. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
+- **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
-- **🔴 A TARGETED FIX SEES ONLY THE THING IT WAS SENT TO FIX — SO MEASURE, DO NOT RELY ON INCIDENTAL DISCOVERY.** Attention narrows to the defect it is hunting, which is what makes it effective; the corollary is that **working on a file causes none of its other defects to be noticed**. Coverage questions ("how much is translated", "which lists are unbounded", "which endpoints have no caller") must be asked PERIODICALLY and MECHANICALLY against the whole surface. Every mechanical sweep this project has run found something repeated targeted work had not. Incident: findings file.
-- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — P5 went 65-green, then a readiness wait was added to make it *more* reliable, pointing at a path assumed rather than checked; the step meant to remove flake is the one that broke the suite. **Re-run the thing you just hardened** — a change made for reliability earns no exemption from the run that proves it. (Earned again 2026-08-31: a `pool.on("error")` fix believed correct crashed the next run identically.) Incident: findings file.
+- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. Every mechanical sweep here found something targeted work had not.
+- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — the readiness wait added to make P5 *more* reliable is what broke it (a path assumed, not checked). **Re-run the thing you just hardened.** (Earned again 2026-08-31: a believed-correct `pool.on("error")` fix crashed the next run identically.) Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
 - **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
 - **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated client; a page must be RENDERED before it counts as working. (See the contract-coverage gap in §5 for how widespread this is.) Incident: findings file.
 - **🔴 A server refusal nobody surfaces is indistinguishable from a frozen UI** — surface errors at the mutation cache, not per form (the write-boundary rule applied to error surfacing). An unsurfaced error is also a diagnosis nobody gets, including us.
-- **🔴 A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures, never conflated.** *Shape 1 (data flow):* one file writes the fact another trusts; both files are correct and the EDGE is the hole. The countermeasure is human — enumerate what a privilege can WRITE, then grep every guard that READS that fact. *Shape 2 (position):* a route on the wrong side of a guard. The countermeasure is mechanical — `tests/privilege-surface-map.test.ts`. 🔴 **The map would NOT have caught F1** and must never be cited as if it would.
+- **🔴 A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures.** *Data flow* (one file writes the fact another trusts; the EDGE is the hole): human — enumerate what a privilege can WRITE, grep every guard that READS it. *Position* (a route on the wrong side of a guard): mechanical — `tests/privilege-surface-map.test.ts`. 🔴 **The map would NOT have caught F1.**
 - **🔴 A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it. F1's fix replaced overlap with CONFINEMENT, because an actor can cause overlap with one INSERT and cannot cause confinement at all. Corollary: **a HIGH goes into this file the moment it is named**, before the session that named it ends — a finding that lives only in a transcript is remembered, until it isn't.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
 - **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
@@ -451,6 +455,9 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
+| **L1** | 🔴 **THE INVOICE CANNOT LEAVE THE PRODUCT** — no PDF, no print view, no share artifact (launch blocker, 2026-09-01, found by WALKING the core path). The regulatory point makes it the higher launch absence: **a simplified invoice's QR exists to be PRESENTED to the customer, and no artifact can present it** — the signed XML and QR are minted at approval and reach nobody. Also here: `InvoiceSummary.tsx`'s Export button has no onClick. Record: findings file. | A rendered bilingual invoice document carrying the QR; "send" follows once B1 is wired. Design the artifact once; every document type reuses it. |
+| **L2** | 🔴 **NO RESPONSIVE LAYOUT** (launch blocker, same walk). `Layout.tsx` has zero breakpoints; `useIsMobile` is consumed only by the unused vendored sidebar. On a phone the app is a horizontal-scroll desktop page, for a mobile-first customer. | A responsive shell. The nav being data makes the shell swap cheaper. |
+| **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
 ### Deployment-time — cannot be closed from code
@@ -543,40 +550,36 @@ coverage is measured, never noticed. Last sweep 2026-08-30; history has it.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
-RLS *policy* coverage was the biggest gap and is closed (`tests/rls-coverage.test.ts`).
-**Three more closed 2026-08-31:**
+RLS *policy* coverage was the biggest gap and is closed (`tests/rls-coverage.test.ts`),
+as are the **permission-matrix seed grants** (clean; two deliberate read
+restrictions now NAMED — `tests/permission-seed-grants.test.ts`) and
+**git-history secret scanning** (clean over the full history; standing CI job
+with `fetch-depth: 0`; reasons in `.gitleaks.toml`). Records: findings file.
 
-- **Permission-matrix seed grants** — clean (`tests/permission-seed-grants.test.ts`):
-  viewer read-only, bookkeeper never holds `approve`/`delete`, no dead policy,
-  DB rows asserted to match the code. Two deliberate read restrictions are now
-  NAMED rather than assumed.
-- 🔴 **Same-org cross-company isolation — THE ANSWER IS NO**
-  (`tests/cross-company-isolation.test.ts`). `app.current_company_id` is a column
-  DEFAULT only and appears in **no RLS policy**: a connection scoped to company A
-  reads company B's rows. **15 repositories over company-scoped tables never
-  mention company, `reports` and `analytics` among them** — so a two-company
-  org's trial balance, GL, income statement and VAT return ADD BOTH SETS OF BOOKS
-  TOGETHER. Not cross-tenant and not exploitable today, but multi-company is a
-  shipped feature the reporting does not honour. 🔴 **A DECISION, NOT A PATCH** —
-  company-scoping every policy would break the org-level reads that legitimately
-  span companies. List pinned so it only shrinks. Detail: findings file.
-- **Git-history secret scanning** — full gitleaks pass: **380 commits, 4 findings,
-  all four verified false positives**. Reasons in `.gitleaks.toml`; now a standing
-  CI job with `fetch-depth: 0` (a shallow scan cannot see a credential committed
-  once and later removed).
+🔴 **SAME-ORG CROSS-COMPANY ISOLATION — audited, and the answer is NO, which
+stays OPEN as a decision** (`tests/cross-company-isolation.test.ts`).
+`app.current_company_id` is a column DEFAULT in **no RLS policy**: a connection
+scoped to company A reads company B's rows, and **15 repositories over
+company-scoped tables never mention company** (`reports` and `analytics` among
+them) — a two-company org's trial balance, GL and VAT return ADD BOTH SETS OF
+BOOKS TOGETHER. Multi-company is a shipped feature the reporting does not
+honour. Company-scoping every policy would break legitimate org-level reads;
+the failure mode is an empty report, so it is a DECISION with an owner. The
+company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
-
-🔴 **CONTRACT COVERAGE — the fourth gap, and the largest** (measured
-2026-08-31; owner-sequenced AFTER the three above — they are bounded, this is a
-milestone). The web calls **~104 endpoints through hand-written `apiFetch`; ~35
-are in `openapi.yaml`, ~69 are not**, and only 14 of those are reports — **~55
-are ordinary CRUD.** 12 web files use the generated client; 53 use `apiFetch`.
-**"OpenAPI-first with codegen" therefore describes the CONTRACT, not how the
-frontend consumes it.** This is the class the trial balance produced a wrong
-figure from, and TypeScript cannot see it. Numbers, endpoint list and scope:
-findings file.
-
+🔴 **CONTRACT COVERAGE — the fourth gap, and the largest** (measured 2026-08-31;
+sequenced after the three bounded ones — this is a milestone). ~104 endpoints
+called via hand-written `apiFetch`; ~35 in the spec; only 14 of the missing are
+reports. **"OpenAPI-first with codegen" describes the CONTRACT, not how the
+frontend consumes it.** 🔴 **The milestone's argument in one line: #106 fixed
+the instances and the class regrew within weeks, because the GENERATOR is still
+there** — four hand-written-interface money defects now (CreditNotes' fields,
+TrialBalance's `id`, AssetSchedule's NaN, PayrollReport's `month`), each an
+unchecked claim TypeScript cannot see. Fixing instances is maintenance; the
+milestone removes the generator. Numbers, endpoint list, scope: findings file.
+🔴 Sequencing (owner, 2026-09-01): **the TanStack table migration waits for
+this** — 49 money surfaces do not get migrated onto unverified interfaces.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |
