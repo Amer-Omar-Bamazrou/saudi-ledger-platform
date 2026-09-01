@@ -2104,6 +2104,377 @@ export interface PayrollRun {
   createdAt: string;
 }
 
+export interface TrialBalanceRow {
+  name: string;
+  nameAr: string;
+  /** @nullable */
+  accountId: number | null;
+  type: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface TrialBalanceReport {
+  accounts: TrialBalanceRow[];
+  totalDebit: number;
+  totalCredit: number;
+  balanced: boolean;
+}
+
+/**
+ * A named amount keyed by account id where one exists — the key is what period comparisons join on.
+ */
+export interface ReportKeyedAmount {
+  key: string;
+  name: string;
+  nameAr: string;
+  amount: number;
+}
+
+export type IncomeStatementReportSource = typeof IncomeStatementReportSource[keyof typeof IncomeStatementReportSource];
+
+
+export const IncomeStatementReportSource = {
+  journal_entries: 'journal_entries',
+  transactions: 'transactions',
+} as const;
+
+export interface IncomeStatementReport {
+  revenue: ReportKeyedAmount[];
+  expenses: ReportKeyedAmount[];
+  totalRevenue: number;
+  totalExpenses: number;
+  grossProfit: number;
+  netIncome: number;
+  netIncomeMargin: number;
+  source: IncomeStatementReportSource;
+}
+
+export interface BalanceSheetItem {
+  key: string;
+  name: string;
+  nameAr: string;
+  amount: number;
+  /** @nullable */
+  liquidityClass: string | null;
+}
+
+export interface BalanceSheetBucket {
+  items: BalanceSheetItem[];
+  total: number;
+}
+
+export type BalanceSheetReportAssets = {
+  items: BalanceSheetItem[];
+  accountsReceivable: number;
+  total: number;
+  current: BalanceSheetBucket;
+  nonCurrent: BalanceSheetBucket;
+  unclassified: BalanceSheetBucket;
+  quickTotal: number;
+  suspenseBalance: number;
+  transferSuspenseBalance: number;
+};
+
+export type BalanceSheetReportLiabilities = {
+  items: BalanceSheetItem[];
+  accountsPayable: number;
+  total: number;
+  current: BalanceSheetBucket;
+  nonCurrent: BalanceSheetBucket;
+  unclassified: BalanceSheetBucket;
+};
+
+export type BalanceSheetReportEquity = {
+  items: ReportKeyedAmount[];
+  retainedEarnings: number;
+  total: number;
+};
+
+export interface BalanceSheetReport {
+  asOf: string;
+  assets: BalanceSheetReportAssets;
+  liabilities: BalanceSheetReportLiabilities;
+  equity: BalanceSheetReportEquity;
+  totalLiabilitiesAndEquity: number;
+  balanced: boolean;
+  /** @nullable */
+  warning: string | null;
+}
+
+export type CashFlowSectionItemsItem = {
+  name: string;
+  amount: number;
+};
+
+export interface CashFlowSection {
+  total: number;
+  items: CashFlowSectionItemsItem[];
+}
+
+/**
+ * DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.
+ */
+export interface CashFlowReport {
+  operating: CashFlowSection;
+  investing: CashFlowSection;
+  financing: CashFlowSection;
+  internal: CashFlowSection;
+  netChange: number;
+}
+
+export interface JournalReportLine {
+  id: number;
+  accountName: string;
+  /** @nullable */
+  accountId: number | null;
+  /** @nullable */
+  description: string | null;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalReportEntry {
+  id: number;
+  entryNumber: string;
+  date: string;
+  description: string;
+  /** @nullable */
+  reference: string | null;
+  status: string;
+  lines: JournalReportLine[];
+  totalDebit: number;
+  totalCredit: number;
+  balanced: boolean;
+}
+
+export interface JournalReport {
+  entries: JournalReportEntry[];
+  count: number;
+  grandDebit: number;
+  grandCredit: number;
+  balanced: boolean;
+}
+
+export interface GeneralLedgerMovement {
+  date: string;
+  entryNumber: string;
+  jeId: number;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  reference: string | null;
+  accountName: string;
+  /** @nullable */
+  accountId: number | null;
+  debit: number;
+  credit: number;
+  balance: number;
+  accountNameAr: string;
+}
+
+export interface GeneralLedgerReport {
+  /** @nullable */
+  accountId: number | null;
+  accountName: string;
+  accountNameAr: string;
+  openingBalance: number;
+  movements: GeneralLedgerMovement[];
+  closingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+}
+
+export interface AccountStatementMovement {
+  date: string;
+  entryNumber: string;
+  /** @nullable */
+  reference: string | null;
+  /** @nullable */
+  description: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+/**
+ * The category row when account_id was given; otherwise `{ name, type }` built from account_name.
+ */
+export type AccountStatementReportAccount = {
+  id?: number;
+  name: string;
+  /** @nullable */
+  nameAr?: string | null;
+  type: string;
+  [key: string]: unknown;
+ };
+
+export interface AccountStatementReport {
+  /** The category row when account_id was given; otherwise `{ name, type }` built from account_name. */
+  account: AccountStatementReportAccount;
+  openingBalance: number;
+  movements: AccountStatementMovement[];
+  closingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+}
+
+export interface AccountSummaryRow {
+  name: string;
+  type: string;
+  openingBalance: number;
+  periodDebit: number;
+  periodCredit: number;
+  closingBalance: number;
+}
+
+export interface AccountSummaryReport {
+  accounts: AccountSummaryRow[];
+  count: number;
+}
+
+/**
+ * A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+ */
+export interface CustomerLedgerInvoice {
+  id: number;
+  invoiceNumber: string;
+  date: string;
+  /** @nullable */
+  dueDate: string | null;
+  documentType: string;
+  status: string;
+  total: number;
+  paidAmount: number;
+  outstanding: number;
+  vatAmount: number;
+  subtotal: number;
+}
+
+export interface CustomerLedgerCustomer {
+  /** @nullable */
+  customerId?: number | null;
+  customerName: string;
+  /** @nullable */
+  taxNumber?: string | null;
+  invoices: CustomerLedgerInvoice[];
+  totalInvoiced: number;
+  totalPaid: number;
+  balance: number;
+}
+
+export interface CustomerLedgerReport {
+  customers: CustomerLedgerCustomer[];
+  totalBalance: number;
+}
+
+export type OwnerEquityReportPeriod = {
+  from: string;
+  to: string;
+};
+
+export type OwnerEquityReportBreakdownItem = {
+  label: string;
+  amount: number;
+};
+
+export interface OwnerEquityReport {
+  period: OwnerEquityReportPeriod;
+  openingEquity: number;
+  netIncome: number;
+  contributions: number;
+  withdrawals: number;
+  closingEquity: number;
+  breakdown: OwnerEquityReportBreakdownItem[];
+}
+
+export interface AgingBuckets {
+  current: number;
+  days_1_30: number;
+  days_31_60: number;
+  days_61_90: number;
+  over_90: number;
+}
+
+export interface ArAgingItem {
+  id: number;
+  invoiceNumber: string;
+  customerName: string;
+  customerNameAr: string;
+  /** @nullable */
+  dueDate: string | null;
+  outstanding: number;
+  daysPastDue: number;
+}
+
+export interface ArAgingReport {
+  buckets: AgingBuckets;
+  total: number;
+  items: ArAgingItem[];
+}
+
+export interface ApAgingItem {
+  id: number;
+  billNumber: string;
+  vendorName: string;
+  vendorNameAr: string;
+  /** @nullable */
+  dueDate: string | null;
+  outstanding: number;
+  daysPastDue: number;
+}
+
+export interface ApAgingReport {
+  buckets: AgingBuckets;
+  total: number;
+  items: ApAgingItem[];
+}
+
+export interface TaxJournalLine {
+  accountName: string;
+  debit: number;
+  credit: number;
+  isTaxLine: boolean;
+}
+
+export interface TaxJournalEntry {
+  id: number;
+  entryNumber: string;
+  date: string;
+  description: string;
+  /** @nullable */
+  reference: string | null;
+  lines: TaxJournalLine[];
+  totalVatDebit: number;
+  totalVatCredit: number;
+}
+
+export interface TaxJournalEntriesReport {
+  entries: TaxJournalEntry[];
+  count: number;
+}
+
+export interface ActivityRow {
+  id: number;
+  entryNumber: string;
+  date: string;
+  description: string;
+  /** @nullable */
+  reference: string | null;
+  status: string;
+  lineCount: number;
+  totalDebit: number;
+  accounts: string[];
+}
+
+export interface ActivityReport {
+  activities: ActivityRow[];
+  count: number;
+  hasPosted: number;
+  hasDraft: number;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -2317,6 +2688,70 @@ period_from?: string | null;
  * @pattern ^\d{4}-\d{2}$
  */
 period_to?: string | null;
+};
+
+export type GetTrialBalanceParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetIncomeStatementParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetBalanceSheetParams = {
+as_of?: string;
+};
+
+export type GetCashFlowParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetJournalReportParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetGeneralLedgerParams = {
+account_id?: string;
+account_name?: string;
+date_from?: string;
+date_to?: string;
+};
+
+export type GetAccountStatementParams = {
+account_id?: string;
+account_name?: string;
+date_from?: string;
+date_to?: string;
+};
+
+export type GetAccountSummaryParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetCustomerLedgerParams = {
+customer_id?: string;
+date_from?: string;
+date_to?: string;
+};
+
+export type GetOwnerEquityParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetTaxJournalEntriesParams = {
+date_from?: string;
+date_to?: string;
+};
+
+export type GetActivityReportParams = {
+date_from?: string;
+date_to?: string;
 };
 
 export type ListInvoicesParams = {

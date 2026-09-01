@@ -12,20 +12,28 @@ import { useFiscalYearsQuery } from "@/hooks/useReportDefaultRange";
 import { CompareSelect, ComparisonUnavailable, priorAsOfLabel, type CompareSetting } from "@/components/Comparison";
 import { derivePriorAsOf, fmtPctChange } from "@/lib/priorPeriod";
 
-interface BSItem { key: string; name: string; nameAr?: string; amount: number; }
-interface BSData {
-  assets: { items: BSItem[]; accountsReceivable: number; total: number };
-  liabilities: { items: BSItem[]; accountsPayable: number; total: number };
-  equity: { retainedEarnings: number; total: number };
-  totalLiabilitiesAndEquity: number;
-  asOf: string;
+import type { BalanceSheetReport, ReportKeyedAmount } from "@workspace/api-client-react";
+
+/**
+ * 🔴 The equity accounts PLUS the retained-earnings line — because that is what
+ * `equity.total` is the sum of. Until 2026-09-01 this page rendered only the
+ * retained-earnings row against a total that included every equity account
+ * (capital, external transfers), so the section did not foot on any tenant
+ * with a capital posting. The hand-written interface had simply omitted
+ * `equity.items`; the generated type made the omission a compile error.
+ */
+function equityRows(d: BalanceSheetReport): ReportKeyedAmount[] {
+  return [
+    ...d.equity.items,
+    { key: "retained-earnings", name: "Retained Earnings", nameAr: "الأرباح المحتجزة", amount: d.equity.retainedEarnings },
+  ];
 }
 
 function Section({ title, titleAr, color, rows, extra, total, priorRows, priorExtra, priorTotal }: {
-  title: string; titleAr: string; color: string; rows: BSItem[];
+  title: string; titleAr: string; color: string; rows: ReportKeyedAmount[];
   extra?: { label: string; labelAr: string; amount: number }[]; total: number;
   /** F7-cmp — when present, the section renders Prior / Δ / Δ% columns, merged by KEY. */
-  priorRows?: BSItem[];
+  priorRows?: ReportKeyedAmount[];
   priorExtra?: number[];
   priorTotal?: number;
 }) {
@@ -33,7 +41,7 @@ function Section({ title, titleAr, color, rows, extra, total, priorRows, priorEx
   const comparing = priorRows !== undefined;
   const priorByKey = new Map((priorRows ?? []).map((r) => [r.key, r]));
   const currentKeys = new Set(rows.map((r) => r.key));
-  const merged: { item: BSItem; prior: number }[] = [
+  const merged: { item: ReportKeyedAmount; prior: number }[] = [
     ...rows.map((r) => ({ item: r, prior: priorByKey.get(r.key)?.amount ?? 0 })),
     ...(priorRows ?? []).filter((p) => !currentKeys.has(p.key)).map((p) => ({ item: { ...p, amount: 0 }, prior: p.amount })),
   ];
@@ -89,7 +97,7 @@ export default function BalanceSheet() {
   const { data: fiscalYears } = useFiscalYearsQuery();
   const periods = fiscalYears?.periods ?? [];
 
-  const { data, isLoading } = useQuery<BSData>({
+  const { data, isLoading } = useQuery<BalanceSheetReport>({
     queryKey: ["balance-sheet", applied],
     queryFn: () => apiFetch(`/reports/balance-sheet?as_of=${applied}`),
   });
@@ -98,7 +106,7 @@ export default function BalanceSheet() {
   // year-end (never calendar-minus-one, which is ~11 days off a Hijri year);
   // a month-end stays a month-end; anything else shifts clamped, labelled.
   const prior = compare !== "off" ? derivePriorAsOf(applied, periods, compare) : null;
-  const { data: priorData } = useQuery<BSData>({
+  const { data: priorData } = useQuery<BalanceSheetReport>({
     queryKey: ["balance-sheet", prior?.date],
     queryFn: () => apiFetch(`/reports/balance-sheet?as_of=${prior!.date}`),
     enabled: !!prior,
@@ -213,9 +221,9 @@ export default function BalanceSheet() {
                     title="Equity"
                     titleAr="حقوق الملكية"
                     color="bg-purple-500/10 text-purple-400"
-                    rows={[{ key: "retained-earnings", name: "Retained Earnings", nameAr: "الأرباح المحتجزة", amount: data.equity.retainedEarnings }]}
+                    rows={equityRows(data)}
                     total={data.equity.total}
-                    priorRows={comparing ? [{ key: "retained-earnings", name: "Retained Earnings", nameAr: "الأرباح المحتجزة", amount: priorData!.equity.retainedEarnings }] : undefined}
+                    priorRows={comparing ? equityRows(priorData!) : undefined}
                     priorTotal={comparing ? priorData!.equity.total : undefined}
                   />
                 </CardContent>

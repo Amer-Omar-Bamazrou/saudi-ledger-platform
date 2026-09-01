@@ -1714,6 +1714,224 @@ paths:
               schema:
                 $ref: "#/components/schemas/VatReturn"
 
+  # ── Reports — brought into the contract 2026-09-01 ──────────────────────────
+  # 🔴 Written from what `reports.service.ts` RETURNS, not from the pages'
+  # hand-written interfaces: those were the thing under suspicion (four money
+  # defects in five weeks came from them). `tests/report-contract-conformance`
+  # validates every one of these responses against the generated Zod schema on
+  # real rows, so a schema that drifts from the service goes red rather than
+  # becoming documentation that both the spec and the tests read as coverage.
+
+  /reports/trial-balance:
+    get:
+      operationId: getTrialBalance
+      tags: [reports]
+      summary: Trial balance — every account's debit/credit totals over a window
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Trial balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrialBalanceReport" }
+
+  /reports/income-statement:
+    get:
+      operationId: getIncomeStatement
+      tags: [reports]
+      summary: Income statement (P&L) over a window
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Income statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeStatementReport" }
+
+  /reports/balance-sheet:
+    get:
+      operationId: getBalanceSheet
+      tags: [reports]
+      summary: Balance sheet as of a date, with the current/non-current split
+      parameters:
+        - { name: as_of, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Balance sheet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BalanceSheetReport" }
+
+  /reports/cash-flow:
+    get:
+      operationId: getCashFlow
+      tags: [reports]
+      summary: Cash flow statement (DIRECT method) over a window
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Cash flow
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CashFlowReport" }
+
+  /reports/journal-report:
+    get:
+      operationId: getJournalReport
+      tags: [reports]
+      summary: Posted journal entries with their lines
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Journal report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalReport" }
+
+  /reports/general-ledger:
+    get:
+      operationId: getGeneralLedger
+      tags: [reports]
+      summary: General ledger movements with a running balance
+      parameters:
+        - { name: account_id, in: query, schema: { type: string } }
+        - { name: account_name, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: General ledger
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GeneralLedgerReport" }
+
+  /reports/account-statement:
+    get:
+      operationId: getAccountStatement
+      tags: [reports]
+      summary: One account's opening balance, movements and closing balance
+      parameters:
+        - { name: account_id, in: query, schema: { type: string } }
+        - { name: account_name, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Account statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountStatementReport" }
+        "400":
+          description: Neither account_id nor account_name was given
+
+  /reports/account-summary:
+    get:
+      operationId: getAccountSummary
+      tags: [reports]
+      summary: Every account's opening, period movements and closing balance
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Account summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountSummaryReport" }
+
+  /reports/customer-ledger:
+    get:
+      operationId: getCustomerLedger
+      tags: [reports]
+      summary: Invoices and balances per customer (credit notes as negative lines)
+      parameters:
+        - { name: customer_id, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Customer ledger
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerLedgerReport" }
+
+  /reports/owner-equity:
+    get:
+      operationId: getOwnerEquity
+      tags: [reports]
+      summary: Change in owner equity over a window
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Owner equity statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OwnerEquityReport" }
+
+  /reports/ar-aging:
+    get:
+      operationId: getArAgingReport
+      tags: [reports]
+      summary: Accounts receivable aging (credit notes netted into their originals)
+      responses:
+        "200":
+          description: AR aging
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArAgingReport" }
+
+  /reports/ap-aging:
+    get:
+      operationId: getApAgingReport
+      tags: [reports]
+      summary: Accounts payable aging
+      responses:
+        "200":
+          description: AP aging
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApAgingReport" }
+
+  /reports/tax-journal-entries:
+    get:
+      operationId: getTaxJournalEntries
+      tags: [reports]
+      summary: Journal entries that touch VAT or tax accounts
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Tax journal entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxJournalEntriesReport" }
+
+  /reports/activity:
+    get:
+      operationId: getActivityReport
+      tags: [reports]
+      summary: All journal-entry activity — posted, draft and reversed
+      parameters:
+        - { name: date_from, in: query, schema: { type: string } }
+        - { name: date_to, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Activity report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityReport" }
+
   /journal-entries/{id}/approve:
     post:
       operationId: approveJournalEntry
@@ -4429,3 +4647,450 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    # ── Report schemas (2026-09-01) — shaped from reports.service.ts, verified
+    #    against real rows by tests/report-contract-conformance.test.ts ────────
+
+    TrialBalanceRow:
+      type: object
+      required: [name, nameAr, accountId, type, debit, credit, balance]
+      properties:
+        name: { type: string }
+        nameAr: { type: string }
+        accountId: { type: ["integer", "null"] }
+        type: { type: string }
+        debit: { type: number }
+        credit: { type: number }
+        balance: { type: number }
+
+    TrialBalanceReport:
+      type: object
+      required: [accounts, totalDebit, totalCredit, balanced]
+      properties:
+        accounts:
+          type: array
+          items: { $ref: "#/components/schemas/TrialBalanceRow" }
+        totalDebit: { type: number }
+        totalCredit: { type: number }
+        balanced: { type: boolean }
+
+    ReportKeyedAmount:
+      description: A named amount keyed by account id where one exists — the key is what period comparisons join on.
+      type: object
+      required: [key, name, nameAr, amount]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        nameAr: { type: string }
+        amount: { type: number }
+
+    IncomeStatementReport:
+      type: object
+      required: [revenue, expenses, totalRevenue, totalExpenses, grossProfit, netIncome, netIncomeMargin, source]
+      properties:
+        revenue:
+          type: array
+          items: { $ref: "#/components/schemas/ReportKeyedAmount" }
+        expenses:
+          type: array
+          items: { $ref: "#/components/schemas/ReportKeyedAmount" }
+        totalRevenue: { type: number }
+        totalExpenses: { type: number }
+        grossProfit: { type: number }
+        netIncome: { type: number }
+        netIncomeMargin: { type: number }
+        source:
+          type: string
+          enum: [journal_entries, transactions]
+
+    BalanceSheetItem:
+      type: object
+      required: [key, name, nameAr, amount, liquidityClass]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        nameAr: { type: string }
+        amount: { type: number }
+        liquidityClass: { type: ["string", "null"] }
+
+    BalanceSheetBucket:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/BalanceSheetItem" }
+        total: { type: number }
+
+    BalanceSheetReport:
+      type: object
+      required: [asOf, assets, liabilities, equity, totalLiabilitiesAndEquity, balanced, warning]
+      properties:
+        asOf: { type: string }
+        assets:
+          type: object
+          required: [items, accountsReceivable, total, current, nonCurrent, unclassified, quickTotal, suspenseBalance, transferSuspenseBalance]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/BalanceSheetItem" }
+            accountsReceivable: { type: number }
+            total: { type: number }
+            current: { $ref: "#/components/schemas/BalanceSheetBucket" }
+            nonCurrent: { $ref: "#/components/schemas/BalanceSheetBucket" }
+            unclassified: { $ref: "#/components/schemas/BalanceSheetBucket" }
+            quickTotal: { type: number }
+            suspenseBalance: { type: number }
+            transferSuspenseBalance: { type: number }
+        liabilities:
+          type: object
+          required: [items, accountsPayable, total, current, nonCurrent, unclassified]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/BalanceSheetItem" }
+            accountsPayable: { type: number }
+            total: { type: number }
+            current: { $ref: "#/components/schemas/BalanceSheetBucket" }
+            nonCurrent: { $ref: "#/components/schemas/BalanceSheetBucket" }
+            unclassified: { $ref: "#/components/schemas/BalanceSheetBucket" }
+        equity:
+          type: object
+          required: [items, retainedEarnings, total]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/ReportKeyedAmount" }
+            retainedEarnings: { type: number }
+            total: { type: number }
+        totalLiabilitiesAndEquity: { type: number }
+        balanced: { type: boolean }
+        warning: { type: ["string", "null"] }
+
+    CashFlowSection:
+      type: object
+      required: [total, items]
+      properties:
+        total: { type: number }
+        items:
+          type: array
+          items:
+            type: object
+            required: [name, amount]
+            properties:
+              name: { type: string }
+              amount: { type: number }
+
+    CashFlowReport:
+      description: DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.
+      type: object
+      required: [operating, investing, financing, internal, netChange]
+      properties:
+        operating: { $ref: "#/components/schemas/CashFlowSection" }
+        investing: { $ref: "#/components/schemas/CashFlowSection" }
+        financing: { $ref: "#/components/schemas/CashFlowSection" }
+        internal: { $ref: "#/components/schemas/CashFlowSection" }
+        netChange: { type: number }
+
+    JournalReportLine:
+      type: object
+      required: [id, accountName, accountId, description, debit, credit]
+      properties:
+        id: { type: integer }
+        accountName: { type: string }
+        accountId: { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+        debit: { type: number }
+        credit: { type: number }
+
+    JournalReportEntry:
+      type: object
+      required: [id, entryNumber, date, description, reference, status, lines, totalDebit, totalCredit, balanced]
+      properties:
+        id: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string }
+        reference: { type: ["string", "null"] }
+        status: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/JournalReportLine" }
+        totalDebit: { type: number }
+        totalCredit: { type: number }
+        balanced: { type: boolean }
+
+    JournalReport:
+      type: object
+      required: [entries, count, grandDebit, grandCredit, balanced]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/JournalReportEntry" }
+        count: { type: integer }
+        grandDebit: { type: number }
+        grandCredit: { type: number }
+        balanced: { type: boolean }
+
+    GeneralLedgerMovement:
+      type: object
+      required: [date, entryNumber, jeId, description, reference, accountName, accountId, debit, credit, balance, accountNameAr]
+      properties:
+        date: { type: string }
+        entryNumber: { type: string }
+        jeId: { type: integer }
+        description: { type: ["string", "null"] }
+        reference: { type: ["string", "null"] }
+        accountName: { type: string }
+        accountId: { type: ["integer", "null"] }
+        debit: { type: number }
+        credit: { type: number }
+        balance: { type: number }
+        accountNameAr: { type: string }
+
+    GeneralLedgerReport:
+      type: object
+      required: [accountId, accountName, accountNameAr, openingBalance, movements, closingBalance, totalDebit, totalCredit]
+      properties:
+        accountId: { type: ["integer", "null"] }
+        accountName: { type: string }
+        accountNameAr: { type: string }
+        openingBalance: { type: number }
+        movements:
+          type: array
+          items: { $ref: "#/components/schemas/GeneralLedgerMovement" }
+        closingBalance: { type: number }
+        totalDebit: { type: number }
+        totalCredit: { type: number }
+
+    AccountStatementMovement:
+      type: object
+      required: [date, entryNumber, reference, description, debit, credit, balance]
+      properties:
+        date: { type: string }
+        entryNumber: { type: string }
+        reference: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        debit: { type: number }
+        credit: { type: number }
+        balance: { type: number }
+
+    AccountStatementReport:
+      type: object
+      required: [account, openingBalance, movements, closingBalance, totalDebit, totalCredit]
+      properties:
+        account:
+          description: The category row when account_id was given; otherwise `{ name, type }` built from account_name.
+          type: object
+          required: [name, type]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            nameAr: { type: ["string", "null"] }
+            type: { type: string }
+          additionalProperties: true
+        openingBalance: { type: number }
+        movements:
+          type: array
+          items: { $ref: "#/components/schemas/AccountStatementMovement" }
+        closingBalance: { type: number }
+        totalDebit: { type: number }
+        totalCredit: { type: number }
+
+    AccountSummaryRow:
+      type: object
+      required: [name, type, openingBalance, periodDebit, periodCredit, closingBalance]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        openingBalance: { type: number }
+        periodDebit: { type: number }
+        periodCredit: { type: number }
+        closingBalance: { type: number }
+
+    AccountSummaryReport:
+      type: object
+      required: [accounts, count]
+      properties:
+        accounts:
+          type: array
+          items: { $ref: "#/components/schemas/AccountSummaryRow" }
+        count: { type: integer }
+
+    CustomerLedgerInvoice:
+      description: A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+      type: object
+      required: [id, invoiceNumber, date, dueDate, documentType, status, total, paidAmount, outstanding, vatAmount, subtotal]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: string }
+        date: { type: string }
+        dueDate: { type: ["string", "null"] }
+        documentType: { type: string }
+        status: { type: string }
+        total: { type: number }
+        paidAmount: { type: number }
+        outstanding: { type: number }
+        vatAmount: { type: number }
+        subtotal: { type: number }
+
+    CustomerLedgerCustomer:
+      type: object
+      required: [customerName, invoices, totalInvoiced, totalPaid, balance]
+      properties:
+        customerId: { type: ["integer", "null"] }
+        customerName: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerLedgerInvoice" }
+        totalInvoiced: { type: number }
+        totalPaid: { type: number }
+        balance: { type: number }
+
+    CustomerLedgerReport:
+      type: object
+      required: [customers, totalBalance]
+      properties:
+        customers:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerLedgerCustomer" }
+        totalBalance: { type: number }
+
+    OwnerEquityReport:
+      type: object
+      required: [period, openingEquity, netIncome, contributions, withdrawals, closingEquity, breakdown]
+      properties:
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string }
+            to: { type: string }
+        openingEquity: { type: number }
+        netIncome: { type: number }
+        contributions: { type: number }
+        withdrawals: { type: number }
+        closingEquity: { type: number }
+        breakdown:
+          type: array
+          items:
+            type: object
+            required: [label, amount]
+            properties:
+              label: { type: string }
+              amount: { type: number }
+
+    AgingBuckets:
+      type: object
+      required: [current, days_1_30, days_31_60, days_61_90, over_90]
+      properties:
+        current: { type: number }
+        days_1_30: { type: number }
+        days_31_60: { type: number }
+        days_61_90: { type: number }
+        over_90: { type: number }
+
+    ArAgingItem:
+      type: object
+      required: [id, invoiceNumber, customerName, customerNameAr, dueDate, outstanding, daysPastDue]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: string }
+        customerName: { type: string }
+        customerNameAr: { type: string }
+        dueDate: { type: ["string", "null"] }
+        outstanding: { type: number }
+        daysPastDue: { type: integer }
+
+    ArAgingReport:
+      type: object
+      required: [buckets, total, items]
+      properties:
+        buckets: { $ref: "#/components/schemas/AgingBuckets" }
+        total: { type: number }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ArAgingItem" }
+
+    ApAgingItem:
+      type: object
+      required: [id, billNumber, vendorName, vendorNameAr, dueDate, outstanding, daysPastDue]
+      properties:
+        id: { type: integer }
+        billNumber: { type: string }
+        vendorName: { type: string }
+        vendorNameAr: { type: string }
+        dueDate: { type: ["string", "null"] }
+        outstanding: { type: number }
+        daysPastDue: { type: integer }
+
+    ApAgingReport:
+      type: object
+      required: [buckets, total, items]
+      properties:
+        buckets: { $ref: "#/components/schemas/AgingBuckets" }
+        total: { type: number }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ApAgingItem" }
+
+    TaxJournalLine:
+      type: object
+      required: [accountName, debit, credit, isTaxLine]
+      properties:
+        accountName: { type: string }
+        debit: { type: number }
+        credit: { type: number }
+        isTaxLine: { type: boolean }
+
+    TaxJournalEntry:
+      type: object
+      required: [id, entryNumber, date, description, reference, lines, totalVatDebit, totalVatCredit]
+      properties:
+        id: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string }
+        reference: { type: ["string", "null"] }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/TaxJournalLine" }
+        totalVatDebit: { type: number }
+        totalVatCredit: { type: number }
+
+    TaxJournalEntriesReport:
+      type: object
+      required: [entries, count]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/TaxJournalEntry" }
+        count: { type: integer }
+
+    ActivityRow:
+      type: object
+      required: [id, entryNumber, date, description, reference, status, lineCount, totalDebit, accounts]
+      properties:
+        id: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string }
+        reference: { type: ["string", "null"] }
+        status: { type: string }
+        lineCount: { type: integer }
+        totalDebit: { type: number }
+        accounts:
+          type: array
+          items: { type: string }
+
+    ActivityReport:
+      type: object
+      required: [activities, count, hasPosted, hasDraft]
+      properties:
+        activities:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityRow" }
+        count: { type: integer }
+        hasPosted: { type: integer }
+        hasDraft: { type: integer }

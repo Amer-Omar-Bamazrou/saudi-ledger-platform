@@ -12,12 +12,7 @@ import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useRepor
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
-interface EquityRow { label: string; amount: number; }
-interface EquityData {
-  period: { from: string; to: string };
-  openingEquity: number; netIncome: number; contributions: number; withdrawals: number; closingEquity: number;
-  breakdown: EquityRow[];
-}
+import type { OwnerEquityReport } from "@workspace/api-client-react";
 
 export default function OwnerEquity() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -34,7 +29,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo,   setDateTo]   = useState(range.to);
   const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
 
-  const { data, isLoading } = useQuery<EquityData>({
+  const { data, isLoading } = useQuery<OwnerEquityReport>({
     queryKey: ["owner-equity", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/owner-equity?date_from=${applied.from}&date_to=${applied.to}`),
   });

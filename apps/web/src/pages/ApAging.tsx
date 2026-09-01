@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, Download } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -24,23 +24,16 @@ import { useLanguage } from "@/contexts/LanguageContext";
  * `ArAging.tsx` reads the SAME response shape correctly. The sibling diverged —
  * "green fixes the case, not the class". This file is now aligned with it.
  */
-interface ApAgingData {
-  buckets: { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number };
-  total: number;
-  items: {
-    id: number; billNumber: string; vendorName: string; vendorNameAr?: string | null;
-    dueDate: string | null; outstanding: number; daysPastDue: number;
-  }[];
-}
+import type { ApAgingReport } from "@workspace/api-client-react";
 
-const EMPTY: ApAgingData = {
+const EMPTY: ApAgingReport = {
   buckets: { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 },
   total: 0,
   items: [],
 };
 
 /** Which bucket a bill falls in, from its own days-past-due. */
-function bucketOf(days: number): keyof ApAgingData["buckets"] {
+function bucketOf(days: number): keyof ApAgingReport["buckets"] {
   if (days <= 0) return "current";
   if (days <= 30) return "days_1_30";
   if (days <= 60) return "days_31_60";
@@ -69,9 +62,9 @@ export default function ApAging() {
   // 🔴 No `.catch(() => …)` here. A failed request must reach the error state
   // rather than be disguised as an empty report — "no outstanding payables" and
   // "we could not load your payables" are different facts.
-  const { data, isLoading, isError, error } = useQuery<ApAgingData>({
+  const { data, isLoading, isError, error } = useQuery<ApAgingReport>({
     queryKey: ["ap-aging"],
-    queryFn: () => apiFetch<ApAgingData>("/reports/ap-aging"),
+    queryFn: () => apiFetch<ApAgingReport>("/reports/ap-aging"),
   });
 
   const report = data ?? EMPTY;
@@ -84,11 +77,10 @@ export default function ApAging() {
           <h1 className="text-2xl font-bold text-foreground">{t("AP Aging", "أعمار الذمم الدائنة")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable aging — overdue bills by vendor", "أعمار الذمم الدائنة — الفواتير المتأخرة حسب المورّد")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
 
       <div className="grid grid-cols-5 gap-3">
-        {(Object.keys(BUCKET_LABELS) as (keyof ApAgingData["buckets"])[]).map((key) => (
+        {(Object.keys(BUCKET_LABELS) as (keyof ApAgingReport["buckets"])[]).map((key) => (
           <Card key={key} className="border-border bg-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs text-muted-foreground">{BUCKET_LABELS[key]}</CardTitle>

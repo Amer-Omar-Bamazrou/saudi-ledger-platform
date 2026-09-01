@@ -14,8 +14,7 @@ import { CompareSelect, ComparisonUnavailable, priorRangeLabel, type CompareSett
 import { derivePriorRange, fmtPctChange } from "@/lib/priorPeriod";
 import { fmtDate } from "@/lib/api";
 
-interface CFSection { total: number; items: { name: string; amount: number }[]; }
-interface CFData { operating: CFSection; investing: CFSection; financing: CFSection; internal?: CFSection; netChange: number; }
+import type { CashFlowReport, CashFlowSection } from "@workspace/api-client-react";
 
 /**
  * F7-cmp — cash flow compares at the SECTION level (operating / investing /
@@ -24,7 +23,7 @@ interface CFData { operating: CFSection; investing: CFSection; financing: CFSect
  * compare individual bank movements against each other — not a question
  * anyone is asking.
  */
-function CFBlock({ title, data, color, icon, prior }: { title: string; data: CFSection; color: string; icon: React.ReactNode; prior?: number }) {
+function CFBlock({ title, data, color, icon, prior }: { title: string; data: CashFlowSection; color: string; icon: React.ReactNode; prior?: number }) {
   const { t } = useLanguage();
   return (
     <Card className="border-border bg-card">
@@ -79,13 +78,13 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
   const { data: fiscalYears } = useFiscalYearsQuery();
   const periods = fiscalYears?.periods ?? [];
 
-  const { data, isLoading } = useQuery<CFData>({
+  const { data, isLoading } = useQuery<CashFlowReport>({
     queryKey: ["cash-flow", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/cash-flow?date_from=${applied.from}&date_to=${applied.to}`),
   });
 
   const prior = compare !== "off" ? derivePriorRange(applied.from, applied.to, periods, compare) : null;
-  const { data: priorData } = useQuery<CFData>({
+  const { data: priorData } = useQuery<CashFlowReport>({
     queryKey: ["cash-flow", prior?.from, prior?.to],
     queryFn: () => apiFetch(`/reports/cash-flow?date_from=${prior!.from}&date_to=${prior!.to}`),
     enabled: !!prior,

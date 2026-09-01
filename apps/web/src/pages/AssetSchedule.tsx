@@ -4,7 +4,7 @@ import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package, Download } from "lucide-react";
+import { Package } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
@@ -59,7 +59,6 @@ export default function AssetSchedule() {
           <h1 className="text-2xl font-bold text-foreground">{t("Fixed Asset Schedule", "جدول الأصول الثابتة")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Asset register with cost, depreciation, and net book value", "سجل الأصول مع التكلفة والإهلاك وصافي القيمة الدفترية")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
       </div>
 
       <div className="grid grid-cols-4 gap-4">

@@ -61,6 +61,8 @@ The invariants they left behind are in §4; the lessons are in §3.
 **2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
 record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
 **2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
+**2026-09-01 — contract milestone, batch 1:** 14 report endpoints in the spec,
+conformance-tested on real rows; ratchet 55 → 41, zero joins. Record: findings file.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -258,8 +260,8 @@ rules at the top of this file, rule 2).
 - **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
-- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client is fatal in Node). Ask of every severance: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts` (which also records the points needing no guard). 🔴 **STANDARD ADVICE WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only. 🔴 **A WRONG FIX WITH A CONFIDENT COMMENT IS A CLAIM NOBODY RECHECKS.**
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`.
+- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client). Ask of every severance what an unhandled event on the severed thing takes with it. 🔴 **Standard advice without checking which case you have is its own trap** — `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`; incident: findings file.
+- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. Day one: the balance sheet's Equity section had never rendered `equity.items` — its rows did not foot.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
@@ -271,7 +273,7 @@ rules at the top of this file, rule 2).
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell is a field the WRITE path treats as optional and a READ path treats as required: check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
 - **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
-- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. Every mechanical sweep here found something targeted work had not.
+- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. 🔴 **A WALK PRODUCES A SAMPLE; ONLY AN INVENTORY PRODUCES A COUNT — AND THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): one dead Export button by walk, seven by the English-only sweep, twelve by inventorying the SHAPE. Unvisited absences travel together; count the shape, and say what frame the count was taken in.
 - **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — the readiness wait added to make P5 *more* reliable is what broke it (a path assumed, not checked). **Re-run the thing you just hardened.** (Earned again 2026-08-31: a believed-correct `pool.on("error")` fix crashed the next run identically.) Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
 - **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
@@ -282,10 +284,10 @@ rules at the top of this file, rule 2).
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
 - **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
 - **🔴 A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
-- **🔴 An instruction's referent is an INPUT — check it against the data, even when it comes from the owner.** A work order once arrived for a milestone that did not exist; a bug was reported twice with a confident mechanism that was absent both times. 🔴 **An instruction's MECHANISM is an input too** — take the shape it describes, check the mechanism, and REPORT the mismatch rather than building the plausible thing. Corrections ship narrow and scoped; a named gap beats a silent default. (Seven instances this session; the table is in the findings file.)
+- **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Take the shape it describes, check the mechanism, and REPORT a mismatch rather than building the plausible thing. Corrections ship narrow; a named gap beats a silent default. (Seven instances; table in the findings file.)
 - **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
-- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Three families are invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), and BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces, and nothing inside the suite can enumerate what was missed** — so breadth is SEEDED and asserted, never hoped for. 🔴 **A suspiciously ROUND count is a diagnosis.** Incidents: findings file.
+- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces** — breadth is SEEDED and asserted, never hoped for. A suspiciously ROUND count is a diagnosis. Incidents: findings file.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
 - **🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY** (nav tree, 2026-08-31) — checking that every SPEC entry points at something real cannot see a real page the spec never listed. Five working report pages were about to become unreachable in the same commit that made the navigation "complete"; the coverage assertion found them, reading did not. **Whenever a map replaces a map, assert BOTH directions — every entry points at something, and everything is pointed at.** Incident: findings file.
 - **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves and shape guards see fields that match, so only FOLLOWING the link and checking what the destination actually shows can catch it. Incident: findings file.
@@ -569,16 +571,17 @@ the failure mode is an empty report, so it is a DECISION with an owner. The
 company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
-🔴 **CONTRACT COVERAGE — the fourth gap, a milestone, sequenced after the three
-bounded ones.** ~104 endpoints via hand-written `apiFetch`, ~35 in the spec.
-**The argument in one line: #106 fixed the instances and the class regrew
-within weeks — four hand-written-interface money defects — because the
-GENERATOR was still there.** 🔴 **The generator is now closed:**
-`tests/hand-written-interface-ratchet.test.ts` pins all 55 offending files and
-fails any NEW `apiFetch`+interface pairing (fault-injected 2026-09-01). The
-milestone burns the pinned list down: spec → codegen → each page consumes
-generated types and leaves the list. TanStack waits for it — 49 money surfaces
-do not get migrated onto unverified interfaces. Numbers and scope: findings file.
+🔴 **CONTRACT COVERAGE — the fourth gap, a milestone.** ~104 endpoints via
+hand-written `apiFetch`, ~35 in the spec. **The argument: #106 fixed the
+instances and the class regrew within weeks — four money defects — because the
+GENERATOR was still there.** The generator is closed:
+`tests/hand-written-interface-ratchet.test.ts` fails any NEW `apiFetch`+interface
+pairing; the milestone burns its pinned list down (spec → codegen → page consumes
+generated types → leaves the list). **Batch 1 (reports): 55 → 41, zero joins**,
+with `tests/report-contract-conformance.test.ts` making the schemas a contract
+rather than documentation. 🔴 A leave and a join in one milestone is the generator
+running — stop, do not net. Next: the 41, by money surface; TanStack waits.
+Record: findings file.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |

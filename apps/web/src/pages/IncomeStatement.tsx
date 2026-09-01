@@ -14,21 +14,10 @@ import { CompareSelect, ComparisonUnavailable, priorRangeLabel, type CompareSett
 import { derivePriorRange, fmtPctChange } from "@/lib/priorPeriod";
 import { fmtDate } from "@/lib/api";
 
-interface ISRow { key: string; name: string; nameAr?: string; amount: number }
-interface ISData {
-  revenue: ISRow[];
-  expenses: ISRow[];
-  totalRevenue: number;
-  totalExpenses: number;
-  grossProfit: number;
-  netIncome: number;
-  netIncomeMargin: number;
-  /** journal_entries | transactions — see the source-mismatch rule below. */
-  source: string;
-}
+import type { IncomeStatementReport, ReportKeyedAmount } from "@workspace/api-client-react";
 
 /** Current-order rows first, then prior-only rows — merged by KEY, never by display name. */
-function mergeRows(current: ISRow[], prior: ISRow[]): { row: ISRow; priorAmount: number | null }[] {
+function mergeRows(current: ReportKeyedAmount[], prior: ReportKeyedAmount[]): { row: ReportKeyedAmount; priorAmount: number | null }[] {
   const priorByKey = new Map(prior.map((r) => [r.key, r]));
   const out = current.map((row) => ({ row, priorAmount: priorByKey.get(row.key)?.amount ?? 0 }));
   const currentKeys = new Set(current.map((r) => r.key));
@@ -57,7 +46,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
   const { data: fiscalYears } = useFiscalYearsQuery();
   const periods = fiscalYears?.periods ?? [];
 
-  const { data, isLoading } = useQuery<ISData>({
+  const { data, isLoading } = useQuery<IncomeStatementReport>({
     queryKey: ["income-statement", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/income-statement?date_from=${applied.from}&date_to=${applied.to}`),
   });
@@ -66,7 +55,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
   // (fiscal → the resolver's preceding period; calendar month/quarter/year →
   // exact shift; anything else → calendar-year shift, labelled).
   const prior = compare !== "off" ? derivePriorRange(applied.from, applied.to, periods, compare) : null;
-  const { data: priorData } = useQuery<ISData>({
+  const { data: priorData } = useQuery<IncomeStatementReport>({
     queryKey: ["income-statement", prior?.from, prior?.to],
     queryFn: () => apiFetch(`/reports/income-statement?date_from=${prior!.from}&date_to=${prior!.to}`),
     enabled: !!prior,
@@ -84,8 +73,8 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
   const section = (
     title: string,
     titleAr: string,
-    rows: ISRow[],
-    priorRows: ISRow[] | undefined,
+    rows: ReportKeyedAmount[],
+    priorRows: ReportKeyedAmount[] | undefined,
     total: number,
     priorTotal: number | undefined,
     color: string,

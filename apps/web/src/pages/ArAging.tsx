@@ -6,11 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-interface AgingData {
-  buckets: { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number };
-  total: number;
-  items: { id: number; invoiceNumber: string; customerName: string; dueDate: string; outstanding: number; daysPastDue: number }[];
-}
+import type { ArAgingReport } from "@workspace/api-client-react";
 
 const BUCKET_COLORS: Record<string, string> = {
   current: "text-positive",
@@ -38,7 +34,7 @@ function agingBucket(days: number): string {
 
 export default function ArAging() {
   const { t } = useLanguage();
-  const { data, isLoading } = useQuery<AgingData>({
+  const { data, isLoading } = useQuery<ArAgingReport>({
     queryKey: ["ar-aging"],
     queryFn: () => apiFetch("/reports/ar-aging"),
     refetchInterval: 60_000,

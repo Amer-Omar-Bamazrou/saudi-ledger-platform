@@ -2694,6 +2694,496 @@ export const GetVatReturnResponse = zod.object({
 
 
 /**
+ * @summary Trial balance — every account's debit/credit totals over a window
+ */
+export const GetTrialBalanceQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetTrialBalanceResponse = zod.object({
+  "accounts": zod.array(zod.object({
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "accountId": zod.number().nullable(),
+  "type": zod.string(),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balance": zod.number()
+})),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean()
+})
+
+
+/**
+ * @summary Income statement (P&L) over a window
+ */
+export const GetIncomeStatementQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetIncomeStatementResponse = zod.object({
+  "revenue": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
+  "expenses": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
+  "totalRevenue": zod.number(),
+  "totalExpenses": zod.number(),
+  "grossProfit": zod.number(),
+  "netIncome": zod.number(),
+  "netIncomeMargin": zod.number(),
+  "source": zod.enum(['journal_entries', 'transactions'])
+})
+
+
+/**
+ * @summary Balance sheet as of a date, with the current/non-current split
+ */
+export const GetBalanceSheetQueryParams = zod.object({
+  "as_of": zod.coerce.string().optional()
+})
+
+export const GetBalanceSheetResponse = zod.object({
+  "asOf": zod.string(),
+  "assets": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "accountsReceivable": zod.number(),
+  "total": zod.number(),
+  "current": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+}),
+  "nonCurrent": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+}),
+  "unclassified": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+}),
+  "quickTotal": zod.number(),
+  "suspenseBalance": zod.number(),
+  "transferSuspenseBalance": zod.number()
+}),
+  "liabilities": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "accountsPayable": zod.number(),
+  "total": zod.number(),
+  "current": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+}),
+  "nonCurrent": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+}),
+  "unclassified": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})),
+  "total": zod.number()
+})
+}),
+  "equity": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
+  "retainedEarnings": zod.number(),
+  "total": zod.number()
+}),
+  "totalLiabilitiesAndEquity": zod.number(),
+  "balanced": zod.boolean(),
+  "warning": zod.string().nullable()
+})
+
+
+/**
+ * @summary Cash flow statement (DIRECT method) over a window
+ */
+export const GetCashFlowQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetCashFlowResponse = zod.object({
+  "operating": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "amount": zod.number()
+}))
+}),
+  "investing": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "amount": zod.number()
+}))
+}),
+  "financing": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "amount": zod.number()
+}))
+}),
+  "internal": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "amount": zod.number()
+}))
+}),
+  "netChange": zod.number()
+}).describe('DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.')
+
+
+/**
+ * @summary Posted journal entries with their lines
+ */
+export const GetJournalReportQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetJournalReportResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullable(),
+  "status": zod.string(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountName": zod.string(),
+  "accountId": zod.number().nullable(),
+  "description": zod.string().nullable(),
+  "debit": zod.number(),
+  "credit": zod.number()
+})),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean()
+})),
+  "count": zod.number(),
+  "grandDebit": zod.number(),
+  "grandCredit": zod.number(),
+  "balanced": zod.boolean()
+})
+
+
+/**
+ * @summary General ledger movements with a running balance
+ */
+export const GetGeneralLedgerQueryParams = zod.object({
+  "account_id": zod.coerce.string().optional(),
+  "account_name": zod.coerce.string().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetGeneralLedgerResponse = zod.object({
+  "accountId": zod.number().nullable(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string(),
+  "openingBalance": zod.number(),
+  "movements": zod.array(zod.object({
+  "date": zod.string(),
+  "entryNumber": zod.string(),
+  "jeId": zod.number(),
+  "description": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "accountName": zod.string(),
+  "accountId": zod.number().nullable(),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balance": zod.number(),
+  "accountNameAr": zod.string()
+})),
+  "closingBalance": zod.number(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number()
+})
+
+
+/**
+ * @summary One account's opening balance, movements and closing balance
+ */
+export const GetAccountStatementQueryParams = zod.object({
+  "account_id": zod.coerce.string().optional(),
+  "account_name": zod.coerce.string().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetAccountStatementResponse = zod.object({
+  "account": zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullish(),
+  "type": zod.string()
+}).describe('The category row when account_id was given; otherwise `{ name, type }` built from account_name.'),
+  "openingBalance": zod.number(),
+  "movements": zod.array(zod.object({
+  "date": zod.string(),
+  "entryNumber": zod.string(),
+  "reference": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balance": zod.number()
+})),
+  "closingBalance": zod.number(),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number()
+})
+
+
+/**
+ * @summary Every account's opening, period movements and closing balance
+ */
+export const GetAccountSummaryQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetAccountSummaryResponse = zod.object({
+  "accounts": zod.array(zod.object({
+  "name": zod.string(),
+  "type": zod.string(),
+  "openingBalance": zod.number(),
+  "periodDebit": zod.number(),
+  "periodCredit": zod.number(),
+  "closingBalance": zod.number()
+})),
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Invoices and balances per customer (credit notes as negative lines)
+ */
+export const GetCustomerLedgerQueryParams = zod.object({
+  "customer_id": zod.coerce.string().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetCustomerLedgerResponse = zod.object({
+  "customers": zod.array(zod.object({
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "taxNumber": zod.string().nullish(),
+  "invoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "documentType": zod.string(),
+  "status": zod.string(),
+  "total": zod.number(),
+  "paidAmount": zod.number(),
+  "outstanding": zod.number(),
+  "vatAmount": zod.number(),
+  "subtotal": zod.number()
+}).describe('A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.')),
+  "totalInvoiced": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+})),
+  "totalBalance": zod.number()
+})
+
+
+/**
+ * @summary Change in owner equity over a window
+ */
+export const GetOwnerEquityQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetOwnerEquityResponse = zod.object({
+  "period": zod.object({
+  "from": zod.string(),
+  "to": zod.string()
+}),
+  "openingEquity": zod.number(),
+  "netIncome": zod.number(),
+  "contributions": zod.number(),
+  "withdrawals": zod.number(),
+  "closingEquity": zod.number(),
+  "breakdown": zod.array(zod.object({
+  "label": zod.string(),
+  "amount": zod.number()
+}))
+})
+
+
+/**
+ * @summary Accounts receivable aging (credit notes netted into their originals)
+ */
+export const GetArAgingReportResponse = zod.object({
+  "buckets": zod.object({
+  "current": zod.number(),
+  "days_1_30": zod.number(),
+  "days_31_60": zod.number(),
+  "days_61_90": zod.number(),
+  "over_90": zod.number()
+}),
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "customerName": zod.string(),
+  "customerNameAr": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "outstanding": zod.number(),
+  "daysPastDue": zod.number()
+}))
+})
+
+
+/**
+ * @summary Accounts payable aging
+ */
+export const GetApAgingReportResponse = zod.object({
+  "buckets": zod.object({
+  "current": zod.number(),
+  "days_1_30": zod.number(),
+  "days_31_60": zod.number(),
+  "days_61_90": zod.number(),
+  "over_90": zod.number()
+}),
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "outstanding": zod.number(),
+  "daysPastDue": zod.number()
+}))
+})
+
+
+/**
+ * @summary Journal entries that touch VAT or tax accounts
+ */
+export const GetTaxJournalEntriesQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetTaxJournalEntriesResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullable(),
+  "lines": zod.array(zod.object({
+  "accountName": zod.string(),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "isTaxLine": zod.boolean()
+})),
+  "totalVatDebit": zod.number(),
+  "totalVatCredit": zod.number()
+})),
+  "count": zod.number()
+})
+
+
+/**
+ * @summary All journal-entry activity — posted, draft and reversed
+ */
+export const GetActivityReportQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const GetActivityReportResponse = zod.object({
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "reference": zod.string().nullable(),
+  "status": zod.string(),
+  "lineCount": zod.number(),
+  "totalDebit": zod.number(),
+  "accounts": zod.array(zod.string())
+})),
+  "count": zod.number(),
+  "hasPosted": zod.number(),
+  "hasDraft": zod.number()
+})
+
+
+/**
  * Draft/approval workflow (M10.2). Approving a draft (pending) journal entry fires its activation path — the period-lock check and the post-to-GL transition — so it becomes active in the ledger. Only an approver (admin/accountant) may call this; a bookkeeper is denied.
  * @summary Approve a draft journal entry (posts it to the general ledger)
  */

@@ -18,13 +18,11 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
 interface Customer { id: number; name: string; }
-interface InvoiceRow { id: number; invoiceNumber: string; date: string; dueDate: string; status: string; total: number; paidAmount: number; outstanding: number; vatAmount: number; subtotal: number; }
-interface CustomerBalance { customerId: number; customerName: string; taxNumber: string | null; invoices: InvoiceRow[]; totalInvoiced: number; totalPaid: number; balance: number; }
-interface LedgerData { customers: CustomerBalance[]; totalBalance: number; }
+import type { CustomerLedgerCustomer, CustomerLedgerReport } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-info-surface/20 text-info", paid: "bg-positive-surface/20 text-positive", partial: "bg-attention-surface/20 text-attention" };
 
-function CustomerRow({ cust }: { cust: CustomerBalance }) {
+function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(true);
   return (
@@ -117,7 +115,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
   });
   const customers = customersPage?.items ?? [];
 
-  const { data, isLoading } = useQuery<LedgerData>({
+  const { data, isLoading } = useQuery<CustomerLedgerReport>({
     queryKey: ["customer-ledger", applied],
     queryFn: () => {
       const params = new URLSearchParams({ date_from: applied.from, date_to: applied.to });

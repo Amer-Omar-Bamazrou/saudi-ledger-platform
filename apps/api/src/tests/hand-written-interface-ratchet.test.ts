@@ -71,17 +71,13 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "components/PaymentHistory.tsx",
   "lib/pagedList.ts",
   "pages/AcceptInvite.tsx",
-  "pages/ApAging.tsx",
   "pages/Approvals.tsx",
-  "pages/ArAging.tsx",
   "pages/AssetSchedule.tsx",
   "pages/Assets.tsx",
   "pages/AuditTrail.tsx",
-  "pages/BalanceSheet.tsx",
   "pages/BankAccounts.tsx",
   "pages/Bills.tsx",
   "pages/Budgets.tsx",
-  "pages/CashFlow.tsx",
   "pages/ClosedMonths.tsx",
   "pages/CompanySettings.tsx",
   "pages/CreditNotes.tsx",
@@ -90,7 +86,6 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/Dashboard.tsx",
   "pages/Employees.tsx",
   "pages/Findings.tsx",
-  "pages/IncomeStatement.tsx",
   "pages/InvoiceSummary.tsx",
   "pages/Invoices.tsx",
   "pages/JournalEntries.tsx",
@@ -104,7 +99,6 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/Recurring.tsx",
   "pages/ScanReview.tsx",
   "pages/TransactionReview.tsx",
-  "pages/TrialBalance.tsx",
   "pages/Upload.tsx",
   "pages/UserManagement.tsx",
   "pages/VendorDetail.tsx",
@@ -112,15 +106,9 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/VerificationStatus.tsx",
   "pages/ZakatReport.tsx",
   "pages/ZatcaOnboarding.tsx",
-  "pages/reports/AccountStatement.tsx",
-  "pages/reports/AccountSummary.tsx",
-  "pages/reports/ActivityReport.tsx",
-  "pages/reports/AgingReports.tsx",
+  // 🔴 Report response migrated (batch 1); STAYS for its customer picker — the
+  // /customers list is not in the contract yet. Leaves with the customers batch.
   "pages/reports/CustomerLedger.tsx",
-  "pages/reports/GeneralLedger.tsx",
-  "pages/reports/JournalReport.tsx",
-  "pages/reports/OwnerEquity.tsx",
-  "pages/reports/TaxJournalEntries.tsx",
 ];
 
 const rel = (p: string) => p.replace(/\\/g, "/").replace(/^.*?web\/src\//, "");
@@ -130,9 +118,9 @@ describe("the hand-written-interface ratchet", () => {
 
   it("the ratchet is not vacuous — the debt it pins is real", () => {
     expect(current.length).toBeGreaterThan(30);
-    // And the detector detects: TrialBalance is a known member with a recorded
-    // incident behind it.
-    expect(current).toContain("pages/TrialBalance.tsx");
+    // And the detector detects: Invoices is a known member (TrialBalance was
+    // the original canary; it left the list in batch 1).
+    expect(current).toContain("pages/Invoices.tsx");
   });
 
   it("🔴 NO NEW FILE pairs apiFetch with a hand-written interface", () => {

@@ -24,8 +24,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
  * Export is part of L1's document-artifact design.
  */
 
-interface ActivityRow { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lineCount: number; totalDebit: number; accounts: string[]; }
-interface ActivityData { activities: ActivityRow[]; count: number; hasPosted: number; hasDraft: number; }
+import type { ActivityReport as ActivityReportData } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = { posted: "bg-positive-surface/20 text-positive", draft: "bg-secondary text-muted-foreground", reversed: "bg-negative-surface/20 text-negative" };
 
@@ -37,7 +36,7 @@ export default function ActivityReport() {
   const [dateTo,   setDateTo]   = useState(today);
   const [applied,  setApplied]  = useState({ from: thirtyDaysAgo, to: today });
 
-  const { data, isLoading } = useQuery<ActivityData>({
+  const { data, isLoading } = useQuery<ActivityReportData>({
     queryKey: ["activity-report", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/activity?date_from=${applied.from}&date_to=${applied.to}`),
   });
