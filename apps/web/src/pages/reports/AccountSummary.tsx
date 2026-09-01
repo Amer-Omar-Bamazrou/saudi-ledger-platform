@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Scale, Download } from "lucide-react";
+import { Scale } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
@@ -30,6 +31,7 @@ export default function AccountSummary() {
 }
 
 function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
+  const { t } = useLanguage();
   const [dateFrom, setDateFrom] = useState(range.from);
   const [dateTo,   setDateTo]   = useState(range.to);
   const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
@@ -60,10 +62,10 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Account Summary</h1>
-          <p className="text-muted-foreground text-sm mt-1">Opening balance, period movements, and closing balance for every account</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Account Summary", "ملخص الحسابات")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Opening balance, period movements, and closing balance for every account", "الرصيد الافتتاحي وحركات الفترة والرصيد الختامي لكل حساب")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
+        {/* Export removed: no onClick — one of seven dead Export buttons (2026-09-01). */}
       </div>
 
       <FiscalRangeNotice source={range.source} />
@@ -71,9 +73,9 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
           <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>Generate</Button>
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
           </div>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
@@ -82,14 +84,14 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {isLoading ? (
-        <div className="text-sm text-muted-foreground p-4">Loading…</div>
+        <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data || data.accounts.length === 0 ? (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
             <div className="text-center py-16 text-muted-foreground">
               <Scale className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No account data for this period.</p>
-              <p className="text-xs mt-1 opacity-60">Post journal entries to see account summaries.</p>
+              <p className="text-sm">{t("No account data for this period.", "لا توجد بيانات حسابات لهذه الفترة.")}</p>
+              <p className="text-xs mt-1 opacity-60">{t("Post journal entries to see account summaries.", "رحّل قيود يومية لرؤية ملخصات الحسابات.")}</p>
             </div>
           </CardContent>
         </Card>
@@ -99,7 +101,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Account", "Type", "Opening Balance", "Period Debits", "Period Credits", "Closing Balance"].map(h => (
+                  {[t("Account", "الحساب"), t("Type", "النوع"), t("Opening Balance", "الرصيد الافتتاحي"), t("Period Debits", "مدين الفترة"), t("Period Credits", "دائن الفترة"), t("Closing Balance", "الرصيد الختامي")].map(h => (
                     <th key={h} className="text-start pb-3 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>

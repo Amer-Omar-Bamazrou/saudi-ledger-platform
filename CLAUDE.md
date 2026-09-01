@@ -259,7 +259,7 @@ rules at the top of this file, rule 2).
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client is fatal in Node). Ask of every severance: *does an unhandled event on the severed thing take down more than intended?* Guard: `tests/severance-amplifier.test.ts` (which also records the points needing no guard). 🔴 **STANDARD ADVICE WITHOUT CHECKING WHICH CASE YOU HAVE IS ITS OWN TRAP** — `pool.on("error")` covers IDLE clients only. 🔴 **A WRONG FIX WITH A CONFIDENT COMMENT IS A CLAIM NOBODY RECHECKS.**
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never against the response; TrialBalance keyed every row on a field the API does not send. Cause measured: 15 report endpoints mounted, 1 in the spec. The class and its milestone: §5's contract-coverage entry.
+- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
@@ -530,11 +530,12 @@ needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**. 🔴 **Re-measure before launch, mechanically:**
-count both idioms (`t("…"` and `lang === "ar"`) against bare JSX text nodes,
-across every page. A targeted fix sees only what it was sent to fix (§3), so
-coverage is measured, never noticed. Last sweep 2026-08-30; history has it.
-
+Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
+(the idiom-count sweep; a targeted fix sees only what it was sent to fix).
+**Re-measured 2026-09-01: eight English-only pages found and FIXED — seven
+under `/reports`, untranslated because unvisited — suspect count now 0.** The
+same sweep found and removed **seven dead Export buttons** (no onClick; export
+belongs to L1's artifact design). Re-run before launch. Record: findings file.
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
@@ -568,19 +569,16 @@ the failure mode is an empty report, so it is a DECISION with an owner. The
 company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
-🔴 **CONTRACT COVERAGE — the fourth gap, and the largest** (measured 2026-08-31;
-sequenced after the three bounded ones — this is a milestone). ~104 endpoints
-called via hand-written `apiFetch`; ~35 in the spec; only 14 of the missing are
-reports. **"OpenAPI-first with codegen" describes the CONTRACT, not how the
-frontend consumes it.** 🔴 **The milestone's argument in one line: #106 fixed
-the instances and the class regrew within weeks, because the GENERATOR is still
-there** — four hand-written-interface money defects now (CreditNotes' fields,
-TrialBalance's `id`, AssetSchedule's NaN, PayrollReport's `month`), each an
-unchecked claim TypeScript cannot see. Fixing instances is maintenance; the
-milestone removes the generator. Numbers, endpoint list, scope: findings file.
-🔴 Sequencing (owner, 2026-09-01): **the TanStack table migration waits for
-this** — 49 money surfaces do not get migrated onto unverified interfaces.
-## 6. Tech Stack
+🔴 **CONTRACT COVERAGE — the fourth gap, a milestone, sequenced after the three
+bounded ones.** ~104 endpoints via hand-written `apiFetch`, ~35 in the spec.
+**The argument in one line: #106 fixed the instances and the class regrew
+within weeks — four hand-written-interface money defects — because the
+GENERATOR was still there.** 🔴 **The generator is now closed:**
+`tests/hand-written-interface-ratchet.test.ts` pins all 55 offending files and
+fails any NEW `apiFetch`+interface pairing (fault-injected 2026-09-01). The
+milestone burns the pinned list down: spec → codegen → each page consumes
+generated types and leaves the list. TanStack waits for it — 49 money surfaces
+do not get migrated onto unverified interfaces. Numbers and scope: findings file.
 
 | Layer         | Technology                                                               |
 | ------------- | ------------------------------------------------------------------------ |

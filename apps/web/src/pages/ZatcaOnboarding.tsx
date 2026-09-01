@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 /**
@@ -60,6 +61,7 @@ function expiryTone(days: number | null): { label: string; className: string } {
 export default function ZatcaOnboarding() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [otp, setOtp] = useState("");
   const [result, setResult] = useState<OnboardResult | null>(null);
   const [error, setError] = useState("");
@@ -91,8 +93,8 @@ export default function ZatcaOnboarding() {
     onError: (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
   });
 
-  if (isLoading) return <div className="p-6">Loading…</div>;
-  if (!status) return <div className="p-6">Unable to load onboarding status.</div>;
+  if (isLoading) return <div className="p-6">{t("Loading…", "جارٍ التحميل…")}</div>;
+  if (!status) return <div className="p-6">{t("Unable to load onboarding status.", "تعذّر تحميل حالة التسجيل.")}</div>;
 
   const cert = status.certificate;
   const tone = expiryTone(cert?.daysUntilExpiry ?? null);
@@ -100,9 +102,9 @@ export default function ZatcaOnboarding() {
   return (
     <div className="p-6 space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-semibold">ZATCA e-invoicing (Phase 2)</h1>
+        <h1 className="text-2xl font-semibold">{t("ZATCA e-invoicing (Phase 2)", "الفوترة الإلكترونية — المرحلة الثانية")}</h1>
         <p className="text-muted-foreground">
-          Connect this company to ZATCA so its invoices can be cleared and reported.
+          {t("Connect this company to ZATCA so its invoices can be cleared and reported.", "اربط هذه الشركة بهيئة الزكاة والضريبة والجمارك لتصفية فواتيرها والإبلاغ عنها.")}
         </p>
       </div>
 
@@ -110,9 +112,7 @@ export default function ZatcaOnboarding() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Sandbox environment.</strong> ZATCA's sandbox accepts <em>any</em> OTP and
-            returns a shared test certificate that is not tied to this company. Onboarding here
-            verifies the integration only — it does <strong>not</strong> enable real invoicing.
+            <strong>{t("Sandbox environment.", "بيئة تجريبية.")}</strong> {t("ZATCA's sandbox accepts any OTP and returns a shared test certificate that is not tied to this company. Onboarding here verifies the integration only — it does not enable real invoicing.", "تقبل البيئة التجريبية أي كلمة مرور مؤقتة وتعيد شهادة اختبار مشتركة غير مرتبطة بهذه الشركة. التسجيل هنا يتحقق من التكامل فقط — ولا يفعّل الفوترة الحقيقية.")}
           </AlertDescription>
         </Alert>
       )}
@@ -122,9 +122,9 @@ export default function ZatcaOnboarding() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5" />
-            Certificate
+            {t("Certificate", "الشهادة")}
           </CardTitle>
-          <CardDescription>The credential that signs this company's invoices.</CardDescription>
+          <CardDescription>{t("The credential that signs this company's invoices.", "بيانات الاعتماد التي توقّع فواتير هذه الشركة.")}</CardDescription>
         </CardHeader>
         <CardContent>
           {cert ? (
@@ -141,22 +141,20 @@ export default function ZatcaOnboarding() {
                 <span className={tone.className}>({tone.label})</span>
               </div>
               {cert.egsSerialNumber && (
-                <div className="text-muted-foreground">Unit: {cert.egsSerialNumber}</div>
+                <div className="text-muted-foreground">{t("Unit:", "الوحدة:")} {cert.egsSerialNumber}</div>
               )}
               {cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 90 && (
                 <Alert className="mt-3">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    ZATCA certificates last 5 years with <strong>no grace period</strong>. When it
-                    expires, invoicing stops immediately. Renewal needs a new OTP from your Fatoora
-                    portal, so start before the deadline.
+                    {t("ZATCA certificates last 5 years with no grace period. When it expires, invoicing stops immediately. Renewal needs a new OTP from your Fatoora portal, so start before the deadline.", "تمتد صلاحية شهادات الهيئة خمس سنوات دون فترة سماح. عند انتهائها تتوقف الفوترة فورًا. يتطلب التجديد كلمة مرور مؤقتة جديدة من بوابة فاتورة، فابدأ قبل الموعد.")}
                   </AlertDescription>
                 </Alert>
               )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No certificate yet — complete the steps below.
+              {t("No certificate yet — complete the steps below.", "لا توجد شهادة بعد — أكمل الخطوات أدناه.")}
             </p>
           )}
         </CardContent>
@@ -165,11 +163,11 @@ export default function ZatcaOnboarding() {
       {/* ── Prerequisites ──────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>Before you start</CardTitle>
+          <CardTitle>{t("Before you start", "قبل أن تبدأ")}</CardTitle>
           <CardDescription>
-            ZATCA requires these on every invoice. Set them in{" "}
+            {t("ZATCA requires these on every invoice. Set them in", "تشترط الهيئة هذه البيانات في كل فاتورة. اضبطها في")}{" "}
             <Link href="/company" className="underline">
-              Company Settings
+              {t("Company Settings", "إعدادات الشركة")}
             </Link>
             .
           </CardDescription>
@@ -198,15 +196,14 @@ export default function ZatcaOnboarding() {
       {/* ── OTP ────────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>One-time password</CardTitle>
+          <CardTitle>{t("One-time password", "كلمة المرور المؤقتة")}</CardTitle>
           <CardDescription>
-            Sign in to the ZATCA Fatoora portal, generate an OTP for this solution unit, and paste
-            it below. We never see your Fatoora credentials, and the OTP is not stored.
+            {t("Sign in to the ZATCA Fatoora portal, generate an OTP for this solution unit, and paste it below. We never see your Fatoora credentials, and the OTP is not stored.", "سجّل الدخول إلى بوابة فاتورة، وأنشئ كلمة مرور مؤقتة لوحدة الحل هذه، والصقها أدناه. لا نطّلع على بيانات دخولك لفاتورة، ولا تُخزَّن كلمة المرور المؤقتة.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="otp">OTP from Fatoora</Label>
+            <Label htmlFor="otp">{t("OTP from Fatoora", "كلمة المرور المؤقتة من فاتورة")}</Label>
             <Input
               id="otp"
               value={otp}
@@ -221,7 +218,7 @@ export default function ZatcaOnboarding() {
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Complete the missing company details above before onboarding.
+                {t("Complete the missing company details above before onboarding.", "أكمل بيانات الشركة الناقصة أعلاه قبل التسجيل.")}
               </AlertDescription>
             </Alert>
           )}
@@ -236,7 +233,7 @@ export default function ZatcaOnboarding() {
             onClick={() => onboard.mutate()}
             disabled={!status.ready || !otp.trim() || onboard.isPending}
           >
-            {onboard.isPending ? "Running compliance checks…" : "Onboard with ZATCA"}
+            {onboard.isPending ? t("Running compliance checks…", "جارٍ تنفيذ فحوص الامتثال…") : t("Onboard with ZATCA", "التسجيل لدى الهيئة")}
           </Button>
         </CardContent>
       </Card>
@@ -245,10 +242,9 @@ export default function ZatcaOnboarding() {
       {result && (
         <Card>
           <CardHeader>
-            <CardTitle>Compliance checks</CardTitle>
+            <CardTitle>{t("Compliance checks", "فحوص الامتثال")}</CardTitle>
             <CardDescription>
-              ZATCA validates six documents — standard and simplified invoices, credit notes and
-              debit notes. All six must pass before a certificate is issued.
+              {t("ZATCA validates six documents — standard and simplified invoices, credit notes and debit notes. All six must pass before a certificate is issued.", "تتحقق الهيئة من ستة مستندات — فواتير قياسية ومبسطة وإشعارات دائن ومدين. يجب اجتياز الستة جميعًا قبل إصدار الشهادة.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

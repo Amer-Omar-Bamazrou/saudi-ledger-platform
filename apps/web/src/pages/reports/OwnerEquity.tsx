@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Scale, Download } from "lucide-react";
+import { Scale } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
@@ -28,6 +29,7 @@ export default function OwnerEquity() {
 }
 
 function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
+  const { t } = useLanguage();
   const [dateFrom, setDateFrom] = useState(range.from);
   const [dateTo,   setDateTo]   = useState(range.to);
   const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
@@ -42,12 +44,11 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Change in Owner Equity Statement
-            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">New</span>
+            {t("Change in Owner Equity Statement", "قائمة التغير في حقوق الملكية")}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Opening equity + net income + contributions − withdrawals = closing equity</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Opening equity + net income + contributions − withdrawals = closing equity", "حقوق الملكية الافتتاحية + صافي الدخل + المساهمات − المسحوبات = حقوق الملكية الختامية")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
+        {/* Export removed: no onClick — one of seven dead Export buttons (2026-09-01). */}
       </div>
 
       <FiscalRangeNotice source={range.source} />
@@ -55,9 +56,9 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
           <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>Generate</Button>
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
           </div>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
@@ -68,10 +69,10 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       {data && (
         <div className="grid grid-cols-4 gap-4">
           {[
-            ["Opening Equity", fmtNum(data.openingEquity), "text-primary"],
-            ["Net Income / (Loss)", fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
-            ["Contributions", fmtNum(data.contributions), "text-info"],
-            ["Withdrawals", fmtNum(data.withdrawals), "text-attention"],
+            [t("Opening Equity", "حقوق الملكية الافتتاحية"), fmtNum(data.openingEquity), "text-primary"],
+            [t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
+            [t("Contributions", "المساهمات"), fmtNum(data.contributions), "text-info"],
+            [t("Withdrawals", "المسحوبات"), fmtNum(data.withdrawals), "text-attention"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -82,7 +83,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {isLoading ? (
-        <div className="text-sm text-muted-foreground p-4">Loading…</div>
+        <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data ? null : (
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
@@ -121,7 +122,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
                 data.closingEquity >= 0 ? "border-positive-surface/30 bg-positive-surface/5" : "border-negative-surface/30 bg-negative-surface/5"
               )}>
                 <div className="flex items-center justify-between">
-                  <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>Closing Equity</span>
+                  <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{t("Closing Equity", "حقوق الملكية الختامية")}</span>
                   <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
                 </div>
               </div>

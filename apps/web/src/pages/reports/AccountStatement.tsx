@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Download } from "lucide-react";
+import { FileText } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -26,6 +27,7 @@ export default function AccountStatement() {
 }
 
 function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
+  const { t } = useLanguage();
   const [accountId, setAccountId] = useState("");
   const [dateFrom,  setDateFrom]  = useState(range.from);
   const [dateTo,    setDateTo]    = useState(range.to);
@@ -48,10 +50,10 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Account Statement</h1>
-          <p className="text-muted-foreground text-sm mt-1">Opening balance + movements + closing balance for a single account</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("Account Statement", "كشف حساب")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t("Opening balance + movements + closing balance for a single account", "الرصيد الافتتاحي + الحركات + الرصيد الختامي لحساب واحد")}</p>
         </div>
-        <Button variant="outline" className="gap-2" disabled={!data}><Download className="w-4 h-4" /> Export</Button>
+        {/* Export removed: no onClick — one of seven dead Export buttons (2026-09-01). */}
       </div>
 
       <FiscalRangeNotice source={range.source} />
@@ -60,7 +62,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
         <CardContent className="pt-4">
           <div className="flex items-end gap-4 flex-wrap">
             <div className="min-w-56">
-              <Label className="text-xs text-muted-foreground">Account</Label>
+              <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
               <Select value={accountId} onValueChange={setAccountId}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select account…" /></SelectTrigger>
                 <SelectContent>
@@ -72,9 +74,9 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs text-muted-foreground">From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>Generate</Button>
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+            <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
           </div>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);if(accountId)setApplied({accountId,from:r.from,to:r.to});}} />
@@ -85,10 +87,10 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       {data && (
         <div className="grid grid-cols-4 gap-4">
           {[
-            ["Account", data.account.name, "text-primary"],
-            ["Opening Balance", fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],
-            ["Closing Balance", fmtNum(data.closingBalance), data.closingBalance >= 0 ? "text-positive" : "text-negative"],
-            ["Movements", data.movements.length, "text-primary"],
+            [t("Account", "الحساب"), data.account.name, "text-primary"],
+            [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],
+            [t("Closing Balance", "الرصيد الختامي"), fmtNum(data.closingBalance), data.closingBalance >= 0 ? "text-positive" : "text-negative"],
+            [t("Movements", "الحركات"), data.movements.length, "text-primary"],
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -99,13 +101,13 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {isLoading ? (
-        <div className="text-muted-foreground text-sm p-4">Loading…</div>
+        <div className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data ? (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
             <div className="text-center py-16 text-muted-foreground">
               <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Select an account and click Generate.</p>
+              <p className="text-sm">{t("Select an account and click Generate.", "اختر حسابًا ثم انقر إنشاء.")}</p>
             </div>
           </CardContent>
         </Card>
@@ -123,7 +125,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
               <tbody>
                 {/* Opening row */}
                 <tr className="border-b border-border/50 bg-secondary/20">
-                  <td colSpan={4} className="py-2.5 pe-4 text-xs font-semibold text-muted-foreground">Opening Balance</td>
+                  <td colSpan={4} className="py-2.5 pe-4 text-xs font-semibold text-muted-foreground">{t("Opening Balance", "الرصيد الافتتاحي")}</td>
                   <td className="py-2.5 pe-4" />
                   <td className="py-2.5 pe-4" />
                   <td className="py-2.5 font-mono font-semibold text-xs">{fmtNum(data.openingBalance)}</td>
@@ -141,7 +143,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                 ))}
                 {/* Closing row */}
                 <tr className="border-t-2 border-border font-bold">
-                  <td colSpan={4} className="pt-3 text-xs font-semibold">Closing Balance</td>
+                  <td colSpan={4} className="pt-3 text-xs font-semibold">{t("Closing Balance", "الرصيد الختامي")}</td>
                   <td className="pt-3 font-mono text-xs text-info">{fmtNum(data.totalDebit)}</td>
                   <td className="pt-3 font-mono text-xs text-positive">{fmtNum(data.totalCredit)}</td>
                   <td className="pt-3 font-mono text-sm font-bold">{fmtNum(data.closingBalance)}</td>
