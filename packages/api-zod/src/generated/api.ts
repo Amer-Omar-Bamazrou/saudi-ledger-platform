@@ -3947,6 +3947,81 @@ export const ListBillsResponse = zod.object({
 
 
 /**
+ * @summary Create a DRAFT bill
+ */
+export const createBillBodyOneSubtotalMin = 0;
+
+export const createBillBodyOneVatAmountMin = 0;
+
+export const createBillBodyOneTotalMin = 0;
+
+
+export const createBillBodyTwoItemsItemQuantityMin = 0;
+
+export const createBillBodyTwoItemsItemUnitPriceMin = 0;
+
+export const createBillBodyTwoItemsItemVatRateMin = 0;
+export const createBillBodyTwoItemsItemVatRateMax = 100;
+
+
+
+export const CreateBillBody = zod.object({
+  "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "subtotal": zod.number().min(createBillBodyOneSubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
+  "vatAmount": zod.number().min(createBillBodyOneVatAmountMin).optional(),
+  "total": zod.number().min(createBillBodyOneTotalMin).optional()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "productId": zod.number().nullish(),
+  "quantity": zod.number().min(createBillBodyTwoItemsItemQuantityMin),
+  "unitPrice": zod.number().min(createBillBodyTwoItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(createBillBodyTwoItemsItemVatRateMin).max(createBillBodyTwoItemsItemVatRateMax).optional().describe('Percent. Defaults to 15.')
+})).optional()
+})).describe('A create makes a DRAFT. A bill needs at least one line OR a positive\nheader total — a bill recording nothing cannot be posted (400\n`bill_records_nothing`).\n')
+
+export const CreateBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
  * 🔴 Offset pagination, and the `totals` are computed in SQL over every
  * matching row — never over the page. A page-scoped money total is a
  * number nobody asked for, and the alternative to it is not a smaller
@@ -3967,6 +4042,8 @@ export const listInvoicesQueryOffsetMin = 0;
 export const ListInvoicesQueryParams = zod.object({
   "status": zod.coerce.string().optional(),
   "customer_id": zod.coerce.number().optional(),
+  "date_from": zod.coerce.string().optional().describe('Inclusive YYYY-MM-DD lower bound on the invoice date'),
+  "date_to": zod.coerce.string().optional().describe('Inclusive YYYY-MM-DD upper bound on the invoice date'),
   "limit": zod.coerce.number().min(1).max(listInvoicesQueryLimitMax).default(listInvoicesQueryLimitDefault),
   "offset": zod.coerce.number().min(listInvoicesQueryOffsetMin).default(listInvoicesQueryOffsetDefault)
 })
@@ -4022,6 +4099,535 @@ export const ListInvoicesResponse = zod.object({
   "overdue": zod.number()
 })
 })
+
+
+/**
+ * @summary Create a DRAFT invoice (nothing is issued until approval)
+ */
+export const createInvoiceBodyOneDiscountMin = 0;
+
+
+export const createInvoiceBodyTwoItemsItemQuantityMin = 0;
+
+export const createInvoiceBodyTwoItemsItemUnitPriceMin = 0;
+
+export const createInvoiceBodyTwoItemsItemVatRateMin = 0;
+export const createInvoiceBodyTwoItemsItemVatRateMax = 100;
+
+export const createInvoiceBodyTwoItemsItemDiscountMin = 0;
+
+
+
+
+export const CreateInvoiceBody = zod.object({
+  "invoiceNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "discount": zod.number().min(createInvoiceBodyOneDiscountMin).optional(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "sellerName": zod.string().nullish(),
+  "sellerVatNumber": zod.string().nullish(),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note']).optional(),
+  "originalInvoiceId": zod.number().nullish().describe('Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).'),
+  "noteReason": zod.string().nullish()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "productId": zod.number().nullish(),
+  "quantity": zod.number().min(createInvoiceBodyTwoItemsItemQuantityMin),
+  "unitPrice": zod.number().min(createInvoiceBodyTwoItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(createInvoiceBodyTwoItemsItemVatRateMin).max(createInvoiceBodyTwoItemsItemVatRateMax).optional().describe('Percent. Defaults to 15.'),
+  "discount": zod.number().min(createInvoiceBodyTwoItemsItemDiscountMin).optional(),
+  "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
+  "unitCode": zod.string().nullish()
+})).min(1)
+})).describe('A create makes a DRAFT, for every role — nothing is issued, no ICV is\nconsumed, until approval. At least one line is REQUIRED: a zero-line\ninvoice would issue at SAR 0.00 and, once issued, cannot be corrected or\ndeleted (AUD-13). The server answers a missing\/empty `items` with 400\n`invoice_has_no_lines`.\n')
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
+})
+
+
+/**
+ * @summary One invoice with its lines
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
+})
+
+
+/**
+ * Drafts only (409 otherwise — an issued invoice is corrected by a credit
+ * note). When `items` is present it REPLACES the line set and the totals
+ * are recomputed from the lines, exactly as on create.
+ * @summary Edit a DRAFT invoice — header fields and, when given, its whole line set
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const updateInvoiceBodyItemsItemQuantityMin = 0;
+
+export const updateInvoiceBodyItemsItemUnitPriceMin = 0;
+
+export const updateInvoiceBodyItemsItemVatRateMin = 0;
+export const updateInvoiceBodyItemsItemVatRateMax = 100;
+
+export const updateInvoiceBodyItemsItemDiscountMin = 0;
+
+
+
+
+export const UpdateInvoiceBody = zod.object({
+  "invoiceNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "dueDate": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "sellerName": zod.string().nullish(),
+  "sellerVatNumber": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "productId": zod.number().nullish(),
+  "quantity": zod.number().min(updateInvoiceBodyItemsItemQuantityMin),
+  "unitPrice": zod.number().min(updateInvoiceBodyItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(updateInvoiceBodyItemsItemVatRateMin).max(updateInvoiceBodyItemsItemVatRateMax).optional().describe('Percent. Defaults to 15.'),
+  "discount": zod.number().min(updateInvoiceBodyItemsItemDiscountMin).optional(),
+  "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
+  "unitCode": zod.string().nullish()
+})).min(1).optional()
+}).describe('Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.')
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a DRAFT invoice
+ */
+export const DeleteInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInvoiceResponse = zod.void()
+
+
+/**
+ * @summary Record a payment against an issued invoice
+ */
+export const PayInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const payInvoiceBodyAmountExclusiveMin = 0;
+
+
+
+export const PayInvoiceBody = zod.object({
+  "amount": zod.number().gt(payInvoiceBodyAmountExclusiveMin),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+})
+
+export const PayInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
+})
+
+
+/**
+ * @summary The dated payment history (B4) — a `backfilled` row is an aggregate of pre-B4 payments
+ */
+export const ListInvoicePaymentsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListInvoicePaymentsResponseItem = zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+})
+export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponseItem)
+
+
+/**
+ * @summary One bill with its lines
+ */
+export const GetBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Edit a DRAFT bill (header fields)
+ */
+export const UpdateBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateBillBodySubtotalMin = 0;
+
+export const updateBillBodyVatAmountMin = 0;
+
+export const updateBillBodyTotalMin = 0;
+
+
+
+export const UpdateBillBody = zod.object({
+  "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string().optional(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "subtotal": zod.number().min(updateBillBodySubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
+  "vatAmount": zod.number().min(updateBillBodyVatAmountMin).optional(),
+  "total": zod.number().min(updateBillBodyTotalMin).optional()
+})
+
+export const UpdateBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Delete a DRAFT bill
+ */
+export const DeleteBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteBillResponse = zod.void()
+
+
+/**
+ * @summary Approve and post a bill to the GL (alias of approve, carrying the debit account)
+ */
+export const PostBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostBillBody = zod.object({
+  "debitAccount": zod.string().nullish().describe('Expense\/debit account name for the GL entry.'),
+  "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.'),
+  "captureId": zod.string().nullish().describe('A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.\n')
+}).describe('Optional post options when approving a bill.')
+
+export const PostBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Record a payment against a posted bill
+ */
+export const PayBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const payBillBodyAmountExclusiveMin = 0;
+
+
+
+export const PayBillBody = zod.object({
+  "amount": zod.number().gt(payBillBodyAmountExclusiveMin),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+})
+
+export const PayBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary The dated payment history (B4)
+ */
+export const ListBillPaymentsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListBillPaymentsResponseItem = zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+})
+export const ListBillPaymentsResponse = zod.array(ListBillPaymentsResponseItem)
 
 
 /**

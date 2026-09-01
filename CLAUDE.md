@@ -61,9 +61,9 @@ The invariants they left behind are in §4; the lessons are in §3.
 **2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
 record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
 **2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
-**2026-09-01 — contract milestone, batches 1–2:** reports, customers, vendors
-and the four document lists in the spec, conformance-tested on real rows;
-ratchet 55 → 36, zero joins. Record: findings file.
+**2026-09-01 — contract milestone, batches 1–3:** reports, customers, vendors,
+invoices and bills (detail + write paths, the approval artifact proven) in the
+spec, conformance-tested on real rows; ratchet 55 → 31, zero joins. Record: findings file.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -257,20 +257,21 @@ rules at the top of this file, rule 2).
 - **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
 - **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
 - **🔴 The vacuous green in the measuring instrument** — a verdict line must carry its evidence count; "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads "NOT MEASURED". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
+- **🔴 A WRONG CONTRACT IS WORSE THAN NO CONTRACT — it generates CONFIDENT types that are wrong.** `GET /quotations` was specified as a bare array while the server returned the envelope: a consumer of the generated hook would have got the blank-page shape from the mechanism meant to prevent it. Same family as the vacuous guard — an instrument reporting coverage it does not have.
 - **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
 - **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client). Ask of every severance what an unhandled event on the severed thing takes with it. 🔴 **Standard advice without checking which case you have is its own trap** — `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`; incident: findings file.
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. The argument, as a pair: the trial balance (mis-keyed rows) and the balance sheet next to it (an Equity section whose rows did not foot) were both invisible until something OUTSIDE the page's own declaration had an opinion about the shape. Record: findings file.
+- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. The pairing that is the argument: trial balance and balance sheet, adjacent, both invisible until something OUTSIDE the page's declaration had an opinion about the shape. Record: findings file.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership needs re-assertion or observation, never a single write. Tested 2026-08-31 (`e2e/rtl-direction.spec.ts`, green, by CLICKING — a `goto` repairs the loss before it can be seen). Now tested rather than unreproduced.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client closes it: **P5** (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13). Five items, each survivable alone and each correctly triaged, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding and rank on the worst PATH. Incident: findings file.
-- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Incident: findings file.
-- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — the spec AND the tests then both read as coverage. Routes pass `req.body` straight to services, so a declared `minItems` is decorative unless a service re-states it. Never let a reader believe a declared constraint is an enforced one.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Sibling (batch 2): `creditLimit: ""` — `Number("")` is 0, so the guard passed and "" was stored, read back as a limit of 0.00. **A value that satisfies every check while meaning nothing.** Incident: findings file.
+- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — the spec AND the tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body. 🔴 **A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT** (owner-named 2026-09-01). Batch 1 found the PAGES wrong; batch 2 found the SPEC wrong — all three wrong entries inside the ~35 endpoints every estimate had counted as covered. "In the contract" means parsed against a real response, or it means nothing.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell is a field the WRITE path treats as optional and a READ path treats as required: check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
 - **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
@@ -502,11 +503,9 @@ is the reason the order is not the severity order.**
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
-**Open DECISIONS** (not defects — flagged so they are decided rather than
-defaulted): `platform-alarms` is classified NOT operator-runnable, so no surface
-offers it (one-line flip if manual paging tests are wanted); and
-`normalizeDigits` exists twice, pinned by a behavioural-equivalence test, pending
-a shared workspace package.
+**Open DECISIONS** (flagged so they are decided, not defaulted): `platform-alarms`
+is NOT operator-runnable (one-line flip if manual paging tests are wanted);
+`normalizeDigits` exists twice, pinned by an equivalence test, pending a shared package.
 
 **B-8 — NOT REPRODUCED, under a standing guard** (2026-08-31):
 `e2e/rtl-direction.spec.ts` toggles to Arabic and walks five routes **by
@@ -543,21 +542,16 @@ before launch. Record: findings file.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
-RLS *policy* coverage was the biggest gap and is closed (`tests/rls-coverage.test.ts`),
-as are the **permission-matrix seed grants** (clean; two deliberate read
-restrictions now NAMED — `tests/permission-seed-grants.test.ts`) and
-**git-history secret scanning** (clean over the full history; standing CI job
-with `fetch-depth: 0`; reasons in `.gitleaks.toml`). Records: findings file.
+Closed, each under a standing guard: RLS policy coverage (`tests/rls-coverage`),
+permission-matrix seed grants (`tests/permission-seed-grants`), git-history
+secret scanning (CI, `.gitleaks.toml`). Records: findings file.
 
-🔴 **SAME-ORG CROSS-COMPANY ISOLATION — audited, and the answer is NO, which
-stays OPEN as a decision** (`tests/cross-company-isolation.test.ts`).
-`app.current_company_id` is a column DEFAULT in **no RLS policy**: a connection
-scoped to company A reads company B's rows, and **15 repositories over
-company-scoped tables never mention company** (`reports` and `analytics` among
-them) — a two-company org's trial balance, GL and VAT return ADD BOTH SETS OF
-BOOKS TOGETHER. Multi-company is a shipped feature the reporting does not
-honour. Company-scoping every policy would break legitimate org-level reads;
-the failure mode is an empty report, so it is a DECISION with an owner. The
+🔴 **SAME-ORG CROSS-COMPANY ISOLATION — audited: NOT enforced; OPEN as a
+decision** (`tests/cross-company-isolation.test.ts`). No RLS policy reads
+`app.current_company_id`, and 15 repositories over company-scoped tables never
+mention company (`reports`, `analytics` among them): a two-company org's trial
+balance, GL and VAT return ADD BOTH SETS OF BOOKS. Scoping every policy would
+break legitimate org-level reads, so it is a DECISION with an owner; the
 company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
@@ -571,10 +565,13 @@ generated types → leaves the list). **Batch 1 (reports): 55 → 41, zero joins
 with the conformance tests making the schemas a contract rather than
 documentation. **Batch 2 (customers, vendors, four document lists): 41 → 36** —
 and it found the spec itself wrong wherever no response had been parsed against
-it (`Invoice`, `Quotation`, `PurchaseOrder`). 🔴 A leave and a join in one
-milestone is the generator running — stop, do not net. 🔴 **A `type` alias that
-satisfies the detector is the ratchet GAMED — a file leaves by consuming the
-generated type, never by rephrasing.** Next: the 36; TanStack waits. Record:
+it (`Invoice`, `Quotation`, `PurchaseOrder`). **Batch 3 (invoices, bills —
+detail and write paths): 36 → 31**; the approval response is proven on a real
+approval (ICV, hash, previous hash, UUID, QR present; two approvals chain), and
+controllers parse every write body with the generated Zod. 🔴 A leave and a join
+in one milestone is the generator running — stop, do not net. 🔴 **A `type` alias
+that satisfies the detector is the ratchet GAMED — a file leaves by consuming the
+generated type, never by rephrasing.** Next: the 31; TanStack waits. Record:
 findings file.
 ## 6. Tech Stack
 
@@ -720,27 +717,14 @@ History (the full narrative this file used to carry):
 
 ## 10b. 🔴 Tooling hazards (learned the hard way)
 
-**The Edit tool can silently write back STALE file content.** During the
-flaw-report work, a scripted fix to `categorizer.ts` (removing sixty broken
-Arabic regex patterns) was **reverted** by a subsequent `Edit` call on the same
-file: the edit applied cleanly against a snapshot taken *before* the script
-ran, and writing that snapshot back undid the change. Nothing warned; the tool
-reported success. It was caught only because a test that had just passed
-started failing again.
-
-**Why it matters more than it sounds:** the reverted change was invisible in
-review and a failing test was the only signal. Had the test not existed, the fix
-would have been "applied", reported, committed and absent.
-**Mitigations:**
-1. When a file has been modified by a SCRIPT (python/sed/node) in this session,
-   keep editing it the same way — do not mix scripted edits and `Edit` calls on
-   one file. `categorizer.ts` is on the scripted path for this reason.
-2. After any tool reports "the file had been modified on disk since you last
-   read it", re-verify the earlier change is still present — the warning means
-   the tool's snapshot was stale, and "applied cleanly" only describes the
-   patch, not the rest of the file.
-3. Prefer a test that fails loudly over an inspection: this class of loss is
-   invisible to reading.
+**The Edit tool can silently write back STALE file content** — an `Edit`
+applied against a snapshot taken before a script changed the file REVERTED the
+script's change, reported success, and was caught only by a test going red
+again (incident: findings file). Mitigations: (1) a file modified by a SCRIPT
+this session stays on the scripted path (`categorizer.ts` is); (2) after any
+"modified on disk since you last read it" warning, re-verify the earlier change
+is still present; (3) prefer a test that fails loudly — this loss is invisible
+to reading.
 
 **🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
 VERDICT (2026-08-21).** A run reported here as "905 passed" was not green — the

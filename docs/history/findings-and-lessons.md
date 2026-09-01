@@ -5301,3 +5301,75 @@ yet a number.
   run both suites locally will look.
 - `list-response-shape`'s pinned scan count went 28 → 25 for the same reason
   as before: three declarations moved onto generated types.
+
+## 2026-09-01 — CONTRACT BATCH 3: INVOICES AND BILLS, AND THE APPROVAL ARTIFACT PROVEN
+
+**Scope (owner-sequenced):** the invoices and bills detail and write paths —
+where the ICV and the approval surface live. Owner's hold: *an approved
+invoice's response shape is a legal artifact; the ICV and hash fields are to be
+proven present on real rows, not assumed from the presenter.* Ratchet
+**36 → 31, zero joins**: Invoices, Bills, CreditNotes, InvoiceSummary and
+PaymentHistory left.
+
+### What entered the contract
+`POST /invoices`, `GET/PATCH/DELETE /invoices/{id}`, `POST /invoices/{id}/pay`,
+`GET /invoices/{id}/payments`, `date_from`/`date_to` on `GET /invoices`; the
+same for bills plus `POST /bills/{id}/post`. Both controllers parse every write
+body with the generated Zod schema; AUD-13's structured `invoice_has_no_lines`
+is preserved by answering the schema's `minItems` failure with the same code,
+so the UI's key does not change.
+
+### 🔴 The approval artifact, proven
+`tests/document-contract-conformance.test.ts` creates a draft through
+`invoicesService.create` (asserting it carries NO icv, hash, UUID or QR —
+drafts consume no ICV), approves it through `invoicesService.approve` → the
+approval engine → `issueInvoice`, and asserts on the response: `icv` is a
+number, `invoiceHash`, `previousHash` (GENESIS), `zatcaUuid` and `qrCode` are
+present, status is `sent`, and the response parses under
+`ApproveInvoiceResponse`. A second approval proves the chain: `icv + 1`, and
+`previousHash` equal to the first invoice's hash. Pay, payment history, the
+draft-only delete, and the bill create → post → pay path are proven the same
+way. Every response is validated after a JSON round-trip — what a client
+receives.
+
+### 🔴 What the batch made visible
+1. **`PATCH /invoices/{id}` had ignored `items` since M10.** The edit dialog
+   sent the line set on every save; the service's allow-list dropped it and
+   returned 200. A user edited a draft's lines, saw success, and the lines —
+   the money — were unchanged: the inert-write shape (B-9) on the one document
+   type where the lines are the amounts. Draft line replacement is now real
+   (delete + insert, totals recomputed as on create, the at-least-one-line rule
+   applied) and asserted: the total MOVES and the read path agrees.
+2. **The invoice summary report sent `from`/`to`, which the server never
+   read.** It received the 200 most recent invoices of all time and filtered
+   client-side, so every figure on it covered whatever fell inside that cap —
+   silently. `date_from`/`date_to` are server filters now, asserted; the 200 cap
+   still exists and is STATED on the page when it bites, with the set-wide
+   count beside it. (The same page's KPI labels are English literals in a page
+   that otherwise calls `t()` — the frame lesson again; left for the Arabic
+   sweep, which counted pages, not strings.)
+3. **The client's request construction is now type-checked.** Each migrated
+   page serialises its bodies through `(b: CreateInvoiceInput) =>
+   JSON.stringify(b)`-style helpers, so an object literal with a wrong or
+   missing field is a compile error. This is the P5 gap ("no test exercises the
+   client's request construction") closed by construction for these pages,
+   without a browser. On the way it fixed `dueDate: ""` on create, which the
+   server's date guard would have refused.
+
+### The three batches, stated plainly (owner-requested)
+- Batch 1 found the **pages** wrong (a trial balance keyed on a field never
+  sent; a balance sheet whose Equity section did not foot).
+- Batch 2 found the **spec** wrong (`Invoice` missing five sent fields and
+  requiring one never sent; `Quotation`/`PurchaseOrder` with no required list;
+  two list endpoints specified as a bare array the server never returned).
+- All three wrong spec entries sat inside the ~35 endpoints that every scope
+  estimate had counted as "already in the contract". **A spec entry nobody has
+  parsed a response against is a claim, not a contract. Conformance is what
+  converts it** — and the bare-array case is the one to say loudest: a wrong
+  contract is worse than none, because it generates confident types that are
+  wrong, and a consumer would have received the blank-page shape from the very
+  mechanism meant to prevent it.
+- Batch 3 found the **write path** wrong (an update that discarded its
+  payload) and a **report** that asked the server a question it never heard.
+  Each batch has found a different layer wrong; none of the three was visible
+  from the layer above it.

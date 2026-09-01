@@ -20,14 +20,20 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 
 const PAGE_SIZE = 50;
 
-interface InvoicePage {
-  items: Invoice[];
-  page: { limit: number; offset: number; total: number };
-  totals: { outstanding: number; collected: number; overdue: number };
-}
+import type { CreateInvoiceInput, Customer, Invoice, ListInvoices200, PaymentInput, UpdateInvoiceInput } from "@workspace/api-client-react";
 
-interface Invoice { id: number; invoiceNumber: string; date: string; dueDate: string; customerId: number; customerName: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number; currency: string; }
-interface Customer { id: number; name: string; }
+/**
+ * Request bodies go through the GENERATED input types (contract batch 3), so
+ * this page cannot build a request the server does not accept — the class of
+ * defect no server test can see, because every server test builds its request
+ * the way the server expects.
+ */
+const json = {
+  create: (b: CreateInvoiceInput) => JSON.stringify(b),
+  update: (b: UpdateInvoiceInput) => JSON.stringify(b),
+  pay: (b: PaymentInput) => JSON.stringify(b),
+};
+
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -99,7 +105,7 @@ export default function Invoices() {
    * the Outstanding and Collected figures do not change when the reader turns
    * the page.
    */
-  const { data: pageData, isLoading } = useQuery<InvoicePage>({
+  const { data: pageData, isLoading } = useQuery<ListInvoices200>({
     queryKey: ["invoices", statusFilter, page],
     queryFn: () =>
       apiFetch(
@@ -112,11 +118,14 @@ export default function Invoices() {
   const customers = customersPage?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) =>
+    mutationFn: (body: typeof emptyForm) =>
       apiFetch("/invoices", {
         method: "POST",
-        body: JSON.stringify({
-          ...body,
+        body: json.create({
+          invoiceNumber: body.invoiceNumber,
+          date: body.date,
+          dueDate: body.dueDate || null,
+          notes: body.notes || null,
           customerId: Number(body.customerId),
           items: lines
             .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
@@ -133,7 +142,7 @@ export default function Invoices() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: JSON.stringify({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
+    mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
@@ -194,7 +203,7 @@ export default function Invoices() {
     mutationFn: (body: any) =>
       apiFetch(`/invoices/${editing!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
+        body: json.update({
           date: body.date,
           dueDate: body.dueDate || undefined,
           customerId: body.customerId ? Number(body.customerId) : undefined,

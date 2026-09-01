@@ -10,6 +10,14 @@ export type ListInvoicesParams = {
 status?: string;
 customer_id?: number;
 /**
+ * Inclusive YYYY-MM-DD lower bound on the invoice date
+ */
+date_from?: string;
+/**
+ * Inclusive YYYY-MM-DD upper bound on the invoice date
+ */
+date_to?: string;
+/**
  * @minimum 1
  * @maximum 200
  */
