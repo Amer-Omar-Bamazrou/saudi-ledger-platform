@@ -5114,3 +5114,85 @@ The milestone's remaining work is burning the 55 down: bring each endpoint
 into `openapi.yaml` (from what the services return, NOT from the hand-written
 interfaces — those are the thing under suspicion), regenerate, migrate the
 page, and let it leave the list. TanStack waits for the end of that burn-down.
+
+## 2026-09-01 — CONTRACT BATCH 1: THE 14 REPORT ENDPOINTS, AND WHAT THE GENERATED TYPES FOUND ON DAY ONE
+
+**Scope (owner-sequenced):** begin the burn-down with the 14 report endpoints,
+because all four hand-written-interface money defects lived there. Hold: the
+ratchet's list must shrink MONOTONICALLY — a page leaving while a new file joins
+in the same milestone is the generator still running, and is stopped for rather
+than absorbed into the count.
+
+### What was built
+
+- `packages/api-spec/openapi.yaml`: 14 `GET /reports/*` paths with their
+  response schemas, written from what `reports.service.ts` RETURNS — not from
+  the pages' interfaces, which were the thing under suspicion.
+- `tests/report-contract-conformance.test.ts`: every report runs on real rows
+  (a posted JE, a draft JE, a VAT-bearing JE, invoices incl. a credit note and a
+  NULL due date, bills incl. a NULL due date, categorised + uncategorised +
+  transfer bank movements) and must parse under the generated `Get<Op>Response`
+  Zod schema. Each case asserts its rows are PRESENT first, so no schema is
+  validated against `[]`; the last case breaks a response on purpose and the
+  schema must refuse it. **Result: all 14 conformed with zero schema
+  corrections** — which is what writing them from the service rather than the
+  pages buys, and the reason the spec is now a contract rather than a document.
+- 15 pages migrated onto `import type { … } from "@workspace/api-client-react"`.
+  **The ratchet went 55 → 41. Zero files joined.** `list-response-shape`'s scan
+  count went 30 → 28 for the same reason (two `Category` pickers now use the
+  generated type); its pinned number carries the dated explanation.
+
+### 🔴 What the generated types found the moment they were imported
+
+1. **The balance sheet's Equity section did not foot.** The service returns
+   `equity: { items, retainedEarnings, total }` with
+   `total = Σ items + retainedEarnings`. The hand-written `BSData` omitted
+   `items`, so the page rendered ONE synthetic "Retained Earnings" row against a
+   total that included every equity account (capital, external transfers).
+   On any tenant with a capital posting, the rows under the heading did not add
+   up to the figure beneath them — the trial-balance class again, in the
+   statement next to it. TypeScript reported it as `TS2741` on the first
+   compile with the generated type. Fixed: `equityRows()` renders the accounts
+   plus the retained-earnings line; the conformance test asserts
+   `equity.items` is non-empty on the fixture.
+2. **AgingReports declared a `date` field the server never sends** — and cast
+   its rows to `any[]`, so nothing ever complained. The field was not rendered,
+   so no wrong number; but a declared-and-absent field is exactly the claim the
+   milestone exists to make impossible. The page now normalises the two
+   generated item types into one typed row and the `any` is gone.
+3. **CustomerLedger leaves only HALF-way.** Its report response is generated,
+   but its customer picker calls `/customers`, which is not in the contract, so
+   its `Customer { id, name }` interface stays and the file STAYS in the
+   ratchet's list with a note. Replacing the interface with a `type` alias
+   would have satisfied the detector and fixed nothing — that is gaming the
+   ratchet, and the list would have read 40 while the debt was 41. It leaves
+   with the customers batch.
+
+### 🔴 The pairing (owner-named): a walk produces a sample; only an inventory produces a count
+
+The launch walk found one dead Export button. The Arabic sweep found seven. An
+inventory of the SHAPE itself — `<Download …/> Export` with no `onClick`, across
+every page — found **five more**: ApAging, AssetSchedule, PayrollReport,
+AgingReports, GeneralLedger. The seven was not wrong; it was the count of the
+shape INSIDE the sweep's frame (pages with zero `t()` calls). Two of the five
+were in translated pages, which the frame excluded by construction; three were
+in pages that had SOME translation and an English-only "Export" — so the
+"untranslated because unvisited" and "dead because unvisited" absences were
+travelling together exactly as predicted, and the frame that found one class
+under-counted the other. All twelve are now removed (same precedent: omit the
+control rather than promise nothing; export is L1's design). **The lesson has
+two halves: count the shape, not the pages you happened to be in — and when
+you report a count, say what frame it was taken in, because the frame is part
+of the number.**
+
+### Also observed while verifying
+
+- Running the API suite and the browser suite CONCURRENTLY against one local
+  database is not a valid run: the e2e dev server's in-process scheduler wrote
+  a `finding_run` into every org present at its tick — including two API
+  fixtures' orgs — so their `afterAll` cleanup failed on the FK and the files
+  went red. Rows removed; both files green alone; CI never co-schedules them.
+  Same class as test-suite-notes' global job paths, one layer out.
+- The browser suite's one failure under the same concurrency (`/audit-trail`
+  rendered zero rows) passed alone. Not chased further; the standing note
+  above covers it.

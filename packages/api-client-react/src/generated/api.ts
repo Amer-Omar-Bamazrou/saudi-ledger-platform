@@ -22,9 +22,15 @@ import type {
 import type {
   AcceptPendingInput,
   AcceptPendingResult,
+  AccountStatementReport,
+  AccountSummaryReport,
+  ActivityReport,
+  ApAgingReport,
+  ArAgingReport,
   AskInput,
   AskResult,
   AuditLogPage,
+  BalanceSheetReport,
   Bill,
   BillApproveInput,
   BooksStatus,
@@ -33,6 +39,7 @@ import type {
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
+  CashFlowReport,
   CashReconciliation,
   CategorizationRequest,
   CategorizationResult,
@@ -45,6 +52,7 @@ import type {
   CreatePurchaseOrderInput,
   CreateQuotationInput,
   CreateRecurringRuleInput,
+  CustomerLedgerReport,
   Decomposition,
   DeploymentBanner,
   DiscardResult,
@@ -56,20 +64,35 @@ import type {
   FindingsScheduleInput,
   FindingsStatus,
   FiscalYears,
+  GeneralLedgerReport,
+  GetAccountStatementParams,
+  GetAccountSummaryParams,
+  GetActivityReportParams,
   GetAskStatus200,
+  GetBalanceSheetParams,
+  GetCashFlowParams,
   GetCashReconciliationParams,
+  GetCustomerLedgerParams,
   GetDecompositionParams,
+  GetGeneralLedgerParams,
+  GetIncomeStatementParams,
+  GetJournalReportParams,
   GetLiquidityParams,
+  GetOwnerEquityParams,
   GetReceivablesBridgeParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
+  GetTaxJournalEntriesParams,
   GetTrendParams,
+  GetTrialBalanceParams,
   GetVatReturnParams,
   GetVatSummaryParams,
   GroundedAnswersPage,
   HealthStatus,
+  IncomeStatementReport,
   Invoice,
   JournalEntry,
+  JournalReport,
   Liquidity,
   ListAuditLogsParams,
   ListBudgetsParams,
@@ -79,6 +102,7 @@ import type {
   ListPurchaseOrdersParams,
   ListQuotationsParams,
   ListTransactionsParams,
+  OwnerEquityReport,
   PayrollRun,
   PendingReviewCounts,
   PendingReviewTransaction,
@@ -95,12 +119,14 @@ import type {
   SendBackInput,
   SettleTransactionInput,
   TaxCompliance,
+  TaxJournalEntriesReport,
   Transaction,
   TransactionInput,
   TransactionList,
   TransactionUpdate,
   TransactionUpload,
   TrendPoint,
+  TrialBalanceReport,
   UpdateCompanyInput,
   UpdateQuotationInput,
   UploadResult,
@@ -6335,6 +6361,1168 @@ export function useGetVatReturn<TData = Awaited<ReturnType<typeof getVatReturn>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVatReturnQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTrialBalanceUrl = (params?: GetTrialBalanceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/trial-balance?${stringifiedParams}` : `/api/reports/trial-balance`
+}
+
+/**
+ * @summary Trial balance — every account's debit/credit totals over a window
+ */
+export const getTrialBalance = async (params?: GetTrialBalanceParams, options?: RequestInit): Promise<TrialBalanceReport> => {
+
+  return customFetch<TrialBalanceReport>(getGetTrialBalanceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrialBalanceQueryKey = (params?: GetTrialBalanceParams,) => {
+    return [
+    `/api/reports/trial-balance`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrialBalanceQueryOptions = <TData = Awaited<ReturnType<typeof getTrialBalance>>, TError = ErrorType<unknown>>(params?: GetTrialBalanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrialBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrialBalanceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrialBalance>>> = ({ signal }) => getTrialBalance(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrialBalance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrialBalanceQueryResult = NonNullable<Awaited<ReturnType<typeof getTrialBalance>>>
+export type GetTrialBalanceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Trial balance — every account's debit/credit totals over a window
+ */
+
+export function useGetTrialBalance<TData = Awaited<ReturnType<typeof getTrialBalance>>, TError = ErrorType<unknown>>(
+ params?: GetTrialBalanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrialBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrialBalanceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetIncomeStatementUrl = (params?: GetIncomeStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/income-statement?${stringifiedParams}` : `/api/reports/income-statement`
+}
+
+/**
+ * @summary Income statement (P&L) over a window
+ */
+export const getIncomeStatement = async (params?: GetIncomeStatementParams, options?: RequestInit): Promise<IncomeStatementReport> => {
+
+  return customFetch<IncomeStatementReport>(getGetIncomeStatementUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIncomeStatementQueryKey = (params?: GetIncomeStatementParams,) => {
+    return [
+    `/api/reports/income-statement`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetIncomeStatementQueryOptions = <TData = Awaited<ReturnType<typeof getIncomeStatement>>, TError = ErrorType<unknown>>(params?: GetIncomeStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIncomeStatementQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIncomeStatement>>> = ({ signal }) => getIncomeStatement(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatement>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIncomeStatementQueryResult = NonNullable<Awaited<ReturnType<typeof getIncomeStatement>>>
+export type GetIncomeStatementQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Income statement (P&L) over a window
+ */
+
+export function useGetIncomeStatement<TData = Awaited<ReturnType<typeof getIncomeStatement>>, TError = ErrorType<unknown>>(
+ params?: GetIncomeStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIncomeStatementQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBalanceSheetUrl = (params?: GetBalanceSheetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/balance-sheet?${stringifiedParams}` : `/api/reports/balance-sheet`
+}
+
+/**
+ * @summary Balance sheet as of a date, with the current/non-current split
+ */
+export const getBalanceSheet = async (params?: GetBalanceSheetParams, options?: RequestInit): Promise<BalanceSheetReport> => {
+
+  return customFetch<BalanceSheetReport>(getGetBalanceSheetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBalanceSheetQueryKey = (params?: GetBalanceSheetParams,) => {
+    return [
+    `/api/reports/balance-sheet`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetBalanceSheetQueryOptions = <TData = Awaited<ReturnType<typeof getBalanceSheet>>, TError = ErrorType<unknown>>(params?: GetBalanceSheetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBalanceSheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBalanceSheetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBalanceSheet>>> = ({ signal }) => getBalanceSheet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBalanceSheet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBalanceSheetQueryResult = NonNullable<Awaited<ReturnType<typeof getBalanceSheet>>>
+export type GetBalanceSheetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Balance sheet as of a date, with the current/non-current split
+ */
+
+export function useGetBalanceSheet<TData = Awaited<ReturnType<typeof getBalanceSheet>>, TError = ErrorType<unknown>>(
+ params?: GetBalanceSheetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBalanceSheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBalanceSheetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCashFlowUrl = (params?: GetCashFlowParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/cash-flow?${stringifiedParams}` : `/api/reports/cash-flow`
+}
+
+/**
+ * @summary Cash flow statement (DIRECT method) over a window
+ */
+export const getCashFlow = async (params?: GetCashFlowParams, options?: RequestInit): Promise<CashFlowReport> => {
+
+  return customFetch<CashFlowReport>(getGetCashFlowUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCashFlowQueryKey = (params?: GetCashFlowParams,) => {
+    return [
+    `/api/reports/cash-flow`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCashFlowQueryOptions = <TData = Awaited<ReturnType<typeof getCashFlow>>, TError = ErrorType<unknown>>(params?: GetCashFlowParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCashFlowQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCashFlow>>> = ({ signal }) => getCashFlow(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCashFlow>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCashFlowQueryResult = NonNullable<Awaited<ReturnType<typeof getCashFlow>>>
+export type GetCashFlowQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Cash flow statement (DIRECT method) over a window
+ */
+
+export function useGetCashFlow<TData = Awaited<ReturnType<typeof getCashFlow>>, TError = ErrorType<unknown>>(
+ params?: GetCashFlowParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCashFlowQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetJournalReportUrl = (params?: GetJournalReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/journal-report?${stringifiedParams}` : `/api/reports/journal-report`
+}
+
+/**
+ * @summary Posted journal entries with their lines
+ */
+export const getJournalReport = async (params?: GetJournalReportParams, options?: RequestInit): Promise<JournalReport> => {
+
+  return customFetch<JournalReport>(getGetJournalReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJournalReportQueryKey = (params?: GetJournalReportParams,) => {
+    return [
+    `/api/reports/journal-report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetJournalReportQueryOptions = <TData = Awaited<ReturnType<typeof getJournalReport>>, TError = ErrorType<unknown>>(params?: GetJournalReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJournalReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJournalReport>>> = ({ signal }) => getJournalReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJournalReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJournalReportQueryResult = NonNullable<Awaited<ReturnType<typeof getJournalReport>>>
+export type GetJournalReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Posted journal entries with their lines
+ */
+
+export function useGetJournalReport<TData = Awaited<ReturnType<typeof getJournalReport>>, TError = ErrorType<unknown>>(
+ params?: GetJournalReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJournalReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetGeneralLedgerUrl = (params?: GetGeneralLedgerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/general-ledger?${stringifiedParams}` : `/api/reports/general-ledger`
+}
+
+/**
+ * @summary General ledger movements with a running balance
+ */
+export const getGeneralLedger = async (params?: GetGeneralLedgerParams, options?: RequestInit): Promise<GeneralLedgerReport> => {
+
+  return customFetch<GeneralLedgerReport>(getGetGeneralLedgerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGeneralLedgerQueryKey = (params?: GetGeneralLedgerParams,) => {
+    return [
+    `/api/reports/general-ledger`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGeneralLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getGeneralLedger>>, TError = ErrorType<unknown>>(params?: GetGeneralLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGeneralLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGeneralLedgerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGeneralLedger>>> = ({ signal }) => getGeneralLedger(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGeneralLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGeneralLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof getGeneralLedger>>>
+export type GetGeneralLedgerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary General ledger movements with a running balance
+ */
+
+export function useGetGeneralLedger<TData = Awaited<ReturnType<typeof getGeneralLedger>>, TError = ErrorType<unknown>>(
+ params?: GetGeneralLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGeneralLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGeneralLedgerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAccountStatementUrl = (params?: GetAccountStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/account-statement?${stringifiedParams}` : `/api/reports/account-statement`
+}
+
+/**
+ * @summary One account's opening balance, movements and closing balance
+ */
+export const getAccountStatement = async (params?: GetAccountStatementParams, options?: RequestInit): Promise<AccountStatementReport> => {
+
+  return customFetch<AccountStatementReport>(getGetAccountStatementUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccountStatementQueryKey = (params?: GetAccountStatementParams,) => {
+    return [
+    `/api/reports/account-statement`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAccountStatementQueryOptions = <TData = Awaited<ReturnType<typeof getAccountStatement>>, TError = ErrorType<void>>(params?: GetAccountStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountStatementQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountStatement>>> = ({ signal }) => getAccountStatement(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccountStatement>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccountStatementQueryResult = NonNullable<Awaited<ReturnType<typeof getAccountStatement>>>
+export type GetAccountStatementQueryError = ErrorType<void>
+
+
+/**
+ * @summary One account's opening balance, movements and closing balance
+ */
+
+export function useGetAccountStatement<TData = Awaited<ReturnType<typeof getAccountStatement>>, TError = ErrorType<void>>(
+ params?: GetAccountStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccountStatementQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAccountSummaryUrl = (params?: GetAccountSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/account-summary?${stringifiedParams}` : `/api/reports/account-summary`
+}
+
+/**
+ * @summary Every account's opening, period movements and closing balance
+ */
+export const getAccountSummary = async (params?: GetAccountSummaryParams, options?: RequestInit): Promise<AccountSummaryReport> => {
+
+  return customFetch<AccountSummaryReport>(getGetAccountSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccountSummaryQueryKey = (params?: GetAccountSummaryParams,) => {
+    return [
+    `/api/reports/account-summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAccountSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getAccountSummary>>, TError = ErrorType<unknown>>(params?: GetAccountSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountSummary>>> = ({ signal }) => getAccountSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccountSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccountSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getAccountSummary>>>
+export type GetAccountSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every account's opening, period movements and closing balance
+ */
+
+export function useGetAccountSummary<TData = Awaited<ReturnType<typeof getAccountSummary>>, TError = ErrorType<unknown>>(
+ params?: GetAccountSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccountSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomerLedgerUrl = (params?: GetCustomerLedgerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/customer-ledger?${stringifiedParams}` : `/api/reports/customer-ledger`
+}
+
+/**
+ * @summary Invoices and balances per customer (credit notes as negative lines)
+ */
+export const getCustomerLedger = async (params?: GetCustomerLedgerParams, options?: RequestInit): Promise<CustomerLedgerReport> => {
+
+  return customFetch<CustomerLedgerReport>(getGetCustomerLedgerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerLedgerQueryKey = (params?: GetCustomerLedgerParams,) => {
+    return [
+    `/api/reports/customer-ledger`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCustomerLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerLedger>>, TError = ErrorType<unknown>>(params?: GetCustomerLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerLedgerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerLedger>>> = ({ signal }) => getCustomerLedger(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerLedger>>>
+export type GetCustomerLedgerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Invoices and balances per customer (credit notes as negative lines)
+ */
+
+export function useGetCustomerLedger<TData = Awaited<ReturnType<typeof getCustomerLedger>>, TError = ErrorType<unknown>>(
+ params?: GetCustomerLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerLedgerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOwnerEquityUrl = (params?: GetOwnerEquityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/owner-equity?${stringifiedParams}` : `/api/reports/owner-equity`
+}
+
+/**
+ * @summary Change in owner equity over a window
+ */
+export const getOwnerEquity = async (params?: GetOwnerEquityParams, options?: RequestInit): Promise<OwnerEquityReport> => {
+
+  return customFetch<OwnerEquityReport>(getGetOwnerEquityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOwnerEquityQueryKey = (params?: GetOwnerEquityParams,) => {
+    return [
+    `/api/reports/owner-equity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOwnerEquityQueryOptions = <TData = Awaited<ReturnType<typeof getOwnerEquity>>, TError = ErrorType<unknown>>(params?: GetOwnerEquityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOwnerEquity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOwnerEquityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOwnerEquity>>> = ({ signal }) => getOwnerEquity(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOwnerEquity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOwnerEquityQueryResult = NonNullable<Awaited<ReturnType<typeof getOwnerEquity>>>
+export type GetOwnerEquityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Change in owner equity over a window
+ */
+
+export function useGetOwnerEquity<TData = Awaited<ReturnType<typeof getOwnerEquity>>, TError = ErrorType<unknown>>(
+ params?: GetOwnerEquityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOwnerEquity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOwnerEquityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetArAgingReportUrl = () => {
+
+
+
+
+  return `/api/reports/ar-aging`
+}
+
+/**
+ * @summary Accounts receivable aging (credit notes netted into their originals)
+ */
+export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingReport> => {
+
+  return customFetch<ArAgingReport>(getGetArAgingReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetArAgingReportQueryKey = () => {
+    return [
+    `/api/reports/ar-aging`
+    ] as const;
+    }
+
+
+export const getGetArAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetArAgingReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAgingReport>>> = ({ signal }) => getArAgingReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetArAgingReportQueryResult = NonNullable<Awaited<ReturnType<typeof getArAgingReport>>>
+export type GetArAgingReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Accounts receivable aging (credit notes netted into their originals)
+ */
+
+export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetArAgingReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetApAgingReportUrl = () => {
+
+
+
+
+  return `/api/reports/ap-aging`
+}
+
+/**
+ * @summary Accounts payable aging
+ */
+export const getApAgingReport = async ( options?: RequestInit): Promise<ApAgingReport> => {
+
+  return customFetch<ApAgingReport>(getGetApAgingReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApAgingReportQueryKey = () => {
+    return [
+    `/api/reports/ap-aging`
+    ] as const;
+    }
+
+
+export const getGetApAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApAgingReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAgingReport>>> = ({ signal }) => getApAgingReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApAgingReportQueryResult = NonNullable<Awaited<ReturnType<typeof getApAgingReport>>>
+export type GetApAgingReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Accounts payable aging
+ */
+
+export function useGetApAgingReport<TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApAgingReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTaxJournalEntriesUrl = (params?: GetTaxJournalEntriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/tax-journal-entries?${stringifiedParams}` : `/api/reports/tax-journal-entries`
+}
+
+/**
+ * @summary Journal entries that touch VAT or tax accounts
+ */
+export const getTaxJournalEntries = async (params?: GetTaxJournalEntriesParams, options?: RequestInit): Promise<TaxJournalEntriesReport> => {
+
+  return customFetch<TaxJournalEntriesReport>(getGetTaxJournalEntriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTaxJournalEntriesQueryKey = (params?: GetTaxJournalEntriesParams,) => {
+    return [
+    `/api/reports/tax-journal-entries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTaxJournalEntriesQueryOptions = <TData = Awaited<ReturnType<typeof getTaxJournalEntries>>, TError = ErrorType<unknown>>(params?: GetTaxJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaxJournalEntriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaxJournalEntries>>> = ({ signal }) => getTaxJournalEntries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaxJournalEntries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTaxJournalEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof getTaxJournalEntries>>>
+export type GetTaxJournalEntriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Journal entries that touch VAT or tax accounts
+ */
+
+export function useGetTaxJournalEntries<TData = Awaited<ReturnType<typeof getTaxJournalEntries>>, TError = ErrorType<unknown>>(
+ params?: GetTaxJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaxJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTaxJournalEntriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetActivityReportUrl = (params?: GetActivityReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/activity?${stringifiedParams}` : `/api/reports/activity`
+}
+
+/**
+ * @summary All journal-entry activity — posted, draft and reversed
+ */
+export const getActivityReport = async (params?: GetActivityReportParams, options?: RequestInit): Promise<ActivityReport> => {
+
+  return customFetch<ActivityReport>(getGetActivityReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActivityReportQueryKey = (params?: GetActivityReportParams,) => {
+    return [
+    `/api/reports/activity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetActivityReportQueryOptions = <TData = Awaited<ReturnType<typeof getActivityReport>>, TError = ErrorType<unknown>>(params?: GetActivityReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActivityReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActivityReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActivityReport>>> = ({ signal }) => getActivityReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActivityReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActivityReportQueryResult = NonNullable<Awaited<ReturnType<typeof getActivityReport>>>
+export type GetActivityReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All journal-entry activity — posted, draft and reversed
+ */
+
+export function useGetActivityReport<TData = Awaited<ReturnType<typeof getActivityReport>>, TError = ErrorType<unknown>>(
+ params?: GetActivityReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActivityReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActivityReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

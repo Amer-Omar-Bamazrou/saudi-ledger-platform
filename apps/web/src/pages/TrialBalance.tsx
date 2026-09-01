@@ -29,8 +29,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
  * against an imagined one"), which TypeScript cannot catch: it checks this
  * declaration against the component, never against the response.
  */
-interface TrialBalanceRow { accountId: number | null; name: string; nameAr: string; type: string; debit: number; credit: number; balance: number; }
-interface TrialBalanceData { accounts: TrialBalanceRow[]; totalDebit: number; totalCredit: number; balanced: boolean; }
+import type { TrialBalanceReport, TrialBalanceRow } from "@workspace/api-client-react";
 
 const TYPE_STYLES: Record<string, string> = { income: "text-positive", expense: "text-negative", asset: "text-info", liability: "text-attention", equity: "text-purple-400" };
 
@@ -49,7 +48,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo, setDateTo] = useState(range.to);
   const [applied, setApplied] = useState({ from: range.from, to: range.to });
 
-  const { data, isLoading } = useQuery<TrialBalanceData>({
+  const { data, isLoading } = useQuery<TrialBalanceReport>({
     queryKey: ["trial-balance", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/trial-balance?date_from=${applied.from}&date_to=${applied.to}`),
   });

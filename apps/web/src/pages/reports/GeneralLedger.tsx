@@ -7,16 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Download } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
-interface Category { id: number; name: string; type: string; }
-interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
-interface GLData { accountId: number | null; accountName: string; accountNameAr?: string; openingBalance: number; movements: Movement[]; closingBalance: number; totalDebit: number; totalCredit: number; }
+import type { Category, GeneralLedgerReport } from "@workspace/api-client-react";
 
 export default function GeneralLedger() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -39,7 +37,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
     queryFn: () => apiFetch("/categories"),
   });
 
-  const { data, isLoading } = useQuery<GLData>({
+  const { data, isLoading } = useQuery<GeneralLedgerReport>({
     queryKey: ["general-ledger", applied],
     queryFn: () => {
       if (!applied) return Promise.reject("no selection");
@@ -57,7 +55,6 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
           <h1 className="text-2xl font-bold text-foreground">{t("General Ledger", "دفتر الأستاذ العام")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("All journal entry lines in date order with running balance", "جميع سطور قيود اليومية بترتيب التاريخ مع الرصيد الجاري")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> {t("Export", "تصدير")}</Button>
       </div>
 
       <FiscalRangeNotice source={range.source} />

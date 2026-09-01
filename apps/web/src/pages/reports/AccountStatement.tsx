@@ -13,9 +13,7 @@ import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeN
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
-interface Category { id: number; name: string; nameAr: string; type: string; }
-interface Movement { date: string; entryNumber: string; reference: string | null; description: string; debit: number; credit: number; balance: number; }
-interface StatementData { account: Category; openingBalance: number; movements: Movement[]; closingBalance: number; totalDebit: number; totalCredit: number; }
+import type { AccountStatementReport, Category } from "@workspace/api-client-react";
 
 export default function AccountStatement() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -38,7 +36,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
     queryFn: () => apiFetch("/categories"),
   });
 
-  const { data, isLoading } = useQuery<StatementData>({
+  const { data, isLoading } = useQuery<AccountStatementReport>({
     queryKey: ["account-statement", applied],
     queryFn: () => applied
       ? apiFetch(`/reports/account-statement?account_id=${applied.accountId}&date_from=${applied.from}&date_to=${applied.to}`)

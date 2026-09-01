@@ -120,8 +120,15 @@ function scanDeclarations(): Declaration[] {
  * would silently drop pages out of coverage while the suite stayed green.
  * That is the shrink-check `route-reachability` already carries, for the same
  * reason.
+ *
+ * 30 → 28 on 2026-09-01 (contract batch 1): GeneralLedger's and
+ * AccountStatement's `Category` picker moved onto the GENERATED `Category`
+ * type, so there is no local interface left for this scan to read. A
+ * declaration that leaves because it is no longer hand-written leaves this
+ * scan the way a page leaves the ratchet — the checked-by-construction path
+ * replaces the checked-by-scan one. Any other shrink is still the alarm above.
  */
-const DECLARATIONS_AT_WRITING = 30;
+const DECLARATIONS_AT_WRITING = 28;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 

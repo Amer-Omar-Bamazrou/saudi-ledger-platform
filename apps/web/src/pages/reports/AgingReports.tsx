@@ -3,15 +3,30 @@ import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Building2, Download } from "lucide-react";
+import { AlertCircle, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DualDate } from "@/components/DualDate";
 
-interface AgingItem { id: number; date: string; dueDate: string; outstanding: number; daysPastDue: number; }
-interface ArItem extends AgingItem { invoiceNumber: string; customerName: string; customerNameAr?: string; }
-interface ApItem extends AgingItem { billNumber: string; vendorName: string; vendorNameAr?: string; }
-interface Buckets { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number; }
-interface AgingData { buckets: Buckets; total: number; items: (ArItem | ApItem)[]; }
+import type { ApAgingReport, ArAgingReport } from "@workspace/api-client-react";
+
+/**
+ * One row shape for both tables. The generated AR and AP item types differ
+ * only in which party and which document number they carry, so the page
+ * normalises them ONCE here instead of indexing a union with string keys.
+ */
+type AgingRow = { id: number; number: string; name: string; nameAr: string; dueDate: string | null; outstanding: number; daysPastDue: number };
+type AgingView = { buckets: ArAgingReport["buckets"]; total: number; rows: AgingRow[] };
+
+function viewOf(data: ArAgingReport | ApAgingReport): AgingView {
+  const rows: AgingRow[] = "items" in data
+    ? data.items.map((i) =>
+        "invoiceNumber" in i
+          ? { id: i.id, number: i.invoiceNumber, name: i.customerName, nameAr: i.customerNameAr, dueDate: i.dueDate, outstanding: i.outstanding, daysPastDue: i.daysPastDue }
+          : { id: i.id, number: i.billNumber, name: i.vendorName, nameAr: i.vendorNameAr, dueDate: i.dueDate, outstanding: i.outstanding, daysPastDue: i.daysPastDue },
+      )
+    : [];
+  return { buckets: data.buckets, total: data.total, rows };
+}
 
 const BUCKET_LABELS = [
   { key: "current",    label: "Current",      color: "text-positive" },
@@ -21,12 +36,9 @@ const BUCKET_LABELS = [
   { key: "over_90",    label: "Over 90 Days", color: "text-red-600" },
 ] as const;
 
-function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
-  const items = data.items as any[];
+function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
+  const items = data.rows;
   const { n, t } = useLanguage();
-  const nameKey   = type === "ar" ? "customerName" : "vendorName";
-  const nameArKey = type === "ar" ? "customerNameAr" : "vendorNameAr";
-  const numKey    = type === "ar" ? "invoiceNumber" : "billNumber";
   const numLabel  = type === "ar" ? t("Invoice #", "رقم الفاتورة") : t("Bill #", "رقم فاتورة المورد");
   const partyLabel = type === "ar" ? t("Customer", "العميل") : t("Vendor", "المورد");
 
@@ -37,7 +49,7 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
         {BUCKET_LABELS.map(b => (
           <Card key={b.key} className="border-border bg-card">
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{b.label}</CardTitle></CardHeader>
-            <CardContent><div className={cn("text-lg font-bold font-mono", b.color)}>{fmtNum((data.buckets as any)[b.key])}</div></CardContent>
+            <CardContent><div className={cn("text-lg font-bold font-mono", b.color)}>{fmtNum(data.buckets[b.key])}</div></CardContent>
           </Card>
         ))}
       </div>
@@ -63,8 +75,8 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
               const color  = BUCKET_LABELS.find(b => b.key === bucket)?.color ?? "";
               return (
                 <tr key={item.id} className="border-b border-border/30 hover:bg-secondary/10">
-                  <td className="py-2.5 pe-4 font-mono text-xs text-primary">{item[numKey]}</td>
-                  <td className="py-2.5 pe-4 font-medium text-sm">{n(String((item as any)[nameKey] ?? ""), (item as any)[nameArKey])}</td>
+                  <td className="py-2.5 pe-4 font-mono text-xs text-primary">{item.number}</td>
+                  <td className="py-2.5 pe-4 font-medium text-sm">{n(item.name, item.nameAr)}</td>
                   <td className="py-2.5 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
                   <td className="py-2.5 pe-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
                   <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
@@ -87,11 +99,11 @@ function AgingTable({ data, type }: { data: AgingData; type: "ar" | "ap" }) {
 
 export default function AgingReports() {
   const { t } = useLanguage();
-  const { data: arData, isLoading: arLoading } = useQuery<AgingData>({
+  const { data: arData, isLoading: arLoading } = useQuery<ArAgingReport>({
     queryKey: ["ar-aging"],
     queryFn: () => apiFetch("/reports/ar-aging"),
   });
-  const { data: apData, isLoading: apLoading } = useQuery<AgingData>({
+  const { data: apData, isLoading: apLoading } = useQuery<ApAgingReport>({
     queryKey: ["ap-aging"],
     queryFn: () => apiFetch("/reports/ap-aging"),
   });
@@ -106,7 +118,6 @@ export default function AgingReports() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> {t("Export", "تصدير")}</Button>
       </div>
 
       {/* AR */}
@@ -116,7 +127,7 @@ export default function AgingReports() {
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}</h2>
           {arData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
         </div>
-        {arLoading ? <div className="text-sm text-muted-foreground">{t("Loading AR…", "جارٍ تحميل الذمم المدينة…")}</div> : arData ? <AgingTable data={arData} type="ar" /> : null}
+        {arLoading ? <div className="text-sm text-muted-foreground">{t("Loading AR…", "جارٍ تحميل الذمم المدينة…")}</div> : arData ? <AgingTable data={viewOf(arData)} type="ar" /> : null}
       </div>
 
       <div className="h-px bg-border" />
@@ -128,7 +139,7 @@ export default function AgingReports() {
           <h2 className="font-semibold text-base text-foreground">{t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}</h2>
           {apData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
         </div>
-        {apLoading ? <div className="text-sm text-muted-foreground">{t("Loading AP…", "جارٍ تحميل الذمم الدائنة…")}</div> : apData ? <AgingTable data={apData} type="ap" /> : null}
+        {apLoading ? <div className="text-sm text-muted-foreground">{t("Loading AP…", "جارٍ تحميل الذمم الدائنة…")}</div> : apData ? <AgingTable data={viewOf(apData)} type="ap" /> : null}
       </div>
     </div>
   );

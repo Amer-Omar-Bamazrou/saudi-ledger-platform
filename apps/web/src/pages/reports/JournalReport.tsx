@@ -13,9 +13,7 @@ import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeN
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
-interface JournalLine { id: number; accountName: string; accountId: number | null; description: string | null; debit: number; credit: number; }
-interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; status: string; lines: JournalLine[]; totalDebit: number; totalCredit: number; balanced: boolean; }
-interface JournalReportData { entries: JournalEntry[]; count: number; grandDebit: number; grandCredit: number; balanced: boolean; }
+import type { JournalReport as JournalReportData } from "@workspace/api-client-react";
 
 export default function JournalReport() {
   // M20.1 — the report does not mount until its default window is known, so a

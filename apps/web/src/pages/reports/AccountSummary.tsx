@@ -13,11 +13,7 @@ import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useRepor
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
-interface AccountSummaryRow {
-  name: string; type: string;
-  openingBalance: number; periodDebit: number; periodCredit: number; closingBalance: number;
-}
-interface AccountSummaryData { accounts: AccountSummaryRow[]; count: number; }
+import type { AccountSummaryReport, AccountSummaryRow } from "@workspace/api-client-react";
 
 const TYPE_COLOR: Record<string, string> = { income: "text-positive", expense: "text-negative", asset: "text-info", liability: "text-attention", equity: "text-purple-400" };
 
@@ -36,7 +32,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo,   setDateTo]   = useState(range.to);
   const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
 
-  const { data, isLoading } = useQuery<AccountSummaryData>({
+  const { data, isLoading } = useQuery<AccountSummaryReport>({
     queryKey: ["account-summary", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/account-summary?date_from=${applied.from}&date_to=${applied.to}`),
   });

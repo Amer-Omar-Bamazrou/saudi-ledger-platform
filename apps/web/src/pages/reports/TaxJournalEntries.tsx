@@ -13,9 +13,7 @@ import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeN
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
-interface TaxLine { accountName: string; debit: number; credit: number; isTaxLine: boolean; }
-interface TaxEntry { id: number; entryNumber: string; date: string; description: string; reference: string | null; lines: TaxLine[]; totalVatDebit: number; totalVatCredit: number; }
-interface TaxJEData { entries: TaxEntry[]; count: number; }
+import type { TaxJournalEntriesReport } from "@workspace/api-client-react";
 
 export default function TaxJournalEntries() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -32,7 +30,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo,   setDateTo]   = useState(range.to);
   const [applied,  setApplied]  = useState({ from: range.from, to: range.to });
 
-  const { data, isLoading } = useQuery<TaxJEData>({
+  const { data, isLoading } = useQuery<TaxJournalEntriesReport>({
     queryKey: ["tax-journal-entries", applied.from, applied.to],
     queryFn: () => apiFetch(`/reports/tax-journal-entries?date_from=${applied.from}&date_to=${applied.to}`),
   });
