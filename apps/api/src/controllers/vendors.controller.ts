@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
+import { CreateVendorBody, MatchVendorBody, UpdateVendorBody } from "@workspace/api-zod";
 import { vendorsService } from "../services/vendors.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
+import { BadRequestError } from "../lib/errors";
 
 export const vendorsController = {
   async list(req: Request, res: Response) {
@@ -18,17 +20,24 @@ export const vendorsController = {
     res.json(await vendorsService.getById(requireIdParam(req)));
   },
 
+  // 🔴 Contract batch 2: bodies validated against the GENERATED schemas — the
+  // declared constraint is the enforced one.
   async match(req: Request, res: Response) {
-    const { vatNumber, vendorName } = req.body as { vatNumber?: string; vendorName?: string };
-    res.json(await vendorsService.match({ vatNumber, vendorName }));
+    const body = MatchVendorBody.safeParse(req.body);
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.json(await vendorsService.match(body.data));
   },
 
   async create(req: Request, res: Response) {
-    res.status(201).json(await vendorsService.create(req.body));
+    const body = CreateVendorBody.safeParse(req.body);
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.status(201).json(await vendorsService.create(body.data));
   },
 
   async update(req: Request, res: Response) {
-    res.json(await vendorsService.update(requireIdParam(req), req.body));
+    const body = UpdateVendorBody.safeParse(req.body);
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.json(await vendorsService.update(requireIdParam(req), body.data));
   },
 
   async remove(req: Request, res: Response) {

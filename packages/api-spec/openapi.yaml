@@ -293,6 +293,12 @@ paths:
         ledger, statement or return at any status.
       parameters:
         - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
           name: status
           schema: { type: string, enum: [draft, submitted, approved] }
         - in: query
@@ -305,13 +311,21 @@ paths:
           schema: { type: string, enum: [live, declined, closed] }
       responses:
         "200":
-          description: The tenant's quotations
+          description: One PAGE of quotations — the envelope, not a bare array (corrected 2026-09-01; the spec had said array since M21)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Quotation"
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Quotation" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals:
+                    type: object
+                    description: Empty today; reserved for set-wide figures.
+                    additionalProperties: { type: number }
     post:
       operationId: createQuotation
       tags: [quotations]
@@ -583,6 +597,12 @@ paths:
         no ledger, statement or return at any status.
       parameters:
         - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
           name: status
           schema: { type: string, enum: [draft, submitted, approved] }
         - in: query
@@ -593,13 +613,21 @@ paths:
           schema: { type: string, enum: [live, cancelled, closed] }
       responses:
         "200":
-          description: The tenant's purchase orders
+          description: One PAGE of purchase orders — the envelope, not a bare array (corrected 2026-09-01; the spec had said array since M21)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/PurchaseOrder"
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PurchaseOrder" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals:
+                    type: object
+                    description: Empty today; reserved for set-wide figures.
+                    additionalProperties: { type: number }
     post:
       operationId: createPurchaseOrder
       tags: [purchase-orders]
@@ -2168,6 +2196,246 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Customers & vendors — brought into the contract 2026-09-01 (batch 2) ────
+  # Shapes are written from customers.service.ts / vendors.service.ts, verified
+  # on real rows by tests/party-contract-conformance.test.ts. Bodies are
+  # validated in the controllers with the generated Zod schemas, so a declared
+  # constraint here is an enforced one.
+
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: A PAGE of customers, each with its receivable balance, plus set-wide totals
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: is_active, schema: { type: boolean } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus totals over every matching customer (never over the page)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/CustomerWithBalance" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals: { $ref: "#/components/schemas/PartyTotals" }
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCustomerInput" }
+      responses:
+        "201":
+          description: The created customer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "400":
+          description: Body failed validation
+
+  /customers/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: One customer with its receivable balance and issued-invoice count
+      responses:
+        "200":
+          description: The customer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerDetail" }
+        "404":
+          description: No such customer in this organization
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer (allow-listed fields only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCustomerInput" }
+      responses:
+        "200":
+          description: The updated customer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "400":
+          description: Body failed validation
+        "404":
+          description: No such customer in this organization
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      responses:
+        "204":
+          description: Deleted
+
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: A PAGE of vendors, each with its payable balance, plus set-wide totals
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: is_active, schema: { type: boolean } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus totals over every matching vendor (never over the page)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/VendorWithBalance" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals: { $ref: "#/components/schemas/PartyTotals" }
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateVendorInput" }
+      responses:
+        "201":
+          description: The created vendor, flagged `created` so a caller can tell it from a match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorCreated" }
+        "400":
+          description: Body failed validation
+
+  /vendors/match:
+    post:
+      operationId: matchVendor
+      tags: [vendors]
+      summary: Find the vendor a scanned document belongs to — exact VAT number first, then a name-token search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorMatchInput" }
+      responses:
+        "200":
+          description: The match outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorMatchResult" }
+
+  /vendors/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getVendor
+      tags: [vendors]
+      summary: One vendor with its payable balance and bill count
+      responses:
+        "200":
+          description: The vendor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorDetail" }
+        "404":
+          description: No such vendor in this organization
+    patch:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Update a vendor (allow-listed fields only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateVendorInput" }
+      responses:
+        "200":
+          description: The updated vendor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+        "400":
+          description: Body failed validation
+        "404":
+          description: No such vendor in this organization
+    delete:
+      operationId: deleteVendor
+      tags: [vendors]
+      summary: Delete a vendor
+      responses:
+        "204":
+          description: Deleted
+
+  /bills:
+    get:
+      operationId: listBills
+      tags: [bills]
+      summary: A PAGE of bills, with totals for the whole filtered set
+      description: |
+        Offset pagination; `totals` are computed over every matching row, never
+        over the page. `status=overdue` is DERIVED (unpaid and past due), not a
+        stored status.
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: vendor_id, schema: { type: integer } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus set-wide totals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Bill" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals:
+                    type: object
+                    required: [outstanding, paid, overdue]
+                    properties:
+                      outstanding: { type: number }
+                      paid: { type: number }
+                      overdue:
+                        type: integer
+                        description: A COUNT of overdue bills, not an amount.
 
   /invoices:
     get:
@@ -3939,6 +4207,7 @@ components:
 
     Quotation:
       type: object
+      required: [id, quotationNumber, date, validUntil, customerId, customerName, status, outcome, conversionState, expired, subtotal, vatAmount, discount, total, currency, notes, termsAndConditions, reviewNote, createdAt]
       properties:
         id: { type: integer }
         quotationNumber: { type: string }
@@ -4130,6 +4399,7 @@ components:
 
     PurchaseOrder:
       type: object
+      required: [id, orderNumber, date, validUntil, vendorId, vendorName, status, outcome, billingState, expired, subtotal, vatAmount, total, currency, notes, reviewNote, createdAt]
       properties:
         id: { type: integer }
         orderNumber: { type: string }
@@ -4551,17 +4821,7 @@ components:
 
     Invoice:
       type: object
-      required:
-        - id
-        - invoiceNumber
-        - date
-        - status
-        - subtotal
-        - vatAmount
-        - total
-        - paidAmount
-        - createdAt
-        - items
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
       properties:
         id:
           type: integer
@@ -4604,8 +4864,19 @@ components:
         qrCode:
           type: ["string", "null"]
           description: ZATCA Phase-1 QR (base64 TLV); null until approved.
-        createdAt:
+        documentType:
           type: string
+          description: invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).
+        originalInvoiceId:
+          type: ["integer", "null"]
+          description: For a credit/debit note, the invoice it adjusts.
+        noteReason:
+          type: ["string", "null"]
+        icv:
+          type: ["integer", "null"]
+          description: ZATCA invoice counter value; null until approved.
+        zatcaUuid:
+          type: ["string", "null"]
         items:
           type: array
           items:
@@ -5094,3 +5365,240 @@ components:
         count: { type: integer }
         hasPosted: { type: integer }
         hasDraft: { type: integer }
+
+    # ── Customers & vendors (2026-09-01, batch 2) — shaped from the services,
+    #    verified on real rows by tests/party-contract-conformance.test.ts ──────
+
+    PageInfo:
+      type: object
+      required: [limit, offset, total]
+      properties:
+        limit: { type: integer }
+        offset: { type: integer }
+        total:
+          type: integer
+          description: Rows matching the filter, not rows on this page.
+
+    PartyTotals:
+      description: Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.
+      type: object
+      required: [totalBilled, totalPaid, balance]
+      properties:
+        totalBilled: { type: number }
+        totalPaid: { type: number }
+        balance: { type: number }
+
+    Customer:
+      type: object
+      required: [id, name, nameAr, taxNumber, crNumber, nationalId, phone, email, address, city, country,
+                 buildingNumber, street, district, postalCode, additionalNumber, province, currency,
+                 creditLimit, paymentTermsDays, notes, isActive, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        nationalId: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        buildingNumber: { type: ["string", "null"] }
+        street: { type: ["string", "null"] }
+        district: { type: ["string", "null"] }
+        postalCode: { type: ["string", "null"] }
+        additionalNumber: { type: ["string", "null"] }
+        province: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        creditLimit:
+          type: ["number", "null"]
+          description: Null means no limit is set. Stored as text; presented as a number on every read path.
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+
+    CustomerWithBalance:
+      allOf:
+        - { $ref: "#/components/schemas/Customer" }
+        - { $ref: "#/components/schemas/PartyTotals" }
+
+    CustomerDetail:
+      allOf:
+        - { $ref: "#/components/schemas/CustomerWithBalance" }
+        - type: object
+          required: [invoiceCount]
+          properties:
+            invoiceCount:
+              type: integer
+              description: ISSUED invoices only — drafts and submitted documents do not count.
+
+    CustomerInputFields:
+      description: The allow-listed, user-settable customer fields. Empty strings are accepted and stored as null by the write boundary.
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        nationalId: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        buildingNumber: { type: ["string", "null"] }
+        street: { type: ["string", "null"] }
+        district: { type: ["string", "null"] }
+        postalCode: { type: ["string", "null"] }
+        additionalNumber: { type: ["string", "null"] }
+        province: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        creditLimit:
+          type: ["number", "null"]
+          minimum: 0
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+
+    CreateCustomerInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        nationalId: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        buildingNumber: { type: ["string", "null"] }
+        street: { type: ["string", "null"] }
+        district: { type: ["string", "null"] }
+        postalCode: { type: ["string", "null"] }
+        additionalNumber: { type: ["string", "null"] }
+        province: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        creditLimit:
+          type: ["number", "null"]
+          minimum: 0
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+
+
+    UpdateCustomerInput:
+      $ref: "#/components/schemas/CustomerInputFields"
+
+    Vendor:
+      type: object
+      required: [id, name, nameAr, taxNumber, crNumber, phone, email, address, city, country, currency,
+                 iban, paymentTermsDays, notes, isActive, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+
+    VendorWithBalance:
+      allOf:
+        - { $ref: "#/components/schemas/Vendor" }
+        - { $ref: "#/components/schemas/PartyTotals" }
+
+    VendorDetail:
+      allOf:
+        - { $ref: "#/components/schemas/VendorWithBalance" }
+        - type: object
+          required: [billCount]
+          properties:
+            billCount: { type: integer }
+
+    VendorCreated:
+      allOf:
+        - { $ref: "#/components/schemas/Vendor" }
+        - type: object
+          required: [created]
+          properties:
+            created:
+              type: boolean
+              description: Always true here; lets a caller that also matches tell "created" from "existed".
+
+    VendorInputFields:
+      description: The allow-listed, user-settable vendor fields.
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+
+    CreateVendorInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        paymentTermsDays: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+
+
+    UpdateVendorInput:
+      $ref: "#/components/schemas/VendorInputFields"
+
+    VendorMatchInput:
+      type: object
+      properties:
+        vatNumber: { type: string }
+        vendorName: { type: string }
+
+    VendorMatchResult:
+      type: object
+      required: [matchType, vendor, suggestions]
+      properties:
+        matchType:
+          type: string
+          enum: [exact, fuzzy, none]
+        vendor:
+          oneOf:
+            - { $ref: "#/components/schemas/Vendor" }
+            - { type: "null" }
+        suggestions:
+          type: array
+          items: { $ref: "#/components/schemas/Vendor" }

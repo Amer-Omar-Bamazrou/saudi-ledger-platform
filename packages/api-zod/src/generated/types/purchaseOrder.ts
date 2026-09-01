@@ -11,25 +11,25 @@ import type { PurchaseOrderOutcome } from './purchaseOrderOutcome';
 import type { PurchaseOrderStatus } from './purchaseOrderStatus';
 
 export interface PurchaseOrder {
-  id?: number;
-  orderNumber?: string;
-  date?: string;
-  validUntil?: string | null;
-  vendorId?: number | null;
-  vendorName?: string | null;
+  id: number;
+  orderNumber: string;
+  date: string;
+  validUntil: string | null;
+  vendorId: number | null;
+  vendorName: string | null;
   /** The APPROVAL axis only. */
-  status?: PurchaseOrderStatus;
+  status: PurchaseOrderStatus;
   /** A terminal act by the TENANT. `cancelled` (we withdrew it), never "declined" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state. */
-  outcome?: PurchaseOrderOutcome;
+  outcome: PurchaseOrderOutcome;
   /** DERIVED from line quantities, never stored. BILLING, not delivery. */
-  billingState?: PurchaseOrderBillingState;
-  expired?: boolean;
-  subtotal?: number;
-  vatAmount?: number;
-  total?: number;
-  currency?: string;
-  notes?: string | null;
-  reviewNote?: string | null;
-  createdAt?: string;
+  billingState: PurchaseOrderBillingState;
+  expired: boolean;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  currency: string;
+  notes: string | null;
+  reviewNote: string | null;
+  createdAt: string;
   items?: PurchaseOrderItem[];
 }

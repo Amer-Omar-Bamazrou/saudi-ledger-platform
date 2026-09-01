@@ -197,7 +197,11 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
 
   /** Validate, and fail with the path list rather than a bare `false`. */
   function conforms(schema: { safeParse: (v: unknown) => ParseResult }, value: unknown, label: string) {
-    const r = schema.safeParse(value);
+    // 🔴 Validate what goes over the WIRE, not the in-memory object: `res.json`
+    // serialises Dates to ISO strings and drops undefined keys, and the contract
+    // describes the response a client receives. (A required key that is
+    // undefined is MISSING after the round-trip, so it still fails.)
+    const r = schema.safeParse(JSON.parse(JSON.stringify(value)));
     expect(r.success, `${label} does not conform to its generated schema:\n${issues(r)}`).toBe(true);
   }
 

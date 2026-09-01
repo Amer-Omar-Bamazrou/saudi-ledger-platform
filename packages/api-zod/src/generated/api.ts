@@ -302,32 +302,43 @@ export const DiscardCapturedDocumentResponse = zod.object({
  * @summary List quotations (M21.1). A quotation is an OFFER - it affects no ledger, statement or return at any status.
 
  */
+export const listQuotationsQueryLimitDefault = 50;
+export const listQuotationsQueryLimitMax = 200;
+
+export const listQuotationsQueryOffsetDefault = 0;
+export const listQuotationsQueryOffsetMin = 0;
+
+
+
 export const ListQuotationsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listQuotationsQueryLimitMax).default(listQuotationsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listQuotationsQueryOffsetMin).default(listQuotationsQueryOffsetDefault),
   "status": zod.enum(['draft', 'submitted', 'approved']).optional(),
   "customer_id": zod.coerce.number().optional(),
   "outcome": zod.enum(['live', 'declined', 'closed']).optional().describe('live hides quotations the tenant has declined or closed.\n')
 })
 
-export const ListQuotationsResponseItem = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+export const ListQuotationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -344,8 +355,14 @@ export const ListQuotationsResponseItem = zod.object({
   "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
   "remainingQuantity": zod.number().optional()
 })).optional()
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.record(zod.string(), zod.number()).describe('Empty today; reserved for set-wide figures.')
 })
-export const ListQuotationsResponse = zod.array(ListQuotationsResponseItem)
 
 
 /**
@@ -382,25 +399,25 @@ export const CreateQuotationBody = zod.object({
 })
 
 export const CreateQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -428,25 +445,25 @@ export const GetQuotationParams = zod.object({
 })
 
 export const GetQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -501,25 +518,25 @@ export const UpdateQuotationBody = zod.object({
 })
 
 export const UpdateQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -557,25 +574,25 @@ export const SubmitQuotationParams = zod.object({
 })
 
 export const SubmitQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -604,25 +621,25 @@ export const ApproveQuotationParams = zod.object({
 })
 
 export const ApproveQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -654,25 +671,25 @@ export const SendBackQuotationBody = zod.object({
 }).describe('Optional reviewer note when sending a submitted record back.')
 
 export const SendBackQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -711,25 +728,25 @@ export const DeclineQuotationParams = zod.object({
 })
 
 export const DeclineQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -758,25 +775,25 @@ export const CloseQuotationParams = zod.object({
 })
 
 export const CloseQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -804,25 +821,25 @@ export const ReopenQuotationParams = zod.object({
 })
 
 export const ReopenQuotationResponse = zod.object({
-  "id": zod.number().optional(),
-  "quotationNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['declined', 'closed']).nullish().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
-  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).optional().describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
-  "expired": zod.boolean().optional().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "termsAndConditions": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "quotationNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['declined', 'closed']).nullable().describe('A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead.\n'),
+  "conversionState": zod.enum(['open', 'partially_converted', 'converted']).describe('DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time.\n'),
+  "expired": zod.boolean().describe('validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision.\n'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "termsAndConditions": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -889,23 +906,27 @@ export const ConvertQuotationResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
   "date": zod.string(),
-  "dueDate": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
   "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
+  "discount": zod.number(),
   "total": zod.number(),
-  "currency": zod.string().nullish(),
+  "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
-  "paidAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
-  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
-  "previousHash": zod.string().nullish(),
-  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "createdAt": zod.string(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -918,7 +939,7 @@ export const ConvertQuotationResponse = zod.object({
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
   "total": zod.number()
-}))
+})).optional()
 }).optional()
 })
 
@@ -946,30 +967,41 @@ export const ListQuotationConversionsResponse = zod.array(ListQuotationConversio
  * @summary List purchase orders (M21.3). A PO is an INTENTION TO BUY - it affects no ledger, statement or return at any status.
 
  */
+export const listPurchaseOrdersQueryLimitDefault = 50;
+export const listPurchaseOrdersQueryLimitMax = 200;
+
+export const listPurchaseOrdersQueryOffsetDefault = 0;
+export const listPurchaseOrdersQueryOffsetMin = 0;
+
+
+
 export const ListPurchaseOrdersQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listPurchaseOrdersQueryLimitMax).default(listPurchaseOrdersQueryLimitDefault),
+  "offset": zod.coerce.number().min(listPurchaseOrdersQueryOffsetMin).default(listPurchaseOrdersQueryOffsetDefault),
   "status": zod.enum(['draft', 'submitted', 'approved']).optional(),
   "vendor_id": zod.coerce.number().optional(),
   "outcome": zod.enum(['live', 'cancelled', 'closed']).optional()
 })
 
-export const ListPurchaseOrdersResponseItem = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+export const ListPurchaseOrdersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -991,8 +1023,14 @@ export const ListPurchaseOrdersResponseItem = zod.object({
   "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
 }).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
 })).optional()
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.record(zod.string(), zod.number()).describe('Empty today; reserved for set-wide figures.')
 })
-export const ListPurchaseOrdersResponse = zod.array(ListPurchaseOrdersResponseItem)
 
 
 /**
@@ -1032,23 +1070,23 @@ export const CreatePurchaseOrderBody = zod.object({
 })
 
 export const CreatePurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1081,23 +1119,23 @@ export const GetPurchaseOrderParams = zod.object({
 })
 
 export const GetPurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1163,23 +1201,23 @@ export const UpdatePurchaseOrderBody = zod.object({
 })
 
 export const UpdatePurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1223,23 +1261,23 @@ export const SubmitPurchaseOrderParams = zod.object({
 })
 
 export const SubmitPurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1273,23 +1311,23 @@ export const ApprovePurchaseOrderParams = zod.object({
 })
 
 export const ApprovePurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1327,23 +1365,23 @@ export const SendBackPurchaseOrderBody = zod.object({
 }).describe('Optional reviewer note when sending a submitted record back.')
 
 export const SendBackPurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1387,23 +1425,23 @@ export const CancelPurchaseOrderParams = zod.object({
 })
 
 export const CancelPurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1437,23 +1475,23 @@ export const ClosePurchaseOrderParams = zod.object({
 })
 
 export const ClosePurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -1487,23 +1525,23 @@ export const ReopenPurchaseOrderParams = zod.object({
 })
 
 export const ReopenPurchaseOrderResponse = zod.object({
-  "id": zod.number().optional(),
-  "orderNumber": zod.string().optional(),
-  "date": zod.string().optional(),
-  "validUntil": zod.string().nullish(),
-  "vendorId": zod.number().nullish(),
-  "vendorName": zod.string().nullish(),
-  "status": zod.enum(['draft', 'submitted', 'approved']).optional().describe('The APPROVAL axis only.'),
-  "outcome": zod.enum(['cancelled', 'closed']).nullish().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
-  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).optional().describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
-  "expired": zod.boolean().optional(),
-  "subtotal": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "currency": zod.string().optional(),
-  "notes": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "createdAt": zod.string().optional(),
+  "id": zod.number(),
+  "orderNumber": zod.string(),
+  "date": zod.string(),
+  "validUntil": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'approved']).describe('The APPROVAL axis only.'),
+  "outcome": zod.enum(['cancelled', 'closed']).nullable().describe('A terminal act by the TENANT. `cancelled` (we withdrew it), never \"declined\" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state.\n'),
+  "billingState": zod.enum(['open', 'partially_billed', 'fully_billed']).describe('DERIVED from line quantities, never stored. BILLING, not delivery.\n'),
+  "expired": zod.boolean(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
@@ -3372,6 +3410,543 @@ export const RejectBillResponse = zod.void()
 
 
 /**
+ * @summary A PAGE of customers, each with its receivable balance, plus set-wide totals
+ */
+export const listCustomersQueryLimitDefault = 50;
+export const listCustomersQueryLimitMax = 200;
+
+export const listCustomersQueryOffsetDefault = 0;
+export const listCustomersQueryOffsetMin = 0;
+
+
+
+export const ListCustomersQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "is_active": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault),
+  "offset": zod.coerce.number().min(listCustomersQueryOffsetMin).default(listCustomersQueryOffsetDefault)
+})
+
+export const ListCustomersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "nationalId": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "postalCode": zod.string().nullable(),
+  "additionalNumber": zod.string().nullable(),
+  "province": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "creditLimit": zod.number().nullable().describe('Null means no limit is set. Stored as text; presented as a number on every read path.'),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.'))),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')
+})
+
+
+/**
+ * @summary Create a customer
+ */
+
+export const createCustomerBodyCreditLimitMin = 0;
+
+
+
+export const CreateCustomerBody = zod.object({
+  "name": zod.string().min(1),
+  "nameAr": zod.string().optional(),
+  "taxNumber": zod.string().nullish(),
+  "crNumber": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "buildingNumber": zod.string().nullish(),
+  "street": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "additionalNumber": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "creditLimit": zod.number().min(createCustomerBodyCreditLimitMin).nullish(),
+  "paymentTermsDays": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "nationalId": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "postalCode": zod.string().nullable(),
+  "additionalNumber": zod.string().nullable(),
+  "province": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "creditLimit": zod.number().nullable().describe('Null means no limit is set. Stored as text; presented as a number on every read path.'),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary One customer with its receivable balance and issued-invoice count
+ */
+export const GetCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "nationalId": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "postalCode": zod.string().nullable(),
+  "additionalNumber": zod.string().nullable(),
+  "province": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "creditLimit": zod.number().nullable().describe('Null means no limit is set. Stored as text; presented as a number on every read path.'),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "invoiceCount": zod.number().describe('ISSUED invoices only — drafts and submitted documents do not count.')
+}))
+
+
+/**
+ * @summary Update a customer (allow-listed fields only)
+ */
+export const UpdateCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const updateCustomerBodyCreditLimitMin = 0;
+
+
+
+export const UpdateCustomerBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "nameAr": zod.string().optional(),
+  "taxNumber": zod.string().nullish(),
+  "crNumber": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "buildingNumber": zod.string().nullish(),
+  "street": zod.string().nullish(),
+  "district": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "additionalNumber": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "creditLimit": zod.number().min(updateCustomerBodyCreditLimitMin).nullish(),
+  "paymentTermsDays": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+}).describe('The allow-listed, user-settable customer fields. Empty strings are accepted and stored as null by the write boundary.')
+
+export const UpdateCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "nationalId": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "buildingNumber": zod.string().nullable(),
+  "street": zod.string().nullable(),
+  "district": zod.string().nullable(),
+  "postalCode": zod.string().nullable(),
+  "additionalNumber": zod.string().nullable(),
+  "province": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "creditLimit": zod.number().nullable().describe('Null means no limit is set. Stored as text; presented as a number on every read path.'),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a customer
+ */
+export const DeleteCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCustomerResponse = zod.void()
+
+
+/**
+ * @summary A PAGE of vendors, each with its payable balance, plus set-wide totals
+ */
+export const listVendorsQueryLimitDefault = 50;
+export const listVendorsQueryLimitMax = 200;
+
+export const listVendorsQueryOffsetDefault = 0;
+export const listVendorsQueryOffsetMin = 0;
+
+
+
+export const ListVendorsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "is_active": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().min(1).max(listVendorsQueryLimitMax).default(listVendorsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listVendorsQueryOffsetMin).default(listVendorsQueryOffsetDefault)
+})
+
+export const ListVendorsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.'))),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')
+})
+
+
+/**
+ * @summary Create a vendor
+ */
+
+
+
+export const CreateVendorBody = zod.object({
+  "name": zod.string().min(1),
+  "nameAr": zod.string().optional(),
+  "taxNumber": zod.string().nullish(),
+  "crNumber": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "paymentTermsDays": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateVendorResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "created": zod.boolean().describe('Always true here; lets a caller that also matches tell \"created\" from \"existed\".')
+}))
+
+
+/**
+ * @summary Find the vendor a scanned document belongs to — exact VAT number first, then a name-token search
+ */
+export const MatchVendorBody = zod.object({
+  "vatNumber": zod.string().optional(),
+  "vendorName": zod.string().optional()
+})
+
+export const MatchVendorResponse = zod.object({
+  "matchType": zod.enum(['exact', 'fuzzy', 'none']),
+  "vendor": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "suggestions": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary One vendor with its payable balance and bill count
+ */
+export const GetVendorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetVendorResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "totalBilled": zod.number(),
+  "totalPaid": zod.number(),
+  "balance": zod.number()
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "billCount": zod.number()
+}))
+
+
+/**
+ * @summary Update a vendor (allow-listed fields only)
+ */
+export const UpdateVendorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateVendorBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "nameAr": zod.string().optional(),
+  "taxNumber": zod.string().nullish(),
+  "crNumber": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "paymentTermsDays": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+}).describe('The allow-listed, user-settable vendor fields.')
+
+export const UpdateVendorResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "iban": zod.string().nullable(),
+  "paymentTermsDays": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a vendor
+ */
+export const DeleteVendorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteVendorResponse = zod.void()
+
+
+/**
+ * Offset pagination; `totals` are computed over every matching row, never
+ * over the page. `status=overdue` is DERIVED (unpaid and past due), not a
+ * stored status.
+ * @summary A PAGE of bills, with totals for the whole filtered set
+ */
+export const listBillsQueryLimitDefault = 50;
+export const listBillsQueryLimitMax = 200;
+
+export const listBillsQueryOffsetDefault = 0;
+export const listBillsQueryOffsetMin = 0;
+
+
+
+export const ListBillsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "vendor_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listBillsQueryLimitMax).default(listBillsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listBillsQueryOffsetMin).default(listBillsQueryOffsetDefault)
+})
+
+export const ListBillsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number(),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "outstanding": zod.number(),
+  "paid": zod.number(),
+  "overdue": zod.number().describe('A COUNT of overdue bills, not an amount.')
+})
+})
+
+
+/**
  * 🔴 Offset pagination, and the `totals` are computed in SQL over every
  * matching row — never over the page. A page-scoped money total is a
  * number nobody asked for, and the alternative to it is not a smaller
@@ -3401,23 +3976,27 @@ export const ListInvoicesResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
   "date": zod.string(),
-  "dueDate": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
   "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
+  "discount": zod.number(),
   "total": zod.number(),
-  "currency": zod.string().nullish(),
+  "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
-  "paidAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
-  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
-  "previousHash": zod.string().nullish(),
-  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "createdAt": zod.string(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -3430,7 +4009,7 @@ export const ListInvoicesResponse = zod.object({
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
   "total": zod.number()
-}))
+})).optional()
 })),
   "page": zod.object({
   "limit": zod.number(),
@@ -3457,23 +4036,27 @@ export const SubmitInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
   "date": zod.string(),
-  "dueDate": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
   "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
+  "discount": zod.number(),
   "total": zod.number(),
-  "currency": zod.string().nullish(),
+  "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
-  "paidAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
-  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
-  "previousHash": zod.string().nullish(),
-  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "createdAt": zod.string(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -3486,7 +4069,7 @@ export const SubmitInvoiceResponse = zod.object({
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
   "total": zod.number()
-}))
+})).optional()
 })
 
 
@@ -3506,23 +4089,27 @@ export const SendBackInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
   "date": zod.string(),
-  "dueDate": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
   "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
+  "discount": zod.number(),
   "total": zod.number(),
-  "currency": zod.string().nullish(),
+  "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
-  "paidAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
-  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
-  "previousHash": zod.string().nullish(),
-  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "createdAt": zod.string(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -3535,7 +4122,7 @@ export const SendBackInvoiceResponse = zod.object({
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
   "total": zod.number()
-}))
+})).optional()
 })
 
 
@@ -3551,23 +4138,27 @@ export const ApproveInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
   "date": zod.string(),
-  "dueDate": zod.string().nullish(),
-  "customerId": zod.number().nullish(),
-  "customerName": zod.string().nullish(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
   "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
+  "discount": zod.number(),
   "total": zod.number(),
-  "currency": zod.string().nullish(),
+  "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
-  "paidAt": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "notes": zod.string().nullish(),
-  "invoiceHash": zod.string().nullish().describe('ZATCA hash-chain link; null until the invoice is approved.'),
-  "previousHash": zod.string().nullish(),
-  "qrCode": zod.string().nullish().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "createdAt": zod.string(),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -3580,7 +4171,7 @@ export const ApproveInvoiceResponse = zod.object({
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
   "total": zod.number()
-}))
+})).optional()
 })
 
 

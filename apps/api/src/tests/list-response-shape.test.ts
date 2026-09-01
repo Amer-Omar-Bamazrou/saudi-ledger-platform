@@ -127,8 +127,11 @@ function scanDeclarations(): Declaration[] {
  * declaration that leaves because it is no longer hand-written leaves this
  * scan the way a page leaves the ratchet — the checked-by-construction path
  * replaces the checked-by-scan one. Any other shrink is still the alarm above.
+ *
+ * 28 → 25 (batch 2): Customers, Vendors and the CustomerLedger picker moved
+ * onto the generated Customer/Vendor types. Same reason, same direction.
  */
-const DECLARATIONS_AT_WRITING = 28;
+const DECLARATIONS_AT_WRITING = 25;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 

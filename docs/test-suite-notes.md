@@ -32,3 +32,22 @@ exists to prove. Isolate the buckets instead.
 times slower AND couples suites to each other's leftover state — `operator.test.ts`
 fails under that ordering while passing alone. See `vitest.config.ts`.
 
+## Running the API suite and the browser suite at the same time (2026-09-01)
+
+**Do not run both against one local database concurrently.** Playwright's
+`webServer` starts the real API in dev mode, and that process runs the
+in-process scheduler. On its tick the findings job wrote a `finding_runs` row
+into EVERY organization present at that moment — including the API suite's
+fixture orgs (`po-test`, `txn-to-ledger`) — so their `afterAll` cleanup failed on
+the FK (`23503 … still referenced from table "finding_runs"`) and the files went
+red for a reason unrelated to their subject. The rows survive the run, so the
+NEXT solo run of those files fails too until they are deleted.
+
+It is not a defect in either suite: CI runs them in separate jobs against
+separate databases and never co-schedules them. It will bite whoever runs both
+locally next. Symptoms: FK errors naming `finding_runs` in a test that never
+mentions findings; a `/audit-trail` browser check rendering zero rows. Fix: run
+them one after the other; if it already happened,
+`DELETE FROM finding_runs WHERE organization_id IN (SELECT id FROM organizations WHERE slug IN ('po-test','txn-to-ledger'))`.
+Same class as the global job paths above, one layer out — the job is scoped per
+org, but it enumerates every org it can see.

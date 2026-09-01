@@ -31,6 +31,16 @@
  * 🔴 "Impossible to add" in the strict sense would need the endpoint to exist
  * in the contract first — that is the milestone's remaining work. Until then,
  * "fails a check" is what this delivers, which is the criterion's floor.
+ *
+ * ── 🔴 HOW NOT TO MAKE THIS LIST SHRINK (owner-named, 2026-09-01) ──────────
+ * The detector matches `interface`. Rewriting a page's declaration as a
+ * `type` alias satisfies it and fixes nothing: the page still asserts a shape
+ * nobody checks, and the number moves without the work. That is the obvious
+ * move under time pressure, so it is named here: a file LEAVES this list by
+ * consuming the generated type from @workspace/api-client-react (or, for an
+ * endpoint not yet in the contract, by staying — CustomerLedger stayed a whole
+ * batch for one picker). If you find yourself editing the declaration instead
+ * of the import, stop.
  */
 
 import { describe, expect, it } from "vitest";
@@ -81,8 +91,6 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/ClosedMonths.tsx",
   "pages/CompanySettings.tsx",
   "pages/CreditNotes.tsx",
-  "pages/CustomerDetail.tsx",
-  "pages/Customers.tsx",
   "pages/Dashboard.tsx",
   "pages/Employees.tsx",
   "pages/Findings.tsx",
@@ -101,14 +109,9 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/TransactionReview.tsx",
   "pages/Upload.tsx",
   "pages/UserManagement.tsx",
-  "pages/VendorDetail.tsx",
-  "pages/Vendors.tsx",
   "pages/VerificationStatus.tsx",
   "pages/ZakatReport.tsx",
   "pages/ZatcaOnboarding.tsx",
-  // 🔴 Report response migrated (batch 1); STAYS for its customer picker — the
-  // /customers list is not in the contract yet. Leaves with the customers batch.
-  "pages/reports/CustomerLedger.tsx",
 ];
 
 const rel = (p: string) => p.replace(/\\/g, "/").replace(/^.*?web\/src\//, "");

@@ -22,22 +22,9 @@ import type { Paged } from "@/lib/pagedList";
  * page that states when it was cut. Nothing is silently page-scoped.
  */
 
-interface CustomerDetail {
-  id: number; name: string; nameAr: string | null; taxNumber: string | null; crNumber: string | null;
-  phone: string | null; email: string | null; address: string | null; city: string | null;
-  paymentTermsDays: string | null; creditLimit: number | null; isActive: boolean;
-  totalBilled: number; totalPaid: number; balance: number; invoiceCount: number;
-}
+import type { CustomerDetail as CustomerDetailView, Invoice, Quotation } from "@workspace/api-client-react";
 
-interface InvoiceRow {
-  id: number; invoiceNumber: string; date: string; dueDate: string | null; status: string;
-  total: number; paidAmount: number | null; paidAt: string | null; documentType: string | null;
-  noteReason: string | null;
-}
 
-interface QuotationRow {
-  id: number; quotationNumber: string; date: string; status: string; total: number;
-}
 
 const money = (n: number) => fmtNum(n ?? 0);
 
@@ -70,7 +57,7 @@ function TruncationNotice({ shown, total }: { shown: number; total: number }) {
   );
 }
 
-function DocTable({ rows, kind }: { rows: InvoiceRow[]; kind: "invoice" | "credit" }) {
+function DocTable({ rows, kind }: { rows: Invoice[]; kind: "invoice" | "credit" }) {
   const { t } = useLanguage();
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground py-4">{t("Nothing here yet.", "لا يوجد شيء هنا بعد.")}</p>;
@@ -121,23 +108,23 @@ export default function CustomerDetail() {
   const id = Number(params.id);
   const { t } = useLanguage();
 
-  const { data: customer, isLoading, error } = useQuery<CustomerDetail>({
+  const { data: customer, isLoading, error } = useQuery<CustomerDetailView>({
     queryKey: ["customer", id],
     queryFn: () => apiFetch(`/customers/${id}`),
     enabled: Number.isFinite(id),
   });
 
-  const { data: invoiceData } = useQuery<FetchedDocs<InvoiceRow>>({
+  const { data: invoiceData } = useQuery<FetchedDocs<Invoice>>({
     queryKey: ["customer-invoices", id],
     queryFn: async () =>
-      toFetched(await apiFetch<Paged<InvoiceRow>>(`/invoices?customer_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
+      toFetched(await apiFetch<Paged<Invoice>>(`/invoices?customer_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
     enabled: Number.isFinite(id),
   });
 
-  const { data: quotationData } = useQuery<FetchedDocs<QuotationRow>>({
+  const { data: quotationData } = useQuery<FetchedDocs<Quotation>>({
     queryKey: ["customer-quotations", id],
     queryFn: async () =>
-      toFetched(await apiFetch<Paged<QuotationRow>>(`/quotations?customer_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
+      toFetched(await apiFetch<Paged<Quotation>>(`/quotations?customer_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
     enabled: Number.isFinite(id),
   });
 

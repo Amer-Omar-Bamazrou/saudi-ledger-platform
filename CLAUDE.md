@@ -61,8 +61,9 @@ The invariants they left behind are in §4; the lessons are in §3.
 **2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
 record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
 **2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
-**2026-09-01 — contract milestone, batch 1:** 14 report endpoints in the spec,
-conformance-tested on real rows; ratchet 55 → 41, zero joins. Record: findings file.
+**2026-09-01 — contract milestone, batches 1–2:** reports, customers, vendors
+and the four document lists in the spec, conformance-tested on real rows;
+ratchet 55 → 36, zero joins. Record: findings file.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -261,7 +262,7 @@ rules at the top of this file, rule 2).
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
 - **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
 - **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client). Ask of every severance what an unhandled event on the severed thing takes with it. 🔴 **Standard advice without checking which case you have is its own trap** — `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`; incident: findings file.
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. Day one: the balance sheet's Equity section had never rendered `equity.items` — its rows did not foot.
+- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. The argument, as a pair: the trial balance (mis-keyed rows) and the balance sheet next to it (an Equity section whose rows did not foot) were both invisible until something OUTSIDE the page's own declaration had an opinion about the shape. Record: findings file.
 - **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
 - **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
 - **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
@@ -273,7 +274,7 @@ rules at the top of this file, rule 2).
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell is a field the WRITE path treats as optional and a READ path treats as required: check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
 - **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
-- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. 🔴 **A WALK PRODUCES A SAMPLE; ONLY AN INVENTORY PRODUCES A COUNT — AND THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): one dead Export button by walk, seven by the English-only sweep, twelve by inventorying the SHAPE. Unvisited absences travel together; count the shape, and say what frame the count was taken in.
+- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. 🔴 **THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): one dead Export button by walk, seven by the English-only sweep, twelve by inventorying the SHAPE. Seven was CORRECT inside its frame and wrong as an inventory — the sweep was right about what it looked at, which is subtler than under-counting. A count without its frame is not a number; a walk produces a sample, only an inventory produces a count.
 - **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — the readiness wait added to make P5 *more* reliable is what broke it (a path assumed, not checked). **Re-run the thing you just hardened.** (Earned again 2026-08-31: a believed-correct `pool.on("error")` fix crashed the next run identically.) Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
 - **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
@@ -507,25 +508,16 @@ offers it (one-line flip if manual paging tests are wanted); and
 `normalizeDigits` exists twice, pinned by a behavioural-equivalence test, pending
 a shared workspace package.
 
-**B-8 — NOT REPRODUCED, and now under a standing guard** (2026-08-31).
-`e2e/rtl-direction.spec.ts` executes the mechanism the lesson itself named:
-toggle to Arabic, then walk five routes across sections **by clicking**, plus a
-reload, a route change after a reload, and a switch back. Five tests, all
-green — `dir` and `lang` hold throughout. 🔴 **Search shape**, so the negative
-is reviewable: exactly ONE writer in app code (`LanguageContext.tsx:52`), no
-`@radix-ui`/`vaul`/`cmdk` package writes `documentElement.dir` or
-`.setAttribute`, and clicking is used deliberately because a `goto` remounts the
-provider and would repair the loss before it could be seen. **What would
-falsify:** a loss triggered by a surface not on that walk, a portal/dialog, or a
-path that unmounts the provider. B-8 is not closed — it is now *tested* rather
-than merely unreproduced, which is a different and better state.
+**B-8 — NOT REPRODUCED, under a standing guard** (2026-08-31):
+`e2e/rtl-direction.spec.ts` toggles to Arabic and walks five routes **by
+clicking** (a `goto` remounts the provider and repairs the loss before it can be
+seen), plus reload and switch-back; `dir`/`lang` hold. Not closed — *tested*
+rather than unreproduced. Search shape and what would falsify it: findings file.
 
-🔴 **Direction is now set BEFORE FIRST PAINT** (owner decision, 2026-08-31): a
-minimal render-blocking script in `index.html` reads `ksa_lang` and sets `dir`
-and `lang`. It cannot be done from inside React — by the time a component runs,
-the paint has happened. **Do not delete it as an oddity**; it carries its own
-rationale and a test that fails on its removal (`waitUntil: "commit"`, because
-any later wait lets React repair it and the check passes either way).
+🔴 **Direction is set BEFORE FIRST PAINT** (owner decision, 2026-08-31): a
+render-blocking script in `index.html` reads `ksa_lang` and sets `dir`/`lang` —
+React runs after the paint. **Do not delete it as an oddity**; its rationale is
+in the file and a test fails on its removal (`waitUntil: "commit"`).
 
 🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY.** A new entry
 needs a checkable reason and leaves the day it is fixed.
@@ -533,11 +525,9 @@ needs a checkable reason and leaves the day it is fixed.
 ### Arabic coverage
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
-(the idiom-count sweep; a targeted fix sees only what it was sent to fix).
-**Re-measured 2026-09-01: eight English-only pages found and FIXED — seven
-under `/reports`, untranslated because unvisited — suspect count now 0.** The
-same sweep found and removed **seven dead Export buttons** (no onClick; export
-belongs to L1's artifact design). Re-run before launch. Record: findings file.
+(the idiom-count sweep). Last measured 2026-09-01: suspect count 0 after eight
+pages were fixed; twelve dead Export buttons removed across two frames. Re-run
+before launch. Record: findings file.
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
@@ -578,10 +568,14 @@ GENERATOR was still there.** The generator is closed:
 `tests/hand-written-interface-ratchet.test.ts` fails any NEW `apiFetch`+interface
 pairing; the milestone burns its pinned list down (spec → codegen → page consumes
 generated types → leaves the list). **Batch 1 (reports): 55 → 41, zero joins**,
-with `tests/report-contract-conformance.test.ts` making the schemas a contract
-rather than documentation. 🔴 A leave and a join in one milestone is the generator
-running — stop, do not net. Next: the 41, by money surface; TanStack waits.
-Record: findings file.
+with the conformance tests making the schemas a contract rather than
+documentation. **Batch 2 (customers, vendors, four document lists): 41 → 36** —
+and it found the spec itself wrong wherever no response had been parsed against
+it (`Invoice`, `Quotation`, `PurchaseOrder`). 🔴 A leave and a join in one
+milestone is the generator running — stop, do not net. 🔴 **A `type` alias that
+satisfies the detector is the ratchet GAMED — a file leaves by consuming the
+generated type, never by rephrasing.** Next: the 36; TanStack waits. Record:
+findings file.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |
