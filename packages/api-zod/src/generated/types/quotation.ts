@@ -11,28 +11,28 @@ import type { QuotationOutcome } from './quotationOutcome';
 import type { QuotationStatus } from './quotationStatus';
 
 export interface Quotation {
-  id?: number;
-  quotationNumber?: string;
-  date?: string;
-  validUntil?: string | null;
-  customerId?: number | null;
-  customerName?: string | null;
+  id: number;
+  quotationNumber: string;
+  date: string;
+  validUntil: string | null;
+  customerId: number | null;
+  customerName: string | null;
   /** The APPROVAL axis only. */
-  status?: QuotationStatus;
+  status: QuotationStatus;
   /** A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead. */
-  outcome?: QuotationOutcome;
+  outcome: QuotationOutcome;
   /** DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time. */
-  conversionState?: QuotationConversionState;
+  conversionState: QuotationConversionState;
   /** validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision. */
-  expired?: boolean;
-  subtotal?: number;
-  vatAmount?: number;
-  discount?: number;
-  total?: number;
-  currency?: string;
-  notes?: string | null;
-  termsAndConditions?: string | null;
-  reviewNote?: string | null;
-  createdAt?: string;
+  expired: boolean;
+  subtotal: number;
+  vatAmount: number;
+  discount: number;
+  total: number;
+  currency: string;
+  notes: string | null;
+  termsAndConditions: string | null;
+  reviewNote: string | null;
+  createdAt: string;
   items?: QuotationItem[];
 }

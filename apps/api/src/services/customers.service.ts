@@ -18,11 +18,38 @@ const CUSTOMER_FIELDS = [
 ] as const;
 
 type Customer = typeof customersTable.$inferSelect;
+type CustomerInsert = typeof customersTable.$inferInsert;
 
 const toView = (c: Customer) => ({
   ...c,
   creditLimit: c.creditLimit != null ? Number(c.creditLimit) : null,
 });
+
+/**
+ * 🔴 The write boundary (contract batch 2). Two things the contract made
+ * visible:
+ *  1. `create`/`update` returned the RAW row while `list`/`getById` returned
+ *     `toView` — so `creditLimit` was a number on two paths and a string on the
+ *     other two. One presentation now, on every path.
+ *  2. The UI sent `creditLimit: ""` for "no limit"; `Number("")` is 0, so the
+ *     guard passed and "" was stored, which every read then presented as a
+ *     limit of 0.00. The generated body schema now refuses "" (number|null),
+ *     and nullable text fields sent as "" are stored as NULL rather than as an
+ *     empty string that reads as a value.
+ */
+function normalize(values: Partial<CustomerInsert>): Partial<CustomerInsert> {
+  const out: Record<string, unknown> = { ...values };
+  for (const key of CUSTOMER_FIELDS) {
+    if (out[key] === "") {
+      if (key === "nameAr") delete out[key]; // NOT NULL with a default — let the default apply
+      else out[key] = null;
+    }
+  }
+  if (out.creditLimit != null) {
+    out.creditLimit = String(assertAmount(out.creditLimit, "creditLimit", { min: 0, allowZero: true }));
+  }
+  return out as Partial<CustomerInsert>;
+}
 
 export const customersService = {
   /**
@@ -90,22 +117,20 @@ export const customersService = {
   // 🔴 H1 — ALLOWLIST (audit 2026-08-20). RLS blocks setting a foreign
   // organization_id, but the raw spread still let a client set `id`/timestamps
   // and any future sensitive column. `creditLimit` is validated ≥ 0.
-  async create(data: typeof customersTable.$inferInsert) {
-    const values = pick<typeof customersTable.$inferInsert>(data, CUSTOMER_FIELDS);
-    if (values.creditLimit != null) assertAmount(values.creditLimit, "creditLimit", { min: 0, allowZero: true });
-    const [row] = await customersRepository.insert(values as typeof customersTable.$inferInsert);
+  async create(data: unknown) {
+    const values = normalize(pick<CustomerInsert>(data, CUSTOMER_FIELDS));
+    const [row] = await customersRepository.insert(values as CustomerInsert);
     await auditService.created("customer", row.id, row);
-    return row;
+    return toView(row);
   },
 
-  async update(id: number, data: Partial<typeof customersTable.$inferInsert>) {
+  async update(id: number, data: unknown) {
     const [before] = await customersRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const values = pick<typeof customersTable.$inferInsert>(data, CUSTOMER_FIELDS);
-    if (values.creditLimit != null) assertAmount(values.creditLimit, "creditLimit", { min: 0, allowZero: true });
+    const values = normalize(pick<CustomerInsert>(data, CUSTOMER_FIELDS));
     const [row] = await customersRepository.update(id, values);
     await auditService.updated("customer", id, before, row);
-    return row;
+    return toView(row);
   },
 
   async remove(id: number) {

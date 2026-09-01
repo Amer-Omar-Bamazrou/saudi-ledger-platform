@@ -15,9 +15,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
-interface Vendor { id: number; name: string; nameAr: string; taxNumber: string; crNumber: string; phone: string; email: string; city: string; iban: string; paymentTermsDays: string; isActive: boolean; totalBilled?: number; totalPaid?: number; balance?: number; }
+import type { CreateVendorInput, PartyTotals, VendorWithBalance } from "@workspace/api-client-react";
 
-interface VendorTotals { totalBilled: number; totalPaid: number; balance: number; }
 
 const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30" };
 
@@ -30,7 +29,7 @@ export default function Vendors() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: paged, isLoading } = useQuery<Paged<Vendor, VendorTotals>>({
+  const { data: paged, isLoading } = useQuery<Paged<VendorWithBalance, PartyTotals>>({
     queryKey: ["vendors", search, page],
     queryFn: () =>
       apiFetch(
@@ -41,7 +40,7 @@ export default function Vendors() {
   const vendors = paged?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: typeof emptyForm) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: CreateVendorInput) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vendors"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Vendor created", "تم إنشاء المورد") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

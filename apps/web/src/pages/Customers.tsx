@@ -15,11 +15,21 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
-interface Customer { id: number; name: string; nameAr: string; taxNumber: string; crNumber: string; phone: string; email: string; city: string; isActive: boolean; creditLimit: number | null; paymentTermsDays: string; totalBilled?: number; totalPaid?: number; balance?: number; }
+import type { CreateCustomerInput, CustomerWithBalance, PartyTotals } from "@workspace/api-client-react";
 
-interface CustomerTotals { totalBilled: number; totalPaid: number; balance: number; }
 
 const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", paymentTermsDays: "30", creditLimit: "" };
+
+/**
+ * The form holds strings; the contract wants `creditLimit: number | null`, and
+ * "" means "no limit". The server used to accept "" and store it — `Number("")`
+ * is 0 — so every such customer read back with a limit of 0.00. The generated
+ * body type makes sending "" a compile error here and a 400 there.
+ */
+function toCreateInput(f: typeof emptyForm): CreateCustomerInput {
+  const { creditLimit, ...rest } = f;
+  return { ...rest, creditLimit: creditLimit.trim() === "" ? null : Number(creditLimit) };
+}
 
 export default function Customers() {
   const [search, setSearch] = useState("");
@@ -30,7 +40,7 @@ export default function Customers() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: paged, isLoading } = useQuery<Paged<Customer, CustomerTotals>>({
+  const { data: paged, isLoading } = useQuery<Paged<CustomerWithBalance, PartyTotals>>({
     queryKey: ["customers", search, page],
     queryFn: () =>
       apiFetch(
@@ -41,7 +51,7 @@ export default function Customers() {
   const customers = paged?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: typeof emptyForm) => apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: CreateCustomerInput) => apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Customer created", "تم إنشاء العميل") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
@@ -77,7 +87,7 @@ export default function Customers() {
                 </div>
               ))}
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name || createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate(toCreateInput(form))} disabled={!form.name || createMut.isPending}>
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Customer", "إنشاء عميل")}
             </Button>
           </DialogContent>
@@ -117,7 +127,7 @@ export default function Customers() {
                   </td>
                   <td className="py-3 pe-4 text-muted-foreground">{c.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays}d</Badge></td>
+                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays ?? "—"}d</Badge></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
                   <td className="py-3 pe-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.balance??0)}</span></td>
                   <td className="py-3"><Link href={`/customers/${c.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>

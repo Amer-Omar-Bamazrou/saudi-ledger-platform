@@ -17,8 +17,7 @@ import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeN
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
-interface Customer { id: number; name: string; }
-import type { CustomerLedgerCustomer, CustomerLedgerReport } from "@workspace/api-client-react";
+import type { Customer, CustomerLedgerCustomer, CustomerLedgerReport } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-info-surface/20 text-info", paid: "bg-positive-surface/20 text-positive", partial: "bg-attention-surface/20 text-attention" };
 

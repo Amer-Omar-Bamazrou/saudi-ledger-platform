@@ -9,6 +9,15 @@ import type { ListQuotationsOutcome } from './listQuotationsOutcome';
 import type { ListQuotationsStatus } from './listQuotationsStatus';
 
 export type ListQuotationsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 status?: ListQuotationsStatus;
 customer_id?: number;
 /**

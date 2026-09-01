@@ -13,37 +13,52 @@ export interface Invoice {
   invoiceNumber: string;
   date: string;
   /** @nullable */
-  dueDate?: string | null;
+  dueDate: string | null;
   /** @nullable */
-  customerId?: number | null;
+  customerId: number | null;
   /** @nullable */
-  customerName?: string | null;
+  customerName: string | null;
   status: InvoiceStatus;
   subtotal: number;
   vatAmount: number;
-  discount?: number;
+  discount: number;
   total: number;
   /** @nullable */
-  currency?: string | null;
+  currency: string | null;
   paidAmount: number;
   /** @nullable */
-  paidAt?: string | null;
+  paidAt: string | null;
   /** @nullable */
-  reviewNote?: string | null;
+  reviewNote: string | null;
   /** @nullable */
-  notes?: string | null;
+  notes: string | null;
   /**
      * ZATCA hash-chain link; null until the invoice is approved.
      * @nullable
      */
-  invoiceHash?: string | null;
+  invoiceHash: string | null;
   /** @nullable */
-  previousHash?: string | null;
+  previousHash: string | null;
   /**
      * ZATCA Phase-1 QR (base64 TLV); null until approved.
      * @nullable
      */
-  qrCode?: string | null;
-  createdAt: string;
-  items: InvoiceItem[];
+  qrCode: string | null;
+  /** invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign). */
+  documentType: string;
+  /**
+     * For a credit/debit note, the invoice it adjusts.
+     * @nullable
+     */
+  originalInvoiceId: number | null;
+  /** @nullable */
+  noteReason: string | null;
+  /**
+     * ZATCA invoice counter value; null until approved.
+     * @nullable
+     */
+  icv: number | null;
+  /** @nullable */
+  zatcaUuid: string | null;
+  items?: InvoiceItem[];
 }

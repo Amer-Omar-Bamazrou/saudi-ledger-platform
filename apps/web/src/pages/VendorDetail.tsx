@@ -19,21 +19,9 @@ import type { Paged } from "@/lib/pagedList";
  * belongs here.
  */
 
-interface VendorDetail {
-  id: number; name: string; nameAr: string | null; taxNumber: string | null; crNumber: string | null;
-  phone: string | null; email: string | null; address: string | null; city: string | null;
-  iban: string | null; paymentTermsDays: string | null; isActive: boolean;
-  totalBilled: number; totalPaid: number; balance: number; billCount: number;
-}
+import type { Bill, PurchaseOrder, VendorDetail as VendorDetailView } from "@workspace/api-client-react";
 
-interface BillRow {
-  id: number; billNumber: string; vendorReference: string | null; date: string; dueDate: string | null;
-  status: string; total: number; paidAmount: number | null; paidAt: string | null;
-}
 
-interface PoRow {
-  id: number; orderNumber: string; date: string; status: string; total: number; billingState: string | null;
-}
 
 const money = (n: number) => fmtNum(n ?? 0);
 
@@ -70,23 +58,23 @@ export default function VendorDetail() {
   const id = Number(params.id);
   const { t } = useLanguage();
 
-  const { data: vendor, isLoading, error } = useQuery<VendorDetail>({
+  const { data: vendor, isLoading, error } = useQuery<VendorDetailView>({
     queryKey: ["vendor", id],
     queryFn: () => apiFetch(`/vendors/${id}`),
     enabled: Number.isFinite(id),
   });
 
-  const { data: billData } = useQuery<FetchedDocs<BillRow>>({
+  const { data: billData } = useQuery<FetchedDocs<Bill>>({
     queryKey: ["vendor-bills", id],
     queryFn: async () =>
-      toFetched(await apiFetch<Paged<BillRow>>(`/bills?vendor_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
+      toFetched(await apiFetch<Paged<Bill>>(`/bills?vendor_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
     enabled: Number.isFinite(id),
   });
 
-  const { data: poData } = useQuery<FetchedDocs<PoRow>>({
+  const { data: poData } = useQuery<FetchedDocs<PurchaseOrder>>({
     queryKey: ["vendor-pos", id],
     queryFn: async () =>
-      toFetched(await apiFetch<Paged<PoRow>>(`/purchase-orders?vendor_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
+      toFetched(await apiFetch<Paged<PurchaseOrder>>(`/purchase-orders?vendor_id=${id}&limit=${DETAIL_FETCH_LIMIT}`)),
     enabled: Number.isFinite(id),
   });
 

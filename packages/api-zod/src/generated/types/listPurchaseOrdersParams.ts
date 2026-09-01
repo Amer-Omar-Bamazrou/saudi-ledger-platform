@@ -9,6 +9,15 @@ import type { ListPurchaseOrdersOutcome } from './listPurchaseOrdersOutcome';
 import type { ListPurchaseOrdersStatus } from './listPurchaseOrdersStatus';
 
 export type ListPurchaseOrdersParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 status?: ListPurchaseOrdersStatus;
 vendor_id?: number;
 outcome?: ListPurchaseOrdersOutcome;

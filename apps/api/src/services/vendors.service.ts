@@ -13,6 +13,19 @@ import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { vendorsTable } from "@workspace/db";
 
 type Vendor = typeof vendorsTable.$inferSelect;
+type VendorInsert = typeof vendorsTable.$inferInsert;
+
+/** "" from a form is NULL at the write boundary, never an empty string that reads as a value (contract batch 2). */
+function normalize(values: Partial<VendorInsert>): Partial<VendorInsert> {
+  const out: Record<string, unknown> = { ...values };
+  for (const key of VENDOR_FIELDS) {
+    if (out[key] === "") {
+      if (key === "nameAr") delete out[key];
+      else out[key] = null;
+    }
+  }
+  return out as Partial<VendorInsert>;
+}
 
 export interface VendorMatchInput {
   vatNumber?: string;
@@ -89,17 +102,17 @@ export const vendorsService = {
     return { matchType: "none", vendor: null, suggestions: [] };
   },
 
-  async create(data: typeof vendorsTable.$inferInsert) {
-    const [row] = await vendorsRepository.insert(pick<typeof vendorsTable.$inferInsert>(data, VENDOR_FIELDS) as typeof vendorsTable.$inferInsert);
+  async create(data: unknown) {
+    const [row] = await vendorsRepository.insert(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)) as VendorInsert);
     await auditService.created("vendor", row.id, row);
     // Explicit created:true so callers can distinguish "created" from "existed".
     return { ...row, created: true as const };
   },
 
-  async update(id: number, data: Partial<typeof vendorsTable.$inferInsert>) {
+  async update(id: number, data: unknown) {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const [row] = await vendorsRepository.update(id, pick<typeof vendorsTable.$inferInsert>(data, VENDOR_FIELDS));
+    const [row] = await vendorsRepository.update(id, normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
     await auditService.updated("vendor", id, before, row);
     return row;
   },

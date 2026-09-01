@@ -1406,29 +1406,29 @@ export const QuotationConversionState = {
 } as const;
 
 export interface Quotation {
-  id?: number;
-  quotationNumber?: string;
-  date?: string;
-  validUntil?: string | null;
-  customerId?: number | null;
-  customerName?: string | null;
+  id: number;
+  quotationNumber: string;
+  date: string;
+  validUntil: string | null;
+  customerId: number | null;
+  customerName: string | null;
   /** The APPROVAL axis only. */
-  status?: QuotationStatus;
+  status: QuotationStatus;
   /** A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead. */
-  outcome?: QuotationOutcome;
+  outcome: QuotationOutcome;
   /** DERIVED from line quantities, never stored. Kept separate from status because a quotation can be approved AND partly converted at the same time. */
-  conversionState?: QuotationConversionState;
+  conversionState: QuotationConversionState;
   /** validUntil has passed. A fact to warn on, NOT a block - a customer accepting a lapsed quotation is a commercial decision. */
-  expired?: boolean;
-  subtotal?: number;
-  vatAmount?: number;
-  discount?: number;
-  total?: number;
-  currency?: string;
-  notes?: string | null;
-  termsAndConditions?: string | null;
-  reviewNote?: string | null;
-  createdAt?: string;
+  expired: boolean;
+  subtotal: number;
+  vatAmount: number;
+  discount: number;
+  total: number;
+  currency: string;
+  notes: string | null;
+  termsAndConditions: string | null;
+  reviewNote: string | null;
+  createdAt: string;
   items?: QuotationItem[];
 }
 
@@ -1526,39 +1526,54 @@ export interface Invoice {
   invoiceNumber: string;
   date: string;
   /** @nullable */
-  dueDate?: string | null;
+  dueDate: string | null;
   /** @nullable */
-  customerId?: number | null;
+  customerId: number | null;
   /** @nullable */
-  customerName?: string | null;
+  customerName: string | null;
   status: InvoiceStatus;
   subtotal: number;
   vatAmount: number;
-  discount?: number;
+  discount: number;
   total: number;
   /** @nullable */
-  currency?: string | null;
+  currency: string | null;
   paidAmount: number;
   /** @nullable */
-  paidAt?: string | null;
+  paidAt: string | null;
   /** @nullable */
-  reviewNote?: string | null;
+  reviewNote: string | null;
   /** @nullable */
-  notes?: string | null;
+  notes: string | null;
   /**
      * ZATCA hash-chain link; null until the invoice is approved.
      * @nullable
      */
-  invoiceHash?: string | null;
+  invoiceHash: string | null;
   /** @nullable */
-  previousHash?: string | null;
+  previousHash: string | null;
   /**
      * ZATCA Phase-1 QR (base64 TLV); null until approved.
      * @nullable
      */
-  qrCode?: string | null;
-  createdAt: string;
-  items: InvoiceItem[];
+  qrCode: string | null;
+  /** invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign). */
+  documentType: string;
+  /**
+     * For a credit/debit note, the invoice it adjusts.
+     * @nullable
+     */
+  originalInvoiceId: number | null;
+  /** @nullable */
+  noteReason: string | null;
+  /**
+     * ZATCA invoice counter value; null until approved.
+     * @nullable
+     */
+  icv: number | null;
+  /** @nullable */
+  zatcaUuid: string | null;
+  items?: InvoiceItem[];
 }
 
 export interface QuotationConversionResult {
@@ -1633,26 +1648,26 @@ export const PurchaseOrderBillingState = {
 } as const;
 
 export interface PurchaseOrder {
-  id?: number;
-  orderNumber?: string;
-  date?: string;
-  validUntil?: string | null;
-  vendorId?: number | null;
-  vendorName?: string | null;
+  id: number;
+  orderNumber: string;
+  date: string;
+  validUntil: string | null;
+  vendorId: number | null;
+  vendorName: string | null;
   /** The APPROVAL axis only. */
-  status?: PurchaseOrderStatus;
+  status: PurchaseOrderStatus;
   /** A terminal act by the TENANT. `cancelled` (we withdrew it), never "declined" - we cannot know whether a supplier refused. NULL means live, and NULL is a first-class state. */
-  outcome?: PurchaseOrderOutcome;
+  outcome: PurchaseOrderOutcome;
   /** DERIVED from line quantities, never stored. BILLING, not delivery. */
-  billingState?: PurchaseOrderBillingState;
-  expired?: boolean;
-  subtotal?: number;
-  vatAmount?: number;
-  total?: number;
-  currency?: string;
-  notes?: string | null;
-  reviewNote?: string | null;
-  createdAt?: string;
+  billingState: PurchaseOrderBillingState;
+  expired: boolean;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  currency: string;
+  notes: string | null;
+  reviewNote: string | null;
+  createdAt: string;
   items?: PurchaseOrderItem[];
 }
 
@@ -2475,6 +2490,297 @@ export interface ActivityReport {
   hasDraft: number;
 }
 
+export interface PageInfo {
+  limit: number;
+  offset: number;
+  /** Rows matching the filter, not rows on this page. */
+  total: number;
+}
+
+/**
+ * Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.
+ */
+export interface PartyTotals {
+  totalBilled: number;
+  totalPaid: number;
+  balance: number;
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  nameAr: string;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  nationalId: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  buildingNumber: string | null;
+  /** @nullable */
+  street: string | null;
+  /** @nullable */
+  district: string | null;
+  /** @nullable */
+  postalCode: string | null;
+  /** @nullable */
+  additionalNumber: string | null;
+  /** @nullable */
+  province: string | null;
+  /** @nullable */
+  currency: string | null;
+  /**
+     * Null means no limit is set. Stored as text; presented as a number on every read path.
+     * @nullable
+     */
+  creditLimit: number | null;
+  /** @nullable */
+  paymentTermsDays: string | null;
+  /** @nullable */
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type CustomerWithBalance = Customer & PartyTotals;
+
+export type CustomerDetail = CustomerWithBalance & {
+  /** ISSUED invoices only — drafts and submitted documents do not count. */
+  invoiceCount: number;
+};
+
+/**
+ * The allow-listed, user-settable customer fields. Empty strings are accepted and stored as null by the write boundary.
+ */
+export interface CustomerInputFields {
+  /** @minLength 1 */
+  name?: string;
+  nameAr?: string;
+  /** @nullable */
+  taxNumber?: string | null;
+  /** @nullable */
+  crNumber?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  buildingNumber?: string | null;
+  /** @nullable */
+  street?: string | null;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  postalCode?: string | null;
+  /** @nullable */
+  additionalNumber?: string | null;
+  /** @nullable */
+  province?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  creditLimit?: number | null;
+  /** @nullable */
+  paymentTermsDays?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateCustomerInput {
+  /** @minLength 1 */
+  name: string;
+  nameAr?: string;
+  /** @nullable */
+  taxNumber?: string | null;
+  /** @nullable */
+  crNumber?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  buildingNumber?: string | null;
+  /** @nullable */
+  street?: string | null;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  postalCode?: string | null;
+  /** @nullable */
+  additionalNumber?: string | null;
+  /** @nullable */
+  province?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  creditLimit?: number | null;
+  /** @nullable */
+  paymentTermsDays?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export type UpdateCustomerInput = CustomerInputFields;
+
+export interface Vendor {
+  id: number;
+  name: string;
+  nameAr: string;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  iban: string | null;
+  /** @nullable */
+  paymentTermsDays: string | null;
+  /** @nullable */
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type VendorWithBalance = Vendor & PartyTotals;
+
+export type VendorDetail = VendorWithBalance & {
+  billCount: number;
+};
+
+export type VendorCreated = Vendor & {
+  /** Always true here; lets a caller that also matches tell "created" from "existed". */
+  created: boolean;
+};
+
+/**
+ * The allow-listed, user-settable vendor fields.
+ */
+export interface VendorInputFields {
+  /** @minLength 1 */
+  name?: string;
+  nameAr?: string;
+  /** @nullable */
+  taxNumber?: string | null;
+  /** @nullable */
+  crNumber?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  iban?: string | null;
+  /** @nullable */
+  paymentTermsDays?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateVendorInput {
+  /** @minLength 1 */
+  name: string;
+  nameAr?: string;
+  /** @nullable */
+  taxNumber?: string | null;
+  /** @nullable */
+  crNumber?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  iban?: string | null;
+  /** @nullable */
+  paymentTermsDays?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export type UpdateVendorInput = VendorInputFields;
+
+export interface VendorMatchInput {
+  vatNumber?: string;
+  vendorName?: string;
+}
+
+export type VendorMatchResultMatchType = typeof VendorMatchResultMatchType[keyof typeof VendorMatchResultMatchType];
+
+
+export const VendorMatchResultMatchType = {
+  exact: 'exact',
+  fuzzy: 'fuzzy',
+  none: 'none',
+} as const;
+
+export interface VendorMatchResult {
+  matchType: VendorMatchResultMatchType;
+  vendor: Vendor | null;
+  suggestions: Vendor[];
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -2511,6 +2817,15 @@ export const ListTransactionsType = {
 } as const;
 
 export type ListQuotationsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 status?: ListQuotationsStatus;
 customer_id?: number;
 /**
@@ -2537,7 +2852,28 @@ export const ListQuotationsOutcome = {
   closed: 'closed',
 } as const;
 
+/**
+ * Empty today; reserved for set-wide figures.
+ */
+export type ListQuotations200Totals = {[key: string]: number};
+
+export type ListQuotations200 = {
+  items: Quotation[];
+  page: PageInfo;
+  /** Empty today; reserved for set-wide figures. */
+  totals: ListQuotations200Totals;
+};
+
 export type ListPurchaseOrdersParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 status?: ListPurchaseOrdersStatus;
 vendor_id?: number;
 outcome?: ListPurchaseOrdersOutcome;
@@ -2560,6 +2896,18 @@ export const ListPurchaseOrdersOutcome = {
   cancelled: 'cancelled',
   closed: 'closed',
 } as const;
+
+/**
+ * Empty today; reserved for set-wide figures.
+ */
+export type ListPurchaseOrders200Totals = {[key: string]: number};
+
+export type ListPurchaseOrders200 = {
+  items: PurchaseOrder[];
+  page: PageInfo;
+  /** Empty today; reserved for set-wide figures. */
+  totals: ListPurchaseOrders200Totals;
+};
 
 export type ListAuditLogsParams = {
 entity_type?: string;
@@ -2752,6 +3100,73 @@ date_to?: string;
 export type GetActivityReportParams = {
 date_from?: string;
 date_to?: string;
+};
+
+export type ListCustomersParams = {
+search?: string;
+is_active?: boolean;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListCustomers200 = {
+  items: CustomerWithBalance[];
+  page: PageInfo;
+  totals: PartyTotals;
+};
+
+export type ListVendorsParams = {
+search?: string;
+is_active?: boolean;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListVendors200 = {
+  items: VendorWithBalance[];
+  page: PageInfo;
+  totals: PartyTotals;
+};
+
+export type ListBillsParams = {
+status?: string;
+vendor_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListBills200Totals = {
+  outstanding: number;
+  paid: number;
+  /** A COUNT of overdue bills, not an amount. */
+  overdue: number;
+};
+
+export type ListBills200 = {
+  items: Bill[];
+  page: PageInfo;
+  totals: ListBills200Totals;
 };
 
 export type ListInvoicesParams = {

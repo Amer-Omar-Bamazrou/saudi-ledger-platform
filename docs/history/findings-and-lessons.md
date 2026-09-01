@@ -5196,3 +5196,108 @@ of the number.**
 - The browser suite's one failure under the same concurrency (`/audit-trail`
   rendered zero rows) passed alone. Not chased further; the standing note
   above covers it.
+
+## 2026-09-01 — THE BALANCE SHEET'S EQUITY SECTION DID NOT FOOT (own record, owner-requested)
+
+**What was wrong.** `reports.service.ts` returns
+`equity: { items, retainedEarnings, total }` with
+`total = Σ items.amount + retainedEarnings`. The page's hand-written `BSData`
+declared `equity: { retainedEarnings, total }` — no `items` — and rendered a
+single synthetic "Retained Earnings" row against `equity.total`. On any tenant
+with a capital posting, an owner contribution, or an external transfer, the
+rows under the Equity heading did not add up to the total printed beneath them.
+A statement whose rows do not reconcile to its own total is the one thing a
+financial statement must not do, and nothing in the page could tell.
+
+**How it was caught.** `TS2741: Property 'liquidityClass' is missing … but
+required in type 'BalanceSheetItem'` on the FIRST compile after the page
+imported the generated type — the synthetic row no longer matched the real item
+shape, which is what forced a reading of what `equity` actually carried.
+TypeScript had been green for the whole life of the defect, because it checked
+the declaration against the component, never against the response.
+
+**The pairing, which is the milestone's argument.** The trial balance (rows
+keyed on an `id` the server never sent — a duplicate-key warning and a merged
+row) and the balance sheet next to it (an Equity section that did not foot) are
+the SAME class in adjacent reports: a hand-written declaration that the page
+satisfied perfectly and the API did not. Both were invisible until something
+OUTSIDE the page's own declaration had an opinion about the shape — a browser
+in one case, a generated type in the other. That is why the milestone burns the
+list down rather than fixing instances: the instances are wherever nobody has
+looked yet.
+
+**Fix.** `equityRows()` renders `equity.items` plus the retained-earnings line;
+`report-contract-conformance` asserts `equity.items` is non-empty on a fixture
+with a capital posting, so a regression to the old shape fails a test rather
+than a reader.
+
+## 2026-09-01 — CONTRACT BATCH 2: CUSTOMERS, VENDORS, AND THE SPEC THAT WAS ALREADY WRONG
+
+**Scope (owner-sequenced):** the customers/vendors surfaces, which also
+finishes CustomerLedger. Ratchet **41 → 36, zero joins**: Customers, Vendors,
+CustomerDetail, VendorDetail and CustomerLedger left.
+
+### What entered the contract
+`GET/POST /customers`, `GET/PATCH/DELETE /customers/{id}`, the same for
+`/vendors` plus `POST /vendors/match`, and `GET /bills` (the list; the detail
+pages needed it). Bodies are validated in the controllers with the generated
+Zod schemas, so a declared constraint is an enforced one.
+`tests/party-contract-conformance.test.ts` proves every response on real rows —
+a bare party and a fully-filled one, issued and draft documents, a NULL due
+date — and the three document lists the detail pages read.
+
+### 🔴 What the contract made visible
+
+1. **`creditLimit: ""` was stored, and read back as a limit of 0.00.** The
+   form sent `""` for "no limit"; `Number("")` is `0`, so `assertAmount` passed
+   and the empty string went into the text column; `toView` then presented
+   `Number("")` = 0. Every customer created without a limit had one. The
+   generated body refuses `""` (number|null), the page converts at the form
+   boundary, and `""` on any nullable text field is now NULL at the write
+   boundary rather than an empty string that reads as a value.
+2. **Create and update returned the RAW row; list and detail returned
+   `toView`.** So `creditLimit` was a number on two paths and a string on the
+   other two. One presentation now, on every path — asserted.
+3. **`Invoice` had been in the spec since #106 and was wrong.** Five fields the
+   presenter sends were missing — `documentType` (the credit-note marker),
+   `originalInvoiceId`, `noteReason`, `icv`, `zatcaUuid` — and `createdAt`,
+   which the presenter never sends, was REQUIRED. CustomerDetail's credit-note
+   split would have been impossible to write against the generated type; the
+   compiler refused (`TS2339`) rather than letting the page classify every
+   document as an invoice.
+4. **`Quotation` and `PurchaseOrder` declared no `required` list**, so every
+   field was optional in the generated type — a contract in name only.
+5. **`GET /quotations` and `GET /purchase-orders` were specified as a bare
+   ARRAY.** The server has returned the `{ items, page, totals }` envelope
+   since M21. Any consumer of the generated hook would have received an object
+   where its type promised an array — exactly the B1 blank-page shape the
+   list-shape guard warns about, carried by the contract itself.
+
+**The lesson, stated once:** a spec entry nothing has parsed a real response
+against is a hand-written interface with better formatting. Findings 3–5 lived
+inside "the ~35 endpoints already in the spec", which every scope estimate had
+counted as the covered part. The conformance tests are what make the spec a
+contract; the spec alone never was.
+
+### 🔴 CustomerLedger, and the move not to make
+CustomerLedger stayed on the ratchet for a whole batch because of one picker
+calling `/customers`. Rewriting `interface Customer { id; name }` as a `type`
+alias would have satisfied the detector and moved the number without the work.
+That is the obvious move under time pressure, so it is now named in the ratchet
+test's header and in CLAUDE.md §5: **a file leaves by consuming the generated
+type, never by rephrasing its declaration.**
+
+### The frame is part of the count (the better form, owner-named)
+The batch-1 record has the incident. The sharper statement: seven dead Export
+buttons was CORRECT inside its frame (pages with zero `t()` calls) and WRONG as
+an inventory — the sweep was right about what it looked at. That is subtler
+than under-counting, and it is why a count reported without its frame is not
+yet a number.
+
+### Also observed
+- The cross-suite concurrency finding (the e2e dev server's scheduler writing a
+  `finding_run` into every org at its tick, API fixtures included) is recorded
+  as an operating note in `docs/test-suite-notes.md`, where the next person to
+  run both suites locally will look.
+- `list-response-shape`'s pinned scan count went 28 → 25 for the same reason
+  as before: three declarations moved onto generated types.
