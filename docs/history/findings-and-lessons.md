@@ -5070,3 +5070,47 @@ built, verified against the live sandbox — and undeliverable.
   class regrew within weeks, because the generator is still there.** That
   sentence is the contract milestone's argument, and is now stated on the
   milestone itself.
+
+---
+
+## 2026-09-01 — THE ARABIC RE-MEASUREMENT: EIGHT PAGES, AND SEVEN DEAD BUTTONS
+
+The mechanical sweep re-run (both i18n idioms counted against bare JSX text
+nodes, 78 files): **eight pages with ZERO `t()` calls — seven of them under
+`/reports`, including the five the nav coverage check had just rescued from
+unreachability.** Untranslated because unvisited: the targeted-fix lesson
+wearing i18n clothes, and a neat confirmation that the two absences travel
+together — a page nobody can reach is also a page nobody translated.
+
+All eight fixed (~140 strings): ActivityReport, JournalReport, CustomerLedger,
+TaxJournalEntries, AccountStatement, AccountSummary, OwnerEquity,
+ZatcaOnboarding. **Suspect count after: 0** (1,817 `t()` calls total). Browser
+suite 153 green after.
+
+🔴 **The same sweep found SEVEN dead Export buttons** — `<Button>Export</Button>`
+with no `onClick`, on InvoiceSummary and six report pages. The InvoiceSummary
+one had been found a day earlier by the core-path walk; per the sweep rule, the
+reported instance was a sample, and the inventory was seven. All removed per
+the VendorDetail precedent (omit the control rather than promise nothing);
+export is part of L1's document-artifact design and returns with it.
+
+## 2026-09-01 — THE CONTRACT MILESTONE'S FIRST COMMIT: THE RATCHET
+
+Per the owner's acceptance criterion — *"a hand-written interface on a money
+surface becomes impossible to add, or at least fails a check; if the contract
+work still leaves someone free to hand-write the next one, we've fixed
+instances again"* — the milestone opens with the generator's closure rather
+than with endpoints:
+
+`tests/hand-written-interface-ratchet.test.ts` inventories every file pairing
+`apiFetch` with a locally-declared interface (**55, measured — the guessed
+first draft of the list was wrong in both directions and was replaced by the
+measured one**), pins the list shrink-only, and fails any NEW file joining it
+with a message naming the alternative (spec → codegen → generated client).
+Fault-injected: a planted offender turned it red by name; removal restored
+green.
+
+The milestone's remaining work is burning the 55 down: bring each endpoint
+into `openapi.yaml` (from what the services return, NOT from the hand-written
+interfaces — those are the thing under suspicion), regenerate, migrate the
+page, and let it leave the list. TanStack waits for the end of that burn-down.

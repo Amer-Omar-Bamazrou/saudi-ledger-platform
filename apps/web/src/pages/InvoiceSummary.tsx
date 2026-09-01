@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -68,7 +68,9 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
           <h1 className="text-2xl font-bold text-foreground">{t("Invoice Summary", "ملخص الفواتير")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("All invoices with totals and status breakdown", "جميع الفواتير مع الإجماليات وتوزيع الحالات")}</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="w-4 h-4" /> Export</Button>
+        {/* Export removed 2026-09-01: it had no onClick — the seventh dead Export
+            button found in one sweep. Omit the control rather than promise nothing
+            (the VendorDetail precedent); export belongs to L1 artifact design. */}
       </div>
 
       <FiscalRangeNotice source={range.source} />
