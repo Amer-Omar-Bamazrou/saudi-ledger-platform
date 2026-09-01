@@ -11,16 +11,11 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { DualDate } from "@/components/DualDate";
 
-interface PaymentRow {
-  id: number;
-  amount: number;
-  paidAt: string;
-  backfilled: boolean;
-}
+import type { Payment } from "@workspace/api-client-react";
 
 export function PaymentHistory({ entity, id }: { entity: "invoices" | "bills"; id: number | null }) {
   const { t } = useLanguage();
-  const { data: rows = [] } = useQuery<PaymentRow[]>({
+  const { data: rows = [] } = useQuery<Payment[]>({
     queryKey: [entity, id, "payments"],
     queryFn: () => apiFetch(`/${entity}/${id}/payments`),
     enabled: id !== null,

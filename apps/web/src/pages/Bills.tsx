@@ -27,18 +27,21 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 
 const BILL_PAGE_SIZE = 50;
 
-interface BillPage {
-  items: Bill[];
-  page: { limit: number; offset: number; total: number };
-  totals: { outstanding: number; paid: number; overdue: number };
-}
+import type { Bill, BillApproveInput, CreateBillInput, ListBills200, PaymentInput, UpdateBillInput, Vendor } from "@workspace/api-client-react";
 
-interface Bill {
-  id: number; billNumber: string; vendorReference: string; date: string;
-  dueDate: string; vendorId: number; vendorName: string; status: string;
-  subtotal: number; vatAmount: number; total: number; paidAmount: number;
-}
-interface Vendor { id: number; name: string; }
+/**
+ * Request bodies go through the GENERATED input types (contract batch 3), so
+ * this page cannot build a request the server does not accept — the class of
+ * defect no server test can see, because every server test builds its request
+ * the way the server expects.
+ */
+const json = {
+  create: (b: CreateBillInput) => JSON.stringify(b),
+  update: (b: UpdateBillInput) => JSON.stringify(b),
+  post: (b: BillApproveInput) => JSON.stringify(b),
+  pay: (b: PaymentInput) => JSON.stringify(b),
+};
+
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -136,7 +139,7 @@ export default function Bills() {
   const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
 
   /** A PAGE plus set-wide totals — see the note on Invoices.tsx. */
-  const { data: billPage, isLoading } = useQuery<BillPage>({
+  const { data: billPage, isLoading } = useQuery<ListBills200>({
     queryKey: ["bills", statusFilter, page],
     queryFn: () =>
       apiFetch(
@@ -157,7 +160,7 @@ export default function Bills() {
     mutationFn: (body: any) =>
       apiFetch(`/bills/${editingBill!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
+        body: json.update({
           billNumber: body.billNumber || undefined,
           vendorReference: body.vendorReference || undefined,
           date: body.date,
@@ -189,7 +192,7 @@ export default function Bills() {
 
   const openEditBill = async (row: { id: number; billNumber: string }) => {
     try {
-      const d: any = await apiFetch(`/bills/${row.id}`);
+      const d: Bill = await apiFetch(`/bills/${row.id}`);
       setForm({
         ...makeEmpty(),
         billNumber: d.billNumber ?? "",
@@ -211,9 +214,9 @@ export default function Bills() {
 
   const createMut = useMutation({
     mutationFn: async (body: typeof form) => {
-      const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
+      const bill: Bill = await apiFetch("/bills", {
         method: "POST",
-        body: JSON.stringify({
+        body: json.create({
           ...body,
           vendorId:  Number(body.vendorId),
           subtotal:  body.subtotal  ? Number(body.subtotal)  : undefined,
@@ -227,7 +230,7 @@ export default function Bills() {
       if (Number(body.total) > 0) {
         await apiFetch(`/bills/${bill.id}/post`, {
           method: "POST",
-          body: JSON.stringify({ debitAccount: body.debitAccount }),
+          body: json.post({ debitAccount: body.debitAccount }),
         });
       }
       return bill;
@@ -248,7 +251,7 @@ export default function Bills() {
     mutationFn: ({ id, debitAccount }: { id: number; debitAccount: string }) =>
       apiFetch(`/bills/${id}/post`, {
         method: "POST",
-        body: JSON.stringify({ debitAccount }),
+        body: json.post({ debitAccount }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
@@ -262,7 +265,7 @@ export default function Bills() {
     mutationFn: ({ id, amount }: { id: number; amount: number }) =>
       apiFetch(`/bills/${id}/pay`, {
         method: "POST",
-        body: JSON.stringify({ amount, paidAt: new Date().toISOString().split("T")[0] }),
+        body: json.pay({ amount, paidAt: new Date().toISOString().split("T")[0] }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });

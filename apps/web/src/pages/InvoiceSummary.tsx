@@ -13,10 +13,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-interface InvoiceSummaryRow {
-  id: number; invoiceNumber: string; customerName: string; date: string;
-  dueDate: string; status: string; subtotal: number; vatAmount: number; total: number; paidAmount: number;
-}
+import type { Invoice, ListInvoices200 } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -40,7 +37,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
 
-  const { data: invoices = [], isLoading } = useQuery<InvoiceSummaryRow[]>({
+  const { data: summaryPage, isLoading } = useQuery<ListInvoices200>({
     queryKey: ["invoice-summary", from, to],
     /**
      * 🔴 Reads the PAGE envelope, and no longer swallows a failure into an
@@ -48,13 +45,18 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
      * invoices in this date range" — a confident empty answer on a report,
      * which is the same defensive-fallback trap that hid the AP-aging break.
      */
-    queryFn: async () => {
-      const page = await apiFetch<{ items: InvoiceSummaryRow[] }>(
-        `/invoices?limit=200&from=${from}&to=${to}`,
-      );
-      return page.items;
-    },
+    /**
+     * 🔴 Contract batch 3: `date_from`/`date_to` are SERVER filters now. This
+     * page used to send `from`/`to`, which the server never read — so it got
+     * the 200 most recent invoices of all time and filtered them client-side,
+     * and every figure below silently covered whatever fell inside that cap.
+     * The cap still exists (200); it is now STATED when it bites.
+     */
+    queryFn: () => apiFetch<ListInvoices200>(`/invoices?limit=200&date_from=${from}&date_to=${to}`),
   });
+  const invoices: Invoice[] = summaryPage?.items ?? [];
+  const setTotal = summaryPage?.page.total ?? 0;
+  const truncated = setTotal > invoices.length;
 
   const filtered = invoices.filter(i => i.date >= from && i.date <= to);
   const totalRevenue = filtered.reduce((s, i) => s + i.subtotal, 0);
@@ -89,6 +91,11 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
         </CardContent>
       </Card>
 
+      {truncated && (
+        <p className="text-xs text-attention" data-testid="summary-truncated">
+          {t("Showing", "يعرض")} {invoices.length} {t("of", "من")} {setTotal} {t("invoices in this range — the figures below cover only the rows shown. Narrow the range for a complete total.", "فاتورة في هذه الفترة — الأرقام أدناه تغطي الصفوف المعروضة فقط. ضيّق الفترة للحصول على إجمالي كامل.")}
+        </p>
+      )}
       <div className="grid grid-cols-4 gap-4">
         {[
           ["Total Invoices", filtered.length, "text-primary"],

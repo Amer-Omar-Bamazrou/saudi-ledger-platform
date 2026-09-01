@@ -78,7 +78,6 @@ const files = [...walk(join(WEB_SRC, "pages")), ...walk(join(WEB_SRC, "component
 const KNOWN_HAND_WRITTEN: readonly string[] = [
   "components/AskYourBooks.tsx",
   "components/OrgSwitcher.tsx",
-  "components/PaymentHistory.tsx",
   "lib/pagedList.ts",
   "pages/AcceptInvite.tsx",
   "pages/Approvals.tsx",
@@ -86,16 +85,12 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/Assets.tsx",
   "pages/AuditTrail.tsx",
   "pages/BankAccounts.tsx",
-  "pages/Bills.tsx",
   "pages/Budgets.tsx",
   "pages/ClosedMonths.tsx",
   "pages/CompanySettings.tsx",
-  "pages/CreditNotes.tsx",
   "pages/Dashboard.tsx",
   "pages/Employees.tsx",
   "pages/Findings.tsx",
-  "pages/InvoiceSummary.tsx",
-  "pages/Invoices.tsx",
   "pages/JournalEntries.tsx",
   "pages/OperatorReview.tsx",
   "pages/OperatorZatcaPanel.tsx",
@@ -120,10 +115,12 @@ describe("the hand-written-interface ratchet", () => {
   const current = files.filter((f) => handWritesContract(readFileSync(f, "utf8"))).map(rel).sort();
 
   it("the ratchet is not vacuous — the debt it pins is real", () => {
-    expect(current.length).toBeGreaterThan(30);
-    // And the detector detects: Invoices is a known member (TrialBalance was
-    // the original canary; it left the list in batch 1).
-    expect(current).toContain("pages/Invoices.tsx");
+    // The detector finds EXACTLY the pinned debt — no more (a join), no less
+    // (a stale entry or a broken detector). A canary that names one file
+    // expires the day that file migrates (TrialBalance in batch 1, Invoices in
+    // batch 3); this form does not.
+    expect(current.length).toBeGreaterThan(0);
+    expect(current.length).toBe(KNOWN_HAND_WRITTEN.length);
   });
 
   it("🔴 NO NEW FILE pairs apiFetch with a hand-written interface", () => {

@@ -1,7 +1,31 @@
 import type { Request, Response } from "express";
+import { CreateInvoiceBody, PayInvoiceBody, UpdateInvoiceBody } from "@workspace/api-zod";
 import { invoicesService } from "../services/invoices.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
+import { BadRequestError, BusinessRuleError } from "../lib/errors";
+
+/**
+ * 🔴 Contract batch 3: bodies are validated against the GENERATED schemas, so
+ * the constraint the spec declares is the constraint the server enforces. The
+ * one structured code the UI keys on (AUD-13's `invoice_has_no_lines`) is kept
+ * stable: an empty `items` array fails the schema's `minItems`, and that
+ * failure is answered with the same code the service would have given.
+ */
+function parseOr400<T>(result: { success: true; data: T } | { success: false; error: { issues: { path: (string | number)[]; code: string; message: string }[] } }): T {
+  if (result.success) return result.data;
+  const noLines = result.error.issues.find((i) => i.path[0] === "items" && i.path.length === 1);
+  if (noLines) {
+    throw new BusinessRuleError(400, {
+      error:
+        "An invoice needs at least one line. A zero-line invoice is issued at SAR 0.00 and, " +
+        "once issued, cannot be corrected or deleted.",
+      code: "invoice_has_no_lines",
+      field: "items",
+    });
+  }
+  throw new BadRequestError(result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
+}
 
 /** 1..200, default 50. A page the caller cannot turn into "everything". */
 function clampPage(raw: string | undefined): number {
@@ -12,7 +36,7 @@ function clampPage(raw: string | undefined): number {
 
 export const invoicesController = {
   async list(req: Request, res: Response) {
-    const { status, customer_id, limit, offset } = req.query as Record<string, string>;
+    const { status, customer_id, date_from, date_to, limit, offset } = req.query as Record<string, string>;
     /**
      * `status=overdue` is answered from the DATES, not from a status value.
      * The value no longer exists on the column; the query alias stays because
@@ -25,6 +49,8 @@ export const invoicesController = {
         status: overdue ? undefined : status || undefined,
         overdue: overdue || undefined,
         customerId: customer_id ? Number(customer_id) : undefined,
+        dateFrom: date_from || undefined,
+        dateTo: date_to || undefined,
         // Bounded so a hand-built request cannot ask for the whole ledger, and
         // NaN falls back to the default rather than to `LIMIT NaN`.
         limit: clampPage(limit),
@@ -50,7 +76,8 @@ export const invoicesController = {
      *
      * One extra click on a legal document is not a cost worth arguing about.
      */
-    const out = await invoicesService.create(req.body, req.session?.userId ?? null);
+    const body = parseOr400(CreateInvoiceBody.safeParse(req.body));
+    const out = await invoicesService.create(body, req.session?.userId ?? null);
     res.status(201).json(out);
   },
   // Draft/approval workflow (M10.4).
@@ -69,10 +96,12 @@ export const invoicesController = {
     res.json(await invoicesService.approve(requireIdParam(req), req.session?.userId ?? null));
   },
   async update(req: Request, res: Response) {
-    res.json(await invoicesService.update(requireIdParam(req), req.body));
+    const body = parseOr400(UpdateInvoiceBody.safeParse(req.body));
+    res.json(await invoicesService.update(requireIdParam(req), body));
   },
   async pay(req: Request, res: Response) {
-    res.json(await invoicesService.pay(requireIdParam(req), req.body, req.session?.userId ?? null));
+    const body = parseOr400(PayInvoiceBody.safeParse(req.body));
+    res.json(await invoicesService.pay(requireIdParam(req), body, req.session?.userId ?? null));
   },
   /** B4 — the dated payment history; backfilled rows are aggregates. */
   async payments(req: Request, res: Response) {

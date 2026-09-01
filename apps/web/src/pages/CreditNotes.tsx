@@ -28,19 +28,15 @@ import { DualDate } from "@/components/DualDate";
  * `documentType`. A credit note reduces what the customer owes; a DEBIT note is
  * an additional charge and increases it.
  */
-interface Invoice {
-  id: number;
-  invoiceNumber: string;
-  date: string;
-  customerId: number | null;
-  customerName: string | null;
-  status: string;
-  total: number;
-  documentType: string;
-  originalInvoiceId: number | null;
-  noteReason: string | null;
-  icv: number | null;
-}
+import type { CreateInvoiceInput, Invoice, ListInvoices200 } from "@workspace/api-client-react";
+
+/**
+ * Request bodies go through the GENERATED input types (contract batch 3), so
+ * this page cannot build a request the server does not accept — the class of
+ * defect no server test can see, because every server test builds its request
+ * the way the server expects.
+ */
+const json = { create: (b: CreateInvoiceInput) => JSON.stringify(b) };
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -87,9 +83,9 @@ export default function CreditNotes() {
    * client consumers were not swept. Caught by a typecheck error two files
    * away, not by a test: nothing renders this page.
    */
-  const { data: invoicePage, isLoading } = useQuery<{ items: Invoice[] }>({
+  const { data: invoicePage, isLoading } = useQuery<ListInvoices200>({
     queryKey: ["invoices"],
-    queryFn: () => apiFetch<{ items: Invoice[] }>("/invoices?limit=200"),
+    queryFn: () => apiFetch<ListInvoices200>("/invoices?limit=200"),
   });
   const all = invoicePage?.items ?? [];
 
@@ -103,10 +99,10 @@ export default function CreditNotes() {
     mutationFn: () =>
       apiFetch("/invoices", {
         method: "POST",
-        body: JSON.stringify({
+        body: json.create({
           invoiceNumber: form.invoiceNumber,
           date: form.date,
-          documentType: form.documentType,
+          documentType: form.documentType as CreateInvoiceInput["documentType"],
           originalInvoiceId: Number(form.originalInvoiceId),
           noteReason: form.noteReason,
           customerId: correctable.find((i) => i.id === Number(form.originalInvoiceId))?.customerId,

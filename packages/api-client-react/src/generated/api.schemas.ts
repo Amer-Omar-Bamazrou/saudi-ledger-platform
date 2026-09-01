@@ -2781,6 +2781,191 @@ export interface VendorMatchResult {
   suggestions: Vendor[];
 }
 
+export interface Payment {
+  id: number;
+  amount: number;
+  paidAt: string;
+  /** An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment. */
+  backfilled: boolean;
+}
+
+export interface PaymentInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** YYYY-MM-DD; defaults to today. */
+  paidAt?: string;
+}
+
+export interface InvoiceLineInput {
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  productId?: number | null;
+  /** @minimum 0 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+  /**
+     * Percent. Defaults to 15.
+     * @minimum 0
+     * @maximum 100
+     */
+  vatRate?: number;
+  /** @minimum 0 */
+  discount?: number;
+  /**
+     * ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.
+     * @nullable
+     */
+  taxCategoryCode?: string | null;
+  /** @nullable */
+  unitCode?: string | null;
+}
+
+export type InvoiceHeaderInputDocumentType = typeof InvoiceHeaderInputDocumentType[keyof typeof InvoiceHeaderInputDocumentType];
+
+
+export const InvoiceHeaderInputDocumentType = {
+  invoice: 'invoice',
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+} as const;
+
+export interface InvoiceHeaderInput {
+  /** Allocated by the server when omitted or blank. */
+  invoiceNumber?: string;
+  date?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @minimum 0 */
+  discount?: number;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  termsAndConditions?: string | null;
+  /** @nullable */
+  sellerName?: string | null;
+  /** @nullable */
+  sellerVatNumber?: string | null;
+  documentType?: InvoiceHeaderInputDocumentType;
+  /**
+     * Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).
+     * @nullable
+     */
+  originalInvoiceId?: number | null;
+  /** @nullable */
+  noteReason?: string | null;
+}
+
+/**
+ * A create makes a DRAFT, for every role — nothing is issued, no ICV is
+ * consumed, until approval. At least one line is REQUIRED: a zero-line
+ * invoice would issue at SAR 0.00 and, once issued, cannot be corrected or
+ * deleted (AUD-13). The server answers a missing/empty `items` with 400
+ * `invoice_has_no_lines`.
+ */
+export type CreateInvoiceInput = InvoiceHeaderInput & {
+  /** @minItems 1 */
+  items: InvoiceLineInput[];
+} & Required<Pick<InvoiceHeaderInput & {
+  /** @minItems 1 */
+  items: InvoiceLineInput[];
+}, 'date'>>;
+
+/**
+ * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.
+ */
+export interface UpdateInvoiceInput {
+  invoiceNumber?: string;
+  date?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  termsAndConditions?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  sellerName?: string | null;
+  /** @nullable */
+  sellerVatNumber?: string | null;
+  /** @minItems 1 */
+  items?: InvoiceLineInput[];
+}
+
+export interface BillLineInput {
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  productId?: number | null;
+  /** @minimum 0 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+  /**
+     * Percent. Defaults to 15.
+     * @minimum 0
+     * @maximum 100
+     */
+  vatRate?: number;
+}
+
+export interface BillHeaderInput {
+  /** Allocated by the server when omitted or blank. */
+  billNumber?: string;
+  /** @nullable */
+  vendorReference?: string | null;
+  date?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  reviewNote?: string | null;
+  /**
+     * Header totals are used only when there are NO lines; with lines they are recomputed.
+     * @minimum 0
+     */
+  subtotal?: number;
+  /** @minimum 0 */
+  vatAmount?: number;
+  /** @minimum 0 */
+  total?: number;
+}
+
+/**
+ * A create makes a DRAFT. A bill needs at least one line OR a positive
+ * header total — a bill recording nothing cannot be posted (400
+ * `bill_records_nothing`).
+ */
+export type CreateBillInput = BillHeaderInput & {
+  items?: BillLineInput[];
+} & Required<Pick<BillHeaderInput & {
+  items?: BillLineInput[];
+}, 'date'>>;
+
+/**
+ * Draft only; header fields.
+ */
+export type UpdateBillInput = BillHeaderInput;
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -3172,6 +3357,14 @@ export type ListBills200 = {
 export type ListInvoicesParams = {
 status?: string;
 customer_id?: number;
+/**
+ * Inclusive YYYY-MM-DD lower bound on the invoice date
+ */
+date_from?: string;
+/**
+ * Inclusive YYYY-MM-DD upper bound on the invoice date
+ */
+date_to?: string;
 /**
  * @minimum 1
  * @maximum 200

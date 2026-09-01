@@ -7,13 +7,16 @@ import {
   einvoiceDocumentsTable,
   invoiceNumberCountersTable,
 } from "@workspace/db";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
 
 export interface InvoiceListFilter {
   status?: string;
   customerId?: number;
   /** Derived, not stored — see `OVERDUE`. `status` is ignored when this is set. */
   overdue?: boolean;
+  /** Inclusive YYYY-MM-DD bounds on the invoice DATE (contract batch 3 — the summary report used to cap at 200 rows and filter client-side). */
+  dateFrom?: string;
+  dateTo?: string;
   limit?: number;
   offset?: number;
 }
@@ -54,6 +57,8 @@ function invoiceListConditions(filter: InvoiceListFilter) {
   if (filter.overdue) conditions.push(OVERDUE);
   else if (filter.status) conditions.push(eq(invoicesTable.status, filter.status));
   if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
+  if (filter.dateFrom) conditions.push(gte(invoicesTable.date, filter.dateFrom));
+  if (filter.dateTo) conditions.push(lte(invoicesTable.date, filter.dateTo));
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
@@ -391,6 +396,11 @@ export const invoicesRepository = {
 
   insertItems(values: (typeof invoiceItemsTable.$inferInsert)[]) {
     return db.insert(invoiceItemsTable).values(values);
+  },
+
+  /** Draft line replacement only — the service refuses this on an issued invoice. */
+  deleteItems(invoiceId: number) {
+    return db.delete(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, invoiceId));
   },
 
   update(id: number, values: Partial<typeof invoicesTable.$inferInsert>) {

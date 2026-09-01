@@ -338,9 +338,61 @@ export const invoicesService = {
     }
     if (values.dueDate != null) assertDateString(values.dueDate, "dueDate");
     await assertCustomerExists(values.customerId);
-    const [inv] = await invoicesRepository.update(id, values);
+
+    /**
+     * 🔴 Line replacement (contract batch 3). The edit dialog had sent `items`
+     * on every save since M10 and this method never read them: a user edited a
+     * draft's lines, got a 200, and the lines were unchanged — the inert-write
+     * shape (B-9) on the one document type where the lines ARE the money.
+     * Drafts move nothing in any report, so replacing the set is safe; totals
+     * are recomputed from the lines the way create does it, and the same
+     * "at least one line" rule applies (a zero-line draft would issue at 0.00).
+     */
+    const items = (data as { items?: unknown }).items;
+    let totals: Partial<typeof import("@workspace/db").invoicesTable.$inferInsert> = {};
+    let prepared: Record<string, unknown>[] | null = null;
+    if (items !== undefined) {
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new BusinessRuleError(400, {
+          error: "An invoice needs at least one line. A zero-line invoice is issued at SAR 0.00 and, once issued, cannot be corrected or deleted.",
+          code: "invoice_has_no_lines",
+          field: "items",
+        });
+      }
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      let subtotal = 0;
+      let vatTotal = 0;
+      prepared = (items as any[]).map((it, i) => {
+        assertAmount(it.quantity, `item ${i + 1} quantity`, { min: 0, allowZero: true });
+        assertAmount(it.unitPrice, `item ${i + 1} unit price`, { min: 0, allowZero: true });
+        if (it.discount != null) assertAmount(it.discount, `item ${i + 1} discount`, { min: 0, allowZero: true });
+        if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
+        assertTaxCategoryCode(it.taxCategoryCode, `item ${i + 1} taxCategoryCode`);
+        const base = round2(Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0));
+        const vatRate = Number(it.vatRate ?? 15);
+        const vat = round2(base * (vatRate / 100));
+        subtotal = round2(subtotal + base);
+        vatTotal = round2(vatTotal + vat);
+        return {
+          ...it,
+          quantity: String(it.quantity),
+          unitPrice: String(it.unitPrice),
+          vatAmount: vat.toFixed(2),
+          total: round2(base + vat).toFixed(2),
+          taxCategoryCode: it.taxCategoryCode ?? (vatRate > 0 ? "S" : null),
+        };
+      });
+      const total = round2(subtotal + vatTotal - Number(existing.discount ?? 0));
+      totals = { subtotal: subtotal.toFixed(2), vatAmount: vatTotal.toFixed(2), total: total.toFixed(2) };
+    }
+
+    const [inv] = await invoicesRepository.update(id, { ...values, ...totals });
+    if (prepared) {
+      await invoicesRepository.deleteItems(id);
+      await invoicesRepository.insertItems(prepared.map((it) => ({ ...it, invoiceId: id })) as Parameters<typeof invoicesRepository.insertItems>[0]);
+    }
     await auditService.updated("invoice", id, existing, inv);
-    return buildInvoiceOut(inv, null);
+    return buildInvoiceOut(inv, null, prepared ? await invoicesRepository.itemsByInvoice(id) : undefined);
   },
 
   async pay(id: number, body: { amount: unknown; paidAt?: string }, userId: number | null) {
