@@ -1,6 +1,6 @@
 /** Journal entries repository — tenant-scoped via RLS. */
 import { db, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
@@ -48,6 +48,27 @@ export const journalEntriesRepository = {
   },
   linesByEntry(id: number) {
     return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, id));
+  },
+
+  /**
+   * 🔴 Per-entry debit/credit totals for a PAGE of entries, in one grouped
+   * query (contract batch 4). The list used to build each row from the header
+   * alone, so every list row read `totalDebit: 0, totalCredit: 0` — the ledger
+   * page printed those zeros, and the approvals queue showed 0.00 for every
+   * pending entry. A confident zero on the ledger.
+   */
+  async lineTotals(entryIds: number[]) {
+    if (entryIds.length === 0) return new Map<number, { totalDebit: number; totalCredit: number }>();
+    const rows = await db
+      .select({
+        journalEntryId: journalEntryLinesTable.journalEntryId,
+        totalDebit: sql<number>`COALESCE(SUM(${journalEntryLinesTable.debitAmount}), 0)::float8`,
+        totalCredit: sql<number>`COALESCE(SUM(${journalEntryLinesTable.creditAmount}), 0)::float8`,
+      })
+      .from(journalEntryLinesTable)
+      .where(inArray(journalEntryLinesTable.journalEntryId, entryIds))
+      .groupBy(journalEntryLinesTable.journalEntryId);
+    return new Map(rows.map((r) => [r.journalEntryId, { totalDebit: Number(r.totalDebit), totalCredit: Number(r.totalCredit) }]));
   },
   insertEntry(values: typeof journalEntriesTable.$inferInsert) {
     return db.insert(journalEntriesTable).values(values).returning();

@@ -15,9 +15,11 @@ import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 
-interface EmployeeTotals { saudiCount: number; grossSalary: number; gosiEmployer: number; }
+import type { CreateEmployeeInput, Employee, EmployeeTotals } from "@workspace/api-client-react";
 
-interface Employee { id: number; employeeNumber: string; name: string; nameAr: string; nationality: string; jobTitle: string; department: string; basicSalary: number; grossSalary: number; gosiEmployee: number; gosiEmployer: number; status: string; joiningDate: string; }
+/** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreateEmployeeInput) => JSON.stringify(b) };
+
 
 const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: new Date().toISOString().split("T")[0], status: "active" };
 
@@ -38,7 +40,7 @@ export default function Employees() {
   const employees = paged?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/employees", { method: "POST", body: JSON.stringify({ ...body, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
+    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Employee added", "تمت إضافة الموظف") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

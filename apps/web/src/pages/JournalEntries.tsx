@@ -15,20 +15,19 @@ import { DualDate } from "@/components/DualDate";
 import { FilterScope } from "@/components/FilterScope";
 import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 
-interface JELine { accountId?: number; accountName: string; description?: string; debitAmount: number; creditAmount: number; }
+import type { Category, CreateJournalEntryInput, JournalEntry, JournalEntryLineInput, ListJournalEntries200 } from "@workspace/api-client-react";
+
+/** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreateJournalEntryInput) => JSON.stringify(b) };
+/** A line being typed: the generated line input with the account not yet chosen — the server refuses a line without one. */
+type LineForm = Omit<JournalEntryLineInput, "accountId"> & { accountId?: number };
 const JE_PAGE_SIZE = 50;
 
-interface JournalEntryPage {
-  items: JournalEntry[];
-  page: { limit: number; offset: number; total: number };
-}
 
-interface JournalEntry { id: number; entryNumber: string; date: string; description: string; reference: string; status: string; totalDebit: number; totalCredit: number; lines: JELine[]; }
-interface Category { id: number; name: string; type: string; }
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", posted: "bg-positive-surface/20 text-positive", reversed: "bg-negative-surface/20 text-negative" };
 
-const emptyLine: JELine = { accountName: "", description: "", debitAmount: 0, creditAmount: 0 };
+const emptyLine: LineForm = { accountName: "", description: "", debitAmount: 0, creditAmount: 0 };
 
 export default function JournalEntries() {
   const [open, setOpen] = useState(false);
@@ -37,7 +36,7 @@ export default function JournalEntries() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [form, setForm] = useState({ entryNumber: "", date: new Date().toISOString().split("T")[0], description: "", reference: "", notes: "" });
-  const [lines, setLines] = useState<JELine[]>([{ ...emptyLine }, { ...emptyLine }]);
+  const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -53,7 +52,7 @@ export default function JournalEntries() {
   const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
 
   /** A PAGE plus the set-wide count — see the note on Invoices.tsx. */
-  const { data: jePage, isLoading } = useQuery<JournalEntryPage>({
+  const { data: jePage, isLoading } = useQuery<ListJournalEntries200>({
     queryKey: ["journal-entries", statusFilter, page],
     queryFn: () =>
       apiFetch(
@@ -64,10 +63,19 @@ export default function JournalEntries() {
   const entries = jePage?.items ?? [];
   const jePageInfo = jePage?.page;
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: () => apiFetch("/categories") });
-  const selectedEntry = entries.find(e => e.id === selectedId);
+  /**
+   * 🔴 The detail panel FETCHES the entry (contract batch 4). It used to read
+   * `lines` from the LIST row, and list rows carry no lines — so the panel
+   * showed an entry with an empty line table and zero totals, for every entry.
+   */
+  const { data: selectedEntry } = useQuery<JournalEntry>({
+    queryKey: ["journal-entries", "detail", selectedId],
+    queryFn: () => apiFetch(`/journal-entries/${selectedId}`),
+    enabled: selectedId !== null,
+  });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/journal-entries", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: CreateJournalEntryInput) => apiFetch("/journal-entries", { method: "POST", body: json.create(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); setOpen(false); toast({ title: t("Journal entry created", "تم إنشاء قيد اليومية") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
@@ -98,7 +106,7 @@ export default function JournalEntries() {
   const totalCredit = lines.reduce((s, l) => s + Number(l.creditAmount || 0), 0);
   const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
-  const updateLine = (i: number, k: keyof JELine, v: any) => setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
+  const updateLine = (i: number, k: keyof LineForm, v: any) => setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
 
   return (
     <div className="space-y-6">
@@ -187,7 +195,7 @@ export default function JournalEntries() {
             )}
             </div>
 
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate({...form,lines:lines.map(l=>({...l,debitAmount:String(l.debitAmount),creditAmount:String(l.creditAmount)}))})} disabled={!form.description||!balanced||createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.description||!balanced||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>

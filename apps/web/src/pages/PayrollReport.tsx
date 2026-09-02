@@ -23,11 +23,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
  * false for every row — and **the report rendered "No payroll runs in this
  * period" no matter what the tenant had run**.
  */
-interface PayrollRow {
-  id: number; period: string; employeeCount: number; grossSalary: number;
-  totalGosiEmployer: number; totalGosiEmployee: number; totalAllowances: number;
-  totalDeductions: number; totalNetPay: number; status: string;
-}
+import type { PayrollRunListItem } from "@workspace/api-client-react";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -49,9 +45,10 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
 
-  const { data: rows = [], isLoading } = useQuery<PayrollRow[]>({
+  const { data: rows = [], isLoading } = useQuery<PayrollRunListItem[]>({
     queryKey: ["payroll-report", from, to],
-    queryFn: () => apiFetch<PayrollRow[]>("/payroll").catch(() => [] as PayrollRow[]),
+    // No `.catch(() => [])`: a failed fetch is surfaced, never rendered as "no payroll".
+    queryFn: () => apiFetch<PayrollRunListItem[]>("/payroll"),
   });
 
   const filtered = rows.filter(r => r.period >= from.slice(0, 7) && r.period <= to.slice(0, 7));

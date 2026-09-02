@@ -1960,6 +1960,353 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ActivityReport" }
 
+  # ── Journal entries, payroll, employees, assets — brought into the contract
+  #    2026-09-01 (batch 4). Shapes from the presenters; proven on real rows by
+  #    tests/ledger-contract-conformance.test.ts.
+
+  /journal-entries:
+    get:
+      operationId: listJournalEntries
+      tags: [journal-entries]
+      summary: A PAGE of journal entries with each entry's own debit/credit totals
+      description: |
+        Each row carries ITS OWN `totalDebit`/`totalCredit`, aggregated from its
+        lines. There is deliberately no set-wide money total: an entry's debits
+        equal its credits, so a cross-entry sum is a number with no meaning.
+        List rows carry `lines: []`; fetch `/journal-entries/{id}` for lines.
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/JournalEntry" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+    post:
+      operationId: createJournalEntry
+      tags: [journal-entries]
+      summary: Create a DRAFT journal entry — lines must balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateJournalEntryInput" }
+      responses:
+        "201":
+          description: The draft, with its lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalEntry" }
+        "400":
+          description: Body failed validation, or the lines do not balance
+        "423":
+          description: The date falls in a closed period
+
+  /journal-entries/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getJournalEntry
+      tags: [journal-entries]
+      summary: One journal entry with its lines
+      responses:
+        "200":
+          description: The entry, lines included
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalEntry" }
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteJournalEntry
+      tags: [journal-entries]
+      summary: Delete a DRAFT journal entry
+      responses:
+        "204":
+          description: Deleted
+        "409":
+          description: Not a draft
+
+  /journal-entries/{id}/post:
+    post:
+      operationId: postJournalEntry
+      tags: [journal-entries]
+      summary: Post a draft to the GL (alias of approve)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The posted entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalEntry" }
+        "409":
+          description: Already posted
+        "423":
+          description: The accounting period is locked
+
+  /journal-entries/{id}/reverse:
+    post:
+      operationId: reverseJournalEntry
+      tags: [journal-entries]
+      summary: Reverse a posted entry with a mirror entry in the current open period
+      description: The original keeps `status = reversed` and STAYS IN THE BOOKS (§4); the mirror is a new posted entry.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The reversal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalEntryReversal" }
+        "409":
+          description: Not posted, or already reversed
+
+  /payroll:
+    get:
+      operationId: listPayrollRuns
+      tags: [payroll]
+      summary: Every payroll run, newest first, with its employee count and gross
+      responses:
+        "200":
+          description: All runs (not paged)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PayrollRunListItem" }
+    post:
+      operationId: createPayrollRun
+      tags: [payroll]
+      summary: Create a DRAFT run for a period from every active employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePayrollRunInput" }
+      responses:
+        "201":
+          description: The draft run
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollRun" }
+        "400":
+          description: Body failed validation, or no active employees
+
+  /payroll/{id}:
+    get:
+      operationId: getPayrollRun
+      tags: [payroll]
+      summary: One run with its per-employee items
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The run, items included
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollRunDetail" }
+        "404":
+          description: Not found
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: A PAGE of employees with derived gross and GOSI, plus set-wide totals
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: department, schema: { type: string } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus totals over every matching employee
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Employee" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals: { $ref: "#/components/schemas/EmployeeTotals" }
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateEmployeeInput" }
+      responses:
+        "201":
+          description: The employee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+        "400":
+          description: Body failed validation
+
+  /employees/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      responses:
+        "200":
+          description: The employee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateEmployeeInput" }
+      responses:
+        "200":
+          description: The employee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employee" }
+        "400":
+          description: Body failed validation
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      responses:
+        "204":
+          description: Deleted
+
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page, plus totals over every asset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totals]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AssetListItem" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+                  totals: { $ref: "#/components/schemas/AssetTotals" }
+    post:
+      operationId: createAsset
+      tags: [assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAssetInput" }
+      responses:
+        "201":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "400":
+          description: Body failed validation
+
+  /assets/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: One asset with its depreciation history
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "404":
+          description: Not found
+    patch:
+      operationId: updateAsset
+      tags: [assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAssetInput" }
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "400":
+          description: Body failed validation
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      responses:
+        "204":
+          description: Deleted
+
+  /assets/{id}/depreciate:
+    post:
+      operationId: depreciateAsset
+      tags: [assets]
+      summary: Record one month of straight-line depreciation
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DepreciateInput" }
+      responses:
+        "200":
+          description: The depreciation entry recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DepreciationEntry" }
+        "400":
+          description: Not active, or fully depreciated
+
   /journal-entries/{id}/approve:
     post:
       operationId: approveJournalEntry
@@ -5127,12 +5474,7 @@ components:
 
     PayrollRun:
       type: object
-      required:
-        - id
-        - period
-        - status
-        - totalNetPay
-        - createdAt
+      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, createdAt]
       properties:
         id:
           type: integer
@@ -6002,3 +6344,305 @@ components:
     UpdateBillInput:
       description: Draft only; header fields.
       $ref: "#/components/schemas/BillHeaderInput"
+
+    # ── Journal entries, payroll, employees, assets (2026-09-01, batch 4);
+    #    proven on real rows by tests/ledger-contract-conformance.test.ts ────────
+
+    JournalEntryLineInput:
+      type: object
+      required: [accountId, accountName, debitAmount, creditAmount]
+      properties:
+        accountId:
+          type: integer
+          description: Required — a line with no account cannot appear on any statement.
+        accountName: { type: string, minLength: 1 }
+        description: { type: ["string", "null"] }
+        debitAmount: { type: number, minimum: 0 }
+        creditAmount: { type: number, minimum: 0 }
+
+    CreateJournalEntryInput:
+      type: object
+      required: [date, description, lines]
+      properties:
+        entryNumber:
+          type: string
+          description: Allocated by the server when omitted or blank.
+        date: { type: string }
+        description: { type: string, minLength: 1 }
+        reference: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        lines:
+          type: array
+          minItems: 2
+          items: { $ref: "#/components/schemas/JournalEntryLineInput" }
+
+    JournalEntryReversal:
+      type: object
+      required: [message, reversalId, reversal]
+      properties:
+        message: { type: string }
+        reversalId: { type: integer }
+        reversal: { $ref: "#/components/schemas/JournalEntry" }
+
+    PayrollItem:
+      type: object
+      required: [id, payrollRunId, employeeId, basicSalary, housingAllowance, transportAllowance, otherAllowances,
+                 grossSalary, gosiEmployee, gosiEmployer, additions, deductions, netPay, employeeName, employeeNumber]
+      properties:
+        id: { type: integer }
+        payrollRunId: { type: integer }
+        employeeId: { type: ["integer", "null"] }
+        basicSalary: { type: number }
+        housingAllowance: { type: number }
+        transportAllowance: { type: number }
+        otherAllowances: { type: number }
+        grossSalary: { type: number }
+        gosiEmployee: { type: number }
+        gosiEmployer: { type: number }
+        additions: { type: number }
+        deductions: { type: number }
+        netPay: { type: number }
+        employeeName: { type: ["string", "null"] }
+        employeeNumber: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    PayrollRunListItem:
+      allOf:
+        - { $ref: "#/components/schemas/PayrollRun" }
+        - type: object
+          required: [employeeCount, grossSalary]
+          properties:
+            employeeCount: { type: integer }
+            grossSalary: { type: number }
+
+    PayrollRunDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PayrollRun" }
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/PayrollItem" }
+
+    CreatePayrollRunInput:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: string
+          description: YYYY-MM
+        notes: { type: ["string", "null"] }
+
+    Employee:
+      type: object
+      required: [id, employeeNumber, name, nameAr, nationalId, nationality, jobTitle, jobTitleAr, department,
+                 basicSalary, housingAllowance, transportAllowance, otherAllowances, gosiNumber, iban, bank,
+                 joiningDate, endDate, status, notes, createdAt, grossSalary, gosiEmployee, gosiEmployer]
+      properties:
+        id: { type: integer }
+        employeeNumber: { type: string }
+        name: { type: string }
+        nameAr: { type: string }
+        nationalId: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        jobTitle: { type: ["string", "null"] }
+        jobTitleAr: { type: string }
+        department: { type: ["string", "null"] }
+        basicSalary: { type: number }
+        housingAllowance: { type: number }
+        transportAllowance: { type: number }
+        otherAllowances: { type: number }
+        gosiNumber: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        bank: { type: ["string", "null"] }
+        joiningDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        status: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        grossSalary:
+          type: number
+          description: DERIVED — basic + the three allowances.
+        gosiEmployee:
+          type: number
+          description: DERIVED from nationality and basic salary (SA 9.75%; others 0).
+        gosiEmployer:
+          type: number
+          description: DERIVED (SA 11.75%; others 2%).
+
+    EmployeeTotals:
+      type: object
+      required: [saudiCount, grossSalary, gosiEmployer]
+      properties:
+        saudiCount: { type: integer }
+        grossSalary: { type: number }
+        gosiEmployer: { type: number }
+
+    EmployeeInputFields:
+      type: object
+      properties:
+        employeeNumber: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        nationalId: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        jobTitle: { type: ["string", "null"] }
+        jobTitleAr: { type: string }
+        department: { type: ["string", "null"] }
+        basicSalary: { type: number, minimum: 0 }
+        housingAllowance: { type: number, minimum: 0 }
+        transportAllowance: { type: number, minimum: 0 }
+        otherAllowances: { type: number, minimum: 0 }
+        gosiNumber: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        bank: { type: ["string", "null"] }
+        joiningDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        status: { type: string }
+        notes: { type: ["string", "null"] }
+
+    CreateEmployeeInput:
+      type: object
+      required: [employeeNumber, name, basicSalary]
+      properties:
+        employeeNumber: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        nationalId: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        jobTitle: { type: ["string", "null"] }
+        jobTitleAr: { type: string }
+        department: { type: ["string", "null"] }
+        basicSalary: { type: number, minimum: 0 }
+        housingAllowance: { type: number, minimum: 0 }
+        transportAllowance: { type: number, minimum: 0 }
+        otherAllowances: { type: number, minimum: 0 }
+        gosiNumber: { type: ["string", "null"] }
+        iban: { type: ["string", "null"] }
+        bank: { type: ["string", "null"] }
+        joiningDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        status: { type: string }
+        notes: { type: ["string", "null"] }
+
+    UpdateEmployeeInput:
+      $ref: "#/components/schemas/EmployeeInputFields"
+
+    Asset:
+      type: object
+      required: [id, assetNumber, name, nameAr, categoryId, purchaseDate, purchaseCost, salvageValue, usefulLifeYears,
+                 depreciationMethod, accumulatedDepreciation, currentBookValue, location, serialNumber, status,
+                 disposalDate, disposalValue, notes, createdAt, annualDepreciation, monthlyDepreciation]
+      properties:
+        id: { type: integer }
+        assetNumber: { type: string }
+        name: { type: string }
+        nameAr: { type: string }
+        categoryId: { type: ["integer", "null"] }
+        purchaseDate: { type: string }
+        purchaseCost: { type: number }
+        salvageValue: { type: number }
+        usefulLifeYears: { type: number }
+        depreciationMethod: { type: string }
+        accumulatedDepreciation: { type: number }
+        currentBookValue: { type: number }
+        location: { type: ["string", "null"] }
+        serialNumber: { type: ["string", "null"] }
+        status: { type: string }
+        disposalDate: { type: ["string", "null"] }
+        disposalValue: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        annualDepreciation:
+          type: number
+          description: DERIVED — (cost − salvage) / useful life.
+        monthlyDepreciation: { type: number }
+
+    AssetListItem:
+      allOf:
+        - { $ref: "#/components/schemas/Asset" }
+        - type: object
+          required: [categoryName]
+          properties:
+            categoryName: { type: ["string", "null"] }
+
+    DepreciationEntry:
+      type: object
+      required: [id, assetId, period, amount, bookValueAfter, createdAt]
+      properties:
+        id: { type: integer }
+        assetId: { type: integer }
+        period: { type: string }
+        amount: { type: number }
+        bookValueAfter: { type: number }
+        createdAt: { type: string }
+
+    AssetDetail:
+      allOf:
+        - { $ref: "#/components/schemas/Asset" }
+        - type: object
+          required: [depreciationHistory]
+          properties:
+            depreciationHistory:
+              type: array
+              items: { $ref: "#/components/schemas/DepreciationEntry" }
+
+    AssetTotals:
+      type: object
+      required: [activeCount, purchaseCost, accumulatedDepreciation, currentBookValue]
+      properties:
+        activeCount: { type: integer }
+        purchaseCost: { type: number }
+        accumulatedDepreciation: { type: number }
+        currentBookValue: { type: number }
+
+    AssetInputFields:
+      type: object
+      properties:
+        assetNumber: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        categoryId: { type: ["integer", "null"] }
+        purchaseDate: { type: string }
+        purchaseCost: { type: number, minimum: 0 }
+        salvageValue: { type: number, minimum: 0 }
+        usefulLifeYears: { type: number, exclusiveMinimum: 0 }
+        depreciationMethod: { type: string }
+        location: { type: ["string", "null"] }
+        serialNumber: { type: ["string", "null"] }
+        status: { type: string }
+        disposalDate: { type: ["string", "null"] }
+        disposalValue: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+
+    CreateAssetInput:
+      type: object
+      required: [assetNumber, name, purchaseDate, purchaseCost, usefulLifeYears]
+      properties:
+        assetNumber: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        nameAr: { type: string }
+        categoryId: { type: ["integer", "null"] }
+        purchaseDate: { type: string }
+        purchaseCost: { type: number, minimum: 0 }
+        salvageValue: { type: number, minimum: 0 }
+        usefulLifeYears: { type: number, exclusiveMinimum: 0 }
+        depreciationMethod: { type: string }
+        location: { type: ["string", "null"] }
+        serialNumber: { type: ["string", "null"] }
+        status: { type: string }
+        disposalDate: { type: ["string", "null"] }
+        disposalValue: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+
+    UpdateAssetInput:
+      $ref: "#/components/schemas/AssetInputFields"
+
+    DepreciateInput:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: string
+          description: YYYY-MM
