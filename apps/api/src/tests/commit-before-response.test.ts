@@ -238,10 +238,21 @@ describe("C13 — commit before the response goes out", () => {
      * proves the hardening, so it is a test rather than a comment.
      */
     const events: string[] = [];
-    const partial = {
+    // Typed explicitly: an object literal's methods infer `this` as `{}`, and
+    // `vitest run` does not typecheck — which is how this file passed locally
+    // and failed CI's `pnpm run typecheck`.
+    interface PartialRes {
+      statusCode: number;
+      headersSent: boolean;
+      body: unknown;
+      status(c: number): PartialRes;
+      json(payload: unknown): PartialRes;
+      on(): PartialRes;
+    }
+    const partialRaw: PartialRes = {
       statusCode: 200,
       headersSent: false,
-      body: undefined as unknown,
+      body: undefined,
       status(c: number) {
         this.statusCode = c;
         return this;
@@ -254,7 +265,8 @@ describe("C13 — commit before the response goes out", () => {
       on() {
         return this;
       },
-    } as unknown as Response;
+    };
+    const partial = partialRaw as unknown as Response;
 
     expect(() =>
       commitBeforeResponse(
