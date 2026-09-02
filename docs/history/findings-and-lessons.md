@@ -5655,3 +5655,233 @@ balance keyed on a field never sent, `creditLimit: ""` stored as 0.00, an
 a `PATCH` that discarded its payload, a report that filtered client-side over a
 silent cap, a ledger list of confident zeros, and an approvals queue that said
 "nothing pending" while money waited.
+
+## 2026-09-02 — TWO OWNER RULES CORRECTED BY READING THE PRIMARY TEXT (the invoice document, L1)
+
+Both corrections came from the same session, both were recorded as CORRECTIONS
+rather than quietly superseded (owner's instruction), and both were found by
+reading a regulation rather than by reasoning from a convention.
+
+### Correction 1 — the language rule was wrong in BOTH directions
+
+**The superseded rule:** a document must be *wholly* Arabic or *wholly*
+English.
+
+**What the primary Arabic text says** — VAT Implementing Regulations, seventh
+edition as amended 3 October 2021, from ZATCA's own site (the Arabic version,
+which prevails over ZATCA's own English translations by their stated
+disclaimer). Two independent clauses:
+
+- Article 53 (الفواتير الضريبية), introducing the required details (p. 43):
+  «يجب أن تكون الفاتورة الضريبية **باللغة العربية بالإضافة لأي لغة اخرى قد تصدر
+  بها**، ومتضمنة التفاصيل الآتية:» — *the tax invoice must be in the Arabic
+  language, in addition to any other language it may be issued in.*
+- The record-keeping article (p. 54), broader still: «يجب مسك السجلات باللغة
+  العربية، ويجب **اصدار جميع الفواتير باللغة العربية** بالإضافة لأي لغة اخرى قد
+  تصدر بها» — *records must be kept in Arabic, and all invoices must be issued
+  in Arabic in addition to any other language.*
+
+So: **wholly English is not compliant**, and **bilingual is the case the
+regulation explicitly contemplates** — not a deviation from a rule.
+
+🔴 **And the English translations understate the Arabic.** The widely-quoted
+English rendering says the invoice must include the required *details* in
+Arabic "as a translation". The Arabic says the **invoice** must be in Arabic,
+and carries **no "as a translation" qualifier**. An intermediate reading in
+this same session — "details in Arabic, not labels" — was itself derived from
+that English and was also wrong. **Three readings, three different scopes, one
+primary sentence that settles it.** This is §3's "sources rank LIVE API > SDK >
+PDF > secondary" and "an unread primary source is not a licence to trust a
+secondary one", earned again on a clause an entire feature rests on.
+
+**The rule now in force** (design doc §1): every label Arabic; every value in
+Arabic wherever we hold an Arabic form (`nameAr`, `descriptionAr` — the schema
+already carries them); stored script only where no Arabic form exists; other
+languages permitted alongside. 🔴 A `nameAr` still holding
+`"(not yet translated)"` is a **compliance** signal, not a cosmetic one.
+
+### Correction 2 — "ZATCA constrains the structure" was false, and the false reason mattered more than the true conclusion
+
+**The claim:** customisation should stop at levels 1–2 because ZATCA
+constrains the invoice's structure.
+
+**The primary text** (Controls, Requirements, Technical Specifications and
+Procedural Rules, Decision 62738, Annex 1, "Invoice and Credit/Debit Note
+Format"): **"No required format as long as the required data are present in
+the invoices and notes."** ZATCA constrains the FIELD SET, the printed QR, and
+that a simplified invoice's printed copy reaches the customer — **never the
+layout**. The standard Saudi look is a convention.
+
+**Why the correction matters more than the conclusion it supports**
+(owner-named): the conclusion — levels 1–2 are enough — survives either way.
+But under the false premise, level 3 would have been **forbidden**, a
+compliance wall built out of a convention, and nobody would ever have revisited
+it. Under the true one it is **unnecessary, not forbidden**: a product
+judgement, revisable the day a tenant needs something levels 1–2 cannot
+express. 🔴 **A constraint attributed to a regulator is permanent; the same
+constraint attributed to a judgement has a review date.** Check which one you
+have before you write it down.
+
+### Also settled in the same reading
+- **The document type is stated by the TITLE** — «فاتورة ضريبية» vs «فاتورة
+  ضريبية مبسطة». The generated sample's missing type needed no new component.
+- **Amount in words: twice in the generated sample, ZERO times in the real
+  one.** It is optional — a level-2 toggle, default off. A field can look
+  mandatory purely by being duplicated in a mock.
+- **PDF/A-3 with embedded XML** is the format the Resolution names for the
+  human-readable copy; targeted from the start rather than converted later
+  ("the same mistake as building the nav before the features" — owner).
+- The generated sample's summary contradicted its own lines (15,410 vs 9,545).
+  The template DERIVES the summary from the lines: the header-versus-lines
+  class §4 closes at the write boundary must not reappear at the presentation
+  boundary.
+
+Design: [`design-invoice-document.md`](../product/design-invoice-document.md).
+
+### 🔴 2026-09-02 postscript: a self-instance of C8, committed and reversed
+
+While solving the invoice-layout problem, the real reference invoice supplied
+by the owner's accountant was **copied into `docs/product/` and committed**. It
+carries a named individual, two VAT registration numbers, two addresses and a
+payment reference. Removed and the commit amended before it reached the remote;
+verified absent from every commit and branch.
+
+**Why it is worth a record rather than a quiet fix:** C8 (PDPL) is the block
+this project is *waiting on an advisor for* — "the irreversible act is already
+performed by ordinary users: posting a bill promotes a phone photograph into a
+store that by interface design can never delete it". This was the same act,
+performed by the person writing the C8 note, for a reason that had nothing to
+do with retention: a *layout* reference. Nobody would have described it as a
+retention decision at the time — which is exactly how the class works.
+
+**The general form:** a document is not attached because someone decided to
+retain it; it is attached because it was the nearest example of something else.
+Git history is append-only, so a repository is a retention decision wearing a
+convenience. **Ask what a file CONTAINS before asking what it is FOR.**
+
+The design doc keeps the reference as prose and names the exclusion, so the
+next person does not re-add it "for convenience".
+
+## 2026-09-02 — BOTH P0 ITEMS HAD A WRONG STATED REASON, AND EACH WRONG REASON HAD A PLAUSIBLE REMEDY
+
+**The pattern** (owner-named): a queue entry records **what someone believed at
+the time, not what is true now**. Both P0 items were implemented after checking
+their stated reason, and in both the reason was wrong in a way that would have
+changed the fix — and, worse, each wrong reason pointed at a *plausible* remedy
+that would not have worked.
+
+| Item | Stated reason | What it argues for | What was true | What actually fixed it |
+| --- | --- | --- | --- | --- |
+| **C13** | "documented, paged as critical — known and alarmed, not hidden" | better alarming | an alarm tells you a write was lost; it does not prevent it | **ordering** — settle the transaction before the response goes out |
+| **M-4** | "`bcryptjs` blocks the event loop" | a faster KDF | the async API yields; one login costs ~98ms of lag, but ten concurrent cost a 2s stall | **moving it OFF the loop** — `crypto.scrypt` on the threadpool |
+
+🔴 **The dangerous half is not that the reason was wrong — it is that the wrong
+reason was actionable.** A reason that is obviously nonsense gets checked. A
+reason that suggests a sensible-sounding fix gets implemented, and the work
+looks complete while the defect survives: a faster KDF would have made M-4's
+graphs prettier and left the queueing untouched; better alarming would have made
+C13's pages more informative about a write that was still being lost.
+
+**The rule:** before implementing against a queue entry, verify its REASON, not
+just its existence. The entry is evidence that someone saw something; it is not
+evidence about the mechanism. Cheapest form: for a performance claim, measure;
+for a behaviour claim, reproduce; for a regulatory claim, read the primary text.
+All three were done this session, and all three changed the work.
+
+**Related, already recorded:** "an instruction's referent — and its MECHANISM —
+is an INPUT" (the same discipline aimed at instructions rather than at the
+queue), and "sources rank LIVE API > SDK > PDF > secondary".
+
+## 2026-09-02 — L1 CUSTOMISATION DECIDED, AND THE EMPTY-BLOCK RULE
+
+Owner decisions, recorded in
+[`design-invoice-document.md`](../product/design-invoice-document.md) §2:
+
+- **Logo:** uploaded and stored, **no fallback mark**. *"A text mark is a fake
+  logo, and a stand-in that looks designed is worse on a legal document than an
+  empty space."* When absent, the registered name carries the header.
+- **Four level-2 toggles**, with defaults: bank details ON for invoices / OFF
+  for credit notes; terms OFF until written; stamp area OFF; amount in words
+  OFF.
+- **PDF/A-3 with embedded XML in v1**, not as a follow-up.
+
+🔴 **The rule the owner drew out of the toggle defaults, which governs every
+optional block added later: AN EMPTY BLOCK PRINTS ITS EMPTINESS.** An unwritten
+terms footer prints a heading with nothing under it; an unused stamp area prints
+an empty bordered box on a PDF nobody will physically stamp. Both look like a
+fault on a document a customer keeps. So an optional block **defaults OFF and
+turns itself on when it has content** — the placeholder problem in document
+form, the same rule as refusing to print `"(not yet translated)"` into a
+ZATCA-stamped artifact.
+
+**And the renderer question was brought back rather than absorbed.** PDF/A-3
+does materially change the choice, and the binding constraint turns out to be
+Arabic shaping rather than PDF/A: pure-JS PDF builders do not shape Arabic
+(disconnected letters unless we pre-shape and reorder ourselves), while Chromium
+shapes correctly but writes no PDF/A metadata and cannot attach files. The
+viable shape is two-stage — Chromium renders, a PDF library attaches the XML and
+writes the PDF/A-3 metadata — and 🔴 **whether the result CONFORMS is a claim
+for veraPDF to make, not for a README**, so it is a spike before a library is
+chosen. Also found while scoping: **nothing in the codebase renders the QR as an
+image** — only the base64 TLV payload exists.
+
+## 🔴 2026-09-03 — A SPIKE THAT PROVED THE MECHANISM ON AN ARTEFACT THAT CANNOT SHIP
+
+**The result:** veraPDF returns `PASS`, `isCompliant="true"`, 146/146 rules, for
+a PDF/A-3B produced by Chromium plus pdf-lib post-processing, with Arabic
+extractable as correctly-shaped Unicode text. The two-stage pipeline works.
+
+**The catch, and why it is the part worth stating loudest:** that PASS was
+obtained with `C:\Windows\System32\spool\drivers\color\sRGB Color Space
+Profile.icm` — **Copyright © 1998 Hewlett-Packard**, licensed to Windows users
+and **not redistributable by us**. The OutputIntent requirement (ISO 19005-3
+6.2.4.3) is satisfied by *an* sRGB profile; the spike satisfied it with one we
+cannot ship.
+
+🔴 **A correct result resting on an input that must be replaced, whose failure
+mode is that the result looks FINISHED.** Nothing about a green validator
+verdict says "the profile inside this file is borrowed". The proof is sound and
+the conclusion holds — *the mechanism is proven and only the file is open* — but
+a reader six weeks from now sees "veraPDF PASS" and builds on it without
+learning that one input was a stand-in. So it is recorded here in the same
+breath as the result, not in a footnote.
+
+**The general shape:** a spike substitutes whatever is nearest to hand for
+inputs that are not the thing under test — that is what makes it fast, and it is
+correct practice. The defect is not the substitution; it is letting the
+substitution disappear into a green result. **A spike's report must name every
+stand-in it used, beside the verdict.**
+
+**Chosen replacement (owner, 2026-09-03): Debian's `icc-profiles-free` package**,
+over a browser-driven fetch from the ICC registry — three registry URLs returned
+HTML rather than a profile to `curl`, and a build step needing a JS-capable
+client to download a licence-bearing binary fails quietly later. A packaged
+artefact carries a **pinned checksum**, which is the ZATCA-manifest discipline
+applied to a build input. The ICC's terms permit redistribution of the
+unmodified file with its copyright tag intact.
+
+## 🔴 2026-09-03 — A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE
+
+**Four instances this week, one tell: the instrument disagreed with something
+already known to be true.**
+
+| # | Probe | Reported | Actually |
+| --- | --- | --- | --- |
+| 1 | `grep` over a PDF's raw bytes | `AFRelationship`, `invoice.xml`, `GTS_PDFA1`, `OutputIntents` **absent** | all four present, inside compressed object streams |
+| 2 | `verify`'s step runner | "verify FAILED at: typecheck" | `pnpm.cmd` never launched — Node ≥ 20 refuses `.cmd` without a shell |
+| 3 | A fault injection meant to prove the failure path | "the failure path works" | it could not distinguish a failing step from a broken runner; both printed the same thing |
+| 4 | `curl` fetching an ICC profile | "file downloaded, 15 KB" | an HTML error page, caught only by reading its ICC header **against a known-good profile** |
+
+**The rule:** *when a probe reports an ABSENCE, first prove the probe can see a
+known-present case.* A negative from an unvalidated instrument is not evidence
+of absence; it is an unread instrument.
+
+🔴 **And where it is cheap, build the known-present case INTO the probe** rather
+than remembering to run it — instance 4 worked precisely because the check
+printed the known-good profile's header on the same line as the candidates', so
+`space='RGB '` versus `space='<htm'` was impossible to miss. That is the
+difference between a habit that depends on discipline and one that depends on
+construction, which is the §3 preference everywhere else.
+
+This is the vacuous-guard rule pointed at **ad-hoc investigation** rather than
+at tests: the same failure, in the place where nobody writes an assertion.
