@@ -744,3 +744,57 @@ was the same each time — the instrument disagreed with itself, 6 passing besid
 
 Verified after the fixes by reproducing the exact CI condition (`PORT=3000` set
 globally): **65 passed, exit 0.**
+
+
+## C13 — COMMIT BEFORE THE RESPONSE (CLOSED 2026-09-02)
+
+**The defect.** `lib/tenant.ts` committed the request's transaction in
+`res.on("finish")`, which fires once the client already holds its 2xx. A commit
+that then failed left a write reported as saved that had never persisted, and
+the success could not be un-sent. It was documented at the site and paged as
+critical — *known and alarmed, not hidden* — and it was promoted from a note to
+a queue item when the trigger stopped being hypothetical: a connection died
+mid-request on 2026-08-31. 🔴 **An alarm tells you a write was lost; it does not
+prevent it.**
+
+**The fix.** `lib/responseCommit.ts` wraps the response's output methods —
+`json`, `send`, `end`, `write` — so the FIRST of them settles the transaction
+and only then writes:
+
+- **success path:** commit resolves, then the body goes out. The client's 2xx
+  now means the write is durable, which is what it always appeared to mean.
+- **failed commit:** nothing has been written yet, so the answer is replaced
+  with `500 commit_failed` — *"The change could not be saved. Nothing was
+  written"*. The client is told the truth instead of a success for a write that
+  does not exist.
+- **error responses roll back BEFORE their body goes out**, which the old
+  ordering also had backwards.
+- **re-entry is safe:** Express's `json → send → end` chain shares one settle
+  flag, so the outermost call settles and the inner ones pass through.
+
+**What the four wrappers are for.** Wrapping only `end` is too late for
+`res.json`'s header work; wrapping only `json` misses `send`, `end` and streamed
+writes. All four share the flag, which is why the chain settles exactly once.
+
+**The residual case, named rather than hidden.** A response already begun (a
+stream past its first chunk) whose commit then fails cannot be recalled. That
+is now the *only* commit-after-response path, and it keeps the original alert
+key `tenant-commit-after-response`; the correctable case pages separately as
+`tenant-commit-failed` — a distinct condition, because it means a tenant was
+refused a legitimate write by an unhealthy database rather than losing one
+silently.
+
+**Proof.** `tests/commit-before-response.test.ts` asserts ORDER and the
+CORRECTED ANSWER rather than "an alert fired": the commit event precedes every
+write event; a failed commit never writes the success payload and yields a 500;
+an error rolls back first; a failed rollback still sends its original answer;
+an aborted response is left to the caller's `close` net; and the chain settles
+once. 🔴 The instrument is checked against the OLD behaviour in the last case —
+an unwrapped response writes with no settle, which is exactly the bug, so the
+ordering assertion is meaningful rather than vacuous.
+
+**Obsolete assertion swept.** `unscoped-db-refusal.test.ts` carried the
+narrative "this failure cannot be prevented from where it happens". That was
+true when written and is now false; the comment is updated to describe the
+residual case it still covers. An assertion of impossibility expires the day
+the thing is done.
