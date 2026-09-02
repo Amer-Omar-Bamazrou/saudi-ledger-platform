@@ -61,10 +61,12 @@ The invariants they left behind are in §4; the lessons are in §3.
 **2026-08-31 — the navigation tree is live** (tree as data, every entry checked;
 record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
 **2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
-**2026-09-01 — contract milestone, batches 1–4:** reports, parties, invoices,
-bills, journal entries, payroll, employees and assets in the spec, conformance-
-tested on real rows (the approval artifact proven, the ICV chained); ratchet
-55 → 25, zero joins. Approvals.tsx HELD for an owner design call. Record: findings file.
+**2026-09-02 — contract milestone CLOSED at a deliberate stop, batches 1–5:**
+every money surface is in the spec and conformance-tested on real rows (the
+approval artifact proven and the ICV chained; `GET /approvals/pending` replaces
+a client-side queue that was capped at 50). **Ratchet 55 → 20, zero joins in any
+batch. The 20 that remain are a STOP, not a backlog** — operator/identity, AI
+and read-only surfaces carrying no tenant money. Record: findings file.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -557,29 +559,23 @@ break legitimate org-level reads, so it is a DECISION with an owner; the
 company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
-🔴 **CONTRACT COVERAGE — the fourth gap, a milestone.** ~104 endpoints via
-hand-written `apiFetch`, ~35 in the spec. **The argument: #106 fixed the
-instances and the class regrew within weeks — four money defects — because the
-GENERATOR was still there.** The generator is closed:
-`tests/hand-written-interface-ratchet.test.ts` fails any NEW `apiFetch`+interface
-pairing; the milestone burns its pinned list down (spec → codegen → page consumes
-generated types → leaves the list). **Batch 1 (reports): 55 → 41, zero joins**,
-with the conformance tests making the schemas a contract rather than
-documentation. **Batch 2 (customers, vendors, four document lists): 41 → 36** —
-and it found the spec itself wrong wherever no response had been parsed against
-it (`Invoice`, `Quotation`, `PurchaseOrder`). **Batch 3 (invoices, bills —
-detail and write paths): 36 → 31**; the approval response is proven on a real
-approval (ICV, hash, previous hash, UUID, QR present; two approvals chain), and
-controllers parse every write body with the generated Zod. 🔴 A leave and a join
-in one milestone is the generator running — stop, do not net. 🔴 **A `type` alias
-that satisfies the detector is the ratchet GAMED — a file leaves by consuming the
-generated type, never by rephrasing.** **Batch 4 (journal entries, payroll,
-employees, assets): 31 → 25** — the journal-entry LIST had carried
-`totalDebit: 0, totalCredit: 0, lines: []` on every row (built from headers
-alone), and the ledger page and the approvals queue printed those zeros; fixed
-and asserted. 🔴 **Approvals.tsx is HELD** (one hand-written `Row` across four
-entities — a design call, not a migration). Next: the 25, by shape (findings
-file has the inventory); TanStack waits. Record: findings file.
+🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20).**
+Five batches put every MONEY surface in `openapi.yaml` with a conformance test
+that parses real responses (reports, parties, documents, ledger, workflow).
+**The argument was: #106 fixed the instances and the class regrew within weeks
+— because the GENERATOR was still there.** The generator stays closed by
+`tests/hand-written-interface-ratchet.test.ts` (any NEW `apiFetch`+interface
+pairing fails CI). Standing rules from the milestone:
+- 🔴 **A leave and a join in one milestone is the generator running — stop, do
+  not net.** And **a `type` alias that satisfies the detector is the ratchet
+  GAMED** — a file leaves by consuming the generated type, never by rephrasing.
+- 🔴 **The 20 pinned files are a STOP, not a backlog** (owner, 2026-09-02):
+  operator/identity (8), AI (3), read-only/infra (4), plus pickers and shells
+  in them. They carry no tenant money, the ratchet holds the line whether or
+  not they migrate, and burning them down would make the COUNT the goal — the
+  failure this milestone already named once with the type-alias move. Reasoning
+  and the by-shape inventory: findings file. **Do not read 20 as unfinished.**
+- TanStack migration is unblocked now that the money surfaces are typed.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |

@@ -8,7 +8,7 @@
 import type { PurchaseOrderPriceVariance } from './purchaseOrderPriceVariance';
 
 export interface PurchaseOrderItem {
-  id?: number;
+  id: number;
   productId?: number | null;
   description: string;
   descriptionAr?: string;

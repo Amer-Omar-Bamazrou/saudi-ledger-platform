@@ -5529,3 +5529,129 @@ than a doc entry they would have to go looking for** — the same reasoning as a
 Coming Soon page naming its own blocker. The moment a gate goes green is exactly
 the moment somebody is about to report it as proof of something wider, which is
 why the limits print on success too, not only on failure.
+## 2026-09-02 — CONTRACT BATCH 5, AND THE DELIBERATE STOP AT 20
+
+**Scope (owner-sequenced):** the last money batch — the approvals queue as a
+server-built endpoint (owner decision A), plus Quotations, PurchaseOrders,
+Budgets and Recurring. Ratchet **25 → 20, zero joins**. The milestone then
+STOPS; the stop is a decision, recorded below so a future session does not read
+20 remaining as unfinished work.
+
+### The approvals queue — option A, with the owner's two holds
+
+`GET /approvals/pending` returns `{ entity, id, label, status, amount }[]`
+built on the server from invoices, bills, journal entries and payroll runs.
+The page's four `(r: any) => Row` mappers over four list endpoints are gone.
+
+- **Hold 1 — unbounded, not defaulted.** The old page fetched each list's
+  DEFAULT PAGE (50) and filtered `draft`/`submitted` client-side, so a tenant
+  with more than 50 invoices had pending drafts the queue never showed:
+  *"nothing pending" while money waits* — a wrong statement about the tenant's
+  own obligations, which is why the cap and not the type was the deciding
+  argument. The endpoint takes no `limit`, and the conformance fixture seeds
+  **60** pending invoices and asserts all 60 come back: a cap returning through
+  the new endpoint fails the test by construction, rather than by someone
+  remembering. The reasoning is written at the route, the service and the spec
+  description, because "why is this unbounded" is exactly the question a future
+  reader answers wrongly by adding a limit.
+- **Hold 2 — one aggregate, not a second computation.** A journal entry's queue
+  amount comes from `journalEntriesRepository.lineTotals` — the same grouped
+  aggregate batch 4 added for the ledger list. Asserted directly (a seeded
+  entry's queue amount equals its line sum, 750, not 0).
+- Not asked for but required: the queue is mounted with **no entity permission
+  of its own** and the service filters each entity by the caller's READ grant
+  from the same matrix `requirePermission` enforces. A role with no grants gets
+  an empty queue rather than a 403 or a leak — asserted.
+
+### 🔴 What batch 5 made visible: input schemas and output schemas are not the same schema
+
+Three of the four defects this batch found are one shape — **a single schema
+used for both what a client SENDS and what the server RETURNS**:
+1. `CreateQuotationInput`/`UpdateQuotationInput` referenced `QuotationItem`,
+   the RESPONSE item type. The response always carries `id`; a client creating
+   a line does not have one. Whichever way `id` was marked, one side was wrong
+   — and it was wrong in both directions in turn while this batch ran. Split:
+   `QuotationLineInput`/`PurchaseOrderLineInput` for the request, the item
+   schemas for the response (with `id` now REQUIRED, which is what the presenter
+   actually emits — the client had been indexing `item.id` as possibly
+   undefined).
+2. `RecurringRule` required the six run-health fields, which only the LIST
+   projection computes; `pause` and `create` return the bare rule and failed
+   conformance. Split into `RecurringRuleWithHealth` for the list.
+3. `UpdateBudgetInput` was a `$ref` to `BudgetInput`, so a PATCH had to resend
+   `name` — a contract demanding a field the page does not hold. Made partial.
+4. Independently: `ConvertQuotationInput` declared a REQUIRED `items` array of
+   invoice items that the converter never reads (it builds lines from the
+   quotation). The AUD-13 no-lines rule is enforced where the invoice is BUILT;
+   declaring it on an ignored request field made the contract wrong, not safer.
+
+**The lesson, stated once:** *a schema is a claim about one direction.* Reusing
+a response type as a request body is the same class as reusing a request type
+as a response — it produces a contract that is wrong for at least one caller,
+and generates confident types for both.
+
+### 🔴 THE STOP (owner decision, 2026-09-02) — why 20 is not a backlog
+
+The milestone ends here with 20 files pinned:
+
+| Shape | Count | Why they stay |
+| --- | --- | --- |
+| Operator / identity / onboarding | 8 | OperatorReview, OperatorZatcaPanel, UserManagement, AcceptInvite, VerificationStatus, ZatcaOnboarding, OrgSwitcher, CompanySettings — no tenant money; the operator surface is audited separately |
+| AI / findings | 3 | AskYourBooks, Findings, Dashboard's `/findings/status` — dark by construction until Groq Enterprise is signed |
+| Read-only / infra | 4 | AuditTrail, ClosedMonths, Products, `lib/pagedList.ts` (the envelope itself) |
+| Remaining pickers/shells inside those | 5 | leave with their page if it ever migrates |
+
+**The owner's reasoning, recorded verbatim in substance:** they carry no tenant
+money, the ratchet holds the line whether or not they migrate, and burning them
+to zero would be *the count becoming the goal* — the failure this milestone
+already named once, with the type-alias move that would have made the number
+drop without doing the work. A number that stops moving because the work is
+DONE and a number that stops moving because the work was ABANDONED look
+identical in a dashboard; this paragraph is the difference, and it is why
+`list-response-shape`'s pinned count (now 8) carries the same note.
+
+**What a future session should do with the 20:** nothing, unless one of them
+starts handling money, or its endpoint enters the contract for another reason.
+Then it migrates and leaves the list, one file at a time. The ratchet still
+fails any NEW pairing, which is the property that mattered — the milestone's
+acceptance criterion was never "the list reaches zero", it was "a hand-written
+interface on a money surface becomes impossible to add, or at least fails a
+check".
+
+### 🔴 Batch 5 postscript: two standing guards caught the new endpoint, and both were right
+
+The approvals endpoint was written, tested and green — and then the full suite
+failed twice on it:
+
+1. **`privilege-surface-map`: `/approvals` was mounted BARE.** The reasoning
+   written at the mount was "the service filters each entity by the caller's
+   READ grant, so the mount adds no wider surface". That is precisely the
+   *guard that exempts a class from itself* shape the map's own header names:
+   the boundary sat INSIDE the thing being guarded, and the next route mounted
+   beside it would have inherited nothing. Fixed with
+   `requireAnyPermission(["invoices","bills","journal_entries","payroll"])` —
+   a real guard layer at the mount; the service still narrows to exactly the
+   entities the role holds.
+2. **`cross-company-isolation`: the new repository was company-blind**, and
+   that pinned list may only shrink. The queue now filters on
+   `app.current_company_id` — which makes it MORE correct than the four lists
+   it replaced (they show a two-company org both companies' rows; the open
+   decision in §5). A new surface does not inherit an old defect just because
+   its neighbours have it.
+
+**The lesson is about the author, not the code:** both defects were introduced
+by someone who had just written the argument for why they were safe. The
+guards were mechanical, unimpressed, and correct — which is the entire reason
+they exist as tests rather than as review notes.
+
+### Milestone totals
+Five batches, **55 → 20 pinned files, zero joins in any batch**; five
+conformance suites (`report-`, `party-`, `document-`, `ledger-`,
+`workflow-contract-conformance`) that parse real responses against the
+generated schemas; ~60 endpoints brought into the contract; and defects found
+that no static check had seen: a balance sheet that did not foot, a trial
+balance keyed on a field never sent, `creditLimit: ""` stored as 0.00, an
+`Invoice` schema wrong since #106, two list endpoints specified as bare arrays,
+a `PATCH` that discarded its payload, a report that filtered client-side over a
+silent cap, a ledger list of confident zeros, and an approvals queue that said
+"nothing pending" while money waited.

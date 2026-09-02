@@ -14,39 +14,29 @@ import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-interface Row {
-  id: number;
-  label: string; // human identifier (number / period)
-  status: string;
-  amount: number;
-}
+import type { ApprovalPendingRow } from "@workspace/api-client-react";
 
-type EntityKey = "journal-entries" | "bills" | "invoices" | "payroll";
+type EntityKey = ApprovalPendingRow["entity"];
 
-const PENDING = ["draft", "submitted"];
-
-function useEntity(key: EntityKey, map: (r: any) => Row) {
-  return useQuery<Row[]>({
-    queryKey: ["approvals", key],
+/**
+ * 🔴 ONE server-built queue (contract batch 5, owner decision A). This page
+ * used to fetch the default PAGE (50) of each entity's list and filter
+ * client-side — so pending drafts older than the newest 50 documents were
+ * invisible: "nothing pending" while money waited, a wrong statement about the
+ * tenant's own obligations. `/approvals/pending` is UNBOUNDED by design and
+ * built on the server from all four tables, with a journal entry's amount from
+ * the same line aggregate the ledger uses. AUD-9 still holds: a non-array is
+ * an ERROR, never an empty queue.
+ */
+function usePendingQueue() {
+  return useQuery<ApprovalPendingRow[]>({
+    queryKey: ["approvals", "pending"],
     queryFn: async () => {
-      const raw = await apiFetch<any>(`/${key}`);
-      // 🔴 Invoices are paginated now and answer with `{ items, page, totals }`;
-      // the other three still answer with a bare array. Accept both rather than
-      // assume — and still REFUSE anything that is neither, because "no rows"
-      // on an approvals queue means "no money is waiting for you" (AUD-9).
-      const data = Array.isArray(raw) ? raw : raw?.items;
-      /**
-       * 🔴 AUD-9: this used to be `Array.isArray(data) ? data : []`, which
-       * turns a contract break into "Nothing pending" — a confident empty
-       * answer on an approvals queue, where empty means "no money is waiting
-       * for you". Same family as the `.catch(() => [])` that hid the AP-aging
-       * shape mismatch. If the shape is not what this page was built for, say
-       * so; the mutation cache surfaces it (B2).
-       */
-      if (!Array.isArray(data)) {
-        throw new Error(`/${key} did not return a list — the approvals queue cannot be shown.`);
+      const rows = await apiFetch<ApprovalPendingRow[]>("/approvals/pending");
+      if (!Array.isArray(rows)) {
+        throw new Error("/approvals/pending did not return a list — the approvals queue cannot be shown.");
       }
-      return data.filter((r) => PENDING.includes(r.status)).map(map);
+      return rows;
     },
   });
 }
@@ -58,10 +48,8 @@ export default function Approvals() {
   // on the surface where money is released.
   const { t } = useLanguage();
 
-  const je = useEntity("journal-entries", (r) => ({ id: r.id, label: r.entryNumber, status: r.status, amount: r.totalDebit }));
-  const bills = useEntity("bills", (r) => ({ id: r.id, label: r.billNumber, status: r.status, amount: r.total }));
-  const invoices = useEntity("invoices", (r) => ({ id: r.id, label: r.invoiceNumber, status: r.status, amount: r.total }));
-  const payroll = useEntity("payroll", (r) => ({ id: r.id, label: r.period, status: r.status, amount: r.totalNetPay }));
+  const queue = usePendingQueue();
+  const byEntity = (entity: EntityKey) => queue.data?.filter((r) => r.entity === entity);
 
   const act = useMutation({
     mutationFn: async ({ key, id, action }: { key: EntityKey; id: number; action: string }) => {
@@ -73,13 +61,13 @@ export default function Approvals() {
       return apiFetch(`/${key}/${id}/${action}`, { method: "POST", body });
     },
     onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ["approvals", v.key] });
+      qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
       toast({ title: t(`Done: ${v.action}`, `تم: ${v.action}`) });
     },
     onError: (e: Error) => toast({ title: t("Action failed", "فشل الإجراء"), description: e.message, variant: "destructive" as any }),
   });
 
-  const Section = ({ title, entityKey, rows, canSubmit }: { title: string; entityKey: EntityKey; rows?: Row[]; canSubmit: boolean }) => (
+  const Section = ({ title, entityKey, rows, canSubmit }: { title: string; entityKey: EntityKey; rows?: ApprovalPendingRow[]; canSubmit: boolean }) => (
     <section style={{ marginBottom: 24 }}>
       <h2 style={{ fontWeight: 600, marginBottom: 8 }}>{title}</h2>
       {!rows || rows.length === 0 ? (
@@ -128,10 +116,10 @@ export default function Approvals() {
         )}
       </p>
       {/* Journal entries have no submit stage — approved (posted) straight from draft. */}
-      <Section title={t("Journal Entries", "قيود اليومية")} entityKey="journal-entries" rows={je.data} canSubmit={false} />
-      <Section title={t("Bills", "فواتير الموردين")} entityKey="bills" rows={bills.data} canSubmit />
-      <Section title={t("Invoices", "فواتير العملاء")} entityKey="invoices" rows={invoices.data} canSubmit />
-      <Section title="Payroll Runs" entityKey="payroll" rows={payroll.data} canSubmit />
+      <Section title={t("Journal Entries", "قيود اليومية")} entityKey="journal-entries" rows={byEntity("journal-entries")} canSubmit={false} />
+      <Section title={t("Bills", "فواتير الموردين")} entityKey="bills" rows={byEntity("bills")} canSubmit />
+      <Section title={t("Invoices", "فواتير العملاء")} entityKey="invoices" rows={byEntity("invoices")} canSubmit />
+      <Section title={t("Payroll Runs", "مسيرات الرواتب")} entityKey="payroll" rows={byEntity("payroll")} canSubmit />
     </div>
   );
 }

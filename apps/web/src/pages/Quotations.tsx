@@ -34,36 +34,15 @@ import { FilterScope } from "@/components/FilterScope";
 import { QUOTATION_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 
-interface QuotationItem {
-  id?: number;
-  description: string;
-  quantity: number | string;
-  unitPrice: number | string;
-  vatRate: number | string;
-  total?: number;
-  remainingQuantity?: number;
-}
+import type { CreateQuotationInput, Customer, Quotation, QuotationConversion, UpdateQuotationInput } from "@workspace/api-client-react";
 
-interface Quotation {
-  id: number;
-  quotationNumber: string;
-  date: string;
-  validUntil: string | null;
-  customerId: number | null;
-  customerName: string | null;
-  status: string;
-  outcome: string | null;
-  conversionState: "open" | "partially_converted" | "converted";
-  expired: boolean;
-  subtotal: number;
-  vatAmount: number;
-  total: number;
-  currency: string;
-  reviewNote: string | null;
-  items?: QuotationItem[];
-}
+/** Request bodies go through the GENERATED input types (contract batch 5): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreateQuotationInput) => JSON.stringify(b), update: (b: UpdateQuotationInput) => JSON.stringify(b) };
 
-interface Customer { id: number; name: string }
+/** A line being typed — the form model, not a response claim; responses use the generated types. */
+type QuotationLineForm = { id?: number; description: string; quantity: number | string; unitPrice: number | string; vatRate: number | string; total?: number; remainingQuantity?: number };
+
+
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -77,7 +56,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   approved: <CheckCircle className="w-3 h-3" />,
 };
 
-const emptyLine = (): QuotationItem => ({ description: "", quantity: 1, unitPrice: "", vatRate: 15 });
+const emptyLine = (): QuotationLineForm => ({ description: "", quantity: 1, unitPrice: "", vatRate: 15 });
 
 export default function Quotations() {
   const { t, lang } = useLanguage();
@@ -105,7 +84,7 @@ export default function Quotations() {
     customerId: "",
     notes: "",
   });
-  const [lines, setLines] = useState<QuotationItem[]>([emptyLine()]);
+  const [lines, setLines] = useState<QuotationLineForm[]>([emptyLine()]);
 
   const [page, setPage] = useState(0);
   const { data: quotationsPage, isLoading } = useQuery<Paged<Quotation>>({
@@ -138,7 +117,7 @@ export default function Quotations() {
     mutationFn: () =>
       apiFetch("/quotations", {
         method: "POST",
-        body: JSON.stringify({
+        body: json.create({
           date: form.date,
           validUntil: form.validUntil || undefined,
           customerId: form.customerId ? Number(form.customerId) : undefined,
@@ -178,7 +157,7 @@ export default function Quotations() {
     mutationFn: () =>
       apiFetch(`/quotations/${editing!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
+        body: json.update({
           date: form.date,
           validUntil: form.validUntil || undefined,
           customerId: form.customerId ? Number(form.customerId) : undefined,
@@ -206,7 +185,7 @@ export default function Quotations() {
   /** Open the shared dialog in EDIT mode, prefilled from the full record. */
   const openEdit = async (row: { id: number; quotationNumber: string }) => {
     try {
-      const detail: any = await apiFetch(`/quotations/${row.id}`);
+      const detail: Quotation = await apiFetch(`/quotations/${row.id}`);
       setForm({
         date: detail.date ?? "",
         validUntil: detail.validUntil ?? "",
@@ -260,9 +239,7 @@ export default function Quotations() {
     enabled: !!converting,
   });
 
-  const { data: conversionHistory = [] } = useQuery<
-    { id: number; convertedOn: string; invoiceId: number; invoiceNumber: string | null; invoiceTotal: number | null }[]
-  >({
+  const { data: conversionHistory = [] } = useQuery<QuotationConversion[]>({
     queryKey: ["quotation-conversions", converting?.id],
     queryFn: () => apiFetch(`/quotations/${converting!.id}/conversions`),
     enabled: !!converting,
@@ -301,7 +278,7 @@ export default function Quotations() {
     onError: fail,
   });
 
-  const setLine = (i: number, patch: Partial<QuotationItem>) =>
+  const setLine = (i: number, patch: Partial<QuotationLineForm>) =>
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
   // Mirrors the server's round-then-sum arithmetic so the preview cannot claim

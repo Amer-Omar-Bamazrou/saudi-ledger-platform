@@ -134,8 +134,13 @@ function scanDeclarations(): Declaration[] {
  * and PaymentHistory moved onto generated types.
  * 22 → 16 (batch 4): JournalEntries (and its Category picker), Payroll,
  * PayrollReport, Employees, Assets and AssetSchedule moved onto generated types.
+ * 16 → 8 (batch 5, the last money batch): Approvals, Quotations,
+ * PurchaseOrders, Budgets and Recurring moved onto generated types, and the
+ * approvals queue stopped declaring four shapes entirely (one server-built
+ * row now). The 8 that remain are the operator/identity, AI and read-only
+ * surfaces the milestone deliberately STOPPED at — see the findings file.
  */
-const DECLARATIONS_AT_WRITING = 16;
+const DECLARATIONS_AT_WRITING = 8;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 

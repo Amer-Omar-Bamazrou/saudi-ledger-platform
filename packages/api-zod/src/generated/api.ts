@@ -340,7 +340,7 @@ export const ListQuotationsResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -370,6 +370,16 @@ export const ListQuotationsResponse = zod.object({
 
  */
 
+export const createQuotationBodyItemsItemQuantityMin = 0;
+
+export const createQuotationBodyItemsItemUnitPriceMin = 0;
+
+export const createQuotationBodyItemsItemVatRateMin = 0;
+export const createQuotationBodyItemsItemVatRateMax = 100;
+
+export const createQuotationBodyItemsItemDiscountMin = 0;
+
+
 
 
 export const CreateQuotationBody = zod.object({
@@ -383,19 +393,13 @@ export const CreateQuotationBody = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().optional(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
-  "vatRate": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
-  "unitCode": zod.string().optional(),
-  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
-  "remainingQuantity": zod.number().optional()
-})).min(1)
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number().min(createQuotationBodyItemsItemQuantityMin),
+  "unitPrice": zod.number().min(createQuotationBodyItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(createQuotationBodyItemsItemVatRateMin).max(createQuotationBodyItemsItemVatRateMax).optional(),
+  "discount": zod.number().min(createQuotationBodyItemsItemDiscountMin).optional()
+}).describe('A line as a CLIENT sends it — the server computes vatAmount\/total and assigns ids; `id` is passed only on update, to keep the identity a conversion points at.')).min(1)
 })
 
 export const CreateQuotationResponse = zod.object({
@@ -419,7 +423,7 @@ export const CreateQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -465,7 +469,7 @@ export const GetQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -491,6 +495,18 @@ export const UpdateQuotationParams = zod.object({
   "id": zod.coerce.number()
 })
 
+
+export const updateQuotationBodyItemsItemQuantityMin = 0;
+
+export const updateQuotationBodyItemsItemUnitPriceMin = 0;
+
+export const updateQuotationBodyItemsItemVatRateMin = 0;
+export const updateQuotationBodyItemsItemVatRateMax = 100;
+
+export const updateQuotationBodyItemsItemDiscountMin = 0;
+
+
+
 export const UpdateQuotationBody = zod.object({
   "date": zod.string().optional(),
   "validUntil": zod.string().optional(),
@@ -502,19 +518,13 @@ export const UpdateQuotationBody = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().optional(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number().describe('The QUOTED price. Conversion copies this value and never re-reads the product\'s current price.\n'),
-  "vatRate": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "discount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "taxCategoryCode": zod.string().nullish().describe('S\/Z\/E\/O. NULL for a 0% line - zero-rated, exempt and out-of-scope are different tax facts an amount cannot distinguish. A quotation never fails closed on this; the tax gate is at invoice creation.\n'),
-  "unitCode": zod.string().optional(),
-  "convertedQuantity": zod.number().optional().describe('How much of this line has become an invoice (M21.2).'),
-  "remainingQuantity": zod.number().optional()
-})).optional()
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number().min(updateQuotationBodyItemsItemQuantityMin),
+  "unitPrice": zod.number().min(updateQuotationBodyItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(updateQuotationBodyItemsItemVatRateMin).max(updateQuotationBodyItemsItemVatRateMax).optional(),
+  "discount": zod.number().min(updateQuotationBodyItemsItemDiscountMin).optional()
+}).describe('A line as a CLIENT sends it — the server computes vatAmount\/total and assigns ids; `id` is passed only on update, to keep the identity a conversion points at.')).optional()
 })
 
 export const UpdateQuotationResponse = zod.object({
@@ -538,7 +548,7 @@ export const UpdateQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -594,7 +604,7 @@ export const SubmitQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -641,7 +651,7 @@ export const ApproveQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -691,7 +701,7 @@ export const SendBackQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -748,7 +758,7 @@ export const DeclineQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -795,7 +805,7 @@ export const CloseQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -841,7 +851,7 @@ export const ReopenQuotationResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -869,32 +879,16 @@ export const ConvertQuotationParams = zod.object({
   "id": zod.coerce.number()
 })
 
-
-
-
 export const ConvertQuotationBody = zod.object({
   "lines": zod.array(zod.object({
   "quotationItemId": zod.number(),
   "quantity": zod.number().describe('Must be greater than zero and at most what remains.')
 })).optional().describe('Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op.\n'),
-  "date": zod.string().optional().describe('The invoice\'s accounting date. Defaults to today.'),
+  "date": zod.string().optional().describe('The accounting date of the invoice built. Defaults to today.'),
   "dueDate": zod.string().optional(),
-  "convertedOn": zod.string().optional().describe('The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date.\n'),
+  "convertedOn": zod.string().optional().describe('The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date.'),
   "invoiceNumber": zod.string().optional().describe('Optional override; otherwise allocated server-side.'),
-  "notes": zod.string().optional(),
-  "items": zod.array(zod.object({
-  "id": zod.number(),
-  "invoiceId": zod.number(),
-  "productId": zod.number().nullish(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().nullish(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number(),
-  "vatRate": zod.number().optional(),
-  "vatAmount": zod.number(),
-  "discount": zod.number().optional(),
-  "total": zod.number()
-})).min(1).describe('REQUIRED, and at least one line. An invoice with no lines is issued at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot be recovered, on a document that cannot afterwards be edited or deleted. The constraint was declared for quotations and purchase orders, which touch no ledger, and omitted here, which does.\n')
+  "notes": zod.string().optional()
 })
 
 export const ConvertQuotationResponse = zod.object({
@@ -1003,7 +997,7 @@ export const ListPurchaseOrdersResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1038,6 +1032,14 @@ export const ListPurchaseOrdersResponse = zod.object({
 
  */
 
+export const createPurchaseOrderBodyItemsItemQuantityMin = 0;
+
+export const createPurchaseOrderBodyItemsItemUnitPriceMin = 0;
+
+export const createPurchaseOrderBodyItemsItemVatRateMin = 0;
+export const createPurchaseOrderBodyItemsItemVatRateMax = 100;
+
+
 
 
 export const CreatePurchaseOrderBody = zod.object({
@@ -1049,24 +1051,12 @@ export const CreatePurchaseOrderBody = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().optional(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
-  "vatRate": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "unitCode": zod.string().optional(),
-  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
-  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
-  "priceVariances": zod.array(zod.object({
-  "orderedUnitPrice": zod.number().optional(),
-  "billedUnitPrice": zod.number().optional(),
-  "quantity": zod.number().optional(),
-  "billedOn": zod.string().optional(),
-  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
-}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
-})).min(1)
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number().min(createPurchaseOrderBodyItemsItemQuantityMin),
+  "unitPrice": zod.number().min(createPurchaseOrderBodyItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(createPurchaseOrderBodyItemsItemVatRateMin).max(createPurchaseOrderBodyItemsItemVatRateMax).optional()
+}).describe('A line as a CLIENT sends it; `id` only on update.')).min(1)
 })
 
 export const CreatePurchaseOrderResponse = zod.object({
@@ -1088,7 +1078,7 @@ export const CreatePurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1137,7 +1127,7 @@ export const GetPurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1169,6 +1159,14 @@ export const UpdatePurchaseOrderParams = zod.object({
 })
 
 
+export const updatePurchaseOrderBodyItemsItemQuantityMin = 0;
+
+export const updatePurchaseOrderBodyItemsItemUnitPriceMin = 0;
+
+export const updatePurchaseOrderBodyItemsItemVatRateMin = 0;
+export const updatePurchaseOrderBodyItemsItemVatRateMax = 100;
+
+
 
 
 export const UpdatePurchaseOrderBody = zod.object({
@@ -1180,24 +1178,12 @@ export const UpdatePurchaseOrderBody = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().optional(),
   "productId": zod.number().nullish(),
-  "description": zod.string(),
-  "descriptionAr": zod.string().optional(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number().describe('The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused.\n'),
-  "vatRate": zod.number().optional(),
-  "vatAmount": zod.number().optional(),
-  "total": zod.number().optional(),
-  "unitCode": zod.string().optional(),
-  "billedQuantity": zod.number().optional().describe('How much of this line the supplier has BILLED. NOT how much arrived - there is no goods-receipt concept.\n'),
-  "unbilledQuantity": zod.number().optional().describe('quantity minus billedQuantity. Un-billed, not \"outstanding\".'),
-  "priceVariances": zod.array(zod.object({
-  "orderedUnitPrice": zod.number().optional(),
-  "billedUnitPrice": zod.number().optional(),
-  "quantity": zod.number().optional(),
-  "billedOn": zod.string().optional(),
-  "difference": zod.number().optional().describe('billed minus ordered, per unit. Positive = charged more.')
-}).describe('One event where the supplier\'s price differed from the ordered price. Reported as a neutral fact with BOTH figures - never as a status colour, because whether a variance is acceptable is a judgment.\n')).optional()
-})).min(1)
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number().min(updatePurchaseOrderBodyItemsItemQuantityMin),
+  "unitPrice": zod.number().min(updatePurchaseOrderBodyItemsItemUnitPriceMin),
+  "vatRate": zod.number().min(updatePurchaseOrderBodyItemsItemVatRateMin).max(updatePurchaseOrderBodyItemsItemVatRateMax).optional()
+}).describe('A line as a CLIENT sends it; `id` only on update.')).min(1)
 })
 
 export const UpdatePurchaseOrderResponse = zod.object({
@@ -1219,7 +1205,7 @@ export const UpdatePurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1279,7 +1265,7 @@ export const SubmitPurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1329,7 +1315,7 @@ export const ApprovePurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1383,7 +1369,7 @@ export const SendBackPurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1443,7 +1429,7 @@ export const CancelPurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1493,7 +1479,7 @@ export const ClosePurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1543,7 +1529,7 @@ export const ReopenPurchaseOrderResponse = zod.object({
   "reviewNote": zod.string().nullable(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
-  "id": zod.number().optional(),
+  "id": zod.number(),
   "productId": zod.number().nullish(),
   "description": zod.string(),
   "descriptionAr": zod.string().optional(),
@@ -1863,16 +1849,23 @@ export const ListRecurringRulesResponseItem = zod.object({
   "startsOn": zod.string(),
   "endsOn": zod.string().nullish(),
   "nextRunOn": zod.string(),
-  "autoIssue": zod.boolean().optional(),
+  "autoIssue": zod.boolean(),
   "status": zod.enum(['active', 'paused']),
   "createdAt": zod.string().nullish(),
-  "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
-  "lastScheduledFor": zod.string().nullish(),
-  "lastErrorCode": zod.string().nullish(),
-  "lastErrorDetail": zod.string().nullish(),
-  "consecutiveFailures": zod.number().optional(),
-  "lastSuccessOn": zod.string().nullish()
-})
+  "lastOutcome": zod.string().nullable().describe('generated | failed | null (never run)'),
+  "lastScheduledFor": zod.string().nullable(),
+  "lastErrorCode": zod.string().nullable(),
+  "lastErrorDetail": zod.string().nullable(),
+  "consecutiveFailures": zod.number(),
+  "lastSuccessOn": zod.string().nullable()
+}).and(zod.object({
+  "lastOutcome": zod.string().nullable(),
+  "lastScheduledFor": zod.string().nullable(),
+  "lastErrorCode": zod.string().nullable(),
+  "lastErrorDetail": zod.string().nullable(),
+  "consecutiveFailures": zod.number(),
+  "lastSuccessOn": zod.string().nullable()
+})).describe('The LIST projection — the rule plus its run health, which only the list computes.')
 export const ListRecurringRulesResponse = zod.array(ListRecurringRulesResponseItem)
 
 
@@ -1903,7 +1896,7 @@ export const CreateRecurringRuleResponse = zod.object({
   "startsOn": zod.string(),
   "endsOn": zod.string().nullish(),
   "nextRunOn": zod.string(),
-  "autoIssue": zod.boolean().optional(),
+  "autoIssue": zod.boolean(),
   "status": zod.enum(['active', 'paused']),
   "createdAt": zod.string().nullish(),
   "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
@@ -1951,7 +1944,7 @@ export const PauseRecurringRuleResponse = zod.object({
   "startsOn": zod.string(),
   "endsOn": zod.string().nullish(),
   "nextRunOn": zod.string(),
-  "autoIssue": zod.boolean().optional(),
+  "autoIssue": zod.boolean(),
   "status": zod.enum(['active', 'paused']),
   "createdAt": zod.string().nullish(),
   "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
@@ -1979,7 +1972,7 @@ export const ResumeRecurringRuleResponse = zod.object({
   "startsOn": zod.string(),
   "endsOn": zod.string().nullish(),
   "nextRunOn": zod.string(),
-  "autoIssue": zod.boolean().optional(),
+  "autoIssue": zod.boolean(),
   "status": zod.enum(['active', 'paused']),
   "createdAt": zod.string().nullish(),
   "lastOutcome": zod.string().nullish().describe('generated | failed | null (never run)'),
@@ -2229,6 +2222,7 @@ export const ListBudgetsQueryParams = zod.object({
 export const ListBudgetsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string().nullish(),
+  "nameAr": zod.string().nullish(),
   "period": zod.string().describe('YYYY — annual only.'),
   "categoryId": zod.number().nullish(),
   "categoryName": zod.string().nullish(),
@@ -2240,6 +2234,72 @@ export const ListBudgetsResponseItem = zod.object({
   "variancePct": zod.number()
 })
 export const ListBudgetsResponse = zod.array(ListBudgetsResponseItem)
+
+
+/**
+ * @summary Create an annual budget line for a category
+ */
+
+export const createBudgetBodyBudgetedAmountMin = 0;
+
+
+
+export const CreateBudgetBody = zod.object({
+  "name": zod.string().min(1),
+  "nameAr": zod.string().nullish(),
+  "period": zod.string(),
+  "categoryId": zod.number().nullish(),
+  "budgetedAmount": zod.number().min(createBudgetBodyBudgetedAmountMin),
+  "notes": zod.string().nullish()
+})
+
+export const CreateBudgetResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullish(),
+  "period": zod.string().describe('YYYY — annual only.'),
+  "categoryId": zod.number().nullable(),
+  "budgetedAmount": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string().optional()
+})
+
+
+export const UpdateBudgetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const updateBudgetBodyBudgetedAmountMin = 0;
+
+
+
+export const UpdateBudgetBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "nameAr": zod.string().nullish(),
+  "period": zod.string().optional(),
+  "categoryId": zod.number().nullish(),
+  "budgetedAmount": zod.number().min(updateBudgetBodyBudgetedAmountMin).optional(),
+  "notes": zod.string().nullish()
+}).describe('A PARTIAL update — every field optional; the CREATE input requires name, period and amount.')
+
+export const UpdateBudgetResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullish(),
+  "period": zod.string().describe('YYYY — annual only.'),
+  "categoryId": zod.number().nullable(),
+  "budgetedAmount": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string().optional()
+})
+
+
+export const DeleteBudgetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteBudgetResponse = zod.void()
 
 
 /**
@@ -4789,6 +4849,28 @@ export const CreateBillResponse = zod.object({
   "total": zod.number()
 }))
 })
+
+
+/**
+ * 🔴 UNBOUNDED, DELIBERATELY (owner decision, 2026-09-02). The page this
+ * replaced fetched the default page (50) of each list and filtered
+ * client-side, so pending drafts older than the newest 50 documents were
+ * invisible — "nothing pending" while money waited. The pending set is
+ * bounded by what approvers have not yet acted on, not by data volume; if
+ * it is ever large, that is itself the fact the queue exists to show.
+ * A cap returning through this endpoint would be the same defect wearing
+ * the fix. Amounts come from the same aggregates the ledger uses (a
+ * journal entry's from its line sums — never a second computation).
+ * @summary Every document waiting for approval, across all four draftable entities
+ */
+export const ListPendingApprovalsResponseItem = zod.object({
+  "entity": zod.enum(['invoices', 'bills', 'journal-entries', 'payroll']).describe('Matches the URL segment its actions post to (`\/{entity}\/{id}\/approve` …).'),
+  "id": zod.number(),
+  "label": zod.string().describe('The human identifier — document number or payroll period.'),
+  "status": zod.enum(['draft', 'submitted']),
+  "amount": zod.number().describe('The document\'s own total; a journal entry\'s is the sum of its debit lines, from the same aggregate the ledger list uses.')
+})
+export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsResponseItem)
 
 
 /**
