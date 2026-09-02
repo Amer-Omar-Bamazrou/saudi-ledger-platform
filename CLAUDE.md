@@ -271,12 +271,12 @@ rules at the top of this file, rule 2).
 - **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership needs re-assertion or observation, never a single write. Tested 2026-08-31 (`e2e/rtl-direction.spec.ts`, green, by CLICKING — a `goto` repairs the loss before it can be seen). Now tested rather than unreproduced.
 - **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client closes it: **P5** (`apps/web/e2e`).
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13). Five items, each survivable alone and each correctly triaged, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding and rank on the worst PATH. Incident: findings file.
-- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation existed on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Sibling (batch 2): `creditLimit: ""` — `Number("")` is 0, so the guard passed and "" was stored, read back as a limit of 0.00. **A value that satisfies every check while meaning nothing.** Incident: findings file.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED; the validation sat on the wrong schema, and every test built its request the way the server expects. **Ask which layer the defect lives in, and whether anything tests THAT one.** Sibling: `creditLimit: ""` stored as 0.00 because `Number("")` is 0 — **a value that satisfies every check while meaning nothing.** Incidents: findings file.
 - **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body. 🔴 **A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT** (owner-named 2026-09-01): batch 1 found the PAGES wrong, batch 2 the SPEC — all inside the endpoints counted as covered.
 - **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell is a field the WRITE path treats as optional and a READ path treats as required: check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
 - **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
 - **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
-- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface. 🔴 **THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): the same absence counted 1, then 7, then 12 as the frame widened — and 7 was CORRECT inside its frame, which is subtler than under-counting. A count without its frame is not a number; a walk produces a sample, only an inventory produces a count.
+- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage is measured PERIODICALLY and MECHANICALLY across the whole surface. 🔴 **THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): the same absence counted 1, then 7, then 12 as the frame widened — and 7 was CORRECT inside its frame, which is subtler than under-counting. A count without its frame is not a number; a walk produces a sample, only an inventory produces a count.
 - **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — the readiness wait added to make P5 *more* reliable is what broke it (a path assumed, not checked). **Re-run the thing you just hardened.** (Earned again 2026-08-31: a believed-correct `pool.on("error")` fix crashed the next run identically.) Incident: findings file.
 - **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
 - **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
@@ -477,7 +477,7 @@ recovery (rank 1 below). Working order is that sequence.
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
 | **C6** | **Residency / hosting, now also the AI hosting decision.** (1) 🔴 Negotiate + sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier is in use for development and routes globally, and "development" is not an exception. (2) Confirm an Arabic-acceptable vision model in the Dammam region. (3) The platform-hosting half (region + KMS) is unchanged. No hosted Supabase project exists yet. |
-| **C6a** | 🔴 **BLOCKING BEFORE THE AI LAYER IS ENABLED — a code change, not a contract.** `findings.schedule.service.ts` calls the AI provider **inside an open tenant transaction**; the 15s idle-in-transaction guardrail fires and kills the connection (and killed the whole process until 2026-08-31). This is what the **e-invoice outbox already solved** — a synchronous call to an external API cannot live inside the request transaction. Move the pass out (read inside, call outside, write back in a short second transaction). Invisible only because the layer is dark. |
+| **C6a** | 🔴 **BLOCKING BEFORE THE AI LAYER IS ENABLED — a code change, not a contract.** `findings.schedule.service.ts` calls the AI provider **inside an open tenant transaction**; the 15s idle-in-transaction guardrail fires and kills the connection (and killed the whole process until 2026-08-31). The **e-invoice outbox already solved this**: a synchronous external call cannot live inside the request transaction. Read inside, call outside, write back in a short second transaction. Invisible only because the layer is dark. |
 
 ### Advisor package — one conversation, four blocks
 
@@ -486,8 +486,8 @@ Written up in [`docs/product/advisor-questions.md`](docs/product/advisor-questio
 | # | Item |
 | --- | --- |
 | **C7** (Block A) | Retention of INBOUND supplier documents. A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. 🔴 `retain_until` has a writer and **no reader** — nothing expires or refuses deletion on it, so it is a stored intention, not a policy; whatever duration comes back, an ENFORCER must be built. An answer SHORTER than the outbound standard is **not implementable today** (promoted captures live in a store with no delete) and would be a B3-shaped build. |
-| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** 🔴 **Self-instance 2026-09-02** (a client invoice committed as a layout reference, reversed pre-push): findings file. Never considered anywhere in this project; scope it to the PLATFORM, not just capture (append-only IPs in audit logs, names/addresses in the archive for 6–11 years, no retention policy on `users`/`customers`/`employees`). The irreversible act is already performed by ordinary users: posting a bill promotes a phone photograph into a store that can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — we give both classes the identical no-delete promise today. **Also here:** whether an operator's readability of a verified tenant's identity documents should EXPIRE. |
-| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) FIRST — the only one that changes architecture, not arithmetic:** if the base ties to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. Also open: exact base composition and qualifying provisions, the Gregorian divisor (354 vs 354.367) and rounding, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and whether declining mixed/foreign ownership is the right v1 posture. |
+| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** 🔴 **Self-instance 2026-09-02** (a client invoice committed as a layout reference, reversed pre-push): findings file. Never scoped; it covers the PLATFORM, not just capture (append-only IPs, archived names/addresses for 6–11 years, no retention policy on `users`/`customers`/`employees`). The irreversible act is already performed by ordinary users: posting a bill promotes a photograph into a store that can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — we give both classes the identical no-delete promise today. **Also here:** whether an operator's readability of a verified tenant's identity documents should EXPIRE. |
+| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) FIRST — the only one that changes architecture, not arithmetic:** if the base ties to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. The rest (base composition, the Gregorian divisor and rounding, nisab's corporate role — assumed NO, say so in the UI, and the mixed/foreign-ownership posture) is in `advisor-questions.md`. |
 | **C12 leftovers** (Block D) | **D1:** whether ZATCA's *audit practice* questions gaps — the text cannot answer it, and a "yes" means building an explanation for each absent number, not changing the allocator. **D2:** both English texts are unofficial translations with the **Arabic prevailing**, and our reading rests on متسلسل / "sequential". |
 | **Invoice dating** | 🔴 The closed-period policy is **REASONED-NOT-VERIFIED** (source: the owner, not an accountant): an invoice must not be dated into a closed period at all; work done in a closed month is issued in the current open period, and revenue belonging to the closed month is an accrual made BEFORE closing. Enforced today on create and on a changed `date` (423 `period_closed`). **The open question:** whether Saudi practice permits ANY exception — a grace window, or an audited override. |
 
@@ -530,15 +530,15 @@ Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
 before launch. Record: findings file.
 ### Traps and known-dead surfaces
 
-- **S6/S7:** `feature_flags`, `branches`, `departments` are tables with **no consumer** — do not assume they work; build a consumer or drop them.
+- **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
 
-- VAT-return **box 4 (exports) is always 0** — an export today is a 'Z' line in box 2.
-- Manual transaction create has no `kind`/`taxTreatment` fields, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
-- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (unreachable from the UI; round `paid` at the validation gate).
+- VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
+- Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
+- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
 - Settlement links are readable from the transaction side only — the design said "either side".
-- The income-statement **transactions-fallback** (zero journal lines only) reports gross incl. VAT.
+- The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.
 - The Categories UI cannot mark system accounts (`isSystem` not in the API — latent; no edit routes exist).
-- **Deferred feature:** action-level permissions for separation of duties (post-to-GL / pay / approve individually gateable).
+- **Deferred:** action-level permissions (post-to-GL / pay / approve gateable separately).
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local Supabase CLI stack where the grant work was measured.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
@@ -557,18 +557,16 @@ company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20).**
-Five batches put every MONEY surface in `openapi.yaml` under a conformance test
-that parses real responses. **The argument was: #106 fixed the instances and the
-class regrew within weeks — because the GENERATOR was still there.** It stays
-closed by `tests/hand-written-interface-ratchet.test.ts`. Standing rules:
+Every MONEY surface is in `openapi.yaml` under a conformance test that parses
+real responses; `tests/hand-written-interface-ratchet.test.ts` keeps the
+generator closed. Standing rules:
 - 🔴 **A leave and a join in one milestone is the generator running — stop, do
-  not net.** And **a `type` alias that satisfies the detector is the ratchet
-  GAMED** — a file leaves by consuming the generated type, never by rephrasing.
+  not net**, and **a `type` alias that satisfies the detector is the ratchet
+  GAMED**: a file leaves by consuming the generated type, never by rephrasing.
 - 🔴 **The 20 pinned files are a STOP, not a backlog** (owner, 2026-09-02):
-  operator/identity (8), AI (3), read-only/infra (4), plus pickers and shells
-  in them. They carry no tenant money, the ratchet holds the line whether or
-  not they migrate, and burning them down would make the COUNT the goal — the
-  failure this milestone already named once with the type-alias move. Inventory: findings file. **Do not read 20 as unfinished.**
+  operator/identity, AI and read-only surfaces carrying no tenant money.
+  Burning them down would make the COUNT the goal. **Do not read 20 as
+  unfinished.** Inventory and the batch records: findings file.
 - TanStack is unblocked now the money surfaces are typed.
 ## 6. Tech Stack
 
