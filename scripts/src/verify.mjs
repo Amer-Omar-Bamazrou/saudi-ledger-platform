@@ -41,6 +41,18 @@ const NOT_COVERED = [
   "migrations against a real deployment, and the deployment-time queue items (C1, C3, C4, C6)",
 ];
 
+/**
+ * 🔴 One command STRING with `shell: true`, not a program plus an args array.
+ *
+ * Two constraints meet here and only this satisfies both. Node >= 20 refuses to
+ * spawn a `.cmd` (pnpm on Windows is `pnpm.CMD`) without a shell, so `shell`
+ * cannot be dropped; and passing an ARGS ARRAY with `shell: true` warns
+ * DEP0190 on every run, which teaches people to skim this gate's output. A
+ * single pre-joined string does neither. The commands are hard-coded constants
+ * a few lines above — nothing here is built from input.
+ */
+const command = (args) => `pnpm ${args.join(" ")}`;
+
 const line = (ch = "─") => ch.repeat(72);
 
 function limits(heading) {
@@ -53,7 +65,23 @@ function limits(heading) {
 const started = Date.now();
 for (const step of STEPS) {
   console.log(`\n[36m▶ verify: ${step.name}[0m`);
-  const run = spawnSync("pnpm", step.args, { stdio: "inherit", shell: process.platform === "win32" });
+  const run = spawnSync(command(step.args), { stdio: "inherit", shell: true });
+
+  /**
+   * 🔴 A step that could not be LAUNCHED is not a step that FAILED, and a gate
+   * that cannot tell them apart is the defect it exists to prevent. (Earned:
+   * spawning `pnpm.cmd` without a shell fails silently on Node >= 20, and this
+   * gate reported it as "typecheck failed" with no output — indistinguishable
+   * from a real type error until someone read the empty log.)
+   */
+  if (run.error) {
+    console.error(`
+[31m✖ verify could not RUN: ${step.name}[0m`);
+    console.error(`  ${String(run.error.message ?? run.error)}`);
+    console.error("  🔴 Nothing was verified — this is a broken runner, not a failing check.");
+    process.exit(1);
+  }
+
   if (run.status !== 0) {
     console.error(`\n[31m✖ verify FAILED at: ${step.name}[0m`);
     const reached = STEPS.slice(0, STEPS.indexOf(step)).map((s) => s.name);
