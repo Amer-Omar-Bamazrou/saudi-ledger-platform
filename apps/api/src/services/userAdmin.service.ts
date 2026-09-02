@@ -21,15 +21,12 @@
  * LAYER: identity/infrastructure — runs before `resolveTenant` on the base
  * connection, so there is no RLS backstop; authorization here is the only gate.
  */
-import bcrypt from "bcryptjs";
+import { assertPasswordAcceptable, hashPassword } from "../lib/password";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { assertAccountConfinedTo } from "../lib/accountScope";
 import { securityAuditService } from "./securityAudit.service";
 
-// Must match apps/api/src/routes/auth.ts SALT_ROUNDS.
-const SALT_ROUNDS = 12;
-const MIN_PASSWORD = 8;
 
 /** The only roles accepted for the global `users.role` column. */
 export const VALID_USER_ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
@@ -119,14 +116,12 @@ export const userAdminService = {
     if (!VALID_USER_ROLES.includes(role)) {
       throw new BadRequestError(`Invalid role. Must be ${VALID_USER_ROLES.join(", ")}.`);
     }
-    if (password.length < MIN_PASSWORD) {
-      throw new BadRequestError(`Password must be at least ${MIN_PASSWORD} characters.`);
-    }
+    assertPasswordAcceptable(password);
     if (await userAdminRepository.findByEmail(email)) {
       throw new ConflictError("Email already registered.");
     }
 
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await hashPassword(password);
     const [user] = await userAdminRepository.insert({ email, name, passwordHash, role, isActive: true });
     await securityAuditService.record({
       action: "user.created",
@@ -196,10 +191,8 @@ export const userAdminService = {
     const orgIds = await requireAdminScope(actorUserId);
     await assertTargetAdministrable(targetUserId, orgIds);
 
-    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD) {
-      throw new BadRequestError(`newPassword must be at least ${MIN_PASSWORD} characters.`);
-    }
-    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    assertPasswordAcceptable(newPassword, "newPassword");
+    const passwordHash = await hashPassword(newPassword, "newPassword");
     const [user] = await userAdminRepository.update(targetUserId, { passwordHash });
     if (!user) throw new NotFoundError("User not found.");
 

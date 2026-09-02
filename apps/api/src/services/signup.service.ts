@@ -10,15 +10,12 @@
  * only PUBLIC (unauthenticated) write in the platform, so it is rate-limited at
  * the route and validated strictly here.
  */
-import bcrypt from "bcryptjs";
+import { assertFitsColumn, assertPasswordAcceptable, hashPassword, MAX_VARCHAR } from "../lib/password";
 import { BadRequestError, ConflictError } from "../lib/errors";
 import { signupRepository } from "../repositories/signup.repository";
 import { securityAuditService } from "./securityAudit.service";
 
-// Must match apps/api/src/routes/auth.ts SALT_ROUNDS.
-const SALT_ROUNDS = 12;
 
-const MIN_PASSWORD = 8;
 // Saudi VAT registration: 15 digits, starts and ends with 3. CR: 10 digits.
 const VAT_RE = /^3\d{13}3$/;
 const CR_RE = /^\d{10}$/;
@@ -55,9 +52,17 @@ export const signupService = {
 
     if (!email || !EMAIL_RE.test(email)) throw new BadRequestError("A valid email is required.");
     if (!name) throw new BadRequestError("Your full name is required.");
-    if (password.length < MIN_PASSWORD) {
-      throw new BadRequestError(`Password must be at least ${MIN_PASSWORD} characters.`);
-    }
+    assertPasswordAcceptable(password);
+    /**
+     * 🔴 These three land in `varchar(255)` columns (`organizations.name`,
+     * `organizations.slug`, `companies.name`). Unvalidated, an over-long value
+     * reached Postgres and came back as a 22001 — a 500 for what is plainly a
+     * 400 the user can fix. This is M-4's second half, and it is checked on the
+     * PUBLIC path where the caller is unauthenticated.
+     */
+    assertFitsColumn(organizationName, "organizationName", MAX_VARCHAR);
+    assertFitsColumn(companyName, "companyName", MAX_VARCHAR);
+    assertFitsColumn(name, "name", MAX_VARCHAR);
     if (!organizationName) throw new BadRequestError("Organization name is required.");
     // CR/VAT are collected at signup for the operator to verify. CR is required
     // (it identifies the business); VAT is optional (not every entity is
@@ -73,7 +78,7 @@ export const signupService = {
       throw new ConflictError("An account with this email already exists.");
     }
 
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await hashPassword(password);
     let created;
     try {
       created = await signupRepository.createTenant({

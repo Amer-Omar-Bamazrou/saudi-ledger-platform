@@ -26,7 +26,7 @@
  *     invited email (case-insensitive), so a token cannot be redeemed by whoever
  *     happens to hold the link while signed in as someone else.
  */
-import bcrypt from "bcryptjs";
+import { assertPasswordAcceptable, hashPassword } from "../lib/password";
 import { loadEnv } from "@workspace/config";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { generateToken, hashToken } from "../lib/tokens";
@@ -37,9 +37,6 @@ import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { VALID_MEMBERSHIP_ROLES, type MembershipRole } from "./members.service";
 import { securityAuditService } from "./securityAudit.service";
 
-// Must match apps/api/src/routes/auth.ts SALT_ROUNDS.
-const SALT_ROUNDS = 12;
-const MIN_PASSWORD = 8;
 const EMAIL_RE = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
 
 export interface ActorContext {
@@ -241,10 +238,8 @@ export const invitationsService = {
       const name = typeof input.name === "string" ? input.name.trim() : "";
       const password = typeof input.password === "string" ? input.password : "";
       if (!name) throw new BadRequestError("Your full name is required.");
-      if (password.length < MIN_PASSWORD) {
-        throw new BadRequestError(`Password must be at least ${MIN_PASSWORD} characters.`);
-      }
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      assertPasswordAcceptable(password);
+      const passwordHash = await hashPassword(password);
       // Invariant 1: global role is NON-PRIVILEGED. Authority comes from the
       // membership created below.
       const [created] = await userAdminRepository.insert({
