@@ -568,7 +568,7 @@ closed by `tests/hand-written-interface-ratchet.test.ts`. Standing rules:
   in them. They carry no tenant money, the ratchet holds the line whether or
   not they migrate, and burning them down would make the COUNT the goal — the
   failure this milestone already named once with the type-alias move. Inventory: findings file. **Do not read 20 as unfinished.**
-- TanStack migration is unblocked now that the money surfaces are typed.
+- TanStack is unblocked now the money surfaces are typed.
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |
