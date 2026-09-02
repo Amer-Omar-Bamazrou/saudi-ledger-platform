@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
-import { requirePermission } from "../lib/rbac";
+import { requireAnyPermission, requirePermission } from "../lib/rbac";
 import { requirePlatformOperator } from "../lib/operator";
 
 // Route modules
@@ -39,6 +39,7 @@ import llm from "./llm.js";
 import capture from "./capture.js";
 import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMode.js";
 import recurring from "./recurring.js";
+import approvals from "./approvals.js";
 import findings from "./findings.js";
 import ask from "./ask.js";
 import auditLogs from "./auditLogs.js";
@@ -105,6 +106,9 @@ router.use("/quotations", requirePermission("quotations"), quotations);
 router.use("/purchase-orders", requirePermission("purchase_orders"), purchaseOrders);
 router.use("/bills", requirePermission("bills"), bills);
 router.use("/journal-entries", requirePermission("journal_entries"), journalEntries);
+// Spans four resources: at least one READ grant to reach it, and the service
+// then filters to exactly the entities this role may read.
+router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll"]), approvals);
 router.use("/employees", requirePermission("employees"), employees);
 router.use("/payroll", requirePermission("payroll"), payroll);
 router.use("/assets", requirePermission("assets"), assets);

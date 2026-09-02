@@ -124,6 +124,35 @@ export function resetPermissionCache(): void {
  * Guard a route/resource. Must run AFTER `resolveTenant` (needs `req.tenant`).
  * Returns 403 if the active-org role lacks the (resource, action) grant.
  */
+/**
+ * Guard a route that spans SEVERAL resources: the caller must hold `read` on at
+ * least one of them (the handler then filters to exactly the ones they hold).
+ *
+ * 🔴 Written because mounting such a route BARE failed
+ * `tests/privilege-surface-map` — correctly. "The handler filters" is the
+ * guard-that-exempts-a-class-from-itself shape: it puts the boundary inside the
+ * thing being guarded, where the next route added beside it inherits nothing.
+ */
+export function requireAnyPermission(resources: readonly string[]) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const role = req.tenant?.role;
+    if (!role) {
+      res.status(403).json({ error: "No organization role resolved for this request." });
+      return;
+    }
+    for (const resource of resources) {
+      if (await can(role, resource, "read")) {
+        next();
+        return;
+      }
+    }
+    res.status(403).json({
+      error: "You do not have access to any of the records this page shows.",
+      code: "permission_denied",
+    });
+  };
+}
+
 export function requirePermission(resource: string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const role = req.tenant?.role;

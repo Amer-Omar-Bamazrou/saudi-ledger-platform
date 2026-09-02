@@ -33,45 +33,16 @@ import { FilterScope } from "@/components/FilterScope";
 import { PURCHASE_ORDER_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 
-interface PriceVariance {
-  orderedUnitPrice: number;
-  billedUnitPrice: number;
-  quantity: number;
-  billedOn: string;
-  difference: number;
-}
+import type { CreatePurchaseOrderInput, PurchaseOrder, PurchaseOrderConversion, Vendor } from "@workspace/api-client-react";
 
-interface PoItem {
-  id: number;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  vatRate: number;
-  billedQuantity?: number;
-  unbilledQuantity?: number;
-  priceVariances?: PriceVariance[];
-}
+/** Request bodies go through the GENERATED input types (contract batch 5): a request the server does not accept is a compile error here. */
+const json = { create: (b: CreatePurchaseOrderInput) => JSON.stringify(b), update: (b: CreatePurchaseOrderInput) => JSON.stringify(b) };
 
-interface PurchaseOrder {
-  id: number;
-  orderNumber: string;
-  date: string;
-  validUntil: string | null;
-  vendorId: number | null;
-  vendorName: string | null;
-  status: string;
-  outcome: string | null;
-  billingState: "open" | "partially_billed" | "fully_billed";
-  expired: boolean;
-  subtotal: number;
-  vatAmount: number;
-  total: number;
-  currency: string;
-  reviewNote: string | null;
-  items?: PoItem[];
-}
+/** A line being typed — the form model, not a response claim; responses use the generated types. */
+type PoLineForm = { id?: number; description: string; quantity: number | string; unitPrice?: number | string; vatRate: number | string; total?: number; billedQuantity?: number; unbilledQuantity?: number };
 
-interface Vendor { id: number; name: string }
+
+
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -85,7 +56,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   approved: <CheckCircle className="w-3 h-3" />,
 };
 
-const emptyLine = (): Partial<PoItem> => ({ description: "", quantity: 1, unitPrice: undefined, vatRate: 15 });
+const emptyLine = (): Partial<PoLineForm> => ({ description: "", quantity: 1, unitPrice: undefined, vatRate: 15 });
 
 export default function PurchaseOrders() {
   const { t, lang } = useLanguage();
@@ -108,7 +79,7 @@ export default function PurchaseOrders() {
   const [editing, setEditing] = useState<{ id: number; number: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(PURCHASE_ORDER_FILTERS));
   const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
-  const [lines, setLines] = useState<Partial<PoItem>[]>([emptyLine()]);
+  const [lines, setLines] = useState<Partial<PoLineForm>[]>([emptyLine()]);
 
   const [page, setPage] = useState(0);
   const { data: ordersPage, isLoading } = useQuery<Paged<PurchaseOrder>>({
@@ -131,13 +102,13 @@ export default function PurchaseOrders() {
     mutationFn: () =>
       apiFetch("/purchase-orders", {
         method: "POST",
-        body: JSON.stringify({
+        body: json.create({
           date: form.date,
           validUntil: form.validUntil || undefined,
           vendorId: form.vendorId ? Number(form.vendorId) : undefined,
           notes: form.notes || undefined,
           items: lines.map((l) => ({
-            description: l.description,
+            description: l.description ?? "",
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
             vatRate: Number(l.vatRate),
@@ -171,7 +142,7 @@ export default function PurchaseOrders() {
     mutationFn: () =>
       apiFetch(`/purchase-orders/${editing!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
+        body: json.update({
           date: form.date,
           validUntil: form.validUntil || undefined,
           vendorId: form.vendorId ? Number(form.vendorId) : undefined,
@@ -180,7 +151,7 @@ export default function PurchaseOrders() {
           // id, so an edited line keeps the identity any conversion points at.
           items: lines.map((l) => ({
             ...(l.id != null ? { id: l.id } : {}),
-            description: l.description,
+            description: l.description ?? "",
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
             vatRate: Number(l.vatRate),
@@ -199,7 +170,7 @@ export default function PurchaseOrders() {
   /** Open the shared dialog in EDIT mode, prefilled from the full record. */
   const openEdit = async (row: { id: number; orderNumber: string }) => {
     try {
-      const detail: any = await apiFetch(`/purchase-orders/${row.id}`);
+      const detail: PurchaseOrder = await apiFetch(`/purchase-orders/${row.id}`);
       setForm({
         date: detail.date ?? "",
         validUntil: detail.validUntil ?? "",
@@ -252,9 +223,7 @@ export default function PurchaseOrders() {
     enabled: !!billing,
   });
 
-  const { data: billHistory = [] } = useQuery<
-    { id: number; billedOn: string; billId: number; billNumber: string | null; billTotal: number | null }[]
-  >({
+  const { data: billHistory = [] } = useQuery<PurchaseOrderConversion[]>({
     queryKey: ["purchase-order-conversions", billing?.id],
     queryFn: () => apiFetch(`/purchase-orders/${billing!.id}/conversions`),
     enabled: !!billing,
@@ -298,7 +267,7 @@ export default function PurchaseOrders() {
     onError: fail,
   });
 
-  const setLine = (i: number, patch: Partial<PoItem>) =>
+  const setLine = (i: number, patch: Partial<PoLineForm>) =>
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
