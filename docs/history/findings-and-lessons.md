@@ -5677,3 +5677,27 @@ have before you write it down.
   boundary.
 
 Design: [`design-invoice-document.md`](../product/design-invoice-document.md).
+
+### 🔴 2026-09-02 postscript: a self-instance of C8, committed and reversed
+
+While solving the invoice-layout problem, the real reference invoice supplied
+by the owner's accountant was **copied into `docs/product/` and committed**. It
+carries a named individual, two VAT registration numbers, two addresses and a
+payment reference. Removed and the commit amended before it reached the remote;
+verified absent from every commit and branch.
+
+**Why it is worth a record rather than a quiet fix:** C8 (PDPL) is the block
+this project is *waiting on an advisor for* — "the irreversible act is already
+performed by ordinary users: posting a bill promotes a phone photograph into a
+store that by interface design can never delete it". This was the same act,
+performed by the person writing the C8 note, for a reason that had nothing to
+do with retention: a *layout* reference. Nobody would have described it as a
+retention decision at the time — which is exactly how the class works.
+
+**The general form:** a document is not attached because someone decided to
+retain it; it is attached because it was the nearest example of something else.
+Git history is append-only, so a repository is a retention decision wearing a
+convenience. **Ask what a file CONTAINS before asking what it is FOR.**
+
+The design doc keeps the reference as prose and names the exclusion, so the
+next person does not re-add it "for convenience".

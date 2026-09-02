@@ -67,10 +67,30 @@ carries **no "as a translation" qualifier**. Do not design from the English.
    Arabic document).
 4. **A second language may sit alongside**, and side-by-side bilingual is the
    observed Saudi convention. It is a presentation choice, not a compliance one.
-5. 🔴 **`nameAr` holding the `"(not yet translated)"` default is a COMPLIANCE
-   signal, not a cosmetic one** — it means the Arabic rendering of that row is
-   incomplete. The document builder must surface it rather than print the
-   placeholder into a legal artifact.
+5. 🔴 **A PLACEHOLDER MUST BLOCK THE DOCUMENT — the builder REFUSES, it does
+   not print.** `nameAr` (or `descriptionAr`) still holding
+   `"(not yet translated)"` means the Arabic rendering of that row is
+   incomplete, and Arabic is the mandatory language. Printing the placeholder
+   would put the literal string "(not yet translated)" into a legal artifact
+   that carries a ZATCA stamp and cannot afterwards be edited or deleted.
+
+   So the document builder raises a **blocking condition on the document** —
+   named rows, named fields, and what to fill in — rather than falling back
+   silently. This is §3's **withhold a number that would mean nothing**,
+   applied to a compliance field: the honest output is a refusal that says
+   which translations are missing, not a document that looks complete and is
+   not. 🔴 It is a *refusal that teaches the next step*, not a hidden control
+   (AUD-7): the message names the rows and links to them.
+
+   Consequences to build with:
+   - The check runs at **artifact build**, not at approval — an approved
+     invoice is already legally issued; blocking there would be too late and
+     would strand a valid document.
+   - It is a **document-level** condition, so one untranslated line blocks the
+     whole artifact rather than printing a half-Arabic page.
+   - The seller's own registered Latin-script name is **not** a placeholder and
+     must not trip it (rule 3 above) — the test is the literal default value,
+     not "is this Arabic script".
 
 **Superseded rule, recorded as a correction rather than quietly replaced:** the
 owner's earlier ruling was that a document must be *wholly* Arabic or *wholly*
