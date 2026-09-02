@@ -32,6 +32,7 @@ import {
 import { loadEnv } from "@workspace/config";
 import { alerter } from "./alerter";
 import { auditContext } from "./auditContext";
+import { commitBeforeResponse, type CommitFailure } from "./responseCommit";
 import { selectActiveMembership } from "./activeOrg";
 import type { UserRole } from "./auth";
 
@@ -150,43 +151,59 @@ export async function resolveTenant(
     });
 
     /**
-     * Commit on success, roll back on error/abort. Guarded so it runs once.
+     * 🔴 C13 — THE TRANSACTION SETTLES BEFORE THE RESPONSE GOES OUT.
      *
-     * 🔴 THE COMMIT HAPPENS AFTER THE RESPONSE IS SENT, and that is a real
-     * hazard, not a stylistic one: `res.on("finish")` fires once the client
-     * already holds its 2xx, so a commit that then FAILS leaves the user
-     * believing a write happened when nothing was persisted. There is no way to
-     * un-send the success from here.
+     * This used to commit in `res.on("finish")`, which fires once the client
+     * ALREADY HOLDS its 2xx: a commit that then failed left the user believing
+     * a write had happened when nothing was persisted, and the success could
+     * not be un-sent. It was documented and paged as critical — known and
+     * alarmed, not hidden — but **an alarm tells you a write was lost; it does
+     * not prevent it**, and the trigger stopped being hypothetical when a
+     * connection died mid-request on 2026-08-31.
      *
-     * 🔴 It is not fixed, it is made LOUD — deliberately, and the distinction is
-     * the point. The real fix is to commit BEFORE the body goes out, which means
-     * intercepting `res.json`/`res.send`/`res.end` for every request in the
-     * product: a change to the core pipeline, with streaming and download paths
-     * to get right, and half-doing it is worse than not starting (the P5 rule).
-     * Queued as its own change.
-     *
-     * Until then this pages a human rather than writing a line nobody reads.
-     * A silent write-loss reported as success is exactly the quiet-neglect
-     * shape B2 exists for — "who finds out?" — and the answer was previously
-     * "nobody, until a tenant notices their invoice is missing".
+     * `commitBeforeResponse` wraps the response's output methods so the first
+     * write settles first: on success the body goes out afterwards, and on a
+     * failed COMMIT nothing has been written yet, so the client is told the
+     * truth (500 `commit_failed`) rather than a success for a write that does
+     * not exist. Errors now roll back BEFORE their body goes out too.
      */
     let settled = false;
-    const finalize = (commit: boolean): void => {
-      if (settled) return;
+    const finalize = (commit: boolean): Promise<void> => {
+      if (settled) return Promise.resolve();
       settled = true;
-      (commit ? conn.commit() : conn.rollback()).catch(async (err) => {
-        req.log.error({ err }, "tenant transaction finalize failed");
-        if (!commit) return; // A failed ROLLBACK loses nothing the user was promised.
+      return commit ? conn.commit() : conn.rollback();
+    };
+
+    /**
+     * Paged when a COMMIT fails. Two distinct conditions, deliberately keyed
+     * apart:
+     *
+     *  - `tenant-commit-failed` — we corrected the answer, so no write was
+     *    silently lost, but the database or its connection is unhealthy and a
+     *    tenant was refused a legitimate write.
+     *  - `tenant-commit-after-response` — the RESIDUAL case this queue item was
+     *    written for: the response had already begun (a stream past its first
+     *    chunk), so the answer could not be recalled. It keeps the original key
+     *    because it is the original condition, now reduced to that one path.
+     */
+    const onCommitFailure = ({ error, responseAlreadyStarted }: CommitFailure): void => {
+      req.log.error({ err: error, responseAlreadyStarted }, "tenant transaction commit failed");
+      const corrected = !responseAlreadyStarted;
+      void (async () => {
         try {
           await alerter.fire({
             // The CONDITION, not the occurrence: every instance is the same bug.
-            key: "tenant-commit-after-response",
+            key: corrected ? "tenant-commit-failed" : "tenant-commit-after-response",
             severity: "critical",
-            title: "A request returned 2xx and its transaction then FAILED to commit",
-            detail:
-              `${req.method} ${req.path} answered ${res.statusCode} and the tenant transaction could not be ` +
-              `committed, so the client believes a write succeeded that was never persisted. The response ` +
-              `cannot be recalled — check what this request was meant to write and whether the tenant must redo it.`,
+            title: corrected
+              ? "A tenant transaction FAILED to commit; the request was answered 500"
+              : "A response had already begun when its transaction FAILED to commit",
+            detail: corrected
+              ? `${req.method} ${req.path} could not commit its transaction. Nothing was written and the ` +
+                `client was told so, but the tenant was refused a legitimate write — check database health.`
+              : `${req.method} ${req.path} had already started sending when its transaction failed to commit, ` +
+                `so the answer could not be recalled — check what this request was meant to write and ` +
+                `whether the tenant must redo it.`,
             // 🔴 Metadata only. Never a body, never financial data (Alert's rule).
             context: {
               method: req.method,
@@ -197,12 +214,22 @@ export async function resolveTenant(
           });
         } catch (alertErr) {
           // An alerting failure must not take down the thing it was watching.
-          req.log.error({ err: alertErr }, "failed to page on commit-after-response");
+          req.log.error({ err: alertErr }, "failed to page on a failed commit");
         }
-      });
+      })();
     };
-    res.on("finish", () => finalize(res.statusCode < 400));
-    res.on("close", () => finalize(false));
+
+    const wasSettledBySend = commitBeforeResponse(res, finalize, onCommitFailure);
+
+    /**
+     * The net for responses that never write at all — an aborted connection,
+     * or a handler that ends the request without a body. `close` fires on both
+     * normal completion and abort, so it rolls back only if nothing settled it.
+     */
+    res.on("close", () => {
+      if (wasSettledBySend()) return;
+      finalize(false).catch((err) => req.log.error({ err }, "tenant rollback failed"));
+    });
 
     // (5) Run the remaining handlers with the tenant-scoped db AND the audit
     //     context (actor/org/IP) bound for the rest of the request.
