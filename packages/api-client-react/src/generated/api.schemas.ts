@@ -268,6 +268,8 @@ export interface BudgetLine {
   id: number;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  nameAr?: string | null;
   /** YYYY — annual only. */
   period: string;
   /** @nullable */
@@ -1351,7 +1353,7 @@ export interface BillApproveInput {
 }
 
 export interface QuotationItem {
-  id?: number;
+  id: number;
   productId?: number | null;
   description: string;
   descriptionAr?: string;
@@ -1432,6 +1434,30 @@ export interface Quotation {
   items?: QuotationItem[];
 }
 
+/**
+ * A line as a CLIENT sends it — the server computes vatAmount/total and assigns ids; `id` is passed only on update, to keep the identity a conversion points at.
+ */
+export interface QuotationLineInput {
+  id?: number;
+  /** @nullable */
+  productId?: number | null;
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @minimum 0 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  vatRate?: number;
+  /** @minimum 0 */
+  discount?: number;
+}
+
 export interface CreateQuotationInput {
   date?: string;
   validUntil?: string;
@@ -1441,7 +1467,7 @@ export interface CreateQuotationInput {
   notes?: string;
   termsAndConditions?: string;
   /** @minItems 1 */
-  items: QuotationItem[];
+  items: QuotationLineInput[];
 }
 
 export interface UpdateQuotationInput {
@@ -1452,7 +1478,7 @@ export interface UpdateQuotationInput {
   discount?: number;
   notes?: string;
   termsAndConditions?: string;
-  items?: QuotationItem[];
+  items?: QuotationLineInput[];
 }
 
 export interface ConvertQuotationLine {
@@ -1461,26 +1487,10 @@ export interface ConvertQuotationLine {
   quantity: number;
 }
 
-export interface InvoiceItem {
-  id: number;
-  invoiceId: number;
-  /** @nullable */
-  productId?: number | null;
-  description: string;
-  /** @nullable */
-  descriptionAr?: string | null;
-  quantity: number;
-  unitPrice: number;
-  vatRate?: number;
-  vatAmount: number;
-  discount?: number;
-  total: number;
-}
-
 export interface ConvertQuotationInput {
   /** Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op. */
   lines?: ConvertQuotationLine[];
-  /** The invoice's accounting date. Defaults to today. */
+  /** The accounting date of the invoice built. Defaults to today. */
   date?: string;
   dueDate?: string;
   /** The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date. */
@@ -1488,11 +1498,6 @@ export interface ConvertQuotationInput {
   /** Optional override; otherwise allocated server-side. */
   invoiceNumber?: string;
   notes?: string;
-  /**
-     * REQUIRED, and at least one line. An invoice with no lines is issued at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot be recovered, on a document that cannot afterwards be edited or deleted. The constraint was declared for quotations and purchase orders, which touch no ledger, and omitted here, which does.
-     * @minItems 1
-     */
-  items: InvoiceItem[];
 }
 
 export interface QuotationConversion {
@@ -1520,6 +1525,22 @@ export const InvoiceStatus = {
   overdue: 'overdue',
   cancelled: 'cancelled',
 } as const;
+
+export interface InvoiceItem {
+  id: number;
+  invoiceId: number;
+  /** @nullable */
+  productId?: number | null;
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number;
+  vatAmount: number;
+  discount?: number;
+  total: number;
+}
 
 export interface Invoice {
   id: number;
@@ -1594,7 +1615,7 @@ export interface PurchaseOrderPriceVariance {
 }
 
 export interface PurchaseOrderItem {
-  id?: number;
+  id: number;
   productId?: number | null;
   description: string;
   descriptionAr?: string;
@@ -1671,6 +1692,28 @@ export interface PurchaseOrder {
   items?: PurchaseOrderItem[];
 }
 
+/**
+ * A line as a CLIENT sends it; `id` only on update.
+ */
+export interface PurchaseOrderLineInput {
+  id?: number;
+  /** @nullable */
+  productId?: number | null;
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @minimum 0 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  vatRate?: number;
+}
+
 export interface CreatePurchaseOrderInput {
   date?: string;
   validUntil?: string;
@@ -1678,7 +1721,7 @@ export interface CreatePurchaseOrderInput {
   currency?: string;
   notes?: string;
   /** @minItems 1 */
-  items: PurchaseOrderItem[];
+  items: PurchaseOrderLineInput[];
 }
 
 export interface ConvertPurchaseOrderLine {
@@ -1959,7 +2002,7 @@ export interface RecurringRule {
   /** @nullable */
   endsOn?: string | null;
   nextRunOn: string;
-  autoIssue?: boolean;
+  autoIssue: boolean;
   status: RecurringRuleStatus;
   /** @nullable */
   createdAt?: string | null;
@@ -3280,6 +3323,101 @@ export type UpdateAssetInput = AssetInputFields;
 export interface DepreciateInput {
   /** YYYY-MM */
   period: string;
+}
+
+/**
+ * Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+ */
+export type ApprovalPendingRowEntity = typeof ApprovalPendingRowEntity[keyof typeof ApprovalPendingRowEntity];
+
+
+export const ApprovalPendingRowEntity = {
+  invoices: 'invoices',
+  bills: 'bills',
+  'journal-entries': 'journal-entries',
+  payroll: 'payroll',
+} as const;
+
+export type ApprovalPendingRowStatus = typeof ApprovalPendingRowStatus[keyof typeof ApprovalPendingRowStatus];
+
+
+export const ApprovalPendingRowStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+} as const;
+
+export interface ApprovalPendingRow {
+  /** Matches the URL segment its actions post to (`/{entity}/{id}/approve` …). */
+  entity: ApprovalPendingRowEntity;
+  id: number;
+  /** The human identifier — document number or payroll period. */
+  label: string;
+  status: ApprovalPendingRowStatus;
+  /** The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses. */
+  amount: number;
+}
+
+export interface Budget {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr?: string | null;
+  /** YYYY — annual only. */
+  period: string;
+  /** @nullable */
+  categoryId: number | null;
+  budgetedAmount: number;
+  /** @nullable */
+  notes: string | null;
+  createdAt?: string;
+}
+
+export interface BudgetInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  nameAr?: string | null;
+  period: string;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @minimum 0 */
+  budgetedAmount: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+/**
+ * The LIST projection — the rule plus its run health, which only the list computes.
+ */
+export type RecurringRuleWithHealth = RecurringRule & ({
+  /** @nullable */
+  lastOutcome: string | null;
+  /** @nullable */
+  lastScheduledFor: string | null;
+  /** @nullable */
+  lastErrorCode: string | null;
+  /** @nullable */
+  lastErrorDetail: string | null;
+  consecutiveFailures: number;
+  /** @nullable */
+  lastSuccessOn: string | null;
+});
+
+/**
+ * A PARTIAL update — every field optional; the CREATE input requires name, period and amount.
+ */
+export interface UpdateBudgetInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  nameAr?: string | null;
+  period?: string;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @minimum 0 */
+  budgetedAmount?: number;
+  /** @nullable */
+  notes?: string | null;
 }
 
 export type ListTransactionsParams = {

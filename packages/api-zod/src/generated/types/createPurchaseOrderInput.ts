@@ -5,7 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { PurchaseOrderItem } from './purchaseOrderItem';
+import type { PurchaseOrderLineInput } from './purchaseOrderLineInput';
 
 export interface CreatePurchaseOrderInput {
   date?: string;
@@ -14,5 +14,5 @@ export interface CreatePurchaseOrderInput {
   currency?: string;
   notes?: string;
   /** @minItems 1 */
-  items: PurchaseOrderItem[];
+  items: PurchaseOrderLineInput[];
 }

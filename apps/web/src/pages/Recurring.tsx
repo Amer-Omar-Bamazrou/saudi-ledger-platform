@@ -20,36 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 
-interface RecurringRule {
-  id: string;
-  entity: "invoice" | "bill";
-  template: Record<string, unknown> | null;
-  frequency: string;
-  dayOfMonth: number;
-  startsOn: string;
-  endsOn: string | null;
-  nextRunOn: string;
-  autoIssue: boolean;
-  status: "active" | "paused";
-  // Rule health (2026-08-23): one failure and a streak are different signals —
-  // "last run: failed" alone answers "did my invoice go out?" with
-  // technically-true information that hides the answer.
-  lastOutcome: string | null;
-  lastScheduledFor: string | null;
-  lastErrorCode: string | null;
-  lastErrorDetail: string | null;
-  consecutiveFailures: number;
-  lastSuccessOn: string | null;
-}
-interface RecurringRun {
-  id: string;
-  scheduledFor: string;
-  outcome: string;
-  documentId: number | null;
-  errorCode: string | null;
-  errorDetail: string | null;
-  ranAt: string | null;
-}
+import type { RecurringRuleWithHealth, RecurringRun } from "@workspace/api-client-react";
 
 function RuleRuns({ ruleId }: { ruleId: string }) {
   const { t } = useLanguage();
@@ -92,7 +63,7 @@ export default function Recurring() {
   const qc = useQueryClient();
   const [openRuns, setOpenRuns] = useState<string | null>(null);
 
-  const { data: rules = [], isLoading } = useQuery<RecurringRule[]>({
+  const { data: rules = [], isLoading } = useQuery<RecurringRuleWithHealth[]>({
     queryKey: ["recurring"],
     queryFn: () => apiFetch("/recurring"),
   });

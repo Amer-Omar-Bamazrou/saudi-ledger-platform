@@ -5,7 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { QuotationItem } from './quotationItem';
+import type { QuotationLineInput } from './quotationLineInput';
 
 export interface UpdateQuotationInput {
   date?: string;
@@ -15,5 +15,5 @@ export interface UpdateQuotationInput {
   discount?: number;
   notes?: string;
   termsAndConditions?: string;
-  items?: QuotationItem[];
+  items?: QuotationLineInput[];
 }

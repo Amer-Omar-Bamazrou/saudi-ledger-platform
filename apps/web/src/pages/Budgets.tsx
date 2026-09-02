@@ -11,8 +11,10 @@ import { Plus, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-interface Budget { id: number; name: string; nameAr?: string; period: string; categoryId?: number; categoryName?: string; categoryNameAr?: string; categoryType?: string; budgetedAmount: number; actualAmount: number; variance: number; variancePct: number; }
-interface Category { id: number; name: string; type: string; }
+import type { BudgetInput, BudgetLine, Category } from "@workspace/api-client-react";
+
+/** Request bodies go through the GENERATED input types (contract batch 5): a request the server does not accept is a compile error here. */
+const json = { create: (b: BudgetInput) => JSON.stringify(b) };
 
 const NEEDS_AR = "(not yet translated)";
 const emptyForm = { name: "", nameAr: "", period: String(new Date().getFullYear()), categoryId: "", budgetedAmount: "", notes: "" };
@@ -25,7 +27,7 @@ export default function Budgets() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: budgets = [], isLoading } = useQuery<Budget[]>({
+  const { data: budgets = [], isLoading } = useQuery<BudgetLine[]>({
     queryKey: ["budgets", period],
     queryFn: () => apiFetch(`/budgets?period=${period}`),
   });
@@ -33,7 +35,7 @@ export default function Budgets() {
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: () => apiFetch("/categories") });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiFetch("/budgets", { method: "POST", body: JSON.stringify({ ...body, categoryId: body.categoryId ? Number(body.categoryId) : null, budgetedAmount: Number(body.budgetedAmount) }) }),
+    mutationFn: (body: any) => apiFetch("/budgets", { method: "POST", body: json.create({ ...body, categoryId: body.categoryId ? Number(body.categoryId) : null, budgetedAmount: Number(body.budgetedAmount) }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["budgets"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Budget line added", "تم إضافة سطر الميزانية") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
