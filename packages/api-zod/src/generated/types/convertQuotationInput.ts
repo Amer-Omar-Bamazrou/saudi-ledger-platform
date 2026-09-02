@@ -6,12 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ConvertQuotationLine } from './convertQuotationLine';
-import type { InvoiceItem } from './invoiceItem';
 
 export interface ConvertQuotationInput {
   /** Omit entirely to convert everything still outstanding. Supplying an empty array is an error rather than a no-op. */
   lines?: ConvertQuotationLine[];
-  /** The invoice's accounting date. Defaults to today. */
+  /** The accounting date of the invoice built. Defaults to today. */
   date?: string;
   dueDate?: string;
   /** The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date. */
@@ -19,9 +18,4 @@ export interface ConvertQuotationInput {
   /** Optional override; otherwise allocated server-side. */
   invoiceNumber?: string;
   notes?: string;
-  /**
-     * REQUIRED, and at least one line. An invoice with no lines is issued at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot be recovered, on a document that cannot afterwards be edited or deleted. The constraint was declared for quotations and purchase orders, which touch no ledger, and omitted here, which does.
-     * @minItems 1
-     */
-  items: InvoiceItem[];
 }

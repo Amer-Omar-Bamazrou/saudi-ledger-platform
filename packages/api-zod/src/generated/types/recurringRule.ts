@@ -21,7 +21,7 @@ export interface RecurringRule {
   /** @nullable */
   endsOn?: string | null;
   nextRunOn: string;
-  autoIssue?: boolean;
+  autoIssue: boolean;
   status: RecurringRuleStatus;
   /** @nullable */
   createdAt?: string | null;

@@ -7,7 +7,7 @@
  */
 
 export interface QuotationItem {
-  id?: number;
+  id: number;
   productId?: number | null;
   description: string;
   descriptionAr?: string;

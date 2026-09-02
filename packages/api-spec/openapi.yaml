@@ -1093,7 +1093,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/RecurringRule"
+                  $ref: "#/components/schemas/RecurringRuleWithHealth"
     post:
       operationId: createRecurringRule
       tags: [recurring]
@@ -1347,6 +1347,51 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/BudgetLine"
+    post:
+      operationId: createBudget
+      tags: [budgets]
+      summary: Create an annual budget line for a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetInput" }
+      responses:
+        "201":
+          description: The created budget (without the derived actuals — re-list for those)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Budget" }
+        "400":
+          description: Body failed validation
+
+  /budgets/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateBudget
+      tags: [budgets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateBudgetInput" }
+      responses:
+        "200":
+          description: The updated budget
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Budget" }
+        "400":
+          description: Body failed validation
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteBudget
+      tags: [budgets]
+      responses:
+        "204":
+          description: Deleted
 
   /analytics/trend:
     get:
@@ -2804,6 +2849,30 @@ paths:
         "423":
           description: The date falls in a closed period
 
+  /approvals/pending:
+    get:
+      operationId: listPendingApprovals
+      tags: [approvals]
+      summary: Every document waiting for approval, across all four draftable entities
+      description: |
+        🔴 UNBOUNDED, DELIBERATELY (owner decision, 2026-09-02). The page this
+        replaced fetched the default page (50) of each list and filtered
+        client-side, so pending drafts older than the newest 50 documents were
+        invisible — "nothing pending" while money waited. The pending set is
+        bounded by what approvers have not yet acted on, not by data volume; if
+        it is ever large, that is itself the fact the queue exists to show.
+        A cap returning through this endpoint would be the same defect wearing
+        the fix. Amounts come from the same aggregates the ledger uses (a
+        journal entry's from its line sums — never a second computation).
+      responses:
+        "200":
+          description: Pending documents, newest first within each entity
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ApprovalPendingRow" }
+
   /invoices:
     get:
       operationId: listInvoices
@@ -3679,6 +3748,7 @@ components:
       properties:
         id: { type: integer }
         name: { type: ["string", "null"] }
+        nameAr: { type: ["string", "null"] }
         period: { type: string, description: "YYYY — annual only." }
         categoryId: { type: ["integer", "null"] }
         categoryName: { type: ["string", "null"] }
@@ -4766,7 +4836,7 @@ components:
 
     QuotationItem:
       type: object
-      required: [description, quantity, unitPrice]
+      required: [id, description, quantity, unitPrice]
       properties:
         id: { type: integer }
         productId: { type: integer, nullable: true }
@@ -4857,7 +4927,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/QuotationItem"
+            $ref: "#/components/schemas/QuotationLineInput"
 
     UpdateQuotationInput:
       type: object
@@ -4872,7 +4942,7 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/QuotationItem"
+            $ref: "#/components/schemas/QuotationLineInput"
 
     ConvertQuotationLine:
       type: object
@@ -4895,29 +4965,15 @@ components:
             $ref: "#/components/schemas/ConvertQuotationLine"
         date:
           type: string
-          description: The invoice's accounting date. Defaults to today.
+          description: The accounting date of the invoice built. Defaults to today.
         dueDate: { type: string }
         convertedOn:
           type: string
-          description: >
-            The date the customer ACCEPTED, which may precede the invoice date.
-            Defaults to the invoice date.
+          description: The date the customer ACCEPTED, which may precede the invoice date. Defaults to the invoice date.
         invoiceNumber:
           type: string
           description: Optional override; otherwise allocated server-side.
         notes: { type: string }
-        items:
-          type: array
-          minItems: 1
-          description: >
-            REQUIRED, and at least one line. An invoice with no lines is issued
-            at SAR 0.00 — consuming an ICV and a ZATCA chain position that cannot
-            be recovered, on a document that cannot afterwards be edited or
-            deleted. The constraint was declared for quotations and purchase
-            orders, which touch no ledger, and omitted here, which does.
-          items:
-            $ref: "#/components/schemas/InvoiceItem"
-      required: [items]
 
     QuotationConversion:
       type: object
@@ -4957,7 +5013,7 @@ components:
 
     PurchaseOrderItem:
       type: object
-      required: [description, quantity, unitPrice]
+      required: [id, description, quantity, unitPrice]
       properties:
         id: { type: integer }
         productId: { type: integer, nullable: true }
@@ -5040,7 +5096,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/PurchaseOrderItem"
+            $ref: "#/components/schemas/PurchaseOrderLineInput"
 
     ConvertPurchaseOrderLine:
       type: object
@@ -5281,7 +5337,7 @@ components:
 
     RecurringRule:
       type: object
-      required: [id, entity, frequency, dayOfMonth, startsOn, nextRunOn, status]
+      required: [id, entity, frequency, dayOfMonth, startsOn, nextRunOn, status, autoIssue]
       properties:
         id: { type: string }
         entity: { type: string, enum: [invoice, bill] }
@@ -6646,3 +6702,100 @@ components:
         period:
           type: string
           description: YYYY-MM
+
+    # ── Approvals queue + budget writes (2026-09-02, batch 5);
+    #    proven on real rows by tests/workflow-contract-conformance.test.ts ─────
+
+    ApprovalPendingRow:
+      type: object
+      required: [entity, id, label, status, amount]
+      properties:
+        entity:
+          type: string
+          enum: [invoices, bills, journal-entries, payroll]
+          description: Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+        id: { type: integer }
+        label:
+          type: string
+          description: The human identifier — document number or payroll period.
+        status:
+          type: string
+          enum: [draft, submitted]
+        amount:
+          type: number
+          description: The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses.
+
+    Budget:
+      type: object
+      required: [id, name, period, categoryId, budgetedAmount, notes]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        period: { type: string, description: "YYYY — annual only." }
+        categoryId: { type: ["integer", "null"] }
+        budgetedAmount: { type: number }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    BudgetInput:
+      type: object
+      required: [name, period, budgetedAmount]
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: ["string", "null"] }
+        period: { type: string }
+        categoryId: { type: ["integer", "null"] }
+        budgetedAmount: { type: number, minimum: 0 }
+        notes: { type: ["string", "null"] }
+
+    QuotationLineInput:
+      description: A line as a CLIENT sends it — the server computes vatAmount/total and assigns ids; `id` is passed only on update, to keep the identity a conversion points at.
+      type: object
+      required: [description, quantity, unitPrice]
+      properties:
+        id: { type: integer }
+        productId: { type: ["integer", "null"] }
+        description: { type: string, minLength: 1 }
+        descriptionAr: { type: ["string", "null"] }
+        quantity: { type: number, minimum: 0 }
+        unitPrice: { type: number, minimum: 0 }
+        vatRate: { type: number, minimum: 0, maximum: 100 }
+        discount: { type: number, minimum: 0 }
+
+    PurchaseOrderLineInput:
+      description: A line as a CLIENT sends it; `id` only on update.
+      type: object
+      required: [description, quantity, unitPrice]
+      properties:
+        id: { type: integer }
+        productId: { type: ["integer", "null"] }
+        description: { type: string, minLength: 1 }
+        descriptionAr: { type: ["string", "null"] }
+        quantity: { type: number, minimum: 0 }
+        unitPrice: { type: number, minimum: 0 }
+        vatRate: { type: number, minimum: 0, maximum: 100 }
+
+    RecurringRuleWithHealth:
+      description: The LIST projection — the rule plus its run health, which only the list computes.
+      allOf:
+        - { $ref: "#/components/schemas/RecurringRule" }
+        - type: object
+          required: [lastOutcome, lastScheduledFor, lastErrorCode, lastErrorDetail, consecutiveFailures, lastSuccessOn]
+          properties:
+            lastOutcome: { type: ["string", "null"] }
+            lastScheduledFor: { type: ["string", "null"] }
+            lastErrorCode: { type: ["string", "null"] }
+            lastErrorDetail: { type: ["string", "null"] }
+            consecutiveFailures: { type: integer }
+            lastSuccessOn: { type: ["string", "null"] }
+    UpdateBudgetInput:
+      description: A PARTIAL update — every field optional; the CREATE input requires name, period and amount.
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        nameAr: { type: ["string", "null"] }
+        period: { type: string }
+        categoryId: { type: ["integer", "null"] }
+        budgetedAmount: { type: number, minimum: 0 }
+        notes: { type: ["string", "null"] }

@@ -10,6 +10,8 @@ export interface BudgetLine {
   id: number;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  nameAr?: string | null;
   /** YYYY — annual only. */
   period: string;
   /** @nullable */
