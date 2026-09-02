@@ -286,8 +286,10 @@ rules at the top of this file, rule 2).
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
 - **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
 - **🔴 A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
+- **🔴 A QUEUE ENTRY RECORDS WHAT SOMEONE BELIEVED THEN, NOT WHAT IS TRUE NOW — VERIFY THE REASON, NOT JUST THE ENTRY** (owner-named 2026-09-02). Both P0 items had a wrong stated reason, and 🔴 **each wrong reason pointed at a PLAUSIBLE remedy that would not have worked**: "the alarm is the mitigation" argues for better alarming (C13 needed ORDERING); "bcryptjs blocks the loop" argues for a faster KDF (M-4 needed it OFF the loop). Measure a performance claim; reproduce a behaviour claim; read the primary text for a regulatory one. Incidents: findings file.
 - **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Take the shape it describes, check the mechanism, and REPORT a mismatch rather than building the plausible thing. Corrections ship narrow; a named gap beats a silent default. 🔴 **A LABEL IS A REFERENT TOO** — "continue with P0-1" named an item in a plan outside this repo; asking beat guessing, and the mapping is now recorded in §5 rather than re-derived. (Eight instances; table in the findings file.)
 - **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
+- **🔴 AN EMPTY BLOCK PRINTS ITS EMPTINESS** (owner-named 2026-09-02) — an unwritten terms footer prints a bare heading; an unused stamp area prints an empty box. On a document a customer keeps, both read as a fault. **An optional block defaults OFF and turns on when it has content**; a stand-in that looks designed is worse than an absence that looks like one.
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces** — breadth is SEEDED and asserted, never hoped for. A suspiciously ROUND count is a diagnosis. Incidents: findings file.
 - **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
@@ -460,7 +462,7 @@ recovery (rank 1 below). Working order is that sequence.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | 🔴 **THE INVOICE CANNOT LEAVE THE PRODUCT** — no PDF, no print view, no share artifact (launch blocker, 2026-09-01, found by WALKING the core path). **A simplified invoice's QR exists to be PRESENTED to the customer, and no artifact can present it.** 🔴 **Design AGREED 2026-09-02, not built — [`design-invoice-document.md`](docs/product/design-invoice-document.md) is its single writer** (language settled from the primary Arabic regulation, customisation levels 1–2 over a fixed core, PDF/A-3 target). Do not restate its decisions here. | Build to that design; "send" follows once B1 is wired. Every document type reuses the artifact. |
+| **L1** | 🔴 **THE INVOICE CANNOT LEAVE THE PRODUCT** — no PDF, no print view, no share artifact (launch blocker, 2026-09-01, found by WALKING the core path). **A simplified invoice's QR exists to be PRESENTED to the customer, and no artifact can present it.** 🔴 **Design AGREED 2026-09-02, not built** — [`design-invoice-document.md`](docs/product/design-invoice-document.md) is its single writer; do not restate its decisions here. | Build to that design; "send" follows once B1 is wired. |
 | **L2** | 🔴 **NO RESPONSIVE LAYOUT** (launch blocker, same walk). `Layout.tsx` has zero breakpoints; `useIsMobile` is consumed only by the unused vendored sidebar. On a phone the app is a horizontal-scroll desktop page, for a mobile-first customer. | A responsive shell. The nav being data makes the shell swap cheaper. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
@@ -483,8 +485,8 @@ Written up in [`docs/product/advisor-questions.md`](docs/product/advisor-questio
 | # | Item |
 | --- | --- |
 | **C7** (Block A) | Retention of INBOUND supplier documents. A1 retains captures to the 6/11-year outbound standard as a conservative default, not a settled reading. 🔴 `retain_until` has a writer and **no reader** — nothing expires or refuses deletion on it, so it is a stored intention, not a policy; whatever duration comes back, an ENFORCER must be built. An answer SHORTER than the outbound standard is **not implementable today** (promoted captures live in a store with no delete) and would be a B3-shaped build. |
-| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** 🔴 **Self-instance 2026-09-02:** a real client invoice (named individual, VAT numbers, addresses) was committed here as a layout reference and reversed pre-push — this block's own question, walked into while solving something else. Findings file. Never considered anywhere in this project; scope it to the PLATFORM, not just capture (append-only IPs in audit logs, names/addresses in the archive for 6–11 years, no retention policy on `users`/`customers`/`employees`). The irreversible act is already performed by ordinary users: posting a bill promotes a phone photograph into a store that can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — we give both classes the identical no-delete promise today. **Also in this block:** whether an operator's readability of a verified tenant's identity documents should EXPIRE (see the operator surface note below). |
-| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) first — it is the only one that changes architecture rather than arithmetic**: if a rule ties the base to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. Also open: exact base composition and qualifying provisions, the Gregorian divisor (354 vs 354.367) and rounding, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and whether declining mixed/foreign ownership is the right v1 posture. |
+| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** 🔴 **Self-instance 2026-09-02** (a client invoice committed as a layout reference, reversed pre-push): findings file. Never considered anywhere in this project; scope it to the PLATFORM, not just capture (append-only IPs in audit logs, names/addresses in the archive for 6–11 years, no retention policy on `users`/`customers`/`employees`). The irreversible act is already performed by ordinary users: posting a bill promotes a phone photograph into a store that can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — we give both classes the identical no-delete promise today. **Also here:** whether an operator's readability of a verified tenant's identity documents should EXPIRE. |
+| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) FIRST — the only one that changes architecture, not arithmetic:** if the base ties to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. Also open: exact base composition and qualifying provisions, the Gregorian divisor (354 vs 354.367) and rounding, whether nisab has any role in corporate Zakat (assumed NO — if so, say so in the UI so its absence reads as a decision), and whether declining mixed/foreign ownership is the right v1 posture. |
 | **C12 leftovers** (Block D) | **D1:** whether ZATCA's *audit practice* questions gaps — the text cannot answer it, and a "yes" means building an explanation for each absent number, not changing the allocator. **D2:** both English texts are unofficial translations with the **Arabic prevailing**, and our reading rests on متسلسل / "sequential". |
 | **Invoice dating** | 🔴 The closed-period policy is **REASONED-NOT-VERIFIED** (source: the owner, not an accountant): an invoice must not be dated into a closed period at all; work done in a closed month is issued in the current open period, and revenue belonging to the closed month is an accrual made BEFORE closing. Enforced today on create and on a changed `date` (423 `period_closed`). **The open question:** whether Saudi practice permits ANY exception — a grace window, or an audited override. |
 
@@ -507,11 +509,10 @@ is the reason the order is not the severity order.**
 is NOT operator-runnable (one-line flip if manual paging tests are wanted);
 `normalizeDigits` exists twice, pinned by an equivalence test, pending a shared package.
 
-**B-8 — NOT REPRODUCED, under a standing guard** (2026-08-31):
-`e2e/rtl-direction.spec.ts` toggles to Arabic and walks five routes **by
-clicking** (a `goto` remounts the provider and repairs the loss before it can be
-seen), plus reload and switch-back; `dir`/`lang` hold. Not closed — *tested*
-rather than unreproduced. Search shape and what would falsify it: findings file.
+**B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`,
+2026-08-31): five routes walked **by clicking** (a `goto` repairs the loss
+before it can be seen), plus reload and switch-back; `dir`/`lang` hold. Not
+closed — *tested* rather than unreproduced. Detail: findings file.
 
 🔴 **Direction is set BEFORE FIRST PAINT** (owner decision, 2026-08-31): a
 render-blocking script in `index.html` reads `ksa_lang` and sets `dir`/`lang` —
@@ -524,8 +525,7 @@ needs a checkable reason and leaves the day it is fixed.
 ### Arabic coverage
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
-(the idiom-count sweep). Last measured 2026-09-01: suspect count 0 after eight
-pages were fixed; twelve dead Export buttons removed across two frames. Re-run
+(the idiom-count sweep). Last measured 2026-09-01: suspect count 0. Re-run
 before launch. Record: findings file.
 ### Traps and known-dead surfaces
 
@@ -556,12 +556,10 @@ company-blind list is pinned and can only shrink. Detail: findings file.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20).**
-Five batches put every MONEY surface in `openapi.yaml` with a conformance test
-that parses real responses (reports, parties, documents, ledger, workflow).
-**The argument was: #106 fixed the instances and the class regrew within weeks
-— because the GENERATOR was still there.** The generator stays closed by
-`tests/hand-written-interface-ratchet.test.ts` (any NEW `apiFetch`+interface
-pairing fails CI). Standing rules from the milestone:
+Five batches put every MONEY surface in `openapi.yaml` under a conformance test
+that parses real responses. **The argument was: #106 fixed the instances and the
+class regrew within weeks — because the GENERATOR was still there.** It stays
+closed by `tests/hand-written-interface-ratchet.test.ts`. Standing rules:
 - 🔴 **A leave and a join in one milestone is the generator running — stop, do
   not net.** And **a `type` alias that satisfies the detector is the ratchet
   GAMED** — a file leaves by consuming the generated type, never by rephrasing.
@@ -569,8 +567,7 @@ pairing fails CI). Standing rules from the milestone:
   operator/identity (8), AI (3), read-only/infra (4), plus pickers and shells
   in them. They carry no tenant money, the ratchet holds the line whether or
   not they migrate, and burning them down would make the COUNT the goal — the
-  failure this milestone already named once with the type-alias move. Reasoning
-  and the by-shape inventory: findings file. **Do not read 20 as unfinished.**
+  failure this milestone already named once with the type-alias move. Inventory: findings file. **Do not read 20 as unfinished.**
 - TanStack migration is unblocked now that the money surfaces are typed.
 ## 6. Tech Stack
 

@@ -5701,3 +5701,66 @@ convenience. **Ask what a file CONTAINS before asking what it is FOR.**
 
 The design doc keeps the reference as prose and names the exclusion, so the
 next person does not re-add it "for convenience".
+
+## 2026-09-02 — BOTH P0 ITEMS HAD A WRONG STATED REASON, AND EACH WRONG REASON HAD A PLAUSIBLE REMEDY
+
+**The pattern** (owner-named): a queue entry records **what someone believed at
+the time, not what is true now**. Both P0 items were implemented after checking
+their stated reason, and in both the reason was wrong in a way that would have
+changed the fix — and, worse, each wrong reason pointed at a *plausible* remedy
+that would not have worked.
+
+| Item | Stated reason | What it argues for | What was true | What actually fixed it |
+| --- | --- | --- | --- | --- |
+| **C13** | "documented, paged as critical — known and alarmed, not hidden" | better alarming | an alarm tells you a write was lost; it does not prevent it | **ordering** — settle the transaction before the response goes out |
+| **M-4** | "`bcryptjs` blocks the event loop" | a faster KDF | the async API yields; one login costs ~98ms of lag, but ten concurrent cost a 2s stall | **moving it OFF the loop** — `crypto.scrypt` on the threadpool |
+
+🔴 **The dangerous half is not that the reason was wrong — it is that the wrong
+reason was actionable.** A reason that is obviously nonsense gets checked. A
+reason that suggests a sensible-sounding fix gets implemented, and the work
+looks complete while the defect survives: a faster KDF would have made M-4's
+graphs prettier and left the queueing untouched; better alarming would have made
+C13's pages more informative about a write that was still being lost.
+
+**The rule:** before implementing against a queue entry, verify its REASON, not
+just its existence. The entry is evidence that someone saw something; it is not
+evidence about the mechanism. Cheapest form: for a performance claim, measure;
+for a behaviour claim, reproduce; for a regulatory claim, read the primary text.
+All three were done this session, and all three changed the work.
+
+**Related, already recorded:** "an instruction's referent — and its MECHANISM —
+is an INPUT" (the same discipline aimed at instructions rather than at the
+queue), and "sources rank LIVE API > SDK > PDF > secondary".
+
+## 2026-09-02 — L1 CUSTOMISATION DECIDED, AND THE EMPTY-BLOCK RULE
+
+Owner decisions, recorded in
+[`design-invoice-document.md`](../product/design-invoice-document.md) §2:
+
+- **Logo:** uploaded and stored, **no fallback mark**. *"A text mark is a fake
+  logo, and a stand-in that looks designed is worse on a legal document than an
+  empty space."* When absent, the registered name carries the header.
+- **Four level-2 toggles**, with defaults: bank details ON for invoices / OFF
+  for credit notes; terms OFF until written; stamp area OFF; amount in words
+  OFF.
+- **PDF/A-3 with embedded XML in v1**, not as a follow-up.
+
+🔴 **The rule the owner drew out of the toggle defaults, which governs every
+optional block added later: AN EMPTY BLOCK PRINTS ITS EMPTINESS.** An unwritten
+terms footer prints a heading with nothing under it; an unused stamp area prints
+an empty bordered box on a PDF nobody will physically stamp. Both look like a
+fault on a document a customer keeps. So an optional block **defaults OFF and
+turns itself on when it has content** — the placeholder problem in document
+form, the same rule as refusing to print `"(not yet translated)"` into a
+ZATCA-stamped artifact.
+
+**And the renderer question was brought back rather than absorbed.** PDF/A-3
+does materially change the choice, and the binding constraint turns out to be
+Arabic shaping rather than PDF/A: pure-JS PDF builders do not shape Arabic
+(disconnected letters unless we pre-shape and reorder ourselves), while Chromium
+shapes correctly but writes no PDF/A metadata and cannot attach files. The
+viable shape is two-stage — Chromium renders, a PDF library attaches the XML and
+writes the PDF/A-3 metadata — and 🔴 **whether the result CONFORMS is a claim
+for veraPDF to make, not for a README**, so it is a spike before a library is
+chosen. Also found while scoping: **nothing in the codebase renders the QR as an
+image** — only the base64 TLV payload exists.

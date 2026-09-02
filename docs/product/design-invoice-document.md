@@ -139,6 +139,42 @@ It does not. That matters more than the conclusion it supported:
 | Level 1 | ✅ branding | Logo, colour, fonts |
 | Level 2 | ✅ on/off | Bank details, terms footer, stamp area, amount in words, product codes, customer code, purchase-order reference |
 
+### 🔴 DECIDED (owner, 2026-09-02)
+
+**Logo — uploaded, stored, and ABSENT when there is none.**
+One upload in Company Settings (PNG/JPG/SVG, size-capped, magic-byte sniffed —
+M-5's rule applies to it), kept through the existing storage seam. **No
+fallback mark.** When a tenant has no logo the header carries the registered
+name alone.
+
+> *"A text mark is a fake logo, and a stand-in that looks designed is worse on
+> a legal document than an empty space."*
+
+That is the omit-rather-than-promise rule (the dead Export buttons, the
+VendorDetail precedent) applied to branding: an absence that looks like a
+decision is worse than an absence that looks like an absence.
+
+**The four level-2 toggles, with their defaults:**
+
+| Block | Default | Why |
+| --- | --- | --- |
+| Bank details | **ON** for invoices, **OFF** for credit notes | A customer paying an invoice needs somewhere to pay; a credit note is money going the other way |
+| Terms & conditions footer | **OFF** until the tenant writes one | — |
+| Signature / stamp area | **OFF** | — |
+| Amount in words | **OFF** | Twice in the generated sample, absent from the real invoice |
+
+🔴 **The last three share a shape, and it governs every optional block added
+later: AN EMPTY BLOCK PRINTS ITS EMPTINESS.** An unwritten terms footer prints
+a heading with nothing under it; an unused stamp area prints an empty bordered
+box on a PDF nobody will ever physically stamp. Both look like something went
+wrong, on a document a customer keeps. **So an optional block defaults OFF and
+turns itself on only when it has content** — the placeholder problem in
+document form, and the same rule as the `nameAr` refusal in §1: do not print a
+space where a value should be.
+
+**PDF/A-3 is v1, not a follow-up** — see §4. If it materially changes the
+renderer choice, that is a decision to bring back rather than absorb.
+
 Making the compliance-critical region **inexpressible to break** is §3's
 "make the wrong thing inexpressible, not forbidden", applied here.
 
@@ -215,6 +251,40 @@ The Resolution names the human-readable formats directly (Clause Third, A):
 Building a plain PDF now and converting later is the same mistake as building
 the navigation before the features: the embedding constraint shapes the
 generator, and retrofitting it means rewriting it.
+
+### 🔴 It DOES change the renderer choice — and the binding constraint is Arabic, not PDF/A
+
+Reported before picking anything, because the two requirements pull in
+opposite directions and no single library satisfies both:
+
+| | Arabic shaping | PDF/A-3 + embedded XML |
+| --- | --- | --- |
+| `pdf-lib`, `PDFKit`, `pdfmake` | ❌ no contextual shaping or bidi — Arabic comes out as disconnected letters in visual order unless we pre-shape with harfbuzzjs and reorder with a bidi library ourselves | ⚠️ can attach files and write metadata |
+| Chromium (Puppeteer/Playwright) | ✅ correct — HarfBuzz shaping and bidi, the same engine the app is already rendered in | ❌ print-to-PDF writes no PDF/A metadata and cannot attach files |
+| Ghostscript | n/a (converter) | ✅ real PDF/A conversion, at the cost of a heavy native binary in the deployment |
+
+🔴 **Arabic shaping is the harder constraint, and it is the one we cannot get
+wrong** — §1 makes Arabic mandatory on the document, and hand-rolled shaping on
+a legal artifact is exactly the class of work that looks right in a sample and
+is wrong for some tenant's name.
+
+**The shape that satisfies both is two-stage:** render with Chromium (correct
+Arabic, and the layout is HTML/CSS we already know how to write), then
+post-process with a PDF library to attach the signed XML and add the PDF/A-3
+XMP metadata and OutputIntent.
+
+🔴 **NOT YET VERIFIED, and must be before a library is chosen:** that the
+post-processed file actually *conforms* to PDF/A-3 rather than merely carrying
+its metadata. The check is a spike, not an opinion — render one real Arabic
+invoice, attach its XML, and run **veraPDF** (the reference validator) against
+it. Conformance is a claim a validator makes, not one a library's README makes:
+the ZATCA lesson about external validators applies here too.
+
+**Also missing today, found while scoping this:** nothing in the codebase
+renders the QR as an IMAGE. `packages/zatca-tlv` produces the base64 TLV
+payload and `einvoice/crypto/qr.ts` builds it, but no QR image library exists in
+either app. The artifact needs one, and it is a v1 dependency rather than a
+detail — a simplified invoice's QR exists to be *presented*.
 
 ---
 
