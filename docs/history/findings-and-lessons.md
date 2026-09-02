@@ -5595,3 +5595,85 @@ balance keyed on a field never sent, `creditLimit: ""` stored as 0.00, an
 a `PATCH` that discarded its payload, a report that filtered client-side over a
 silent cap, a ledger list of confident zeros, and an approvals queue that said
 "nothing pending" while money waited.
+
+## 2026-09-02 — TWO OWNER RULES CORRECTED BY READING THE PRIMARY TEXT (the invoice document, L1)
+
+Both corrections came from the same session, both were recorded as CORRECTIONS
+rather than quietly superseded (owner's instruction), and both were found by
+reading a regulation rather than by reasoning from a convention.
+
+### Correction 1 — the language rule was wrong in BOTH directions
+
+**The superseded rule:** a document must be *wholly* Arabic or *wholly*
+English.
+
+**What the primary Arabic text says** — VAT Implementing Regulations, seventh
+edition as amended 3 October 2021, from ZATCA's own site (the Arabic version,
+which prevails over ZATCA's own English translations by their stated
+disclaimer). Two independent clauses:
+
+- Article 53 (الفواتير الضريبية), introducing the required details (p. 43):
+  «يجب أن تكون الفاتورة الضريبية **باللغة العربية بالإضافة لأي لغة اخرى قد تصدر
+  بها**، ومتضمنة التفاصيل الآتية:» — *the tax invoice must be in the Arabic
+  language, in addition to any other language it may be issued in.*
+- The record-keeping article (p. 54), broader still: «يجب مسك السجلات باللغة
+  العربية، ويجب **اصدار جميع الفواتير باللغة العربية** بالإضافة لأي لغة اخرى قد
+  تصدر بها» — *records must be kept in Arabic, and all invoices must be issued
+  in Arabic in addition to any other language.*
+
+So: **wholly English is not compliant**, and **bilingual is the case the
+regulation explicitly contemplates** — not a deviation from a rule.
+
+🔴 **And the English translations understate the Arabic.** The widely-quoted
+English rendering says the invoice must include the required *details* in
+Arabic "as a translation". The Arabic says the **invoice** must be in Arabic,
+and carries **no "as a translation" qualifier**. An intermediate reading in
+this same session — "details in Arabic, not labels" — was itself derived from
+that English and was also wrong. **Three readings, three different scopes, one
+primary sentence that settles it.** This is §3's "sources rank LIVE API > SDK >
+PDF > secondary" and "an unread primary source is not a licence to trust a
+secondary one", earned again on a clause an entire feature rests on.
+
+**The rule now in force** (design doc §1): every label Arabic; every value in
+Arabic wherever we hold an Arabic form (`nameAr`, `descriptionAr` — the schema
+already carries them); stored script only where no Arabic form exists; other
+languages permitted alongside. 🔴 A `nameAr` still holding
+`"(not yet translated)"` is a **compliance** signal, not a cosmetic one.
+
+### Correction 2 — "ZATCA constrains the structure" was false, and the false reason mattered more than the true conclusion
+
+**The claim:** customisation should stop at levels 1–2 because ZATCA
+constrains the invoice's structure.
+
+**The primary text** (Controls, Requirements, Technical Specifications and
+Procedural Rules, Decision 62738, Annex 1, "Invoice and Credit/Debit Note
+Format"): **"No required format as long as the required data are present in
+the invoices and notes."** ZATCA constrains the FIELD SET, the printed QR, and
+that a simplified invoice's printed copy reaches the customer — **never the
+layout**. The standard Saudi look is a convention.
+
+**Why the correction matters more than the conclusion it supports**
+(owner-named): the conclusion — levels 1–2 are enough — survives either way.
+But under the false premise, level 3 would have been **forbidden**, a
+compliance wall built out of a convention, and nobody would ever have revisited
+it. Under the true one it is **unnecessary, not forbidden**: a product
+judgement, revisable the day a tenant needs something levels 1–2 cannot
+express. 🔴 **A constraint attributed to a regulator is permanent; the same
+constraint attributed to a judgement has a review date.** Check which one you
+have before you write it down.
+
+### Also settled in the same reading
+- **The document type is stated by the TITLE** — «فاتورة ضريبية» vs «فاتورة
+  ضريبية مبسطة». The generated sample's missing type needed no new component.
+- **Amount in words: twice in the generated sample, ZERO times in the real
+  one.** It is optional — a level-2 toggle, default off. A field can look
+  mandatory purely by being duplicated in a mock.
+- **PDF/A-3 with embedded XML** is the format the Resolution names for the
+  human-readable copy; targeted from the start rather than converted later
+  ("the same mistake as building the nav before the features" — owner).
+- The generated sample's summary contradicted its own lines (15,410 vs 9,545).
+  The template DERIVES the summary from the lines: the header-versus-lines
+  class §4 closes at the write boundary must not reappear at the presentation
+  boundary.
+
+Design: [`design-invoice-document.md`](../product/design-invoice-document.md).
