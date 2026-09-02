@@ -5469,6 +5469,66 @@ the AI three carry no tenant money and can be burned down as a low-priority
 sweep or left pinned with the ratchet holding the line. The milestone's
 remaining value is roughly one more money batch, not four.
 
+## 2026-09-02 — A NARROWER VERIFICATION REPORTED AS A BROADER ONE (three instances in one day)
+
+**What happened.** C13's PR went red on `build` and `typecheck` while `test`,
+`e2e` and `secrets` passed. The cause was a TypeScript error in a regression
+test added *after* the last `tsc` run: an object literal's methods infer `this`
+as `{}`.
+
+**The precise form** (owner-named): *"the tests pass" was TRUE and "the
+typecheck passes" was FALSE, and the first was reported as covering the
+second.* `vitest` does not typecheck. This is the vacuous-green family — a
+measurement that does not measure what its report claims — but aimed at the
+**reporter** rather than at a guard: no instrument was broken; the wrong
+instrument was cited.
+
+**Three instances in one day**, all on the same change:
+1. `commitBeforeResponse` bound `send`/`end`/`write` unconditionally; a fake
+   `res` with only `status`/`json` made binding throw, and `resolveTenant`'s
+   outer catch turned it into a 500 with no `next()`. Caught by the full API
+   suite after a filtered run had been green.
+2. An assertion written about which METHOD ran (`res.json`) rather than what
+   was WRITTEN — the corrected 500 legitimately goes out through `res.json`, so
+   the assertion was about the wrong thing. Caught by the test failing.
+3. This one: `vitest` green, repo typecheck red, the first reported as the
+   verdict.
+
+**Why "be more careful" is not the countermeasure.** Three instances in a day
+is a rate, not an accident, and the rule it violates — *a hardening step is
+untested code added after the tests passed; re-run the thing you just
+hardened* — was already written down and already known. A rule that is already
+known and still broken three times needs a mechanism, not another sentence.
+
+**The mechanism.** `pnpm run verify` at the repo root runs exactly what CI's
+non-e2e jobs run, in CI's order, failing on the first:
+
+    typecheck → api-server tests → db tests → zatca-tlv tests → web tests → build
+
+It is now the verification step named in CLAUDE.md §11's conventions, replacing
+"typecheck before considering work done". The browser suite stays separate
+(`pnpm --filter @workspace/bookkeeping run test:e2e`) because it needs servers,
+a database and browsers — and because naming it separately is what stops
+`verify` from being reported as covering it, which would be this same defect
+one level up.
+
+**What is still on the human — and the gate SAYS SO ITSELF** (owner, 2026-09-02).
+`verify` is a script rather than a `&&` chain for one reason: a chain answers
+"something failed" and says nothing about scope, so the reader supplies the scope
+from memory — which is the defect. It therefore prints, on both paths:
+
+- on failure: which step failed, which passed before it, and 🔴 **which steps did
+  NOT RUN and are therefore NOT VERIFIED**;
+- on pass and failure alike: what `verify` does not cover at all — the browser
+  suite (with the command), whether a page renders or a control does anything
+  (P5's job), anything needing a live external service, and the deployment-time
+  items.
+
+🔴 **A gate that states its limits at the moment someone reads it is worth more
+than a doc entry they would have to go looking for** — the same reasoning as a
+Coming Soon page naming its own blocker. The moment a gate goes green is exactly
+the moment somebody is about to report it as proof of something wider, which is
+why the limits print on success too, not only on failure.
 ## 2026-09-02 — CONTRACT BATCH 5, AND THE DELIBERATE STOP AT 20
 
 **Scope (owner-sequenced):** the last money batch — the approvals queue as a
