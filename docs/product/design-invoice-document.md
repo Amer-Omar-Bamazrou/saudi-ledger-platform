@@ -273,12 +273,66 @@ Arabic, and the layout is HTML/CSS we already know how to write), then
 post-process with a PDF library to attach the signed XML and add the PDF/A-3
 XMP metadata and OutputIntent.
 
-🔴 **NOT YET VERIFIED, and must be before a library is chosen:** that the
-post-processed file actually *conforms* to PDF/A-3 rather than merely carrying
-its metadata. The check is a spike, not an opinion — render one real Arabic
-invoice, attach its XML, and run **veraPDF** (the reference validator) against
-it. Conformance is a claim a validator makes, not one a library's README makes:
-the ZATCA lesson about external validators applies here too.
+### ✅ VERIFIED BY SPIKE (2026-09-02) — veraPDF says PASS
+
+```
+PASS  stage2-pdfa3.pdf  3b
+isCompliant="true"   passedRules="146"   failedRules="0"
+```
+
+**The verdict is the validator's, not the script's** — the spike script only
+produces files and says so in its own output.
+
+**The first run FAILED, and the two failures were worth having:**
+
+| ISO 19005-3 | veraPDF's words | Fix |
+| --- | --- | --- |
+| 6.2.4.3 | *"DeviceRGB colour space is used without RGB output intent profile"* | embed an sRGB ICC profile as the PDF/A OutputIntent |
+| 6.1.3 | *"Missing or empty ID in the document trailer"* | write a file identifier — pdf-lib does not |
+
+🔴 **144 of 146 passed on that first run, including every font-embedding rule** —
+the one class that could have killed the approach. Neither failure touched
+Arabic. After both fixes: 146/146.
+
+**Arabic survives as real text, not pixels.** `pdftotext` on the Chromium
+output returns «فاتورة ضريبية», «شركة الفيصل التجارية», «د. الجوهرة بنت عبدالله»
+— correctly shaped, correctly ordered, selectable Unicode. So the choice
+between correct Arabic and conformant PDF/A-3 does not have to be made; the
+two-stage pipeline gives both.
+
+Also confirmed by decompressing the object streams: `AFRelationship`,
+`invoice.xml`, `GTS_PDFA1` and `OutputIntents` are all present, the embedded
+XML is recoverable, and the QR is a real 300×300 image on page 1.
+
+### 🔴 The one thing the spike did NOT settle: which ICC profile ships
+
+The mechanism is proven; **the artefact is not.** The spike embedded
+`C:\Windows\System32\spool\drivers\color\sRGB Color Space Profile.icm` —
+**Copyright © 1998 Hewlett-Packard**, licensed to Windows users and **NOT
+redistributable by us**. It proved the OutputIntent works and must never ship.
+
+**Chosen source: Debian's `icc-profiles-free` package** (owner, 2026-09-03),
+taken over a browser-driven fetch from the ICC registry. Three registry URLs
+returned HTML rather than a profile to `curl` — a build step that needs a
+JS-capable client to download a licence-bearing binary fails quietly later,
+whereas a packaged artefact can carry a **pinned checksum**, which is the same
+discipline as the ZATCA manifest.
+
+The ICC's own terms, for the record, are met by shipping the file unmodified:
+
+> "…permission to use, copy and distribute this file for any purpose is hereby
+> granted without fee, provided that the file is not changed including the ICC
+> copyright notice tag, and that the name of ICC shall not be used in
+> advertising or publicity…"
+
+### v1 dependencies, named rather than discovered later
+
+| Dependency | Why it is v1 |
+| --- | --- |
+| Chromium (via Playwright) | The only renderer that shapes Arabic correctly. 🔴 **~150 MB added to the deployment** — a C6 hosting line, not a footnote |
+| `pdf-lib` | Attaches the signed XML, writes the PDF/A-3 XMP, OutputIntent and trailer ID |
+| **A QR image library** (e.g. `qrcode`) | 🔴 **A simplified invoice's QR exists to be PRESENTED, so a document without a rendered QR fails its own purpose.** We have had the TLV payload (`packages/zatca-tlv`) and the crypto (`einvoice/crypto/qr.ts`) for months and never the image — the artifact half of a compliance feature, absent because nothing consumed it |
+| An sRGB ICC profile | Required by ISO 19005-3 6.2.4.3; see the licensing note above |
 
 **Also missing today, found while scoping this:** nothing in the codebase
 renders the QR as an IMAGE. `packages/zatca-tlv` produces the base64 TLV

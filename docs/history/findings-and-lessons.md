@@ -5824,3 +5824,64 @@ writes the PDF/A-3 metadata — and 🔴 **whether the result CONFORMS is a clai
 for veraPDF to make, not for a README**, so it is a spike before a library is
 chosen. Also found while scoping: **nothing in the codebase renders the QR as an
 image** — only the base64 TLV payload exists.
+
+## 🔴 2026-09-03 — A SPIKE THAT PROVED THE MECHANISM ON AN ARTEFACT THAT CANNOT SHIP
+
+**The result:** veraPDF returns `PASS`, `isCompliant="true"`, 146/146 rules, for
+a PDF/A-3B produced by Chromium plus pdf-lib post-processing, with Arabic
+extractable as correctly-shaped Unicode text. The two-stage pipeline works.
+
+**The catch, and why it is the part worth stating loudest:** that PASS was
+obtained with `C:\Windows\System32\spool\drivers\color\sRGB Color Space
+Profile.icm` — **Copyright © 1998 Hewlett-Packard**, licensed to Windows users
+and **not redistributable by us**. The OutputIntent requirement (ISO 19005-3
+6.2.4.3) is satisfied by *an* sRGB profile; the spike satisfied it with one we
+cannot ship.
+
+🔴 **A correct result resting on an input that must be replaced, whose failure
+mode is that the result looks FINISHED.** Nothing about a green validator
+verdict says "the profile inside this file is borrowed". The proof is sound and
+the conclusion holds — *the mechanism is proven and only the file is open* — but
+a reader six weeks from now sees "veraPDF PASS" and builds on it without
+learning that one input was a stand-in. So it is recorded here in the same
+breath as the result, not in a footnote.
+
+**The general shape:** a spike substitutes whatever is nearest to hand for
+inputs that are not the thing under test — that is what makes it fast, and it is
+correct practice. The defect is not the substitution; it is letting the
+substitution disappear into a green result. **A spike's report must name every
+stand-in it used, beside the verdict.**
+
+**Chosen replacement (owner, 2026-09-03): Debian's `icc-profiles-free` package**,
+over a browser-driven fetch from the ICC registry — three registry URLs returned
+HTML rather than a profile to `curl`, and a build step needing a JS-capable
+client to download a licence-bearing binary fails quietly later. A packaged
+artefact carries a **pinned checksum**, which is the ZATCA-manifest discipline
+applied to a build input. The ICC's terms permit redistribution of the
+unmodified file with its copyright tag intact.
+
+## 🔴 2026-09-03 — A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE
+
+**Four instances this week, one tell: the instrument disagreed with something
+already known to be true.**
+
+| # | Probe | Reported | Actually |
+| --- | --- | --- | --- |
+| 1 | `grep` over a PDF's raw bytes | `AFRelationship`, `invoice.xml`, `GTS_PDFA1`, `OutputIntents` **absent** | all four present, inside compressed object streams |
+| 2 | `verify`'s step runner | "verify FAILED at: typecheck" | `pnpm.cmd` never launched — Node ≥ 20 refuses `.cmd` without a shell |
+| 3 | A fault injection meant to prove the failure path | "the failure path works" | it could not distinguish a failing step from a broken runner; both printed the same thing |
+| 4 | `curl` fetching an ICC profile | "file downloaded, 15 KB" | an HTML error page, caught only by reading its ICC header **against a known-good profile** |
+
+**The rule:** *when a probe reports an ABSENCE, first prove the probe can see a
+known-present case.* A negative from an unvalidated instrument is not evidence
+of absence; it is an unread instrument.
+
+🔴 **And where it is cheap, build the known-present case INTO the probe** rather
+than remembering to run it — instance 4 worked precisely because the check
+printed the known-good profile's header on the same line as the candidates', so
+`space='RGB '` versus `space='<htm'` was impossible to miss. That is the
+difference between a habit that depends on discipline and one that depends on
+construction, which is the §3 preference everywhere else.
+
+This is the vacuous-guard rule pointed at **ad-hoc investigation** rather than
+at tests: the same failure, in the place where nobody writes an assertion.
