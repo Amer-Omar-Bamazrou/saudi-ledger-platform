@@ -137,10 +137,21 @@ describeMaybe("the two handles, against real rows", () => {
 
 describe("a commit that fails AFTER the response was sent pages a human", () => {
   /**
-   * 🔴 The failure this covers cannot be prevented from where it happens: the
-   * client already holds its 2xx. So the assertion is not "it does not happen"
-   * but "somebody finds out" — the B2 question. Before this, a failed commit
-   * wrote one log line and the tenant discovered it when an invoice was missing.
+   * 🔴 NARRATIVE UPDATED 2026-09-02 — C13 IS CLOSED, and an assertion of
+   * "cannot be prevented" expires the day it is prevented (§3's obsolete
+   * assertion rule).
+   *
+   * The transaction now settles BEFORE the response goes out
+   * (`lib/responseCommit.ts`, proved by `commit-before-response.test.ts`), so
+   * the ordinary case is corrected rather than merely alarmed: a failed commit
+   * answers 500 `commit_failed` and no success is ever sent.
+   *
+   * What remains — and what this alert still covers — is the RESIDUAL case: a
+   * response already begun (a stream past its first chunk) whose commit then
+   * fails cannot be recalled. It keeps this key because it is that original
+   * condition, now reduced to that one path; the correctable case pages under
+   * `tenant-commit-failed` instead. The assertion here is still "somebody
+   * finds out", which is the right one for a case nobody can undo.
    */
   it("fires a CRITICAL alert naming the request, and never leaks the body", async () => {
     const { __setAlerterForTests } = await import("../lib/alerter");

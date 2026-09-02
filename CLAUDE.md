@@ -286,7 +286,7 @@ rules at the top of this file, rule 2).
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
 - **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
 - **🔴 A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
-- **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Take the shape it describes, check the mechanism, and REPORT a mismatch rather than building the plausible thing. Corrections ship narrow; a named gap beats a silent default. (Seven instances; table in the findings file.)
+- **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Take the shape it describes, check the mechanism, and REPORT a mismatch rather than building the plausible thing. Corrections ship narrow; a named gap beats a silent default. 🔴 **A LABEL IS A REFERENT TOO** — "continue with P0-1" named an item in a plan outside this repo; asking beat guessing, and the mapping is now recorded in §5 rather than re-derived. (Eight instances; table in the findings file.)
 - **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces** — breadth is SEEDED and asserted, never hoped for. A suspiciously ROUND count is a diagnosis. Incidents: findings file.
@@ -448,6 +448,11 @@ its as-built record goes to
 which holds every closed item (A1–A4, B1–B5, C1's code half, C2, C5, C9, C11,
 C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 
+🔴 **The owner's external plan labels map onto THIS queue** (recorded
+2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
+P0-1 = C13 ✅ closed · P0-2 = M-4 · P1-1 = L1 · P1-2 = L2 · P1-4 = password
+recovery (rank 1 below). Working order is that sequence.
+
 ### Blocking, by their own nature
 
 | # | Item | What would close it |
@@ -470,7 +475,6 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
 | **C6** | **Residency / hosting, now also the AI hosting decision.** (1) 🔴 Negotiate + sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier is in use for development and routes globally, and "development" is not an exception. (2) Confirm an Arabic-acceptable vision model in the Dammam region. (3) The platform-hosting half (region + KMS) is unchanged. No hosted Supabase project exists yet. |
 | **C6a** | 🔴 **BLOCKING BEFORE THE AI LAYER IS ENABLED — a code change, not a contract.** `findings.schedule.service.ts` calls the AI provider **inside an open tenant transaction**; the 15s idle-in-transaction guardrail fires and kills the connection (and killed the whole process until 2026-08-31). This is what the **e-invoice outbox already solved** — a synchronous call to an external API cannot live inside the request transaction. Move the pass out (read inside, call outside, write back in a short second transaction). Invisible only because the layer is dark. |
-| **C13** | 🔴 **COMMIT-AFTER-RESPONSE — promoted 2026-08-31.** `lib/tenant.ts` commits in `res.on("finish")`: the client holds its 2xx before the commit runs, so a failed commit means a write reported as saved that never persisted. Documented at the site, paged as critical, and production cannot boot unalerted — **known and alarmed, not hidden**. Promoted because the trigger stopped being hypothetical (connection-death mid-request happened 2026-08-31): **an alarm tells you a write was lost; it does not prevent it.** Fix = commit BEFORE the body goes out; a core-pipeline change with streaming paths to get right, and half-doing it is worse than not starting. |
 
 ### Advisor package — one conversation, four blocks
 
