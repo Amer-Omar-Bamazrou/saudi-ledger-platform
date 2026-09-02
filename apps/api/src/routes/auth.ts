@@ -2,7 +2,7 @@
  * Auth routes: POST /auth/register, POST /auth/login, POST /auth/logout, GET /auth/me
  */
 import { Router } from "express";
-import bcrypt from "bcryptjs";
+import { decoyHash, hashPassword, MAX_PASSWORD, needsRehash, verifyPassword } from "../lib/password";
 import rateLimit from "express-rate-limit";
 import { PostgresRateLimitStore } from "../lib/rateLimitStore";
 // 🔴 The OWNER connection, named deliberately rather than inherited.
@@ -21,7 +21,6 @@ import { userAdminService, safeUser } from "../services/userAdmin.service";
 import { requireIdParam } from "../lib/httpParams";
 
 const router = Router();
-const SALT_ROUNDS = 12;
 
 /** Actor context for the security-audit trail, from the authenticated session. */
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
@@ -110,7 +109,11 @@ export async function __resetRateLimitsForTests(): Promise<void> {
 // costs roughly the same as comparing against a real user's hash, so an attacker
 // can't distinguish "no such user" from "wrong password" by response time.
 // The plaintext is irrelevant — it only ever needs to NOT match a real password.
-const DUMMY_PASSWORD_HASH = bcrypt.hashSync("timing-attack-decoy", SALT_ROUNDS);
+/**
+ * 🔴 The decoy is built LAZILY and OFF-THREAD (M-4). It used to be
+ * `bcrypt.hashSync` at module load — a ~800ms synchronous stall during boot,
+ * on the path that decides whether the process can accept traffic at all.
+ */
 
 // `safeUser` now lives in userAdmin.service (shared with the org-scoped
 // user-administration surface) and is re-used here for /me and /login.
@@ -185,6 +188,14 @@ router.post("/login", authRateLimiter, async (req, res) => {
     if (!email || !password) {
       res.status(400).json({ error: "email and password are required." }); return;
     }
+    /**
+     * 🔴 Bound BOTH inputs before any hashing (M-4). An unbounded body reaching
+     * a KDF is work an unauthenticated caller chose for us; `email` is bounded
+     * because it is a database lookup key, not because it is hashed.
+     */
+    if (typeof email !== "string" || email.length > 320 || typeof password !== "string" || Buffer.byteLength(password, "utf8") > MAX_PASSWORD) {
+      res.status(400).json({ error: "Invalid credentials." }); return;
+    }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
 
@@ -192,9 +203,27 @@ router.post("/login", authRateLimiter, async (req, res) => {
     // exists, otherwise against a fixed decoy — so the response time is the same
     // whether or not the email is registered. This closes the timing side channel
     // that would otherwise let an attacker enumerate valid accounts.
-    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    const valid = await verifyPassword(password, user?.passwordHash ?? (await decoyHash()));
     if (!user || !user.isActive || !valid) {
       res.status(401).json({ error: "Invalid credentials." }); return;
+    }
+
+    /**
+     * 🔴 MIGRATION WITHOUT A RESET (M-4): a correct password verified against a
+     * legacy bcrypt hash is re-stored as scrypt here — the one moment we hold
+     * the plaintext and know it is right. The estate migrates itself as people
+     * log in; nobody is locked out and nobody is asked to do anything.
+     *
+     * Failing to re-store must NOT fail the login: the user's password is
+     * correct either way, and the old hash still verifies next time.
+     */
+    if (needsRehash(user.passwordHash)) {
+      try {
+        const upgraded = await hashPassword(password);
+        await db.update(usersTable).set({ passwordHash: upgraded }).where(eq(usersTable.id, user.id));
+      } catch (rehashErr) {
+        req.log.warn({ err: rehashErr, userId: user.id }, "password rehash failed; login unaffected");
+      }
     }
 
     // Stamp last login
@@ -313,9 +342,9 @@ router.post("/change-password", authRateLimiter, requireAuth, async (req, res) =
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId!)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found." }); return; }
-    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    const valid = await verifyPassword(currentPassword, user.passwordHash);
     if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
-    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const passwordHash = await hashPassword(newPassword, "newPassword");
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
     await securityAuditService.record({
       action: "user.password_changed",

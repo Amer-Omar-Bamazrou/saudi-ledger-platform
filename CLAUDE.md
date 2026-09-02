@@ -331,6 +331,7 @@ rules at the top of this file, rule 2).
   ambient global role.
 - **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (The conversion found a live unscoped read; incident: findings file.)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
+- **🔴 PASSWORDS GO THROUGH `lib/password.ts` — ONE SEAM.** `crypto.scrypt` (N=2^17, off the event loop) for new hashes; bcrypt kept ONLY to verify pre-2026-09-02 hashes, with transparent rehash on the next correct login. Never call a KDF directly, and never store a hash another way: the seam is where the length bound, the parameters and the migration live.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
   human approves.
@@ -451,7 +452,7 @@ C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
 
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
-P0-1 = C13 ✅ closed · P0-2 = M-4 · P1-1 = L1 · P1-2 = L2 · P1-4 = password
+P0-1 = C13 ✅ · P0-2 = M-4 ✅ · P1-1 = L1 · P1-2 = L2 · P1-4 = password
 recovery (rank 1 below). Working order is that sequence.
 
 ### Blocking, by their own nature
@@ -502,7 +503,7 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **3** | **M-4** `bcryptjs` blocks the event loop on public endpoints, and no max-length validation before `varchar(255)` · **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
+| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** the operator queue list is unaudited (accepted). *(M-4 closed 2026-09-02.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted): `platform-alarms`
 is NOT operator-runnable (one-line flip if manual paging tests are wanted);
