@@ -798,3 +798,88 @@ narrative "this failure cannot be prevented from where it happens". That was
 true when written and is now false; the comment is updated to describe the
 residual case it still covers. An assertion of impossibility expires the day
 the thing is done.
+
+
+## M-4 — PASSWORD HASHING OFF THE EVENT LOOP (CLOSED 2026-09-02)
+
+**The note said:** "`bcryptjs` blocks the event loop on public endpoints, and
+no max-length validation before `varchar(255)`."
+
+### 🔴 Measured first — and the measurement corrected the mechanism
+
+Event-loop lag is what every OTHER request in the process waits; measured with
+a 5ms interval on this machine (cost 12, Node 24):
+
+| | wall | worst loop lag |
+| --- | --- | --- |
+| bcryptjs async compare | 753ms | 98ms |
+| bcryptjs async compare, 1 MB password | 786ms | 129ms |
+| **10 concurrent bcryptjs compares** | **10,598ms** | **2,068ms** |
+| crypto.scrypt at N=2^17 | 549ms | 14ms |
+| **10 concurrent crypto.scrypt** | **2,145ms** | **23ms** |
+
+Three corrections came out of measuring rather than accepting the note:
+
+1. **bcryptjs's async API DOES yield.** One login costs ~98ms of lag, not the
+   750ms its wall time suggests. So the note's mechanism — "blocks the loop" —
+   was wrong for a single request.
+2. **The damage is CONCURRENCY.** Ten simultaneous logins — a busy morning, not
+   an attack — produce 10.6 seconds of wall time and a **two-second** loop
+   stall, and every tenant's unrelated request waits behind it. That is the
+   real defect, and it is worse than the note claimed, not milder.
+3. **The length rule is NOT about hashing cost.** A 1 MB password costs bcrypt
+   almost nothing extra, because **bcrypt truncates at 72 bytes** — verified: a
+   200-byte password matches a hash built from its own first 72 bytes. So two
+   different long passwords sharing a 72-byte prefix are the SAME password,
+   silently. That is the reason to bound length, and scrypt (which reads the
+   whole input) removes the truncation itself.
+
+🔴 **The fix would have been different if the note had been believed.** "It
+blocks the loop" argues for a faster KDF; "it queues badly under concurrency"
+argues for one that runs OFF the loop. Only the second is true, and only the
+second leads to `crypto.scrypt`.
+
+### The fix
+`lib/password.ts` is the single seam: `crypto.scrypt` at OWASP's floor
+(N=2^17, r=8, p=1, 64-byte key, 16-byte salt) on the libuv threadpool, no
+native dependency to build or deploy. Format
+`scrypt$N$r$p$<salt b64>$<key b64>` (131 chars; the column is `text`).
+
+- **Nobody is locked out.** Legacy bcrypt hashes still verify, and a correct
+  password verified against one is re-stored as scrypt at the one moment we
+  hold the plaintext and know it is right. The estate migrates itself as people
+  log in. A failed rehash never fails the login.
+- **Bounded before any KDF runs.** `assertPasswordAcceptable` (8–1024 bytes)
+  and `assertFitsColumn` (255) run first, so an over-long body is a 400 the
+  user can act on rather than work an unauthenticated caller chose for us — or
+  a Postgres 22001 surfacing as a 500. The `varchar(255)` exposure on the
+  public path is `organizations.name`, `organizations.slug` and
+  `companies.name`, all written by signup.
+- **The boot stall is gone.** The timing decoy was `bcrypt.hashSync` at module
+  load — a ~800ms synchronous stall on the path that decides whether the
+  process can accept traffic. It is now built lazily, off-thread.
+- **Five copies of the policy removed.** `SALT_ROUNDS = 12` and
+  `MIN_PASSWORD = 8` were duplicated across five files with "must match
+  auth.ts" comments — a convention wearing an invariant's clothes. One seam,
+  one policy; §4 now states it.
+
+### 🔴 The test found an authentication bypass in the fix itself
+
+Asserting the MALFORMED cases, not only the happy path, caught this:
+`Buffer.from("@@@", "base64")` is an **empty buffer** — base64 decoding drops
+invalid characters rather than failing — so a stored hash of the shape
+`scrypt$131072$8$1$@@@$@@@` produced a zero-length expected key, scrypt was
+asked for a zero-length key, and `timingSafeEqual(empty, empty)` answered
+**TRUE for any password**. A corrupted or crafted row of that shape would have
+accepted anything.
+
+Closed by checking the SHAPES before the comparison (salt exactly 16 bytes, key
+exactly 64), and the test now carries three degenerate forms plus the empty
+password against each. **The lesson is the old one in a new place: a comparison
+that infers validity from the data it is comparing is not a check.**
+
+### What is NOT covered
+`packages/db/src/seed.ts` still writes bcrypt hashes (it cannot import the
+API's lib). That is correct and harmless — a seeded admin verifies through the
+legacy path and is upgraded on first login — but it means bcryptjs stays a
+dependency until that seed is moved or duplicated.

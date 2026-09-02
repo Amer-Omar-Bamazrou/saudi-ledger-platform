@@ -24,7 +24,7 @@
  * output without ever showing the guard work.
  */
 import { and, eq, sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../../lib/password";
 import {
   db,
   ownerDb,
@@ -63,7 +63,6 @@ export const DEMO_COMPANY_NAME = "Falcon Trading Est.";
  */
 export const DEMO_VAT_NUMBER = "399999999999993";
 
-const SALT_ROUNDS = 12;
 
 export interface DemoSeedResult {
   organizationId: string;
@@ -156,7 +155,7 @@ async function ensureIdentity(
     .limit(1);
 
   if (!user) {
-    const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
+    const passwordHash = await hashPassword(adminPassword);
     [user] = await ownerDb
       .insert(usersTable)
       .values({ email: adminEmail, name: adminName, passwordHash, role: "admin", isActive: true })
