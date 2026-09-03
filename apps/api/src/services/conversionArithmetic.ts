@@ -15,9 +15,9 @@
  * reader can find it, not inline in one service. But the "two callers" claim
  * has been narrowed to the truth rather than left standing.
  */
+import { round2 } from "../lib/money";
 
 /** Round to halalas, the same 2dp discipline the line arithmetic uses. */
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Allocate a line-level discount across partial conversions.

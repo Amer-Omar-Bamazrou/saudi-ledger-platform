@@ -30,6 +30,7 @@ import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
+import { round2 } from "../lib/money";
 
 /**
  * MED (audit 2026-08-20): a nonexistent customerId surfaced as a raw 500
@@ -57,7 +58,6 @@ async function assertCustomerExists(customerId: unknown): Promise<void> {
 // duplicated here and in invoices.approvable.ts — see sellerIdentity.ts.
 
 /** Money rounds at the boundary; the SQL sums are float8. */
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const invoicesService = {
   /**
@@ -168,7 +168,6 @@ export const invoicesService = {
     // 0.005 balance tolerance, so a legitimate mixed-rate invoice could throw
     // "GL entry does not balance" (finding 7). Rounding each line FIRST and
     // summing the rounded values makes header = Σ lines by construction.
-    const round2 = (n: number) => Math.round(n * 100) / 100;
     let subtotal = 0;
     let vatTotal = 0;
     const preparedItems = items.map((it: any) => {
@@ -359,7 +358,6 @@ export const invoicesService = {
           field: "items",
         });
       }
-      const round2 = (n: number) => Math.round(n * 100) / 100;
       let subtotal = 0;
       let vatTotal = 0;
       prepared = (items as any[]).map((it, i) => {

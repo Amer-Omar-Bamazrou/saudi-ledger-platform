@@ -41,8 +41,8 @@ import { approvalService } from "./approval";
 import { quotationApprovable } from "./quotations.approvable";
 import { quotationsRepository, type QuotationListFilter } from "../repositories/quotations.repository";
 import { buildQuotationOut } from "./quotations.presenter";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Header fields a client may set. Everything else is derived or minted. */
 const QUOTATION_FIELDS = [

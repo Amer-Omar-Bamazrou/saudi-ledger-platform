@@ -14,6 +14,7 @@
  * identity. See `packages/db/src/chartOfAccounts.ts`.
  */
 import { db } from "@workspace/db";
+import { round2 } from "../../lib/money";
 import { journalEntriesTable, journalEntryLinesTable, categoriesTable } from "@workspace/db";
 import type { SystemAccountCode } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
@@ -145,8 +146,33 @@ export async function postJournalEntry(opts: {
   reference?: string;
   lines: GLLine[];
 }): Promise<typeof journalEntriesTable.$inferSelect> {
-  const totalDebit = opts.lines.reduce((s, l) => s + l.debitAmount, 0);
-  const totalCredit = opts.lines.reduce((s, l) => s + l.creditAmount, 0);
+  /**
+   * 🔴 N2 (2026-09-03): the balance check runs on the ROUNDED lines — the
+   * values that will actually persist — not on the raw floats. The old order
+   * (check unrounded, then round each line independently at the INSERT) meant
+   * the check and the stored rows were computed from different numbers: an
+   * entry admitted at a 0.004 residual could persist as rows whose stored sum
+   * differed from what was checked, and a caller whose header drifted a
+   * halala from its rounded lines (payroll, for 10.3% of salary values —
+   * measured) threw here as a 500. ERPNext's `process_debit_credit_difference`
+   * does the same thing in the same order, for the same reason.
+   *
+   * After `round2`, both totals are exact 2-decimal values, so any REAL
+   * imbalance is ≥ 0.01 and throws; the tolerance now absorbs only the float
+   * dust of summing 2dp doubles, which is what it was always meant to absorb.
+   * There is deliberately NO round-off account (owner option, 2026-09-03):
+   * every writer is our own service and each is required to make
+   * header = Σ rounded lines by construction, so a residual here is our
+   * arithmetic bug — the loud throw IS the correct behaviour, and the error
+   * names both totals.
+   */
+  const lines = opts.lines.map((l) => ({
+    ...l,
+    debitAmount: round2(l.debitAmount),
+    creditAmount: round2(l.creditAmount),
+  }));
+  const totalDebit = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
+  const totalCredit = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
   if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
     throw new UnbalancedEntryError(totalDebit, totalCredit);
   }
@@ -154,7 +180,7 @@ export async function postJournalEntry(opts: {
   // Resolve BEFORE writing anything, so an incomplete chart cannot leave a
   // half-posted entry behind.
   const accounts = await resolveAccounts(
-    opts.lines.map((l) => l.systemCode).filter((c): c is SystemAccountCode => !!c),
+    lines.map((l) => l.systemCode).filter((c): c is SystemAccountCode => !!c),
   );
 
   // Enforce period lock — block posting into closed periods
@@ -174,7 +200,7 @@ export async function postJournalEntry(opts: {
     .returning();
 
   await db.insert(journalEntryLinesTable).values(
-    opts.lines.map((l) => ({
+    lines.map((l) => ({
       journalEntryId: je.id,
       accountName: l.accountName,
       // One of the two is always present — the GLLine union makes "neither" a
@@ -182,8 +208,11 @@ export async function postJournalEntry(opts: {
       // code. So this can never write a NULL.
       accountId: l.systemCode ? accounts.get(l.systemCode)! : l.accountId!,
       description: l.description ?? null,
-      debitAmount: String(l.debitAmount.toFixed(2)),
-      creditAmount: String(l.creditAmount.toFixed(2)),
+      // `l` is already round2'd above, so this stores EXACTLY what the
+      // balance check saw — money2 would re-round to the same value; toFixed
+      // on the rounded number is equivalent and kept for the narrow diff.
+      debitAmount: l.debitAmount.toFixed(2),
+      creditAmount: l.creditAmount.toFixed(2),
     }))
   );
 

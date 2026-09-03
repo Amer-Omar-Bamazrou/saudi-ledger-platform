@@ -32,6 +32,7 @@ import { billsRepository } from "../repositories/bills.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { transactionsRepository } from "../repositories/transactions.repository";
 import type { transactionsTable } from "@workspace/db";
+import { round2 } from "../lib/money";
 
 type Tx = typeof transactionsTable.$inferSelect;
 
@@ -53,7 +54,6 @@ interface OpenDocument {
 }
 
 const EPS = 0.005;
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Does `documentNumber` appear in the description as a whole token?
