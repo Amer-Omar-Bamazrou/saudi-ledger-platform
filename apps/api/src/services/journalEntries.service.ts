@@ -136,10 +136,23 @@ export const journalEntriesService = {
     if (jeData.date) assertDateString(jeData.date, "date");
     if (jeData.date) await checkPeriodOpen(jeData.date as string);
 
-    const [je] = await journalEntriesRepository.insertEntry({
-      ...(jeData as typeof journalEntriesTable.$inferInsert),
-      createdBy: userId ?? null,
-    });
+    let je: typeof journalEntriesTable.$inferSelect;
+    try {
+      [je] = await journalEntriesRepository.insertEntry({
+        ...(jeData as typeof journalEntriesTable.$inferInsert),
+        createdBy: userId ?? null,
+      });
+    } catch (err) {
+      // N3: unique(company_id, entry_number) — a user-supplied duplicate is
+      // the user's to fix, so it answers as a 409 naming the number, not a
+      // raw 23505 surfacing as a 500.
+      // drizzle wraps the pg error; the SQLSTATE lives on the cause.
+      const code = (err as { code?: string }).code ?? ((err as { cause?: { code?: string } }).cause?.code);
+      if (code === "23505") {
+        throw new ConflictError(`Entry number ${String(jeData.entryNumber)} is already used in this company.`);
+      }
+      throw err;
+    }
     const savedLines =
       parsedLines.length > 0
         ? await journalEntriesRepository.insertLines(

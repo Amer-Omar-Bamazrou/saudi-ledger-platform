@@ -266,20 +266,22 @@ export const billsService = {
       status: fullySettled ? "paid" : existing.status,
     });
 
+    // B4 — the dated record of THIS payment (see invoices.service.pay).
+    // 🔴 N3: recorded BEFORE the GL entry so its id makes the entry number
+    // unique — `BILL-x-PAY` alone collided on the second partial payment.
+    const payment = await paymentsRepository.recordBillPayment(id, paid, payDate);
+
     // ── GL: Dr Accounts Payable / Cr Cash and Bank ──
     await postJournalEntry({
-      entryNumber: `BILL-${bill.billNumber}-PAY`,
+      entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
       description: `Payment to vendor for bill ${bill.billNumber}`,
       reference: bill.billNumber ?? undefined,
       lines: [
-        { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0 },
+        { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
         { systemCode: "CASH", accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
       ],
     });
-
-    // B4 — the dated record of THIS payment (see invoices.service.pay).
-    await paymentsRepository.recordBillPayment(id, paid, payDate);
 
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
     return buildBillOut(bill, null);

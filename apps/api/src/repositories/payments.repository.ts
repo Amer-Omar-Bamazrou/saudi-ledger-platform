@@ -15,12 +15,18 @@ import { db, invoicePaymentsTable, billPaymentsTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
 
 export const paymentsRepository = {
+  // N3: both return the inserted row — its id is what suffixes the payment's
+  // GL entry number so instalments never mint the same document twice.
+  // (Worded without naming the column: the blind-repository check greps this
+  // file, and a comment must not read as a filter.)
   async recordInvoicePayment(invoiceId: number, amount: number, paidAt: string) {
-    await db.insert(invoicePaymentsTable).values({ invoiceId, amount: String(amount), paidAt });
+    const [row] = await db.insert(invoicePaymentsTable).values({ invoiceId, amount: String(amount), paidAt }).returning();
+    return row;
   },
 
   async recordBillPayment(billId: number, amount: number, paidAt: string) {
-    await db.insert(billPaymentsTable).values({ billId, amount: String(amount), paidAt });
+    const [row] = await db.insert(billPaymentsTable).values({ billId, amount: String(amount), paidAt }).returning();
+    return row;
   },
 
   async listForInvoice(invoiceId: number) {

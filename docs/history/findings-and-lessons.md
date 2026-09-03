@@ -5969,3 +5969,46 @@ future isolation test: presence, absence, movement, all three, every claim.
 
 Related §3 rules: "when the CORRECT answer equals the BROKEN one" (which is
 what `balanced: true` was), and "assert the property, not the number".
+
+## 2026-09-03 — TWO N2 LESSONS THE OWNER NAMED, AND THE SHARED-CONSTANTS SWEEP THEY ORDERED
+
+**1. A tolerance applied to the values you COMPUTE, not the values you STORE,
+checks a different thing than it appears to.** glPosting checked balance on raw
+floats and then rounded each line independently at the INSERT — so it admitted
+entries that would persist imbalanced (raw diff 0.002 ≤ tolerance, stored
+10.01 vs 10.00) and rejected entries that would persist balanced (payroll's
+headers, off by float accumulation, whose rounded lines were fine). The two
+checks only converge when ONE SEAM owns both the checking and the storing —
+which is why the finding only became VISIBLE once `lib/money.ts` existed and
+the order was inverted. Pinned by `money-kpi-consistency.test.ts`'s
+raw-under-tolerance case.
+
+**2. The fourth instance of ONE FACT, TWO DEFINITIONS, NO FORCING FUNCTION** —
+the read side's `0.01` balance literal was silently 2× the write side's
+`GL_BALANCE_TOLERANCE = 0.005`. The owner's count: (1) the two report families
+reading disjoint data (meta-finding #9), (2) the GL-AR-vs-aging pair (N3's
+finding), (3) the twelve `round2`s, (4) this. Four instances is a rate, so the
+countermeasure is a periodic MECHANICAL SWEEP of shared constants, not noticing
+them one at a time.
+
+### The first sweep, run 2026-09-03 — the inventory, with its frame
+
+**Frame:** targeted greps over `apps/api/src` and `apps/web/src` (tests
+excluded) for known fact-classes: statutory rates, default rates, money
+thresholds, page caps, aging buckets. A grep frame finds the classes it names —
+this is an inventory OF THOSE CLASSES, not of all duplicated constants.
+
+| Fact | Definitions | Where | Risk |
+| --- | --- | --- | --- |
+| **GOSI rates 9.75% / 11.75% / 2%** | **4** | `payroll.service.ts` (posts money), `employees.service.ts` (preview), `employees.repository.ts` (SQL aggregate), `Employees.tsx` (client-side preview + the percentages hardcoded in display copy) | 🔴 Highest. A STATUTORY rate Saudi has actually been phasing changes to; the posting path and the previews agree today only because four literals happen to match. A rate change edits four files or silently splits the preview from the payroll. |
+| **Default VAT rate `?? 15`** | 7 files | invoices/bills/quotations/POs + both conversion services + `Invoices.tsx` | High. The rate moved 5% → 15% in 2020 in real life. |
+| **"Fully settled" residual `< 0.01`** | 13 sites | `bills.service.ts`, `invoices.service.ts`, `reports.service.ts` | Medium — the invoice/bill twins repeat each other; a future change to one side re-creates the aging-vs-balance-sheet drift class. |
+| **Aging buckets 30/60/90** | 4 files | `reports.service.ts` + three web pages | Low-medium — presentation copies of a report fact. |
+| **Page size 50** | 5 sites | three `DEFAULT_PAGE = 50` exports + two inline `?? 50` | Low. |
+
+**Disposition (owner's framing: sweep generally, not just this one):** the
+inventory is recorded here; the GOSI and VAT-default consolidations are the two
+worth their own small change (each is a statutory fact with a posting path
+among its definitions); the rest are candidates for the same pass. Folded into
+§5's open-decisions line beside `normalizeDigits` — the same disease, already
+pending a shared-package decision.

@@ -63,6 +63,20 @@ const REQUIRED_UNIQUE_INDEXES = [
     columns: ["company_id", "icv"],
     guarantees: "no two invoices in a company share an ICV (the chain counter)",
   },
+  // N3 (2026-09-03): the two tables 0063 named as unprotected — "two financial
+  // records that claim to be the same document, silently, in the ledger".
+  {
+    name: "journal_entries_company_number_unq",
+    table: "journal_entries",
+    columns: ["company_id", "entry_number"],
+    guarantees: "a journal entry number means ONE entry (constructed numbers are collision-proofed: -PAY-<paymentId>, -R<runId>, -P<n>)",
+  },
+  {
+    name: "bills_company_number_unq",
+    table: "bills",
+    columns: ["company_id", "bill_number"],
+    guarantees: "a bill number means ONE bill within the company",
+  },
 ] as const;
 
 describeMaybe("money document numbers — the unique indexes are present in the DATABASE", () => {

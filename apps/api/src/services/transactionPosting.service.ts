@@ -53,8 +53,8 @@
  *  6. **Period locks apply** — `postJournalEntry` refuses a closed period, so
  *     accepting a row dated into one fails closed like every other posting.
  */
-import { db, transactionsTable, categoriesTable, type SystemAccountCode } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { db, transactionsTable, categoriesTable, journalEntriesTable, type SystemAccountCode } from "@workspace/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
@@ -132,8 +132,20 @@ export const transactionPostingService = {
       .limit(1);
     if (!row || !shouldPost(row.tx)) return null;
 
+    // 🔴 N3: a REPOST posts the same transaction again after reversing the
+    // original, so `TXN-<id>` alone collides with its own history the moment
+    // unique(company_id, entry_number) exists. The suffix counts every entry
+    // this transaction has ever produced (the original, its -REV, prior
+    // reposts), so each posting gets its own number and the ledger keeps the
+    // full trail. Exact-or-prefix match, not a bare LIKE — `TXN-42` must not
+    // count `TXN-421`.
+    const base = `TXN-${row.tx.id}`;
+    const [{ n }] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(journalEntriesTable)
+      .where(sql`${journalEntriesTable.entryNumber} = ${base} OR ${journalEntriesTable.entryNumber} LIKE ${base + "-%"}`);
     const je = await postJournalEntry({
-      entryNumber: `TXN-${row.tx.id}`,
+      entryNumber: n === 0 ? base : `${base}-P${n}`,
       date: row.tx.date,
       description: `Bank ${row.tx.kind === "transfer" ? "transfer" : row.tx.type === "debit" ? "payment" : "receipt"}: ${row.tx.description.slice(0, 80)}`,
       reference: `TXN-${row.tx.id}`,

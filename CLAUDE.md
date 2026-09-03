@@ -258,6 +258,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
+- **🔴 A TOLERANCE APPLIED TO THE VALUES YOU COMPUTE, NOT THE VALUES YOU STORE, CHECKS A DIFFERENT THING THAN IT APPEARS TO** (owner-named 2026-09-03) — it admits what will persist imbalanced and rejects what would persist balanced, and the two only converge when ONE SEAM owns both the checking and the storing. Visible only once the seam existed.
 - **A value that satisfies every check while meaning nothing** — `Number("")` is 0, so `creditLimit: ""` passed the guard, stored, and read back as a limit of 0.00. Check the MEANING, not only the type.
 - **A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body.
 - **🔴 A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT.** Batch 1 found the PAGES wrong, batch 2 the SPEC — both inside endpoints already counted as covered.
@@ -281,7 +282,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it, and prefer a boundary with no override.
 - **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
 - **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
-- **Two id spaces with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift.
+- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift. 🔴 Fourth instance 2026-09-03 (read-side 0.01 vs write-side 0.005, after the two report families, the two AR computations, and the 12 `round2`s) — so shared constants are SWEPT periodically and mechanically, not noticed one at a time. Sweep record: findings file.
 - **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary; generalises to any two-layer guard with a legitimate wide arm.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
 - **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
@@ -486,20 +487,21 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **N3, then L1** (N1 ✅, N2 ✅).
+🔴 Working order (2026-09-03): **L1 next** (N1–N4 ✅).
 
-### 🔴 NOW — ahead of L1 (owner, 2026-09-03, from the ERPNext comparison)
+### 🔴 The 2026-09-03 NOW queue — ALL FOUR CLOSED; L1 is next
 
-Full evidence, and the two findings that did NOT survive verification:
-[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
-🔴 **N1 ✅, N2 ✅ and N4 ✅ are CLOSED** — records in
-[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
-**T1** (ranked below) is what closing N4 uncovered.
-
-| # | Item | Done when |
-| --- | --- | --- |
-| **N3** | **PARTY ON THE JOURNAL LINE + THE MISSING UNIQUE INDEXES — while there are no rows to backfill.** No party dimension means GL AR and AR aging are computed from different tables and **structurally cannot agree**. `journal_entries.entry_number` and `bills.bill_number` have no unique index in Drizzle OR SQL, and `GL-${invoiceNumber}-PAY` **collides on the second partial payment**. | `customer_id`/`vendor_id`/`party_type` on `journal_entry_lines` + unique `(company_id, entry_number)` / `(company_id, bill_number)`, added to `money-unique-indexes.test.ts`. ERPNext retrofitted party in 2014 with a patch that rewrote live tenants' balances (`be8ec39678`, `patches/v4_2/party_model.py`). |
-
+N1 (company predicate + RLS) · N2 (the money seam) · N3 (party on the line +
+number uniqueness) · N4 (the pinned ZATCA index) — records in
+[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
+the evidence base is
+[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
+(🔴 read its READ FIRST section — two findings did NOT survive verification).
+T1 (the drizzle-kit gate) ✅ CLOSED 2026-09-03: the owner ran the six prompts
+to the written answer (create, never rename), and the dangling journal entry —
+which crashed migrate — was removed; a fresh-DB migrate matches dev column for
+column (758 = 758) and a second generate reports "No schema changes" with no
+prompts. `generate` works again.
 
 ### Blocking, by their own nature
 
@@ -549,12 +551,14 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **T1** | 🔴 **`drizzle-kit generate` CANNOT RUN NON-INTERACTIVELY** — it stops on a pre-existing column conflict between the schema and its snapshot (verified on a clean tree, 2026-09-03), so whoever next touches the schema gets an interactive rename prompt where a wrong answer is a data-destroying migration. Until resolved, migrations stay hand-written (0062–0065 all are) and the snapshot drifts further with each one. | **N3** (its migration is next) and every future schema change. | Found closing N4. Close by resolving the conflict once, interactively, with the answer written down and a clean snapshot regenerated — or by adopting hand-written-only migrations as policy and retiring the snapshot. Not by answering the prompt from memory. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
 `platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice, pinned by an equivalence test, pending a shared package.
+exists twice, pinned by an equivalence test, pending a shared package — 🔴 and
+the 2026-09-03 constants sweep found its siblings: GOSI rates ×4 (one
+statutory rate, posting path + two previews + client copy) and the default VAT
+rate ×7. Inventory: findings file. Consolidate GOSI and VAT with it.
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -578,6 +582,7 @@ before launch. Record: findings file.
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
+- 🔴 **N3's remaining half:** the manual-JE form has no party picker, so an `accountId` line naming AR/AP by hand posts party-less (the systemCode document paths are gated; `postJournalEntry` refuses an UNDECLARED party there). The ERPNext-grade rule arrives with the picker.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
 - Settlement links are readable from the transaction side only (the design said "either side").
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.

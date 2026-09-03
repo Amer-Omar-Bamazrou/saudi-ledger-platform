@@ -1038,3 +1038,92 @@ definitions (coercion, not rounding — no drift hazard of the same class); the
 header-discount validation gap (`invoices.service.ts:140`, comparison §13);
 and the unposted-discount GL representation, which is a design question, not a
 rounding one.
+
+## N3 — PARTY ON THE JOURNAL LINE + NUMBER UNIQUENESS (CLOSED 2026-09-03)
+
+**Half 1 — the party dimension** (`0066`): `journal_entry_lines` gains
+`party_type` / `customer_id` / `vendor_id`, FKs to customers/vendors, and
+`jel_party_consistency_chk` making an inconsistent combination inexpressible.
+Every document path stamps it: invoice issue + both pay paths (customer), bill
+issue + pay (vendor), credit/debit notes via the issue path.
+
+🔴 **The domain correction to ERPNext's rule:** "Customer is required against
+Receivable" cannot be unconditional here — a simplified (B2C) ZATCA invoice
+legitimately has no identified customer. So the enforced invariant is
+DECLARATION, not presence: a systemCode AR/AP line must carry `party` — a real
+one or `{type:"none", reason}` — and `postJournalEntry` throws
+`MissingPartyError` on an undeclared one. The thoughtless omission is
+inexpressible; the legitimate absence is a statement. **Named remaining half**
+(§5 traps): the manual-JE form has no party picker, so `accountId` lines naming
+AR/AP by hand are not yet gated — the ERPNext-grade rule arrives with the
+picker.
+
+**Half 2 — unique(company_id, entry_number) and (company_id, bill_number)**
+(`0066`), the constraint 0063 named as missing. The colliding constructed
+numbers were fixed first, because the index converts each collision from a
+silent duplicate into a 500: `GL-x-PAY-<paymentId>` (payment row inserted
+BEFORE the GL entry so its id is available — the second partial payment used
+to mint a second identical number), `PAY-<period>-R<runId>` (a period's second
+run), `TXN-<id>-P<n>` (a repost counts the transaction's whole entry history —
+exact-or-prefix match so TXN-42 never counts TXN-421), and a duplicate
+user-supplied manual-JE number answers as a 409 naming the number (the 23505
+lives on drizzle's error CAUSE, not the error). Existing duplicates are
+RENAMED `-D<id>` by the migration with a NOTICE — internal identifiers, unlike
+0054's ZATCA numbers, which were refused-and-named. Both indexes joined
+`money-unique-indexes.test.ts`.
+
+**Proof:** `party-and-number-uniqueness.test.ts` — two partial payments → two
+distinct entries; AR lines carry the customer on issue AND both payments; AP
+lines the vendor; an undeclared AR party throws and nothing posts while a
+declared `none` posts with NULLs; a period's second payroll run approves under
+its own number; a duplicate manual number is a ConflictError. Plus the full
+gate, which caught the two fixtures that needed the new declarations.
+
+## T1 — CHARACTERISED AND RESOLVED ON PAPER (2026-09-03; one TTY run remains)
+
+The drift that makes `drizzle-kit generate` prompt is SMALL and fully known:
+the snapshot stops at **0037**, and migration **0038** hand-dropped
+`categories.zakat_relevant` + `transactions.is_zakat_relevant` — the first
+hand-written migration after the last generated one. Measured against the live
+DB: 22 tables the snapshot never saw (plain CREATEs, no prompts), and exactly
+**two** tables with adds+drops — the rename-prompt triggers — both of which
+are genuine deletions plus genuine new columns. **Nothing is a rename**; the
+answer to every prompt is create/delete, then discard the emitted SQL (the DB
+already has everything) and commit only the refreshed snapshot.
+
+🔴 **The probe lied first, and was caught by its own rule:** the first
+measurement read `array_agg(name)` through node-pg, which returns unparsed
+`name[]` as ONE STRING — so every set-diff ran over characters and all 40
+tables reported total column turnover, including `users`, known false. Fifth
+instance of *a negative/instrument result disagreeing with something already
+known true*; the redone probe casts `::text[]` and VALIDATES itself against
+`users` before diffing.
+
+## T1 — CLOSED (2026-09-03): generate works again, and the drift is closed, not moved
+
+The owner ran the interactive `generate` on a TTY: six prompts, answered
+**create every time, never rename**, per the written answer; the emitted
+`0067_lyrical_cable.sql` was discarded and the refreshed `0067_snapshot.json`
+kept.
+
+🔴 **The written answer's second half almost got lost.** "Delete the emitted
+.sql + its journal entry" — the journal-entry half was buried in the phrasing,
+the entry stayed, and the tree as handed over had `_journal.json` pointing at a
+deleted file. **Verified empirically before committing: `drizzle-kit migrate`
+CRASHES on that state** — it reads every journal entry's SQL up front — so CI
+and every fresh clone would have broken. The entry was removed and the full
+battery run:
+
+1. dev-DB migrate → green;
+2. a FRESH database migrated from zero → green;
+3. fresh schema vs dev schema → **758 columns = 758 columns, zero diff either
+   direction** (the probe validated itself against a known-present column
+   before diffing — the §3 rule, after the same probe lied once the day
+   before);
+4. 🔴 the decisive test, owner-specified: **a second `generate` runs clean —
+   "No schema changes, nothing to migrate", no prompts, nothing emitted — in
+   the same non-TTY shell that previously died on `promptColumnsConflicts`.**
+
+The snapshot chain is intact (`0067.prevId == 0037.id`), and the journal's
+snapshot-numbering gap (entries end at 0066, snapshots at 0067) is tolerated by
+both migrate and generate — proven by the battery, not assumed.

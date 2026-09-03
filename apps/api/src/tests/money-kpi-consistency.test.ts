@@ -149,7 +149,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
     const { rows: [gl] } = await pool.query(
       `SELECT SUM(l.debit_amount::numeric) AS dr, SUM(l.credit_amount::numeric) AS cr
          FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
-        WHERE e.organization_id = $1 AND e.entry_number = 'PAY-2026-07'`,
+        WHERE e.organization_id = $1 AND e.entry_number LIKE 'PAY-2026-07-R%'`,
       [orgId],
     );
     expect(Number(gl.dr)).toBe(Number(gl.cr));

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -43,7 +43,12 @@ export const billsTable = pgTable(
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("bills_org_status_idx").on(t.organizationId, t.status)],
+  (t) => [
+    index("bills_org_status_idx").on(t.organizationId, t.status),
+    // N3: a bill number means ONE bill. Declared so drizzle-kit cannot read
+    // the index as drift (the N4 lesson); pinned by money-unique-indexes.
+    uniqueIndex("bills_company_number_unq").on(t.companyId, t.billNumber),
+  ],
 );
 
 export const billItemsTable = pgTable(
