@@ -27,12 +27,14 @@ Guidance for Claude Code (and any AI agent) working in this repository.
 >    it will ever have — at the exact moment it stops being operating context.
 >    The queue does not grow because work is slow; it grows because finishing
 >    is when people write.
-> 2. **A §3 lesson is ONE line, and the incident goes to
+> 2. **A §3 lesson is ONE line under one of §3's eight headings, and the
+>    incident goes to
 >    [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) in the
->    same commit.** §3 has said "one line each" since the last restructure and
->    grew to 35k anyway, because the session that finds something is the
->    session with the most to say about it. If your entry needs a paragraph to
->    be understood, the paragraph is history and the line is the rule.
+>    same commit.** 🔴 The test is not LENGTH, it is SELF-SUFFICIENCY: a
+>    rule a reader cannot act on without going to read its story is written
+>    wrong — rewrite the rule; do not import the story. "One line each" on its
+>    own failed twice, because the session that finds something is the session
+>    with the most to say about it.
 > 3. **§2 states STATUS, never as-built.** A few lines and a link. The moment
 >    a milestone's entry explains *how* it was built, it is a history record
 >    living in the wrong file — every one of them already had a design doc that
@@ -225,77 +227,107 @@ alone, that together minted a permanent zero-value ZATCA invoice.
    `toThrow`, `toBeNull`, `not.toContain`) and re-read each hit — an assertion
    of absence expires the day the thing is built.
 
-### Named failure modes and lessons
+### Named failure modes — the INDEX
 
-🔴 **ONE LINE EACH. The incident, the evidence and the countermeasure go to
-[`findings-and-lessons.md`](docs/history/findings-and-lessons.md) in the same
-commit** — that file holds the long form of every entry below. A lesson that
-needs a paragraph here is a history record in the wrong file (the eviction
-rules at the top of this file, rule 2).
+🔴 **ONE LINE EACH, AND THE LINE MUST BE USABLE WITHOUT ITS INCIDENT.** The
+incident, the evidence and the countermeasure live in
+[`findings-and-lessons.md`](docs/history/findings-and-lessons.md), which holds
+the long form of every rule below. **A rule you cannot act on without going to
+read the story is written WRONG** — rewrite the rule; do not import the story.
+The headings say *when* a rule applies, so a rule is findable while you are
+doing the thing it governs rather than only once you know its name.
 
-- **A shape without a consumer** — a column/table/interface/flag looks exactly like progress and ships unbuilt; the standing check is the countermeasure.
-- **A CONSUMER with no producer is worse** — a missing consumer yields a dead column nobody sees; a missing producer yields **a confident zero**, which reads as an answer. Check writers as well as readers. "Nothing writes it" is itself a claim needing part 5's search shape.
-- **An obsolete assertion** — a correct-when-written absence assertion stays green while certifying the defect it now guards. Prefer presence assertions.
-- **Two id spaces with no forcing function** diverge invisibly until something joins them. Remove the second, or add a test that fails when they drift.
-- **The narrower-claim family** — a suite's or page's NAME describes a capability while its fixtures prove something narrower. Read the name as a claim; check the fixtures supply it.
-- **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID. 🔴 **When the property is a CHAIN, assert two links** — one response can carry every field of the shape (`icv`, `previousHash`) and still not be part of any chain; only the second approval's `icv + 1` and `previousHash = first hash` prove the sequence exists. (Batch 3; the ZATCA chain is exactly the property a single-row assertion cannot see.)
-- **An act about a document is not an act about a pattern** — consent to a rule in January is not consent to what it produces in November. (Why A3 is drafts-only.)
-- **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
-- **Who finds out?** Silence is not a neutral outcome. Quiet neglect needs an alarm, not a dashboard.
-- **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
-- **🔴 FIXING A REPORTED INSTANCE WITHOUT SWEEPING ITS SHAPE LEAVES THE REACHABLE COPIES IN PLACE — AND THE REPORTED ONE IS OFTEN THE LEAST DANGEROUS.** Three times: AUD-1's clock-minted numbers, the unkeyed fragment, the severance amplifier. **The report is a sample, not an inventory.** Incidents: findings file.
+#### Built, or only shaped like it
+
+- **A shape without a consumer** — a column/table/interface/flag looks exactly like progress and ships unbuilt. Grep for the consumer; the standing check above is the countermeasure.
+- **A CONSUMER with no producer is worse** — a missing consumer yields a dead column nobody sees; a missing producer yields **a confident zero, which reads as an answer**. Check writers as well as readers, and treat "nothing writes it" as a claim needing part 5's search shape.
+- **A stub is the part that needed testing** — test the branch you did NOT write, by injecting a failing implementation. A method that cannot do the thing must THROW: a no-op reporting success is a false statement the caller builds on. Audit every `resolve*Store` / `get*Provider` seam.
+- **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure — move the gate WITH the thing the flag names.
+- **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see, and six read-only audits missed four defects one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure.
+- **A hand-written `apiFetch<T>` interface is a claim nobody checks** — TypeScript checks it against the COMPONENT, never the response. Prefer the generated client, and treat a page as working only once it has been RENDERED.
+- **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; §5's contract entry burns the pinned ones down.
+- **NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client can see it.
+
+#### The check that does not check
+
+- **An obsolete assertion** — a correct-when-written absence assertion stays green while certifying the defect it now guards. Prefer presence assertions; when you build something, grep for tests asserting it is absent.
+- **The narrower-claim family** — a suite's or page's NAME describes a capability while its fixtures prove something narrower. Read the name as a claim and check the fixtures supply it.
+- **🔴 A NARROWER VERIFICATION REPORTED AS A BROADER ONE** — the vacuous-green family aimed at the REPORTER rather than the guard ("the tests pass" does not cover "the typecheck passes"). 🔴 **`pnpm run verify` IS the verification step**; a filtered command never stands in for it.
+- **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID.
+- **🔴 When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
+- **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
+- **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
+- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true.
+- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
+- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
+- **A value that satisfies every check while meaning nothing** — `Number("")` is 0, so `creditLimit: ""` passed the guard, stored, and read back as a limit of 0.00. Check the MEANING, not only the type.
+- **A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body.
+- **🔴 A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT.** Batch 1 found the PAGES wrong, batch 2 the SPEC — both inside endpoints already counted as covered.
+- **A WRONG CONTRACT IS WORSE THAN NO CONTRACT** — it generates CONFIDENT types that are wrong, out of the mechanism meant to prevent exactly that.
+- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED — RE-RUN THE THING YOU JUST HARDENED.** Twice: the readiness wait meant to stabilise P5 broke it, and a believed-correct `pool.on("error")` fix crashed the next run identically.
+- **A STACK'S TIP IS NOT ITS BODY OF WORK** — measure the union of the stack, never `main..tip`, and do not read stack position as chronology.
+
+#### The fix that does not finish
+
+- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. Three instances.
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
-- **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
-- **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each, before recommending it. The cash estimate was not slightly low; it was about a different feature.
-- **🔴 A stub is the part that needed testing** — test the branch you did NOT write (inject a failing implementation). At an interface, a method that cannot do the thing must THROW, never return: a no-op reporting success is a false statement the caller builds on. Look at every `resolve*Store` / `get*Provider` seam.
-- **🔴 A dependency that accepts your input has not promised to honour it** — small-ICU Node accepts `islamic-umalqura` and returns Gregorian. When a dependency can silently substitute behaviour, probe an EXTERNALLY CHECKABLE FACT at boot. "It didn't throw" is not evidence.
+- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface.
+- **🔴 THE FRAME IS PART OF THE COUNT** — a walk produces a SAMPLE; only an inventory produces a COUNT. The same absence counted 1, then 7, then 12 as the frame widened, and **7 was correct inside its frame**, which is subtler than under-counting. State the frame beside the number.
+- **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING.** Severity is per finding; consequence is per PATH. Run the triage check above on every finding and rank on the worst path a user can walk.
+- **A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures.** *Data flow* (one file writes the fact another trusts; the EDGE is the hole): human — enumerate what a privilege can WRITE, grep every guard that READS it. *Position* (a route on the wrong side of a guard): mechanical — `tests/privilege-surface-map.test.ts`, which 🔴 would NOT have caught F1.
+- **🔴 WHEN A MAP REPLACES A MAP, ASSERT BOTH DIRECTIONS** — every entry points at something, and everything is pointed at. Reconciling entry by entry answers one direction only, and cannot see what the new map never listed.
+
+#### Where the rule lives — construction over convention
+
+- **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollaries: header-level arithmetic over line-level truth WILL drift; and a REMOVED default is an invariant too, so every writer supplying a fallback is a write path.
+- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it, and prefer a boundary with no override.
+- **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
+- **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
+- **Two id spaces with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift.
+- **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
+- **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
+- **🔴 ASK OF EVERY SEVERANCE WHAT AN UNHANDLED EVENT ON THE SEVERED THING TAKES WITH IT** — an idle-in-transaction timeout killed the API PROCESS. 🔴 And standard advice applied without checking which case you have is its own trap: `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`.
+- **A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is a slower failure. Ask *what creates this, and is it scheduled before me?*
+- **A mirror is a hypothesis about the target, not a fact about it** — diff the two tables' columns in `information_schema` before mirroring an entity, rather than reasoning from the shape of the source.
+
+#### Numbers, and what they describe
+
+- **🔴 THE QUESTION IS NEVER "IS THERE A LIMIT" BUT "DOES THE NUMBER SHOWN DESCRIBE THE SET THE USER THINKS IT DESCRIBES"** — capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped are one disease pointing both ways.
+- **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after.
+- **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — an entry's debits equal its credits, so a cross-entry money total is twice the turnover or zero depending on the column; journal-entry lists get a COUNT instead. The discipline is hardest exactly where the wrong number would pass unnoticed.
+- **Partial data is not lenient data** — salvage the fields that WERE readable; never return part of a value as the whole value ("150.00" truncated to "15").
+- **Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. Refuse it at the WRITE boundary instead.
+
+#### Reading a source, a spec, an instruction
+
 - **Sources rank LIVE API > SDK > PDF > secondary** — and an unread primary source is not a licence to trust a secondary one.
-- **Enforce invariants at the WRITE BOUNDARY, not in one path** — per-path enforcement is per-path review, and a new path starts at zero. Corollaries: header-level arithmetic over line-level truth WILL drift; and **a REMOVED default is an invariant too** — every writer supplying a fallback is a write path.
-- **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** (AUD-1/AUD-2) — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it; prefer a boundary with no override.
-- **🔴 A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — when a spec is silent on the property you care about, find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
-- **🔴 AN OFFICIAL TRANSLATION IS A SECONDARY SOURCE — where the publisher says the original prevails, it says so because they DIFFER** (2026-09-02). ZATCA's English of VAT-IR Art. 53 says the *details* must appear in Arabic "as a translation"; the Arabic says the **invoice** must BE in Arabic, with no such qualifier — and two rulings came from the weaker text. **Read the prevailing-language original for any clause a feature rests on.** Incident: findings file.
-- **🔴 A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere; go find it. Reading first changed the plan, it did not merely confirm it.
-- **🔴 A NARROWER VERIFICATION REPORTED AS A BROADER ONE** (2026-09-02) — "the tests pass" was TRUE, "the typecheck passes" was FALSE, and the first was reported as covering the second (`vitest` does not typecheck). The vacuous-green family aimed at the REPORTER, not the guard. Three instances in a day = a rate, so the countermeasure is MECHANICAL: **`pnpm run verify`** is the verification step; a filtered command never stands in for it. Incident: findings file.
-- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT** (owner-named 2026-09-03). **When a probe reports an ABSENCE, first prove it can see a known-present case** — and where it is cheap, build that case INTO the probe. Four instances, one tell: *the instrument disagreed with something already known true*. The vacuous-guard rule aimed at ad-hoc investigation. Instances: findings file.
-- **🔴 The vacuous green in the measuring instrument** — a verdict line must carry its evidence count; "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads "NOT MEASURED". 🔴 **When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
-- **🔴 A WRONG CONTRACT IS WORSE THAN NO CONTRACT — it generates CONFIDENT types that are wrong.** `GET /quotations` was specified as a bare array while the server returned the envelope: a consumer of the generated hook would have got the blank-page shape from the mechanism meant to prevent it. Same family as the vacuous guard — an instrument reporting coverage it does not have.
-- **🔴 A mirror is a hypothesis about the target, not a fact about it** — before mirroring an entity, diff the two tables' columns in `information_schema` rather than reasoning from the shape of the source.
-- **🔴 A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is just a slower failure. Ask *what creates this, and is it scheduled before me?*
-- **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure. Move the gate WITH the thing the flag names.
-- **🔴 Two correct assertions with a gap between them** — a top-line figure and a bottom-line invariant can both hold while the value sits in the wrong accounts. When an operation moves value BETWEEN accounts, assert both accounts, before and after: a conservation law can hold while the conserved thing is in the wrong place.
-- **🔴 A GUARDRAIL THAT SEVERS SOMETHING CAN TAKE DOWN MORE THAN IT MEANT TO** — an idle-in-transaction timeout killed the API PROCESS (unhandled `error` on the severed pg client). Ask of every severance what an unhandled event on the severed thing takes with it. 🔴 **Standard advice without checking which case you have is its own trap** — `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`; incident: findings file.
-- **🔴 GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — TypeScript checks a hand-written interface against the COMPONENT, never the response. The class and its milestone: §5's contract entry; the ratchet: `tests/hand-written-interface-ratchet.test.ts`. The pairing that is the argument: trial balance and balance sheet, adjacent, both invisible until something OUTSIDE the page's declaration had an opinion about the shape. Record: findings file.
-- **🔴 Capped-where-it-should-be-unbounded and unbounded-where-it-should-be-capped is ONE disease pointing both ways** — the question is never "is there a limit" but **"does the number shown describe the set the user thinks it describes"**. (Fixture blindness to it: the lesson above.)
-- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** (AUD-7, reversed 2026-08-30). A hidden control teaches nothing; a refusal naming the next step teaches the workflow. `requirePermission` answers with a structured code, keyed on the CODE so rewording copy cannot break it.
-- **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Checked twice; two proposed B-8 mechanisms died here.
-- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership needs re-assertion or observation, never a single write. Tested 2026-08-31 (`e2e/rtl-direction.spec.ts`, green, by CLICKING — a `goto` repairs the loss before it can be seen). Now tested rather than unreproduced.
-- **🔴 NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client closes it: **P5** (`apps/web/e2e`).
-- **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING** (AUD-13). Five items, each survivable alone and each correctly triaged, together minted a permanent ZATCA-stamped SAR 0.00 invoice. **Severity is per finding; consequence is per path** — run the TRIAGE CHECK above on every finding and rank on the worst PATH. Incident: findings file.
-- **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** (AUD-13) — `POST /invoices` with `items: []` returned 201 and issued a zero-value tax invoice. The request was WELL-FORMED and the validation sat on the wrong schema. **Ask which layer the defect lives in, and whether anything tests THAT one.** Sibling: `creditLimit: ""` stored as 0.00 (`Number("")` is 0) — **a value that satisfies every check while meaning nothing.** Incidents: findings file.
-- **🔴 A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body. 🔴 **A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT** (owner-named 2026-09-01): batch 1 found the PAGES wrong, batch 2 the SPEC — all inside the endpoints counted as covered.
-- **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** (B-9, owner-named 2026-08-28). Every control works, every request succeeds, and what lands is a row no later step can act on — **no reachability guard can see it**, because nothing is unreachable. The tell: a field the WRITE path treats as optional and a READ path as required. Check what every consumer of a new record NEEDS before checking that the form submits. Incident: findings file.
-- **🔴 WITHHOLD A NUMBER THAT WOULD MEAN NOTHING** — journal-entry lists got a COUNT, not money totals: an entry's debits equal its credits, so a cross-entry total is twice the turnover or zero depending on the column. **The discipline is hardest exactly where the wrong number would pass unnoticed.**
-- **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly and offered only "narrow your search", while the server had been returning a real `total` and accepting `offset` all along. Nothing untrue; the honest notice became the reason nobody looked further. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
-- **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE; do not rely on incidental discovery.** Working on a file causes none of its other defects to be noticed, so coverage is measured PERIODICALLY and MECHANICALLY across the whole surface. 🔴 **THE FRAME IS PART OF THE COUNT** (owner-named 2026-09-01): the same absence counted 1, then 7, then 12 as the frame widened, and 7 was CORRECT inside its frame — subtler than under-counting. A walk produces a sample; only an inventory produces a count.
-- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED** — the readiness wait added to make P5 *more* reliable is what broke it (a path assumed, not checked). **Re-run the thing you just hardened.** (Earned again 2026-08-31: a believed-correct `pool.on("error")` fix crashed the next run identically.) Incident: findings file.
-- **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** (owner-named, 2026-08-28) — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one: the user consented to what was in front of them and the system acted on a set they were never shown. **Name the true scope BEFORE the act**; a gap between the visible set and the acted-on set is a defect in the ACT. Incident: findings file.
-- **🔴 Nothing static checks whether a USER can reach what we built** — six read-only audits found none of four defects one browser pass found in seconds. A correct backend with no working surface is outside what any service test can see. **Assume any completed backend may be unreachable until someone has clicked it** (P5 is the countermeasure).
-- **🔴 A correct API and a UI written against an imagined one** — a hand-written `apiFetch<T>` interface is a claim nobody checks, and TypeScript cannot check it against a real response. Prefer the generated client; a page must be RENDERED before it counts as working. (See the contract-coverage gap in §5 for how widespread this is.) Incident: findings file.
-- **🔴 A server refusal nobody surfaces is indistinguishable from a frozen UI** — surface errors at the mutation cache, not per form (the write-boundary rule applied to error surfacing). An unsurfaced error is also a diagnosis nobody gets, including us.
-- **🔴 A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures.** *Data flow* (one file writes the fact another trusts; the EDGE is the hole): human — enumerate what a privilege can WRITE, grep every guard that READS it. *Position* (a route on the wrong side of a guard): mechanical — `tests/privilege-surface-map.test.ts`. 🔴 **The map would NOT have caught F1.**
-- **🔴 A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it. F1's fix replaced overlap with CONFINEMENT, because an actor can cause overlap with one INSERT and cannot cause confinement at all. Corollary: **a HIGH goes into this file the moment it is named**, before the session that named it ends — a finding that lives only in a transcript is remembered, until it isn't.
-- **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. When auditing isolation, enumerate the FKs, not just the queries.
-- **🔴 Make the wrong thing INEXPRESSIBLE, not forbidden** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written.
-- **🔴 A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
-- **🔴 A QUEUE ENTRY RECORDS WHAT SOMEONE BELIEVED THEN, NOT WHAT IS TRUE NOW — VERIFY THE REASON, NOT JUST THE ENTRY** (owner-named 2026-09-02). Both P0 items had a wrong stated reason, and 🔴 **each pointed at a PLAUSIBLE remedy that would not have worked**: "the alarm is the mitigation" argues for better alarming (C13 needed ORDERING); "bcryptjs blocks the loop" argues for a faster KDF (M-4 needed it OFF the loop). Measure a performance claim; reproduce a behaviour claim; read the primary text. Incidents: findings file.
-- **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Check the mechanism and REPORT a mismatch rather than building the plausible thing; corrections ship narrow, and a named gap beats a silent default. 🔴 **A LABEL IS A REFERENT TOO** — "P0-1" named an item in a plan outside this repo; asking beat guessing. (Eight instances: findings file.)
-- **🔴 A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flag and its headline verdict were both authored, and both were wrong until measured.
-- **🔴 AN EMPTY BLOCK PRINTS ITS EMPTINESS** (owner-named 2026-09-02) — an unwritten terms footer prints a bare heading; an unused stamp box prints its emptiness. On a document a customer keeps, both read as a fault. **An optional block defaults OFF and turns on when it has content**; a stand-in that looks designed is worse than an absence that looks like one.
-- **🔴 Rendering a value the system cannot compute with advertises support that does not exist** — faithful rendering converts a visible inconsistency into an endorsed one. When a stored value is displayed but never computed with, refuse it at the WRITE boundary.
-- **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity built from date+amount+description), BREADTH (a branch no seeded row reaches). 🔴 **A vacuous pass is indistinguishable from a real pass in every report the suite produces** — breadth is SEEDED and asserted, never hoped for. A suspiciously ROUND count is a diagnosis. Incidents: findings file.
-- **🔴 A STACK'S TIP IS NOT ITS BODY OF WORK** — a commit on a lower branch that never propagated up is invisible to every count taken from the tip, and stack position does not imply chronology (the orphan was the LATER pass). Measure the union of the stack, never `main..tip`. Incident: findings file.
-- **🔴 RECONCILING A SPEC ENTRY BY ENTRY ANSWERS ONE DIRECTION ONLY** (nav tree, 2026-08-31) — checking that every SPEC entry points at something real cannot see a real page the spec never listed. Five working report pages nearly became unreachable in the commit that made the navigation "complete"; the coverage assertion found them, reading did not. **When a map replaces a map, assert BOTH directions.** Incident: findings file.
-- **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct in isolation, so nothing errors and no figure is wrong; the destination simply never reads the parameter and answers a broader question than the one asked. Reachability guards see a link that resolves; shape guards see fields that match. Only FOLLOWING the link and reading what the destination shows catches it. Incident: findings file.
+- **🔴 AN OFFICIAL TRANSLATION IS A SECONDARY SOURCE** — where the publisher states the original prevails, they say so because the texts DIFFER. Read the original, or mark the reading reasoned-not-verified in the design rather than letting it read as settled.
+- **External validators check the weakest property they plausibly could** — validate meaning locally; never infer correctness from an accepted submission.
+- **A definition is not a rule — follow the delegation** — when a spec describes a field without stating its constraint, the constraint lives elsewhere. Go and find it before designing against the definition.
+- **A rule spelled out for a SIBLING field and omitted here is evidence of intent, not an oversight to fill in** — find the nearest place the same author DID state it and read the contrast. (Had both fields been silent, the absence would prove much less.)
+- **🔴 A QUEUE ENTRY RECORDS WHAT SOMEONE BELIEVED THEN, NOT WHAT IS TRUE NOW — VERIFY THE REASON, NOT ONLY THE ENTRY.** The danger is not that a stated reason is wrong; it is that a wrong reason is ACTIONABLE, so the plausible remedy it suggests gets built and the defect survives it. Measure a performance claim, reproduce a behaviour claim, read the primary text of a regulatory one.
+- **🔴 An instruction's referent — and its MECHANISM — is an INPUT; check both against the data, even from the owner.** Take the shape it describes, check the mechanism, and REPORT a mismatch rather than building the plausible thing. Corrections ship narrow; a named gap beats a silent default. 🔴 **A LABEL IS A REFERENT TOO** — when a name comes from a document you cannot read, ask rather than guess.
+- **A dependency that accepts your input has not promised to honour it** — small-ICU Node accepts `islamic-umalqura` and returns Gregorian. Probe an EXTERNALLY CHECKABLE FACT at boot; "it didn't throw" is not evidence.
+- **Cost an option AFTER verifying its inputs exist** — name the inputs an approach consumes and grep for each before recommending it.
+- **🔴 A SPIKE MUST NAME EVERY STAND-IN IT USED, BESIDE ITS VERDICT** — substituting what is nearest to hand for what is not under test is what makes a spike fast and is correct practice. The defect is not the substitution but letting it disappear into a green result, where the answer then looks FINISHED.
+
+#### What the user is shown, and what they consent to
+
+- **Who finds out?** Silence is not a neutral outcome — quiet neglect needs an alarm, not a dashboard.
+- **🔴 EXPLAIN A REFUSAL; DO NOT HIDE THE CONTROL** — a hidden control teaches nothing; a refusal naming the next step teaches the workflow. Key the UI on the structured CODE, so rewording copy cannot break it.
+- **A server refusal nobody surfaces is indistinguishable from a frozen UI** — surface errors at the mutation cache, not per form (the write-boundary rule applied to error surfacing). An unsurfaced error is also a diagnosis nobody gets, including us.
+- **🔴 AN HONEST MESSAGE CAN STILL HIDE A CAPABILITY** — a page disclosed its cap plainly while the server had been returning a real `total` and accepting `offset` all along. Ask not only *is this true* but **does it leave the reader with the best action available to them.**
+- **🔴 A DESTRUCTIVE ACT'S SCOPE MUST MATCH WHAT THE USER CAN SEE** — "Accept ready (183)" that accepts 5,000 is an AUTHORITY bug, not a display one. Name the true scope BEFORE the act; a gap between the visible set and the acted-on set is a defect in the ACT.
+- **🔴 A CREATE FORM THAT OMITS A REQUIRED FIELD PRODUCES INERT RECORDS** — every control works, every request succeeds, and **no reachability guard can see it** because nothing is unreachable. The tell: a field the WRITE path treats as optional and a READ path treats as required.
+- **🔴 AN EMPTY BLOCK PRINTS ITS EMPTINESS** — an optional block defaults OFF and turns itself on when it has content. A stand-in that looks designed is worse than an absence that looks like an absence.
+- **🔴 A NAVIGATION CAN LOSE THE SCOPE THE USER CHOSE, AND EVERY STATIC CHECK STAYS GREEN** — source and destination are each correct alone, so nothing errors and no figure is wrong; the destination just never reads the parameter and answers a broader question. Only FOLLOWING the link and reading what it shows catches it.
+- **An act about a document is not an act about a pattern** — consent to a rule in January is not consent to what it produces in November. (Why A3 is drafts-only.)
+- **A name says who processed a movement, not what it was** — a keyword rule keyed on an ENTITY instead of an ACTION misclassifies everything that entity touches. Actor or action?
+
+#### Two standing don'ts, each checked twice
+
+- **🔴 Do NOT move `LanguageProvider` inside `AuthGuard`** — it wraps `AuthProvider` by design, `AuthGuard` cannot unmount its own ancestor, and `ksa_lang` survives logout. Two proposed B-8 mechanisms died here.
+- **🔴 A VALUE REACT DOES NOT OWN CAN BE SILENTLY REVERTED BY SOMETHING INSIDE ITS TREE** (B-8) — a fact produced outside a system's ownership needs re-assertion or observation, never a single write. Guarded by `e2e/rtl-direction.spec.ts`, which CLICKS: a `goto` repairs the loss before it can be seen.
 
 ## 4. Active constraints — do not break these
 
