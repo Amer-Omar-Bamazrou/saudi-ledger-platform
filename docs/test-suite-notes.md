@@ -51,3 +51,25 @@ them one after the other; if it already happened,
 `DELETE FROM finding_runs WHERE organization_id IN (SELECT id FROM organizations WHERE slug IN ('po-test','txn-to-ledger'))`.
 Same class as the global job paths above, one layer out — the job is scoped per
 org, but it enumerates every org it can see.
+
+## 🔴 `verify` fails at "api-server tests" when `DATABASE_URL` is UNSET — and it does not say so (2026-09-03)
+
+With no `DATABASE_URL` exported, 73 of the 127 API test files SKIP and the run
+still exits 1: `ai-provider.test.ts` dynamically imports
+`src/scripts/benchmark/benchmarkCategorizer.ts` to reach its exported `parse`,
+that module runs `main()` on import, `main()` cannot reach a database, and its
+top-level `.catch` calls `process.exit(1)`. Vitest reports it as
+**`Errors 1 error` with zero failing tests** — the exact shape §10b warns about:
+`Tests 543 passed` while the run is red.
+
+**It is an environment precondition, not a regression.** CI always sets
+`DATABASE_URL`, which is why this is invisible there. Locally:
+
+```bash
+export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+```
+
+Two things worth fixing when someone is in the area, recorded so the diagnosis
+is not re-derived: a script imported for one exported function should not run
+its `main()` on import (guard it), and `verify` should CHECK its preconditions
+and name a missing one rather than reporting the first step that trips over it.

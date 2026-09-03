@@ -5885,3 +5885,52 @@ construction, which is the §3 preference everywhere else.
 
 This is the vacuous-guard rule pointed at **ad-hoc investigation** rather than
 at tests: the same failure, in the place where nobody writes an assertion.
+
+## 2026-09-03 — THE §3 STRUCTURAL PASS: A LIST BECAME AN INDEX
+
+§3's lessons had reached 63 entries and 19,949 characters as one flat
+alphabet-soup list, and `CLAUDE.md` was at **2 characters of headroom** under
+its 75,000 budget — i.e. the next lesson would have forced an eviction in the
+middle of whatever milestone happened to find it. The owner called the pass
+rather than another round of shaving.
+
+**What changed, beyond the number:**
+
+1. **Eight headings that say WHEN a rule applies** — *Built, or only shaped
+   like it* · *The check that does not check* · *The fix that does not finish*
+   · *Where the rule lives* · *Numbers, and what they describe* · *Reading a
+   source, a spec, an instruction* · *What the user is shown, and what they
+   consent to* · *Two standing don'ts*. 🔴 A flat list is searchable only by
+   someone who already knows the rule's name; the headings make a rule findable
+   while you are doing the thing it governs. That is the change, not the size.
+2. **The acceptance test moved from LENGTH to SELF-SUFFICIENCY** (owner's
+   framing): *if a rule needs its incident to be usable, the rule is written
+   wrong and the incident is doing work the rule should do.* Every entry was
+   re-read against that test and rewritten where it failed — mostly by turning
+   a narrated event into an imperative or a question to ask.
+3. **Five entries were SPLIT rather than merged**, because one bullet was
+   carrying two independently actionable rules: the vacuous-instrument entry
+   became *carry your evidence count* + *when the correct answer equals the
+   broken one*; the frame observation left the targeted-fix rule; the
+   spec-constraint entry separated *unenforced constraint* from *a spec entry
+   nobody has parsed a response against*; the `creditLimit: ""` sibling became
+   its own *a value that satisfies every check while meaning nothing*. **63 →
+   68 rules while the section shrank 19,949 → 16,779**, which is the honest
+   shape of the result: fewer characters, MORE rules, each one shorter.
+4. **The probe rule and the inexpressibility rule now cross-reference each
+   other** (owner-directed), so they read as one principle — construction over
+   discipline — in two places rather than as two habits: *build the
+   known-present case INTO the probe* is *make the wrong thing inexpressible*
+   pointed at ad-hoc investigation.
+5. **Eviction rule 2 at the top of the file was restated** to carry the new
+   test, and its own history (§3 "grew to 35k anyway") was dropped — the rule
+   that says narrative belongs here, applied to itself.
+
+**Verified no rule was lost**, mechanically rather than by reading: every one of
+the 63 old headlines' distinctive words was checked for presence in the new
+section. One flagged — *A GUARDRAIL THAT SEVERS SOMETHING* — and it was a
+deliberate rewording to *ask of every severance what an unhandled event on the
+severed thing takes with it*, which states the action rather than the incident.
+That check is the search shape for the claim "nothing was dropped".
+
+**File: 74,998 → 71,907 characters; headroom 2 → 3,093** (measured the way `claude-md-budget.test.ts` measures: UTF-16 units, line endings normalised).
