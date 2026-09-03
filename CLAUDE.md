@@ -497,7 +497,11 @@ number uniqueness) · N4 (the pinned ZATCA index) — records in
 the evidence base is
 [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
 (🔴 read its READ FIRST section — two findings did NOT survive verification).
-T1, found closing N4, remains open below with its resolution written down.
+T1 (the drizzle-kit gate) ✅ CLOSED 2026-09-03: the owner ran the six prompts
+to the written answer (create, never rename), and the dangling journal entry —
+which crashed migrate — was removed; a fresh-DB migrate matches dev column for
+column (758 = 758) and a second generate reports "No schema changes" with no
+prompts. `generate` works again.
 
 ### Blocking, by their own nature
 
@@ -547,7 +551,6 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **T1** | 🔴 **`drizzle-kit generate` CANNOT RUN NON-INTERACTIVELY — RESOLVED ON PAPER, needs one TTY run.** The snapshot stopped at 0037; migration 0038 DROPPED `categories.zakat_relevant` and `transactions.is_zakat_relevant` by hand, so generate sees adds+drops on exactly those two tables and prompts for renames. 🔴 **The written-down answer: NOTHING IS A RENAME.** Both drops are real deletions (`0038_m17_0_drop_zakat_relevant.sql`); every added column (`liquidity_class`, `input_vat_blocked`, `journal_entry_id`, `transfer_direction`, `vat_basis`, `counterparty_bank_account_id`) is a genuine new column. Answer every prompt “create/delete, not rename”, then DISCARD the generated SQL (the DB already has everything — only the refreshed snapshot is wanted) and commit `meta/`. Full characterisation: findings file. | Every future schema change. | Owner (or any TTY): `pnpm --filter @workspace/db run generate`, answer as above, delete the emitted .sql + its journal entry, keep the snapshot. Minutes, once. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):

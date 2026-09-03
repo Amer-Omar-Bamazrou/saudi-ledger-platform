@@ -1098,3 +1098,32 @@ tables reported total column turnover, including `users`, known false. Fifth
 instance of *a negative/instrument result disagreeing with something already
 known true*; the redone probe casts `::text[]` and VALIDATES itself against
 `users` before diffing.
+
+## T1 — CLOSED (2026-09-03): generate works again, and the drift is closed, not moved
+
+The owner ran the interactive `generate` on a TTY: six prompts, answered
+**create every time, never rename**, per the written answer; the emitted
+`0067_lyrical_cable.sql` was discarded and the refreshed `0067_snapshot.json`
+kept.
+
+🔴 **The written answer's second half almost got lost.** "Delete the emitted
+.sql + its journal entry" — the journal-entry half was buried in the phrasing,
+the entry stayed, and the tree as handed over had `_journal.json` pointing at a
+deleted file. **Verified empirically before committing: `drizzle-kit migrate`
+CRASHES on that state** — it reads every journal entry's SQL up front — so CI
+and every fresh clone would have broken. The entry was removed and the full
+battery run:
+
+1. dev-DB migrate → green;
+2. a FRESH database migrated from zero → green;
+3. fresh schema vs dev schema → **758 columns = 758 columns, zero diff either
+   direction** (the probe validated itself against a known-present column
+   before diffing — the §3 rule, after the same probe lied once the day
+   before);
+4. 🔴 the decisive test, owner-specified: **a second `generate` runs clean —
+   "No schema changes, nothing to migrate", no prompts, nothing emitted — in
+   the same non-TTY shell that previously died on `promptColumnsConflicts`.**
+
+The snapshot chain is intact (`0067.prevId == 0037.id`), and the journal's
+snapshot-numbering gap (entries end at 0066, snapshots at 0067) is tolerated by
+both migrate and generate — proven by the battery, not assumed.
