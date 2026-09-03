@@ -36,12 +36,56 @@ import { checkPeriodOpen } from "./periodLock";
  * `accountName` is written alongside either for display and for the existing
  * report paths, but it is NO LONGER the identity of the account.
  */
+/**
+ * 🔴 N3 (2026-09-03): the PARTY on a control-account line. A receivable is a
+ * receivable FROM someone; a payable is a payable TO someone. ERPNext enforces
+ * this at the GL row ("Customer is required against Receivable account") and
+ * it is the reason their aging IS the ledger while ours was a parallel
+ * computation that structurally could not agree with it.
+ */
+export type GLParty =
+  | { type: "customer"; customerId: number }
+  | { type: "vendor"; vendorId: number }
+  /**
+   * 🔴 "No party" is a STATEMENT, not an omission. A simplified (B2C) ZATCA
+   * invoice legitimately has no identified customer — so the ERPNext rule
+   * ("Customer is required against Receivable") cannot be unconditional here.
+   * What CAN be unconditional: the caller must say so. `reason` is recorded
+   * nowhere (the columns stay NULL) — it exists to make the call site
+   * self-explaining and the thoughtless omission inexpressible.
+   */
+  | { type: "none"; reason: string };
+
 export type GLLine = {
   accountName: string;
   description?: string;
   debitAmount: number;
   creditAmount: number;
+  /** Required on systemCode AR/AP lines — enforced below. */
+  party?: GLParty;
 } & ({ systemCode: SystemAccountCode; accountId?: never } | { accountId: number; systemCode?: never });
+
+/**
+ * 🔴 A control-account line without a party is refused — for the SYSTEM-CODE
+ * path, which is every document posting path in the product. The accountId
+ * path (a manual journal entry naming the AR/AP account by hand) is NOT yet
+ * gated: the manual-JE form has no party picker, so a hard refusal there
+ * would break a shipped page. That remaining half is a NAMED GAP (§5 traps +
+ * the N3 record), not a silent default — the ERPNext-grade rule arrives with
+ * the picker.
+ */
+const PARTY_REQUIRED: ReadonlySet<string> = new Set(["AR", "AP"]);
+
+export class MissingPartyError extends Error {
+  readonly statusCode = 500; // an internal caller built the line wrong — our bug, not the user's
+  constructor(systemCode: string, accountName: string) {
+    super(
+      `GL line on ${systemCode} (${accountName}) carries no party. A receivable/payable line must name ` +
+        `its customer/vendor — pass \`party\` on the GLLine. Nothing was posted.`,
+    );
+    this.name = "MissingPartyError";
+  }
+}
 
 /**
  * The one tolerance for "these debits and credits are the same money".
@@ -171,6 +215,11 @@ export async function postJournalEntry(opts: {
     debitAmount: round2(l.debitAmount),
     creditAmount: round2(l.creditAmount),
   }));
+  for (const l of lines) {
+    if (l.systemCode && PARTY_REQUIRED.has(l.systemCode) && l.party === undefined) {
+      throw new MissingPartyError(l.systemCode, l.accountName);
+    }
+  }
   const totalDebit = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
   const totalCredit = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
   if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
@@ -213,6 +262,9 @@ export async function postJournalEntry(opts: {
       // on the rounded number is equivalent and kept for the narrow diff.
       debitAmount: l.debitAmount.toFixed(2),
       creditAmount: l.creditAmount.toFixed(2),
+      partyType: l.party && l.party.type !== "none" ? l.party.type : null,
+      customerId: l.party?.type === "customer" ? l.party.customerId : null,
+      vendorId: l.party?.type === "vendor" ? l.party.vendorId : null,
     }))
   );
 

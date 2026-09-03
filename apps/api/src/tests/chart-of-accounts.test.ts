@@ -362,7 +362,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
           date: "2026-06-15",
           description: "GL-only revenue with no invoice behind it",
           lines: [
-            { systemCode: "AR", accountName: "Accounts Receivable", debitAmount: 9999, creditAmount: 0 },
+            { systemCode: "AR", accountName: "Accounts Receivable", debitAmount: 9999, creditAmount: 0, party: { type: "none", reason: "fixture: tax-figure isolation probe" } },
             { systemCode: "SALES", accountName: "Sales Revenue", debitAmount: 0, creditAmount: 8695.65 },
             { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", debitAmount: 0, creditAmount: 1303.35 },
           ],

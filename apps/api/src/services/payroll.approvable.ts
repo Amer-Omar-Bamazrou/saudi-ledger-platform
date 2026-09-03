@@ -30,7 +30,10 @@ async function postPayrollGL(run: PayrollRun): Promise<PayrollRunOut> {
   const approveDate = new Date().toISOString().split("T")[0];
 
   await postJournalEntry({
-    entryNumber: `PAY-${run.period}`,
+    // N3: suffixed with the run id — `PAY-<period>` alone collided the day a
+    // period legitimately got a second run (a correction), and the unique
+    // (company_id, entry_number) index would have made that approval a 500.
+    entryNumber: `PAY-${run.period}-R${run.id}`,
     date: approveDate,
     description: `Payroll run for period ${run.period}`,
     reference: `Payroll-${run.id}`,

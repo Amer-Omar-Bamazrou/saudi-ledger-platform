@@ -135,7 +135,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     lines: [
       { ...expenseLine, description: `Bill ${bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
       { systemCode: "VAT_INPUT", accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
-      { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal },
+      { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
     ],
   });
 

@@ -447,22 +447,26 @@ export const invoicesService = {
       status: fullySettled ? "paid" : existing.status,
     });
 
+    // B4 — the dated record of THIS payment. `paid_amount` is a running total
+    // and `paid_at` only ever holds the last date, so without this row a
+    // second instalment permanently destroys the first one's date.
+    // 🔴 N3: recorded BEFORE the GL entry so the payment row's id can make the
+    // entry number unique — `GL-x-PAY` alone collided on the second partial
+    // payment, two journal entries claiming to be the same document, and the
+    // new unique(company_id, entry_number) index would refuse instalment #2.
+    const payment = await paymentsRepository.recordInvoicePayment(id, paid, payDate);
+
     // ── GL: Dr Cash and Bank / Cr Accounts Receivable ──
     await postJournalEntry({
-      entryNumber: `GL-${inv.invoiceNumber}-PAY`,
+      entryNumber: `GL-${inv.invoiceNumber}-PAY-${payment.id}`,
       date: payDate,
       description: `Payment received for invoice ${inv.invoiceNumber}`,
       reference: inv.invoiceNumber,
       lines: [
         { systemCode: "CASH", accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
-        { systemCode: "AR", accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid },
+        { systemCode: "AR", accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid, party: inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" } },
       ],
     });
-
-    // B4 — the dated record of THIS payment. `paid_amount` is a running total
-    // and `paid_at` only ever holds the last date, so without this row a
-    // second instalment permanently destroys the first one's date.
-    await paymentsRepository.recordInvoicePayment(id, paid, payDate);
 
     await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: existing, after: inv });
     return buildInvoiceOut(inv, null);

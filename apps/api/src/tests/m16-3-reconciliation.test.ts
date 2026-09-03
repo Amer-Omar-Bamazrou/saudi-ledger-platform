@@ -306,7 +306,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
 
   it("the GL entry came from the EXISTING pay path — one writer per effect", async () => {
     const { rows } = await pool.query(
-      `SELECT entry_number FROM journal_entries WHERE organization_id = $1 AND entry_number = 'GL-M163-A-PAY'`,
+      `SELECT entry_number FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE 'GL-M163-A-PAY-%'`,
       [orgId],
     );
     expect(rows).toHaveLength(1);

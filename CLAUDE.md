@@ -487,20 +487,17 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **N3, then L1** (N1 ✅, N2 ✅).
+🔴 Working order (2026-09-03): **L1 next** (N1–N4 ✅).
 
-### 🔴 NOW — ahead of L1 (owner, 2026-09-03, from the ERPNext comparison)
+### 🔴 The 2026-09-03 NOW queue — ALL FOUR CLOSED; L1 is next
 
-Full evidence, and the two findings that did NOT survive verification:
-[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
-🔴 **N1 ✅, N2 ✅ and N4 ✅ are CLOSED** — records in
-[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
-**T1** (ranked below) is what closing N4 uncovered.
-
-| # | Item | Done when |
-| --- | --- | --- |
-| **N3** | **PARTY ON THE JOURNAL LINE + THE MISSING UNIQUE INDEXES — while there are no rows to backfill.** No party dimension means GL AR and AR aging are computed from different tables and **structurally cannot agree**. `journal_entries.entry_number` and `bills.bill_number` have no unique index in Drizzle OR SQL, and `GL-${invoiceNumber}-PAY` **collides on the second partial payment**. | `customer_id`/`vendor_id`/`party_type` on `journal_entry_lines` + unique `(company_id, entry_number)` / `(company_id, bill_number)`, added to `money-unique-indexes.test.ts`. ERPNext retrofitted party in 2014 with a patch that rewrote live tenants' balances (`be8ec39678`, `patches/v4_2/party_model.py`). |
-
+N1 (company predicate + RLS) · N2 (the money seam) · N3 (party on the line +
+number uniqueness) · N4 (the pinned ZATCA index) — records in
+[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
+the evidence base is
+[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
+(🔴 read its READ FIRST section — two findings did NOT survive verification).
+T1, found closing N4, remains open below with its resolution written down.
 
 ### Blocking, by their own nature
 
@@ -550,12 +547,15 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **T1** | 🔴 **`drizzle-kit generate` CANNOT RUN NON-INTERACTIVELY** — it stops on a pre-existing column conflict between the schema and its snapshot (verified on a clean tree, 2026-09-03), so whoever next touches the schema gets an interactive rename prompt where a wrong answer is a data-destroying migration. Until resolved, migrations stay hand-written (0062–0065 all are) and the snapshot drifts further with each one. | **N3** (its migration is next) and every future schema change. | Found closing N4. Close by resolving the conflict once, interactively, with the answer written down and a clean snapshot regenerated — or by adopting hand-written-only migrations as policy and retiring the snapshot. Not by answering the prompt from memory. |
+| **T1** | 🔴 **`drizzle-kit generate` CANNOT RUN NON-INTERACTIVELY — RESOLVED ON PAPER, needs one TTY run.** The snapshot stopped at 0037; migration 0038 DROPPED `categories.zakat_relevant` and `transactions.is_zakat_relevant` by hand, so generate sees adds+drops on exactly those two tables and prompts for renames. 🔴 **The written-down answer: NOTHING IS A RENAME.** Both drops are real deletions (`0038_m17_0_drop_zakat_relevant.sql`); every added column (`liquidity_class`, `input_vat_blocked`, `journal_entry_id`, `transfer_direction`, `vat_basis`, `counterparty_bank_account_id`) is a genuine new column. Answer every prompt “create/delete, not rename”, then DISCARD the generated SQL (the DB already has everything — only the refreshed snapshot is wanted) and commit `meta/`. Full characterisation: findings file. | Every future schema change. | Owner (or any TTY): `pnpm --filter @workspace/db run generate`, answer as above, delete the emitted .sql + its journal entry, keep the snapshot. Minutes, once. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
 `platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice, pinned by an equivalence test, pending a shared package.
+exists twice, pinned by an equivalence test, pending a shared package — 🔴 and
+the 2026-09-03 constants sweep found its siblings: GOSI rates ×4 (one
+statutory rate, posting path + two previews + client copy) and the default VAT
+rate ×7. Inventory: findings file. Consolidate GOSI and VAT with it.
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -579,6 +579,7 @@ before launch. Record: findings file.
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
+- 🔴 **N3's remaining half:** the manual-JE form has no party picker, so an `accountId` line naming AR/AP by hand posts party-less (the systemCode document paths are gated; `postJournalEntry` refuses an UNDECLARED party there). The ERPNext-grade rule arrives with the picker.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
 - Settlement links are readable from the transaction side only (the design said "either side").
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.
