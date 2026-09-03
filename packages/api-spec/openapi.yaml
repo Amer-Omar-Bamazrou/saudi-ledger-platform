@@ -3041,6 +3041,25 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Payment" }
 
+  /invoices/{id}/document:
+    get:
+      operationId: getInvoiceDocument
+      tags: [invoices]
+      summary: "L1 — the rendered PDF/A-3 document. lang=ar (default) is THE tax invoice; lang=en is a labelled translation and says so on its face."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: query, name: lang, required: false, schema: { type: string, enum: [ar, en], default: ar } }
+      responses:
+        "200":
+          description: "The PDF (application/pdf, PDF/A-3B; the signed ZATCA XML is attached when the invoice has one)."
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "409":
+          description: "Draft/submitted — only an issued document renders (no QR, no legal existence yet)."
+        "503":
+          description: "pdf_renderer_unavailable — the Chromium executable is missing; the message names the install step."
+
   /bills/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

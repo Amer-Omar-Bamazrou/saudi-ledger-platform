@@ -1,5 +1,7 @@
 # The invoice document (L1) — design
 
+**Status (2026-09-03): core SHIPPED — renderer, endpoint, both renderings, tests; remaining: logo upload, B1-gated send. Current state authority: CLAUDE.md §2/§5.**
+
 **Status (2026-09-02): DESIGN AGREED, not built.** Current state authority:
 CLAUDE.md §2. This document is the single writer for the invoice artifact's
 design decisions; L1 in CLAUDE.md §5 points here and does not restate them.

@@ -1,6 +1,6 @@
 {
-  "id": "6ececd5d-2a85-4232-b8f3-7081199e63ca",
-  "prevId": "fc7d5735-40c4-43e9-9e27-e6d62b5112ac",
+  "id": "4ee06276-4f70-4bac-b661-9f9d4547f33d",
+  "prevId": "6ececd5d-2a85-4232-b8f3-7081199e63ca",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1048,8 +1048,7 @@
           "name": "description_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'(not yet translated)'"
+          "notNull": false
         },
         "quantity": {
           "name": "quantity",

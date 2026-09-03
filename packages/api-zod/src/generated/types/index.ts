@@ -146,6 +146,8 @@ export * from './getDecompositionDimension';
 export * from './getDecompositionParams';
 export * from './getGeneralLedgerParams';
 export * from './getIncomeStatementParams';
+export * from './getInvoiceDocumentLang';
+export * from './getInvoiceDocumentParams';
 export * from './getJournalReportParams';
 export * from './getLiquidityParams';
 export * from './getOwnerEquityParams';

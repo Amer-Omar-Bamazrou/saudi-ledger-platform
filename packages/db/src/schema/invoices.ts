@@ -154,7 +154,19 @@ export const invoiceItemsTable = pgTable(
     invoiceId: integer("invoice_id").notNull().references(() => invoicesTable.id, { onDelete: "cascade" }),
     productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
     description: text("description").notNull(),
-    descriptionAr: text("description_ar").notNull().default("(not yet translated)"),
+    /**
+     * 🔴 L1 (2026-09-03): the sentinel default DIED with the form field. It
+     * was the tax_category_code incident one column over — a NOT NULL default
+     * the write path never set, so every UI-created line stored the literal
+     * string "(not yet translated)", which the document design then had to
+     * legislate against printing. NULL is the honest absence: the Arabic PDF
+     * falls back to the English description, and nothing has to RECOGNISE a
+     * magic string to know a translation is missing. (🔴 The same sentinel
+     * default survives on ~8 OTHER columns — assets/budgets/customers/
+     * employees nameAr etc. — a named family for the same treatment when each
+     * gains its form field; migration 0067 converts only THIS column.)
+     */
+    descriptionAr: text("description_ar"),
     quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),
     unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
     vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default("15"),

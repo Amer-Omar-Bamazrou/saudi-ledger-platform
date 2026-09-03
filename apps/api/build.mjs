@@ -29,6 +29,12 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // L1: playwright-core resolves its browser executable and per-browser
+      // protocol files by path traversal from its own package directory —
+      // bundling it breaks that resolution silently. The bundled server must
+      // require() it from node_modules at runtime (a deploy-time dependency,
+      // like the ~150 MB Chromium layer itself — both on C6's hosting line).
+      "playwright-core",
       "sharp",
       "better-sqlite3",
       "sqlite3",
@@ -120,7 +126,20 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+buildAll()
+  .then(async () => {
+    // L1: the PDF/A OutputIntent's ICC profile is read at RUNTIME from
+    // `<bundle dir>/assets/` (`pdfa3.ts` joins import.meta.dirname, which is
+    // `dist/` once bundled). Ship the asset beside the bundle or every
+    // document render dies with ENOENT — found live, not guessed: the first
+    // e2e download returned a 500 for exactly this. Same class as
+    // connect-pg-simple's table.sql: a file a bundler cannot see.
+    const { cpSync, mkdirSync } = await import("node:fs");
+    mkdirSync("dist/assets", { recursive: true });
+    cpSync("src/services/invoiceDocument/assets", "dist/assets", { recursive: true });
+    console.log("copied invoiceDocument assets → dist/assets");
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

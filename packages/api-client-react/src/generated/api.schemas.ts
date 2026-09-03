@@ -3906,3 +3906,15 @@ export type ListInvoices200 = {
   totals: ListInvoices200Totals;
 };
 
+export type GetInvoiceDocumentParams = {
+lang?: GetInvoiceDocumentLang;
+};
+
+export type GetInvoiceDocumentLang = typeof GetInvoiceDocumentLang[keyof typeof GetInvoiceDocumentLang];
+
+
+export const GetInvoiceDocumentLang = {
+  ar: 'ar',
+  en: 'en',
+} as const;
+

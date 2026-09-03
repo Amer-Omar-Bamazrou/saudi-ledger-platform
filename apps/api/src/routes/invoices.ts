@@ -16,6 +16,9 @@ router.post("/:id/approve", invoicesController.approve);
 router.patch("/:id", invoicesController.update);
 router.post("/:id/pay", invoicesController.pay);
 router.get("/:id/payments", invoicesController.payments);
+// L1 — the rendered document (PDF/A-3): ?lang=ar is the tax invoice, ?lang=en
+// the labelled translation. Read-level action: downloading is bookkeeper work.
+router.get("/:id/document", invoicesController.document);
 router.delete("/:id", invoicesController.remove);
 
 export default router;

@@ -138,6 +138,39 @@ export const findingsRepository = {
     }));
   },
 
+  /**
+   * L1 (2026-09-03) — ISSUED invoices with lines that will print their
+   * ENGLISH description on the Arabic tax invoice, surfaced per the design's
+   * revision: the fallback is deliberate (a document that won't render is
+   * worse than one line in the wrong language) but it must never be
+   * INVISIBLE — "which invoices lack Arabic" is a question the tenant can
+   * act on line by line. Drafts are excluded: their fix is the open edit
+   * form, not a finding. NULL is the honest absence since migration 0067;
+   * the sentinel literal is matched for any pre-0067 stragglers.
+   */
+  async invoicesMissingArabicLines(): Promise<DetectedFinding[]> {
+    const { rows } = await db.execute<{ id: number; invoice_number: string; missing: number; total_lines: number }>(sql`
+      SELECT i.id, i.invoice_number,
+             count(*) FILTER (WHERE it.description_ar IS NULL
+                                 OR btrim(it.description_ar) = ''
+                                 OR it.description_ar = '(not yet translated)')::int AS missing,
+             count(*)::int AS total_lines
+        FROM invoices i
+        JOIN invoice_items it ON it.invoice_id = i.id
+       WHERE i.status NOT IN ('draft','submitted')
+       GROUP BY i.id, i.invoice_number
+      HAVING count(*) FILTER (WHERE it.description_ar IS NULL
+                                 OR btrim(it.description_ar) = ''
+                                 OR it.description_ar = '(not yet translated)') > 0
+    `);
+    return rows.map((r) => ({
+      kind: "missing_arabic_lines",
+      refKey: `invoice:${r.id}`,
+      companyId: null,
+      facts: { invoiceId: r.id, invoiceNumber: r.invoice_number, missing: r.missing, totalLines: r.total_lines },
+    }));
+  },
+
   /** Approved bills past due with an unpaid balance (bills carry no credit notes — verified, not mirrored). */
   async overduePayables(): Promise<DetectedFinding[]> {
     const { rows } = await db.execute<{ id: number; bill_number: string; due_date: string; outstanding: string; days_overdue: number }>(sql`
