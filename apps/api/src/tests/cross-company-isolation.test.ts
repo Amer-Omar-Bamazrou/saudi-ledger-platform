@@ -11,30 +11,32 @@
  * asked the narrower question: **does anything stop a request scoped to company
  * A from reading company B's rows, when both belong to the same tenant?**
  *
- * ── 🔴 THE ANSWER, MEASURED RATHER THAN ASSUMED ────────────────────────────
- * **No — not at the database level.** `app.current_company_id` is used ONLY as
- * a column DEFAULT (`0004_m4_rls_enforcement.sql` sets it as the default for
- * `company_id` on every business table). It appears in no policy's `USING` or
- * `WITH CHECK` clause. Every `tenant_isolation` policy tests `organization_id`
- * alone.
+ * ── 🔴 THE ANSWER — CHANGED BY N1 (2026-09-03; owner decision) ────────
+ * Until N1, **nothing** stopped it at the database: `app.current_company_id`
+ * was only a column DEFAULT, every `tenant_isolation` policy tested
+ * `organization_id` alone, and fifteen repositories queried company-scoped
+ * tables with no company filter — so a two-company org's trial balance, GL and
+ * VAT return ADDED BOTH SETS OF BOOKS under a green `balanced: true`. Record:
+ * `docs/history/erpnext-comparison-2026-09-03.md` §1; this file's git history
+ * holds the pre-N1 assertions.
  *
- * So company separation is enforced **per query, in the repositories** — which
- * is precisely the shape §4 warns about: *enforce invariants at the write
- * boundary, not in one path; per-path enforcement is per-path review, and a new
- * path starts at zero.*
+ * Migration 0065 added the company arm to every tenant_isolation policy on a
+ * table carrying `company_id`:
  *
- * ── WHY THIS IS RECORDED RATHER THAN "FIXED" ───────────────────────────────
- * Adding `company_id` to every policy is a schema-wide change with real
- * consequences: org-level reads that legitimately span companies (the operator
- * surface, org settings, anything aggregating across the tenant) would start
- * returning nothing, and the failure mode of getting it wrong is an empty
- * report rather than an error. That is a design decision with an owner, not a
- * patch.
+ *   company GUC set   → that company's rows (plus `company_id IS NULL` rows on
+ *                       the two NULLABLE tables, `findings` and `ai_usage` —
+ *                       org-level facts a company-scoped page must still see);
+ *   company GUC empty → org-wide, deliberately: `findings.schedule.service.ts`
+ *                       opens org-wide tenant connections on purpose. The
+ *                       report repositories' own predicates match NOTHING in
+ *                       that state, so a misconfigured request yields an EMPTY
+ *                       report, never a doubled one
+ *                       (`company-scoped-reports.test.ts` pins both arms).
  *
- * What this file does is make the situation **impossible to be wrong about**:
- * it asserts the current behaviour explicitly, so nobody reads "RLS is
- * enforced" and concludes companies are isolated by the database. An assumption
- * nobody has written down is the thing that turns into a finding later.
+ * This file asserts the NEW guarantee structurally — from `pg_policies`, so it
+ * holds as migrations accumulate — and keeps the shrink-only list of
+ * repositories that still rely on RLS alone for company separation.
+ *
  *
  * DB-backed; skips on the DB-free placeholder.
  */
@@ -127,52 +129,72 @@ describeMaybe("same-org cross-company isolation", () => {
     expect(r.rows.every((x) => x.n === 1)).toBe(true);
   });
 
-  it("🔴 RLS scopes by ORGANIZATION only — `app.current_company_id` is in NO policy", async () => {
+  it("🔴 N1: EVERY tenant_isolation policy on a company_id table references app.current_company_id — both directions", async () => {
     /**
-     * The structural fact, read from the catalog rather than from a migration
-     * file, so it stays true as migrations accumulate.
+     * Read from the catalog, not from migration 0065's text, so it stays true
+     * as migrations accumulate — and asserted in BOTH directions (the
+     * map-replaces-a-map rule): every company_id table's policy carries the
+     * arm, and the arm appears on no table without the column.
      */
-    const policies = await pool.query<{ tablename: string; qual: string | null; withcheck: string | null }>(
-      `SELECT tablename, qual::text AS qual, with_check::text AS withcheck
-         FROM pg_policies WHERE schemaname = 'public' AND policyname = 'tenant_isolation'`,
+    const rows = await pool.query<{ tablename: string; qual: string | null; has_company: boolean; company_nullable: boolean }>(
+      `SELECT p.tablename, p.qual::text AS qual,
+              EXISTS (SELECT 1 FROM information_schema.columns c
+                       WHERE c.table_schema = 'public' AND c.table_name = p.tablename
+                         AND c.column_name = 'company_id') AS has_company,
+              COALESCE((SELECT c.is_nullable = 'YES' FROM information_schema.columns c
+                         WHERE c.table_schema = 'public' AND c.table_name = p.tablename
+                           AND c.column_name = 'company_id'), false) AS company_nullable
+         FROM pg_policies p WHERE p.schemaname = 'public' AND p.policyname = 'tenant_isolation'`,
     );
-    expect(policies.rowCount, "no tenant_isolation policies found — the check would be vacuous").toBeGreaterThan(20);
+    expect(rows.rowCount, "no tenant_isolation policies found — the check would be vacuous").toBeGreaterThan(20);
 
-    const companyAware = policies.rows.filter(
-      (p) => (p.qual ?? "").includes("current_company_id") || (p.withcheck ?? "").includes("current_company_id"),
-    );
-    // 🔴 Asserting the CURRENT state deliberately. If this ever becomes
-    // non-empty, someone has started enforcing company at row level and this
-    // file's whole premise — and its warning below — needs revisiting.
+    const withColumn = rows.rows.filter((r) => r.has_company);
     expect(
-      companyAware.map((p) => p.tablename),
-      "A tenant_isolation policy now references app.current_company_id. That is a " +
-        "GOOD change, and it means this test's premise is out of date: re-read the " +
-        "header and decide what the new guarantee is before relaxing anything.",
+      withColumn.length,
+      "fewer than 30 company_id tables carry a tenant_isolation policy — the inventory read is broken, not the schema",
+    ).toBeGreaterThanOrEqual(30);
+
+    // Direction 1: every company_id table's policy carries the company arm.
+    // 🔴 This is what closes 0065 against a table created AFTER it: a new
+    // company-scoped table whose author writes the old org-only policy fails
+    // HERE, by name.
+    const missingArm = withColumn.filter((r) => !(r.qual ?? "").includes("current_company_id")).map((r) => r.tablename);
+    expect(
+      missingArm,
+      "These company_id tables have a tenant_isolation policy WITHOUT the company arm.\n" +
+        "A new company-scoped table must scope rows to app.current_company_id — see\n" +
+        "migration 0065_n1_company_row_scoping.sql for the exact clause (and the\n" +
+        "nullable variant for tables whose company_id can be NULL).",
     ).toEqual([]);
+
+    // Direction 2: no policy references the GUC on a table without the column.
+    const armWithoutColumn = rows.rows
+      .filter((r) => !r.has_company && (r.qual ?? "").includes("current_company_id"))
+      .map((r) => r.tablename);
+    expect(armWithoutColumn).toEqual([]);
+
+    // And the nullable tables keep their org-level rows readable: their arm
+    // must carry `company_id IS NULL` (findings / ai_usage would otherwise
+    // render an empty Findings page under every company-scoped request).
+    const nullableMissingNullArm = withColumn
+      .filter((r) => r.company_nullable && !(r.qual ?? "").includes("company_id IS NULL"))
+      .map((r) => r.tablename);
+    expect(nullableMissingNullArm).toEqual([]);
   });
 
-  it("🔴 a connection scoped to company A CAN read company B's rows — isolation is per-query, not per-policy", async () => {
+  it("🔴 N1: a connection scoped to company A can NOT read company B's rows — the row-level backstop", async () => {
     const { db, invoicesTable } = await import("@workspace/db");
     const rows = await inScope(orgId, companyA, () => db.select().from(invoicesTable));
     const numbers = rows.map((r: { invoiceNumber: string }) => r.invoiceNumber).sort();
 
     /**
-     * 🔴 This is the finding, asserted rather than described. A query that does
-     * not filter by company sees BOTH companies' books while scoped to one.
-     *
-     * It is not a vulnerability today: it is not cross-TENANT, the repositories
-     * that matter do filter, and no organization has two companies in
-     * production because there is no production. It is a **latent** one — the
-     * guarantee people assume ("RLS isolates") is narrower than the guarantee
-     * that exists, and the gap only becomes visible when a tenant runs two sets
-     * of books and a report mixes them.
+     * The exact query that proved the gap pre-N1 (it returned BOTH invoices),
+     * now asserting the backstop: no repository filter, no service, just an
+     * unfiltered select under a company scope. The repositories that never
+     * wrote a company filter (the shrink-only list below) are covered by THIS
+     * guarantee — which is why the list may only shrink and never grow.
      */
-    expect(
-      numbers,
-      "If this ever returns only company A's invoice, row-level company scoping " +
-        "has been added — update this test and the §5 entry rather than deleting it.",
-    ).toEqual(["CCI-A-001", "CCI-B-001"]);
+    expect(numbers).toEqual(["CCI-A-001"]);
   });
 
   it("a query that DOES filter by company is correctly scoped — the per-query enforcement works", async () => {
@@ -218,10 +240,15 @@ describeMaybe("same-org cross-company isolation", () => {
    * test — it is the honest size of the gap, and a new repository joining it
    * should be a deliberate act, not an accident.
    */
+  // N1 (2026-09-03): `reports`, `analytics` and `summary` LEFT this list —
+  // their shared condition builders now carry `companyScoped()` explicitly.
+  // The rest rely on the 0065 row-level backstop, asserted above; they remain
+  // listed because a repository-level predicate is still the better place for
+  // the filter to be VISIBLE, and each departure should be a deliberate edit.
   const NO_COMPANY_FILTER = [
-    "analytics", "assets", "bankAccounts", "bills", "budgets", "categorize",
+    "assets", "bankAccounts", "bills", "budgets", "categorize",
     "customers", "employees", "journalEntries", "payments", "payroll",
-    "reports", "summary", "transactions", "vendors",
+    "transactions", "vendors",
   ];
 
   it("🔴 the set of company-blind repositories only SHRINKS", async () => {

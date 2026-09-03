@@ -17,6 +17,7 @@ import {
   vendorsTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
+import { companyScoped } from "./companyScope";
 
 /**
  * 🔴 Journal-entry statuses that ARE the books (fixed 2026-08-17, found
@@ -33,7 +34,15 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } fro
  * are not.
  */
 export const JE_IN_BOOKS = ["posted", "reversed"];
-const inBooks = () => inArray(journalEntriesTable.status, JE_IN_BOOKS);
+/**
+ * 🔴 N1 (2026-09-03): "the books" means THE SCOPED COMPANY'S books. Two
+ * companies in one org are separate sets of books, and this helper is the one
+ * shared root every JE-based report condition passes through — so the company
+ * predicate lives HERE, inherited by every caller, rather than re-declared per
+ * method (the per-path form is how fifteen repositories ended up blind; see
+ * `companyScope.ts` and `docs/history/erpnext-comparison-2026-09-03.md` §1).
+ */
+const inBooks = () => and(inArray(journalEntriesTable.status, JE_IN_BOOKS), companyScoped(journalEntriesTable.companyId))!;
 
 /** In-books JE conditions used by most reports (status + optional date range). */
 function jeConditions(date_from?: string, date_to?: string, statusFilter = true) {
@@ -49,7 +58,9 @@ function jeConditions(date_from?: string, date_to?: string, statusFilter = true)
 // money report that reads bills must exclude them. Kept as a shared condition
 // so the AP-aging, balance-sheet-AP, and VAT-return bill queries stay in lockstep.
 const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
-const approvedBillsOnly = () => notInArray(billsTable.status, BILL_NOT_IN_BOOKS);
+// N1: approved bills OF THE SCOPED COMPANY — company scoping inherited by
+// every bill-reading report through this one helper.
+const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), companyScoped(billsTable.companyId))!;
 
 // Draft/approval workflow (M10.4): an invoice affects AR/revenue/VAT only once
 // APPROVED (issued). Draft and submitted invoices are NOT in the books — and are
@@ -57,7 +68,8 @@ const approvedBillsOnly = () => notInArray(billsTable.status, BILL_NOT_IN_BOOKS)
 // must exclude them. Shared so the AR-aging, balance-sheet-AR, VAT-sales, and
 // customer-ledger queries stay in lockstep.
 const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
-const approvedInvoicesOnly = () => notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS);
+// N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
+const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), companyScoped(invoicesTable.companyId))!;
 
 /**
  * The sign a document contributes to receivables, sales and output VAT (M12.1b).
@@ -114,7 +126,7 @@ export const reportsRepository = {
   txWithCategory(date_from?: string, date_to?: string, opts?: { includeNonOperating?: boolean }) {
     // M15 holding area: pending rows move nothing in cash flow or the
     // income-statement transaction fallback.
-    const conds: any[] = [eq(transactionsTable.reviewStatus, "accepted")];
+    const conds: any[] = [eq(transactionsTable.reviewStatus, "accepted"), companyScoped(transactionsTable.companyId)];
     // M16.2 — transfers/settlements are excluded from P&L-type readers by
     // DEFAULT; only cash flow opts in, because the bank balance genuinely
     // moved. A new consumer that wants transfers must say so explicitly.
@@ -155,7 +167,7 @@ export const reportsRepository = {
     return db
       .select()
       .from(journalEntryLinesTable)
-      .where(inArray(journalEntryLinesTable.journalEntryId, ids));
+      .where(and(inArray(journalEntryLinesTable.journalEntryId, ids), companyScoped(journalEntryLinesTable.companyId)));
   },
 
   // general-ledger
@@ -310,13 +322,13 @@ export const reportsRepository = {
     return db
       .select()
       .from(journalEntriesTable)
-      .where(inArray(journalEntriesTable.id, ids))
+      .where(and(inArray(journalEntriesTable.id, ids), companyScoped(journalEntriesTable.companyId)))
       .orderBy(desc(journalEntriesTable.date));
   },
 
   // activity
   activityEntries(date_from?: string, date_to?: string) {
-    const conds: any[] = [];
+    const conds: any[] = [companyScoped(journalEntriesTable.companyId)];
     if (date_from) conds.push(gte(journalEntriesTable.date, date_from));
     if (date_to) conds.push(lte(journalEntriesTable.date, date_to));
     return db

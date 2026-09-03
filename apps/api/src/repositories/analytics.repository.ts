@@ -32,6 +32,7 @@ import {
 } from "@workspace/db";
 import { and, eq, gte, inArray, lte, notInArray, sql } from "drizzle-orm";
 import { taxVisible } from "./summary.repository";
+import { companyScoped } from "./companyScope";
 import { JE_IN_BOOKS } from "./reports.repository";
 
 export interface MonthlyAccountMovement {
@@ -73,7 +74,7 @@ export const analyticsRepository = {
         eq(journalEntriesTable.id, journalEntryLinesTable.journalEntryId),
       )
       .leftJoin(categoriesTable, eq(categoriesTable.id, journalEntryLinesTable.accountId))
-      .where(and(inArray(journalEntriesTable.status, JE_IN_BOOKS), lte(journalEntriesTable.date, asOf)))
+      .where(and(inArray(journalEntriesTable.status, JE_IN_BOOKS), companyScoped(journalEntriesTable.companyId), lte(journalEntriesTable.date, asOf)))
       .groupBy(
         sql`to_char(${journalEntriesTable.date}::date, 'YYYY-MM')`,
         journalEntryLinesTable.accountId,
@@ -140,6 +141,7 @@ export const analyticsRepository = {
       .where(
         and(
           notInArray(invoicesTable.status, ["draft", "submitted"]),
+          companyScoped(invoicesTable.companyId),
           gte(invoicesTable.date, from),
           lte(invoicesTable.date, to),
         ),
@@ -161,6 +163,7 @@ export const analyticsRepository = {
       .where(
         and(
           notInArray(billsTable.status, ["draft", "submitted"]),
+          companyScoped(billsTable.companyId),
           gte(billsTable.date, from),
           lte(billsTable.date, to),
         ),
@@ -221,6 +224,8 @@ export const analyticsRepository = {
           JOIN journal_entries e ON e.id = l.journal_entry_id
           JOIN categories c      ON c.id = l.account_id
          WHERE e.status IN ('posted','reversed')
+           -- N1: the scoped company's books only (see companyScope.ts)
+           AND e.company_id::text = current_setting('app.current_company_id', true)
            AND e.date <= ${asOf}
            AND c.system_code = 'AR'
       ),
@@ -299,6 +304,8 @@ export const analyticsRepository = {
              coalesce(sum(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0)::text AS net
         FROM transactions
        WHERE review_status = 'accepted'
+         -- N1: the scoped company's rows only (see companyScope.ts)
+         AND company_id::text = current_setting('app.current_company_id', true)
          AND date >= ${from}
          AND date <= ${to}
        GROUP BY 1, 2, 3, 4
@@ -328,6 +335,8 @@ export const analyticsRepository = {
         JOIN journal_entries e ON e.id = l.journal_entry_id
         JOIN categories c      ON c.id = l.account_id
        WHERE e.status IN ('posted','reversed')
+         -- N1: the scoped company's books only (see companyScope.ts)
+         AND e.company_id::text = current_setting('app.current_company_id', true)
          AND e.date >= ${from}
          AND e.date <= ${to}
          AND c.liquidity_class = 'cash'
