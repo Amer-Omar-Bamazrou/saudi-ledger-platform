@@ -115,6 +115,26 @@ export const invoicesTable = pgTable(
     // ICV must be unique per company — the DB is the real guarantee against a
     // reused counter value under concurrent approvals.
     uniqueIndex("invoices_company_icv_unq").on(t.companyId, t.icv),
+    /**
+     * 🔴 DECLARED HERE BECAUSE AN UNDECLARED INDEX IS A DROP WAITING TO HAPPEN.
+     *
+     * Created by migration `0054_c12_invoice_number_uniqueness.sql`, this is the
+     * only enforcement of ZATCA's requirement that the invoice number uniquely
+     * identifies the Tax Invoice. It was hand-written SQL and was NOT declared
+     * here — so drizzle-kit's snapshot did not know it existed, while the
+     * sibling ICV index two lines up WAS declared and did.
+     *
+     * drizzle-kit generates by diffing the schema (desired state) against its
+     * snapshot. An index present in the database and absent from both reads as
+     * drift, and the next `generate` could emit a DROP INDEX for it — in a
+     * migration that looks entirely ordinary. Nothing would have failed: no test
+     * asserted the index, and duplicate invoice numbers do not throw, they
+     * produce two documents claiming to be the same one.
+     *
+     * Guarded by `__tests__/money-unique-indexes.test.ts`, which asserts BOTH
+     * halves: that the index is in the database, and that it is declared here.
+     */
+    uniqueIndex("invoices_company_number_unq").on(t.companyId, t.invoiceNumber),
   ],
 );
 
