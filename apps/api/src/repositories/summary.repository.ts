@@ -1,5 +1,6 @@
 /** Summary/analytics repository — read-only aggregations, tenant-scoped via RLS. */
 import { db, transactionsTable, categoriesTable } from "@workspace/db";
+import { companyScoped } from "./companyScope";
 
 /**
  * 🔴 THE M15 HOLDING-AREA FILTER. Every tax-facing read of `transactions` MUST
@@ -20,8 +21,9 @@ export const acceptedOnly = () => eq(transactionsTable.reviewStatus, "accepted")
  * filter: the bank balance genuinely moved.
  */
 export const operatingOnly = () => eq(transactionsTable.kind, "operating");
-/** The standard gate for every tax-facing reader: accepted AND operating. */
-export const taxVisible = () => and(acceptedOnly(), operatingOnly())!;
+/** The standard gate for every tax-facing reader: accepted AND operating AND
+ *  the scoped company's rows (N1, 2026-09-03 — see `companyScope.ts`). */
+export const taxVisible = () => and(acceptedOnly(), operatingOnly(), companyScoped(transactionsTable.companyId))!;
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 export interface DateRange {

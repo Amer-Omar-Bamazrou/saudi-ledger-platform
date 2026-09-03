@@ -883,3 +883,98 @@ that infers validity from the data it is comparing is not a check.**
 API's lib). That is correct and harmless — a seeded admin verifies through the
 legacy path and is upgraded on first login — but it means bcryptjs stays a
 dependency until that seed is moved or duplicated.
+
+## N4 — THE ZATCA NUMBER INDEX, DECLARED AND PINNED (CLOSED 2026-09-02, PR #134)
+
+`invoices_company_number_unq` — the only enforcement of ZATCA's requirement
+that the invoice number uniquely identifies the Tax Invoice — existed only in
+hand-written SQL (`0054_c12_invoice_number_uniqueness.sql`), was absent from
+the Drizzle schema AND its snapshot (verified: the sibling ICV index two lines
+away was in both), and was asserted by no test. drizzle-kit diffs schema
+against snapshot, so the index existed in the database and in NEITHER model —
+the next `generate` could emit a `DROP INDEX` that read as ordinary drift, and
+nothing would have failed: duplicate invoice numbers do not throw, they produce
+two financial records claiming to be the same document.
+
+**The fix:** declared in `schema/invoices.ts` with the reasoning inline, and
+pinned by `packages/db/src/__tests__/money-unique-indexes.test.ts`, which
+asserts BOTH halves — the index exists in the database (read from
+`pg_indexes`, never from the schema file, because a declaration that drifts
+from the database is the same defect one layer up) and the declaration exists
+in the schema (the condition that would cause the drop). Each half validated by
+injecting its fault: declaration removed → red; index dropped from the live
+DB → red; both restored → green. The pinned list is where N3's
+`(company_id, entry_number)` and `(company_id, bill_number)` indexes get added.
+
+**Why the snapshot was NOT regenerated:** `drizzle-kit generate` cannot run
+non-interactively in this repo at all — it stops on a pre-existing column
+conflict (verified by stashing the change and re-running on a clean tree).
+That finding is **T1** in §5. The declaration alone converts the failure mode
+from a silent DROP into a loud CREATE-that-fails, which is the property that
+mattered.
+
+## N1 — SAME-ORG CROSS-COMPANY ISOLATION, CLOSED AT THE ROW (2026-09-03)
+
+**The defect** (found by the ERPNext comparison, though the OPEN DECISION had
+been recorded since 2026-08-31): `app.current_company_id` was set on every
+request and read by nothing — a column DEFAULT only. Every `tenant_isolation`
+policy tested `organization_id` alone; `reports.repository.ts` and
+`analytics.repository.ts` carried zero `company_id` references across ~30
+queries; `/reports/trial-balance` had no `company` parameter a caller could
+even pass. A two-company org's trial balance, GL, income statement, balance
+sheet and VAT return ADDED BOTH COMPANIES' BOOKS — a 10×-wrong statutory
+figure in the fixture — while `balanced: true`, because **two balanced books
+sum to a balanced book**: the report's only self-check returned the identical
+answer for correct and corrupted books.
+
+**The fix, in two layers that deliberately disagree about the misconfigured
+case:**
+
+1. **Migration `0065_n1_company_row_scoping.sql`** — every `tenant_isolation`
+   policy on a table carrying `company_id` (35 of 45; the two owner-only
+   `zatca_credential*` tables have no policy by design) gains the company arm,
+   enumerated from the CATALOG rather than a hand-kept list, with a
+   refuses-to-succeed-vacuously floor of 30. Company GUC set → that company's
+   rows (plus `company_id IS NULL` rows on the two NULLABLE tables, `findings`
+   and `ai_usage` — org-level facts a company-scoped page must still see).
+   Company GUC empty → org-wide, deliberately: `findings.schedule.service.ts`
+   opens org-wide tenant connections on purpose, and a strict arm would have
+   silently fed it zero rows — a confident zero. This is NOT the forbidden
+   silent fallback (§4's `db`/`ownerDb` rule): that one crossed TENANTS with
+   RLS bypassed; this arm never leaves the organization and serves a named
+   caller.
+2. **`repositories/companyScope.ts`** — one exported predicate, ANDed into the
+   SHARED condition builders so callers inherit it (ERPNext's
+   `get_accounting_entries` position; the per-repository form had already lost
+   fifteen times): `inBooks()`, `approvedInvoicesOnly()`, `approvedBillsOnly()`
+   in `reports.repository.ts`; `taxVisible()` in `summary.repository.ts`
+   (inherited by analytics' Drizzle queries); inline in analytics' three raw
+   SQL blocks. On an empty company GUC this predicate matches NOTHING — so a
+   request that somehow reaches a report without a company yields an EMPTY
+   report, visible and complainable, never a doubled one that reads as an
+   answer. The two layers agree when scoped and disagree loudly when not.
+
+**Proof — `apps/api/src/tests/company-scoped-reports.test.ts`, exclusion not
+balance** (owner-specified): both invoices created through the PRODUCT'S OWN
+write path (`invoicesService` + `createApproved`) under each company's scope,
+amounts 9× apart so a merged figure can't be mistaken for either. Every claim
+asserts PRESENCE (A's exact figure), ABSENCE (B's figure nowhere in A's
+report), and MOVEMENT (B's scope shows B's figure, so the absence cannot be
+vacuous) — across the trial balance, income statement, VAT return and balance
+sheet — plus the raw RLS backstop (an unfiltered select under A returns only
+A), the org-wide arm (no-company connection reads both, pinned as the
+scheduler's semantic), and the empty-report-never-doubled property.
+
+**`cross-company-isolation.test.ts` premise inverted, per its own
+instructions:** it now asserts — from `pg_policies`, in BOTH directions — that
+every company_id table's policy carries the arm (which is what closes 0065
+against tables created after it) and that no company-less table's policy does;
+that the nullable tables keep `company_id IS NULL` readable; and that the
+unfiltered read returns only the scoped company. `reports`, `analytics` and
+`summary` LEFT the shrink-only `NO_COMPANY_FILTER` list; the remaining twelve
+repositories rely on the row-level backstop, now asserted rather than absent.
+
+**Deliberately NOT in N1:** the org-scoped chart of accounts (`categories` has
+no `company_id`; both companies share one chart — recorded in the ERPNext
+comparison §1 and adjacent to N3), and the periodLock empty-GUC behaviour
+(comparison §8's note), which the RLS arm does not change.

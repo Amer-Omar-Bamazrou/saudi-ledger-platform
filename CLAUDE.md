@@ -483,20 +483,21 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **N1–N3, then L1.**
+🔴 Working order (2026-09-03): **N2–N3, then L1** (N1 ✅).
 
 ### 🔴 NOW — ahead of L1 (owner, 2026-09-03, from the ERPNext comparison)
 
 Full evidence, and the two findings that did NOT survive verification:
 [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
+🔴 **N1 ✅ and N4 ✅ are CLOSED** — records in
+[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
+**T1** (ranked below) is what closing N4 uncovered.
 
 | # | Item | Done when |
 | --- | --- | --- |
-| **N1** | 🔴 **THE REPORTS CARRY NO COMPANY PREDICATE — stop other work for this.** `reports.repository.ts` / `analytics.repository.ts` have ZERO `company_id` references across ~30 queries; no RLS policy reads `app.current_company_id`. A two-company org files a **10×-wrong VAT return** with every guard green. 🔴 **"Two balanced books sum to a balanced book"** — `balanced` (`reports.service.ts:36`) returns the SAME answer for correct and corrupted books, so our only self-check on the flagship report cannot see this. | The predicate lives in `jeConditions()`/`lineJoin()` so callers INHERIT it (ERPNext's `get_accounting_entries` position — per-repository has lost 15×), plus an RLS `USING`. 🔴 The test asserts company A's trial balance **EXCLUDES B's rows**, never merely that it balances. |
 | **N2** | **ONE MONEY SEAM — two live defects, one shape.** Headers are computed unrounded while lines are rounded independently. (a) **Payroll: 10.3% of salary values cannot be approved** — measured, 185/1801 over basic 3,000–12,000, failing as a **500** (`payroll.service.ts:57-105` → `payroll.approvable.ts:26-41`). (b) **The Invoices page's Outstanding KPI** (`invoices.repository.ts:104-106`) has no `document_type` filter and no `documentSign()`, so a credit note **adds**; drafts and rejected count too. 12 `round2` definitions vs ~90 `.toFixed(2)` — and they round differently (2.675 → 2.68 vs 2.67). | One seam; the GL balance check moves AFTER rounding, on the rows actually persisted, with a round-off line or a loud throw (ERPNext `general_ledger.py:397-427`). `invoices.service.ts:160-171` already fixed this shape once — the sweep never reached payroll. |
 | **N3** | **PARTY ON THE JOURNAL LINE + THE MISSING UNIQUE INDEXES — while there are no rows to backfill.** No party dimension means GL AR and AR aging are computed from different tables and **structurally cannot agree**. `journal_entries.entry_number` and `bills.bill_number` have no unique index in Drizzle OR SQL, and `GL-${invoiceNumber}-PAY` **collides on the second partial payment**. | `customer_id`/`vendor_id`/`party_type` on `journal_entry_lines` + unique `(company_id, entry_number)` / `(company_id, bill_number)`, added to `money-unique-indexes.test.ts`. ERPNext retrofitted party in 2014 with a patch that rewrote live tenants' balances (`be8ec39678`, `patches/v4_2/party_model.py`). |
 
-🔴 **N4 CLOSED in the commit that added this section** — `invoices_company_number_unq` (ZATCA's invoice-number uniqueness) existed only in hand-written SQL, was absent from the Drizzle schema AND its snapshot, and was asserted by no test: the next `generate` could emit a **DROP INDEX** in a migration that looked ordinary. Now declared in `schema/invoices.ts` and pinned by `packages/db/src/__tests__/money-unique-indexes.test.ts`, which asserts BOTH the database and the declaration, and was validated by injecting each fault. 🔴 **Found on the way and OPEN: `drizzle-kit generate` cannot run non-interactively** — it stops on a column conflict (verified pre-existing, on a clean tree), so the next person to run it gets a rename prompt where a wrong answer is a data-destroying migration.
 
 ### Blocking, by their own nature
 
@@ -546,6 +547,7 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **T1** | 🔴 **`drizzle-kit generate` CANNOT RUN NON-INTERACTIVELY** — it stops on a pre-existing column conflict between the schema and its snapshot (verified on a clean tree, 2026-09-03), so whoever next touches the schema gets an interactive rename prompt where a wrong answer is a data-destroying migration. Until resolved, migrations stay hand-written (0062–0065 all are) and the snapshot drifts further with each one. | **N3** (its migration is next) and every future schema change. | Found closing N4. Close by resolving the conflict once, interactively, with the answer written down and a clean snapshot regenerated — or by adopting hand-written-only migrations as policy and retiring the snapshot. Not by answering the prompt from memory. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
@@ -761,46 +763,34 @@ is still present; (3) prefer a test that fails loudly — this loss is invisible
 to reading.
 
 **🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
-VERDICT (2026-08-21).** A run reported here as "905 passed" was not green — the
-line directly above said **`Test Files 1 failed`**: a teardown (`afterAll`) had
-thrown, which vitest reports at FILE level while every individual test still
-counts as passed. Two mechanisms, both worth fixing in the habit:
-1. **`npx vitest run 2>&1 | tail -6` exits with `tail`'s status, not vitest's.**
-   Use `${PIPESTATUS[0]}`, or don't pipe the command whose status you need.
-2. **Read `Test Files` and the EXIT CODE, never `Tests`.** A hook failure, an
-   import error and an unhandled rejection all fail the FILE without failing a
-   test.
-🔴 Earned again 2026-08-31: an injected fault reported "Tests 2 passed" with
-exit 1. **When a tool reports several numbers, find out which one is the verdict
-before trusting any of them.**
-append to **every line in the file**, and reported success. Same shape as
-`rm -rf "$DIR"/` with `DIR` unset: **a command that cannot distinguish "no
-target" from "all targets", and whose default on that ambiguity is maximal
-action** — `sed` without an address, a `DELETE` whose `WHERE` built to nothing,
-a filter with an empty allowlist. The tell: *what does this do when its input is
-empty?* If the answer is "everything", quoting discipline is not the fix.
-Incident: findings file.
+VERDICT.** Use `${PIPESTATUS[0]}`, or don't pipe the command whose status you
+need — and read `Test Files` plus the EXIT CODE, never `Tests`: a hook failure,
+an import error and an unhandled rejection all fail the FILE while every test
+still counts as passed. 🔴 When a tool reports several numbers, find out which
+one is the verdict before trusting any of them. (Twice; incidents: findings
+file.)
 
-**The countermeasure — now the STANDING PATTERN for scripted edits to tracked
-files: `scripts/anchored-edit.mjs`.** Every edit names an anchor; the anchor must
-match **exactly once**; zero matches, two matches, or an empty anchor all abort
-having written nothing. It refuses untracked files unless told. The ambiguous
-case becomes *inexpressible* rather than merely discouraged — the §3 rule
-applied to our own tooling — and "no target" and "all targets" now have
-different, loud outcomes, which is the property `sed` lacks.
+**🔴 A COMMAND THAT CANNOT DISTINGUISH "NO TARGET" FROM "ALL TARGETS"
+DEFAULTS TO MAXIMAL ACTION** — an unanchored `sed` appended to every line of
+the file and reported success; same family as `rm -rf "$DIR"/` with `DIR`
+unset, a `DELETE` whose `WHERE` built to nothing, a filter with an empty
+allowlist. The tell: *what does this do when its input is empty?* If the answer
+is "everything", quoting discipline is not the fix. **The countermeasure is the
+STANDING PATTERN for scripted edits to tracked files:
+`scripts/anchored-edit.mjs`** — every edit names an anchor that must match
+exactly once; zero matches, two matches, or an empty anchor abort having
+written nothing, so "no target" and "all targets" get different, loud outcomes
+(§3's inexpressibility rule aimed at our own tooling; it has refused bad
+anchors repeatedly). Use it (`--dry-run` when unsure); a heredoc writing a
+whole NEW file is fine, and the editing tools suit one-off changes.
 
-🔴 **It has earned itself repeatedly** — refusing anchors that matched twice
-rather than silently editing the first, and refusing empty anchors. Use it
-(`--dry-run` when unsure) for any scripted edit to a tracked file; a heredoc
-writing a WHOLE new file is fine, and the editing tools suit one-off changes.
-
-Related, and the reason the pattern is not optional: **§10b's stale-write hazard
-means a mixed diet of scripted and tool edits on one file can silently revert
-work.** One incident in this session: `git checkout -- <file>` after a
-re-injection test reverted to the last COMMIT and took an uncommitted fix with
-it. Nothing warned. It was caught only by re-grepping for the symbol that was
-supposed to be there. **After any revert, re-verify the changes you meant to
-keep are still present** — the same discipline as after a stale-snapshot warning.
+**🔴 A REVERT CAN TAKE UNCOMMITTED WORK WITH IT, SILENTLY** — `git checkout
+-- <file>` restores the last COMMIT, not the last state you verified, and a
+mixed diet of scripted and tool edits on one file can silently revert work the
+same way (the stale-write hazard above). **After any revert, re-verify the
+changes you meant to keep are still present** — the same discipline as after a
+stale-snapshot warning. (Second instance 2026-09-03, caught by re-grepping the
+symbol before moving on.)
 
 ## 11. Development Conventions
 
