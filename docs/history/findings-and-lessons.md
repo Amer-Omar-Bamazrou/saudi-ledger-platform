@@ -5934,3 +5934,38 @@ severed thing takes with it*, which states the action rather than the incident.
 That check is the search shape for the claim "nothing was dropped".
 
 **File: 74,998 → 71,907 characters; headroom 2 → 3,093** (measured the way `claude-md-budget.test.ts` measures: UTF-16 units, line endings normalised).
+
+## 2026-09-03 — TWO LESSONS THE OWNER NAMED OUT OF N1, recorded at their instruction
+
+**1. When one arm of a guard must stay open for a named org-wide caller, make
+the layers disagree on it.** N1's shape: `findings.schedule.service.ts`
+legitimately opens org-wide tenant connections (no company GUC), so the RLS
+company arm could not be strict without silently feeding that job a confident
+zero. The resolution was not to pick one semantic but to give the two layers
+DIFFERENT ones for the empty-GUC case: RLS reads org-wide (the named caller's
+semantic), while the report repositories' own predicate matches NOTHING — so a
+request that reaches a report without a company yields an EMPTY report someone
+complains about, never a doubled one that reads as an answer.
+
+The owner's framing: *"an empty report someone complains about beats a doubled
+one that reads as an answer. That's the withholding discipline applied to a
+security boundary."* The generalisation: any two-layer guard where one arm
+serves a legitimate wide caller should make the layers AGREE on the scoped case
+and DISAGREE loudly on the misconfigured one — two layers that agree on the
+wrong answer are one layer.
+
+Both arms are pinned by name in `company-scoped-reports.test.ts` (the org-wide
+arm names the scheduler; the empty-report arm names the property), so
+tightening either is a deliberate act, not drift.
+
+**2. An isolation test asserts PRESENCE, ABSENCE, and MOVEMENT.** N1's
+exclusion suite asserts, for every report: company A's exact figure present;
+company B's figure absent everywhere in A's output; and the SAME call under
+B's scope showing B's figure. The owner: *"asserting B's figure appears under
+B's scope is the half most people would skip"* — and it is the half that makes
+the other two non-vacuous, because absence alone passes on an empty fixture,
+and presence alone passes on a merged one. Named as the pattern for every
+future isolation test: presence, absence, movement, all three, every claim.
+
+Related §3 rules: "when the CORRECT answer equals the BROKEN one" (which is
+what `balanced: true` was), and "assert the property, not the number".

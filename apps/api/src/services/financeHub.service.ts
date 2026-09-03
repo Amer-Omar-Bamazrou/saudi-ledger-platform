@@ -27,8 +27,8 @@ import { reportsService } from "./reports.service";
 import { transactionsService } from "./transactions.service";
 import { companiesRepository } from "../repositories/companies.repository";
 import { zatcaOnboardingService } from "./einvoice/onboarding/zatcaOnboarding.service";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Below this a rule of thumb starts to mean something. NOT a compliance line. */
 const RULE_OF_THUMB_RATIO = 1;

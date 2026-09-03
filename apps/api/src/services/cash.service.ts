@@ -20,8 +20,8 @@
  * reconciliation FAILED rather than present a tidy list that does not add up.
  */
 import { analyticsRepository } from "../repositories/analytics.repository";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** One month of both figures, with the difference already attributed. */
 export interface CashPoint {

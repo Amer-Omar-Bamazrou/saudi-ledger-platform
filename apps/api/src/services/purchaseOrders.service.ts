@@ -41,8 +41,8 @@ import {
   type PurchaseOrderListFilter,
 } from "../repositories/purchaseOrders.repository";
 import { buildPurchaseOrderOut, type PriceVariance } from "./purchaseOrders.presenter";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const PO_FIELDS = ["date", "validUntil", "vendorId", "currency", "notes"] as const;
 

@@ -978,3 +978,63 @@ repositories rely on the row-level backstop, now asserted rather than absent.
 no `company_id`; both companies share one chart — recorded in the ERPNext
 comparison §1 and adjacent to N3), and the periodLock empty-GUC behaviour
 (comparison §8's note), which the RLS arm does not change.
+
+## N2 — THE MONEY SEAM (CLOSED 2026-09-03)
+
+Two live defects, one header-vs-rounded-lines shape, closed by one seam.
+
+**`apps/api/src/lib/money.ts`** — `round2` (the ONE rounding) and `money2`
+(round the same way, THEN format). The twelve identical local
+`const round2 = …` definitions across the services were replaced with imports;
+`.toFixed(2)` on an unrounded float — which rounds DIFFERENTLY from `round2`
+exactly where float error sits on a half-cent (2.675 → 2.68 vs "2.67") — is
+retired from the money paths this milestone touched.
+
+**(a) Payroll — 10.3% of salary values could not be approved.**
+`payroll.service.ts` accumulated raw `basic * 0.0975` into the run headers
+while each payslip stored `.toFixed(2)`; the GL, built from the headers, failed
+the balance check for 185/1,801 swept salary values and surfaced as a 500 on
+approve. Fixed by ROUNDED ACCUMULATION — every per-employee figure is
+`round2`'d before it is summed, so header = Σ stored payslips exactly and the
+GL balances by construction (net_i = gross_i − gosiEmp_i holds exactly at 2dp).
+The invoice path's own rule ("HEADER = Σ ROUNDED LINES, exactly"), which the
+sweep never carried to payroll — §3's report-is-a-sample.
+
+**(b) The Invoices-page KPIs.** `listMeta.outstanding` summed `total − paid`
+for every status ≠ 'paid' with no `document_type` filter: a credit note
+(stored positive) ADDED to money owed, drafts counted as receivables. Now the
+aging report's formula as one aggregate — in-books rows only, credit notes
+subtract — and `collected` became money actually RECEIVED (Σ `paid_amount`)
+rather than "Σ total of fully-paid invoices", which ignored every partial
+payment.
+
+**glPosting order inverted (the ERPNext position,
+`process_debit_credit_difference`):** lines are `round2`'d FIRST, the balance
+check runs on the rounded values, and exactly those values persist — so the
+number checked and the number stored can never disagree. The old order admitted
+an entry whose raw floats sneaked under the 0.005 tolerance and then stored an
+imbalanced 2dp pair the check never saw; that case now THROWS. 🔴 **No
+round-off account, deliberately** (owner option): every writer is our own
+service and each must make header = Σ rounded lines by construction, so a
+residual is our arithmetic bug and the loud throw — naming both totals — is
+the correct behaviour. The read side now imports `GL_BALANCE_TOLERANCE`
+instead of a hardcoded `0.01` that was silently 2× the write side.
+
+**Proof — `money-kpi-consistency.test.ts`:** the measured worked example
+(3 Saudi employees at basic 3,010) run THROUGH the service — create, submit,
+approve — with header = Σ payslips and the stored GL rows balancing asserted
+from the database; 🔴 validated by re-injecting the fault (unrounded
+`gosiEmp`), which reproduced the exact original error (`Dr 10,091.01 vs
+Cr 10,091.03`) and turned the test red before the fix was restored. The KPI
+test builds invoice + partial payment + credit note + draft through the
+product's own write path and asserts the number (520.00), the collected figure
+(400.00), and 🔴 **equality with Σ aging** — two computations of one fact,
+forced to agree loudly. The rounding inversion is pinned by an entry whose raw
+floats pass the old check and whose rounded lines do not: it must throw, and
+nothing may persist.
+
+**Not in N2, recorded so the absence is deliberate:** the ~12 identical `toNum`
+definitions (coercion, not rounding — no drift hazard of the same class); the
+header-discount validation gap (`invoices.service.ts:140`, comparison §13);
+and the unposted-discount GL representation, which is a design question, not a
+rounding one.

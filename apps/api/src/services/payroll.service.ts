@@ -17,6 +17,7 @@ import { approvalService } from "./approval";
 import { payrollApprovable } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
+import { round2, money2 } from "../lib/money";
 
 export const payrollService = {
   async list() {
@@ -59,16 +60,31 @@ export const payrollService = {
     let totalGosiEmp = 0;
     let totalGosiEr = 0;
     let totalNet = 0;
+    /**
+     * 🔴 N2 (2026-09-03): every per-employee figure is ROUNDED BEFORE it is
+     * accumulated, so the run's headers equal the sum of the stored payslips
+     * EXACTLY — the invoice path's "header = Σ rounded lines" rule
+     * (invoices.service.create), which this file never received.
+     *
+     * The old shape accumulated raw `basic * 0.0975` while each payslip
+     * stored `.toFixed(2)`, so header ≠ Σ payslips by up to a halala per
+     * employee — and the GL, built from the headers, failed the balance check
+     * for 10.3% of salary values (185/1,801 measured; basic 3,010 × 3 Saudi
+     * employees is the worked example), surfacing as an opaque 500 on
+     * approve. With rounded accumulation the GL balances BY CONSTRUCTION:
+     * net_i = gross_i − gosiEmp_i holds exactly at 2dp per employee, so
+     * Σnet = Σgross − ΣgosiEmp holds exactly for the headers too.
+     */
     const items = employees.map((emp) => {
       const basic = toNum(emp.basicSalary);
       const housing = toNum(emp.housingAllowance);
       const transport = toNum(emp.transportAllowance);
       const other = toNum(emp.otherAllowances);
-      const gross = basic + housing + transport + other;
+      const gross = round2(basic + housing + transport + other);
       const isSaudi = emp.nationality === "SA";
-      const gosiEmp = isSaudi ? basic * 0.0975 : 0;
-      const gosiEr = isSaudi ? basic * 0.1175 : basic * 0.02;
-      const net = gross - gosiEmp;
+      const gosiEmp = round2(isSaudi ? basic * 0.0975 : 0);
+      const gosiEr = round2(isSaudi ? basic * 0.1175 : basic * 0.02);
+      const net = round2(gross - gosiEmp);
       totalBasic += basic;
       totalAllowances += housing + transport + other;
       totalGosiEmp += gosiEmp;
@@ -93,12 +109,14 @@ export const payrollService = {
       period,
       status: "draft",
       notes,
-      totalBasicSalary: String(totalBasic.toFixed(2)),
-      totalAllowances: String(totalAllowances.toFixed(2)),
-      totalGosiEmployee: String(totalGosiEmp.toFixed(2)),
-      totalGosiEmployer: String(totalGosiEr.toFixed(2)),
+      // money2 = round2 then format: sheds the float dust of summing 2dp
+      // doubles, so the stored header is the exact sum of the stored payslips.
+      totalBasicSalary: money2(totalBasic),
+      totalAllowances: money2(totalAllowances),
+      totalGosiEmployee: money2(totalGosiEmp),
+      totalGosiEmployer: money2(totalGosiEr),
       totalDeductions: "0",
-      totalNetPay: String(totalNet.toFixed(2)),
+      totalNetPay: money2(totalNet),
       createdBy: userId ?? null,
     } as Parameters<typeof payrollRepository.insertRun>[0]);
     await payrollRepository.insertItems(items.map((i) => ({ ...i, payrollRunId: run.id })));

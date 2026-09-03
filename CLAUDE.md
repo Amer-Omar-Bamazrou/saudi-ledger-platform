@@ -255,6 +255,7 @@ doing the thing it governs rather than only once you know its name.
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true.
+- **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
 - **A value that satisfies every check while meaning nothing** — `Number("")` is 0, so `creditLimit: ""` passed the guard, stored, and read back as a limit of 0.00. Check the MEANING, not only the type.
@@ -281,6 +282,7 @@ doing the thing it governs rather than only once you know its name.
 - **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
 - **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
 - **Two id spaces with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift.
+- **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary; generalises to any two-layer guard with a legitimate wide arm.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
 - **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
 - **🔴 ASK OF EVERY SEVERANCE WHAT AN UNHANDLED EVENT ON THE SEVERED THING TAKES WITH IT** — an idle-in-transaction timeout killed the API PROCESS. 🔴 And standard advice applied without checking which case you have is its own trap: `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`.
@@ -362,6 +364,7 @@ doing the thing it governs rather than only once you know its name.
   ambient global role.
 - **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (The conversion found a live unscoped read; incident: findings file.)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
+- **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
 - **🔴 PASSWORDS GO THROUGH `lib/password.ts` — ONE SEAM.** `crypto.scrypt` (N=2^17, off the event loop) for new hashes; bcrypt kept ONLY to verify pre-2026-09-02 hashes, with transparent rehash on the next correct login. Never call a KDF directly, and never store a hash another way: the seam is where the length bound, the parameters and the migration live.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
@@ -483,19 +486,18 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **N2–N3, then L1** (N1 ✅).
+🔴 Working order (2026-09-03): **N3, then L1** (N1 ✅, N2 ✅).
 
 ### 🔴 NOW — ahead of L1 (owner, 2026-09-03, from the ERPNext comparison)
 
 Full evidence, and the two findings that did NOT survive verification:
 [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
-🔴 **N1 ✅ and N4 ✅ are CLOSED** — records in
+🔴 **N1 ✅, N2 ✅ and N4 ✅ are CLOSED** — records in
 [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md).
 **T1** (ranked below) is what closing N4 uncovered.
 
 | # | Item | Done when |
 | --- | --- | --- |
-| **N2** | **ONE MONEY SEAM — two live defects, one shape.** Headers are computed unrounded while lines are rounded independently. (a) **Payroll: 10.3% of salary values cannot be approved** — measured, 185/1801 over basic 3,000–12,000, failing as a **500** (`payroll.service.ts:57-105` → `payroll.approvable.ts:26-41`). (b) **The Invoices page's Outstanding KPI** (`invoices.repository.ts:104-106`) has no `document_type` filter and no `documentSign()`, so a credit note **adds**; drafts and rejected count too. 12 `round2` definitions vs ~90 `.toFixed(2)` — and they round differently (2.675 → 2.68 vs 2.67). | One seam; the GL balance check moves AFTER rounding, on the rows actually persisted, with a round-off line or a loud throw (ERPNext `general_ledger.py:397-427`). `invoices.service.ts:160-171` already fixed this shape once — the sweep never reached payroll. |
 | **N3** | **PARTY ON THE JOURNAL LINE + THE MISSING UNIQUE INDEXES — while there are no rows to backfill.** No party dimension means GL AR and AR aging are computed from different tables and **structurally cannot agree**. `journal_entries.entry_number` and `bills.bill_number` have no unique index in Drizzle OR SQL, and `GL-${invoiceNumber}-PAY` **collides on the second partial payment**. | `customer_id`/`vendor_id`/`party_type` on `journal_entry_lines` + unique `(company_id, entry_number)` / `(company_id, bill_number)`, added to `money-unique-indexes.test.ts`. ERPNext retrofitted party in 2014 with a patch that rewrote live tenants' balances (`be8ec39678`, `patches/v4_2/party_model.py`). |
 
 

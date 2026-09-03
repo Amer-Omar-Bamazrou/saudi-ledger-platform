@@ -43,8 +43,8 @@ import { billApprovable, type BillApproveOptions } from "./bills.approvable";
 import { buildBillOut } from "./bills.presenter";
 import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const billsService = {
   /** A PAGE of bills, plus the totals for the whole filtered set (see invoices). */
@@ -131,7 +131,6 @@ export const billsService = {
     // Audit fix (Tier 1, finding 2): header = Σ rounded lines, exactly — see
     // the full note in invoices.service.create; the same divergence existed
     // here and feeds AP GL posting and the input-VAT side of the return.
-    const round2 = (n: number) => Math.round(n * 100) / 100;
     let subtotal = 0;
     let vatTotal = 0;
     const preparedItems = items.map((it: any) => {

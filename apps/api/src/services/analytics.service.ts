@@ -24,8 +24,8 @@
  *    numbers and its trustworthiness cannot come apart.
  */
 import { analyticsRepository } from "../repositories/analytics.repository";
+import { round2 } from "../lib/money";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Everything but `non_current` is current; `cash` + `quick` are quick. */
 const isCurrent = (c: string | null) => c === "cash" || c === "quick" || c === "current";

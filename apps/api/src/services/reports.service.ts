@@ -5,6 +5,9 @@
  */
 import { BadRequestError } from "../lib/errors";
 import { reportsRepository, documentSign } from "../repositories/reports.repository";
+// N2: ONE tolerance, imported from the write side — a read-side literal 2x the
+// write-side constant was the two-constants disease glPosting diagnoses for itself.
+import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -33,7 +36,7 @@ export const reportsService = {
 
     const totalDebit = fmt2(rows.reduce((s, r) => s + r.debit, 0));
     const totalCredit = fmt2(rows.reduce((s, r) => s + r.credit, 0));
-    return { accounts: rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.01 };
+    return { accounts: rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) <= GL_BALANCE_TOLERANCE };
   },
 
   async incomeStatement(date_from?: string, date_to?: string) {
@@ -350,13 +353,13 @@ export const reportsService = {
         lines: entryLines.map((l) => ({ id: l.id, accountName: l.accountName, accountId: l.accountId, description: l.description, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)) })),
         totalDebit,
         totalCredit,
-        balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+        balanced: Math.abs(totalDebit - totalCredit) <= GL_BALANCE_TOLERANCE,
       };
     });
 
     const grandDebit = fmt2(result.reduce((s, e) => s + e.totalDebit, 0));
     const grandCredit = fmt2(result.reduce((s, e) => s + e.totalCredit, 0));
-    return { entries: result, count: result.length, grandDebit, grandCredit, balanced: Math.abs(grandDebit - grandCredit) < 0.01 };
+    return { entries: result, count: result.length, grandDebit, grandCredit, balanced: Math.abs(grandDebit - grandCredit) <= GL_BALANCE_TOLERANCE };
   },
 
   async generalLedger(account_id?: string, account_name?: string, date_from?: string, date_to?: string) {

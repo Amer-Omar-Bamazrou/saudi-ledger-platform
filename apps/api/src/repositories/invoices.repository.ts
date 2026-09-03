@@ -100,11 +100,33 @@ export const invoicesRepository = {
     const [row] = await db
       .select({
         total: sql<number>`count(*)::int`,
+        /**
+         * 🔴 N2 (2026-09-03): the OLD formula summed `total - paid` for every
+         * status ≠ 'paid' with no document_type filter — so a credit note
+         * (stored POSITIVE, direction in the type: see documentSign in
+         * reports.repository) ADDED to outstanding instead of subtracting, a
+         * 1,000 note against a 1,000 invoice read as 2,000 owed, and drafts
+         * counted as receivables in violation of the zero-movement standard.
+         * The refutation sat eighteen lines up (OVERDUE gets the statuses
+         * right) and the warning sat in reports.repository ("READ THIS BEFORE
+         * WRITING A REPORT THAT SUMS INVOICE ROWS"). This is the aging
+         * report's formula (Σ per in-books invoice of total − paid − credited)
+         * expressed as one aggregate: credit notes carry no payments and every
+         * approved note's original is in the same summed set, so subtracting
+         * note totals equals subtracting per-invoice credited amounts.
+         * `money-kpi-consistency.test.ts` pins KPI == Σ aging.
+         */
         outstanding: sql<number>`COALESCE(SUM(
-          CASE WHEN ${invoicesTable.status} <> 'paid'
-               THEN ${invoicesTable.total} - ${invoicesTable.paidAmount} ELSE 0 END), 0)::float8`,
+          CASE WHEN ${invoicesTable.status} IN ('draft','submitted') THEN 0
+               WHEN ${invoicesTable.documentType} = 'credit_note' THEN -(${invoicesTable.total}::numeric)
+               ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) END), 0)::float8`,
+        // N2: collected is money actually RECEIVED — Σ paid_amount over
+        // in-books documents — not "total of fully-paid invoices", which
+        // ignored every partial payment and counted unpaid halves as
+        // collected the day the last instalment landed.
         collected: sql<number>`COALESCE(SUM(
-          CASE WHEN ${invoicesTable.status} = 'paid' THEN ${invoicesTable.total} ELSE 0 END), 0)::float8`,
+          CASE WHEN ${invoicesTable.status} IN ('draft','submitted') THEN 0
+               ELSE COALESCE(${invoicesTable.paidAmount}::numeric, 0) END), 0)::float8`,
         // Counted from the SAME predicate the filter uses, so the KPI and the
         // chip can never describe different sets.
         overdue: sql<number>`COUNT(*) FILTER (WHERE ${OVERDUE})::int`,
