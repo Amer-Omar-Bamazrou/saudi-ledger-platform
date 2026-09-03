@@ -65,32 +65,60 @@ carries **no "as a translation" qualifier**. Do not design from the English.
    registered Latin-script company name is the common real case — the sample
    from a Riyadh law firm carries its seller name in Latin inside an otherwise
    Arabic document).
-4. **A second language may sit alongside**, and side-by-side bilingual is the
-   observed Saudi convention. It is a presentation choice, not a compliance one.
-5. 🔴 **A PLACEHOLDER MUST BLOCK THE DOCUMENT — the builder REFUSES, it does
-   not print.** `nameAr` (or `descriptionAr`) still holding
-   `"(not yet translated)"` means the Arabic rendering of that row is
-   incomplete, and Arabic is the mandatory language. Printing the placeholder
-   would put the literal string "(not yet translated)" into a legal artifact
-   that carries a ZATCA stamp and cannot afterwards be edited or deleted.
+4. **TWO DOCUMENTS, not one document with fallbacks** (owner, 2026-09-03):
 
-   So the document builder raises a **blocking condition on the document** —
-   named rows, named fields, and what to fill in — rather than falling back
-   silently. This is §3's **withhold a number that would mean nothing**,
-   applied to a compliance field: the honest output is a refusal that says
-   which translations are missing, not a document that looks complete and is
-   not. 🔴 It is a *refusal that teaches the next step*, not a hidden control
-   (AUD-7): the message names the rows and links to them.
+   - **The Arabic PDF is THE tax invoice.** Arabic labels, Arabic values
+     wherever we hold them, RTL layout, the QR, the full ZATCA field set. This
+     is the legal artifact, the one the archive keeps, and the one Article 53's
+     Arabic requirement is satisfied by.
+   - **The English PDF is a rendering for English-speaking customers.** The
+     same data, English labels, LTR layout — generated on demand from the same
+     builder, never stored as the artifact. 🔴 **It is labelled, on its face,
+     as what it is**: since the settled reading above is that the invoice must
+     be in Arabic, an English-only rendering is NOT a compliant tax invoice,
+     and the document must say so rather than let a tenant hand a customer
+     something that is not valid. Fixed banner naming the Arabic document it
+     translates (إشعار / "Translation of Tax Invoice INV-… — the Arabic
+     document is the tax invoice"), keyed on a structured flag in the builder,
+     not on copy.
+   - This is NOT the superseded wholly-one-language rule returning: the Arabic
+     document is always produced and always the legal one; the English copy is
+     an addition, not an alternative.
 
-   Consequences to build with:
-   - The check runs at **artifact build**, not at approval — an approved
-     invoice is already legally issued; blocking there would be too late and
-     would strand a valid document.
-   - It is a **document-level** condition, so one untranslated line blocks the
-     whole artifact rather than printing a half-Arabic page.
-   - The seller's own registered Latin-script name is **not** a placeholder and
-     must not trip it (rule 3 above) — the test is the literal default value,
-     not "is this Arabic script".
+5. 🔴 **THE PLACEHOLDER NEVER PRINTS — BUT A MISSING TRANSLATION NO LONGER
+   BLOCKS** (owner, 2026-09-03, revising the 2026-09-02 refusal rule).
+
+   The 2026-09-02 rule made the builder REFUSE any document whose rows still
+   held `"(not yet translated)"`. The ERPNext-comparison verification then
+   established that **no invoice-line form in the product ever writes
+   `descriptionAr`** (`schema/invoices.ts:137` defaults the column; the only
+   `descriptionAr` writers in `apps/web` are bank-capture surfaces) — so the
+   refusal rule, built as written, would refuse **every invoice the product
+   has ever created**, at the exact moment L1 is meant to close a launch
+   blocker.
+
+   The owner's revision splits the rule into the half that was right and the
+   half that was not:
+   - 🔴 **The literal string `"(not yet translated)"` must NEVER appear on
+     either document.** That half stands, and it is testable: render fixtures
+     with the sentinel present and assert its absence from the output text.
+   - **The refusal is withdrawn.** Where `descriptionAr` is absent or holds
+     the sentinel, the Arabic PDF prints the **English description** for that
+     line — stored script as fallback, rule 3 above, extended from names to
+     line descriptions. *"A document that won't render is worse than one line
+     in the wrong language."*
+   - The seller's own registered Latin-script name remains a non-event
+     (rule 3) — the test everywhere is the literal sentinel value, never "is
+     this Arabic script".
+
+   **Going forward, real Arabic is captured rather than fallen back to:**
+   - The invoice line form gains a `descriptionAr` input (and the column's
+     `"(not yet translated)"` default should die with it — an absent value
+     should be NULL, not a sentinel that has to be recognised everywhere).
+   - 🔴 **Which invoices lack Arabic line descriptions is SURFACED** — a
+     visible count/flag on the invoice (the honest-message rule: leave the
+     reader the best action available), not a silent fallback nobody can see
+     the extent of.
 
 **Superseded rule, recorded as a correction rather than quietly replaced:** the
 owner's earlier ruling was that a document must be *wholly* Arabic or *wholly*
@@ -169,7 +197,7 @@ a heading with nothing under it; an unused stamp area prints an empty bordered
 box on a PDF nobody will ever physically stamp. Both look like something went
 wrong, on a document a customer keeps. **So an optional block defaults OFF and
 turns itself on only when it has content** — the placeholder problem in
-document form, and the same rule as the `nameAr` refusal in §1: do not print a
+document form, and the same rule as §1's never-print-the-sentinel rule: do not print a
 space where a value should be.
 
 **PDF/A-3 is v1, not a follow-up** — see §4. If it materially changes the
@@ -237,6 +265,38 @@ therefore a **level-2 toggle, default OFF** — not a required field wearing the
 appearance of one.
 
 ---
+
+### One template, parameterised by language — not two documents' worth of work
+
+The two documents are one template with a `lang: "ar" | "en"` parameter, and the
+spike's pipeline already supports the claim:
+
+- **Layout mirrors rather than differs.** The reference layout is label/value
+  tables, an items table and a totals block — all of which mirror under
+  `<html lang dir>` alone when the stylesheet uses **logical properties**
+  (`margin-inline-start`, `text-align: start`, `padding-inline`). One
+  stylesheet, no per-language fork. Chromium/HarfBuzz shapes both directions;
+  that was the spike's finding.
+- **Labels are the `t(en, ar)` pairs the app already uses** — the template's
+  label function is the same shape, so the pair sits next to the value it
+  labels (the property that makes ERPNext's كمية/"Amount" catalog bug
+  inexpressible here).
+- **Values differ by a selector, not a branch**: Arabic rendering prefers the
+  Arabic-held value with stored-script fallback (§1 rules 2–3); English
+  rendering prefers the English/stored value.
+- **Shared and unparameterised:** the QR, the ZATCA field set, Hijri-alongside-
+  Gregorian dates, Western Arabic numerals for all amounts in BOTH renderings
+  (the real reference invoice uses them, and the printed figures must read
+  identically against the QR payload), the PDF/A-3 post-processing, and the
+  toggles.
+- **The genuine per-language deltas are three:** the label set, the `dir`/`lang`
+  attributes, and the English rendering's mandatory translation banner (§1
+  rule 4). Estimated cost over a single-language template: ~1.15×, not 2×.
+  The test surface doubles only at the render-assertion layer — two snapshots
+  per fixture, which is the point rather than a cost (§3: small fixtures test
+  differently; the second language is seeded breadth).
+- **Only the Arabic artifact is stored.** The English copy is regenerated on
+  demand from the same data, so the archive question does not double either.
 
 ## 4. Format target — PDF/A-3 with embedded XML
 

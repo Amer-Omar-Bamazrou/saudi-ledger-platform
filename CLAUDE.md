@@ -56,15 +56,12 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-08-31.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-08-28 → 31 — six passes, P5, and the navigation tree** (tree as data,
-every entry checked; record: [`nav-tree-reconciliation.md`](docs/product/nav-tree-reconciliation.md)).
-All merged; their invariants are in §4 and their lessons in §3.
-**2026-09-01 — L1/L2/L3 named** by the first core-path walk (§3 rule 4, §5).
-**2026-09-02 — contract milestone CLOSED at a deliberate stop, batches 1–5:**
-every money surface in the spec, conformance-tested on real rows (approval
-artifact proven, ICV chained; `/approvals/pending` replaces a queue capped at
-50). **Ratchet 55 → 20, zero joins. The 20 left are a STOP, not a backlog** —
-operator/identity, AI and read-only, no tenant money. Record: findings file.
+**2026-08-28 → 31** — six passes, P5 and the navigation tree, all merged
+([record](docs/product/nav-tree-reconciliation.md)). **2026-09-01** — L1/L2/L3
+named by the first core-path walk. **2026-09-02** — the contract milestone
+CLOSED at a deliberate stop; its standing rules and the pinned inventory are in
+§5. 🔴 **2026-09-03 — the ERPNext comparison put N1–N3 at the top of §5,
+ahead of L1** ([record](docs/history/erpnext-comparison-2026-09-03.md)).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -481,13 +478,25 @@ blocks ordinary platform work.
 🔴 **OPEN ITEMS ONLY.** An item leaves this list in the commit that closes it;
 its as-built record goes to
 [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md),
-which holds every closed item (A1–A4, B1–B5, C1's code half, C2, C5, C9, C11,
-C12, and the 2026-08-20 audit's MED/LOW tables) with its full reasoning.
+which holds every closed item with its full reasoning.
 
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
-P0-1 = C13 ✅ · P0-2 = M-4 ✅ · P1-1 = L1 · P1-2 = L2 · P1-4 = password
-recovery (rank 1 below). Working order is that sequence.
+P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
+🔴 Working order (2026-09-03): **N1–N3, then L1.**
+
+### 🔴 NOW — ahead of L1 (owner, 2026-09-03, from the ERPNext comparison)
+
+Full evidence, and the two findings that did NOT survive verification:
+[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
+
+| # | Item | Done when |
+| --- | --- | --- |
+| **N1** | 🔴 **THE REPORTS CARRY NO COMPANY PREDICATE — stop other work for this.** `reports.repository.ts` / `analytics.repository.ts` have ZERO `company_id` references across ~30 queries; no RLS policy reads `app.current_company_id`. A two-company org files a **10×-wrong VAT return** with every guard green. 🔴 **"Two balanced books sum to a balanced book"** — `balanced` (`reports.service.ts:36`) returns the SAME answer for correct and corrupted books, so our only self-check on the flagship report cannot see this. | The predicate lives in `jeConditions()`/`lineJoin()` so callers INHERIT it (ERPNext's `get_accounting_entries` position — per-repository has lost 15×), plus an RLS `USING`. 🔴 The test asserts company A's trial balance **EXCLUDES B's rows**, never merely that it balances. |
+| **N2** | **ONE MONEY SEAM — two live defects, one shape.** Headers are computed unrounded while lines are rounded independently. (a) **Payroll: 10.3% of salary values cannot be approved** — measured, 185/1801 over basic 3,000–12,000, failing as a **500** (`payroll.service.ts:57-105` → `payroll.approvable.ts:26-41`). (b) **The Invoices page's Outstanding KPI** (`invoices.repository.ts:104-106`) has no `document_type` filter and no `documentSign()`, so a credit note **adds**; drafts and rejected count too. 12 `round2` definitions vs ~90 `.toFixed(2)` — and they round differently (2.675 → 2.68 vs 2.67). | One seam; the GL balance check moves AFTER rounding, on the rows actually persisted, with a round-off line or a loud throw (ERPNext `general_ledger.py:397-427`). `invoices.service.ts:160-171` already fixed this shape once — the sweep never reached payroll. |
+| **N3** | **PARTY ON THE JOURNAL LINE + THE MISSING UNIQUE INDEXES — while there are no rows to backfill.** No party dimension means GL AR and AR aging are computed from different tables and **structurally cannot agree**. `journal_entries.entry_number` and `bills.bill_number` have no unique index in Drizzle OR SQL, and `GL-${invoiceNumber}-PAY` **collides on the second partial payment**. | `customer_id`/`vendor_id`/`party_type` on `journal_entry_lines` + unique `(company_id, entry_number)` / `(company_id, bill_number)`, added to `money-unique-indexes.test.ts`. ERPNext retrofitted party in 2014 with a patch that rewrote live tenants' balances (`be8ec39678`, `patches/v4_2/party_model.py`). |
+
+🔴 **N4 CLOSED in the commit that added this section** — `invoices_company_number_unq` (ZATCA's invoice-number uniqueness) existed only in hand-written SQL, was absent from the Drizzle schema AND its snapshot, and was asserted by no test: the next `generate` could emit a **DROP INDEX** in a migration that looked ordinary. Now declared in `schema/invoices.ts` and pinned by `packages/db/src/__tests__/money-unique-indexes.test.ts`, which asserts BOTH the database and the declaration, and was validated by injecting each fault. 🔴 **Found on the way and OPEN: `drizzle-kit generate` cannot run non-interactively** — it stops on a column conflict (verified pre-existing, on a clean tree), so the next person to run it gets a rename prompt where a wrong answer is a data-destroying migration.
 
 ### Blocking, by their own nature
 
