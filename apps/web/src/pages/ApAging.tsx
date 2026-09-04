@@ -111,7 +111,7 @@ export default function ApAging() {
               <p className="text-xs mt-1 opacity-60">{t("All bills are paid or no bills have been created.", "جميع الفواتير مدفوعة أو لم يتم إنشاء أي فاتورة.")}</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Bill", "Vendor", "Due", "Bucket", "Outstanding"].map(h => (
@@ -146,7 +146,7 @@ export default function ApAging() {
                   <td className="pt-3 font-mono text-xs font-bold">{fmtNum(report.total)}</td>
                 </tr>
               </tfoot>
-            </table>
+            </table></div>
           )}
         </CardContent>
       </Card>

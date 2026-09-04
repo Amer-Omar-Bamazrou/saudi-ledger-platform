@@ -110,7 +110,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto"><table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                       <th className="text-start pb-1.5 pe-4 font-medium">{t("Account", "الحساب")}</th>
@@ -136,7 +136,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                       <td className="pt-2 text-end font-mono text-positive">{fmtNum(entry.totalCredit)}</td>
                     </tr>
                   </tfoot>
-                </table>
+                </table></div>
               </CardContent>
             </Card>
           ))}

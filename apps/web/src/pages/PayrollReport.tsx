@@ -107,7 +107,7 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
               <p className="text-xs mt-1 opacity-60">Process payroll in HR &amp; Payroll to see data here.</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[
@@ -135,7 +135,7 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </CardContent>
       </Card>

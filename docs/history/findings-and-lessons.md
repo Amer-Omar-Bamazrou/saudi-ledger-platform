@@ -6012,3 +6012,34 @@ worth their own small change (each is a statutory fact with a posting path
 among its definitions); the rest are candidates for the same pass. Folded into
 §5's open-decisions line beside `normalizeDigits` — the same disease, already
 pending a shared-package decision.
+
+## 2026-09-04 — TWO L1 LESSONS THE OWNER NAMED
+
+**1. A test that exercises the code but not the artifact is testing a
+different program** — P5's THIRD structural catch. The ICC OutputIntent
+profile is read at runtime by path from `import.meta.dirname`; every unit and
+live test imported SOURCE (dirname = `src/…`) and passed, while dev and prod
+run the esbuild BUNDLE (dirname = `dist/`) where the asset never shipped — so
+the first e2e download 500'd with ENOENT while the whole service suite was
+green. Same class as connect-pg-simple's `table.sql`. The pattern, not the
+incident: bundling changes `import.meta.dirname`, drops path-traversal
+resolution (playwright-core's browser lookup — externalised for exactly that),
+and omits any file the bundler cannot see; anything read at runtime by path
+must be proven through the BUILT artifact, and P5 is the only thing that runs
+it. (Catches one and two: the six-audits-vs-one-browser-pass finding, and the
+unkeyed fragment.)
+
+**2. The sixth probe instance — and the first one caught BY the
+countermeasure rather than by luck.** The L1 live test asserted "the sentinel
+is absent from the PDF's decompressed bytes" — vacuous in BOTH directions,
+because Chromium subsets fonts into glyph-encoded content streams that no
+ASCII grep can read: the absence assertion would have held on a PDF made
+entirely of sentinels. What failed was the PLANTED POSITIVE — "the English
+fallback text appears" — on a real render, which is the known-present-case
+rule doing its designed job: the probe carried its own validation, so the
+blindness surfaced as a red test instead of a green lie. The text rules moved
+to the HTML layer (where text is assertable, sentinel planted in the
+fixture); the PDF test asserts only what bytes answer honestly. Instance
+count: (1) compressed-PDF grep, (2) verify's spawn, (3) the fault-injection
+runner, (4) the ICC HTML download, (5) the name[] array probe, (6) this —
+the first found by construction.

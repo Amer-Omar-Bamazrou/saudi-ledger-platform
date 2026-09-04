@@ -93,7 +93,7 @@ export default function ArAging() {
               <p>{t("No outstanding invoices. All payments are current.", "لا توجد فواتير مستحقة. جميع المدفوعات محدّثة.")}</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Invoice #", "Customer", "Due Date", "Days Past Due", "Outstanding", "Aging"].map(h => (
@@ -124,7 +124,7 @@ export default function ArAging() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </CardContent>
       </Card>

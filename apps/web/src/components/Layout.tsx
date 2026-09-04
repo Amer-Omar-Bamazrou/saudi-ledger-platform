@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,7 +7,7 @@ import { useDeployment } from "@/hooks/useDeployment";
 import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { NAV_TREE, type NavEntry, type NavSection } from "@/nav/tree";
-import { ChevronDown, ChevronRight, LogOut, Languages, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, LogOut, Languages, Clock, Menu, X } from "lucide-react";
 
 /**
  * 🔴 THE NAVIGATION IS NO LONGER DEFINED HERE. It lives in `@/nav/tree`, as
@@ -252,24 +252,56 @@ export function Layout({ children }: { children: React.ReactNode }) {
    */
   const search = typeof window === "undefined" ? "" : window.location.search;
 
-  return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className="w-60 border-e border-border bg-sidebar shrink-0 flex flex-col">
-        {/* Brand */}
-        <div className="h-14 flex items-center px-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-background">ك</span>
-            </div>
-            <div>
-              <span className="font-bold text-base text-primary tracking-tight">KSA Ledger</span>
-              <div className="text-xs text-muted-foreground -mt-0.5">
-                {t("ERP · Accounting", "نظام ERP · محاسبة")}
-              </div>
-            </div>
-          </div>
+  /**
+   * 🔴 L2 — THE RESPONSIVE SHELL (launch blocker, first core-path walk):
+   * `Layout.tsx` had ZERO breakpoints, so on a phone the app was a
+   * horizontal-scroll desktop page for a mobile-first customer.
+   *
+   * ONE sidebar, TWO containers — the same `sidebarInner` renders in the
+   * desktop `<aside>` (≥ md) and in an OWNED mobile drawer (< md). Owned, not
+   * the vendored `ui/sidebar.tsx`/`ui/sheet.tsx`: those are deliberately
+   * unowned (design-pass-inherited-decisions), their RTL behaviour lives in an
+   * override layer keyed on utilities, and a 40-line drawer built on LOGICAL
+   * properties (`inset-inline-start`, `border-e`) mirrors under `dir` with no
+   * override needed. The nav being data (`@/nav/tree`) is what makes the same
+   * tree render in both containers with no duplication — the exact dividend
+   * §5's L2 entry predicted.
+   *
+   * The drawer closes on navigation (location effect), on the backdrop, and on
+   * Escape. It renders nothing at ≥ md — an overlay that merely hides would
+   * still trap focus.
+   */
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => {
+    setDrawerOpen(false); // navigating IS the dismissal on a phone
+  }, [location]);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
+  const brand = (
+    <div className="flex items-center gap-2">
+      <div className="w-6 h-6 rounded bg-primary flex items-center justify-center shrink-0">
+        <span className="text-xs font-bold text-background">ك</span>
+      </div>
+      <div>
+        <span className="font-bold text-base text-primary tracking-tight">KSA Ledger</span>
+        <div className="text-xs text-muted-foreground -mt-0.5">
+          {t("ERP · Accounting", "نظام ERP · محاسبة")}
         </div>
+      </div>
+    </div>
+  );
+
+  const sidebarInner = (
+    <>
+      {/* Brand (desktop header; the drawer carries its own with a close control) */}
+      <div className="h-14 hidden md:flex items-center px-4 border-b border-border shrink-0">
+        {brand}
+      </div>
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto">
@@ -331,11 +363,63 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         )}
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Desktop sidebar — hidden below md; the drawer takes over there. */}
+      <aside className="w-60 border-e border-border bg-sidebar shrink-0 hidden md:flex flex-col">
+        {sidebarInner}
       </aside>
+
+      {/* Mobile drawer — rendered only while open, only below md. */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/50"
+            data-testid="nav-drawer-backdrop"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside
+            data-testid="nav-drawer"
+            className="absolute inset-y-0 start-0 h-full w-72 max-w-[85vw] bg-sidebar border-e border-border flex flex-col shadow-xl"
+          >
+            <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
+              {brand}
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label={t("Close menu", "إغلاق القائمة")}
+                className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {sidebarInner}
+          </aside>
+        </div>
+      )}
 
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="flex-1 overflow-auto p-8">
+        {/* Mobile top bar — the only place the hamburger exists. */}
+        <header className="h-12 md:hidden flex items-center gap-2 px-3 border-b border-border bg-sidebar shrink-0">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label={t("Open menu", "فتح القائمة")}
+            data-testid="nav-hamburger"
+            className="p-2 -ms-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          {brand}
+        </header>
+        {/* 🔴 min-w-0 + overflow-x-hidden: the PAGE never scrolls sideways;
+            wide content (tables) scrolls inside its own container — the B-6
+            rule applied to layout. Mobile e2e asserts this per route. */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
           {children}
         </div>
       </main>

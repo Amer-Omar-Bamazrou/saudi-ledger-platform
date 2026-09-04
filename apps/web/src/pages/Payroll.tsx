@@ -105,7 +105,7 @@ export default function Payroll() {
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{detail ? `${t("Payslips", "قسائم الراتب")} — ${detail.period}` : t("Select a Run", "اختر مسير رواتب")}</CardTitle></CardHeader>
           <CardContent>
             {!detail ? <div className="text-center py-12 text-muted-foreground text-sm">{t("Select a payroll run to view payslips", "اختر مسير رواتب لعرض قسائم الراتب")}</div> : (
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto"><table className="w-full text-xs">
                 <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
                 <tbody>{detail.items.map(item=>(
                   <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
@@ -125,7 +125,7 @@ export default function Payroll() {
                     <td className="py-2 font-mono text-positive">{fmtNum(detail.totalNetPay)}</td>
                   </tr>
                 </tfoot>
-              </table>
+              </table></div>
             )}
           </CardContent>
         </Card>

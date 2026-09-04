@@ -73,7 +73,7 @@ export default function Approvals() {
       {!rows || rows.length === 0 ? (
         <p style={{ color: "#888", fontSize: 13 }}>{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
       ) : (
-        <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+        <div className="overflow-x-auto"><table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
               <th style={{ padding: 4 }}>#</th>
@@ -101,7 +101,7 @@ export default function Approvals() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </section>
   );

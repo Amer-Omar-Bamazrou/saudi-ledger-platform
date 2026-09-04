@@ -121,7 +121,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
       ) : (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[t("Date", "التاريخ"), t("Entry #", "رقم القيد"), t("Reference", "المرجع"), t("Description", "الوصف"), t("Debit", "مدين"), t("Credit", "دائن"), t("Running Balance", "الرصيد الجاري")].map(h => (
@@ -154,7 +154,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
                   <td className={cn("pt-3 font-mono text-sm font-bold", data.closingBalance < 0 ? "text-negative" : "")}>{fmtNum(data.closingBalance)}</td>
                 </tr>
               </tfoot>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       )}

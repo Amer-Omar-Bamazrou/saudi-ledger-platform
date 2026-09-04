@@ -61,7 +61,7 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
           <p className="text-sm">{type === "ar" ? t("No outstanding receivables.", "لا توجد ذمم مدينة معلقة.") : t("No outstanding payables.", "لا توجد ذمم دائنة معلقة.")}</p>
         </div>
       ) : (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase">
               {[numLabel, partyLabel, t("Due Date", "تاريخ الاستحقاق"), t("Outstanding", "المبلغ المستحق"), t("Days Overdue", "أيام التأخر")].map(h => (
@@ -91,7 +91,7 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
               <td />
             </tr>
           </tfoot>
-        </table>
+        </table></div>
       )}
     </div>
   );

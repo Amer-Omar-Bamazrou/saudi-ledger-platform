@@ -93,7 +93,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
           </div>
         </CardHeader>
         <CardContent>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground uppercase">
                 <th className="text-start pb-2">{t("Account", "الحساب")}</th>
@@ -131,7 +131,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
                 {comparing && <td className="py-3 text-end font-mono text-muted-foreground">{fmtPctChange(total, priorTotal ?? 0)}</td>}
               </tr>
             </tfoot>
-          </table>
+          </table></div>
         </CardContent>
       </Card>
     );

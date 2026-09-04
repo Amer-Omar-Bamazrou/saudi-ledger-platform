@@ -40,7 +40,7 @@ function CFBlock({ title, data, color, icon, prior }: { title: string; data: Cas
         )}
       </CardHeader>
       <CardContent>
-        <table className="w-full text-xs">
+        <div className="overflow-x-auto"><table className="w-full text-xs">
           <thead><tr className="border-b border-border text-muted-foreground uppercase"><th className="text-start pb-1">{t("Item", "البند")}</th><th className="text-end pb-1">{t("Amount", "المبلغ")}</th></tr></thead>
           <tbody>
             {data.items.length === 0 ? (
@@ -53,7 +53,7 @@ function CFBlock({ title, data, color, icon, prior }: { title: string; data: Cas
             ))}
             {data.items.length > 10 && <tr><td colSpan={2} className="py-1 text-center text-muted-foreground text-xs">+{data.items.length - 10} {t("more items", "بنود إضافية")}</td></tr>}
           </tbody>
-        </table>
+        </table></div>
       </CardContent>
     </Card>
   );

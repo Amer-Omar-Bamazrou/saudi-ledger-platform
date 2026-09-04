@@ -43,7 +43,7 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
         </div>
       </button>
       {expanded && (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase bg-card">
               {[t("Invoice #", "رقم الفاتورة"), t("Date", "التاريخ"), t("Due Date", "الاستحقاق"), t("Subtotal", "الإجمالي الفرعي"), t("VAT", "الضريبة"), t("Total", "الإجمالي"), t("Paid", "المدفوع"), t("Outstanding", "المتبقي"), t("Status", "الحالة")].map(h => (
@@ -66,7 +66,7 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
