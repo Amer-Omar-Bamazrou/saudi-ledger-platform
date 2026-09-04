@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat } from "lucide-react";
+import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FilterScope } from "@/components/FilterScope";
@@ -80,8 +80,11 @@ export default function Invoices() {
    * invoice cannot be deleted. An invoicing product whose invoice form could
    * not express an amount.
    */
-  const [lines, setLines] = useState<Array<{ description: string; quantity: string; unitPrice: string; vatRate: string }>>([
-    { description: "", quantity: "1", unitPrice: "", vatRate: "15" },
+  // L1: `descriptionAr` joins the line — real Arabic is CAPTURED going
+  // forward; where it is absent the Arabic PDF falls back to the English
+  // description (the sentinel default is never prefilled and never printed).
+  const [lines, setLines] = useState<Array<{ description: string; descriptionAr: string; quantity: string; unitPrice: string; vatRate: string }>>([
+    { description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" },
   ]);
   const lineTotal = (l: { quantity: string; unitPrice: string; vatRate: string }) => {
     const net = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
@@ -131,13 +134,14 @@ export default function Invoices() {
             .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
             .map((l) => ({
               description: l.description.trim(),
+              ...(l.descriptionAr.trim() ? { descriptionAr: l.descriptionAr.trim() } : {}),
               quantity: Number(l.quantity) || 1,
               unitPrice: Number(l.unitPrice),
               vatRate: Number(l.vatRate) || 0,
             })),
         }),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -212,6 +216,7 @@ export default function Invoices() {
             .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
             .map((l) => ({
               description: l.description.trim(),
+              ...(l.descriptionAr.trim() ? { descriptionAr: l.descriptionAr.trim() } : {}),
               quantity: Number(l.quantity) || 1,
               unitPrice: Number(l.unitPrice),
               vatRate: Number(l.vatRate) || 0,
@@ -221,7 +226,7 @@ export default function Invoices() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       setOpen(false); setEditing(null); setForm(emptyForm);
-      setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+      setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
@@ -252,6 +257,9 @@ export default function Invoices() {
       setLines(
         (detail.items ?? []).map((i: any) => ({
           description: i.description ?? "",
+          // the stored default "(not yet translated)" is a sentinel, not a
+          // value — an empty input is the honest prefill.
+          descriptionAr: i.descriptionAr === "(not yet translated)" ? "" : (i.descriptionAr ?? ""),
           quantity: String(i.quantity ?? 1),
           unitPrice: String(i.unitPrice ?? ""),
           vatRate: String(i.vatRate ?? 15),
@@ -284,7 +292,7 @@ export default function Invoices() {
               // silently PATCH the record just edited.
               setEditing(null);
               setForm(emptyForm);
-              setLines([{ description: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+              setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
             }
           }}
         >
@@ -314,10 +322,17 @@ export default function Invoices() {
                 {lines.map((l, i) => (
                   <div key={i} className="grid grid-cols-12 gap-2">
                     <Input
-                      className="col-span-5 h-8 text-sm"
+                      className="col-span-3 h-8 text-sm"
                       placeholder={t("Description", "الوصف")}
                       value={l.description}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-sm"
+                      dir="rtl"
+                      placeholder={t("Arabic description", "الوصف بالعربية")}
+                      value={l.descriptionAr}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, descriptionAr: e.target.value } : x)))}
                     />
                     <Input
                       className="col-span-2 h-8 text-sm"
@@ -346,7 +361,7 @@ export default function Invoices() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setLines((p) => [...p, { description: "", quantity: "1", unitPrice: "", vatRate: "15" }])}
+                    onClick={() => setLines((p) => [...p, { description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }])}
                   >
                     {t("Add line", "إضافة بند")}
                   </Button>
@@ -485,6 +500,27 @@ export default function Invoices() {
                       )}
                       {inv.status !== "paid" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
+                      )}
+                      {/* L1 — the invoice leaves the product. ع is THE tax
+                          invoice (Arabic, PDF/A-3); EN is a labelled
+                          translation — its banner says the Arabic document is
+                          the tax invoice. Anchors, not fetch: the session
+                          cookie rides the same-origin GET and the server's
+                          Content-Disposition does the saving. Issued documents
+                          only — a draft has no QR and no legal existence. */}
+                      {inv.status !== "draft" && inv.status !== "submitted" && (
+                        <>
+                          <a href={`/api/invoices/${inv.id}/document?lang=ar`} download
+                            className="inline-flex items-center gap-1 text-xs h-7 px-2 rounded hover:bg-secondary/60 text-primary"
+                            title={t("Download the tax invoice (Arabic PDF)", "تنزيل الفاتورة الضريبية (PDF عربي)")}>
+                            <FileDown className="h-3.5 w-3.5" />PDF
+                          </a>
+                          <a href={`/api/invoices/${inv.id}/document?lang=en`} download
+                            className="inline-flex items-center gap-1 text-xs h-7 px-2 rounded hover:bg-secondary/60 text-muted-foreground"
+                            title={t("Download the English translation — not the tax invoice", "تنزيل الترجمة الإنجليزية — ليست الفاتورة الضريبية")}>
+                            EN
+                          </a>
+                        </>
                       )}
                       {/* A3 (hub decision: automation woven into the page) —
                           repeat this invoice monthly as DRAFTS for approval. */}

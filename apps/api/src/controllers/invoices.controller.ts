@@ -4,6 +4,7 @@ import { invoicesService } from "../services/invoices.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
+import { buildInvoiceDocModel, findSignedXml, renderInvoicePdf } from "../services/invoiceDocument/invoiceDocument.service";
 
 /**
  * 🔴 Contract batch 3: bodies are validated against the GENERATED schemas, so
@@ -60,6 +61,30 @@ export const invoicesController = {
   },
   async get(req: Request, res: Response) {
     res.json(await invoicesService.getById(requireIdParam(req)));
+  },
+  /**
+   * L1 — the invoice leaves the product. `?lang=ar` (default) is THE tax
+   * invoice; `?lang=en` is the labelled translation. PDF/A-3B either way,
+   * with the signed ZATCA XML attached when the invoice has one.
+   */
+  async document(req: Request, res: Response) {
+    const id = requireIdParam(req);
+    const langRaw = String(req.query.lang ?? "ar");
+    if (langRaw !== "ar" && langRaw !== "en") {
+      res.status(400).json({ error: "lang must be 'ar' or 'en'.", code: "invalid_lang", field: "lang" });
+      return;
+    }
+    const model = await buildInvoiceDocModel(id, langRaw);
+    const xml = await findSignedXml(id);
+    const pdf = await renderInvoicePdf(model, xml);
+    res
+      .status(200)
+      .type("application/pdf")
+      .setHeader(
+        "Content-Disposition",
+        `attachment; filename="${model.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, "_")}-${langRaw}.pdf"`,
+      )
+      .send(Buffer.from(pdf));
   },
   async create(req: Request, res: Response) {
     /**

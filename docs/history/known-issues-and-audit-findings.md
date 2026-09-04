@@ -1127,3 +1127,71 @@ battery run:
 The snapshot chain is intact (`0067.prevId == 0037.id`), and the journal's
 snapshot-numbering gap (entries end at 0066, snapshots at 0067) is tolerated by
 both migrate and generate — proven by the battery, not assumed.
+
+## L1 — THE INVOICE LEAVES THE PRODUCT (CORE SHIPPED 2026-09-03)
+
+Built to [`design-invoice-document.md`](../product/design-invoice-document.md)
+(the single writer; this is the as-built record).
+
+**What shipped.** `GET /invoices/:id/document?lang=ar|en` — ONE template
+parameterised by `lang` (the owner's expectation, measured true: logical CSS
+mirrors the layout under `dir` alone; the label pairs sit NEXT TO the values
+they label, the property that makes ERPNext's كمية/"Amount" catalog bug
+inexpressible). Arabic is THE tax invoice; English is a labelled translation
+whose banner names the Arabic document. Chromium renders (lazy singleton
+browser, page per render; a missing executable is a 503 that NAMES the install
+step), pdf-lib writes the PDF/A-3B envelope — XMP, OutputIntent from the
+PINNED Debian sRGB.icc (`icc-profile-pin.test.ts`; licence text ships beside
+it), trailer ID, and the signed ZATCA XML attached when the invoice has one.
+QR rendered from the stored TLV at the page bottom; Hijri beside Gregorian;
+Western numerals in both renderings so the figures read identically against
+the QR. Title states standard vs simplified from the buyer's VAT
+identification. Draft/submitted refuse with a 409 that says why; the UI
+offers no link on drafts at all. Toggle blocks turn on only with content.
+
+**Observed, not asserted: veraPDF PASS, profile `3b`, on BOTH renderings** —
+the production pipeline with the shipped ICC profile, closing the spike's one
+open input. The validator is the spike's local veraPDF install; what it
+attests is ISO 19005-3 conformance of the produced files, not ZATCA
+acceptance (which has no PDF requirement — the PDF is the human artifact,
+the XML the legal transmission).
+
+**The sentinel default died** (migration `0067`, the first migration produced
+by the RESTORED `drizzle-kit generate` — T1's flow, first real use, and a
+second generate stays clean): `invoice_items.description_ar` is nullable, no
+default, existing sentinel rows converted to NULL. The line form captures
+real Arabic; `invoicesMissingArabicLines` surfaces — as a FINDING with
+invoice numbers and line counts — every issued invoice whose Arabic PDF will
+print English lines. 🔴 The sentinel-default FAMILY survives on ~8 other
+columns (assets/budgets/customers/employees `name_ar` etc.), named in the
+schema comment for the same treatment as each gains its form field.
+
+**Two catches during the build, both by the disciplines that exist for them:**
+
+1. 🔴 **The first e2e download returned a 500** — `ENOENT dist/assets/sRGB.icc`.
+   The dev server RUNS THE BUNDLE (`dev = build && start`), so
+   `import.meta.dirname` is `dist/` and the ICC asset never shipped. Fixed in
+   `build.mjs` (assets copied beside the bundle) — the connect-pg-simple
+   `table.sql` class, and precisely what P5 exists to catch: every service
+   test passed while the product's own path was broken. `playwright-core` is
+   also externalised from the bundle (it resolves its browser by path
+   traversal from its package directory).
+2. 🔴 **My own PDF-text assertions were vacuous** — Chromium subsets fonts
+   with glyph encodings, so an ASCII grep over content streams passes in BOTH
+   directions ("the sentinel is absent" would hold for any PDF). Caught by the
+   English-fallback assertion failing on a REAL render; the live test now
+   asserts only what bytes answer honestly (the PDF/A structures), and the
+   sentinel/fallback rules are pinned at the HTML layer with the sentinel
+   PLANTED in the fixture.
+
+**Proof:** `invoice-document-render.test.ts` (7 template rules, sentinel
+planted), `invoice-document-live.test.ts` (real write path: draft refuses,
+Hijri/QR/party on the model, the finding flags 1-of-2 lines, full render
+skips loudly without Chromium), `icc-profile-pin.test.ts`, and
+`e2e/invoice-document.spec.ts` — both renderings DOWNLOADED through the
+product by clicking, magic bytes asserted, drafts offer no control.
+
+**Remaining (why L1 stays in §5):** the level-1 logo upload (settings UI
+through the storage seam — an absent logo renders the registered name alone,
+by design, so this is branding completion, not a blocker), and "send" once
+B1's mail provider is wired at deployment.

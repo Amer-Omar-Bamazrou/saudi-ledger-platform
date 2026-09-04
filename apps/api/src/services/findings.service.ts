@@ -87,6 +87,7 @@ export const findingsService = {
         findingsRepository.overdueReceivables(),
         findingsRepository.overduePayables(),
         findingsRepository.staleDrafts(),
+        findingsRepository.invoicesMissingArabicLines(),
         findingsRepository.undeclaredTransfers(),
         findingsRepository.unpostedTransactions(),
       ])

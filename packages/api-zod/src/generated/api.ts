@@ -5260,6 +5260,22 @@ export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponse
 
 
 /**
+ * @summary L1 — the rendered PDF/A-3 document. lang=ar (default) is THE tax invoice; lang=en is a labelled translation and says so on its face.
+ */
+export const GetInvoiceDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getInvoiceDocumentQueryLangDefault = `ar`;
+
+export const GetInvoiceDocumentQueryParams = zod.object({
+  "lang": zod.enum(['ar', 'en']).default(getInvoiceDocumentQueryLangDefault)
+})
+
+export const GetInvoiceDocumentResponse = zod.unknown()
+
+
+/**
  * @summary One bill with its lines
  */
 export const GetBillParams = zod.object({

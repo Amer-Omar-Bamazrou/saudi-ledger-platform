@@ -60,8 +60,10 @@ When in doubt, favor evolving the existing system over replacing it.
 ([record](docs/product/nav-tree-reconciliation.md)). **2026-09-01** — L1/L2/L3
 named by the first core-path walk. **2026-09-02** — the contract milestone
 CLOSED at a deliberate stop; its standing rules and the pinned inventory are in
-§5. 🔴 **2026-09-03 — the ERPNext comparison put N1–N3 at the top of §5,
-ahead of L1** ([record](docs/history/erpnext-comparison-2026-09-03.md)).
+§5. 🔴 **2026-09-03 — the ERPNext comparison put N1–N4 ahead of L1; all four
+CLOSED the same day** ([record](docs/history/erpnext-comparison-2026-09-03.md)),
+**then L1's core SHIPPED: the invoice leaves the product** (PDF/A-3, veraPDF
+PASS both renderings; §5's L1 row carries the remainder).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -487,7 +489,7 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **L1 next** (N1–N4 ✅).
+🔴 Working order (2026-09-03): **L1 core ✅ shipped** (N1–N4 ✅); L1's remainder is the logo upload + B1-gated send, then **L2**.
 
 ### 🔴 The 2026-09-03 NOW queue — ALL FOUR CLOSED; L1 is next
 
@@ -510,7 +512,7 @@ prompts. `generate` works again.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | 🔴 **THE INVOICE CANNOT LEAVE THE PRODUCT** — no PDF, no print view, no share artifact (launch blocker, 2026-09-01, found by WALKING the core path). **A simplified invoice's QR exists to be PRESENTED to the customer, and no artifact can present it.** 🔴 **Design AGREED 2026-09-02, not built** — [`design-invoice-document.md`](docs/product/design-invoice-document.md) is its single writer; do not restate its decisions here. | Build to that design; "send" follows once B1 is wired. |
+| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining, and why L1 stays listed:** the level-1 LOGO upload (settings UI through the storage seam — absent logo renders the registered name alone, by design), and "send" once B1's mail provider is wired. |
 | **L2** | 🔴 **NO RESPONSIVE LAYOUT** (launch blocker, same walk). `Layout.tsx` has zero breakpoints; `useIsMobile` is consumed only by the unused vendored sidebar. On a phone the app is a horizontal-scroll desktop page, for a mobile-first customer. | A responsive shell. The nav being data makes the shell swap cheaper. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 

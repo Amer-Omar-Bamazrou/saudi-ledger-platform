@@ -98,6 +98,7 @@ import type {
   GetDecompositionParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
+  GetInvoiceDocumentParams,
   GetJournalReportParams,
   GetLiquidityParams,
   GetOwnerEquityParams,
@@ -11263,6 +11264,95 @@ export function useListInvoicePayments<TData = Awaited<ReturnType<typeof listInv
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListInvoicePaymentsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInvoiceDocumentUrl = (id: number,
+    params?: GetInvoiceDocumentParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/invoices/${id}/document?${stringifiedParams}` : `/api/invoices/${id}/document`
+}
+
+/**
+ * @summary L1 — the rendered PDF/A-3 document. lang=ar (default) is THE tax invoice; lang=en is a labelled translation and says so on its face.
+ */
+export const getInvoiceDocument = async (id: number,
+    params?: GetInvoiceDocumentParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetInvoiceDocumentUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvoiceDocumentQueryKey = (id: number,
+    params?: GetInvoiceDocumentParams,) => {
+    return [
+    `/api/invoices/${id}/document`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetInvoiceDocumentQueryOptions = <TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<void>>(id: number,
+    params?: GetInvoiceDocumentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvoiceDocumentQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvoiceDocument>>> = ({ signal }) => getInvoiceDocument(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvoiceDocument>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvoiceDocumentQueryResult = NonNullable<Awaited<ReturnType<typeof getInvoiceDocument>>>
+export type GetInvoiceDocumentQueryError = ErrorType<void>
+
+
+/**
+ * @summary L1 — the rendered PDF/A-3 document. lang=ar (default) is THE tax invoice; lang=en is a labelled translation and says so on its face.
+ */
+
+export function useGetInvoiceDocument<TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetInvoiceDocumentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvoiceDocumentQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
