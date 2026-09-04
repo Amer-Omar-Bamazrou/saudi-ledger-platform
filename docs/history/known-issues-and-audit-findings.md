@@ -1226,3 +1226,28 @@ from its bounding box, purely via `dir`.
 **Result:** 61 mobile tests green on the first full run — the sweep's frame
 caught every offender before the assertion did. Full browser suite +
 `pnpm run verify` green.
+
+## RANK 1 — BREAK-GLASS PASSWORD RESET (SHIPPED 2026-09-04; the email half open on the provider)
+
+Owner decision (by mechanism — the record's Option C): operator break-glass
+now, self-service email reset when the mail provider lands. Built:
+`operatorService.resetUserPassword` + `POST /api/operator/users/reset-password`
++ a card on the operator surface. The F1-shaped capability is accepted
+KNOWINGLY, with structural mitigations rather than promises: the password is
+GENERATED never chosen (18 base64url chars through the one `lib/password`
+seam), shown once and stored nowhere; every live session of the target dies in
+the same act (a reset that leaves a hijacker's session alive changes the lock
+while the door stands open); 🔴 an operator cannot reset another operator —
+refused, and the REFUSAL is audited too, because a power being probed is a
+fact the trail must carry; `security_audit_logs` carries actor + target + ip
+and no password material. Identity-layer reads/writes go through `ownerDb`,
+explicitly, per §4.
+
+Proof: `breakglass-reset.test.ts` — temp password verifies through the seam
+and the old one stops (presence + absence + movement), both seeded sessions
+die, the operator-target refusal leaves the hash untouched and lands in the
+trail, and unknown/garbage emails are refusals that say why.
+
+Recorded, not glossed: until the email flow exists a locked-out solo admin's
+only route is contacting the platform; the email flow is
+`organization_invitations`-shaped and waits ONLY on the provider decision.
