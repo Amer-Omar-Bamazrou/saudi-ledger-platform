@@ -972,3 +972,19 @@ appendix is where a retraction goes to be skipped.
    `invoices_company_number_unq` in Drizzle so codegen cannot drop it. All three
    are schema decisions with **zero rows to backfill today**, and ERPNext paid for
    the party one with a data patch that rewrote live tenants' balances.
+
+---
+
+## TRIAGE ADDENDUM (2026-09-04) — the four findings costed, FOR THE OWNER TO RANK
+
+Owner-requested: these are recorded findings, invisible to milestone planning
+until placed in §5, and the placement is the owner's. Costs are build
+estimates against today's codebase (the money seam, party columns and unique
+indexes all exist now and reduce them). 🔴 A PROPOSAL, NOT A DECISION.
+
+| Finding | Exposure | Build cost | The catch |
+| --- | --- | --- | --- |
+| **Withholding tax** | 🔴 LEGAL — the payer is liable; monthly remittance; any SME paying a non-resident hits it | **~1 week**: non-resident flag on vendors, WHT category/rates, the split at `billsService.pay` (Cr cash net / Cr WHT_PAYABLE), a WHT_PAYABLE system account (⚠ `categories` migration → the org-seed-trigger rule), the monthly figure surfaced | The RATES/bands are statutory content — buildable now as configurable values marked reasoned-not-verified, confirmed at the advisor meeting (same posture as C10) |
+| **Advance payments** | 🔴 LEGAL — VAT due at the earlier of payment/invoice; ZATCA's prepayment fields (7.13–7.15) exist in the spec we ship and the builder cannot populate them | **~2–3 weeks** — the largest: an advance-receipt document (posts Cr advances-liability + party, VAT at receipt), its entry into the VAT return (the documents-file model needs a third reader or an advance-invoice subtype), application/allocation against later invoices, the UBL prepayment fields | Design-heavy, and the tax mechanics (prepayment tax invoices vs receipt-only) are an ADVISOR question embedded in a build — costing assumes the advisor answers land first |
+| **Fixed-assets GL** | Wrong statements TODAY for anyone who clicks the built `/assets` page; feeds the Zakat base | **~1 week** for depreciation-posts-to-GL (3 system accounts → seed-trigger rule, period lock, unique(asset, period), a disposal posting); capitalisation-from-bill adds ~3 days | Cheapest honest interim exists: gate `/assets` behind coming-soon in an HOUR, converting a silent wrong number into a named absence, if the owner prefers deferral |
+| **Migration onboarding** | Blocks every customer WITH HISTORY — the difference between a product for new businesses and a product for businesses | **~2 weeks**: opening-balance journal + an equity landing account, historical AR/AP as NON-ZATCA documents (an `is_opening` flag that skips ICV/issuance), CoA import (already a coming-soon slug), bank opening balances into the GL | The delicate part is historical invoices bypassing the ZATCA chain WITHOUT creating a second issuance path — a design decision inside the build, wants a short design doc first |

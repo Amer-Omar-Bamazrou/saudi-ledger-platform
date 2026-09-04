@@ -6043,3 +6043,25 @@ fixture); the PDF test asserts only what bytes answer honestly. Instance
 count: (1) compressed-PDF grep, (2) verify's spawn, (3) the fault-injection
 runner, (4) the ICC HTML download, (5) the name[] array probe, (6) this —
 the first found by construction.
+
+## 2026-09-04 — PASSWORD RECOVERY DECIDED — AND THE LABELS WERE TRANSPOSED
+
+The owner: *"option A now, option B when email exists — as I said before, but
+with the gap recorded rather than glossed."* In the 2026-08-30 record, **A is
+the self-service EMAIL reset and B is the operator break-glass** — so read by
+label, the instruction is backwards (A cannot ship before email exists; it IS
+the email flow). Read by MECHANISM it is unambiguous: the immediate ship needs
+no provider, the follow-up does — the record's **Option C** (break-glass now,
+email reset when B1's provider lands). Recorded by mechanism, with this note,
+per §3's label-is-a-referent rule: the letters came from a three-option list
+written five days earlier, and a label remembered is not a label re-read.
+
+The gap, recorded at the owner's instruction: until the email flow exists, a
+locked-out SOLO ADMIN — the common SME case, not an edge — has no
+self-service route; the only path is contacting the platform for an operator
+reset. The operator capability is the F1-shaped cross-tenant standing power
+the 2026-08-30 record warns about, accepted knowingly, audited, and it must
+not quietly become the permanent answer — C's recorded risk is precisely that
+the break-glass ships and the email flow never does, and the provider
+decision (which also unblocks B1's alarms, invoice-send, and dunning) is what
+prevents it.

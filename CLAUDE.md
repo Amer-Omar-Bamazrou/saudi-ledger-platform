@@ -60,13 +60,10 @@ When in doubt, favor evolving the existing system over replacing it.
 ([record](docs/product/nav-tree-reconciliation.md)). **2026-09-01** — L1/L2/L3
 named by the first core-path walk. **2026-09-02** — the contract milestone
 CLOSED at a deliberate stop; its standing rules and the pinned inventory are in
-§5. 🔴 **2026-09-03 — the ERPNext comparison put N1–N4 ahead of L1; all four
-CLOSED the same day** ([record](docs/history/erpnext-comparison-2026-09-03.md)),
-**then L1's core SHIPPED: the invoice leaves the product** (PDF/A-3, veraPDF
-PASS both renderings; §5's L1 row carries the remainder).
-**2026-09-04 — L2 SHIPPED: the responsive shell** — owned drawer on logical
-utilities, 31 tables wrapped, the no-sideways-scroll property pinned PER ROUTE
-at phone width by `e2e/mobile-shell.spec.ts`.
+§5. 🔴 **2026-09-03/04 — the ERPNext comparison; N1–N4 + T1 closed; L1's core
+SHIPPED (the invoice leaves the product — PDF/A-3, veraPDF PASS both
+renderings) and L2 SHIPPED (the responsive shell, the no-sideways-scroll
+property pinned per route).** Records: §5's board block and the history files.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -495,11 +492,20 @@ which holds every closed item with its full reasoning.
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 🔴 Working order (2026-09-04): **L2 ✅ shipped** after L1's core ✅ (N1–N4 ✅). L1's remainder waits on decisions/providers, not effort. Next by the queue's own order: **password recovery (rank 1)** — owner decision pending.
 
-### The 2026-09-03 NOW queue — N1–N4 and T1, ALL CLOSED
+### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
-Records: [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
-evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
-(🔴 its READ FIRST section holds the two findings that did NOT survive verification).
+**The decision-free pool is roughly TWO WEEKS** (break-glass · C6a ·
+constants · L-1 · logo · party picker · sentinel family · Arabic re-sweep),
+**after which every path runs through a door the OWNER holds**: entity ·
+advisor · mail provider · R1 design · deployment + Groq. Owner sequence
+accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
+🔴 **Four ERPNext findings await the OWNER'S RANKING** — withholding tax and
+advance payments (LEGAL exposures), fixed-assets GL (wrong statements today),
+migration onboarding (blocks any customer with history) — costed in the
+comparison doc's triage addendum; invisible to planning until placed.
+(N1–N4 + T1 closed — records:
+[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
+evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).)
 
 ### Blocking, by their own nature
 
@@ -546,7 +552,7 @@ is the reason the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **No password recovery for a multi-org account** — DECISION PENDING. F1's confinement means such an account cannot be reset by a tenant admin, and there is no self-service flow. | Nothing that writes. | Not a code question. Three options with costs: [`findings-and-lessons.md`](docs/history/findings-and-lessons.md) (2026-08-30), and on `/coming-soon/password-reset`. Owner decides; the build is days either way. |
+| **1** | **Password recovery — 🔴 DECIDED (owner, 2026-09-04): operator break-glass NOW; self-service email reset when the mail provider lands** (the record's Option C by MECHANISM — the message's A/B labels were transposed; incident + the recorded gap and C's ships-and-stalls risk: findings file, 2026-09-04). Until the email flow exists a locked-out solo admin has only "contact us". | Build the break-glass (audited; the F1-shaped capability, accepted knowingly). The email flow is `organization_invitations`-shaped and waits only on the provider. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
