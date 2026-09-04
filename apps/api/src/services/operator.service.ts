@@ -21,10 +21,15 @@
  * (c) writes a security_audit_logs event (operator id + target org). Guards are
  * fail-closed (wrong current state → 409; missing reason → 400; unknown org → 404).
  */
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { verificationRepository } from "../repositories/verification.repository";
 import { documentsRepository } from "../repositories/documents.repository";
 import { securityAuditService } from "./securityAudit.service";
+// Identity data access lives in userAdmin.repository (the sanctioned identity
+// layer — the boundary guard sent it there); this service only orchestrates.
+import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { randomBytes } from "node:crypto";
+import { hashPassword } from "../lib/password";
 
 export interface OperatorActionContext {
   actorEmail?: string | null;
@@ -48,6 +53,80 @@ function requireReason(reason: unknown): string {
 
 export const operatorService = {
   /** The review queue: every organization not yet approved. */
+
+  /**
+   * 🔴 BREAK-GLASS PASSWORD RESET (§5 rank 1, owner decision 2026-09-04:
+   * operator reset NOW, self-service email reset when the mail provider
+   * lands — the 2026-08-30 record's Option C).
+   *
+   * This is a STANDING CROSS-TENANT ACCOUNT-TAKEOVER CAPABILITY — the
+   * F1-shaped power the options record warns about — accepted KNOWINGLY as
+   * the only route back for a locked-out solo admin until email exists. The
+   * mitigations are structural, not promised:
+   *
+   *  1. The password is GENERATED, never chosen — an operator who could set
+   *     "hunter2" would know a credential the user then keeps using. The
+   *     caller gets it ONCE, to hand over on a verified channel, and the
+   *     user should change it — unenforceable until the email flow lands,
+   *     and RECORDED as such rather than pretended otherwise.
+   *  2. 🔴 A PLATFORM OPERATOR CANNOT RESET ANOTHER OPERATOR — that would
+   *     be operator-to-operator takeover, and operator accounts are managed
+   *     at the database by the platform owner, not through this surface. The
+   *     refused attempt is AUDITED TOO: a power being probed is a fact the
+   *     trail must carry.
+   *  3. Every live session of the target dies in the same act — a reset that
+   *     leaves a hijacker's session alive would change the lock while the
+   *     door stands open.
+   *  4. security_audit_logs carries actor + target + ip; the password
+   *     appears in NO log, NO audit row, and NO response but the one.
+   */
+  async resetUserPassword(operatorUserId: number, email: unknown, ctx: OperatorActionContext = {}) {
+    const cleaned = String(email ?? "").trim().toLowerCase();
+    if (!cleaned || !cleaned.includes("@")) throw new BadRequestError("A user email is required.");
+
+    const target = await userAdminRepository.findByEmail(cleaned);
+    if (!target) throw new NotFoundError("No user with that email.");
+
+    if (await userAdminRepository.isPlatformOperator(target.id)) {
+      await securityAuditService.record({
+        action: "user.password_breakglass_refused_operator_target",
+        actorUserId: operatorUserId,
+        actorEmail: ctx.actorEmail,
+        targetUserId: target.id,
+        ipAddress: ctx.ipAddress,
+      });
+      throw new ForbiddenError(
+        "Operator accounts cannot be reset from this surface — they are managed by the platform owner. This attempt has been recorded.",
+      );
+    }
+
+    // 18 base64url chars ≈ 108 bits — comfortably past the seam's bounds and
+    // typeable over a phone call, which is this flow's real delivery channel.
+    const temporaryPassword = randomBytes(13).toString("base64url");
+    await userAdminRepository.setPasswordHash(target.id, await hashPassword(temporaryPassword));
+
+    // Kill every live session — same act, not a follow-up.
+    const revoked = await userAdminRepository.revokeSessions(target.id);
+
+    await securityAuditService.record({
+      action: "user.password_breakglass_reset",
+      actorUserId: operatorUserId,
+      actorEmail: ctx.actorEmail,
+      targetUserId: target.id,
+      ipAddress: ctx.ipAddress,
+      metadata: { sessionsRevoked: revoked },
+    });
+
+    return {
+      email: target.email,
+      name: target.name,
+      temporaryPassword,
+      sessionsRevoked: revoked,
+      guidance:
+        "Hand this to the user over a verified channel. It is shown once and stored nowhere. Ask them to change it after signing in — self-service reset arrives with the email flow.",
+    };
+  },
+
   async listApplications() {
     return { applications: await verificationRepository.listApplications() };
   },

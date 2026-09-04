@@ -44,6 +44,16 @@ router.get("/applications/:orgId/documents/:docId", async (req, res) => {
   sendDocument(res, doc);
 });
 
+/**
+ * POST /api/operator/users/reset-password — the §5 rank-1 break-glass.
+ * Body: { email }. Returns the generated temporary password ONCE. Audited on
+ * both the reset and the refused-operator-target case; every live session of
+ * the target is revoked in the same act. See operatorService.resetUserPassword.
+ */
+router.post("/users/reset-password", async (req, res) => {
+  res.json(await operatorService.resetUserPassword(req.session.userId!, req.body?.email, actorCtx(req)));
+});
+
 /** POST /api/operator/applications/:orgId/approve — grant the org full access. */
 router.post("/applications/:orgId/approve", async (req, res) => {
   res.json(await operatorService.approve(req.session.userId!, req.params.orgId, actorCtx(req)));

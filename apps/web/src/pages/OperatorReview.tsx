@@ -213,6 +213,80 @@ export default function OperatorReview() {
           onboarding. Separate component because it is a different concern from
           verification review, and its queries are independent. */}
       <OperatorZatcaPanel />
+
+      {/* §5 rank 1 (owner, 2026-09-04): the break-glass. The temporary
+          password is shown ONCE and stored nowhere — the operator hands it
+          over on a verified channel. Self-service email reset replaces this
+          as the primary path when the mail provider lands. */}
+      <BreakGlassResetCard />
     </div>
+  );
+}
+
+function BreakGlassResetCard() {
+  const { t } = useLanguage();
+  const [email, setEmail] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [result, setResult] = useState<{ email: string; temporaryPassword: string; sessionsRevoked: number } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const resetMut = useMutation({
+    mutationFn: () =>
+      apiFetch<{ email: string; temporaryPassword: string; sessionsRevoked: number }>(
+        "/operator/users/reset-password",
+        { method: "POST", body: JSON.stringify({ email: email.trim() }) },
+      ),
+    onSuccess: (r) => { setResult(r); setErr(null); setConfirming(false); setEmail(""); },
+    onError: (e: Error) => { setErr(e.message); setConfirming(false); },
+  });
+
+  return (
+    <Card className="border-attention-surface/40 bg-card max-w-5xl">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">{t("Break-glass password reset", "إعادة تعيين كلمة المرور (طوارئ)")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground max-w-2xl">
+          {t(
+            "For a locked-out user with no other route back. Generates a temporary password shown ONCE, revokes every live session, and records the act. Operator accounts cannot be reset here.",
+            "لمستخدم فَقَد الوصول ولا طريق أخرى له. تُنشأ كلمة مرور مؤقتة تُعرض مرة واحدة، وتُلغى كل الجلسات، ويُسجّل الإجراء. حسابات المشغّلين لا تُعاد من هنا.",
+          )}
+        </p>
+        <div className="flex items-center gap-2 max-w-md">
+          <Input
+            type="email"
+            placeholder={t("User email", "بريد المستخدم")}
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setConfirming(false); }}
+            className="h-8 text-sm"
+            data-testid="breakglass-email"
+          />
+          {!confirming ? (
+            <Button size="sm" variant="outline" className="h-8" disabled={!email.trim()} onClick={() => setConfirming(true)}>
+              {t("Reset…", "إعادة تعيين…")}
+            </Button>
+          ) : (
+            /* The destructive act names its true scope BEFORE the act: the
+               password changes AND every session dies. */
+            <Button size="sm" variant="destructive" className="h-8 whitespace-nowrap" disabled={resetMut.isPending} onClick={() => resetMut.mutate()} data-testid="breakglass-confirm">
+              {t("Confirm: new password + all sessions revoked", "تأكيد: كلمة جديدة + إلغاء الجلسات")}
+            </Button>
+          )}
+        </div>
+        {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
+        {result && (
+          <Alert>
+            <AlertDescription className="space-y-1">
+              <div className="text-xs">{t("Temporary password for", "كلمة المرور المؤقتة لـ")} <b>{result.email}</b> — {t("shown once, stored nowhere", "تُعرض مرة واحدة ولا تُحفظ")}:</div>
+              <code className="font-mono text-sm select-all" data-testid="breakglass-temp-password">{result.temporaryPassword}</code>
+              <div className="text-xs text-muted-foreground">
+                {t(`Sessions revoked: ${result.sessionsRevoked}. Hand it over on a verified channel and ask the user to change it after signing in.`,
+                   `الجلسات الملغاة: ${result.sessionsRevoked}. سلّمها عبر قناة موثوقة واطلب تغييرها بعد الدخول.`)}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
   );
 }
