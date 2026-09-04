@@ -454,7 +454,7 @@ export default function Invoices() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : invoices.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No invoices found.", "لا توجد فواتير.")}</p></div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
                 t("Invoice #", "رقم الفاتورة"),
                 t("Customer", "العميل"),
@@ -538,7 +538,7 @@ export default function Invoices() {
                   </td>
                 </tr>
               ))}</tbody>
-            </table>
+            </table></div>
           )}
 
             {/*

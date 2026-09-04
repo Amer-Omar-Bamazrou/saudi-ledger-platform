@@ -119,7 +119,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
               <p className="text-sm">{t("No invoices in this date range.", "لا توجد فواتير في هذا النطاق الزمني.")}</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Invoice #", "Customer", "Date", "Due Date", "Subtotal", "VAT", "Total", "Outstanding", "Status"].map(h => (
@@ -142,7 +142,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </CardContent>
       </Card>

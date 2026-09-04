@@ -98,7 +98,7 @@ export default function ActivityReport() {
       ) : (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[t("Entry #", "رقم القيد"), t("Date", "التاريخ"), t("Description", "الوصف"), t("Reference", "المرجع"), t("Lines", "السطور"), t("Total", "الإجمالي"), t("Accounts", "الحسابات"), t("Status", "الحالة")].map(h => (
@@ -120,7 +120,7 @@ export default function ActivityReport() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       )}

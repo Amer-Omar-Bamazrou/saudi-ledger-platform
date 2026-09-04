@@ -94,7 +94,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
       ) : (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[t("Account", "الحساب"), t("Type", "النوع"), t("Opening Balance", "الرصيد الافتتاحي"), t("Period Debits", "مدين الفترة"), t("Period Credits", "دائن الفترة"), t("Closing Balance", "الرصيد الختامي")].map(h => (
@@ -128,7 +128,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
                   </Fragment>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       )}

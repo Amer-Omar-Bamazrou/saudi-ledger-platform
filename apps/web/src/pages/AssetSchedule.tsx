@@ -80,7 +80,7 @@ export default function AssetSchedule() {
               <p className="text-xs mt-1 opacity-60">Add assets in Assets &amp; Inventory to see them here.</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Asset", "Category", "Purchase Date", "Cost", "Useful Life", "Method", "Acc. Dep.", "Book Value", "Status"].map(h => (
@@ -113,7 +113,7 @@ export default function AssetSchedule() {
                   <td />
                 </tr>
               </tfoot>
-            </table>
+            </table></div>
           )}
           <ListPagination
             page={paged?.page}

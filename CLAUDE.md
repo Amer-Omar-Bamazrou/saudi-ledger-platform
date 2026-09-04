@@ -53,7 +53,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-08-31.** Full as-built narrative for everything below:
+**Last updated: 2026-09-04.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-08-28 → 31** — six passes, P5 and the navigation tree, all merged
@@ -64,6 +64,9 @@ CLOSED at a deliberate stop; its standing rules and the pinned inventory are in
 CLOSED the same day** ([record](docs/history/erpnext-comparison-2026-09-03.md)),
 **then L1's core SHIPPED: the invoice leaves the product** (PDF/A-3, veraPDF
 PASS both renderings; §5's L1 row carries the remainder).
+**2026-09-04 — L2 SHIPPED: the responsive shell** — owned drawer on logical
+utilities, 31 tables wrapped, the no-sideways-scroll property pinned PER ROUTE
+at phone width by `e2e/mobile-shell.spec.ts`.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -243,6 +246,7 @@ doing the thing it governs rather than only once you know its name.
 - **A stub is the part that needed testing** — test the branch you did NOT write, by injecting a failing implementation. A method that cannot do the thing must THROW: a no-op reporting success is a false statement the caller builds on. Audit every `resolve*Store` / `get*Provider` seam.
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure — move the gate WITH the thing the flag names.
 - **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see, and six read-only audits missed four defects one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure.
+- **🔴 A TEST THAT EXERCISES THE CODE BUT NOT THE ARTIFACT IS TESTING A DIFFERENT PROGRAM** (owner-named 2026-09-04, P5's third structural catch) — tests import source; dev and prod run the BUNDLE, whose `import.meta.dirname`, assets and externals differ. Anything read at runtime by path must be proven through the built artifact — which only P5 runs.
 - **A hand-written `apiFetch<T>` interface is a claim nobody checks** — TypeScript checks it against the COMPONENT, never the response. Prefer the generated client, and treat a page as working only once it has been RENDERED.
 - **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; §5's contract entry burns the pinned ones down.
 - **NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client can see it.
@@ -256,7 +260,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
-- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true.
+- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true. 🔴 Six instances; the sixth (an ASCII grep over glyph-encoded PDF streams, blind in BOTH directions) was caught BY the countermeasure — a planted positive failing on a real render — not by luck.
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
@@ -489,21 +493,13 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-03): **L1 core ✅ shipped** (N1–N4 ✅); L1's remainder is the logo upload + B1-gated send, then **L2**.
+🔴 Working order (2026-09-04): **L2 ✅ shipped** after L1's core ✅ (N1–N4 ✅). L1's remainder waits on decisions/providers, not effort. Next by the queue's own order: **password recovery (rank 1)** — owner decision pending.
 
-### 🔴 The 2026-09-03 NOW queue — ALL FOUR CLOSED; L1 is next
+### The 2026-09-03 NOW queue — N1–N4 and T1, ALL CLOSED
 
-N1 (company predicate + RLS) · N2 (the money seam) · N3 (party on the line +
-number uniqueness) · N4 (the pinned ZATCA index) — records in
-[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
-the evidence base is
-[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
-(🔴 read its READ FIRST section — two findings did NOT survive verification).
-T1 (the drizzle-kit gate) ✅ CLOSED 2026-09-03: the owner ran the six prompts
-to the written answer (create, never rename), and the dangling journal entry —
-which crashed migrate — was removed; a fresh-DB migrate matches dev column for
-column (758 = 758) and a second generate reports "No schema changes" with no
-prompts. `generate` works again.
+Records: [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
+evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)
+(🔴 its READ FIRST section holds the two findings that did NOT survive verification).
 
 ### Blocking, by their own nature
 
@@ -512,8 +508,7 @@ prompts. `generate` works again.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining, and why L1 stays listed:** the level-1 LOGO upload (settings UI through the storage seam — absent logo renders the registered name alone, by design), and "send" once B1's mail provider is wired. |
-| **L2** | 🔴 **NO RESPONSIVE LAYOUT** (launch blocker, same walk). `Layout.tsx` has zero breakpoints; `useIsMobile` is consumed only by the unused vendored sidebar. On a phone the app is a horizontal-scroll desktop page, for a mobile-first customer. | A responsive shell. The nav being data makes the shell swap cheaper. |
+| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining — waiting on DECISIONS/PROVIDERS, not effort; do not read as unfinished work** (owner, 2026-09-04): the level-1 LOGO upload (settings UI through the storage seam — absent logo renders the registered name alone, by design), and "send" once B1's mail provider is wired at deployment. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 

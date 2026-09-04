@@ -104,7 +104,7 @@ export default function Products() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : products.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><ShoppingBag className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No items yet. Add your first product or service.", "لا توجد عناصر بعد. أضف أول منتج أو خدمة.")}</p></div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Item","العنصر"),t("Type","النوع"),t("Unit","الوحدة"),t("Price","السعر"),t("Cost","التكلفة"),t("Margin","هامش الربح"),t("Stock","المخزون"),t("VAT","ضريبة القيمة المضافة")].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{products.map(p=>{
                 const margin = p.unitCost && p.unitPrice > 0 ? ((p.unitPrice - p.unitCost) / p.unitPrice * 100) : null;
@@ -121,7 +121,7 @@ export default function Products() {
                   </tr>
                 );
               })}</tbody>
-            </table>
+            </table></div>
           )}
                   <ListPagination
             page={paged?.page}

@@ -128,7 +128,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
             </div>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   <th className="text-start pb-3 pe-4 font-medium">{t("Account", "الحساب")}</th>
@@ -171,7 +171,7 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
                   <td className="py-4 text-end font-mono text-base">{fmtNum(data.totalCredit)}</td>
                 </tr>
               </tfoot>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       )}

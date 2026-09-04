@@ -682,7 +682,7 @@ export default function ScanReview() {
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-border overflow-hidden text-sm">
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full">
               <thead className="bg-secondary/40">
                 <tr>
                   <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">{t("Account", "الحساب")}</th>
@@ -738,7 +738,7 @@ export default function ScanReview() {
                   </td>
                 </tr>
               </tfoot>
-            </table>
+            </table></div>
           </div>
           {previewSubtotal + previewVat > 0 && previewTotal > 0 &&
            Math.abs(previewSubtotal + previewVat - previewTotal) > 0.02 && (

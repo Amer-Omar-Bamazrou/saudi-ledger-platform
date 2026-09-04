@@ -101,7 +101,7 @@ export default function Budgets() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : budgets.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><Target className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No budget lines for", "لا توجد سطور ميزانية لـ")} {period}.</p></div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
                 t("Budget", "الميزانية"),
                 t("Category", "الفئة"),
@@ -138,7 +138,7 @@ export default function Budgets() {
                   </tr>
                 );
               })}</tbody>
-            </table>
+            </table></div>
           )}
         </CardContent>
       </Card>

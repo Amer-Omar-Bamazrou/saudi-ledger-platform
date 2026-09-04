@@ -131,7 +131,7 @@ export default function JournalEntries() {
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">{t("Journal Lines", "سطور القيد")}</Label>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={()=>setLines(p=>[...p,{...emptyLine}])}>+ {t("Add Line", "إضافة سطر")}</Button>
               </div>
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto"><table className="w-full text-xs">
                 <thead><tr className="border-b border-border text-muted-foreground uppercase">{[
                   t("Account", "الحساب"),
                   t("Description", "الوصف"),
@@ -161,7 +161,7 @@ export default function JournalEntries() {
                     <td />
                   </tr>
                 </tbody>
-              </table>
+              </table></div>
               {!balanced && <p className="text-xs text-negative mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
 
             {/*
@@ -252,7 +252,7 @@ export default function JournalEntries() {
             {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : entries.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground"><BookOpen className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No journal entries yet.", "لا توجد قيود يومية بعد.")}</p></div>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
                   t("Entry #", "رقم القيد"),
                   t("Date", "التاريخ"),
@@ -281,7 +281,7 @@ export default function JournalEntries() {
                     </td>
                   </tr>
                 ))}</tbody>
-              </table>
+              </table></div>
             )}
           </CardContent>
         </Card>
@@ -294,7 +294,7 @@ export default function JournalEntries() {
                 <div className="flex justify-between text-sm"><span className="text-muted-foreground">{selectedEntry.entryNumber}</span><Badge className={`text-xs ${STATUS_STYLES[selectedEntry.status]??""}`}>{selectedEntry.status}</Badge></div>
                 <p className="text-xs text-foreground font-medium">{selectedEntry.description}</p>
                 {selectedEntry.reference && <p className="text-xs text-muted-foreground">{t("Ref:", "المرجع:")} {selectedEntry.reference}</p>}
-                <table className="w-full text-xs mt-2">
+                <div className="overflow-x-auto"><table className="w-full text-xs mt-2">
                   <thead><tr className="border-b border-border text-muted-foreground">{[
                     t("Account", "الحساب"),
                     t("Dr", "مدين"),
@@ -308,7 +308,7 @@ export default function JournalEntries() {
                     </tr>
                   ))}</tbody>
                   <tfoot><tr className="font-semibold border-t border-border"><td className="py-1 text-muted-foreground">{t("Total", "الإجمالي")}</td><td className="py-1 font-mono text-positive">{fmtNum(selectedEntry.totalDebit)}</td><td className="py-1 font-mono text-negative">{fmtNum(selectedEntry.totalCredit)}</td></tr></tfoot>
-                </table>
+                </table></div>
               </div>
             )}
           </CardContent>

@@ -1195,3 +1195,34 @@ product by clicking, magic bytes asserted, drafts offer no control.
 through the storage seam — an absent logo renders the registered name alone,
 by design, so this is branding completion, not a blocker), and "send" once
 B1's mail provider is wired at deployment.
+
+## L2 — THE RESPONSIVE SHELL (CLOSED 2026-09-04)
+
+The launch blocker from the first core-path walk: `Layout.tsx` had ZERO
+breakpoints, so on a phone the app was a horizontal-scroll desktop page for a
+mobile-first customer.
+
+**The shell.** One sidebar, two containers: the same `sidebarInner` renders in
+the desktop `<aside>` (≥ md) and in an OWNED ~40-line mobile drawer (< md) —
+deliberately NOT the vendored `ui/sidebar.tsx`/`ui/sheet.tsx` (unowned by
+decision, RTL handled by an override layer they should not grow into). The
+drawer is built on LOGICAL utilities (`start-0`, `border-e`, `-ms-1`) so it
+mirrors under `dir` with no override involvement; it closes on navigation
+(navigating IS the dismissal), Escape, and the backdrop, and renders nothing
+at ≥ md. The nav being data (`@/nav/tree`) is exactly what made one tree
+render in both containers — the dividend §5's L2 entry predicted. Main
+content: `p-4 md:p-8`, `overflow-x-hidden` — the PAGE never scrolls sideways.
+
+**The mechanical half — 31 tables wrapped across 28 pages** by a scripted
+sweep (inventory, not walk: every `<table` in `pages/`, wrapped in
+`overflow-x-auto` unless already inside one; 18 were). The property is PINNED
+per route: `e2e/mobile-shell.spec.ts` reuses the smoke crawl's route
+inventory (`routes.ts`), so a new page cannot ship unchecked —
+`scrollWidth ≤ clientWidth + 1` at 390×844 on every crawlable route, plus
+the drawer flow (open → navigate → auto-dismiss; Escape; backdrop) and the
+RTL case: in Arabic the drawer hugs the INLINE-START (right) edge, asserted
+from its bounding box, purely via `dir`.
+
+**Result:** 61 mobile tests green on the first full run — the sweep's frame
+caught every offender before the assertion did. Full browser suite +
+`pnpm run verify` green.

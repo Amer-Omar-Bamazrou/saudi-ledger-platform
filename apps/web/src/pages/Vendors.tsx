@@ -96,7 +96,7 @@ export default function Vendors() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : vendors.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No vendors yet. Add your first vendor.", "لا يوجد موردون بعد. أضف أول مورد.")}</p></div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Vendor","المورد"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("IBAN","IBAN"),t("Total Bills","إجمالي الفواتير"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{vendors.map(v=>(
                 <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
@@ -116,7 +116,7 @@ export default function Vendors() {
                   <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>
-            </table>
+            </table></div>
           )}
           <ListPagination
             page={paged?.page}

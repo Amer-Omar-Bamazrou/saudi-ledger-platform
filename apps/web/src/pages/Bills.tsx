@@ -83,7 +83,7 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
       <div className="bg-secondary/40 px-3 py-1.5 text-muted-foreground font-medium">
         {t("Proposed journal entry", "قيد اليومية المقترح")}
       </div>
-      <table className="w-full">
+      <div className="overflow-x-auto"><table className="w-full">
         <thead>
           <tr className="border-b border-border/50">
             <th className="text-start px-3 py-1.5 text-muted-foreground font-normal">{t("Account", "الحساب")}</th>
@@ -108,7 +108,7 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
             <td className="px-3 py-1.5 text-end font-mono tabular-nums">{total > 0 ? fmtNum(total) : "—"}</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
       {subtotal > 0 && total > 0 && !reconciled && (
         <div className="px-3 py-1.5 text-negative bg-negative-surface/5 border-t border-negative-surface/20 text-xs">
           ⚠ {t("Totals don't reconcile — server will reject this unless corrected.", "الإجماليات غير متطابقة — سيرفض الخادم هذا القيد ما لم يتم تصحيحه.")}
@@ -543,7 +543,7 @@ export default function Bills() {
               <p className="text-xs mt-1 opacity-60">{t("Create one manually or scan a receipt.", "أنشئ فاتورة يدوياً أو امسح إيصالاً.")}</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {[
@@ -606,7 +606,7 @@ export default function Bills() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
 
             {/*

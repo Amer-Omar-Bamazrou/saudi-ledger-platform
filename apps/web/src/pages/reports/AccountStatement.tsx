@@ -112,7 +112,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       ) : (
         <Card className="border-border bg-card">
           <CardContent className="pt-6">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   {["Date", "Entry #", "Reference", "Description", "Debit", "Credit", "Balance"].map(h => (
@@ -147,7 +147,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                   <td className="pt-3 font-mono text-sm font-bold">{fmtNum(data.closingBalance)}</td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       )}
