@@ -6311,6 +6311,9 @@ components:
     InvoiceHeaderInput:
       type: object
       properties:
+        idempotencyKey:
+          type: ["string", "null"]
+          description: One key per New-Invoice dialog open. A double-click / retry / resend with the same key returns the first invoice instead of creating a duplicate.
         invoiceNumber:
           type: string
           description: Allocated by the server when omitted or blank.

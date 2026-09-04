@@ -48,6 +48,37 @@ async function main() {
   await q(`DELETE FROM customers WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
   await q(`DELETE FROM vendors WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
 
+  // 🔴 QA fix (2026-09-04): sweep DEBRIS, not just this script's own rows.
+  // The demo DB accumulates exploratory junk from manual sessions — a
+  // SAR 0.00 draft bill named "PROBE-1" with no vendor sat on the demo with a
+  // live "Post" button, exactly the kind of thing someone clicks. A zero-total
+  // DRAFT with no party is not a real document by any path (every real create
+  // requires a priced line and, for bills, an amount), so it is safe to
+  // remove. Scoped to the demo org and to drafts only — a posted or
+  // party-bearing row is never touched.
+  await q(
+    `DELETE FROM bill_items WHERE bill_id IN (
+       SELECT id FROM bills WHERE organization_id=$1 AND status='draft'
+         AND total::numeric = 0 AND vendor_id IS NULL)`,
+    [orgId],
+  );
+  await q(
+    `DELETE FROM bills WHERE organization_id=$1 AND status='draft'
+       AND total::numeric = 0 AND vendor_id IS NULL`,
+    [orgId],
+  );
+  await q(
+    `DELETE FROM invoice_items WHERE invoice_id IN (
+       SELECT id FROM invoices WHERE organization_id=$1 AND status='draft'
+         AND total::numeric = 0 AND customer_id IS NULL)`,
+    [orgId],
+  );
+  await q(
+    `DELETE FROM invoices WHERE organization_id=$1 AND status='draft'
+       AND total::numeric = 0 AND customer_id IS NULL`,
+    [orgId],
+  );
+
   // ── parties ───────────────────────────────────────────────────────────────
   const customers: number[] = [];
   for (const [i, [name, ar, vat]] of ([

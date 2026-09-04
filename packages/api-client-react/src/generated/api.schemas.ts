@@ -2877,6 +2877,11 @@ export const InvoiceHeaderInputDocumentType = {
 } as const;
 
 export interface InvoiceHeaderInput {
+  /**
+     * One key per New-Invoice dialog open. A double-click / retry / resend with the same key returns the first invoice instead of creating a duplicate.
+     * @nullable
+     */
+  idempotencyKey?: string | null;
   /** Allocated by the server when omitted or blank. */
   invoiceNumber?: string;
   date?: string;

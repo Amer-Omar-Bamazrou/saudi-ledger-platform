@@ -4972,6 +4972,7 @@ export const createInvoiceBodyTwoItemsItemDiscountMin = 0;
 
 
 export const CreateInvoiceBody = zod.object({
+  "idempotencyKey": zod.string().nullish().describe('One key per New-Invoice dialog open. A double-click \/ retry \/ resend with the same key returns the first invoice instead of creating a duplicate.'),
   "invoiceNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
