@@ -77,6 +77,10 @@ export default function Invoices() {
   // create attempt from this open, so a double-click / retry resolves to the
   // SAME invoice server-side. Regenerated when the dialog re-opens for a new one.
   const idempotencyKey = useRef<string>("");
+  // 🔴 The double-click gate. A ref, NOT `isPending`: mutation state is a
+  // render snapshot, so it cannot stop two clicks in one frame — this can.
+  // Set in the submit onClick, cleared in both mutations' onSettled.
+  const submittingRef = useRef(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   /**
@@ -151,6 +155,7 @@ export default function Invoices() {
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([emptyLine()]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onSettled: () => { submittingRef.current = false; },
   });
 
   const payMut = useMutation({
@@ -238,6 +243,7 @@ export default function Invoices() {
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onSettled: () => { submittingRef.current = false; },
   });
 
   const deleteMut = useMutation({
@@ -384,11 +390,15 @@ export default function Invoices() {
             <Button
               className="w-full mt-4"
               onClick={()=> {
-                // Synchronous guard: `isPending` in `disabled` only takes effect
-                // after a re-render, so a fast double-click can fire twice in one
-                // tick. React Query's own `isPending` flips synchronously — check
-                // it here too. (The server idempotency key is the durable half.)
-                if (createMut.isPending || updateMut.isPending) return;
+                // 🔴 TRULY synchronous guard (2026-09-14). The first version
+                // checked `createMut.isPending` here and CLAIMED it flips
+                // synchronously — it does not: it is a render snapshot, so two
+                // clicks landing before the re-render both saw `false`, and CI
+                // caught the second POST under load (a claim inside a guard is
+                // still a claim). A ref has no render in its loop. (The server
+                // idempotency key remains the durable half either way.)
+                if (submittingRef.current) return;
+                submittingRef.current = true;
                 editing ? updateMut.mutate(form) : createMut.mutate(form);
               }}
               disabled={
