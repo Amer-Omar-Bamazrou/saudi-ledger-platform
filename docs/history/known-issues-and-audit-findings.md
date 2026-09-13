@@ -1383,3 +1383,23 @@ tenant-scoped read inside the injected chat REFUSES (`db` refuses queries
 outside a tenant transaction), the probe validated against a known-present
 case first per the unvalidated-probe rule, and the write still lands after:
 presence, absence, movement. The three findings suites: 38/38.
+
+## 2026-09-14 — THE "SYNCHRONOUS" DOUBLE-SUBMIT GUARD WASN'T, AND CI CAUGHT THE SECOND POST
+
+The QA fix's client half checked `createMut.isPending` inside onClick and
+its comment CLAIMED React Query flips it synchronously. It does not:
+`isPending` is a render snapshot, so two clicks landing before the
+re-render both read `false` — invisible on a fast machine (the re-render
+wins the race), real on a loaded CI runner, where `invoice-double-submit`
+counted a second POST on a branch that never touched invoices. A claim
+inside a guard is still a claim (§3), and this one had a spec asserting the
+property the implementation didn't guarantee.
+
+Fixed with the thing that actually has no render in its loop: a ref
+(`submittingRef`), set in onClick, cleared in both mutations' `onSettled`.
+The server idempotency key was the durable half all along — the duplicate
+would have resolved to ONE invoice — so the exposure was a wasted request
+and a red spec, not a duplicate document. Sibling create buttons
+(bills/quotations/POs/JEs) keep the render-time guard only: their duplicate
+is a DELETABLE DRAFT, and only invoices carry the idempotency key and the
+ICV-permanence composition that justified the belt.
