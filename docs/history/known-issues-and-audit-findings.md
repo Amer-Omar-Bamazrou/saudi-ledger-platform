@@ -1351,3 +1351,35 @@ rule, not the pinned-equivalence arm.
 Proof: full `pnpm run verify` green; the N2 measured payroll case (basic
 3,010 × 3) green — the GOSI arithmetic is bit-identical; `drizzle-kit
 generate`: "No schema changes".
+
+## C6a — CLOSED 2026-09-14: no transaction is held across a model call
+
+The queue entry: `findings.schedule.service.ts` called the AI provider inside
+an open tenant transaction, against a 15s idle-in-transaction guardrail —
+invisible only because the AI layer is dark, and BLOCKING before it is
+enabled. The prescribed shape was the e-invoice outbox rule: read inside,
+call outside, write back in a short second transaction.
+
+Built exactly that, one level lower than prescribed so no caller can get it
+wrong: `findingsExplainService.explainOpenFindings(organizationId)` now OWNS
+its transaction boundaries — the open findings are read in one short tenant
+transaction, every model call runs with no transaction open, and each
+accepted explanation is written back in its own short second transaction
+(the stored factsHash already guards the read-to-write gap: an explanation
+written against facts that changed meanwhile never renders). The service
+taking `organizationId` and opening its own boundaries is the
+make-it-inexpressible form: there is nothing for an outer transaction to
+scope.
+
+🔴 The report was a sample, not an inventory: BOTH callers held the defect.
+The scheduler (the named instance) now runs the pass after its run
+transaction commits. `POST /findings/run` held the same shape one layer up —
+the per-request tenant transaction stayed open across up to 50 chat calls at
+a 25s timeout each; it now fires the pass on the response's `finish`, after
+commit-before-response has committed and the body is sent.
+
+Proof: the C6a structural test in `findings-explain.test.ts` — a
+tenant-scoped read inside the injected chat REFUSES (`db` refuses queries
+outside a tenant transaction), the probe validated against a known-present
+case first per the unvalidated-probe rule, and the write still lands after:
+presence, absence, movement. The three findings suites: 38/38.
