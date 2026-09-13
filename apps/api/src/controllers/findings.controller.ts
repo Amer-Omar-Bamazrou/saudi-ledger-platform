@@ -8,6 +8,7 @@ import type { Request, Response } from "express";
 import { BadRequestError } from "../lib/errors";
 import { requireIdParam } from "../lib/httpParams";
 import { findingsService } from "../services/findings.service";
+import { findingsExplainService } from "../services/findings.explain.service";
 
 const STATUSES = ["open", "acknowledged", "resolved"];
 
@@ -37,8 +38,20 @@ export const findingsController = {
     res.json(await findingsService.setCadence(String(req.body?.cadence ?? ""), req.session?.userId ?? null));
   },
 
-  async run(_req: Request, res: Response) {
-    res.json(await findingsService.run());
+  async run(req: Request, res: Response) {
+    const summary = await findingsService.run();
+    // AI-3b explanations run after THIS response's transaction commits (C6a):
+    // a model call must never hold the request transaction open, and the
+    // explain service owns its own short transactions. 'finish' fires after
+    // commit-before-response has committed and the body has been sent; the
+    // pass is dark without a provider and never throws.
+    const organizationId = req.tenant!.organizationId;
+    res.on("finish", () => {
+      void findingsExplainService.explainOpenFindings(organizationId).catch((err) => {
+        req.log?.warn({ err }, "post-run explanation pass failed — findings unaffected");
+      });
+    });
+    res.json(summary);
   },
 
   async acknowledge(req: Request, res: Response) {

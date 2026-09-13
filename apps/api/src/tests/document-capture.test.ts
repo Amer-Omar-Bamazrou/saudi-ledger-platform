@@ -266,11 +266,15 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
   // ── The two wrong states ─────────────────────────────────────────────────
 
   describe("🔴 neither wrong state is reachable", () => {
+    // A counter, not Date.now(): two makeBill() calls in the same millisecond
+    // collided on (company_id, bill_number) — the CI flake of 2026-09-04 and
+    // 2026-09-13 (identity from a timestamp is the §3 COLLISION class).
+    let billSeq = 0;
     async function makeBill(): Promise<number> {
       const { rows } = await pool.query(
         `INSERT INTO bills (organization_id, company_id, vendor_id, bill_number, date, subtotal, vat_amount, total, status)
          VALUES ($1,$2,$3,$4,'2026-08-01','1000.00','150.00','1150.00','draft') RETURNING id`,
-        [orgId, companyId, vendorId, `CAP-${Date.now()}`],
+        [orgId, companyId, vendorId, `CAP-${Date.now()}-${++billSeq}`],
       );
       return rows[0].id;
     }
