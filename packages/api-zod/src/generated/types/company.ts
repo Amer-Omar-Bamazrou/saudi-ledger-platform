@@ -13,6 +13,8 @@ import type { CompanyOwnershipType } from './companyOwnershipType';
  */
 export interface Company {
   id: string;
+  /** L1 level-1 branding: whether a logo is stored for this company. Absent logo = the invoice header carries the registered name alone (no fallback mark, by decision — design-invoice-document.md §2). */
+  hasLogo: boolean;
   name: string;
   /** @nullable */
   nameAr: string | null;

@@ -1645,6 +1645,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/Company"
 
+  /companies/current/logo:
+    get:
+      operationId: getCompanyLogo
+      tags: [companies]
+      summary: >
+        The stored company logo, served inline (sandboxed, nosniff) for the
+        settings preview and the invoice renderer. 404 when none is stored.
+      responses:
+        "200":
+          description: The logo bytes
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/svg+xml: { schema: { type: string, format: binary } }
+        "404":
+          description: No logo stored
+    put:
+      operationId: uploadCompanyLogo
+      tags: [companies]
+      summary: >
+        Upload/replace the company logo (admin only). PNG/JPG/SVG, 2 MB cap,
+        bytes sniffed (M-5's rule); SVG with active content refused. Body is
+        multipart/form-data with a single 'file' field — left schemaless here
+        deliberately: a binary multipart schema generates DOM types (File/Blob)
+        the node-side Zod package cannot compile, and the client builds
+        FormData by hand (the capture pattern).
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyLogoState"
+    delete:
+      operationId: removeCompanyLogo
+      tags: [companies]
+      summary: >
+        Remove the company logo (admin only). The invoice header returns to
+        the registered name alone.
+      responses:
+        "200":
+          description: Removed (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyLogoState"
+
   /zatca/onboarding:
     get:
       operationId: getZatcaOnboardingStatus
@@ -3594,6 +3641,13 @@ components:
             $ref: "#/components/schemas/ZatcaComplianceDocumentResult"
         activated: { type: boolean }
 
+    CompanyLogoState:
+      type: object
+      required: [hasLogo]
+      properties:
+        hasLogo:
+          type: boolean
+
     Company:
       type: object
       description: >
@@ -3615,10 +3669,17 @@ components:
           district,
           city,
           postalCode,
+          hasLogo,
         ]
       properties:
         id:
           type: string
+        hasLogo:
+          type: boolean
+          description: >
+            L1 level-1 branding: whether a logo is stored for this company.
+            Absent logo = the invoice header carries the registered name alone
+            (no fallback mark, by decision — design-invoice-document.md §2).
         name:
           type: string
         nameAr:
