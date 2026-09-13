@@ -105,6 +105,17 @@ export const invoicesTable = pgTable(
      */
     noteReason: text("note_reason"),
 
+    /**
+     * 🔴 IDEMPOTENCY KEY (QA fix, 2026-09-04): the client sends one key per
+     * open of the New Invoice dialog. A double-click, a retried request, or a
+     * slow-network resend all carry the SAME key, so the partial unique index
+     * below turns the second create into a no-op the service resolves to the
+     * FIRST invoice — not a duplicate draft that then mints a second ICV on
+     * approval. NULL is permitted (conversion/recurring/seed paths don't send
+     * one); the index only constrains rows that carry a key.
+     */
+    idempotencyKey: text("idempotency_key"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -135,6 +146,10 @@ export const invoicesTable = pgTable(
      * halves: that the index is in the database, and that it is declared here.
      */
     uniqueIndex("invoices_company_number_unq").on(t.companyId, t.invoiceNumber),
+    // Idempotency: at most one invoice per (company, key). Partial — only rows
+    // that carry a key are constrained (NULL is unconstrained). Pinned by
+    // money-unique-indexes.test.ts.
+    uniqueIndex("invoices_company_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
   ],
 );
 

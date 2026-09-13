@@ -77,6 +77,13 @@ const REQUIRED_UNIQUE_INDEXES = [
     columns: ["company_id", "bill_number"],
     guarantees: "a bill number means ONE bill within the company",
   },
+  // QA fix (2026-09-04): a double-click / retry cannot mint a duplicate draft.
+  {
+    name: "invoices_company_idempotency_unq",
+    table: "invoices",
+    columns: ["company_id", "idempotency_key"],
+    guarantees: "one invoice per (company, idempotency key) — the double-submit guard",
+  },
 ] as const;
 
 describeMaybe("money document numbers — the unique indexes are present in the DATABASE", () => {

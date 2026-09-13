@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
 import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
@@ -68,6 +69,10 @@ export default function Invoices() {
   const [page, setPage] = useState(0);
   const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
   const [open, setOpen] = useState(false);
+  // 🔴 One idempotency key per New-Invoice dialog open (QA fix). It rides every
+  // create attempt from this open, so a double-click / retry resolves to the
+  // SAME invoice server-side. Regenerated when the dialog re-opens for a new one.
+  const idempotencyKey = useRef<string>("");
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   /**
@@ -125,6 +130,7 @@ export default function Invoices() {
       apiFetch("/invoices", {
         method: "POST",
         body: json.create({
+          idempotencyKey: idempotencyKey.current || undefined,
           invoiceNumber: body.invoiceNumber,
           date: body.date,
           dueDate: body.dueDate || null,
@@ -287,6 +293,7 @@ export default function Invoices() {
           open={open}
           onOpenChange={(o) => {
             setOpen(o);
+            if (o && !editing) idempotencyKey.current = crypto.randomUUID();
             if (!o) {
               // Leaving EDIT mode explicitly, or the next "New Invoice" would
               // silently PATCH the record just edited.
@@ -374,7 +381,14 @@ export default function Invoices() {
             </div>
             <Button
               className="w-full mt-4"
-              onClick={()=> (editing ? updateMut.mutate(form) : createMut.mutate(form))}
+              onClick={()=> {
+                // Synchronous guard: `isPending` in `disabled` only takes effect
+                // after a re-render, so a fast double-click can fire twice in one
+                // tick. React Query's own `isPending` flips synchronously — check
+                // it here too. (The server idempotency key is the durable half.)
+                if (createMut.isPending || updateMut.isPending) return;
+                editing ? updateMut.mutate(form) : createMut.mutate(form);
+              }}
               disabled={
                 !form.customerId ||
                 createMut.isPending ||
@@ -475,7 +489,7 @@ export default function Invoices() {
                   <td className="py-3 pe-4 font-mono">{fmtNum(inv.subtotal)}</td>
                   <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
                   <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
-                  <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{inv.status}</Badge></td>
+                  <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
                       {/*
@@ -498,7 +512,13 @@ export default function Invoices() {
                           </Button>
                         </>
                       )}
-                      {inv.status !== "paid" && (
+                      {/* 🔴 QA fix (2026-09-04): Mark Paid ONLY on an ISSUED
+                          invoice. The server refuses a draft/submitted payment
+                          ("Invoice must be approved before a payment can be
+                          recorded"), so offering it there was a control that
+                          could only fail — the same show-only-where-valid rule
+                          the draft-only Edit/Delete already follow. */}
+                      {inv.status === "sent" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
                       {/* L1 — the invoice leaves the product. ع is THE tax

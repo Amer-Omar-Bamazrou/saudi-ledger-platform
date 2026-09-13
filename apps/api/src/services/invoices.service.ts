@@ -139,7 +139,7 @@ export const invoicesService = {
     const invData = pick<Record<string, unknown>>(body, [
       "invoiceNumber", "date", "dueDate", "customerId", "currency", "discount",
       "notes", "termsAndConditions", "sellerName", "sellerVatNumber",
-      "documentType", "originalInvoiceId", "noteReason",
+      "documentType", "originalInvoiceId", "noteReason", "idempotencyKey",
     ]) as Record<string, any>;
     // 🔴 H2 — item amounts validated: NaN/negative quantities and unit prices,
     // and out-of-range VAT rates, no longer reach the numeric columns (or the
@@ -263,6 +263,24 @@ export const invoicesService = {
       sellerName: invData.sellerName,
       sellerVatNumber: invData.sellerVatNumber,
     });
+
+    // 🔴 IDEMPOTENT CREATE (QA fix, 2026-09-04). A double-click / retry /
+    // slow-network resend carries the same `idempotencyKey`. PRE-CHECK by key
+    // and return the first invoice — the caller gets the same document, no
+    // duplicate draft, and no second ICV is ever minted from it on approval.
+    //
+    // 🔴 Why a pre-check and not a catch-the-23505: a 23505 ABORTS the
+    // transaction (25P02), so a recovery SELECT inside the same request cannot
+    // run. The pre-check settles the common case (each double-click is its own
+    // request/transaction); `invoices_company_idempotency_unq` remains the
+    // backstop for the true concurrent race — the loser errors, but NO
+    // duplicate can persist. The wrong thing is inexpressible; the pre-check
+    // makes the right thing graceful.
+    const idemKey = invData.idempotencyKey ? String(invData.idempotencyKey) : null;
+    if (idemKey) {
+      const [existing] = await invoicesRepository.findByIdempotencyKey(idemKey);
+      if (existing) return buildInvoiceOut(existing, null);
+    }
 
     const [inv] = await invoicesRepository.insert({
       ...invData,
