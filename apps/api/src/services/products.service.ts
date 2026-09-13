@@ -1,6 +1,6 @@
 /** Products service — numeric (de)serialization + view. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
-import { pick, assertAmount } from "../lib/writeGuards";
+import { pick, assertAmount , nullifyEmptyText } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable product fields. */
 const PRODUCT_FIELDS = [
@@ -44,7 +44,7 @@ export const productsService = {
 
   async create(data: Record<string, unknown>) {
     // 🔴 H1/H2 — ALLOWLIST + validate prices ≥ 0.
-    const picked = pick<Record<string, unknown>>(data, PRODUCT_FIELDS);
+    const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, PRODUCT_FIELDS), ["nameAr"]);
     const values = {
       ...picked,
       unitPrice: assertAmount(data.unitPrice ?? 0, "unitPrice", { min: 0, allowZero: true }).toFixed(2),
@@ -58,7 +58,7 @@ export const productsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await productsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = pick<Record<string, unknown>>(data, PRODUCT_FIELDS);
+    const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, PRODUCT_FIELDS), ["nameAr"]);
     for (const f of ["unitPrice", "unitCost"] as const) {
       if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);
     }

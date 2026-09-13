@@ -40,10 +40,9 @@ const toView = (c: Customer) => ({
 function normalize(values: Partial<CustomerInsert>): Partial<CustomerInsert> {
   const out: Record<string, unknown> = { ...values };
   for (const key of CUSTOMER_FIELDS) {
-    if (out[key] === "") {
-      if (key === "nameAr") delete out[key]; // NOT NULL with a default — let the default apply
-      else out[key] = null;
-    }
+    // "" → NULL for every nullable text field, nameAr now included: the
+    // sentinel default died (2026-09-14), so absence is stored as absence.
+    if (out[key] === "") out[key] = null;
   }
   if (out.creditLimit != null) {
     out.creditLimit = String(assertAmount(out.creditLimit, "creditLimit", { min: 0, allowZero: true }));

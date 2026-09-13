@@ -20,7 +20,7 @@ export const budgetsTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     name: text("name").notNull(),
-    nameAr: text("name_ar").notNull().default("(not yet translated)"),
+    nameAr: text("name_ar"),
     period: text("period").notNull(),       // YYYY
     categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "cascade" }),
     budgetedAmount: numeric("budgeted_amount", { precision: 15, scale: 2 }).notNull(),

@@ -3,7 +3,7 @@
  * All arithmetic and guards preserved byte-for-byte from the pre-M6 route.
  */
 import { BadRequestError, NotFoundError } from "../lib/errors";
-import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
+import { pick, assertAmount, assertDateString , nullifyEmptyText } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable asset fields (computed/depreciation fields excluded). */
 const ASSET_FIELDS = [
@@ -60,7 +60,7 @@ export const assetsService = {
     // `annualDepreciation: Infinity` (→ null in the view); `String(undefined)`
     // → 500. Life must be ≥ 1; costs ≥ 0. currentBookValue/accumulated are
     // computed here, never taken from the client.
-    const picked = pick<Record<string, unknown>>(data, ASSET_FIELDS);
+    const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, ASSET_FIELDS), ["nameAr"]);
     if (data.purchaseDate != null) assertDateString(data.purchaseDate, "purchaseDate");
     const purchaseCost = assertAmount(data.purchaseCost, "purchaseCost", { min: 0, allowZero: true });
     const life = assertAmount(data.usefulLifeYears, "usefulLifeYears", { min: 1 });
@@ -80,7 +80,7 @@ export const assetsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await assetsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = pick<Record<string, unknown>>(data, [...ASSET_FIELDS, "currentBookValue"]);
+    const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, [...ASSET_FIELDS, "currentBookValue"]), ["nameAr"]);
     if (updates.purchaseDate != null) assertDateString(updates.purchaseDate, "purchaseDate");
     for (const f of ["purchaseCost", "salvageValue", "currentBookValue"] as const) {
       if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);

@@ -101,7 +101,7 @@ export const purchaseOrderItemsTable = pgTable(
       .references(() => purchaseOrdersTable.id, { onDelete: "cascade" }),
     productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
     description: text("description").notNull(),
-    descriptionAr: text("description_ar").notNull().default("(not yet translated)"),
+    descriptionAr: text("description_ar"),
     quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),
     /**
      * The price we ORDERED at. Conversion pre-fills the bill with it, but —

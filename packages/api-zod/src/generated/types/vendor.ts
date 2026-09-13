@@ -9,7 +9,8 @@
 export interface Vendor {
   id: number;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   taxNumber: string | null;
   /** @nullable */

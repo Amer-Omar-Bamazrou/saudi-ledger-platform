@@ -10,7 +10,8 @@ export interface QuotationItem {
   id: number;
   productId?: number | null;
   description: string;
-  descriptionAr?: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   quantity: number;
   /** The QUOTED price. Conversion copies this value and never re-reads the product's current price. */
   unitPrice: number;

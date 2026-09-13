@@ -12,7 +12,8 @@
 export interface CustomerInputFields {
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */

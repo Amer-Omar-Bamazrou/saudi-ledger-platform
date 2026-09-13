@@ -19,10 +19,8 @@ type VendorInsert = typeof vendorsTable.$inferInsert;
 function normalize(values: Partial<VendorInsert>): Partial<VendorInsert> {
   const out: Record<string, unknown> = { ...values };
   for (const key of VENDOR_FIELDS) {
-    if (out[key] === "") {
-      if (key === "nameAr") delete out[key];
-      else out[key] = null;
-    }
+    // "" → NULL, nameAr now included — the sentinel default died (2026-09-14).
+    if (out[key] === "") out[key] = null;
   }
   return out as Partial<VendorInsert>;
 }

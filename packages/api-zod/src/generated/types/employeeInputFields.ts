@@ -11,14 +11,16 @@ export interface EmployeeInputFields {
   employeeNumber?: string;
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   nationalId?: string | null;
   /** @nullable */
   nationality?: string | null;
   /** @nullable */
   jobTitle?: string | null;
-  jobTitleAr?: string;
+  /** @nullable */
+  jobTitleAr?: string | null;
   /** @nullable */
   department?: string | null;
   /** @minimum 0 */

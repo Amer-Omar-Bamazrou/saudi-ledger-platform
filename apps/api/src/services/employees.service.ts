@@ -4,7 +4,7 @@
  * expats 0% / 2%. Behavior unchanged from pre-M6.
  */
 import { NotFoundError } from "../lib/errors";
-import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
+import { pick, assertAmount, assertDateString , nullifyEmptyText } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable employee fields. */
 const EMPLOYEE_FIELDS = [
@@ -55,7 +55,7 @@ export const employeesService = {
   async create(data: Record<string, unknown>) {
     // 🔴 H1/H2 — ALLOWLIST + validate. Negative salaries persisted and flowed
     // into payroll/GOSI math; `String(undefined)` → 500.
-    const picked = pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS);
+    const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (data[f] != null) assertDateString(data[f], f);
     const values = {
       ...picked,
@@ -72,7 +72,7 @@ export const employeesService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await employeesRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS);
+    const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (updates[f] != null) assertDateString(updates[f], f);
     for (const f of ["basicSalary", "housingAllowance", "transportAllowance", "otherAllowances"] as const) {
       if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);

@@ -1353,3 +1353,32 @@ tenant-scoped read inside the injected chat REFUSES (`db` refuses queries
 outside a tenant transaction), the probe validated against a known-present
 case first per the unvalidated-probe rule, and the write still lands after:
 presence, absence, movement. The three findings suites: 38/38.
+
+## THE SENTINEL FAMILY — CLOSED 2026-09-14: every "(not yet translated)" default is dead
+
+L1's 0067 killed the sentinel default on `invoice_items.description_ar` and
+named the surviving ~8 columns a FAMILY for the same treatment. All nine are
+converted in one migration (assets/budgets/customers/products/vendors
+`name_ar`, employees `name_ar` + `job_title_ar`, quotation and PO item
+`description_ar`): nullable, no default, existing sentinel rows AND empty
+strings converted to NULL — "" is the same stand-in typed by a form instead
+of written by a migration.
+
+The write-boundary half: `nullifyEmptyText` (writeGuards) stores an empty
+Arabic field as NULL in products/assets/budgets/employees, and the
+customers/vendors normalizers drop their nameAr special case (it existed to
+protect the NOT NULL default that no longer exists). The contract follows:
+nameAr/jobTitleAr/descriptionAr are `["string","null"]` on the six entities'
+outputs and inputs. The quotation and PO LINE FORMS gain the Arabic
+description input (the invoice form's L1 pattern) — the API had accepted and
+stored `descriptionAr` all along; the forms could not express it.
+
+Readers were already dual (NULL or legacy sentinel) everywhere the string
+was recognised — those belts stay.
+
+Standing guard (`sentinel-family.test.ts`), the make-it-inexpressible form:
+NO column in information_schema may carry the sentinel as a default — a new
+column reintroducing the pattern fails mechanically, not by review. The
+probe is validated against a known-present default first; the nine columns
+are asserted nullable; and the write boundary is proven through a real
+service write ("" → NULL, real Arabic → itself).
