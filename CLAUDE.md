@@ -11,8 +11,8 @@ Guidance for Claude Code (and any AI agent) working in this repository.
 > 🔴 **BUDGET: 75k characters, enforced by `apps/api/src/tests/claude-md-budget.test.ts`.**
 > It was 207k (truncated in every session that loaded it), restructured to 35k,
 > and back to 157k within four weeks. Prose asking for restraint has now failed
-> twice, so the limit is a failing test instead. The file sits at ~63k, so the
-> headroom is deliberate — **and raising the number is not a fix.** When the test
+> twice, so the limit is a failing test instead. **Raising the number is not a
+> fix.** When the test
 > goes red, something in here has become history; find it with the three rules
 > below.
 >
@@ -53,17 +53,17 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-09-04.** Full as-built narrative for everything below:
+**Last updated: 2026-09-14.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-08-28 → 31** — six passes, P5 and the navigation tree, all merged
-([record](docs/product/nav-tree-reconciliation.md)). **2026-09-01** — L1/L2/L3
-named by the first core-path walk. **2026-09-02** — the contract milestone
-CLOSED at a deliberate stop; its standing rules and the pinned inventory are in
-§5. 🔴 **2026-09-03/04 — the ERPNext comparison; N1–N4 + T1 closed; L1's core
-SHIPPED (the invoice leaves the product — PDF/A-3, veraPDF PASS both
-renderings) and L2 SHIPPED (the responsive shell, the no-sideways-scroll
-property pinned per route).** Records: §5's board block and the history files.
+**2026-09-02** — the contract milestone CLOSED at a deliberate stop; its
+standing rules and the pinned inventory are in §5. 🔴 **2026-09-03/04 — the
+ERPNext comparison; N1–N4 + T1 closed; L1's core SHIPPED (the invoice leaves
+the product — PDF/A-3, veraPDF PASS both renderings) and L2 SHIPPED (the
+responsive shell, the no-sideways-scroll property pinned per route).**
+**2026-09-14** — the QA-pass fixes (#142) and break-glass (#141) MERGED ten
+days after going green (lesson: §3). Records: §5's board block and the
+history files.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -279,6 +279,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING.** Severity is per finding; consequence is per PATH. Run the triage check above on every finding and rank on the worst path a user can walk.
 - **A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures.** *Data flow* (one file writes the fact another trusts; the EDGE is the hole): human — enumerate what a privilege can WRITE, grep every guard that READS it. *Position* (a route on the wrong side of a guard): mechanical — `tests/privilege-surface-map.test.ts`, which 🔴 would NOT have caught F1.
 - **🔴 WHEN A MAP REPLACES A MAP, ASSERT BOTH DIRECTIONS** — every entry points at something, and everything is pointed at. Reconciling entry by entry answers one direction only, and cannot see what the new map never listed.
+- **🔴 A GREEN PR MOVES NOTHING UNTIL SOMETHING CALLS THE MERGE** — two verified PRs sat ten days because no step owned "after green". Reading the board includes reading the open-PR list with check conclusions.
 
 #### Where the rule lives — construction over convention
 
