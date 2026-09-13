@@ -6065,3 +6065,51 @@ not quietly become the permanent answer — C's recorded risk is precisely that
 the break-glass ships and the email flow never does, and the provider
 decision (which also unblocks B1's alarms, invoice-send, and dunning) is what
 prevents it.
+
+## 2026-09-14 — TEN DAYS OF GREEN, ZERO MOVEMENT: NOTHING CALLED THE MERGE
+
+Process observation, recorded at the owner's instruction. #142 (the QA-pass
+fixes, all five checks green) and #141 (the break-glass) sat open from
+2026-09-04 to 2026-09-14 while main did not move. Not a code failure — the
+work was done, verified, and recorded — and not the merge gate either (every
+conclusion was asserted, nothing red was merged). The failure was the step
+AFTER green: merging had no owner and no trigger. The PRs were opened, the
+session ended, the owner went quiet, and no standing step re-reads the
+open-PR list — so the board froze with finished work on it.
+
+The shape recurs whenever the owner is slow to respond, which is exactly when
+the platform is unattended. Countermeasure, standing: **reading the board
+INCLUDES reading the open-PR list with check conclusions** — a green PR is
+finished work the board has not received yet, and one more than a day old is
+a board item in its own right, not background. (The merge-gate rule — every
+conclusion == success, never completion — is unchanged; this lesson is about
+what calls the merge, not what gates it.)
+
+## 2026-09-14 — THE INSTRUMENT WAS WRONG BEFORE THE CODE WAS (the form_input false positive, long form)
+
+The §3 line — *a UI-automation set that skips the framework's event tests a
+state the app never has* — was added by the QA-fix commit (2026-09-04), but
+its incident landed only in the known-issues QA section. Recorded here at the
+owner's instruction, as prominently as the real findings, because it is the
+instrument-wrong-before-the-code class again — in the QA HARNESS this time
+rather than a probe.
+
+The incident: the browser QA pass reported "vendor selection wipes the
+Subtotal", ranked INCOMPLETE and given a slot in the fix order. Re-verifying
+with real keystrokes showed the subtotal survives vendor selection intact.
+The report was an artifact of `form_input`, which writes a DOM value without
+firing React's `onChange`: component state stayed empty, and the
+vendor-triggered re-render reverted the controlled input to state — a bug
+report about a state no user can reach. A second reported finding fell the
+same day for a related reason: the "negative-amount silent no-op" was the
+server 400-ing correctly behind finding 2's below-fold button.
+
+The class, and why it belongs beside the unvalidated-probe rule: a defect
+report produced by an instrument that bypasses the app's own event path is a
+claim about the instrument until a real interaction confirms it. The probe
+rule covers false ABSENCES (a blind instrument reporting "not there"); this
+is the false-PRESENCE arm — an instrument manufacturing a defect. Standing
+countermeasure: **a UI finding is confirmed by a real interaction (keystrokes
+and clicks through the framework's event path) before it becomes a fix.** The
+cost is seconds; the alternative demonstrated here was "fixing" correct code
+to match a bad report — which is how an instrument bug becomes a code bug.
