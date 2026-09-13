@@ -18,6 +18,7 @@ import { payrollApprovable } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
+import { GOSI_RATES } from "@workspace/shared";
 
 export const payrollService = {
   async list() {
@@ -82,8 +83,8 @@ export const payrollService = {
       const other = toNum(emp.otherAllowances);
       const gross = round2(basic + housing + transport + other);
       const isSaudi = emp.nationality === "SA";
-      const gosiEmp = round2(isSaudi ? basic * 0.0975 : 0);
-      const gosiEr = round2(isSaudi ? basic * 0.1175 : basic * 0.02);
+      const gosiEmp = round2(isSaudi ? basic * GOSI_RATES.saudiEmployee : 0);
+      const gosiEr = round2(isSaudi ? basic * GOSI_RATES.saudiEmployer : basic * GOSI_RATES.nonSaudiEmployer);
       const net = round2(gross - gosiEmp);
       totalBasic += basic;
       totalAllowances += housing + transport + other;

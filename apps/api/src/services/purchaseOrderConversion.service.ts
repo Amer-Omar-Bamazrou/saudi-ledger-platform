@@ -28,6 +28,7 @@
  * and a mis-click would then need a correcting entry. There is no
  * `autoApprove` parameter to pass.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { assertAmount, assertDateString } from "../lib/writeGuards";
 import { purchaseOrdersRepository } from "../repositories/purchaseOrders.repository";
@@ -163,7 +164,7 @@ export const purchaseOrderConversionService = {
       descriptionAr: item.descriptionAr,
       quantity,
       unitPrice,
-      vatRate: Number(item.vatRate ?? 15),
+      vatRate: Number(item.vatRate ?? DEFAULT_VAT_RATE),
     }));
 
     // Lines the supplier billed that were never ordered — freight, surcharges,

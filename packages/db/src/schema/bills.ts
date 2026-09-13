@@ -1,3 +1,4 @@
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -70,7 +71,7 @@ export const billItemsTable = pgTable(
     descriptionAr: text("description_ar"),
     quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),
     unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
-    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default("15"),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default(String(DEFAULT_VAT_RATE)),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).default("0"),
     total: numeric("total", { precision: 15, scale: 2 }).notNull().default("0"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

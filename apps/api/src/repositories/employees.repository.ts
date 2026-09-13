@@ -1,5 +1,6 @@
 /** Employees repository — tenant-scoped via RLS. */
 import { db, employeesTable } from "@workspace/db";
+import { GOSI_RATES } from "@workspace/shared";
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
@@ -36,15 +37,15 @@ export const employeesRepository = {
    *
    * Gross and GOSI are DERIVED here in SQL with the same formulas the row view
    * uses, because the columns store the components rather than the results.
-   * 🔴 That is a second statement of one rule, and it is flagged rather than
-   * hidden: if the GOSI rates change, both places change. Keeping them apart
-   * was the alternative to summing a page, which is the worse of the two.
+   * The rates are BOUND from @workspace/shared's single definition (2026-09-14
+   * — this used to be the flagged second statement of the rule; now a rate
+   * change edits one file and this query follows).
    */
   async listTotals(filter: EmployeeListFilter) {
     const gross = sql`(${employeesTable.basicSalary} + ${employeesTable.housingAllowance}
       + ${employeesTable.transportAllowance} + ${employeesTable.otherAllowances})`;
     const gosiEmployer = sql`(CASE WHEN ${employeesTable.nationality} = 'SA'
-      THEN ${employeesTable.basicSalary} * 0.1175 ELSE ${employeesTable.basicSalary} * 0.02 END)`;
+      THEN ${employeesTable.basicSalary} * ${GOSI_RATES.saudiEmployer} ELSE ${employeesTable.basicSalary} * ${GOSI_RATES.nonSaudiEmployer} END)`;
     const [row] = await db
       .select({
         total: sql<number>`count(*)::int`,

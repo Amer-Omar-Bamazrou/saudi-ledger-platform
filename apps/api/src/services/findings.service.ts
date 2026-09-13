@@ -127,15 +127,11 @@ export const findingsService = {
     // are delivered in-app at this moment — the person who ran it is looking.
     await findingsRepository.markDeliveredInApp(touchedIds);
 
-    // AI-3b: explanations are an ENHANCEMENT pass over the run's open
-    // findings — wrapped so nothing here can fail the run (deterministic is
-    // the floor). Dark until a provider is configured; counts are logged by
-    // the explain service itself.
-    await findingsExplainService.explainOpenFindings().catch(() => {
-      // explainOpenFindings never throws by contract (it logs internally);
-      // this catch is the belt for the contract being wrong somewhere — the
-      // run must complete regardless.
-    });
+    // AI-3b explanations are NOT generated here (C6a): this method runs
+    // inside its caller's tenant transaction, and a model call must never
+    // hold one open. Callers invoke findingsExplainService.explainOpenFindings
+    // AFTER their transaction commits — the schedule service directly, the
+    // run route after its response's commit.
 
     const counts = await findingsRepository.counts();
     const summary = { created, reopened, refreshed, resolved, open: counts.open };

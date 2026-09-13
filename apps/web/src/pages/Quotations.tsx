@@ -13,6 +13,7 @@
  * badge claiming to be both would be the thing the design set out to avoid.
  * Conversion lands in M21.2; until then every live quotation reads `open`.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -56,7 +57,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   approved: <CheckCircle className="w-3 h-3" />,
 };
 
-const emptyLine = (): QuotationLineForm => ({ description: "", quantity: 1, unitPrice: "", vatRate: 15 });
+const emptyLine = (): QuotationLineForm => ({ description: "", quantity: 1, unitPrice: "", vatRate: DEFAULT_VAT_RATE });
 
 export default function Quotations() {
   const { t, lang } = useLanguage();

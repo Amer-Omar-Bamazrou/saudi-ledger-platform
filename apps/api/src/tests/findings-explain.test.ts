@@ -28,6 +28,7 @@ import {
 } from "../services/findings.explanationVerifier";
 import { findingsExplainService, factsHash, substantiveFactCount } from "../services/findings.explain.service";
 import { findingsService } from "../services/findings.service";
+import { findingsRepository } from "../repositories/findings.repository";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -36,7 +37,9 @@ if (!REAL_DB) console.warn("[findings-explain] no real DATABASE_URL — skipping
 
 // ── The verifier, pure ───────────────────────────────────────────────────────
 
-describe("normalizeDigits — behavioral equivalence with receiptParser's canonical copy", () => {
+// Since 2026-09-14 there is ONE normalizeDigits (@workspace/shared) — these
+// cases pin the single copy, reached through the verifier's re-export.
+describe("normalizeDigits — the shared single copy, pinned", () => {
   it("Arabic-Indic digits map to Western; U+066B maps to a dot", () => {
     expect(normalizeDigits("٠١٢٣٤٥٦٧٨٩")).toBe("0123456789");
     expect(normalizeDigits("١١٥٠٫٥٠")).toBe("1150.50");
@@ -166,11 +169,9 @@ describeMaybe("AI-3b — generation, rejection, and the deterministic floor", ()
 
   it("a valid, judged-clean explanation is stored and returned by the list API", async () => {
     let calls = 0;
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => (++calls === 1 ? VALID : CLEAN_JUDGE),
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => (++calls === 1 ? VALID : CLEAN_JUDGE),
+    });
     expect(r).toMatchObject({ attempted: 1, generated: 1, unavailable: 0 });
     const { findings } = await inTenant(() => findingsService.list({}, orgId));
     expect(findings[0].explanation).toMatchObject({ en: expect.stringContaining("250") });
@@ -190,11 +191,9 @@ describeMaybe("AI-3b — generation, rejection, and the deterministic floor", ()
   });
 
   it("🔴 a model output with an invented number is DISCARDED and counted by reason", async () => {
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => JSON.stringify({ en: "About 9,999 was involved on 2026-08-02.", ar: "المبلغ ٩٩٩٩ تقريبًا." }),
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => JSON.stringify({ en: "About 9,999 was involved on 2026-08-02.", ar: "المبلغ ٩٩٩٩ تقريبًا." }),
+    });
     expect(r.generated).toBe(0);
     expect(r.rejected.invented_number).toBe(1);
     const { rows } = await pool.query(`SELECT explanation FROM findings WHERE organization_id = $1`, [orgId]);
@@ -203,32 +202,26 @@ describeMaybe("AI-3b — generation, rejection, and the deterministic floor", ()
 
   it("🔴 a judge-flagged output is discarded (the argued class)", async () => {
     let calls = 0;
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => (++calls === 1 ? VALID : JSON.stringify({ invented: ["implies a double payment risk"] })),
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => (++calls === 1 ? VALID : JSON.stringify({ invented: ["implies a double payment risk"] })),
+    });
     expect(r.generated).toBe(0);
     expect(r.rejected.judge_flagged).toBe(1);
   });
 
   it("missing Arabic is a rejection — both languages or neither (the Arabic gate at feature level)", async () => {
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => JSON.stringify({ en: "2 rows share 250 on 2026-08-02." }),
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => JSON.stringify({ en: "2 rows share 250 on 2026-08-02." }),
+    });
     expect(r.rejected.parse_failed).toBe(1);
   });
 
   it("🔴 the deterministic floor: a THROWING provider is counted, nothing fails, the finding still lists", async () => {
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => {
-          throw new Error("provider down");
-        },
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => {
+        throw new Error("provider down");
+      },
+    });
     expect(r.unavailable).toBe(1);
     const { findings } = await inTenant(() => findingsService.list({}, orgId));
     expect(findings).toHaveLength(1);
@@ -241,17 +234,47 @@ describeMaybe("AI-3b — generation, rejection, and the deterministic floor", ()
       [orgId, JSON.stringify({ id: 9, ageDays: 20 })],
     );
     let calls = 0;
-    const r = await inTenant(() =>
-      findingsExplainService.explainOpenFindings({
-        chat: async () => {
-          calls += 1;
-          throw new Error("should not be called for the thin finding");
-        },
-      }),
-    );
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => {
+        calls += 1;
+        throw new Error("should not be called for the thin finding");
+      },
+    });
     expect(r.refusedLowContext).toBe(1);
     // Exactly one call-attempt pair belongs to the RICH finding; the thin one made none.
     expect(r.attempted).toBe(1);
     await pool.query(`DELETE FROM findings WHERE organization_id = $1 AND ref_key = 'thin:1'`, [orgId]);
+  });
+
+  it("🔴 C6a: NO transaction is open during a model call — and the write still lands after", async () => {
+    // Validate the probe first (the unvalidated-probe rule): the same
+    // tenant-scoped read SUCCEEDS inside a tenant transaction, so a refusal
+    // below can only mean the transaction boundary, not a broken call.
+    await expect(inTenant(() => findingsRepository.counts())).resolves.toBeDefined();
+
+    let refusedDuringChat = false;
+    let calls = 0;
+    const r = await findingsExplainService.explainOpenFindings(orgId, {
+      chat: async () => {
+        if (++calls === 1) {
+          // If any transaction were held open across this model call, this
+          // tenant-scoped read would run inside it and SUCCEED. `db` refuses
+          // queries outside a tenant transaction, so refusal here proves the
+          // C6a structure: read committed before the call, write after it.
+          try {
+            await findingsRepository.counts();
+          } catch {
+            refusedDuringChat = true;
+          }
+        }
+        return calls === 1 ? VALID : CLEAN_JUDGE;
+      },
+    });
+    expect(refusedDuringChat).toBe(true);
+    // Movement: the pass still WORKS end to end through its own short
+    // transactions — the explanation was generated and stored.
+    expect(r.generated).toBe(1);
+    const { findings } = await inTenant(() => findingsService.list({}, orgId));
+    expect(findings[0].explanation).toMatchObject({ en: expect.stringContaining("250") });
   });
 });

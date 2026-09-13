@@ -21,20 +21,12 @@
  * and a normalisation bug would be indistinguishable.
  */
 
-/**
- * 🔴 COPIED from `apps/web/src/lib/receiptParser.ts` (`normalizeDigits`),
- * which is the CANONICAL implementation — the owner's instruction was to
- * reuse it, and a workspace boundary (web ↔ api) prevents a direct import.
- * `findings-explain.test.ts` pins behavioral equivalence against
- * receiptParser's own cases; if either copy changes, that test is the tell.
- * True single-sourcing needs a shared package — flagged in the AI-3b PR,
- * deliberately not restructured here.
- */
-export function normalizeDigits(s: string): string {
-  return s
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/٫/g, "."); // Arabic decimal separator U+066B
-}
+// normalizeDigits: the hand-copied twin died 2026-09-14 — the single
+// definition lives in @workspace/shared, imported here and by the web
+// parsers alike. Re-exported because this module is the verifier's public
+// face and its tests exercise the digit rules through it.
+import { normalizeDigits } from "@workspace/shared";
+export { normalizeDigits };
 
 export type RejectionReason = "invented_number" | "invented_entity";
 

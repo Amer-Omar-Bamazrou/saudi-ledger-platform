@@ -6,8 +6,10 @@
     "emitDeclarationOnly": true,
     "outDir": "dist",
     "rootDir": "src",
+    // Imported by apps/api AND apps/web — like zatca-tlv, it must typecheck
+    // against both runtimes.
+    "lib": ["es2022", "dom"],
     "types": ["node"]
   },
-  "include": ["src"],
-  "references": [{ "path": "../shared" }]
+  "include": ["src"]
 }
