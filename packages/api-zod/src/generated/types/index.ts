@@ -174,6 +174,7 @@ export * from './invoiceStatus';
 export * from './journalEntry';
 export * from './journalEntryLine';
 export * from './journalEntryLineInput';
+export * from './journalEntryLinePartyType';
 export * from './journalEntryReversal';
 export * from './journalEntryStatus';
 export * from './journalReport';

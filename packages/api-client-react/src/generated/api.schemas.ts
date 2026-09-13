@@ -576,6 +576,11 @@ export const CategoryLiquidityClass = {
 
 export interface Category {
   id: number;
+  /**
+     * The account's system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.
+     * @nullable
+     */
+  systemCode?: string | null;
   name: string;
   nameAr: string;
   type: CategoryType;
@@ -1234,6 +1239,18 @@ export interface CategoryBreakdown {
   vatTotal: number;
 }
 
+/**
+ * N3 — who this control-account line is with; null on non-AR/AP lines and on pre-N3 rows.
+ * @nullable
+ */
+export type JournalEntryLinePartyType = typeof JournalEntryLinePartyType[keyof typeof JournalEntryLinePartyType] | null;
+
+
+export const JournalEntryLinePartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
 export interface JournalEntryLine {
   id: number;
   journalEntryId: number;
@@ -1244,6 +1261,15 @@ export interface JournalEntryLine {
   description?: string | null;
   debitAmount: number;
   creditAmount: number;
+  /**
+     * N3 — who this control-account line is with; null on non-AR/AP lines and on pre-N3 rows.
+     * @nullable
+     */
+  partyType?: JournalEntryLinePartyType;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
 }
 
 export type JournalEntryStatus = typeof JournalEntryStatus[keyof typeof JournalEntryStatus];
@@ -3025,6 +3051,16 @@ export interface JournalEntryLineInput {
   debitAmount: number;
   /** @minimum 0 */
   creditAmount: number;
+  /**
+     * N3 — REQUIRED when the line's account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization.
+     * @nullable
+     */
+  customerId?: number | null;
+  /**
+     * N3 — REQUIRED when the line's account is the Accounts Payable control account, refused on any other account. Tenant-scoped.
+     * @nullable
+     */
+  vendorId?: number | null;
 }
 
 export interface CreateJournalEntryInput {

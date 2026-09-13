@@ -17,4 +17,14 @@ export interface JournalEntryLineInput {
   debitAmount: number;
   /** @minimum 0 */
   creditAmount: number;
+  /**
+     * N3 — REQUIRED when the line's account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization.
+     * @nullable
+     */
+  customerId?: number | null;
+  /**
+     * N3 — REQUIRED when the line's account is the Accounts Payable control account, refused on any other account. Tenant-scoped.
+     * @nullable
+     */
+  vendorId?: number | null;
 }

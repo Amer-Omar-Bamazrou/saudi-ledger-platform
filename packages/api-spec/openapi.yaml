@@ -4085,6 +4085,14 @@ components:
       properties:
         id:
           type: integer
+        systemCode:
+          type: ["string", "null"]
+          description: >
+            The account's system role (AR, AP, VAT_OUTPUT, …) when it is a
+            system account; null for ordinary accounts. Exposed (N3) so the
+            manual-JE form can require a party on control-account lines. The
+            Categories UI still cannot EDIT system accounts — that trap (§5)
+            is about write routes, which do not exist.
         name:
           type: string
         nameAr:
@@ -4713,6 +4721,14 @@ components:
           type: number
         creditAmount:
           type: number
+        partyType:
+          type: ["string", "null"]
+          enum: [customer, vendor, null]
+          description: N3 — who this control-account line is with; null on non-AR/AP lines and on pre-N3 rows.
+        customerId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
 
     JournalEntry:
       type: object
@@ -6437,6 +6453,18 @@ components:
         description: { type: ["string", "null"] }
         debitAmount: { type: number, minimum: 0 }
         creditAmount: { type: number, minimum: 0 }
+        customerId:
+          type: ["integer", "null"]
+          description: >
+            N3 — REQUIRED when the line's account is the Accounts Receivable
+            control account (a receivable is a receivable FROM someone), and
+            refused on any other account. Tenant-scoped: the id must exist in
+            this organization.
+        vendorId:
+          type: ["integer", "null"]
+          description: >
+            N3 — REQUIRED when the line's account is the Accounts Payable
+            control account, refused on any other account. Tenant-scoped.
 
     CreateJournalEntryInput:
       type: object
