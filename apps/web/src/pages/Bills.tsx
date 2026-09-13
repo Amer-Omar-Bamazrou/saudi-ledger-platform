@@ -20,6 +20,7 @@ import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
 import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
 import { BILL_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
@@ -572,7 +573,7 @@ export default function Bills() {
                     <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
                     <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(b.total)}</td>
                     <td className="py-3 pe-4">
-                      <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{b.status}</Badge>
+                      <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{statusLabel(b.status, lang)}</Badge>
                     </td>
                     <td className="py-3 flex gap-1">
                       {/* 🔴 AUD-10/AUD-12: draft-only. A posted bill is corrected
@@ -596,7 +597,13 @@ export default function Bills() {
                           {t("Post", "ترحيل")}
                         </Button>
                       )}
-                      {b.status !== "paid" && b.status !== "draft" && (
+                      {/* 🔴 QA fix (2026-09-04): Pay ONLY on a bill that is
+                          posted to AP. The server refuses a draft/SUBMITTED
+                          payment ("Bill must be approved before it can be
+                          paid"), so `!== "draft"` still offered Pay on a
+                          `submitted` bill — a control that could only fail.
+                          Payable = received | approved, matching the server. */}
+                      {(b.status === "received" || b.status === "approved") && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive"
                           onClick={() => { setPayOpen(b.id); setPayAmount(String(b.total - b.paidAmount)); }}>
                           {t("Pay", "دفع")}

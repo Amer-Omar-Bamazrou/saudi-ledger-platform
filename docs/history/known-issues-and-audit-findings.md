@@ -1226,3 +1226,73 @@ from its bounding box, purely via `dir`.
 **Result:** 61 mobile tests green on the first full run — the sweep's frame
 caught every offender before the assertion did. Full browser suite +
 `pnpm run verify` green.
+
+## QA PASS FIXES (2026-09-04) — the browser walk's findings, resolved
+
+The owner ran a full browser QA pass and ranked the findings. All fixed here,
+and 🔴 TWO of the reported findings did NOT survive re-verification and are
+recorded as such rather than "fixed", because a fix for a non-bug is a lie in
+the changelog.
+
+**1. Double-submit on Create Invoice (BROKEN) — fixed, both halves.** A
+double-click fired two POSTs and minted two identical drafts, each of which
+would mint its own ICV on approval. The button-disable alone cannot fix it
+(a retry / slow network reproduces it), so: (a) a synchronous client guard
+(`createMut.isPending` checked in the onClick, not only in `disabled`, which
+lags a render); (b) the durable half — a per-dialog `idempotencyKey`, a
+partial unique index `invoices_company_idempotency_unq`, and a PRE-CHECK in
+`invoicesService.create` that resolves a repeat to the FIRST invoice (a
+pre-check, not a caught-23505, because 23505 aborts the transaction). Migration
+`0068` — produced by the restored `generate` flow, T1 still clean. Proof:
+`invoice-idempotency.test.ts` (same key → one invoice) + `invoice-double-submit.spec.ts`
+(a real double-click fires ONE create).
+
+**2. New Bill modal did not scroll; Post Bill below the fold (INCOMPLETE) —
+fixed at the BASE.** The vendored `DialogContent` had no max-height and no
+overflow, so ANY dialog taller than the viewport pushed its submit button
+off-screen. Added `max-h-[90dvh] overflow-y-auto` to the base component —
+every dialog in the app now scrolls inside itself. Confirmed in the browser
+(scrollbar present, Post reachable). This also unblocked the flows below.
+
+**4. Controls offered where they can only fail (CONFUSING) — fixed to
+show-where-valid.** Mark Paid appeared on draft/submitted invoices (server:
+"must be approved"); Pay appeared on submitted bills (server: "must be
+approved"). Both now show only on the actually-payable states (invoice `sent`;
+bill `received`/`approved`), matching the server and the app's own draft-only
+Edit/Delete pattern. Confirmed: draft rows now carry only Edit/Delete.
+
+**5. Arabic status badges stayed English (CONFUSING) — fixed.** New shared
+`lib/statusLabel.ts` maps every document status to Arabic; wired into the
+invoice and bill badges. Confirmed: badges read مسودة / صادرة in the
+Arabic UI, keeping icon and colour.
+
+**PROBE-1 debris — cleaned, and the recurrence closed.** A SAR 0.00 no-vendor
+draft bill from an old exploratory session sat on the demo with a live Post
+button. Deleted, and `demo-seed.mts` now sweeps the debris shape (zero-total
+draft with no party, demo org only) so it cannot return.
+
+### 🔴 The two findings that did NOT survive re-verification
+
+**#3 — "vendor selection wipes the Subtotal" (reported INCOMPLETE): FALSE
+POSITIVE.** With real keystrokes the subtotal survives vendor selection intact
+(confirmed in the browser). The original observation was a `form_input`
+automation artifact — it sets the DOM value WITHOUT firing React's onChange, so
+state stayed empty and the vendor-triggered re-render reverted the controlled
+input to state. The vendor `onChange` (`setForm(p => ({ ...p, vendorId: v }))`)
+correctly spreads all other fields; **no code change made** — changing correct
+code to match a bad report is the mistake this note exists to prevent.
+
+**Negative-amount bill "silent no-op" (reported unverified): FALSE POSITIVE.**
+The server rejects negatives with a clear `400` ("Number must be greater than
+or equal to 0"). The browser silence was the below-fold Post button (finding
+2), so the server was never reached — fixing #2 fixed this too.
+
+### The blocked half of the pass, re-run (all correct)
+
+Via the authoritative API path (the resized-browser viewport made clicking
+unreliable): bill create → post → pay (draft→received→paid); PO → bill at a
+DIFFERENT price (billed 250 on an order of 200; the order keeps 200, the bill
+carries 250); quotation partial conversion (4 of 10 leaves 6; over-converting
+7 refused "only 6 remain"; final 6 completes to 10/10); negative-amount
+rejection (400). Two well-formed refusals seen and kept: a bad vendor VAT on
+bill-approve (offers `force:true`), and convert-before-approve on quotations.

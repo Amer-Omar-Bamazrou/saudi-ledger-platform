@@ -257,6 +257,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
+- **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing (two QA false positives).
 - **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true. 🔴 Six instances; the sixth (an ASCII grep over glyph-encoded PDF streams, blind in BOTH directions) was caught BY the countermeasure — a planted positive failing on a real render — not by luck.
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
@@ -558,10 +559,9 @@ is the reason the order is not the severity order.**
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
 `platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice, pinned by an equivalence test, pending a shared package — 🔴 and
-the 2026-09-03 constants sweep found its siblings: GOSI rates ×4 (one
-statutory rate, posting path + two previews + client copy) and the default VAT
-rate ×7. Inventory: findings file. Consolidate GOSI and VAT with it.
+exists twice pending a shared package — 🔴 and the 2026-09-03 constants sweep
+found its siblings (GOSI rates ×4, default VAT ×7; inventory + consolidation:
+findings file).
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -585,7 +585,7 @@ before launch. Record: findings file.
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
-- 🔴 **N3's remaining half:** the manual-JE form has no party picker, so an `accountId` line naming AR/AP by hand posts party-less (the systemCode document paths are gated; `postJournalEntry` refuses an UNDECLARED party there). The ERPNext-grade rule arrives with the picker.
+- 🔴 **N3's remaining half:** the manual-JE form has no party picker, so a hand-named AR/AP line posts party-less (document paths ARE gated). Arrives with the picker.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
 - Settlement links are readable from the transaction side only (the design said "either side").
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.

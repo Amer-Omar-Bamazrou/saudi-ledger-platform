@@ -190,6 +190,11 @@ export const invoicesRepository = {
     return `INV-${year}-${String(next).padStart(6, "0")}`;
   },
 
+  /** Resolve an idempotency-key collision to the row that already claimed it. */
+  findByIdempotencyKey(key: string) {
+    return db.select().from(invoicesTable).where(eq(invoicesTable.idempotencyKey, key)).limit(1);
+  },
+
   findById(id: number) {
     return db.select().from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
   },
