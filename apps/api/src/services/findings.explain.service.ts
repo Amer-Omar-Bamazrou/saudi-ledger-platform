@@ -25,10 +25,23 @@
  * (AI-1a) refuses AI_PROVIDER=groq in production, so this stays dark for
  * real tenants until the Enterprise agreement flips the config. No new flag
  * exists here on purpose.
+ *
+ * 🔴 NO TRANSACTION IS HELD ACROSS A MODEL CALL (C6a — the e-invoice outbox
+ * rule). This service OWNS its transaction boundaries: the open findings are
+ * read in one short tenant transaction, every model call runs with no
+ * transaction open, and each accepted explanation is written back in its own
+ * short second transaction. A caller therefore cannot reintroduce the defect
+ * by wrapping this in its transaction — there is nothing here for an outer
+ * transaction to scope, and callers (the scheduler, the run route) invoke it
+ * strictly AFTER their own commit. The 15s idle-in-transaction guardrail is
+ * the enforcement this structure exists to satisfy: two chat calls at a 25s
+ * timeout each cannot live inside any request or job transaction.
  */
 import { createHash } from "node:crypto";
 import { loadEnv } from "@workspace/config";
+import { beginTenantConnection } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { auditContext } from "../lib/auditContext";
 import { GroqProvider } from "./ai/provider";
 import { meteredChat } from "./ai/metered";
 import { findingsRepository } from "../repositories/findings.repository";
@@ -106,6 +119,24 @@ function extractJson(text: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * One short tenant transaction. The explain pass opens these itself so that
+ * no transaction ever spans a model call; `organizationId` scopes RLS.
+ */
+async function inShortTenantTx<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+  const conn = await beginTenantConnection({ organizationId, role: "authenticated" });
+  try {
+    const out = await conn.run(() =>
+      auditContext.run({ userId: null, organizationId, ipAddress: null }, fn),
+    );
+    await conn.commit();
+    return out;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  }
+}
+
 export const findingsExplainService = {
   /** True when a stored explanation may render: it must match the CURRENT facts (staleness = invention by aging). */
   isCurrent(f: Pick<Finding, "explanation" | "facts">): boolean {
@@ -115,10 +146,12 @@ export const findingsExplainService = {
 
   /**
    * Generate explanations for open findings that lack a current one.
-   * Never throws — the caller is a findings run, and deterministic content
-   * is the floor.
+   * Never throws — explanations are an enhancement pass, and deterministic
+   * content is the floor. Call it OUTSIDE any transaction, after the run
+   * that produced the findings has committed; it opens its own short
+   * transactions (see the header).
    */
-  async explainOpenFindings(deps: ExplainDeps = {}): Promise<ExplainResult> {
+  async explainOpenFindings(organizationId: string, deps: ExplainDeps = {}): Promise<ExplainResult> {
     const result: ExplainResult = {
       attempted: 0,
       generated: 0,
@@ -144,12 +177,21 @@ export const findingsExplainService = {
         (await meteredChat(provider, "finding_explanation", { prompt, maxTokens: 300, timeoutMs: 25_000 })).text;
     }
 
-    const open = await findingsRepository.list({ status: "open" });
-    const needing = open.filter((f) => !this.isCurrent(f));
-    const batch = needing.slice(0, MAX_EXPLANATIONS_PER_RUN);
-    if (needing.length > batch.length) {
-      result.capped = needing.length - batch.length;
-      logger.warn({ dropped: result.capped }, "explanation generation capped this run — remainder next run");
+    // READ — one short transaction, closed before any model call.
+    let batch: Finding[];
+    try {
+      batch = await inShortTenantTx(organizationId, async () => {
+        const open = await findingsRepository.list({ status: "open" });
+        const needing = open.filter((f) => !this.isCurrent(f));
+        if (needing.length > MAX_EXPLANATIONS_PER_RUN) {
+          result.capped = needing.length - MAX_EXPLANATIONS_PER_RUN;
+          logger.warn({ dropped: result.capped }, "explanation generation capped this run — remainder next run");
+        }
+        return needing.slice(0, MAX_EXPLANATIONS_PER_RUN);
+      });
+    } catch (err) {
+      logger.warn({ organizationId, err }, "explanation pass could not read open findings — floor stands");
+      return result;
     }
 
     for (const f of batch) {
@@ -190,13 +232,18 @@ export const findingsExplainService = {
           continue;
         }
 
-        await findingsRepository.storeExplanation(f.id, {
-          en,
-          ar,
-          model: "chat",
-          generatedAt: new Date().toISOString(),
-          factsHash: factsHash(facts),
-        });
+        // WRITE — its own short transaction, after the model calls are done.
+        // The stored factsHash keeps this safe against facts that changed
+        // between the read and now: a mismatched hash simply never renders.
+        await inShortTenantTx(organizationId, () =>
+          findingsRepository.storeExplanation(f.id, {
+            en,
+            ar,
+            model: "chat",
+            generatedAt: new Date().toISOString(),
+            factsHash: factsHash(facts),
+          }),
+        );
         result.generated += 1;
       } catch (err) {
         // The seam THROWS when unavailable (B3) — recorded, never propagated:
