@@ -220,6 +220,14 @@ export default function Bills() {
         body: json.create({
           ...body,
           vendorId:  Number(body.vendorId),
+          // 🔴 A blank optional date is an ABSENCE, not "". The raw spread sent
+          // dueDate: "" and the server (rightly) refused it as not-a-date — so
+          // the New Bill form 400'd whenever Due Date was left empty. Found by
+          // WALKING the UI leg (2026-09-14): the QA pass verified this flow via
+          // the API, which never builds the request the way this form did —
+          // the exact class the walk exists for. The update path and the
+          // invoice form already did this.
+          dueDate:   body.dueDate || undefined,
           subtotal:  body.subtotal  ? Number(body.subtotal)  : undefined,
           vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
           total:     body.total     ? Number(body.total)     : undefined,
