@@ -496,8 +496,8 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
-**The decision-free pool** (break-glass ✅ · C6a ·
-constants · L-1 · logo ✅ · party picker · sentinel family · Arabic re-sweep),
+**The decision-free pool** (break-glass ✅ · C6a ✅ ·
+constants ✅ · L-1 · logo ✅ · party picker · sentinel family · Arabic re-sweep),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
@@ -529,7 +529,6 @@ evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
 | **C6** | **Residency / hosting, the AI hosting decision — and now a real deployment WEIGHT.** 🔴 L1's renderer is Chromium — the only engine that shapes Arabic correctly — adding **~150 MB** to whatever we deploy: a hosting line, not a footnote. (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) Confirm an Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS) unchanged; no hosted Supabase project exists yet. |
-| **C6a** | 🔴 **BLOCKING BEFORE THE AI LAYER IS ENABLED — a code change, not a contract.** `findings.schedule.service.ts` calls the AI provider **inside an open tenant transaction**; the 15s idle-in-transaction guardrail fires and kills the connection (and killed the whole process until 2026-08-31). The **e-invoice outbox already solved this**: a synchronous external call cannot live inside the request transaction. Read inside, call outside, write back in a short second transaction. Invisible only because the layer is dark. |
 
 ### Advisor package — one conversation, four blocks
 
@@ -559,10 +558,9 @@ is the reason the order is not the severity order.**
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice pending a shared package — 🔴 and the 2026-09-03 constants sweep
-found its siblings (GOSI rates ×4, default VAT ×7; inventory + consolidation:
-findings file).
+`platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
+consolidation closed 2026-09-14 — `@workspace/shared` is the one definition
+for GOSI/VAT-default/`normalizeDigits`; record: known-issues file.)*
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);

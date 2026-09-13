@@ -1,3 +1,4 @@
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -59,6 +60,9 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 // (legacy imports), and the DB constraint judges it.
 const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", status: "draft", notes: "" };
 
+/** One definition of a fresh line — the default VAT rate comes from @workspace/shared, never a literal. */
+const emptyLine = () => ({ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: String(DEFAULT_VAT_RATE) });
+
 export default function Invoices() {
   /**
    * 🔴 The filter is read from the URL, so a nav deep-link lands with it
@@ -73,6 +77,10 @@ export default function Invoices() {
   // create attempt from this open, so a double-click / retry resolves to the
   // SAME invoice server-side. Regenerated when the dialog re-opens for a new one.
   const idempotencyKey = useRef<string>("");
+  // 🔴 The double-click gate. A ref, NOT `isPending`: mutation state is a
+  // render snapshot, so it cannot stop two clicks in one frame — this can.
+  // Set in the submit onClick, cleared in both mutations' onSettled.
+  const submittingRef = useRef(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   /**
@@ -88,9 +96,7 @@ export default function Invoices() {
   // L1: `descriptionAr` joins the line — real Arabic is CAPTURED going
   // forward; where it is absent the Arabic PDF falls back to the English
   // description (the sentinel default is never prefilled and never printed).
-  const [lines, setLines] = useState<Array<{ description: string; descriptionAr: string; quantity: string; unitPrice: string; vatRate: string }>>([
-    { description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" },
-  ]);
+  const [lines, setLines] = useState<Array<{ description: string; descriptionAr: string; quantity: string; unitPrice: string; vatRate: string }>>([emptyLine()]);
   const lineTotal = (l: { quantity: string; unitPrice: string; vatRate: string }) => {
     const net = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
     return net + (net * (Number(l.vatRate) || 0)) / 100;
@@ -147,8 +153,9 @@ export default function Invoices() {
             })),
         }),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([emptyLine()]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onSettled: () => { submittingRef.current = false; },
   });
 
   const payMut = useMutation({
@@ -232,10 +239,11 @@ export default function Invoices() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       setOpen(false); setEditing(null); setForm(emptyForm);
-      setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+      setLines([emptyLine()]);
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onSettled: () => { submittingRef.current = false; },
   });
 
   const deleteMut = useMutation({
@@ -268,7 +276,7 @@ export default function Invoices() {
           descriptionAr: i.descriptionAr === "(not yet translated)" ? "" : (i.descriptionAr ?? ""),
           quantity: String(i.quantity ?? 1),
           unitPrice: String(i.unitPrice ?? ""),
-          vatRate: String(i.vatRate ?? 15),
+          vatRate: String(i.vatRate ?? DEFAULT_VAT_RATE),
         })),
       );
       setEditing(row);
@@ -299,7 +307,7 @@ export default function Invoices() {
               // silently PATCH the record just edited.
               setEditing(null);
               setForm(emptyForm);
-              setLines([{ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }]);
+              setLines([emptyLine()]);
             }
           }}
         >
@@ -368,7 +376,7 @@ export default function Invoices() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setLines((p) => [...p, { description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: "15" }])}
+                    onClick={() => setLines((p) => [...p, emptyLine()])}
                   >
                     {t("Add line", "إضافة بند")}
                   </Button>
@@ -382,11 +390,15 @@ export default function Invoices() {
             <Button
               className="w-full mt-4"
               onClick={()=> {
-                // Synchronous guard: `isPending` in `disabled` only takes effect
-                // after a re-render, so a fast double-click can fire twice in one
-                // tick. React Query's own `isPending` flips synchronously — check
-                // it here too. (The server idempotency key is the durable half.)
-                if (createMut.isPending || updateMut.isPending) return;
+                // 🔴 TRULY synchronous guard (2026-09-14). The first version
+                // checked `createMut.isPending` here and CLAIMED it flips
+                // synchronously — it does not: it is a render snapshot, so two
+                // clicks landing before the re-render both saw `false`, and CI
+                // caught the second POST under load (a claim inside a guard is
+                // still a claim). A ref has no render in its loop. (The server
+                // idempotency key remains the durable half either way.)
+                if (submittingRef.current) return;
+                submittingRef.current = true;
                 editing ? updateMut.mutate(form) : createMut.mutate(form);
               }}
               disabled={

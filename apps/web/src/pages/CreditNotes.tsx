@@ -1,3 +1,4 @@
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -65,7 +66,7 @@ const makeEmpty = () => ({
   description: "",
   quantity: "1",
   unitPrice: "",
-  vatRate: "15",
+  vatRate: String(DEFAULT_VAT_RATE),
 });
 
 export default function CreditNotes() {
