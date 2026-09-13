@@ -497,7 +497,7 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
 **The decision-free pool** (break-glass ✅ · C6a ✅ ·
-constants ✅ · L-1 · logo · party picker · sentinel family · Arabic re-sweep),
+constants ✅ · L-1 · logo · party picker · sentinel family · Arabic re-sweep ✅),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
@@ -576,8 +576,9 @@ needs a checkable reason and leaves the day it is fixed.
 ### Arabic coverage
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
-(the idiom-count sweep). Last measured 2026-09-01: suspect count 0. Re-run
-before launch. Record: findings file.
+(the idiom-count sweep). Last measured 2026-09-14: suspect count 0 after
+fixing ScanReview (14 strings), ChangePassword, not-found. Re-run before
+launch. Record: findings file.
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.

@@ -6113,3 +6113,24 @@ countermeasure: **a UI finding is confirmed by a real interaction (keystrokes
 and clicks through the framework's event path) before it becomes a fix.** The
 cost is seconds; the alternative demonstrated here was "fixing" correct code
 to match a bad report — which is how an instrument bug becomes a code bug.
+
+## 2026-09-14 — THE ARABIC RE-SWEEP: SUSPECT COUNT 0 AGAIN, WITH ITS FRAME
+
+Frame (stated beside the number, per the frame rule): `apps/web/src/pages`
+(55 .tsx files), both idioms counted — `t("` calls (1,581) and
+`lang === "ar"` conditionals — against bare English JSX text nodes. "KSA
+Ledger" on Login/Signup is EXCLUDED as the brand mark: a name, not copy.
+Components outside `pages/` are outside this frame, as they were in the
+2026-09-01 measurement.
+
+Found and fixed: **ScanReview.tsx** (14 strings — the review-fields card:
+every label, placeholder, the invalid-format flag and the raw-OCR toggle;
+the heuristic surfaced 5, reading the file inventoried 14 — the report is a
+sample), **ChangePassword.tsx** (1), and **not-found.tsx**, the one
+wholly-untranslated page (even a 404 speaks both languages; also reworded —
+"System route unmapped" explained nothing in either language).
+TransactionReview's zero `t()` count was a false positive of the one-idiom
+frame: it translates via 26 `lang === "ar"` conditionals, which is why the
+sweep counts BOTH.
+
+After: suspect count 0. Re-run before launch stands.
