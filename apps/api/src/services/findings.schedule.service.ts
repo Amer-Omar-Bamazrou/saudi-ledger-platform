@@ -41,6 +41,7 @@ import { mailer } from "../lib/mailer";
 import { membersRepository } from "../repositories/members.repository";
 import { findingsRepository } from "../repositories/findings.repository";
 import { findingsService } from "./findings.service";
+import { findingsExplainService } from "./findings.explain.service";
 
 export type Cadence = "quarterly" | "monthly";
 
@@ -115,6 +116,11 @@ export const findingsScheduleService = {
            WHERE id = ${runId}
         `);
         result.ran += 1;
+
+        // AI-3b explanations, AFTER the run's transaction has committed
+        // (C6a): the explain service owns its own short transactions and
+        // never lets a model call hold one open. Never throws.
+        await findingsExplainService.explainOpenFindings(org.id);
 
         // One email, to the owners of the review — and only when there is
         // something open. "All clear" quarterly mail trains inattention

@@ -17,6 +17,7 @@
  * generic {@link approvalService} + {@link invoiceApprovable} adapter — the same
  * engine journal entries and bills use.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
@@ -174,7 +175,7 @@ export const invoicesService = {
       const lineTotal = Number(it.quantity) * Number(it.unitPrice);
       const disc = Number(it.discount ?? 0);
       const base = round2(lineTotal - disc);
-      const vatRate = Number(it.vatRate ?? 15);
+      const vatRate = Number(it.vatRate ?? DEFAULT_VAT_RATE);
       const vat = round2(base * (vatRate / 100));
       subtotal = round2(subtotal + base);
       vatTotal = round2(vatTotal + vat);
@@ -385,7 +386,7 @@ export const invoicesService = {
         if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
         assertTaxCategoryCode(it.taxCategoryCode, `item ${i + 1} taxCategoryCode`);
         const base = round2(Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0));
-        const vatRate = Number(it.vatRate ?? 15);
+        const vatRate = Number(it.vatRate ?? DEFAULT_VAT_RATE);
         const vat = round2(base * (vatRate / 100));
         subtotal = round2(subtotal + base);
         vatTotal = round2(vatTotal + vat);

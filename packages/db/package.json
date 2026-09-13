@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@workspace/shared": "workspace:*",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",

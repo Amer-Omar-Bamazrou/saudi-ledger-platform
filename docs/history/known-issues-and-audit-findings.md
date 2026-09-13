@@ -1346,3 +1346,65 @@ are CLI scripts, where console IS the surface.
 Deployment note: the page arrives only where B2's `ALERT_WEBHOOK_URL` is
 wired — the unwired-alarm caveat in §2 applies to this alarm like every
 other.
+
+## CONSTANTS CONSOLIDATION — CLOSED 2026-09-14: `@workspace/shared` is the one definition
+
+The 2026-09-03 sweep's disposition, built: a new tiny workspace package
+(`packages/shared`, source-exported like `zatca-tlv`, importable from api,
+web AND db) now holds the single definition of each statutory fact, and the
+copies are REMOVED — the "remove the second" arm of the two-definitions
+rule, not the pinned-equivalence arm.
+
+- **GOSI rates** (9.75/11.75/2): `GOSI_RATES` replaces four sets of literals
+  — the payroll posting path, the employees preview, the SQL aggregate in
+  `employees.repository` (now BOUND as parameters into the same query), and
+  `Employees.tsx`, whose display copy ("9.75%") is now DERIVED via
+  `gosiPercentLabel` so the label cannot drift from the arithmetic.
+- **Default VAT rate**: `DEFAULT_VAT_RATE` replaces the seven `?? 15`s the
+  sweep counted — and 🔴 the frame widened on contact, as the frame rule
+  predicts: the sweep's `?? 15` grep had missed the form-state literals
+  (`vatRate: "15"` in Invoices.tsx ×5 — now one `emptyLine()` —
+  CreditNotes, PurchaseOrders, Quotations) and the FOUR schema-level
+  `.default("15")` columns. The schema files now compute the default from
+  the constant; `drizzle-kit generate` confirms no schema change (same
+  value, one source). Seed-data line rates stay literal deliberately:
+  samples are historical documents, not defaults.
+- **`normalizeDigits`**: the canonical web copy and the hand-copied API twin
+  are one exported function; the equivalence test became the pin on the
+  single copy.
+
+Proof: full `pnpm run verify` green; the N2 measured payroll case (basic
+3,010 × 3) green — the GOSI arithmetic is bit-identical; `drizzle-kit
+generate`: "No schema changes".
+
+## C6a — CLOSED 2026-09-14: no transaction is held across a model call
+
+The queue entry: `findings.schedule.service.ts` called the AI provider inside
+an open tenant transaction, against a 15s idle-in-transaction guardrail —
+invisible only because the AI layer is dark, and BLOCKING before it is
+enabled. The prescribed shape was the e-invoice outbox rule: read inside,
+call outside, write back in a short second transaction.
+
+Built exactly that, one level lower than prescribed so no caller can get it
+wrong: `findingsExplainService.explainOpenFindings(organizationId)` now OWNS
+its transaction boundaries — the open findings are read in one short tenant
+transaction, every model call runs with no transaction open, and each
+accepted explanation is written back in its own short second transaction
+(the stored factsHash already guards the read-to-write gap: an explanation
+written against facts that changed meanwhile never renders). The service
+taking `organizationId` and opening its own boundaries is the
+make-it-inexpressible form: there is nothing for an outer transaction to
+scope.
+
+🔴 The report was a sample, not an inventory: BOTH callers held the defect.
+The scheduler (the named instance) now runs the pass after its run
+transaction commits. `POST /findings/run` held the same shape one layer up —
+the per-request tenant transaction stayed open across up to 50 chat calls at
+a 25s timeout each; it now fires the pass on the response's `finish`, after
+commit-before-response has committed and the body is sent.
+
+Proof: the C6a structural test in `findings-explain.test.ts` — a
+tenant-scoped read inside the injected chat REFUSES (`db` refuses queries
+outside a tenant transaction), the probe validated against a known-present
+case first per the unvalidated-probe rule, and the write still lands after:
+presence, absence, movement. The three findings suites: 38/38.
