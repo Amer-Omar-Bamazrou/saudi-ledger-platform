@@ -19,7 +19,7 @@
  * Digit normalisation is REUSED from `receiptParser` (the same Arabic handling,
  * already under test) rather than reimplemented — one implementation per rule.
  */
-import { normalizeDigits } from "./receiptParser";
+import { normalizeDigits } from "@workspace/shared";
 
 export interface ParsedStatementRow {
   date: string; // YYYY-MM-DD (Gregorian)

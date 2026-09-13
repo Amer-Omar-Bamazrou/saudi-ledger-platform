@@ -15,6 +15,7 @@
  * halalas on mixed-rate documents. Same reason the invoice header is Σ rounded
  * lines rather than a rounded Σ.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { customersRepository } from "../repositories/customers.repository";
@@ -66,7 +67,7 @@ function prepareItems(items: any[]) {
     const lineTotal = Number(it.quantity) * Number(it.unitPrice);
     const disc = Number(it.discount ?? 0);
     const base = round2(lineTotal - disc);
-    const vatRate = Number(it.vatRate ?? 15);
+    const vatRate = Number(it.vatRate ?? DEFAULT_VAT_RATE);
     const vat = round2(base * (vatRate / 100));
     subtotal = round2(subtotal + base);
     vatTotal = round2(vatTotal + vat);

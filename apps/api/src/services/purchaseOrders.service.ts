@@ -12,6 +12,7 @@
  * and neither does `bills`. Carrying one would mean silently dropping it at
  * conversion. A supplier discount belongs in the agreed unit price.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -51,7 +52,7 @@ function prepareItems(items: any[]) {
   let vatTotal = 0;
   const prepared = items.map((it: any) => {
     const base = round2(Number(it.quantity) * Number(it.unitPrice));
-    const vatRate = Number(it.vatRate ?? 15);
+    const vatRate = Number(it.vatRate ?? DEFAULT_VAT_RATE);
     const vat = round2(base * (vatRate / 100));
     subtotal = round2(subtotal + base);
     vatTotal = round2(vatTotal + vat);

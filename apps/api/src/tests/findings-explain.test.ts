@@ -36,7 +36,9 @@ if (!REAL_DB) console.warn("[findings-explain] no real DATABASE_URL — skipping
 
 // ── The verifier, pure ───────────────────────────────────────────────────────
 
-describe("normalizeDigits — behavioral equivalence with receiptParser's canonical copy", () => {
+// Since 2026-09-14 there is ONE normalizeDigits (@workspace/shared) — these
+// cases pin the single copy, reached through the verifier's re-export.
+describe("normalizeDigits — the shared single copy, pinned", () => {
   it("Arabic-Indic digits map to Western; U+066B maps to a dot", () => {
     expect(normalizeDigits("٠١٢٣٤٥٦٧٨٩")).toBe("0123456789");
     expect(normalizeDigits("١١٥٠٫٥٠")).toBe("1150.50");
