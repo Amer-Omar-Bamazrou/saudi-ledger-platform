@@ -15,10 +15,33 @@
 // Identity layer: `users`, `organizations` and `organization_memberships` are OUTSIDE RLS (§4).
 // The `db` proxy now REFUSES a query outside a tenant transaction instead of
 // silently falling back to this connection.
-import { ownerDb as db, organizationMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { ownerDb as db, organizationMembershipsTable, organizationsTable, usersTable, platformOperatorsTable } from "@workspace/db";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 export const userAdminRepository = {
+  /**
+   * §5 rank-1 break-glass (2026-09-04) — the identity data access for
+   * `operatorService.resetUserPassword`, HERE because the business layer must
+   * not import identity tables (`identity-table-boundary.test.ts` — which is
+   * exactly the guard that sent this code here). Callers authorize first.
+   */
+  async isPlatformOperator(userId: number): Promise<boolean> {
+    const [row] = await db
+      .select({ id: platformOperatorsTable.id })
+      .from(platformOperatorsTable)
+      .where(eq(platformOperatorsTable.userId, userId))
+      .limit(1);
+    return !!row;
+  },
+  async setPasswordHash(userId: number, passwordHash: string): Promise<void> {
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+  },
+  /** Kills every live session of the user; returns how many died. */
+  async revokeSessions(userId: number): Promise<number> {
+    const res = await db.execute(sql`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int = ${userId}`);
+    return res.rowCount ?? 0;
+  },
+
   /**
    * The organizations in which `userId` is an ACTIVE admin AND which are
    * verification-`approved`.
@@ -98,11 +121,9 @@ export const userAdminRepository = {
   },
 
   async findByEmail(email: string) {
-    const [row] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, email))
-      .limit(1);
+    // Widened from {id} to the full row for the rank-1 break-glass (existing
+    // callers read only .id — compatible).
+    const [row] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     return row;
   },
 
