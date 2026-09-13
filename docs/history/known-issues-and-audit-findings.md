@@ -1322,6 +1322,36 @@ carries 250); quotation partial conversion (4 of 10 leaves 6; over-converting
 rejection (400). Two well-formed refusals seen and kept: a bad vendor VAT on
 bill-approve (offers `force:true`), and convert-before-approve on quotations.
 
+## CONSTANTS CONSOLIDATION — CLOSED 2026-09-14: `@workspace/shared` is the one definition
+
+The 2026-09-03 sweep's disposition, built: a new tiny workspace package
+(`packages/shared`, source-exported like `zatca-tlv`, importable from api,
+web AND db) now holds the single definition of each statutory fact, and the
+copies are REMOVED — the "remove the second" arm of the two-definitions
+rule, not the pinned-equivalence arm.
+
+- **GOSI rates** (9.75/11.75/2): `GOSI_RATES` replaces four sets of literals
+  — the payroll posting path, the employees preview, the SQL aggregate in
+  `employees.repository` (now BOUND as parameters into the same query), and
+  `Employees.tsx`, whose display copy ("9.75%") is now DERIVED via
+  `gosiPercentLabel` so the label cannot drift from the arithmetic.
+- **Default VAT rate**: `DEFAULT_VAT_RATE` replaces the seven `?? 15`s the
+  sweep counted — and 🔴 the frame widened on contact, as the frame rule
+  predicts: the sweep's `?? 15` grep had missed the form-state literals
+  (`vatRate: "15"` in Invoices.tsx ×5 — now one `emptyLine()` —
+  CreditNotes, PurchaseOrders, Quotations) and the FOUR schema-level
+  `.default("15")` columns. The schema files now compute the default from
+  the constant; `drizzle-kit generate` confirms no schema change (same
+  value, one source). Seed-data line rates stay literal deliberately:
+  samples are historical documents, not defaults.
+- **`normalizeDigits`**: the canonical web copy and the hand-copied API twin
+  are one exported function; the equivalence test became the pin on the
+  single copy.
+
+Proof: full `pnpm run verify` green; the N2 measured payroll case (basic
+3,010 × 3) green — the GOSI arithmetic is bit-identical; `drizzle-kit
+generate`: "No schema changes".
+
 ## C6a — CLOSED 2026-09-14: no transaction is held across a model call
 
 The queue entry: `findings.schedule.service.ts` called the AI provider inside

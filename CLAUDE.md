@@ -497,7 +497,7 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
 **The decision-free pool** (break-glass ✅ · C6a ✅ ·
-constants · L-1 · logo · party picker · sentinel family · Arabic re-sweep),
+constants ✅ · L-1 · logo · party picker · sentinel family · Arabic re-sweep),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
@@ -558,10 +558,9 @@ is the reason the order is not the severity order.**
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice pending a shared package — 🔴 and the 2026-09-03 constants sweep
-found its siblings (GOSI rates ×4, default VAT ×7; inventory + consolidation:
-findings file).
+`platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
+consolidation closed 2026-09-14 — `@workspace/shared` is the one definition
+for GOSI/VAT-default/`normalizeDigits`; record: known-issues file.)*
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);

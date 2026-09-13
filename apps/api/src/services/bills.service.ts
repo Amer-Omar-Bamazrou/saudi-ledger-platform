@@ -13,6 +13,7 @@
  * number (fixing the pre-existing 500 when it was missing/invalid), and the
  * payment posts Dr AP / Cr Cash.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
@@ -135,7 +136,7 @@ export const billsService = {
     let vatTotal = 0;
     const preparedItems = items.map((it: any) => {
       const base = round2(Number(it.quantity) * Number(it.unitPrice));
-      const vat = round2(base * (Number(it.vatRate ?? 15) / 100));
+      const vat = round2(base * (Number(it.vatRate ?? DEFAULT_VAT_RATE) / 100));
       subtotal = round2(subtotal + base);
       vatTotal = round2(vatTotal + vat);
       return {

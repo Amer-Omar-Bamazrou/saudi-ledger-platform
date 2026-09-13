@@ -24,6 +24,7 @@
  * 3. **The matching vocabulary is BILLING, never delivery.** See
  *    `purchase_order_conversions`.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -110,7 +111,7 @@ export const purchaseOrderItemsTable = pgTable(
      * stays as the expectation, and the difference is recorded as a variance.
      */
     unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
-    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default("15"),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default(String(DEFAULT_VAT_RATE)),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).default("0"),
     total: numeric("total", { precision: 15, scale: 2 }).notNull().default("0"),
     unitCode: text("unit_code").notNull().default("PCE"),
