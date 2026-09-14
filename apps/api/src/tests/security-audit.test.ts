@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { membersService } from "../services/members.service";
 import { securityAuditService } from "../services/securityAudit.service";
+import { __setAlerterForTests, type Alert } from "../lib/alerter";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -108,5 +109,42 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
     });
     const events = await securityAuditService.listForOrg(adminA, orgA);
     expect(events.some((e) => e.action === "user.created")).toBe(false);
+  });
+
+  it("🔴 L-1: a FAILED write pages critical and never throws — and a successful write pages nothing", async () => {
+    const fired: Alert[] = [];
+    __setAlerterForTests({
+      async fire(a) {
+        fired.push(a);
+        return { sent: true };
+      },
+      async resolve() {
+        return { sent: true };
+      },
+    });
+    try {
+      // The failing implementation, injected the honest way: circular metadata
+      // cannot be serialized, so the INSERT itself throws inside the service.
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+      await expect(
+        securityAuditService.record({ action: "l1.write_failure", organizationId: orgA, metadata: circular }),
+      ).resolves.toBeUndefined();
+      expect(fired).toHaveLength(1);
+      expect(fired[0]).toMatchObject({ key: "security-audit-write-failed", severity: "critical" });
+      // The event really was lost — that is the condition the page reports.
+      const { rows } = await pool.query(
+        `SELECT count(*)::int AS n FROM security_audit_logs WHERE action = 'l1.write_failure'`,
+      );
+      expect(rows[0].n).toBe(0);
+
+      // Movement: a NORMAL record with the same alerter installed pages
+      // nothing — the alarm is failure-only, not a heartbeat.
+      await securityAuditService.record({ action: "l1.write_ok", organizationId: orgA, actorUserId: adminA });
+      expect(fired).toHaveLength(1);
+      await pool.query(`DELETE FROM security_audit_logs WHERE action = 'l1.write_ok'`);
+    } finally {
+      __setAlerterForTests(null);
+    }
   });
 });
