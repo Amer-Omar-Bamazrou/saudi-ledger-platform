@@ -6221,7 +6221,11 @@ data (the server-name-matched accounts.ts list — itself a named debt, see
 below; bank names; Upload's sample rows), 3 sentinel-comparison constants,
 ~6 dev-internal strings (console lines, Promise.reject reasons, hook-usage
 errors), ~14 scanner artifacts (code fragments the string-literal pass
-misparses). Zero unclassified user-facing English.
+misparses). Zero unclassified user-facing English. 🔴 **RETRACTED
+2026-09-15** — this count was the instrument's FIT on its own tuning set; a
+held-out round found 14 of 14 missed on fresh files and a quote-parity
+defect that had been reading half of the "fixed" files out of phase. See
+"THE HELD-OUT VALIDATION" below.
 
 **Named debts this exposed, not fixed here:** lib/accounts.ts hardcodes
 14 English account names matched server-side BY NAME (the two-definitions
@@ -6510,6 +6514,7 @@ split could not source was re-derived instead (report-is-a-sample, below).
 | A test that exercises the code but not the artifact | **2** | derived | (1) the ICC OutputIntent profile read by `import.meta.dirname` — green in every source-importing test, ENOENT from the bundle; (2) connect-pg-simple's `table.sql`, named as the same class in the same entry ("TWO L1 LESSONS THE OWNER NAMED" §1). |
 | The frame is part of the count | **3** | derived | (1) the dead Export buttons — 1 (the walk), 7 (the sweep's frame), 12 (the inventory) — "CONTRACT BATCH 1" §"the pairing" and "CONTRACT BATCH 2" §"the frame is part of the count"; (2) the default-VAT sweep whose `?? 15` grep missed the form-state literals and the schema defaults — known-issues file, "CONSTANTS CONSOLIDATION" ("the frame widened on contact"); (3) the spread-into-body sweep whose literal `type="date"` grep missed the dynamic form — "THE POOL-CLOSE VALIDATION ROUND" §2. |
 | The report is a sample, not an inventory | **5** | re-derived — the committed text said 3 | (1) "THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one" (2026-08-30 — the rule's origin); (2) "TWO REGRESSIONS I INTRODUCED" (2026-08-30, "the uncomfortable part"); (3) "A STACK'S TIP IS NOT ITS BODY OF WORK" (2026-08-31, "the reusable form"); (4) the seven dead Export buttons — one reported, seven inventoried (2026-09-01); (5) ScanReview — the heuristic surfaced 5, reading inventoried 14 (2026-09-14). The committed "Three instances" predates (4) and (5); corrected to 5 in the same commit as this table. |
+| An instrument validated on the set used to tune it reports its fit | **2** | derived | (1) the 2026-09-14 pool-close round: five files tuned-until-clean, reported as "47, all classified" — fit; (2) this round's own rounds 1 and 2: each widening consumed its hold-out, so their post-widening exactness is fit and only round 4 is error. Record: "THE HELD-OUT VALIDATION" (2026-09-15). |
 | After closing an item, ask what it changed the meaning of | 2 | copied | "AUTO-APPROVE REMOVED" (closed the solo-approver finding) and "RANK 1 FIXED: the silent fallback" (`getApplication` revealed as an RLS bypass) — both 2026-08-28/29. |
 | Run the check on your own conclusions (search shape) | 2 | copied | Finding #7's OCR; M16.2's `bank_accounts` — named in the committed text. |
 | Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
@@ -6526,3 +6531,149 @@ split could not source was re-derived instead (report-is-a-sample, below).
 resolves to an enumeration here or it is not a count. When an instance is
 added, both move in the same commit — the integer on the line and the row
 in this table.
+
+## 🔴 2026-09-15 — THE HELD-OUT VALIDATION: the Arabic instrument's fit, its error, and the difference
+
+**The charge (owner):** the 2026-09-14 "clean validation round" was measured
+on the five files the instrument had been tuned against. That reports its
+FIT, not its error. Hold out files that took no part in the five widening
+iterations, hand-read them in full, measure the committed
+`scripts/arabic-sweep.mjs` against them, report the miss rate as a number;
+if non-zero, widen and hold out a FRESH set again.
+
+### The general form, stated first
+
+**An instrument validated on the set used to tune it reports its fit, not
+its error.** Every widening iteration consumes its own validation set: once
+the instrument has been changed until that set comes back clean, the set
+can no longer say anything about the instrument's miss rate — only about
+its agreement with the cases it was shown. The number that describes the
+error is measured on files the instrument has never been tuned against,
+and each such measurement can be used ONCE. This round applied the rule to
+itself: four hold-outs, each fresh, and the rounds that drove a widening
+are reported as fit, not error, below.
+
+### The three numbers — which is the honest one
+
+| Number | What it measured | What it is |
+| --- | --- | --- |
+| **5 of 14** (64% miss, 2026-09-13) | ScanReview — ONE file, chosen because it was known to be untranslated | The instrument's miss on a known-present case. Honest about that file; not a rate. |
+| **0 of 30** (100% miss, 2026-09-14) | The five-file validation set, BEFORE tuning on it | Honest as the pre-tuning miss on that set. The "clean" that followed, on the same five files, was **FIT** — the number the retracted "47, all classified, zero unclassified user-facing English" rested on. |
+| **14 of 14** (100% miss, 2026-09-15) | Hold-out 1: six fresh files, 137k chars, hand-read in full | 🔴 **THE HONEST ONE for the instrument as committed.** Three sites, fourteen strings, none found. Same shape as the 0-of-30 — the widened instrument was as blind on fresh files as the first one had been on tuned ones. |
+
+### The rounds
+
+**Contamination set** (excluded from every hold-out): the 30 files the
+pool-close round touched, plus `nav/tree.ts`, `lib/comingSoon.ts` and
+`pages/Upload.tsx` — the idioms and the classified residual came from
+reading them. **Frame** for the whole-file counts: `apps/web/src` minus
+`generated/`, `components/ui/`, tests, and the two OCR parsers — 105 files
+(the 2026-09-14 record's frame gave 47 under the same instrument; this
+frame gives 52, the difference being frame, not code).
+
+**Round 1 — Quotations, UserManagement, CompanySettings, components/Layout,
+OperatorReview, ClosedMonths (137k chars).** Hand truth: 14 strings at 3
+sites — `placeholder="Ahmed Al-Rashidi"`; the twelve Gregorian month names
+rendered via `t(m, m)` (the Arabic arm IS the English word — an Arabic user
+sees "January"); a `CR:` label. Committed instrument: **0 found — 14 of 14
+missed.** Why, from the code: (a) `TAILWINDY` treated any hyphenated token as
+a CSS class, so a hyphenated NAME with one of two tokens hyphenated was
+"half class-like" and dropped; (b) the `str:` pass required a space, so
+every single-word literal was invisible by design; (c) `CR:` sat under the
+4-character floor. Widened for the three CLASSES (class-like tokens must be
+lowercase; a const holding ≥3 capitalised English words is a display list
+unless a `_AR`/`Ar` sibling exists; a 2–3-letter label ending in a colon is
+copy). After widening: 3 of 3 sites, 14 of 14 strings — **fit**.
+
+**🔴 Also found in round 1, a pre-existing defect in the committed
+instrument:** `CODE_TOKENS`'s `\b` word boundaries were literal BACKSPACE
+bytes (0x08) — the file had first been written through a template string —
+so `new Date`, `as string` and `validation error` had NEVER matched. Four
+of the 2026-09-14 record's "~14 scanner artifacts" were this defect. Fixed
+by byte replacement; the header comment now says so.
+
+**Round 2 — VatReport, Findings, OperatorZatcaPanel, Assets, Login,
+components/PeriodClosedDialog (72k chars, fresh).** Hand truth: 1 string —
+`err.message ?? "Login failed"`, the thrown-fallback class. Widened
+instrument: **0 found (1 artifact) — 1 of 1 missed.** 🔴 The cause is
+STRUCTURAL: the `str:` pass matched only literals of ≥4 characters, so at
+`navigate("/")` the regex failed at the short literal's opening quote and
+then paired its CLOSING quote with the NEXT string's opening quote — from
+there, every other literal in the file was read as junk. Any `""`, `"/"`,
+`"ar"` or `"en"` before a string desynchronised the pass for the rest of
+the file. Fixed by tokenising EVERY string (a JS string cannot contain a
+raw newline) and filtering by length afterwards; the template-literal twin
+(`[^`]*` pairing a nested backtick with the outer) fixed the same way. The
+parity fix exposed **19 more strings in 8 files the pool-close round had
+"fixed"** — "New passwords do not match.", "Signup failed", "Accept ready",
+ScanReview's two subtitles — which is how a 100% miss on a tuned set
+stayed invisible: the instrument had been reading half of those files out
+of phase. After the fix: 1 of 1 — **fit**.
+
+**Round 3 — Products, AuditTrail, VerificationStatus, Recurring,
+components/AskYourBooks, components/DemoBanner, lib/listFilters (57k,
+fresh).** Hand truth: **0 strings.** Instrument: 0 misses — 🔴 **vacuous
+for the miss rate** (0 of 0 says nothing; when the correct answer equals
+the broken one the test proves nothing). It measured the false-positive
+side: one TS type-cast fragment, closed by adding `??`, `?.`, `| null` to
+the code tokens — so round 3 is also fit, for false positives.
+
+**Round 4 — PurchaseOrders, Transactions, CustomerDetail, Dashboard (80k,
+fresh, chosen for size so a true positive was likely).** Hand truth: 1
+string — `AI:` in Transactions, a label, debatable; and disclosed: that
+one hit had appeared in the whole-frame diff during round 1's widening,
+before this file was read. Instrument: **1 of 1 found, 0 false positives —
+a zero miss rate on a fresh set, the protocol's stopping rule.**
+
+**🔴 How much the final instrument's error rate rests on.** Sixteen
+held-out true positives were measured across 23 files (~346k chars); the
+final instrument finds all sixteen. But fifteen of them were found only
+after widening ON them — fit. The final instrument's genuinely held-out
+evidence is round 4: **one true positive, debatable, on four files.** That
+is thin, and it is stated as thin rather than reported as "clean". The
+next hold-out round is the only thing that makes it thicker; the files
+above are all now contaminated.
+
+### What the frame count is now, classified (74 hits, 105 files)
+
+**30 sites of user-facing untranslated English (41 strings), all invisible
+to the 2026-09-14 instrument** — the retracted "zero unclassified" was
+wrong by this many: ReceiptScanner's five progress/label strings; the
+statement parser's five row-error reasons (surfaced as row tooltips in
+Upload); the "Ahmed Al-Rashidi" placeholder in Signup, AcceptInvite and
+UserManagement; ChangePassword's three validation/failure strings; the
+Login and Signup thrown fallbacks; CreditNotes "Note created";
+TransactionReview "Accept ready"; ScanReview's "Vendor match failed:" and
+two subtitles; the twelve Gregorian month names; the colon-labels `Total
+Outstanding:`, `Status:`, `Expires:`, `CR:`; and two debatable labels
+(`ID:`, `AI:`). **None fixed in this round** — the owner ordered a
+measurement; fixing is its own change and is proposed, not done.
+**Deliberate data, 24:** accounts.ts's 14 server-name-matched names (task
+D's class), 4 bank names, Upload's 6 sample rows. **Sentinel comparisons,
+5:** `"(not yet translated)"` compared, never rendered. **Dev-internal,
+7:** a hook-usage error, four tesseract status keys, two
+`Promise.reject("no selection")`. **A comparison constant, 1:** OwnerEquity's
+`"Net Income"` substring match (task D). **Scanner artifacts, 7:** two CSS
+strings, `as Record` ×2, a `Math.abs` fragment, `"invoiceNumber" in i ?`,
+`Promise`.
+
+### A class the instrument cannot see, by construction
+
+Hand-reading also found **~30 raw-value renders** — a server or client
+enum written to the screen with no label map: `{q.status}`, `{q.outcome}`,
+`{inv.role}`, `{inv.status}`, `{role}s`, `orgRole.toUpperCase()`,
+`{a.status}`, `{c.credentialStatus}`, `{c.environment}`, `{rule.entity}`,
+`{rule.frequency}`, `ENTITY_TYPES`/`ACTIONS` as option labels, `${x.status}`
+interpolated into an Arabic sentence, and `ROLE_AR` lacking `bookkeeper`
+(an Arabic bookkeeper sees "bookkeeper"). These are not literals, so no
+literal scanner can find them; they are exactly task D's inventory and are
+handed to it rather than counted here. Two reverse gaps (an Arabic-only
+label in English mode, Assets and Products), and unit suffixes (`h`, `m`,
+`d`, `KB`) are noted, not counted.
+
+### The retraction, applied
+
+The 2026-09-14 record's "final instrument count: 47, all classified … zero
+unclassified user-facing English" is RETRACTED (a pointer is placed on that
+entry). §5's Arabic line now states the measured position and cites this
+entry; its "PROVISIONAL" marker leaves.

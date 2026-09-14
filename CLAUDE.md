@@ -249,6 +249,7 @@ doing the thing it governs rather than only once you know its name.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing. *(2 instances.)*
 - **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where cheap, **build that case INTO the probe** so the comparison cannot be skipped (*make the wrong thing inexpressible*, pointed at investigation). The tell: the instrument disagreed with something already known true. *(8 instances; 2 caught by their own planted positives.)*
+- **🔴 AN INSTRUMENT VALIDATED ON THE SET USED TO TUNE IT REPORTS ITS FIT, NOT ITS ERROR** — a validation set is spent the moment the instrument is changed until it passes; the error rate is measured on files the instrument was never tuned on, hand-read in full, and each such set can be used ONCE. *(2 instances — the same instrument on consecutive days; findings file, "THE HELD-OUT VALIDATION".)*
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
@@ -561,11 +562,15 @@ needs a checkable reason and leaves the day it is fixed.
 ### Arabic coverage
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
-by `scripts/arabic-sweep.mjs`, an instrument validated against hand-read
-files before its count is believed (the 2026-09-14 "suspect count 0" was
-RETRACTED as the instrument's blindness; the validated round then found and
-fixed ~110 strings; final count 47, all classified as non-copy). Re-run
-before launch. 🔴 **PROVISIONAL until the held-out validation (task B) lands** — the count above is the instrument's fit, not yet its measured error. Record: findings file, "THE POOL-CLOSE VALIDATION ROUND".
+by `scripts/arabic-sweep.mjs`, whose count is believed only after a HELD-OUT
+round (files it was never tuned on, hand-read in full). 🔴 **An instrument
+validated on the set used to tune it reports its fit, not its error**: the
+2026-09-14 "47, all classified" was fit — the committed instrument missed
+14 of 14 on fresh files. Measured 2026-09-15 (frame: 105 files): **30 sites
+of untranslated user-facing English remain, UNFIXED** (fix proposed, not
+done); the final instrument's held-out evidence is one round, one true
+positive — thin. Every widening needs a fresh hold-out; re-run before launch.
+Record: findings file, "THE HELD-OUT VALIDATION".
 
 ### Traps and known-dead surfaces
 
