@@ -6492,3 +6492,37 @@ header must never lag its own body.
 | §10 reference-doc summaries (HLD's audience list; owner-actions' snapshot note; analytics round 3; the RTL third-option narrative, 24 of 39) | The docs themselves, and this file's 2026-08-31 RTL decision record |
 | §10b: four tooling incidents | This file, §10b-1..4 above — written from their commits (they were not here) |
 | §11: the docs-drift incident, the HLD rationale and absence incidents | This file: the sweep above (written from `0f94e0c`), and the two 2026-08-31 HLD entries (already here) |
+
+### The inline counts — provenance (owner-ordered: an integer with no derivation is the claim-without-evidence class)
+
+Every §3 count is one of three kinds. **Copied** — the integer was in the
+committed text and its instances are named in this file (not re-derived on
+2026-09-15 unless listed below). **Derived** — the split produced the
+integer by enumerating this file's records; the enumeration is here so the
+number can be checked. **Unverified** — none remain: the one count the
+split could not source was re-derived instead (report-is-a-sample, below).
+
+| Rule (§3) | Count | Kind | The instances that compose it |
+| --- | --- | --- | --- |
+| A negative result from an unvalidated probe | **8** | derived | The six enumerated in "TWO L1 LESSONS THE OWNER NAMED" §2 (2026-09-04): (1) the compressed-PDF grep, (2) verify's spawn, (3) the fault-injection runner, (4) the ICC HTML download, (5) the name[] array probe, (6) the glyph-encoded PDF stream — the first caught BY its planted positive; plus (7) the conflict-marker guard's first version, blind from the wrong cwd, caught by its planted positive ("THE POOL-CLOSE VALIDATION ROUND" §4, 2026-09-14); plus (8) the Arabic heuristic's "suspect count 0", retracted when a hand-read file showed 0 of 30 found (same entry, §1). "2 caught by their own planted positives" = (6) and (7). |
+| A server test cannot see the client's request construction | **3** | derived | "THE POOL-CLOSE VALIDATION ROUND" §2's class enumeration: Bills.dueDate (found by the walk, #152), Employees.joiningDate (found by the sweep), JournalEntries.date (found by the sweep; the one in the books). The walk's "twice found this week" counts the two the WALK found; the class count is the sweep's three. |
+| Assume any completed backend is unreachable until clicked | **4** | derived | The four defects the first browser pass found that six read-only audits had missed — the table under "NOTHING IN THIS PROCESS CHECKS WHETHER A USER CAN REACH WHAT WE BUILT" (2026-08-27, in the "Named failure modes and lessons" block of the 2026-08-30 password-recovery entry). Counted as the DEFECTS found by clicking, not the audits that missed them. |
+| A test that exercises the code but not the artifact | **2** | derived | (1) the ICC OutputIntent profile read by `import.meta.dirname` — green in every source-importing test, ENOENT from the bundle; (2) connect-pg-simple's `table.sql`, named as the same class in the same entry ("TWO L1 LESSONS THE OWNER NAMED" §1). |
+| The frame is part of the count | **3** | derived | (1) the dead Export buttons — 1 (the walk), 7 (the sweep's frame), 12 (the inventory) — "CONTRACT BATCH 1" §"the pairing" and "CONTRACT BATCH 2" §"the frame is part of the count"; (2) the default-VAT sweep whose `?? 15` grep missed the form-state literals and the schema defaults — known-issues file, "CONSTANTS CONSOLIDATION" ("the frame widened on contact"); (3) the spread-into-body sweep whose literal `type="date"` grep missed the dynamic form — "THE POOL-CLOSE VALIDATION ROUND" §2. |
+| The report is a sample, not an inventory | **5** | re-derived — the committed text said 3 | (1) "THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one" (2026-08-30 — the rule's origin); (2) "TWO REGRESSIONS I INTRODUCED" (2026-08-30, "the uncomfortable part"); (3) "A STACK'S TIP IS NOT ITS BODY OF WORK" (2026-08-31, "the reusable form"); (4) the seven dead Export buttons — one reported, seven inventoried (2026-09-01); (5) ScanReview — the heuristic surfaced 5, reading inventoried 14 (2026-09-14). The committed "Three instances" predates (4) and (5); corrected to 5 in the same commit as this table. |
+| After closing an item, ask what it changed the meaning of | 2 | copied | "AUTO-APPROVE REMOVED" (closed the solo-approver finding) and "RANK 1 FIXED: the silent fallback" (`getApplication` revealed as an RLS bypass) — both 2026-08-28/29. |
+| Run the check on your own conclusions (search shape) | 2 | copied | Finding #7's OCR; M16.2's `bank_accounts` — named in the committed text. |
+| Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
+| A UI-automation set that skips the framework's event | 2 | copied | "THE INSTRUMENT WAS WRONG BEFORE THE CODE WAS" — the vendor-selection false positive and the negative-amount "no-op" (2026-09-14). |
+| A hardening step is untested code | 2 | copied | (1) the P5 readiness wait — "A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED" (2026-08-31); (2) the believed-correct `pool.on("error")` fix that crashed the next run identically — "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31, "re-run the thing you just hardened — already a standing rule, here earning"). |
+| Two definitions of one fact | 4 | copied | Enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance. |
+| A green PR moves nothing | 1 | copied | "TEN DAYS OF GREEN, ZERO MOVEMENT" (#141, #142). |
+| Ask of every severance… | 1 | copied | "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31). |
+| Standing check 1 — stopping at the HTTP boundary | 2 | copied | A1's capture pipeline, A3's recurring rules — the committed text named both; record: finding #1's retroactive sweep. |
+| §10b: stale write 1 · `\| tail` 2 · maximal action 1 · revert 2 | as listed | copied | The four long forms above, each with its commit. The revert count stays at 2: the discarded tree's "4 instances — twice more on 2026-09-14" could not be verified from any record and was NOT imported. |
+| §11: 7 docs · rationale 1 · absence 1 | as listed | copied | Commit `0f94e0c`; the two 2026-08-31 HLD entries. |
+
+**The rule this table applies:** a count on a §3 line is a pointer, and it
+resolves to an enumeration here or it is not a count. When an instance is
+added, both move in the same commit — the integer on the line and the row
+in this table.

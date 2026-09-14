@@ -81,7 +81,7 @@ eight items; record: known-issues file, "the decision-free pool").
 | **Automation** | A1 capture ✅, A3 recurring (drafts only) ✅, **A2 bank feeds not started** | [`feature-spec-automation`](docs/product/feature-spec-automation.md) |
 | **Demo deployment** | ✅ Codebase demo-ready; **nothing is deployed** | [`demo-deployment-decisions`](docs/product/demo-deployment-decisions.md) |
 | **Billing** | 🔴 **Does not exist** (queue R1) | §5 |
-| **Security** | F1 + F2 CLOSED; G-1 checked and absent; privilege surface map live; permission grants, cross-company isolation and git history all audited 2026-08-31 | [`hld`](docs/hld.md) §3, findings file |
+| **Security** | F1 + F2 CLOSED; G-1 checked and absent; privilege surface map live; permission grants, cross-company isolation and git history all audited 2026-08-31 | [`hld`](docs/hld.md) §3; findings file, "THE THREE COVERAGE GAPS, AUDITED" |
 
 **Owner-approved audit order, in flight:** operator surface ✅ → accounting-core
 services ✅ → **the write paths** (next).
@@ -155,14 +155,14 @@ These are short forms; the rules are binding, the history explains why.
 3. **Re-run the LIVE VERIFICATION PASS at the end of every milestone touching
    the ingestion/tax path** (owner-mandated for all of M16; keep it beyond).
    Same fixture, live path (real HTTP → engine → Postgres), OBSERVED values —
-   not test results. (M15 proved why; the incident is in the findings file.)
+   not test results. (M15 proved why — findings file, "TWO ID SPACES WITH NO FORCING FUNCTION".)
 4. **🔴 PERIODICALLY WALK THE CORE USER PATH END TO END — a path finds what a
    list cannot** (owner-mandated 2026-09-01). Sign up → invoice → send →
    payment → cash position → VAT return, in Arabic, on mobile. The queue is a
    LIST, and a reader cannot detect an absence in one: the first walk found
    L1, L2 and L3 — nothing broken, things MISSING — which no audit or suite
    could see. Walk after any milestone touching the path, and before any
-   launch conversation. Record: findings file.
+   launch conversation. Record: findings file, "THE FIRST CORE-PATH WALK".
 
 ### 🔴 THE TRIAGE CHECK (apply to every finding, before ranking it)
 
@@ -182,12 +182,12 @@ finding in the list:
 edits the queue: a remaining finding can become worse, moot, or a different
 kind of thing while its row still reads as written — the composition class
 pointed at FIXES, and the step most easily skipped because the fix feels
-finished. *(2 instances in one session; findings file.)*
+finished. *(2 instances in one session; findings file, "AUTO-APPROVE REMOVED" and "RANK 1 FIXED".)*
 
 A finding touching none of these is about as bad as it looks; **one touching two
 is worse than its severity says, and the difference is not visible from the
 finding alone**. AUD-13 is the worked example *(five items, one permanent
-zero-value ZATCA invoice; findings file)*.
+zero-value ZATCA invoice; findings file, "AUD-13")*.
 
 ### The standing check (apply before recording any milestone as done)
 
@@ -262,7 +262,7 @@ doing the thing it governs rather than only once you know its name.
 
 #### The fix that does not finish
 
-- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. *(3 instances.)*
+- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. *(5 instances.)*
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface.
 - **🔴 THE FRAME IS PART OF THE COUNT** — a walk produces a SAMPLE; only an inventory produces a COUNT, and a count is correct only inside its frame — subtler than under-counting. State the frame beside the number. *(3 instances; one absence counted 1, then 7, then 12 as the frame widened.)*
@@ -277,7 +277,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it, and prefer a boundary with no override.
 - **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
 - **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
-- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift; shared constants are SWEPT periodically and mechanically (`@workspace/shared` is the one definition), never noticed one at a time. *(4 instances; sweep record: findings file.)*
+- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift; shared constants are SWEPT periodically and mechanically (`@workspace/shared` is the one definition), never noticed one at a time. *(4 instances; sweep record: findings file, "The first sweep, run 2026-09-03".)*
 - **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary; generalises to any two-layer guard with a legitimate wide arm.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
 - **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
@@ -358,7 +358,7 @@ doing the thing it governs rather than only once you know its name.
   `organization_memberships` role governs. Prefer explicit, scoped authz
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
-- **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (The conversion found a live unscoped read; incident: findings file.)
+- **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (The conversion found a live unscoped read; findings file, "RANK 1 FIXED".)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
 - **🔴 PASSWORDS GO THROUGH `lib/password.ts` — ONE SEAM.** `crypto.scrypt` (N=2^17, off the event loop) for new hashes; bcrypt kept ONLY to verify pre-2026-09-02 hashes, with transparent rehash on the next correct login. Never call a KDF directly, and never store a hash another way: the seam is where the length bound, the parameters and the migration live.
@@ -395,7 +395,7 @@ doing the thing it governs rather than only once you know its name.
   status is a marker that a cancelling mirror exists, not an eraser — filter
   aggregations with `JE_IN_BOOKS` (`posted` + `reversed`), never
   `posted`-only, which double-negates every reversal (found live: ±8,750 on
-  the dev org; full record in the findings file).
+  the dev org; findings file, "EVERY REVERSAL DOUBLE-NEGATED").
 - **Nothing affects the books before approval.** Drafts/submitted records move
   zero in every report (the zero-movement test standard — replicate it for any
   new approvable entity). Invoice hash/QR/AR are minted only at approval;
@@ -503,7 +503,7 @@ triage addendum; invisible to planning until placed.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product** (PDF/A-3, veraPDF PASS both renderings; logo upload ✅ 2026-09-14). Records: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. |
+| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product** (PDF/A-3, veraPDF PASS both renderings; logo upload ✅ 2026-09-14). Records: known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT" and "L1 LOGO UPLOAD"; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -527,7 +527,7 @@ triage addendum; invisible to planning until placed.
 | **C8** (Block B) | 🔴 PDPL, platform-wide — higher priority than C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also: whether operator readability of verified identity documents should expire. |
 | **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the only answer that changes architecture, not arithmetic. |
 | **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic text prevails and our reading rests on متسلسل. |
-| **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (decision record: known-issues file); the open question is whether Saudi practice permits ANY exception. |
+| **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (known-issues file, "INVOICE DATING INTO CLOSED MONTHS"); the open question is whether Saudi practice permits ANY exception. |
 
 ### Code-level open findings — RANKED BY CONSEQUENCE, not by discovery
 
@@ -538,18 +538,18 @@ the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (record: known-issues file, RANK 1). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
+| **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed; L-1 closed 2026-09-14 — a failed security-audit write now pages critical.)* | — | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
 `platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
 consolidation closed 2026-09-14 — `@workspace/shared` is the one definition
-for GOSI/VAT-default/`normalizeDigits`; record: known-issues file.)*
+for GOSI/VAT-default/`normalizeDigits`; known-issues file, "CONSTANTS CONSOLIDATION".)*
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
-`dir`/`lang` hold. *Tested* rather than unreproduced. Detail: findings file.
+`dir`/`lang` hold. *Tested* rather than unreproduced. Findings file, "B-8: NOT REPRODUCED".
 
 🔴 **Direction is set BEFORE FIRST PAINT** (owner, 2026-08-31): a
 render-blocking script in `index.html` sets `dir`/`lang` — React runs after the
@@ -565,7 +565,7 @@ by `scripts/arabic-sweep.mjs`, an instrument validated against hand-read
 files before its count is believed (the 2026-09-14 "suspect count 0" was
 RETRACTED as the instrument's blindness; the validated round then found and
 fixed ~110 strings; final count 47, all classified as non-copy). Re-run
-before launch. Record: findings file, the pool-close validation round.
+before launch. 🔴 **PROVISIONAL until the held-out validation (task B) lands** — the count above is the instrument's fit, not yet its measured error. Record: findings file, "THE POOL-CLOSE VALIDATION ROUND".
 
 ### Traps and known-dead surfaces
 
@@ -583,10 +583,10 @@ before launch. Record: findings file, the pool-close validation round.
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
-seed grants, git-history secret scanning. Records: findings file.
+seed grants, git-history secret scanning. Findings file, "THE THREE COVERAGE GAPS, AUDITED".
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
-record: known-issues file).** What stays operating: the company-blind
+known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind
 repository list in `tests/cross-company-isolation.test.ts` (12, on the
 row-level backstop) is pinned and can only SHRINK. *(This entry read "NOT
 enforced; OPEN as a decision" for twelve days after N1 closed it — a queue
@@ -602,7 +602,7 @@ generator running — stop, do not net**; **a `type` alias satisfying the
 detector is the ratchet GAMED** (a file leaves by consuming the generated type,
 never by rephrasing); 🔴 **the 20 pinned files are a STOP, not a backlog**
 (owner, 2026-09-02 — no tenant money; burning them down would make the COUNT
-the goal). Inventory: findings file. TanStack is unblocked.
+the goal). Inventory: findings file, "THE STOP". TanStack is unblocked.
 
 ## 6. Tech Stack
 
@@ -717,7 +717,7 @@ Operating references:
 - [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md)
   — 🔴 what the UI redesign INHERITS (unowned `components/ui/**`; the RTL
   override layer `src/rtl-overrides.css`, deleted whole when the redesign
-  lands — decision record: findings file, 2026-08-31; guard:
+  lands — findings file, "THE RTL DECISION"; guard:
   `tests/rtl-override-layer.test.ts`).
   [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
   [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md)
@@ -783,18 +783,18 @@ Long forms, with their commits: findings file, "the CLAUDE.md split" (2026-09-15
   claims and point at §2 for "now".** A status line is **"Status (YYYY-MM-DD):
   <claim>. Current state authority: CLAUDE.md §2."** — the date makes staleness
   visible, the pointer makes §2 the single writer for "now". A header must
-  never lag its own body. *(7 docs had drifted; the sweep: findings file.)*
+  never lag its own body. *(7 docs had drifted; findings file, "THE CLAUDE.md SPLIT".)*
   🔴 **Corollary — a DATED artifact and a LIVE one are different documents,
   and the live one never defers to the dated one** (owner, 2026-08-26): split
   them; each is the single writer for its own fact.
 - **🔴 A DESIGN RATIONALE AGES FASTER THAN A CAVEAT** (owner-named, 2026-08-31)
   — a rationale POINTS AT the decision record instead of restating the
   argument, so revisiting the decision updates one place. *(1 instance: the
-  HLD's most confident section, wrong in four days; findings file.)*
+  HLD's most confident section, wrong in four days; findings file, "A DESIGN RATIONALE AGES FASTER THAN A CAVEAT".)*
 - **🔴 A READER CANNOT DETECT AN ABSENCE** (owner-named, 2026-08-31) — a
   document whose job is completeness is CHECKED AGAINST A COVERAGE LIST, never
   written from memory. *(1 instance: the old HLD's missing G-1 negative result;
-  findings file.)*
+  findings file, "A READER CANNOT DETECT AN ABSENCE".)*
 - **pnpm only** (a preinstall guard rejects npm/yarn).
 - 🔴 **Run `pnpm run verify` before reporting work done** — typecheck, every suite, build, in CI's order. A filtered command answers a NARROWER question; never report it as the broader one.
 
