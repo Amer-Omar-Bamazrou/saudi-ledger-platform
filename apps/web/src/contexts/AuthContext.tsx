@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { tOutside } from "@/contexts/LanguageContext";
 
 export type OrganizationRole = "admin" | "accountant" | "bookkeeper" | "viewer";
 
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Login failed");
+    if (!res.ok) throw new Error(data.error ?? tOutside("Login failed", "فشل تسجيل الدخول"));
 
     setUser(data.user);
   };

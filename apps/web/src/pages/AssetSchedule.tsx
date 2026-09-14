@@ -58,10 +58,10 @@ export default function AssetSchedule() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Assets", paged?.totals.activeCount ?? 0, "text-primary"],
-          ["Total Cost", fmtNum(totalCost), "text-primary"],
-          ["Accumulated Dep.", fmtNum(totalAccumDep), "text-negative"],
-          ["Net Book Value", fmtNum(totalBookValue), "text-positive"],
+          [t("Total Assets", "إجمالي الأصول"), paged?.totals.activeCount ?? 0, "text-primary"],
+          [t("Total Cost", "إجمالي التكلفة"), fmtNum(totalCost), "text-primary"],
+          [t("Accumulated Dep.", "مجمع الإهلاك"), fmtNum(totalAccumDep), "text-negative"],
+          [t("Net Book Value", "صافي القيمة الدفترية"), fmtNum(totalBookValue), "text-positive"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
@@ -72,7 +72,7 @@ export default function AssetSchedule() {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           : assets.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Package className="w-8 h-8 mx-auto mb-3 opacity-40" />
@@ -83,7 +83,7 @@ export default function AssetSchedule() {
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Asset", "Category", "Purchase Date", "Cost", "Useful Life", "Method", "Acc. Dep.", "Book Value", "Status"].map(h => (
+                  {[t("Asset", "الأصل"), t("Category", "الفئة"), t("Purchase Date", "تاريخ الشراء"), t("Cost", "التكلفة"), t("Useful Life", "العمر الإنتاجي"), t("Method", "الطريقة"), t("Acc. Dep.", "مجمع الإهلاك"), t("Book Value", "القيمة الدفترية"), t("Status", "الحالة")].map(h => (
                     <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
                   ))}
                 </tr>

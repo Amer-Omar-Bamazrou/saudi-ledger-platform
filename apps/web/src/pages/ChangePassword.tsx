@@ -44,7 +44,7 @@ export default function ChangePassword() {
     <div className="max-w-md space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t("Change Password", "تغيير كلمة المرور")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">Update the password for {user?.email}</p>
+        <p className="text-muted-foreground text-sm mt-1">{t("Update the password for", "تحديث كلمة المرور للحساب")} {user?.email}</p>
       </div>
 
       <Card className="border-border bg-card">
@@ -84,7 +84,7 @@ export default function ChangePassword() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Updating…" : "Change password"}
+              {loading ? t("Updating…", "جارٍ التحديث…") : t("Change password", "تغيير كلمة المرور")}
             </Button>
           </form>
         </CardContent>

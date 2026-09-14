@@ -8,6 +8,7 @@ const API = `${BASE}/api`;
  * bare "access denied".
  */
 import { emitPeriodClosed } from "./periodClosed";
+import { tOutside } from "@/contexts/LanguageContext";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -75,7 +76,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
   if (res.status === 401) {
     window.location.href = `${import.meta.env.BASE_URL}login`;
-    throw new ApiError(401, { error: "Session expired. Please log in." });
+    throw new ApiError(401, { error: tOutside("Session expired. Please log in.", "انتهت الجلسة. يرجى تسجيل الدخول.") });
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));

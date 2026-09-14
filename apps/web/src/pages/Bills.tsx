@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -134,6 +134,9 @@ export default function Bills() {
   const [postDebitAccount, setPostDebitAccount] = useState<string>(DEFAULT_EXPENSE_ACCOUNT);
   const [form, setForm] = useState(makeEmpty());
   const [payAmount, setPayAmount] = useState("");
+  // The pay double-fire gate — a PARTIAL payment sent twice is two accepted
+  // payments (see Invoices.tsx). A ref, not a render snapshot.
+  const payingRef = useRef(false);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -283,6 +286,7 @@ export default function Bills() {
       toast({ title: t("Payment recorded", "تم تسجيل الدفعة") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
+    onSettled: () => { payingRef.current = false; },
   });
 
   /**
@@ -709,7 +713,7 @@ export default function Bills() {
           </div>
           <Button
             className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => payOpen && payMut.mutate({ id: payOpen, amount: Number(payAmount) })}
+            onClick={() => { if (payingRef.current || !payOpen) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount) }); }}
             disabled={!payAmount || payMut.isPending}
           >
             {payMut.isPending ? t("Recording…", "جارٍ التسجيل…") : t("Record Payment", "تسجيل الدفعة")}

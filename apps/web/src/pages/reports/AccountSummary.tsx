@@ -119,7 +119,7 @@ function AccountSummaryInner({ range }: { range: ReportDefaultRange }) {
                       </tr>
                     ))}
                     <tr className="border-b-2 border-border/50">
-                      <td className="py-2 ps-4 text-xs text-muted-foreground" colSpan={2}>Subtotal — {type}</td>
+                      <td className="py-2 ps-4 text-xs text-muted-foreground" colSpan={2}>{t("Subtotal", "المجموع الفرعي")} — {type}</td>
                       <td className="py-2 font-mono text-xs pe-4">{fmtNum(byType[type].reduce((s, r) => s + r.openingBalance, 0))}</td>
                       <td className="py-2 font-mono text-xs pe-4 text-info">{fmtNum(byType[type].reduce((s, r) => s + r.periodDebit, 0))}</td>
                       <td className="py-2 font-mono text-xs pe-4 text-positive">{fmtNum(byType[type].reduce((s, r) => s + r.periodCredit, 0))}</td>

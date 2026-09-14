@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { tOutside } from "@/contexts/LanguageContext";
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
@@ -111,11 +112,11 @@ const queryClient = new QueryClient({
       toast({
         variant: "destructive",
         title:
-          status === 423 ? "This period is closed"
-          : status === 409 ? "That conflicts with the current state"
-          : status >= 500 ? "The server could not complete that"
-          : "That could not be saved",
-        description: error instanceof Error ? error.message : "Please try again.",
+          status === 423 ? tOutside("This period is closed", "هذه الفترة مقفلة")
+          : status === 409 ? tOutside("That conflicts with the current state", "هذا يتعارض مع الحالة الحالية")
+          : status >= 500 ? tOutside("The server could not complete that", "تعذر على الخادم إتمام العملية")
+          : tOutside("That could not be saved", "تعذر الحفظ"),
+        description: error instanceof Error ? error.message : tOutside("Please try again.", "يرجى المحاولة مرة أخرى."),
       });
     },
   }),
@@ -135,7 +136,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">Loading…</div>
+        <div className="text-muted-foreground text-sm">{tOutside("Loading…", "جارٍ التحميل…")}</div>
       </div>
     );
   }

@@ -98,9 +98,9 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
       )}
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["Total Invoices", filtered.length, "text-primary"],
-          ["Revenue (excl. VAT)", fmtNum(totalRevenue), "text-primary"],
-          ["VAT Charged", fmtNum(totalVat), "text-attention"],
+          [t("Total Invoices", "إجمالي الفواتير"), filtered.length, "text-primary"],
+          [t("Revenue (excl. VAT)", "الإيراد (دون الضريبة)"), fmtNum(totalRevenue), "text-primary"],
+          [t("VAT Charged", "الضريبة المحصلة"), fmtNum(totalVat), "text-attention"],
           ["Outstanding", fmtNum(totalOutstanding), "text-negative"],
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
@@ -112,7 +112,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
@@ -122,7 +122,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Invoice #", "Customer", "Date", "Due Date", "Subtotal", "VAT", "Total", "Outstanding", "Status"].map(h => (
+                  {[t("Invoice #", "رقم الفاتورة"), t("Customer", "العميل"), t("Date", "التاريخ"), t("Due Date", "تاريخ الاستحقاق"), t("Subtotal", "المجموع الفرعي"), t("VAT", "الضريبة"), t("Total", "الإجمالي"), t("Outstanding", "المستحق"), t("Status", "الحالة")].map(h => (
                     <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
                   ))}
                 </tr>

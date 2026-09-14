@@ -81,6 +81,11 @@ export default function Invoices() {
   // render snapshot, so it cannot stop two clicks in one frame — this can.
   // Set in the submit onClick, cleared in both mutations' onSettled.
   const submittingRef = useRef(false);
+  // Same gate for the PAY dialog — the one double-fire the server does not
+  // fully absorb: a PARTIAL payment sent twice is two accepted payments
+  // (full-amount repeats die on the overpay guard). Money moves; a ref, not
+  // a render snapshot.
+  const payingRef = useRef(false);
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   /**
@@ -162,6 +167,7 @@ export default function Invoices() {
     mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onSettled: () => { payingRef.current = false; },
   });
 
   /**
@@ -612,7 +618,7 @@ export default function Invoices() {
             <div><Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
             <PaymentHistory entity="invoices" id={payOpen} />
           </div>
-          <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>payOpen&&payMut.mutate({id:payOpen,amount:Number(payAmount)})} disabled={!payAmount||payMut.isPending}>
+          <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>{ if (payingRef.current || !payOpen) return; payingRef.current = true; payMut.mutate({id:payOpen,amount:Number(payAmount)}); }} disabled={!payAmount||payMut.isPending}>
             {payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
         </DialogContent>

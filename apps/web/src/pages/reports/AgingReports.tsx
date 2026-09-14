@@ -29,11 +29,11 @@ function viewOf(data: ArAgingReport | ApAgingReport): AgingView {
 }
 
 const BUCKET_LABELS = [
-  { key: "current",    label: "Current",      color: "text-positive" },
-  { key: "days_1_30",  label: "1–30 Days",    color: "text-attention" },
-  { key: "days_31_60", label: "31–60 Days",   color: "text-orange-400" },
-  { key: "days_61_90", label: "61–90 Days",   color: "text-negative" },
-  { key: "over_90",    label: "Over 90 Days", color: "text-red-600" },
+  { key: "current",    en: "Current",      ar: "جارٍ",             color: "text-positive" },
+  { key: "days_1_30",  en: "1–30 Days",    ar: "1–30 يومًا",       color: "text-attention" },
+  { key: "days_31_60", en: "31–60 Days",   ar: "31–60 يومًا",      color: "text-orange-400" },
+  { key: "days_61_90", en: "61–90 Days",   ar: "61–90 يومًا",      color: "text-negative" },
+  { key: "over_90",    en: "Over 90 Days", ar: "أكثر من 90 يومًا", color: "text-red-600" },
 ] as const;
 
 function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
@@ -48,7 +48,7 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
       <div className="grid grid-cols-5 gap-3">
         {BUCKET_LABELS.map(b => (
           <Card key={b.key} className="border-border bg-card">
-            <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{b.label}</CardTitle></CardHeader>
+            <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(b.en, b.ar)}</CardTitle></CardHeader>
             <CardContent><div className={cn("text-lg font-bold font-mono", b.color)}>{fmtNum(data.buckets[b.key])}</div></CardContent>
           </Card>
         ))}

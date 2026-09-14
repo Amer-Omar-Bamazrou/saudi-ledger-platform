@@ -68,7 +68,7 @@ export default function Budgets() {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>{t("Add Budget Line", "إضافة سطر ميزانية")}</DialogTitle></DialogHeader>
               <div className="space-y-3 mt-2">
-                <div><Label className="text-xs text-muted-foreground">{t("Budget Name (English)", "اسم الميزانية (إنجليزي)")}</Label><Input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="e.g., Marketing Budget 2025" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Budget Name (English)", "اسم الميزانية (إنجليزي)")}</Label><Input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("e.g., Marketing Budget 2025", "مثال: ميزانية التسويق 2025")} /></div>
                 <div><Label className="text-xs text-muted-foreground">اسم الميزانية (عربي)</Label><Input dir="rtl" value={form.nameAr} onChange={e=>setForm(p=>({...p,nameAr:e.target.value}))} className="mt-1 h-8 text-sm" placeholder="مثال: ميزانية التسويق ٢٠٢٥" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label className="text-xs text-muted-foreground">{t("Period (Year)", "الفترة (السنة)")}</Label><Input value={form.period} onChange={e=>setForm(p=>({...p,period:e.target.value}))} className="mt-1 h-8 text-sm" /></div>

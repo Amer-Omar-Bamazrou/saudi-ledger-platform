@@ -225,7 +225,7 @@ export default function JournalEntries() {
             </div>
 
             {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.description||!balanced||partyMissing||createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>

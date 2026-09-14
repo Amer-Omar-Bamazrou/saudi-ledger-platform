@@ -88,7 +88,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
             <div className="text-center py-16 text-muted-foreground">
               <Receipt className="w-8 h-8 mx-auto mb-3 opacity-40" />
               <p className="text-sm">{t("No tax journal entries in this period.", "لا توجد قيود ضريبية في هذه الفترة.")}</p>
-              <p className="text-xs mt-1 opacity-60">Entries touching accounts with "VAT" or "Tax" in the name will appear here.</p>
+              <p className="text-xs mt-1 opacity-60">{t('Entries touching accounts with "VAT" or "Tax" in the name will appear here.', "ستظهر هنا القيود التي تمس حسابات تحمل \"VAT\" أو \"Tax\" في اسمها.")}</p>
             </div>
           </CardContent>
         </Card>

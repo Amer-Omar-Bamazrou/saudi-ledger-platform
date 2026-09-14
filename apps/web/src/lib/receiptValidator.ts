@@ -13,6 +13,8 @@
  *      (Saudi standard/zero/exempt rates).  Other rates are flagged.
  */
 
+import { tOutside } from "@/contexts/LanguageContext";
+
 export type FlagSeverity = "error" | "warning";
 export type FlagField = "vat_number" | "vat_amount" | "totals" | "vat_rate";
 
@@ -45,7 +47,10 @@ export function validateReceipt(data: ReceiptForValidation): ValidationFlag[] {
       flags.push({
         field: "vat_number",
         severity: "error",
-        message: `VAT number "${data.supplierVatNumber}" is not in ZATCA format (15 digits, first and last digit '3').`,
+        message: tOutside(
+          `VAT number "${data.supplierVatNumber}" is not in ZATCA format (15 digits, first and last digit '3').`,
+          `الرقم الضريبي "${data.supplierVatNumber}" ليس بصيغة الهيئة (15 رقمًا، يبدأ وينتهي بـ 3).`,
+        ),
       });
     }
   }
@@ -57,7 +62,10 @@ export function validateReceipt(data: ReceiptForValidation): ValidationFlag[] {
       flags.push({
         field: "vat_amount",
         severity: "error",
-        message: "VAT amount looks like a registration number, not a monetary value.",
+        message: tOutside(
+          "VAT amount looks like a registration number, not a monetary value.",
+          "مبلغ الضريبة يبدو رقم تسجيل ضريبي، لا قيمة نقدية.",
+        ),
       });
     }
     // Must be strictly less than subtotal
@@ -65,7 +73,10 @@ export function validateReceipt(data: ReceiptForValidation): ValidationFlag[] {
       flags.push({
         field: "vat_amount",
         severity: "error",
-        message: `VAT amount (${fmt(data.vatAmount)}) must be less than the subtotal (${fmt(data.subtotal)}).`,
+        message: tOutside(
+          `VAT amount (${fmt(data.vatAmount)}) must be less than the subtotal (${fmt(data.subtotal)}).`,
+          `مبلغ الضريبة (${fmt(data.vatAmount)}) يجب أن يكون أقل من المجموع الفرعي (${fmt(data.subtotal)}).`,
+        ),
       });
     }
   }
@@ -78,10 +89,10 @@ export function validateReceipt(data: ReceiptForValidation): ValidationFlag[] {
       flags.push({
         field: "totals",
         severity: "error",
-        message:
-          `Totals don't reconcile: ${fmt(data.subtotal)} + ${fmt(data.vatAmount)} = ${fmt(computed)} ` +
-          `but total is ${fmt(data.total)} (difference: ${fmt(diff)} SAR). ` +
-          `Please correct the fields before posting.`,
+        message: tOutside(
+          `Totals don't reconcile: ${fmt(data.subtotal)} + ${fmt(data.vatAmount)} = ${fmt(computed)} but total is ${fmt(data.total)} (difference: ${fmt(diff)} SAR). Please correct the fields before posting.`,
+          `الإجماليات غير متطابقة: ${fmt(data.subtotal)} + ${fmt(data.vatAmount)} = ${fmt(computed)} بينما الإجمالي ${fmt(data.total)} (الفرق: ${fmt(diff)} ر.س). يرجى تصحيح الحقول قبل الترحيل.`,
+        ),
       });
     }
   }
@@ -94,9 +105,10 @@ export function validateReceipt(data: ReceiptForValidation): ValidationFlag[] {
       flags.push({
         field: "vat_rate",
         severity: "warning",
-        message:
-          `Implied VAT rate is ${rate.toFixed(1)}% — not a recognised Saudi rate (0%, 5%, or 15%). ` +
-          `Verify the subtotal and VAT amount.`,
+        message: tOutside(
+          `Implied VAT rate is ${rate.toFixed(1)}% — not a recognised Saudi rate (0%, 5%, or 15%). Verify the subtotal and VAT amount.`,
+          `نسبة الضريبة الضمنية ${rate.toFixed(1)}٪ — ليست نسبة سعودية معتمدة (0٪ أو 5٪ أو 15٪). تحقق من المجموع الفرعي ومبلغ الضريبة.`,
+        ),
       });
     }
   }

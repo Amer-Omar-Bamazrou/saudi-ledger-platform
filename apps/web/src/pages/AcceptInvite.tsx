@@ -55,7 +55,7 @@ export default function AcceptInvite() {
       await refetch();
       window.location.href = import.meta.env.BASE_URL; // reload into the new org
     } catch (e: any) {
-      setError(e.message ?? "Could not accept the invitation");
+      setError(e.message ?? t("Could not accept the invitation", "تعذر قبول الدعوة"));
     } finally {
       setBusy(false);
     }

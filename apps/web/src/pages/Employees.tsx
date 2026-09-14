@@ -41,7 +41,10 @@ export default function Employees() {
   const employees = paged?.items ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
+    // 🔴 joiningDate is OPTIONAL and the input is clearable: the raw spread
+    // sent "" and the server (rightly) refused it as not-a-date — the exact
+    // Bills dueDate class, found by sweeping the spread-into-body shape.
+    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, joiningDate: body.joiningDate || undefined, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Employee added", "تمت إضافة الموظف") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

@@ -24,6 +24,7 @@
  * would drift silently.
  */
 import jsQR from "jsqr";
+import { tOutside } from "@/contexts/LanguageContext";
 import {
   QR_TAG,
   bytesToBase64,
@@ -56,7 +57,7 @@ async function imagePixels(file: File): Promise<ImageData | null> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("could not read image"));
+      el.onerror = () => reject(new Error(tOutside("could not read image", "تعذرت قراءة الصورة")));
       el.src = url;
     });
 
