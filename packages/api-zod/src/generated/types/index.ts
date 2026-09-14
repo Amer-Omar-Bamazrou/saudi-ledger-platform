@@ -75,6 +75,7 @@ export * from './categoryLiquidityClass';
 export * from './categoryType';
 export * from './company';
 export * from './companyFiscalCalendar';
+export * from './companyLogoState';
 export * from './companyOwnershipType';
 export * from './convertPurchaseOrderInput';
 export * from './convertPurchaseOrderLine';

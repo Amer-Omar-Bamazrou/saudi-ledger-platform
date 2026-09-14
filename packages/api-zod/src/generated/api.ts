@@ -2574,6 +2574,7 @@ export const getCurrentCompanyResponseFiscalYearStartMax = 12;
 
 export const GetCurrentCompanyResponse = zod.object({
   "id": zod.string(),
+  "hasLogo": zod.boolean().describe('L1 level-1 branding: whether a logo is stored for this company. Absent logo = the invoice header carries the registered name alone (no fallback mark, by decision — design-invoice-document.md §2).\n'),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
@@ -2617,6 +2618,7 @@ export const updateCurrentCompanyResponseFiscalYearStartMax = 12;
 
 export const UpdateCurrentCompanyResponse = zod.object({
   "id": zod.string(),
+  "hasLogo": zod.boolean().describe('L1 level-1 branding: whether a logo is stored for this company. Absent logo = the invoice header carries the registered name alone (no fallback mark, by decision — design-invoice-document.md §2).\n'),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
   "crNumber": zod.string().nullable(),
@@ -2630,6 +2632,31 @@ export const UpdateCurrentCompanyResponse = zod.object({
   "city": zod.string().nullable(),
   "postalCode": zod.string().nullable()
 }).describe('A company\'s legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.\n')
+
+
+/**
+ * @summary The stored company logo, served inline (sandboxed, nosniff) for the settings preview and the invoice renderer. 404 when none is stored.
+
+ */
+export const GetCompanyLogoResponse = zod.unknown()
+
+
+/**
+ * @summary Upload/replace the company logo (admin only). PNG/JPG/SVG, 2 MB cap, bytes sniffed (M-5's rule); SVG with active content refused. Body is multipart/form-data with a single 'file' field — left schemaless here deliberately: a binary multipart schema generates DOM types (File/Blob) the node-side Zod package cannot compile, and the client builds FormData by hand (the capture pattern).
+
+ */
+export const UploadCompanyLogoResponse = zod.object({
+  "hasLogo": zod.boolean()
+})
+
+
+/**
+ * @summary Remove the company logo (admin only). The invoice header returns to the registered name alone.
+
+ */
+export const RemoveCompanyLogoResponse = zod.object({
+  "hasLogo": zod.boolean()
+})
 
 
 /**
