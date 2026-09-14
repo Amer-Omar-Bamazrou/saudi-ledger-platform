@@ -1519,3 +1519,28 @@ and a red spec, not a duplicate document. Sibling create buttons
 (bills/quotations/POs/JEs) keep the render-time guard only: their duplicate
 is a DELETABLE DRAFT, and only invoices carry the idempotency key and the
 ICV-permanence composition that justified the belt.
+
+## THE DECISION-FREE POOL — CLOSED 2026-09-14 (the board block, evicted from CLAUDE.md §5 on 2026-09-15)
+
+The 2026-09-04 board named eight items that needed no owner decision, and
+all eight closed on 2026-09-14. Each has its own record; this entry is the
+pool's, so §5 can carry one line. Records, in this file unless stated:
+
+| Item | Record |
+| --- | --- |
+| Break-glass password reset | RANK 1 (2026-09-04) — the email half stays open on the mail provider |
+| C6a — no transaction held across a model call | C6a — CLOSED 2026-09-14 |
+| Constants consolidation (`@workspace/shared`) | CONSTANTS CONSOLIDATION — CLOSED 2026-09-14 |
+| L-1 — a failed security-audit write pages critical | L-1 — CLOSED 2026-09-14 |
+| L1 logo upload | L1 LOGO UPLOAD — SHIPPED 2026-09-14 |
+| N3's remaining half — the party picker | N3's REMAINING HALF — CLOSED 2026-09-14 |
+| The sentinel family | THE SENTINEL FAMILY — CLOSED 2026-09-14 |
+| The Arabic re-sweep | 🔴 **Closed with a CORRECTION.** The morning record's "suspect count 0" was RETRACTED the same day: the instrument was blind (0 of 30 found in a hand-read file). The honest record is the findings file, "the pool-close validation round" §1 — the validated instrument (`scripts/arabic-sweep.mjs`) found ~110 real strings, all fixed, final count 47 all classified as non-copy. The §5 board line's "Arabic re-sweep ✅" overstated for one day and left with this entry. |
+
+**What the closure means for planning:** every remaining path runs through a
+door the owner holds — entity · advisor · mail provider · R1 design ·
+deployment + Groq — and that statement, not the pool, is what §5 now carries.
+The pool-close validation round (findings file, 2026-09-14) is the gate the
+close passed through: it retracted one number, found three more instances of
+the spread-into-body class (one of them in the books), re-guarded 69 mutate
+sites, and caught its own conflict-marker guard blind.

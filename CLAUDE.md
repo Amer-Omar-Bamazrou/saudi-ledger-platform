@@ -8,13 +8,14 @@ Guidance for Claude Code (and any AI agent) working in this repository.
 > findings with their incidents and evidence, the queue items that already
 > closed — lives in [`docs/history/`](docs/history/) and is linked from here.
 >
-> 🔴 **BUDGET: 75k characters, enforced by `apps/api/src/tests/claude-md-budget.test.ts`.**
-> It was 207k (truncated in every session that loaded it), restructured to 35k,
-> and back to 157k within four weeks. Prose asking for restraint has now failed
-> twice, so the limit is a failing test instead. **Raising the number is not a
-> fix.** When the test
-> goes red, something in here has become history; find it with the three rules
-> below.
+> 🔴 **BUDGET: 70k characters, enforced by `apps/api/src/tests/claude-md-budget.test.ts`
+> — a RATCHET** (75k → 70k with the 2026-09-15 split): growth past it is a
+> deliberate act that raises the number in a commit, never something discovered
+> at the ceiling. It was 207k (truncated in every session that loaded it),
+> restructured to 35k, and back to 157k within four weeks; prose asking for
+> restraint failed twice, so the limit is a failing test. **Raising the number
+> is not a fix.** When the test goes red, something in here has become history;
+> find it with the three rules below.
 >
 > 🔴 **The three eviction rules — this file grows because writing has a trigger
 > and deleting has none.** Each rule names the moment a line LEAVES:
@@ -56,16 +57,11 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-09-14.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-09-02** — the contract milestone CLOSED at a deliberate stop; its
-standing rules and the pinned inventory are in §5. 🔴 **2026-09-03/04 — the
-ERPNext comparison; N1–N4 + T1 closed; L1's core SHIPPED (the invoice leaves
-the product — PDF/A-3, veraPDF PASS both renderings) and L2 SHIPPED (the
-responsive shell, the no-sideways-scroll property pinned per route).**
-**2026-09-14** — the QA-pass fixes (#142) and break-glass (#141) MERGED ten
-days after going green (lesson: §3) — and 🔴 **THE DECISION-FREE POOL
-CLOSED the same day** (all eight items; the three blocked flows' UI legs
-also walked by clicking, catching and fixing two client defects). Records:
-§5's board block and the history files.
+**2026-09-02** — the contract milestone CLOSED at a deliberate stop (rules and
+the pinned inventory: §5). **2026-09-03/04** — the ERPNext comparison; N1–N4 +
+T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten days
+after going green (lesson: §3), and 🔴 **THE DECISION-FREE POOL CLOSED** (all
+eight items; record: known-issues file, "the decision-free pool").
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -182,34 +178,27 @@ finding in the list:
    renders zero, a 2xx after a rollback) — it turns an uncorrectable record
    into an **unnoticed** one.
 
-🔴 **4. AFTER CLOSING AN ITEM, ASK WHAT IT CHANGED THE MEANING OF.** A fix does
-not only remove its own finding — it edits the queue. Nothing in this process
-re-examines the remaining items after one lands, so a finding can quietly become
-worse, become moot, or change character while its row still reads as it did when
-written. Observed twice in one session: removing auto-approve **closed** the
-solo-approver finding outright, and the unscoped-`db` fix **changed what
-`getApplication` was** — filed as a retention/PDPL question, revealed also to be
-an RLS bypass. This is the composition class pointed at FIXES rather than
-defects, and it is the step most easily skipped because the fix feels finished.
+🔴 **4. AFTER CLOSING AN ITEM, ASK WHAT IT CHANGED THE MEANING OF.** A fix
+edits the queue: a remaining finding can become worse, moot, or a different
+kind of thing while its row still reads as written — the composition class
+pointed at FIXES, and the step most easily skipped because the fix feels
+finished. *(2 instances in one session; findings file.)*
 
-A finding touching none of these is about as bad as it looks. **One touching two
+A finding touching none of these is about as bad as it looks; **one touching two
 is worse than its severity says, and the difference is not visible from the
-finding alone** — which is the whole reason this check exists separately from
-severity. AUD-13 is the worked example: five items, each correctly triaged
-alone, that together minted a permanent zero-value ZATCA invoice.
+finding alone**. AUD-13 is the worked example *(five items, one permanent
+zero-value ZATCA invoice; findings file)*.
 
 ### The standing check (apply before recording any milestone as done)
 
 1. Every capability has a production **caller**, and the caller chain
    **terminates at a real entry point** — grep the symbol, discard tests and
-   comments, then keep following it up. 🔴 **Name the terminus:** a UI surface
-   in `apps/web`, an operator surface, or a job `start()` actually schedules.
-   Stopping at the HTTP boundary is why this check said *yes* for A1's capture
-   pipeline and A3's recurring rules while neither was reachable from the
-   product — a route file is a caller, and an endpoint nobody calls is the
-   same disease one layer up. Mechanized for routes by
-   `tests/route-reachability.test.ts` (which also carries the known-gap list);
-   the guard covers only that one class, so parts 2–6 stay human.
+   comments, keep following up. 🔴 **Name the terminus:** a UI surface in
+   `apps/web`, an operator surface, or a job `start()` actually schedules — a
+   route file is a caller, and an endpoint nobody calls is the same disease one
+   layer up. *(2 instances of stopping at the HTTP boundary — A1, A3.)*
+   Mechanized for routes by `tests/route-reachability.test.ts` (which carries
+   the known-gap list); parts 2–6 stay human.
 2. Every field it depends on has a production **writer** (grep for writes, not
    references — a column only a migration back-fills is unbuilt).
 3. Every client it depends on has a **real implementation** — if the only thing
@@ -217,12 +206,11 @@ alone, that together minted a permanent zero-value ZATCA invoice.
 4. Every **live external result** is recorded with the endpoint that produced
    it and what that endpoint attests — a pass on a validation endpoint does not
    cover the production path.
-5. **Run the check on your own conclusions.** A claim of absence must carry its
-   **search shape**: state what you searched for (the implementation shapes the
-   capability could take) and what would have falsified the claim, so the
-   search is reviewable, not only the conclusion. *(Two instances of getting
-   this wrong: finding #7's OCR, M16.2's `bank_accounts` — both confidently
-   reported, both acted on.)*
+5. **Run the check on your own conclusions.** A claim of absence carries its
+   **search shape** — what you searched for (the implementation shapes the
+   capability could take) and what would have falsified the claim — so the
+   search is reviewable, not only the conclusion. *(2 instances, both
+   confidently reported, both acted on.)*
 6. When a milestone **implements or moves** something, grep for tests asserting
    it is absent/unimplemented/throwing (`NotImplementedError`, `.rejects`,
    `toThrow`, `toBeNull`, `not.toContain`) and re-read each hit — an assertion
@@ -244,11 +232,11 @@ doing the thing it governs rather than only once you know its name.
 - **A CONSUMER with no producer is worse** — a missing consumer yields a dead column nobody sees; a missing producer yields **a confident zero, which reads as an answer**. Check writers as well as readers, and treat "nothing writes it" as a claim needing part 5's search shape.
 - **A stub is the part that needed testing** — test the branch you did NOT write, by injecting a failing implementation. A method that cannot do the thing must THROW: a no-op reporting success is a false statement the caller builds on. Audit every `resolve*Store` / `get*Provider` seam.
 - **A flag's scope drifts past its name** when the thing it gates becomes shared infrastructure — move the gate WITH the thing the flag names.
-- **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see, and six read-only audits missed four defects one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure.
-- **🔴 A TEST THAT EXERCISES THE CODE BUT NOT THE ARTIFACT IS TESTING A DIFFERENT PROGRAM** (owner-named 2026-09-04, P5's third structural catch) — tests import source; dev and prod run the BUNDLE, whose `import.meta.dirname`, assets and externals differ. Anything read at runtime by path must be proven through the built artifact — which only P5 runs.
+- **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see; six read-only audits missed what one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure. *(4 instances.)*
+- **🔴 A TEST THAT EXERCISES THE CODE BUT NOT THE ARTIFACT IS TESTING A DIFFERENT PROGRAM** (owner-named 2026-09-04) — tests import source; dev and prod run the BUNDLE, whose `import.meta.dirname`, assets and externals differ. Anything read at runtime by path is proven through the built artifact — which only P5 runs. *(2 instances.)*
 - **A hand-written `apiFetch<T>` interface is a claim nobody checks** — TypeScript checks it against the COMPONENT, never the response. Prefer the generated client, and treat a page as working only once it has been RENDERED.
 - **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; §5's contract entry burns the pinned ones down.
-- **NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a client that builds one differently is invisible by construction. Only something driving the real client can see it.
+- **🔴 A SERVER TEST CANNOT SEE THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a malformed body the client actually sends is invisible by construction, and generated input types do not close it (the values are wrong, not the types). A form change ships with a client-path test (`e2e/form-optional-blank.spec.ts` is the pattern) or a walked leg. *(3 instances.)*
 
 #### The check that does not check
 
@@ -259,29 +247,29 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
-- **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing (two QA false positives).
-- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where it is cheap, **build that case INTO the probe** so the comparison cannot be skipped — *make the wrong thing inexpressible* (below), pointed at investigation. The tell: the instrument disagreed with something already known true. 🔴 Six instances; the sixth (an ASCII grep over glyph-encoded PDF streams, blind in BOTH directions) was caught BY the countermeasure — a planted positive failing on a real render — not by luck.
+- **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing. *(2 instances.)*
+- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where cheap, **build that case INTO the probe** so the comparison cannot be skipped (*make the wrong thing inexpressible*, pointed at investigation). The tell: the instrument disagreed with something already known true. *(8 instances; 2 caught by their own planted positives.)*
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
 - **🔴 A TOLERANCE APPLIED TO THE VALUES YOU COMPUTE, NOT THE VALUES YOU STORE, CHECKS A DIFFERENT THING THAN IT APPEARS TO** (owner-named 2026-09-03) — it admits what will persist imbalanced and rejects what would persist balanced, and the two only converge when ONE SEAM owns both the checking and the storing. Visible only once the seam existed.
 - **A value that satisfies every check while meaning nothing** — `Number("")` is 0, so `creditLimit: ""` passed the guard, stored, and read back as a limit of 0.00. Check the MEANING, not only the type.
 - **A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body.
-- **🔴 A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT.** Batch 1 found the PAGES wrong, batch 2 the SPEC — both inside endpoints already counted as covered.
+- **🔴 A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT.** *(2 batches: the first found the PAGES wrong, the second the SPEC — both inside endpoints already counted as covered.)*
 - **A WRONG CONTRACT IS WORSE THAN NO CONTRACT** — it generates CONFIDENT types that are wrong, out of the mechanism meant to prevent exactly that.
-- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED — RE-RUN THE THING YOU JUST HARDENED.** Twice: the readiness wait meant to stabilise P5 broke it, and a believed-correct `pool.on("error")` fix crashed the next run identically.
+- **🔴 A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED — RE-RUN THE THING YOU JUST HARDENED.** *(2 instances.)*
 - **A STACK'S TIP IS NOT ITS BODY OF WORK** — measure the union of the stack, never `main..tip`, and do not read stack position as chronology.
 
 #### The fix that does not finish
 
-- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. Three instances.
+- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. *(3 instances.)*
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface.
-- **🔴 THE FRAME IS PART OF THE COUNT** — a walk produces a SAMPLE; only an inventory produces a COUNT. The same absence counted 1, then 7, then 12 as the frame widened, and **7 was correct inside its frame**, which is subtler than under-counting. State the frame beside the number.
+- **🔴 THE FRAME IS PART OF THE COUNT** — a walk produces a SAMPLE; only an inventory produces a COUNT, and a count is correct only inside its frame — subtler than under-counting. State the frame beside the number. *(3 instances; one absence counted 1, then 7, then 12 as the frame widened.)*
 - **🔴 SEPARATE FINDINGS COMPOSE INTO SOMETHING WORSE THAN THEIR SUM — AND THE COMPOSITION IS THE FINDING.** Severity is per finding; consequence is per PATH. Run the triage check above on every finding and rank on the worst path a user can walk.
 - **A composition defect is invisible to any review that reads one file at a time — TWO shapes, TWO countermeasures.** *Data flow* (one file writes the fact another trusts; the EDGE is the hole): human — enumerate what a privilege can WRITE, grep every guard that READS it. *Position* (a route on the wrong side of a guard): mechanical — `tests/privilege-surface-map.test.ts`, which 🔴 would NOT have caught F1.
 - **🔴 WHEN A MAP REPLACES A MAP, ASSERT BOTH DIRECTIONS** — every entry points at something, and everything is pointed at. Reconciling entry by entry answers one direction only, and cannot see what the new map never listed.
-- **🔴 A GREEN PR MOVES NOTHING UNTIL SOMETHING CALLS THE MERGE** — two verified PRs sat ten days because no step owned "after green". Reading the board includes reading the open-PR list with check conclusions.
+- **🔴 A GREEN PR MOVES NOTHING UNTIL SOMETHING CALLS THE MERGE** — reading the board includes reading the open-PR list with check conclusions; a green PR older than a day is a board item. *(1 instance — two PRs, ten days.)*
 
 #### Where the rule lives — construction over convention
 
@@ -289,11 +277,11 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it, and prefer a boundary with no override.
 - **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
 - **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
-- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift. 🔴 Fourth instance 2026-09-03 (read-side 0.01 vs write-side 0.005, after the two report families, the two AR computations, and the 12 `round2`s) — so shared constants are SWEPT periodically and mechanically, not noticed one at a time. Sweep record: findings file.
+- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift; shared constants are SWEPT periodically and mechanically (`@workspace/shared` is the one definition), never noticed one at a time. *(4 instances; sweep record: findings file.)*
 - **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary; generalises to any two-layer guard with a legitimate wide arm.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
 - **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
-- **🔴 ASK OF EVERY SEVERANCE WHAT AN UNHANDLED EVENT ON THE SEVERED THING TAKES WITH IT** — an idle-in-transaction timeout killed the API PROCESS. 🔴 And standard advice applied without checking which case you have is its own trap: `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`.
+- **🔴 ASK OF EVERY SEVERANCE WHAT AN UNHANDLED EVENT ON THE SEVERED THING TAKES WITH IT** — and standard advice applied without checking which case you have is its own trap: `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`. *(1 instance — it killed the API process.)*
 - **A retry cannot fix an ordering problem** — if the missing thing has a CREATOR rather than a settling time, waiting is a slower failure. Ask *what creates this, and is it scheduled before me?*
 - **A mirror is a hypothesis about the target, not a fact about it** — diff the two tables' columns in `information_schema` before mirroring an entity, rather than reasoning from the shape of the source.
 
@@ -494,23 +482,19 @@ which holds every closed item with its full reasoning.
 🔴 **The owner's external plan labels map onto THIS queue** (recorded
 2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
 P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
-🔴 Working order (2026-09-04): **L2 ✅ shipped** after L1's core ✅ (N1–N4 ✅). L1's remainder waits on decisions/providers, not effort. Break-glass ✅ shipped 2026-09-04; next: the decision-free pool below.
 
-### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
+### 🔴 THE BOARD (owner-ordered record, 2026-09-04; the pool closed 2026-09-14)
 
-**The decision-free pool — CLOSED 2026-09-14** (break-glass ✅ · C6a ✅ ·
-constants ✅ · L-1 ✅ · logo ✅ · party picker ✅ · sentinel family ✅ · Arabic re-sweep ✅;
-records: known-issues + findings files). **Every remaining path now runs
-through a door the OWNER holds**: entity ·
+**Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
+(The decision-free pool — eight items — CLOSED 2026-09-14; record: known-issues
+file, "the decision-free pool".)
 🔴 **Four ERPNext findings await the OWNER'S RANKING** — withholding tax and
 advance payments (LEGAL exposures), fixed-assets GL (wrong statements today),
-migration onboarding (blocks any customer with history) — costed in the
-comparison doc's triage addendum; invisible to planning until placed.
-(N1–N4 + T1 closed — records:
-[`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md);
-evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).)
+migration onboarding (blocks any customer with history) — costed in
+[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)'s
+triage addendum; invisible to planning until placed.
 
 ### Blocking, by their own nature
 
@@ -519,7 +503,7 @@ evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. *(Logo upload ✅ shipped 2026-09-14 — record: known-issues file.)* |
+| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product** (PDF/A-3, veraPDF PASS both renderings; logo upload ✅ 2026-09-14). Records: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -533,30 +517,28 @@ evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
 | **C6** | **Residency / hosting, the AI hosting decision — and now a real deployment WEIGHT.** 🔴 L1's renderer is Chromium — the only engine that shapes Arabic correctly — adding **~150 MB** to whatever we deploy: a hosting line, not a footnote. (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) Confirm an Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS) unchanged; no hosted Supabase project exists yet. |
 
-### Advisor package — one conversation, four blocks
+### Advisor package — one conversation
 
-Written up in [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md).
+🔴 **The single writer is [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md)** — the full questions, the priority order and the implementability notes live there, not here. One line each:
 
 | # | Item |
 | --- | --- |
-| **C7** (Block A) | Retention of INBOUND supplier documents. A1 retains captures to the 6/11-year outbound standard — a conservative default, not a settled reading. 🔴 `retain_until` has a writer and **no reader** — a stored intention, not a policy; whatever duration comes back, an ENFORCER must be built. An answer SHORTER than the outbound standard is **not implementable today** (promoted captures live in a store with no delete): a B3-shaped build. |
-| **C8** (Block B) | 🔴 **PDPL — higher priority than C7.** 🔴 **Self-instance 2026-09-02** (a client invoice committed as a layout reference, reversed pre-push). Never scoped; it covers the PLATFORM, not just capture (append-only IPs, archived names/addresses for 6–11 years, no retention policy on `users`/`customers`/`employees`). The irreversible act is already performed by ordinary users: posting a bill promotes a photograph into a store that can never delete it. 🔴 Ask whether inbound third-party captures may be made **erasable-with-audit** without touching the outbound ZATCA §5.5 guarantee — we give both classes the identical no-delete promise today. **Also here:** whether operator readability of a verified tenant's identity documents should EXPIRE. |
-| **C10** (Block C) | 🔴 **ZAKAT base computation — M17.3 and M17.4 are HELD on this.** Q1–Q8 decided the MECHANISM; the TAX CONTENT has never been checked against the Zakat Collection Regulations. 🔴 **Ask C1 (the minimum-base rule) FIRST — the only one that changes architecture, not arithmetic:** if the base ties to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail. The rest (base composition, the Gregorian divisor and rounding, nisab's corporate role — assumed NO, say so in the UI, and the mixed/foreign-ownership posture) is in `advisor-questions.md`. |
-| **C12 leftovers** (Block D) | **D1:** whether ZATCA's *audit practice* questions gaps — the text cannot answer it, and a "yes" means building an explanation for each absent number, not changing the allocator. **D2:** both English texts are unofficial translations with the **Arabic prevailing**, and our reading rests on متسلسل / "sequential". |
-| **Invoice dating** | 🔴 The closed-period policy is **REASONED-NOT-VERIFIED** (source: the owner, not an accountant): an invoice must not be dated into a closed period at all; work done in a closed month is issued in the current open period, and revenue belonging to the closed month is an accrual made BEFORE closing. Enforced today on create and on a changed `date` (423 `period_closed`). **The open question:** whether Saudi practice permits ANY exception — a grace window, or an audited override. |
+| **C7** (Block A) | Inbound-document retention. `retain_until` has a writer and NO reader; an answer shorter than the outbound standard is not implementable today (a B3-shaped build). |
+| **C8** (Block B) | 🔴 PDPL, platform-wide — higher priority than C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also: whether operator readability of verified identity documents should expire. |
+| **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the only answer that changes architecture, not arithmetic. |
+| **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic text prevails and our reading rests on متسلسل. |
+| **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (decision record: known-issues file); the open question is whether Saudi practice permits ANY exception. |
 
 ### Code-level open findings — RANKED BY CONSEQUENCE, not by discovery
 
-🔴 **Re-ranked 2026-08-28 using the composition question** (§3's newest lesson):
-not "how bad is this finding" but "what does it compose with, and does the
-result become **irreversible**, **uncorrectable**, or **unnoticed**". AUD-13 is
-why: five items, each correctly triaged in isolation, that together minted a
-permanent zero-value ZATCA invoice. **Composition risk is stated per row, and it
-is the reason the order is not the severity order.**
+🔴 **Ranked by the composition question** (§3's triage check): what does it
+compose with, and does the result become **irreversible**, **uncorrectable**,
+or **unnoticed**. **Composition risk is stated per row, and it is the reason
+the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (operator surface: generated-never-chosen temp password shown once; every live session revoked in the same act; operator-targets refused AND the refusal audited — record: known-issues file). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and C's recorded risk stands: the break-glass must not quietly become the permanent answer. | Build the email flow the week the provider lands. |
+| **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (record: known-issues file, RANK 1). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed; L-1 closed 2026-09-14 — a failed security-audit write now pages critical.)* | — | The genuine long tail. |
 
@@ -578,10 +560,13 @@ needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**, and coverage is MEASURED, never noticed
-(the idiom-count sweep). Last measured 2026-09-14: suspect count 0 after
-fixing ScanReview (14 strings), ChangePassword, not-found. Re-run before
-launch. Record: findings file.
+Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
+by `scripts/arabic-sweep.mjs`, an instrument validated against hand-read
+files before its count is believed (the 2026-09-14 "suspect count 0" was
+RETRACTED as the instrument's blindness; the validated round then found and
+fixed ~110 strings; final count 47, all classified as non-copy). Re-run
+before launch. Record: findings file, the pool-close validation round.
+
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
@@ -600,27 +585,25 @@ launch. Record: findings file.
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
 seed grants, git-history secret scanning. Records: findings file.
 
-🔴 **SAME-ORG CROSS-COMPANY ISOLATION — audited: NOT enforced; OPEN as a
-decision** (`tests/cross-company-isolation.test.ts`). No RLS policy reads
-`app.current_company_id`, and 15 company-scoped repositories never mention
-company (`reports`, `analytics` among them): a two-company org's trial balance,
-GL and VAT return ADD BOTH SETS OF BOOKS. Scoping every policy would break
-legitimate org-level reads, so it is a DECISION with an owner; the
-company-blind list is pinned and can only shrink. Detail: findings file.
+🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
+record: known-issues file).** What stays operating: the company-blind
+repository list in `tests/cross-company-isolation.test.ts` (12, on the
+row-level backstop) is pinned and can only SHRINK. *(This entry read "NOT
+enforced; OPEN as a decision" for twelve days after N1 closed it — a queue
+entry records what someone believed then.)*
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
+
 🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20).**
-Every MONEY surface is in `openapi.yaml` under a conformance test that parses
-real responses; `tests/hand-written-interface-ratchet.test.ts` keeps the
-generator closed. Standing rules:
-- 🔴 **A leave and a join in one milestone is the generator running — stop, do
-  not net**, and **a `type` alias that satisfies the detector is the ratchet
-  GAMED**: a file leaves by consuming the generated type, never by rephrasing.
-- 🔴 **The 20 pinned files are a STOP, not a backlog** (owner, 2026-09-02):
-  operator/identity, AI and read-only surfaces carrying no tenant money.
-  Burning them down would make the COUNT the goal. **Do not read 20 as
-  unfinished.** Inventory and the batch records: findings file.
-- TanStack is unblocked now the money surfaces are typed.
+Every MONEY surface is in `openapi.yaml` under a conformance test parsing real
+responses; `tests/hand-written-interface-ratchet.test.ts` keeps the generator
+closed. Standing rules: 🔴 **a leave and a join in one milestone is the
+generator running — stop, do not net**; **a `type` alias satisfying the
+detector is the ratchet GAMED** (a file leaves by consuming the generated type,
+never by rephrasing); 🔴 **the 20 pinned files are a STOP, not a backlog**
+(owner, 2026-09-02 — no tenant money; burning them down would make the COUNT
+the goal). Inventory: findings file. TanStack is unblocked.
+
 ## 6. Tech Stack
 
 | Layer         | Technology                                                               |
@@ -713,22 +696,15 @@ deleted at the M12 close-out. Workspace package names are unchanged; `pnpm
 Operating references:
 
 - 🔴 [`docs/hld.md`](docs/hld.md) — **the High-Level Design: the one document
-  that presents this system to someone who has never seen it** (technical
-  diligence, a prospective partner, a joining developer). Product, architecture,
-  the tenancy/security model incl. the operator boundary and the two composition
-  shapes, the data model, ZATCA, the AI layer, provider seams, and the
-  deployment posture stated honestly (nothing is deployed). It describes what
-  EXISTS and marks planned things as planned; it dates its claims and points
-  here for "now" rather than restating status.
+  that presents this system to someone who has never seen it.** Describes what
+  EXISTS, marks planned as planned, dates its claims, points here for "now".
 
 - `README.md` — overview and quick start; `docs/local-setup.md` — run locally.
 - [`docs/development-guide.md`](docs/development-guide.md) — layering,
   tenancy/RLS, RBAC, audit, "add a new domain" cookbook. Read before backend
   work.
 - [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the four
-  owner actions as a LIVE, tickable checklist (entity → advisor → Groq →
-  receipts). It is the writer for their state; the dated state-of-the-platform
-  snapshot is frozen history and defers to it.
+  owner actions as a LIVE checklist; the single writer for their state.
 - `CONTRIBUTING.md` — branch strategy, commit conventions, PR checklist.
 - [`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) — target
   architecture.
@@ -736,17 +712,13 @@ Operating references:
   order/timing fragilities. The diagnostic: *passes alone, fails in the full
   run* = shared state, not a regression. Do NOT fix with
   `fileParallelism: false` or by raising rate limits.
-- [`docs/product/design-analytics.md`](docs/product/design-analytics.md) — Analytics
-  (round 3): cash + solvency trends, "cash collected" never "revenue", and the
-  rule that keeps AI parked (state WHERE a change came from, never WHY).
+- [`docs/product/design-analytics.md`](docs/product/design-analytics.md) —
+  Analytics decisions ("cash collected" never "revenue"; WHERE, never WHY).
 - [`docs/product/design-pass-inherited-decisions.md`](docs/product/design-pass-inherited-decisions.md)
-  — 🔴 what the UI redesign INHERITS, with measured costs: the vendored
-  `components/ui/**` deliberately not owned, the dead `.dark` block, and numeric
-  alignment in RTL. 🔴 **RTL CLOSED 2026-08-31 by a THIRD option** (owner):
-  neither owning the components nor deferring, but an override layer keyed on
-  the UTILITY (`src/rtl-overrides.css`) — 24 of 39 utilities flipped globally,
-  15 positioning ones left to a hand audit because centring is not direction.
-  Deleted whole when the redesign lands. Guard: `tests/rtl-override-layer.test.ts`.
+  — 🔴 what the UI redesign INHERITS (unowned `components/ui/**`; the RTL
+  override layer `src/rtl-overrides.css`, deleted whole when the redesign
+  lands — decision record: findings file, 2026-08-31; guard:
+  `tests/rtl-override-layer.test.ts`).
   [`docs/product/feature-spec-automation.md`](docs/product/feature-spec-automation.md),
   [`docs/product/design-zakat-module.md`](docs/product/design-zakat-module.md)
   — product decisions in force.
@@ -765,44 +737,31 @@ History (the full narrative this file used to carry):
 
 ## 10b. 🔴 Tooling hazards (learned the hard way)
 
-**The Edit tool can silently write back STALE file content** — an `Edit`
-applied against a snapshot taken before a script changed the file REVERTED the
-script's change, reported success, and was caught only by a test going red
-again (incident: findings file). Mitigations: (1) a file modified by a SCRIPT
-this session stays on the scripted path (`categorizer.ts` is); (2) after any
-"modified on disk since you last read it" warning, re-verify the earlier change
-is still present; (3) prefer a test that fails loudly — this loss is invisible
-to reading.
+Long forms, with their commits: findings file, "the CLAUDE.md split" (2026-09-15).
 
-**🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
-VERDICT.** Use `${PIPESTATUS[0]}`, or don't pipe the command whose status you
-need — and read `Test Files` plus the EXIT CODE, never `Tests`: a hook failure,
-an import error and an unhandled rejection all fail the FILE while every test
-still counts as passed. 🔴 When a tool reports several numbers, find out which
-one is the verdict before trusting any of them. (Twice; incidents: findings
-file.)
-
-**🔴 A COMMAND THAT CANNOT DISTINGUISH "NO TARGET" FROM "ALL TARGETS"
-DEFAULTS TO MAXIMAL ACTION** — an unanchored `sed` appended to every line of
-the file and reported success; same family as `rm -rf "$DIR"/` with `DIR`
-unset, a `DELETE` whose `WHERE` built to nothing, a filter with an empty
-allowlist. The tell: *what does this do when its input is empty?* If the answer
-is "everything", quoting discipline is not the fix. **The countermeasure is the
-STANDING PATTERN for scripted edits to tracked files:
-`scripts/anchored-edit.mjs`** — every edit names an anchor that must match
-exactly once; zero matches, two matches, or an empty anchor abort having
-written nothing, so "no target" and "all targets" get different, loud outcomes
-(§3's inexpressibility rule aimed at our own tooling; it has refused bad
-anchors repeatedly). Use it (`--dry-run` when unsure); a heredoc writing a
-whole NEW file is fine, and the editing tools suit one-off changes.
-
-**🔴 A REVERT CAN TAKE UNCOMMITTED WORK WITH IT, SILENTLY** — `git checkout
--- <file>` restores the last COMMIT, not the last state you verified, and a
-mixed diet of scripted and tool edits on one file can silently revert work the
-same way (the stale-write hazard above). **After any revert, re-verify the
-changes you meant to keep are still present** — the same discipline as after a
-stale-snapshot warning. (Second instance 2026-09-03, caught by re-grepping the
-symbol before moving on.)
+- **The Edit tool can silently write back STALE file content** — an edit against
+  a pre-script snapshot reverts the script's change and reports success. A
+  script-modified file stays on the scripted path; after any "modified on
+  disk" warning, re-verify the earlier change; prefer tests that fail loudly.
+  *(1 instance.)*
+- **🔴 `| tail` THROWS AWAY THE EXIT CODE, AND "Tests: N passed" IS NOT THE
+  VERDICT.** Don't pipe the command whose status you need; read `Test Files` +
+  the EXIT CODE, never `Tests` (a hook failure, an import error and an
+  unhandled rejection all fail the FILE while every test counts as passed).
+  When a tool reports several numbers, find which one is the verdict before
+  trusting any. *(2 instances.)*
+- **🔴 A COMMAND THAT CANNOT DISTINGUISH "NO TARGET" FROM "ALL TARGETS"
+  DEFAULTS TO MAXIMAL ACTION** — the tell: *what does this do when its input is
+  empty?* If "everything", quoting discipline is not the fix. Scripted edits to
+  tracked files go through `scripts/anchored-edit.mjs` (an anchor that must
+  match exactly once, or nothing is written; `--dry-run` when unsure); a
+  heredoc writing a whole NEW file is fine, and the editing tools suit one-off
+  changes. *(1 instance.)*
+- **🔴 A REVERT CAN TAKE UNCOMMITTED WORK WITH IT, SILENTLY** — `git checkout
+  -- <file>` restores the last COMMIT, not the last state you verified, and a
+  mixed diet of scripted and tool edits on one file reverts the same way. After
+  ANY revert, re-verify the changes you meant to keep are still present.
+  *(2 instances.)*
 
 ## 11. Development Conventions
 
@@ -817,39 +776,25 @@ symbol before moving on.)
   and put the narrative record in `docs/history/` — not in this file.
 - **🔴 The same commit that CLOSES a thing REMOVES it from here.** A closed queue
   item leaves §5; a lesson's incident narrative leaves §3; a milestone's
-  as-built account never enters §2. This file grew 35k → 157k in four weeks
-  because writing is triggered by an event and deleting is triggered by nothing
-  — so deletion now has a trigger too, and
-  `tests/claude-md-budget.test.ts` fails when it is ignored. Raising the budget
-  is not a way to pass it.
+  as-built account never enters §2. `tests/claude-md-budget.test.ts` (70k,
+  ratcheted) fails when this is ignored — raising the budget is a deliberate
+  commit, never a way to pass it.
 - **🔴 Docs never state current status in their own words — they DATE their
-  claims and point at §2 for "now".** Any doc carrying free-standing status
-  prose WILL drift (found 2026-08-21 across seven docs; incident in the
-  findings file). The rule, applied everywhere:
-  a status line is **"Status (YYYY-MM-DD): <claim>. Current state authority:
-  CLAUDE.md §2."** — the date makes staleness visible instead of silent, and
-  the pointer makes §2 the single writer for "now" (the one-writer-per-effect
-  rule, applied to prose). A header must also never lag its own body: a doc
-  whose §12 says "built" while its title says "building" is the
-  narrower-claim shape in miniature.
+  claims and point at §2 for "now".** A status line is **"Status (YYYY-MM-DD):
+  <claim>. Current state authority: CLAUDE.md §2."** — the date makes staleness
+  visible, the pointer makes §2 the single writer for "now". A header must
+  never lag its own body. *(7 docs had drifted; the sweep: findings file.)*
   🔴 **Corollary — a DATED artifact and a LIVE one are different documents,
-  and the live one must never defer to the dated one** (owner, 2026-08-26).
-  A snapshot is frozen by design; a checklist is ticked. Folding the second
-  into the first makes the checklist inherit an "as of" date it does not
-  deserve. Split them; each is the single writer for its own fact.
-- **🔴 A DESIGN RATIONALE AGES FASTER THAN A CAVEAT** (owner-named, 2026-08-31).
-  On the HLD rewrite, every "this is unproven" line had held; what had rotted
-  was every passage arguing **why the design is right** — the HLD's most
-  confidently argued section described the opposite of what ships, four days
-  after it was written. **A rationale POINTS AT the decision record instead of
-  restating the argument**, so revisiting the decision updates one place, not
-  two. Incident: findings file.
-- **🔴 A READER CANNOT DETECT AN ABSENCE** (owner-named, 2026-08-31) — so a
+  and the live one never defers to the dated one** (owner, 2026-08-26): split
+  them; each is the single writer for its own fact.
+- **🔴 A DESIGN RATIONALE AGES FASTER THAN A CAVEAT** (owner-named, 2026-08-31)
+  — a rationale POINTS AT the decision record instead of restating the
+  argument, so revisiting the decision updates one place. *(1 instance: the
+  HLD's most confident section, wrong in four days; findings file.)*
+- **🔴 A READER CANNOT DETECT AN ABSENCE** (owner-named, 2026-08-31) — a
   document whose job is completeness is CHECKED AGAINST A COVERAGE LIST, never
-  written from memory. The old HLD's wrong statements were findable; its
-  omissions were not, and G-1's negative result — exactly what a diligence
-  reader wants — simply was not there. Maintain the list; generate or check the
-  prose against it. Incident: findings file.
+  written from memory. *(1 instance: the old HLD's missing G-1 negative result;
+  findings file.)*
 - **pnpm only** (a preinstall guard rejects npm/yarn).
 - 🔴 **Run `pnpm run verify` before reporting work done** — typecheck, every suite, build, in CI's order. A filtered command answers a NARROWER question; never report it as the broader one.
 

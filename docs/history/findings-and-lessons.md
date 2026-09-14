@@ -6309,3 +6309,186 @@ exact class twice found this week. The candidate standing rule for §3,
 HELD for the CLAUDE.md split decision: "a server test cannot see the
 client's request construction — a form change ships with a client-path
 test or a walked leg."
+
+## 🔴 2026-09-15 — A CLAIM WITHOUT ITS EVIDENCE (the discarded migration comment; owner-named)
+
+**The incident.** The 2026-09-14 session was killed by the machine, not by
+a clean exit, and the working tree it left behind held an uncommitted,
+un-pushed migration `0071_date_format_checks.sql` — already APPLIED to the
+local database (journal row 105, hash matching the file) — whose header
+comment asserted that `invoices.date` and `bills.date` "were audited clean
+(0 violations in every existing environment, 2026-09-15)". **The audit's
+evidence existed nowhere in the tree**: not in this file, not in the
+known-issues file, not in a test, not in a scratch record. The state
+recovery could not tell whether the audit had run and its record was lost
+with the session, or had never run and the sentence was written ahead of
+the work. A reader six months on could not have told either. The tree was
+discarded whole (owner-ordered: a half-applied split is worse than none),
+the three CHECK constraints dropped and the journal row deleted, and the
+work redone from a verified baseline — with the audit's record written
+BEFORE the migration that cites it.
+
+**Why it is its own class, distinct from instrument-wrong-before-the-code.**
+The retracted Arabic zero (the pool-close round, above) was a measurement
+that was RUN and was WRONG — the instrument was blind, and the number it
+reported was a real output of a real instrument. Here the instrument was
+never run, or was run and never recorded, **and the artifact does not let a
+reader distinguish the two.** Instrument-wrong is caught by validating the
+instrument; claim-without-evidence cannot be caught at all, because there is
+nothing to validate — only a sentence, in a file whose lifetime exceeds the
+memory of whether the work behind it happened. The common ancestor is the
+§3 rule that a claim inside an artifact is still a claim; this is its
+worst form, because the artifact is code, and code reads as fact.
+
+**The rule (owner-stated): an assertion about the state of the world,
+written into code, a comment, or a migration, carries a POINTER to where
+its evidence lives — or it is not written.** "Audited clean" is not a
+statement code may make; "audited clean — see findings 2026-09-15, the
+date-column audit" is. The pointer converts the sentence from a claim into
+a citation, and a citation can be followed, dated, and found wanting. The
+corollary for the writer: the evidence entry is written FIRST, in its
+single-writer home (this file for findings, `docs/` for design facts), and
+the code cites it — never the reverse, and never both restating the
+conclusion.
+
+**How it was applied on the redo.** The date-column audit was re-run from
+the recovered baseline and recorded below with its date, its counts, and
+its frame (one environment — nothing is deployed); the migration's comment
+points at that entry and states no number of its own. The same shape
+governs the Arabic hold-out (task B) and the display-dependency count
+(task D): the number lives here, the code points here.
+
+## 2026-09-15 — THE CLAUDE.md SPLIT (75k → 70k, ratcheted): what left, where it went, and what the move found
+
+**The charge (owner):** a SPLIT, not a compression. Text that leaves
+`CLAUDE.md` lands in its declared single-writer home and the inline line
+points at it; a piece with no destination worth writing to STAYS. Instance
+counts stay inline, one integer per rule — the count is what makes a failure
+mode binding rather than advisory. The budget test's constant is ratcheted
+75,000 → 70,000 so growth past it is a deliberate commit, not a discovery
+at 74.4k. Measured before: 74,406 characters (LF-normalised, as the test
+measures). After: recorded in the commit that carries this entry.
+
+### What the move found — three defects in the operating file itself
+
+1. **🔴 A closed item twelve days stale in §5.** "SAME-ORG CROSS-COMPANY
+   ISOLATION — audited: NOT enforced; OPEN as a decision" was still in §5 on
+   2026-09-15. N1 closed it AT THE ROW on 2026-09-03 (known-issues file, N1:
+   the RLS company arm on 35 policies, `companyScope.ts`, the
+   presence/absence/movement proof). The §5 entry survived the closing
+   commit — eviction rule 1 was not applied — and read as an open security
+   decision for twelve days. *A queue entry records what someone believed
+   then*: anyone planning from §5 would have re-opened a closed question. §5
+   now carries one line (closed; the shrink-only company-blind list of 12
+   stays pinned).
+2. **🔴 Two "incident: findings file" pointers that pointed at nothing.**
+   §10b's four tooling hazards said "(incident: findings file)" and "(Twice;
+   incidents: findings file)"; §11's docs-status rule said "found 2026-08-21
+   across seven docs; incident in the findings file". Neither incident was
+   in this file — only back-references FROM here TO §10b. The same class as
+   the discarded migration comment (the entry above): a citation whose target
+   does not exist reads exactly like one whose target does. Both long forms
+   are written below, from their commits, so the pointers are now true.
+3. **§5's Arabic-coverage block still carried the RETRACTED zero** ("Last
+   measured 2026-09-14: suspect count 0") — held only because the owner had
+   asked that nothing touch `CLAUDE.md` before the split proposal. Corrected
+   in the split; the held-out validation (task B) updates it again.
+
+### The long forms that had no record — written from their commits
+
+**§10b-1 — the Edit tool silently wrote back STALE content** (commit
+`1d01482`, 2026-08-14, #37 — Option A, transactions post to the GL). A
+script had modified `categorizer.ts` (61 field literals, scripted for
+exactly the reason §10b-3 gives); an `Edit` issued afterwards was applied
+against the tool's snapshot taken BEFORE the script ran, so it wrote the
+pre-script content back, reverting the script's change, and reported
+success. Nothing in the session showed a diff going backwards; the loss was
+caught only because a test that had gone green went red again. Mitigations
+adopted: a file touched by a script this session stays on the scripted
+path; after any "modified on disk since you last read it" warning, re-verify
+the earlier change is still present; prefer a test that fails loudly,
+because this loss is invisible to reading.
+
+**§10b-2 — `| tail` threw away the exit code, and "Tests: N passed" was
+read as the verdict** (commit `719f194`, 2026-08-21, #63 — C12, invoice
+numbers; the second instance is the migration-tool "nothing to apply"
+message, recorded at the M12.6 outbox entry: a success message that cannot
+distinguish "did the work" from "found no work"). A test command piped
+through `tail` returned tail's exit status, not vitest's; and vitest's
+summary carries several numbers of which `Tests` is NOT the verdict — a hook
+failure, an import error and an unhandled rejection all fail the FILE while
+every test inside it still counts as passed. The discipline: never pipe the
+command whose status you need (or read `${PIPESTATUS[0]}`); read
+`Test Files` plus the exit code; and when a tool reports several numbers,
+find out which one is the verdict before trusting any of them.
+
+**§10b-3 — a command that cannot distinguish "no target" from "all targets"
+defaults to maximal action** (`scripts/anchored-edit.mjs` added in commit
+`aff3f08`, 2026-08-27, #95 — F1; the §10b line written 2026-09-03 in
+`613eb12`, #135). A scripted edit to a tracked file was driven by a shell
+variable that was empty; `sed`, with no address to match on, applied the
+append to EVERY line of the file and reported success. Same family as
+`rm -rf "$DIR"/` with `DIR` unset, a `DELETE` whose `WHERE` built to nothing,
+a filter with an empty allowlist. The tell is the question *what does this
+do when its input is empty?* — if "everything", quoting discipline is not the
+fix. The countermeasure is construction: `anchored-edit.mjs` requires an
+anchor that matches EXACTLY ONCE; zero matches, two matches or an empty
+anchor abort having written nothing, so "no target" and "all targets" get
+different, loud outcomes. It has refused bad anchors repeatedly since.
+
+**§10b-4 — a revert took uncommitted work with it, silently** (two
+instances; the second 2026-09-03 in `613eb12`, #135, caught by re-grepping
+the symbol before moving on). `git checkout -- <file>` restores the last
+COMMIT, not the last state that was verified — so a revert meant to undo one
+change also undid the verified-but-uncommitted changes beside it, and a
+mixed diet of scripted and tool edits on one file loses work the same way
+(§10b-1's mechanism). The discipline: after ANY revert, re-verify that the
+changes meant to survive are still present — the same check as after a
+stale-snapshot warning. The 2026-09-15 recovery applied it deliberately:
+the whole tree was discarded, then re-verified against the committed
+baseline before anything was rebuilt.
+
+**§11 — the docs staleness sweep: seven fixes and the convention that
+prevents the eighth** (commit `0f94e0c`, 2026-08-21, #65; the commit body is
+the record). The README's twenty-milestone drift prompted a sweep of
+everything a newcomer reads. Seven findings, worst first: (1) the ZATCA
+manifest omitted the two LEGAL texts C9 and C12 cite clause by clause, so a
+revision to the law our verdicts rest on would have passed silently — both
+pinned by SHA-256 + Last-Modified; (2) the development guide's cookbook
+walked a HYPOTHETICAL quotations resource that had since been built — the
+real implementation became the cookbook; (3) the architecture blueprint
+said "Keep/adopt Redis" and "leaning Redis", both settled the other way by
+C1 — marked SUPERSEDED in place; (4) `feature-spec-automation`'s header said
+"specced, not built" while its own children recorded BUILT — the
+narrower-claim shape as a header describing the doc's oldest state; (5–7)
+three header lags: the quotations doc's title said "building" while its §12
+said built, a3-recurring said "UI is the remaining piece" with Recurring.tsx
+shipped, m12-status re-dated. THE CONVENTION: docs never state current
+status in their own words — a status line reads
+"Status (YYYY-MM-DD): <claim>. Current state authority: CLAUDE.md §2." The
+date makes staleness visible instead of silent; the pointer makes §2 the
+single writer for "now" (one-writer-per-effect, applied to prose); and a
+header must never lag its own body.
+
+### The move ledger — every block that left, and its home
+
+| Left `CLAUDE.md` | Went to |
+| --- | --- |
+| Header: the 207k/35k/157k story | Stays (shortened) — it IS the budget's rationale, and the test file carries the long form |
+| §2 narrative paragraph (as-built detail for 09-02/03/04/14) | Already in this file and known-issues; §2 keeps the status line |
+| §3 triage check 4 — the two observed instances | This file: the auto-approve removal (the solo-approver finding closed) and the unscoped-`db` fix (`getApplication` revealed as an RLS bypass); the rule keeps "(2 instances)" |
+| §3 standing check 1 — the A1/A3 reachability story | This file: "route-reachability … green while all of it is unreachable"; the rule keeps "(2 instances)" |
+| §3 standing check 5 — finding #7's OCR, M16.2's `bank_accounts` | This file (the search-shape records); the rule keeps "(2 instances)" |
+| §3 index: the inline incidents on nine lines (six audits/four defects · `import.meta.dirname` · the glyph-encoded probe · readiness wait + `pool.on("error")` · 1-then-7-then-12 · the 0.005 fourth instance · idle-in-transaction · two PRs ten days · batches 1 and 2) | All already recorded here (2026-08-31 to 2026-09-14 entries); each line keeps its count |
+| §3 "NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION" | Upgraded in place to the HELD rule (this file, the pool-close round: "a server test cannot see the client's request construction — a form change ships with a client-path test or a walked leg"), count 3 |
+| §5 board: the closed pool line and the 09-04 working-order line | Known-issues file, "THE DECISION-FREE POOL — CLOSED 2026-09-14" (with the Arabic correction) |
+| §5 L1 row's as-built (Chromium+pdf-lib, veraPDF 3b, the attach list) | Known-issues file, L1 |
+| §5 advisor table: the five long rows | `docs/product/advisor-questions.md` — Blocks A–D already held them; **Block F (invoice dating) was WRITTEN there** — it had no home before |
+| §5 rank-1 row's break-glass as-built | Known-issues file, RANK 1 |
+| §5 "Re-ranked 2026-08-28 … AUD-13 is why" | Duplicate of §3's triage check; the pointer stays |
+| §5 cross-company block | Known-issues file, N1 (closed 2026-09-03) — see finding 1 above |
+| §5 contract-coverage: the "operator/identity, AI, read-only" inventory | This file, "THE STOP (owner decision, 2026-09-02)" |
+| §5 Arabic coverage: the retracted 0 | Corrected to point at the validated round (this file, pool-close §1) |
+| §10 reference-doc summaries (HLD's audience list; owner-actions' snapshot note; analytics round 3; the RTL third-option narrative, 24 of 39) | The docs themselves, and this file's 2026-08-31 RTL decision record |
+| §10b: four tooling incidents | This file, §10b-1..4 above — written from their commits (they were not here) |
+| §11: the docs-drift incident, the HLD rationale and absence incidents | This file: the sweep above (written from `0f94e0c`), and the two 2026-08-31 HLD entries (already here) |
