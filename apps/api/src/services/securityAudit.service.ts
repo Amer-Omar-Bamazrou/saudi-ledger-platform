@@ -31,6 +31,8 @@ import { desc, eq } from "drizzle-orm";
 // falling back here silently, so this import states what was previously assumed.
 import { ownerDb as db, securityAuditLogsTable } from "@workspace/db";
 import { ForbiddenError } from "../lib/errors";
+import { alerter } from "../lib/alerter";
+import { logger } from "../lib/logger";
 import { membersRepository } from "../repositories/members.repository";
 
 export type SecurityAuditAction =
@@ -77,8 +79,24 @@ export const securityAuditService = {
         ipAddress: input.ipAddress ?? null,
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[security-audit] failed to record event", { action: input.action, err });
+      // 🔴 L-1: a security event that fails to record is the "unnoticed"
+      // multiplier — an identity mutation has committed with no trail, and a
+      // console line is read by nobody. Still never thrown (the mutation is
+      // already real); instead it PAGES, because quiet neglect needs an
+      // alarm, not a dashboard. The alert itself is belt-wrapped: an alerting
+      // failure must not turn a committed mutation into a reported error.
+      logger.error({ action: input.action, targetUserId: input.targetUserId ?? null, err }, "security-audit write FAILED — event not recorded");
+      try {
+        await alerter.fire({
+          key: "security-audit-write-failed",
+          severity: "critical",
+          title: "A security-audit event failed to record",
+          detail: `The '${input.action}' event could not be written to security_audit_logs; the mutation it describes has already committed. Investigate the table and the events around this time.`,
+          context: { action: input.action },
+        });
+      } catch (alertErr) {
+        logger.error({ err: alertErr }, "failed to page on a security-audit write failure");
+      }
     }
   },
 
