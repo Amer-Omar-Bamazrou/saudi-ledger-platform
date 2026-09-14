@@ -470,34 +470,34 @@ export default function ScanReview() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">Supplier / Vendor Name</Label>
+              <Label className="text-xs text-muted-foreground">{t("Supplier / Vendor Name", "اسم المورّد")}</Label>
               <Input value={fields.vendorName} onChange={e => setFields(p => ({ ...p, vendorName: e.target.value }))}
-                className="mt-1 h-8 text-sm" placeholder="As printed on the document" />
+                className="mt-1 h-8 text-sm" placeholder={t("As printed on the document", "كما هو مطبوع على المستند")} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">
-                Supplier VAT Registration #
+                {t("Supplier VAT Registration #", "الرقم الضريبي للمورّد")}
                 {fields.supplierVatNumber && /^3\d{13}3$/.test(fields.supplierVatNumber)
                   ? <span className="text-positive ms-1">✓</span>
                   : fields.supplierVatNumber
-                    ? <span className="text-negative ms-1">✗ invalid format</span>
+                    ? <span className="text-negative ms-1">✗ {t("invalid format", "صيغة غير صحيحة")}</span>
                     : null}
               </Label>
               <Input value={fields.supplierVatNumber}
                 onChange={e => setFields(p => ({ ...p, supplierVatNumber: e.target.value }))}
-                className="mt-1 h-8 text-sm font-mono" placeholder="15 digits, starts/ends with 3"
+                className="mt-1 h-8 text-sm font-mono" placeholder={t("15 digits, starts/ends with 3", "15 رقمًا، يبدأ وينتهي بـ 3")}
                 maxLength={15} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">Invoice / Receipt Number</Label>
+              <Label className="text-xs text-muted-foreground">{t("Invoice / Receipt Number", "رقم الفاتورة / الإيصال")}</Label>
               <Input value={fields.invoiceNumber} onChange={e => setFields(p => ({ ...p, invoiceNumber: e.target.value }))}
-                className="mt-1 h-8 text-sm font-mono" placeholder="e.g. INV-2025-001" />
+                className="mt-1 h-8 text-sm font-mono" placeholder={t("e.g. INV-2025-001", "مثال: INV-2025-001")} />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Date</Label>
+              <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
               <Input type="date" value={fields.date} onChange={e => setFields(p => ({ ...p, date: e.target.value }))}
                 className="mt-1 h-8 text-sm" />
             </div>
@@ -505,20 +505,20 @@ export default function ScanReview() {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">Subtotal (SAR)</Label>
+              <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.subtotal}
                 onChange={e => setFields(p => ({ ...p, subtotal: e.target.value }))}
                 className="mt-1 h-8 text-sm font-mono" placeholder="0.00" />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">VAT Amount (SAR)</Label>
+              <Label className="text-xs text-muted-foreground">{t("VAT Amount (SAR)", "مبلغ الضريبة (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.vatAmount}
                 onChange={e => setFields(p => ({ ...p, vatAmount: e.target.value }))}
                 className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-negative-surface" : ""}`}
                 placeholder="0.00" />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Total (SAR)</Label>
+              <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.total}
                 onChange={e => setFields(p => ({ ...p, total: e.target.value }))}
                 className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-negative-surface" : ""}`}
@@ -527,7 +527,7 @@ export default function ScanReview() {
           </div>
 
           <div>
-            <Label className="text-xs text-muted-foreground">Notes</Label>
+            <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
             <Input value={fields.notes} onChange={e => setFields(p => ({ ...p, notes: e.target.value }))}
               className="mt-1 h-8 text-sm" />
           </div>
@@ -539,7 +539,7 @@ export default function ScanReview() {
                 onClick={() => setRawVisible(v => !v)}
                 className="w-full text-start px-3 py-2 text-muted-foreground hover:bg-secondary/30 transition-colors select-none"
               >
-                {rawVisible ? "▼" : "►"} Raw OCR text (verify against source)
+                {rawVisible ? "▼" : "►"} {t("Raw OCR text (verify against source)", "نص OCR الخام (تحقق منه مقابل المصدر)")}
               </button>
               {rawVisible && (
                 <pre className="px-3 py-2 text-muted-foreground bg-secondary/20 whitespace-pre-wrap max-h-36 overflow-y-auto font-mono text-[11px]">
@@ -729,7 +729,7 @@ export default function ScanReview() {
               </tbody>
               <tfoot className="bg-secondary/20 border-t border-border">
                 <tr>
-                  <td className="px-3 py-2 text-xs font-semibold text-muted-foreground">Total</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-muted-foreground">{t("Total", "الإجمالي")}</td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums font-semibold text-foreground">
                     {previewSubtotal + previewVat > 0 ? fmtNum(previewSubtotal + previewVat) : "—"}
                   </td>
