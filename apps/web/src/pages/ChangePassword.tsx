@@ -50,7 +50,7 @@ export default function ChangePassword() {
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("New password", "كلمة المرور الجديدة")}</CardTitle>
-          <CardDescription>You'll remain logged in after changing your password.</CardDescription>
+          <CardDescription>{t("You'll remain logged in after changing your password.", "ستظل مسجل الدخول بعد تغيير كلمة المرور.")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
