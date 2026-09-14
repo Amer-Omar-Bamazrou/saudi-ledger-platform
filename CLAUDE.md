@@ -497,11 +497,7 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
 **The decision-free pool** (break-glass ✅ · C6a ✅ ·
-<<<<<<< HEAD
-constants ✅ · L-1 ✅ · logo · party picker ✅ · sentinel family · Arabic re-sweep),
-=======
-constants ✅ · L-1 ✅ · logo ✅ · party picker · sentinel family · Arabic re-sweep),
->>>>>>> origin/main
+constants ✅ · L-1 ✅ · logo ✅ · party picker ✅ · sentinel family · Arabic re-sweep),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
