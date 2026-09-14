@@ -134,6 +134,17 @@ describe("L1 — the template's design rules, as text properties", () => {
     expect(withBlocks).toContain("SA0380000000608010167519");
   });
 
+  it("L1 branding: a stored logo renders in the header slot — presence, not only the absence above", () => {
+    const dataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+    const html = renderInvoiceHtml({ ...base, lang: "ar", logoDataUrl: dataUrl });
+    expect(html).toContain('class="logo"');
+    expect(html).toContain(dataUrl);
+    // And the registered name still prints beside it — the logo joins the
+    // header, it never replaces the legal identity (Arabic rendering carries
+    // the Arabic registered name).
+    expect(html).toContain(base.seller.nameAr!);
+  });
+
   it("one template, two directions — and Western numerals in both", () => {
     const ar = renderInvoiceHtml({ ...base, lang: "ar" });
     const en = renderInvoiceHtml({ ...base, lang: "en" });

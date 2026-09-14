@@ -34,6 +34,8 @@ interface Company {
   district: string | null;
   city: string | null;
   postalCode: string | null;
+  /** L1 branding — whether a logo is stored. Absent = the invoice header carries the registered name alone. */
+  hasLogo: boolean;
 }
 
 /** M17.2 — one resolved fiscal year (see apps/api/src/lib/fiscalYear.ts). */
@@ -116,6 +118,36 @@ export default function CompanySettings() {
 
   const set = (k: keyof Company) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  // ── L1 branding: the logo ──────────────────────────────────────────────────
+  // `logoVersion` busts the <img> cache after an upload/remove — the URL is
+  // stable by design (it is the API endpoint), so the version is the signal.
+  const [logoVersion, setLogoVersion] = useState(0);
+  const logoUrl = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/companies/current/logo?v=${logoVersion}`;
+
+  const uploadLogo = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return apiFetch("/companies/current/logo", { method: "PUT", body: fd });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["company"] });
+      setLogoVersion((v) => v + 1);
+      toast({ title: t("Logo uploaded", "تم رفع الشعار") });
+    },
+    onError: (e: Error) => toast({ title: t("Upload failed", "فشل الرفع"), description: e.message, variant: "destructive" }),
+  });
+
+  const removeLogo = useMutation({
+    mutationFn: () => apiFetch("/companies/current/logo", { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["company"] });
+      setLogoVersion((v) => v + 1);
+      toast({ title: t("Logo removed", "تمت إزالة الشعار") });
+    },
+    onError: (e: Error) => toast({ title: t("Failed", "فشل"), description: e.message, variant: "destructive" }),
+  });
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
@@ -373,6 +405,45 @@ export default function CompanySettings() {
           {save.isPending ? t("Saving…", "جارٍ الحفظ…") : t("Save changes", "حفظ التغييرات")}
         </Button>
       </form>
+
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{t("Logo", "الشعار")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Appears on the printed invoice header. Without one, the invoice carries your registered name alone.",
+              "يظهر في ترويسة الفاتورة المطبوعة. بدونه تحمل الفاتورة الاسم المسجل فقط.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {company?.hasLogo && (
+            <div className="flex items-center gap-4">
+              <img src={logoUrl} alt={t("Company logo", "شعار الشركة")} className="max-h-16 max-w-[180px] rounded border border-border bg-white p-1" />
+              <Button type="button" variant="outline" size="sm" onClick={() => removeLogo.mutate()} disabled={removeLogo.isPending}>
+                {removeLogo.isPending ? t("Removing…", "جارٍ الإزالة…") : t("Remove", "إزالة")}
+              </Button>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="logo-file">
+              {company?.hasLogo ? t("Replace logo", "استبدال الشعار") : t("Upload logo", "رفع الشعار")}
+            </Label>
+            <Input
+              id="logo-file"
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml"
+              disabled={uploadLogo.isPending}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadLogo.mutate(f);
+                e.target.value = "";
+              }}
+            />
+            <p className="text-[11px] text-muted-foreground">{t("PNG, JPG or SVG, up to 2 MB", "PNG أو JPG أو SVG، حتى 2 م.ب")}</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
