@@ -6520,7 +6520,7 @@ split could not source was re-derived instead (report-is-a-sample, below).
 | Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
 | A UI-automation set that skips the framework's event | 2 | copied | "THE INSTRUMENT WAS WRONG BEFORE THE CODE WAS" — the vendor-selection false positive and the negative-amount "no-op" (2026-09-14). |
 | A hardening step is untested code | 2 | copied | (1) the P5 readiness wait — "A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED" (2026-08-31); (2) the believed-correct `pool.on("error")` fix that crashed the next run identically — "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31, "re-run the thing you just hardened — already a standing rule, here earning"). |
-| Two definitions of one fact | 4 | copied | Enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance. |
+| Two definitions of one fact | **6** | copied + derived | (1–4) enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance; (5) `lib/accounts.ts`'s 14 names vs the seeded chart's — 3 of 14 match, 11 post to Purchases under the chosen label; (6) OwnerEquity's substring match vs `reports.service`'s labels — both in "THE ENGLISH-CONTENT DEPENDENCY COUNT" (2026-09-15). |
 | A green PR moves nothing | 1 | copied | "TEN DAYS OF GREEN, ZERO MOVEMENT" (#141, #142). |
 | Ask of every severance… | 1 | copied | "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31). |
 | Standing check 1 — stopping at the HTTP boundary | 2 | copied | A1's capture pipeline, A3's recurring rules — the committed text named both; record: finding #1's retroactive sweep. |
@@ -6729,3 +6729,147 @@ regex checks SHAPE only: `2026-02-30` passes the regex and fails
 `CHECK (date::date IS NOT NULL)` would be immutable-safe but the shape
 check is the class that was passed, and the cast is the application's job
 (`assertDateString` rejects `2026-02-30` explicitly). Recorded so the gap is named, not discovered.
+
+## 2026-09-15 — THE ENGLISH-CONTENT DEPENDENCY COUNT (task D: count, classify, do not fix)
+
+**The charge (owner):** the three named debts — `lib/accounts.ts`'s
+name-matched list, English-only server error bodies, OwnerEquity's
+substring match — are one class, not three: *client behaviour depends on
+the English content of a server string*. Count every site, classify each
+as needs-an-id, needs-a-code, or genuinely display-only. No fix.
+
+**Frame (stated beside every number):** `apps/web/src` minus `generated/`,
+`components/ui/`, tests and specs (the client); `apps/api/src` minus tests
+(the server). **Search shapes:** (1) every `===`/`!==`/`.includes(`/
+`.startsWith(`/`.match(` against a server field named `name`, `label`,
+`title`, `message`, `description`, `reason`, `error`, `detail`, `kind`,
+`type`, `status`, `category*`, `account*`; (2) every render of `.message`
+/ an error body; (3) every JSX render of a server enum field with no label
+map (`{x.status}`, `.replace(/_/g," ")`, `.toUpperCase()`, enum arrays as
+`<option>` labels); (4) every server refusal constructor and every `code:`
+it carries; (5) every server-authored English `label:` sent to the client
+and every English `description:` template persisted into the ledger; (6)
+the consumers of `lib/accounts.ts` and the server's resolution of what they
+send. What would have falsified "behaviour never keys on message text": a
+hit for shape (1) on `message`/`body.error` — there were none.
+
+### Class 1 — NEEDS AN ID: 1 mechanism (3 client sites, 1 server site) — 🔴 and it is posting wrong today
+
+`lib/accounts.ts` holds 14 English account names. `Bills.tsx` (the create
+form's picker, l.451; the post-review picker, l.680) and `ScanReview.tsx`
+(l.708) send the chosen NAME as `debitAccount`; `bills.approvable.ts`
+l.123–128 resolves it with `categoriesRepository.findByName` (lower-case
+equality) and, when nothing matches, posts the line to `PURCHASES` with
+`accountName` = the text the user chose — stored denormalised on the
+journal line (`journal_entries.ts` l.67, `account_name`) and displayed as
+the line's account (JournalEntries.tsx l.335, JournalReport.tsx l.125).
+
+**Measured against the seeded chart (0029/0024, and the live `categories`
+of all 4 orgs): 3 of the 14 names exist** — Bank Charges, Office Supplies,
+Professional Services. The other 11, INCLUDING the default "Purchases and
+Cost of Sales", are near-misses of seeded names ("Rent Expense" vs the
+chart's "Rent & Utilities"; "Maintenance and Repairs" vs "Repairs &
+Maintenance"; "Marketing and Advertising" vs "Marketing & Advertising";
+"Travel and Transportation" vs "Travel & Accommodation"; "Communication
+Expense" vs "Telecommunications"; "Insurance Expense" vs "Insurance"…) and
+resolve to nothing. **Triage check:** it POSTS (the bill-approval path,
+into the GL) and it HIDES the result (the line reads "Rent Expense" while
+the account is Purchases) — a posted, mislabelled classification at 11 of
+14 picker choices, unnoticed because the label the user chose is the label
+they see back. The two-definitions disease, fifth instance: the client's
+list and the chart's names, joined by nothing, drifted apart at birth.
+**Fix shape (proposed, not done):** the picker offers the tenant's real
+chart and sends `accountId`; the server's free-text arm either goes or
+stays only for raw API callers with an explicit "unmatched → Purchases"
+warning in the response. Rank: this is the one item in this count that is
+wrong in the books today.
+
+### Class 2 — NEEDS A CODE
+
+**2a. OwnerEquity — 2 sites, behaviour keyed on English.** `OwnerEquity.tsx`
+l.91–92: `row.label.includes("Net Income")`, `.includes("Withdrawal")`
+decide a row's styling and sign treatment; the labels come from
+`reports.service.ts` l.531/533 ("Net Income / (Loss)", "Withdrawals /
+Drawings"). The five owner-equity row labels are the ONLY server-authored
+report labels in the codebase (`label: "…"` literals in services: 5, all
+here) — everywhere else the client owns the copy. Two-definitions, sixth
+instance: rename the label on the server and the client's arithmetic
+changes silently. **Fix shape:** a `kind` code per row
+(`opening|net_income|contributions|withdrawals|closing`); the client keys
+and labels on it.
+
+**2b. Server refusal bodies — 372 constructor sites, 8 with a code.**
+`new BadRequestError(` ×153, `NotFoundError` ×86, `ConflictError` ×71,
+`BusinessRuleError` ×43, `ForbiddenError` ×9, `AppError` ×9,
+`PeriodLockedError` ×1 — every body is `{ error: <English sentence> }`.
+Codes exist on exactly 8 shapes: `period_closed`, `org_not_verified`,
+`permission_denied`, `requires_approval_authority`, `demo_mode`,
+`commit_failed`, `invoice_has_no_lines`, `invalid_lang`. **The client's
+BEHAVIOUR keys only on those codes and on HTTP status** — `api.ts`
+`handleApiErrorResponse` (403+`org_not_verified` → redirect; 423+
+`period_closed` → the dialog), `apiFetch` (401 → login), `App.tsx`'s
+mutation cache (423/409/≥500 → generic bilingual titles by STATUS) — and
+**never on message text** (shape 1 over `message`/`body.error`: 0 hits).
+What depends on the English is DISPLAY: the sentence is rendered verbatim
+as a toast description or Alert body at **71 sites in 35 files** (by
+design — "the refusal a user reads is the refusal the API gave"). So the
+364 code-less constructors are needs-a-code for one reason only: an
+Arabic reader gets an English refusal, and the client cannot localise a
+sentence it cannot identify. **Fix shape:** a code per refusal FAMILY
+(not per sentence), rendered by the client's copy with the server's text
+as detail — an API-layer decision, deferred by the owner on 2026-09-14
+and unchanged here.
+
+### Class 3 — genuinely display-only
+
+**3a. Raw enum renders with no label map — 51 sites in 31 files.** A
+server (or client) CODE written to the screen as-is: `{q.status}`,
+`{q.outcome}` (Quotations, PurchaseOrders), `{a.status}` (Assets,
+AssetSchedule, Payroll, PayrollReport, InvoiceSummary, JournalEntries ×2,
+CreditNotes, CustomerDetail ×2, VendorDetail ×2, CustomerLedger),
+`{inv.role}`/`{inv.status}`/`{role}s`/`orgRole.toUpperCase()`/the
+role `<option>`s (UserManagement ×5), `{o.role}` (OrgSwitcher),
+`{preview.role}` (AcceptInvite), `a.status`/`d.type`/`fromStatus →
+toStatus` (OperatorReview ×3), `c.environment`/`c.credentialStatus`
+(OperatorZatcaPanel ×2), `l.action`/`l.entityType`/the two enum
+`<Select>`s (AuditTrail ×4), `rule.entity`/`rule.frequency` (Recurring
+×2), `r.type`/`r.kind`/`TREATMENTS` (TransactionReview ×3), `p.type`
+(Products), `row.type`/`c.type` (TrialBalance, AccountSummary,
+AccountStatement, GeneralLedger), `row.type` (Upload), `${x.entity}`/
+`${x.status}` interpolated into Findings' copy, `d.type`/`DOC_TYPES`
+(VerificationStatus ×2), `cert.status` (ZatcaOnboarding), `Done:
+${v.action}`/`{r.status}` (Approvals ×2), and `ROLE_AR[user.role] ??
+user.role` (Layout — a map that lacks `bookkeeper`). These are codes
+already; **nothing behaves on their English** — the client keys on the
+same codes correctly at 92 sites in 29 files. They are the class no
+literal scanner can see (task B's hold-out found them by hand). **Fix
+shape:** one label map per enum, in the client, `t()`-ed — a translation
+change, not a contract change.
+
+**3b. Server-composed English persisted as DATA — 15 template sites in
+the services.** `description: \`Vendor bill ${…}\``, "Payment for",
+"Receipt for", "Payroll run for period", "Gross salaries", "Employer GOSI",
+"Net pay payable", "Reversal of", "Bill …" — journal-entry narratives the
+posting paths write into the ledger in English, permanently, for every
+tenant. Nothing behaves on them; they are what an Arabic tenant's general
+ledger will read, forever. Recorded as display-only DATA with that caveat;
+the fix (bilingual narratives, or a narrative KEY with parameters
+rendered by the reader) is a design decision, not a sweep.
+
+**3c. Names and user text — display-only, not a debt:** customer, vendor,
+category, product and account names, invoice numbers, reasons, notes, the
+AI explanation pair (`{en, ar}` — already bilingual by contract), the
+demo banner (server sends both languages by design).
+
+**Excluded from the count:** tesseract's four worker status keys
+(third-party, not our server); `formatCurrency(…).replace("SAR","")`
+(Transactions l.189 — a dependency on the client's own formatter).
+
+### The count, in one line
+
+**Needs-an-id: 1 mechanism / 4 sites (posting wrong at 11 of 14 choices).
+Needs-a-code: 2 behavioural sites (OwnerEquity) + 364 code-less refusal
+constructors rendered at 71 client sites. Display-only: 51 raw enum
+renders, 15 persisted English narratives, and data.** Nothing fixed.
+Placed in CLAUDE.md §5 as one open row for the owner's ranking, with the
+class-1 item marked as the one that is wrong in the books today.
