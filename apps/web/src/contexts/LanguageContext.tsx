@@ -84,7 +84,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
 /**
  * The NON-REACT half of `t` (2026-09-14, the Arabic instrument-validation
- * pass): module-level code — the global mutation-cache toasts, apiFetch's
+ * pass): module-level code — the global mutation-cache toasts, lib/api's
  * session message, thrown fallbacks — cannot call the hook, and every one of
  * those strings had silently stayed English. One reader of the ONE storage
  * key, so the two halves cannot disagree about what the user chose.
