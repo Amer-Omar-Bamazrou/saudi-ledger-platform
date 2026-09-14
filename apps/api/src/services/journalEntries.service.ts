@@ -22,6 +22,9 @@ import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
 import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE } from "../repositories/journalEntries.repository";
+import { categoriesRepository } from "../repositories/categories.repository";
+import { customersRepository } from "../repositories/customers.repository";
+import { vendorsRepository } from "../repositories/vendors.repository";
 import type { journalEntriesTable } from "@workspace/db";
 
 export const journalEntriesService = {
@@ -85,6 +88,8 @@ export const journalEntriesService = {
       description: (l.description ?? null) as string | null,
       debitAmount: assertAmount(l.debitAmount ?? 0, `line ${i + 1} debit`),
       creditAmount: assertAmount(l.creditAmount ?? 0, `line ${i + 1} credit`),
+      customerId: l.customerId == null ? null : Number(l.customerId),
+      vendorId: l.vendorId == null ? null : Number(l.vendorId),
     }));
 
     const totalDebit = parsedLines.reduce((s, l) => s + l.debitAmount, 0);
@@ -133,6 +138,60 @@ export const journalEntriesService = {
       );
     }
 
+    /**
+     * 🔴 N3's remaining half, closed (2026-09-14): a control-account line
+     * names its party. A receivable is a receivable FROM someone, a payable
+     * TO someone — ERPNext enforces this at the GL row, and it is what makes
+     * the aging BE the ledger instead of a parallel computation. Enforced
+     * HERE, at the manual entry's own write boundary (this path posts through
+     * its approvable, never through postJournalEntry — whose accountId arm is
+     * gated separately for every other caller).
+     *
+     * The rules, each a 422 that says what to do:
+     *   - an AR line requires a customer; an AP line a vendor;
+     *   - a party on any OTHER account is refused — a party only means
+     *     something on a control account, and storing it elsewhere would be a
+     *     value that satisfies every check while meaning nothing;
+     *   - ids are resolved tenant-scoped, so another org's id and a missing
+     *     id are the same refusal.
+     */
+    const accountRows = await categoriesRepository.findByIds([
+      ...new Set(parsedLines.map((l) => l.accountId).filter((id): id is number => id != null)),
+    ]);
+    const systemCodeOf = new Map(accountRows.map((a) => [a.id, a.systemCode]));
+    for (const [i, l] of parsedLines.entries()) {
+      const code = l.accountId != null ? systemCodeOf.get(l.accountId) : null;
+      const refuse = (error: string, field: string) => {
+        throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
+      };
+      if (code === "AR") {
+        if (l.customerId == null)
+          refuse(
+            `Line ${i + 1} posts to Accounts Receivable — pick the customer the receivable is from.`,
+            `lines[${i}].customerId`,
+          );
+        if (l.vendorId != null)
+          refuse(`Line ${i + 1}: a receivable line names a customer, not a vendor.`, `lines[${i}].vendorId`);
+        const [c] = await customersRepository.findById(l.customerId!);
+        if (!c) refuse(`Line ${i + 1}: customer ${l.customerId} does not exist for this organization.`, `lines[${i}].customerId`);
+      } else if (code === "AP") {
+        if (l.vendorId == null)
+          refuse(
+            `Line ${i + 1} posts to Accounts Payable — pick the vendor the payable is to.`,
+            `lines[${i}].vendorId`,
+          );
+        if (l.customerId != null)
+          refuse(`Line ${i + 1}: a payable line names a vendor, not a customer.`, `lines[${i}].customerId`);
+        const [v] = await vendorsRepository.findById(l.vendorId!);
+        if (!v) refuse(`Line ${i + 1}: vendor ${l.vendorId} does not exist for this organization.`, `lines[${i}].vendorId`);
+      } else if (l.customerId != null || l.vendorId != null) {
+        refuse(
+          `Line ${i + 1}: a customer/vendor belongs only on a receivable or payable line — this account is neither.`,
+          l.customerId != null ? `lines[${i}].customerId` : `lines[${i}].vendorId`,
+        );
+      }
+    }
+
     if (jeData.date) assertDateString(jeData.date, "date");
     if (jeData.date) await checkPeriodOpen(jeData.date as string);
 
@@ -161,6 +220,9 @@ export const journalEntriesService = {
               journalEntryId: je.id,
               debitAmount: l.debitAmount.toFixed(2),
               creditAmount: l.creditAmount.toFixed(2),
+              // Validated above; the CHECK (0066) makes an inconsistent
+              // combination unstorable regardless.
+              partyType: l.customerId != null ? "customer" : l.vendorId != null ? "vendor" : null,
             })),
           )
         : [];

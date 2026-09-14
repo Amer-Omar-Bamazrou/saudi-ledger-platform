@@ -1,6 +1,6 @@
 /** Categories repository — tenant-scoped via RLS. */
 import { db, categoriesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 export const categoriesRepository = {
   list() {
@@ -14,6 +14,12 @@ export const categoriesRepository = {
   async findById(id: number) {
     const [row] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, id)).limit(1);
     return row ?? null;
+  },
+
+  /** N3 — one round trip for a set of line accounts (the JE party gate). */
+  findByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([]);
+    return db.select().from(categoriesTable).where(inArray(categoriesTable.id, ids));
   },
 
   /**

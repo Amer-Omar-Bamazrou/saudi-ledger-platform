@@ -1322,6 +1322,37 @@ carries 250); quotation partial conversion (4 of 10 leaves 6; over-converting
 rejection (400). Two well-formed refusals seen and kept: a bad vendor VAT on
 bill-approve (offers `force:true`), and convert-before-approve on quotations.
 
+## N3's REMAINING HALF — CLOSED 2026-09-14: the party picker, and both arms gated
+
+The named gap: the manual-JE form had no party picker, so a hand-named AR/AP
+line posted party-less while every document path was gated — the one way
+left to reach a control account without saying who.
+
+Closed at BOTH boundaries plus the form:
+
+- **The manual entry's own write boundary** (`journalEntries.service.create`
+  — this path posts through its approvable and never reaches
+  `postJournalEntry`): an AR line requires its customer, an AP line its
+  vendor, a party on any OTHER account is refused (it would be a stored
+  value meaning nothing), and ids resolve tenant-scoped so a missing id and
+  another org's id are the same 422 (`journal_line_party_invalid`, naming
+  the line and the fix).
+- **The GL boundary's accountId arm** (`postJournalEntry`): naming AR/AP by
+  id party-less now throws `MissingPartyError` unconditionally — the
+  ERPNext-grade rule with no override, one lookup, every caller.
+- **The form** (`JournalEntries.tsx`): the picker appears exactly when the
+  rule applies (the account's `systemCode` — newly exposed on the Category
+  contract — is AR/AP), and Save says why it is disabled rather than
+  offering an action that can only fail (the QA pass's dead-controls
+  lesson). The party persists (`party_type`/ids on the line, CHECK 0066
+  standing) and reads back out through the JE contract.
+
+Proof: `journal-party.test.ts` — refusals proven at both boundaries, the
+party proven PERSISTED and read back (presence, not just acceptance), the
+same entry WITH a party posting (movement: the gate refuses the omission,
+not the account), and tenant-scoped id resolution. Zero-movement suite
+unaffected.
+
 ## L1 LOGO UPLOAD — SHIPPED 2026-09-14 (the level-1 branding remainder)
 
 The decided shape (design-invoice-document.md §2, owner 2026-09-02), built

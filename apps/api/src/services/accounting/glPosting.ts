@@ -66,13 +66,11 @@ export type GLLine = {
 } & ({ systemCode: SystemAccountCode; accountId?: never } | { accountId: number; systemCode?: never });
 
 /**
- * 🔴 A control-account line without a party is refused — for the SYSTEM-CODE
- * path, which is every document posting path in the product. The accountId
- * path (a manual journal entry naming the AR/AP account by hand) is NOT yet
- * gated: the manual-JE form has no party picker, so a hard refusal there
- * would break a shipped page. That remaining half is a NAMED GAP (§5 traps +
- * the N3 record), not a silent default — the ERPNext-grade rule arrives with
- * the picker.
+ * 🔴 A control-account line without a party is refused — BOTH arms since
+ * 2026-09-14: the system-code path (every document posting path) and the
+ * accountId path (an account named by id), now that the manual-JE form has
+ * its party picker and its own readable 422 at journalEntries.service. The
+ * named gap in §5's traps closed with it.
  */
 const PARTY_REQUIRED: ReadonlySet<string> = new Set(["AR", "AP"]);
 
@@ -224,6 +222,27 @@ export async function postJournalEntry(opts: {
   const totalCredit = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
   if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
     throw new UnbalancedEntryError(totalDebit, totalCredit);
+  }
+
+  // 🔴 N3's remaining half (closed 2026-09-14): the accountId arm is gated
+  // too. A caller naming the AR/AP account BY ID was the one way to reach a
+  // control account party-less — the manual-JE form now has its picker (and
+  // its own 422 at journalEntries.service), so the ERPNext-grade rule can be
+  // unconditional here: one lookup, every path, no override. Placed AFTER
+  // the pure checks: this is the function's first DB read, and the balance
+  // guard must fire before any query does (its own test proves it without a
+  // database).
+  const idLines = lines.filter((l) => l.accountId != null && l.party === undefined);
+  if (idLines.length > 0) {
+    const rows = await db
+      .select({ id: categoriesTable.id, code: categoriesTable.systemCode })
+      .from(categoriesTable)
+      .where(inArray(categoriesTable.id, [...new Set(idLines.map((l) => l.accountId!))]));
+    const codeOf = new Map(rows.map((r) => [r.id, r.code]));
+    for (const l of idLines) {
+      const code = codeOf.get(l.accountId!);
+      if (code && PARTY_REQUIRED.has(code)) throw new MissingPartyError(code, l.accountName);
+    }
   }
 
   // Resolve BEFORE writing anything, so an incomplete chart cannot leave a

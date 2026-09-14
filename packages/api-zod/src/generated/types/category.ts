@@ -10,6 +10,11 @@ import type { CategoryType } from './categoryType';
 
 export interface Category {
   id: number;
+  /**
+     * The account's system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.
+     * @nullable
+     */
+  systemCode?: string | null;
   name: string;
   nameAr: string;
   type: CategoryType;
