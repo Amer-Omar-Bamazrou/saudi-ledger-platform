@@ -7,6 +7,7 @@
  *   so the caller can pre-fill the New Bill form
  */
 import { useState, useRef, useCallback } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { createWorker } from "tesseract.js";
 import { parseReceiptText, type ParsedReceipt } from "@/lib/receiptParser";
 import { readZatcaQr, type QrCaptureResult } from "@/lib/qrCapture";
@@ -34,6 +35,7 @@ interface Props {
 
 // ── component ──────────────────────────────────────────────────────────────────
 export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
+  const { t } = useLanguage();
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
@@ -70,18 +72,18 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
     //
     // Tried FIRST and short-circuits: when it succeeds, the ~10MB Tesseract WASM
     // download never happens.
-    setProgressMsg("Looking for a ZATCA QR code…");
+    setProgressMsg(t("Looking for a ZATCA QR code…", "جارٍ البحث عن رمز استجابة الهيئة…"));
     const qrResult = await readZatcaQr(file);
     if (qrResult) {
       setQr(qrResult);
       setResult(qrResult.parsed);
       setPhase("done");
       setProgress(100);
-      setProgressMsg("Read directly from the invoice's ZATCA QR code.");
+      setProgressMsg(t("Read directly from the invoice's ZATCA QR code.", "قُرئت مباشرة من رمز الاستجابة الخاص بالهيئة."));
       return;
     }
 
-    setProgressMsg("Initialising OCR engine…");
+    setProgressMsg(t("Initialising OCR engine…", "جارٍ تهيئة محرك التعرف الضوئي…"));
 
     try {
       // Tesseract.js v5 — createWorker loads WASM + lang data from CDN
@@ -105,14 +107,14 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
       await worker.terminate();
 
       setProgress(98);
-      setProgressMsg("Parsing receipt fields…");
+      setProgressMsg(t("Parsing receipt fields…", "جارٍ تحليل حقول الإيصال…"));
       const parsed = parseReceiptText(text);
       setQr(null);
       setResult(parsed);
       setPhase("done");
       setProgress(100);
     } catch (err: any) {
-      setErrorMsg(err?.message ?? "OCR failed. Try a clearer image.");
+      setErrorMsg(err?.message ?? t("OCR failed. Try a clearer image.", "فشل التعرف الضوئي. جرّب صورة أوضح."));
       setPhase("error");
     }
   }, []);
@@ -120,7 +122,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
   // ── file handling ──────────────────────────────────────────────────────────
   const accept = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please upload an image file (JPEG, PNG, WEBP).");
+      setErrorMsg(t("Please upload an image file (JPEG, PNG, WEBP).", "يرجى رفع ملف صورة (JPEG أو PNG أو WEBP)."));
       setPhase("error");
       return;
     }
@@ -150,7 +152,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <ScanLine className="w-4 h-4 text-primary" /> Scan Receipt
+            <ScanLine className="w-4 h-4 text-primary" /> {t("Scan Receipt", "مسح إيصال")}
           </DialogTitle>
         </DialogHeader>
 
@@ -229,7 +231,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                 <Progress value={progress} className="h-1.5" />
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                First scan downloads ~20 MB of language models (cached for future scans).
+                {t("First scan downloads ~20 MB of language models (cached for future scans).", "التحميل الأول يجلب نحو 20 م.ب من نماذج اللغة (تُحفظ للمسحات القادمة).")}
               </p>
             </div>
           )}
@@ -240,12 +242,12 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
               <div className="flex items-start gap-3 p-4 rounded-lg bg-negative-surface/10 border border-negative-surface/30">
                 <AlertCircle className="w-5 h-5 text-negative shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-negative">OCR failed</p>
+                  <p className="text-sm font-medium text-negative">{t("OCR failed", "فشل التعرف الضوئي")}</p>
                   <p className="text-xs text-muted-foreground mt-1">{errorMsg}</p>
                 </div>
               </div>
               <Button variant="outline" className="w-full gap-2" onClick={reset}>
-                <RotateCcw className="w-4 h-4" /> Try another image
+                <RotateCcw className="w-4 h-4" /> {t("Try another image", "جرّب صورة أخرى")}
               </Button>
             </div>
           )}
@@ -264,7 +266,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                 {/* extracted fields */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-positive">
-                    <CheckCircle2 className="w-4 h-4" /> Extracted fields
+                    <CheckCircle2 className="w-4 h-4" /> {t("Extracted fields", "الحقول المستخرجة")}
                   </div>
                   <Field label="Vendor" value={result.vendorName || "—"} />
                   <Field label="VAT Reg #" value={result.supplierVatNumber || "—"} />
@@ -279,7 +281,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
               {/* raw text toggle */}
               <details className="rounded-lg border border-border overflow-hidden text-xs">
                 <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:bg-secondary/30 select-none">
-                  View raw OCR text
+                  {t("View raw OCR text", "عرض النص الخام")}
                 </summary>
                 <pre className="px-3 py-2 text-muted-foreground bg-secondary/20 whitespace-pre-wrap max-h-28 overflow-y-auto font-mono text-[11px]">
                   {result.rawText || "(no text extracted)"}
@@ -288,10 +290,10 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
               <div className="flex gap-3">
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={reset}>
-                  <RotateCcw className="w-3.5 h-3.5" /> Rescan
+                  <RotateCcw className="w-3.5 h-3.5" /> {t("Rescan", "إعادة المسح")}
                 </Button>
                 <Button className="flex-1 gap-2" onClick={confirm}>
-                  <CheckCircle2 className="w-4 h-4" /> Use these fields
+                  <CheckCircle2 className="w-4 h-4" /> {t("Use these fields", "استخدام هذه الحقول")}
                 </Button>
               </div>
             </div>

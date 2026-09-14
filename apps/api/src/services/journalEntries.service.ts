@@ -192,8 +192,20 @@ export const journalEntriesService = {
       }
     }
 
-    if (jeData.date) assertDateString(jeData.date, "date");
-    if (jeData.date) await checkPeriodOpen(jeData.date as string);
+    /**
+     * 🔴 The date is REQUIRED, unconditionally (2026-09-14). These two lines
+     * were `if (jeData.date) …` — and a falsy "" (the form's cleared date
+     * input, spread straight into the body) SKIPPED both the format check
+     * and the period lock. The "" then satisfied NOT NULL, posted at
+     * approval (toPeriod("") matches no lock), and fell outside every
+     * date-ranged report: in the books, invisible to periods. An entry that
+     * cannot say when it happened is not a journal entry.
+     */
+    if (!String(jeData.date ?? "").trim()) {
+      throw new BadRequestError("A journal entry needs a date — it decides the period every report files it under.");
+    }
+    assertDateString(jeData.date, "date");
+    await checkPeriodOpen(jeData.date as string);
 
     let je: typeof journalEntriesTable.$inferSelect;
     try {

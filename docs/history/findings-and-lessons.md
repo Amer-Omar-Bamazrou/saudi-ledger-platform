@@ -6175,3 +6175,137 @@ draft bill (287.50, the PO conversion's honest record), one fully-invoiced
 quotation + its two draft invoices. The stray draft from the dueDate
 diagnosis was deleted through the UI (whose confirm correctly stated its
 scope: "nothing has been posted").
+
+## 2026-09-14 — THE POOL-CLOSE VALIDATION ROUND (owner-ordered before the close stands)
+
+### 1. The Arabic instrument, validated — and the 0 retracted
+
+**The owner's charge was correct: the reported 0 was the instrument's
+blindness, not the codebase's coverage.** Protocol followed: a hand-picked
+validation set (ScanReview — known-present; Bills, Employees,
+PaymentHistory, PickerLimitNotice — believed-absent, all five read in
+full), inventoried by reading, compared against what each instrument
+version reports for those same files.
+
+**The measured miss rate, the finding itself:** the original heuristic (v1,
+bare JSX text nodes only) found **0 of the 30** untranslated strings still
+in ScanReview after the morning's "fix" — a 100% miss on the validation
+round's true positives, on top of the 64% miss (5 of 14) measured the day
+before. The 2026-09-14 morning record's "suspect count 0" is RETRACTED;
+the §5 pool line's "Arabic re-sweep ✅" overstates and is to be corrected
+the next time CLAUDE.md is edited (held only because the owner asked for
+the §6-split proposal before anything else touches that file).
+
+**What the instrument could not see, iterated until a validation round came
+back clean:** multiline JSX text nodes; string literals inside JSX
+expressions; placeholder/title/aria-label/alt attributes; toast title and
+description literals; paren-led prose; and — the productive discovery —
+FOUR translation idioms beyond t() that flag as false positives until
+taught: lang-ternaries (both orders), key/keyAr paired fields, positional
+English-then-Arabic argument pairs (the nav tree's built() helper), and
+en:/ar: (+ enX/arX) label objects. The widened instrument is committed as
+**scripts/arabic-sweep.mjs** — the sweep is no longer ad hoc.
+
+**Result of running the validated instrument over the honest frame**
+(apps/web/src minus generated/, ui/, tests, and the two OCR parsers, which
+match input text rather than render it): initial truth was **~110 real
+untranslated strings across ~25 files**, all now fixed — including the
+GLOBAL mutation-error toasts in App.tsx (423/409/5xx/save-failed, the
+refusal surface every form shares), the whole scan/review flow, the aging
+and asset report headers and buckets, and the OCR validator's messages.
+Strings reachable from outside React (the mutation cache, apiFetch's
+session expiry, thrown fallbacks, validator messages) go through a new
+**tOutside(en, ar)** — the non-React half of t, one reader of the one
+storage key. Final instrument count: **47, all classified**: 24 deliberate
+data (the server-name-matched accounts.ts list — itself a named debt, see
+below; bank names; Upload's sample rows), 3 sentinel-comparison constants,
+~6 dev-internal strings (console lines, Promise.reject reasons, hook-usage
+errors), ~14 scanner artifacts (code fragments the string-literal pass
+misparses). Zero unclassified user-facing English.
+
+**Named debts this exposed, not fixed here:** lib/accounts.ts hardcodes
+14 English account names matched server-side BY NAME (the two-definitions
+disease — the fix is ids, not translation); server ERROR BODIES are
+English-only and are surfaced verbatim by design ("the refusal a user reads
+is the refusal the API gave") — localizing refusals is an API-layer
+decision, not a client sweep; and OwnerEquity matches a server-provided
+row label by English substring.
+
+### 2. The spread-into-body sweep — three instances, one of them worse
+
+**Search shape:** every mutation body built by spreading a whole form
+object, PLUS every date input feeding a mutation — matched both literally
+(type="date") and dynamically (type={cond ? "date" : "text"}, which the
+literal grep missed: the frame lesson, again, inside a sweep about frames).
+
+**The class (optional field, left blank, blocks the create): 3 instances.**
+Bills.dueDate (found by the walk, fixed in #152); **Employees.joiningDate**
+(optional, nullable, clearable — fixed the same way); and the worst,
+**JournalEntries.date**: date "" slipped BOTH guards because they were
+written "if (jeData.date) …" — falsy-skipped assertDateString AND
+checkPeriodOpen, satisfied NOT NULL, posted at approval (toPeriod("")
+matches no lock row), then fell outside every date-ranged report. **An
+entry in the books that no period report shows and no period lock ever
+examined** — the triage check's posts-and-hides composition in one row.
+Fixed at the write boundary (a missing OR empty date is a readable 400,
+unconditionally), in the contract (date gains a YYYY-MM-DD pattern), and
+in the form (Save disabled with the reason). Proven red-then-green by
+je-empty-date.test.ts. Required dates cleared to "" elsewhere (assets,
+bills, notes, conversion dialogs) produce readable 400s — correct enough,
+named not changed.
+
+**Regression tests that fail if the fixes revert:**
+e2e/form-optional-blank.spec.ts drives the REAL Bills and Employees forms
+with the optional field blank and asserts the create returns 201 —
+validated by temporarily reverting the Bills fix (the spec failed) and
+restoring. je-empty-date.test.ts pins the server boundary.
+
+### 3. The render-snapshot sweep — 69 mutate sites, the residual named
+
+**Search shape:** every .mutate( trigger in apps/web/src/pages (69),
+classified by guard. Before this round exactly ONE (the invoice
+create/update) carried the ref; everything else relies on
+disabled={isPending} — a render snapshot. What bounds the residual is the
+SERVER: approvals/posts die on state conflicts, full-amount repeat payments
+die on the overpay guard, deletes 404, duplicate creates are deletable
+drafts (only invoices carry an idempotency key, and only invoices mint an
+ICV). **The one genuine money-mover left: a PARTIAL payment double-fired is
+two accepted payments.** The ref now also gates both pay dialogs
+(invoices + bills), set in onClick, cleared in onSettled.
+
+**The deterministic regression test:** the original double-click spec races
+Playwright's two round-trips against React's re-render — it passed locally
+with the broken guard and only failed under CI load. The new test in
+invoice-double-submit.spec.ts dispatches two click events in the SAME
+TASK, before any re-render can commit: a snapshot guard admits both by
+construction, the ref stops the second. Validated both directions — it
+fails every time on the snapshot guard (temporarily reverted to prove it),
+passes on the ref.
+
+### 4. The conflict-marker guard — and its own probe caught it blind
+
+conflict-markers.test.ts (runs in pnpm run verify and CI's test job): git
+grep over tracked files for the opening/closing marker arms anchored at
+line start — the middle seven-equals arm is deliberately excluded because
+a seven-character Markdown setext underline is exactly that. 🔴 The first
+version ran git grep from the suite's cwd (apps/api) and the PLANTED
+POSITIVE — a marker file at the repo root — sailed straight past it. Fixed
+to scan from the repo root; re-validated in both directions. The
+unvalidated-probe rule cashed in on its own guard, the same session it was
+written.
+
+### 🔴 The structural gap, named: the suite cannot see the client's own requests
+
+Every API test builds its request the way the SERVER expects — so a
+malformed body the client actually sends (the blank dueDate, the JE empty
+date, tomorrow's variant) is invisible to the entire server suite BY
+CONSTRUCTION, and generated input types do not close it either (the
+values, not the types, are wrong). What closes it: (1) e2e specs driven
+from the client's own submit path — form-optional-blank.spec.ts is the
+pattern: fill the real form, leave the optional field alone, assert the
+server said 201; (2) the browser walk as a standing gate for FORM changes —
+a form change without either a client-path spec or a walked leg ships the
+exact class twice found this week. The candidate standing rule for §3,
+HELD for the CLAUDE.md split decision: "a server test cannot see the
+client's request construction — a form change ships with a client-path
+test or a walked leg."

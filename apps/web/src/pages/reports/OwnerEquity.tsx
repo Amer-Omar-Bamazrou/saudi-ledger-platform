@@ -82,7 +82,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       ) : !data ? null : (
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">Statement of Changes in Owner's Equity — {data.period.from} to {data.period.to}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Statement of Changes in Owner's Equity", "قائمة التغيرات في حقوق الملكية")} — {data.period.from} {t("to", "إلى")} {data.period.to}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="max-w-md">
@@ -126,7 +126,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
             {data.openingEquity === 0 && data.contributions === 0 && (
               <div className="mt-4 p-3 rounded-lg bg-secondary/30 border border-border">
                 <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold">Note:</span> Opening equity is zero because no equity-type accounts have been posted in journal entries before this period. Post capital contributions or retained earnings to equity accounts to see a complete statement.
+                  <span className="font-semibold">{t("Note:", "ملاحظة:")}</span> {t("Opening equity is zero because no equity-type accounts have been posted in journal entries before this period. Post capital contributions or retained earnings to equity accounts to see a complete statement.", "حقوق الملكية الافتتاحية صفر لأنه لم تُرحّل قيود على حسابات حقوق الملكية قبل هذه الفترة. رحّل مساهمات رأس المال أو الأرباح المحتجزة إلى حسابات حقوق الملكية لرؤية قائمة مكتملة.")}
                 </p>
               </div>
             )}

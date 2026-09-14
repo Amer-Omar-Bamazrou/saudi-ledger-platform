@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -15,6 +16,7 @@ interface OrgMembership {
 }
 
 export function OrgSwitcher() {
+  const { t } = useLanguage();
   const [orgs, setOrgs] = useState<OrgMembership[]>([]);
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,7 +52,7 @@ export function OrgSwitcher() {
 
   return (
     <select
-      aria-label="Active organization"
+      aria-label={t("Active organization", "المنشأة النشطة")}
       className="w-full text-xs border border-border rounded px-1.5 py-1 bg-background text-foreground"
       value={activeOrgId ?? ""}
       disabled={busy}

@@ -81,7 +81,7 @@ export default function Signup() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="organizationName">{t("Organization name *", "اسم المؤسسة *")}</Label>
-                <Input id="organizationName" value={form.organizationName} onChange={set("organizationName")} required placeholder="Acme Trading" />
+                <Input id="organizationName" value={form.organizationName} onChange={set("organizationName")} required placeholder={t("Acme Trading", "شركة المثال التجارية")} />
               </div>
 
               <div className="space-y-1.5">

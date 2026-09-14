@@ -218,7 +218,7 @@ export default function ScanReview() {
       return;
     }
     if (errors.length > 0 && !window.confirm(
-      `There ${errors.length === 1 ? "is 1 validation error" : `are ${errors.length} validation errors`}. Post anyway?`
+      t(`There ${errors.length === 1 ? "is 1 validation error" : `are ${errors.length} validation errors`}. Post anyway?`, `يوجد ${errors.length} من أخطاء التحقق. هل تريد الترحيل رغم ذلك؟`)
     )) return;
 
     setIsPosting(true);
@@ -303,11 +303,11 @@ export default function ScanReview() {
       {/* header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => navigate("/bills")}>
-          <ArrowLeft className="w-4 h-4" /> Back to Bills
+          <ArrowLeft className="w-4 h-4" /> {t("Back to Bills", "العودة إلى الفواتير")}
         </Button>
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <ScanLine className="w-5 h-5 text-primary" /> Review Scanned Receipt
+            <ScanLine className="w-5 h-5 text-primary" /> {t("Review Scanned Receipt", "مراجعة الإيصال الممسوح")}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {source === "qr"
@@ -387,11 +387,13 @@ export default function ScanReview() {
         <div className="rounded-lg border border-negative-surface/40 bg-negative-surface/10 px-4 py-3">
           <p className="text-sm font-medium text-negative-surface flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            This invoice&apos;s ZATCA cryptographic stamp did NOT verify
+            {t("This invoice's ZATCA cryptographic stamp did NOT verify", "لم يتم التحقق من الختم التشفيري لهيئة الزكاة على هذه الفاتورة")}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            The QR carries a Phase 2 signature that does not match its contents. Verify the
-            document with the supplier before posting — it may be altered or corrupted.
+            {t(
+              "The QR carries a Phase 2 signature that does not match its contents. Verify the document with the supplier before posting — it may be altered or corrupted.",
+              "يحمل رمز الاستجابة توقيع المرحلة الثانية لكنه لا يطابق المحتوى. تحقق من المستند مع المورّد قبل الترحيل — فقد يكون معدّلًا أو تالفًا.",
+            )}
           </p>
         </div>
       )}
@@ -409,16 +411,18 @@ export default function ScanReview() {
         <div className="rounded-lg border border-positive-surface/30 bg-positive-surface/10 px-4 py-3">
           <p className="text-sm font-medium text-positive-surface flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
-            Read directly from the invoice&apos;s ZATCA QR code — these figures are exact
+            {t("Read directly from the invoice's ZATCA QR code — these figures are exact", "قُرئت مباشرة من رمز الاستجابة الخاص بالهيئة — هذه الأرقام دقيقة")}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            The seller, VAT number, date and amounts come from the supplier&apos;s own
-            e-invoice data, not from reading the image.
-            {isPhase2 && " This invoice is cryptographically stamped."}
+            {t(
+              "The seller, VAT number, date and amounts come from the supplier's own e-invoice data, not from reading the image.",
+              "البائع والرقم الضريبي والتاريخ والمبالغ مأخوذة من بيانات الفاتورة الإلكترونية للمورّد نفسه، لا من قراءة الصورة.",
+            )}
+            {isPhase2 && " " + t("This invoice is cryptographically stamped.", "هذه الفاتورة مختومة تشفيريًا.")}
           </p>
           {qrMissing.length > 0 && (
             <p className="text-xs text-attention-surface mt-1">
-              Not carried by the QR code, please check: {qrMissing.join(", ")}.
+              {t("Not carried by the QR code, please check:", "غير محمولة في رمز الاستجابة، يرجى التحقق من:")} {qrMissing.join(", ")}.
             </p>
           )}
         </div>
@@ -426,11 +430,13 @@ export default function ScanReview() {
         <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3">
           <p className="text-sm font-medium flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-muted-foreground" />
-            Read by text recognition — please check every figure
+            {t("Read by text recognition — please check every figure", "قُرئت بالتعرف الضوئي على النص — يرجى التحقق من كل رقم")}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            No ZATCA QR code was found on this document, so the fields below were
-            recognised from the image and may contain errors.
+            {t(
+              "No ZATCA QR code was found on this document, so the fields below were recognised from the image and may contain errors.",
+              "لم يُعثر على رمز استجابة للهيئة في هذا المستند، لذا تم التعرف على الحقول أدناه من الصورة وقد تحتوي أخطاء.",
+            )}
           </p>
         </div>
       )}
@@ -463,8 +469,8 @@ export default function ScanReview() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" /> Extracted Fields
-            <span className="text-xs text-muted-foreground font-normal">(all editable — correct any OCR errors)</span>
+            <BookOpen className="w-4 h-4 text-primary" /> {t("Extracted Fields", "الحقول المستخرجة")}
+            <span className="text-xs text-muted-foreground font-normal">{t("(all editable — correct any OCR errors)", "(كلها قابلة للتعديل — صحّح أي أخطاء في القراءة)")}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -555,13 +561,13 @@ export default function ScanReview() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-primary" /> Supplier Match
+            <Building2 className="w-4 h-4 text-primary" /> {t("Supplier Match", "مطابقة المورّد")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {matchLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" /> Searching for existing supplier…
+              <Loader2 className="w-4 h-4 animate-spin" /> {t("Searching for existing supplier…", "جارٍ البحث عن مورّد موجود…")}
             </div>
           )}
 
@@ -586,7 +592,7 @@ export default function ScanReview() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-attention">
                 <AlertTriangle className="w-4 h-4" />
-                Possible matches found — please select the correct supplier or create a new one
+                {t("Possible matches found — please select the correct supplier or create a new one", "عُثر على تطابقات محتملة — اختر المورّد الصحيح أو أنشئ موردًا جديدًا")}
               </div>
               <div className="space-y-1.5">
                 {matchResult.suggestions.map(v => (
@@ -626,10 +632,10 @@ export default function ScanReview() {
           {!matchLoading && matchResult?.matchType === "none" && (
             <div className="p-3 rounded-lg bg-attention-surface/10 border border-attention-surface/30 text-sm">
               <p className="font-medium text-attention flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4" /> No existing supplier found
+                <AlertTriangle className="w-4 h-4" /> {t("No existing supplier found", "لم يُعثر على مورّد موجود")}
               </p>
               <p className="text-muted-foreground text-xs mt-1">
-                A new supplier will be created from the extracted name and VAT number — please confirm the details above are correct.
+                {t("A new supplier will be created from the extracted name and VAT number — please confirm the details above are correct.", "سيُنشأ مورّد جديد من الاسم والرقم الضريبي المستخرجين — يرجى التأكد من صحة البيانات أعلاه.")}
               </p>
               <Badge className="mt-2 bg-attention-surface/20 text-attention border-attention-surface/30 text-xs">{t("New supplier — please confirm details", "مورّد جديد — يرجى تأكيد البيانات")}</Badge>
             </div>
@@ -637,7 +643,7 @@ export default function ScanReview() {
 
           {/* always-available manual override + create new */}
           <div className="pt-1 border-t border-border/50 space-y-2">
-            <p className="text-xs text-muted-foreground">Or select manually:</p>
+            <p className="text-xs text-muted-foreground">{t("Or select manually:", "أو اختر يدويًا:")}</p>
             <div className="flex gap-2">
               <Select value={manualVendorId} onValueChange={v => {
                 setManualVendorId(v);
@@ -645,7 +651,7 @@ export default function ScanReview() {
                 setCreateNew(false);
               }}>
                 <SelectTrigger className="h-8 text-sm flex-1">
-                  <SelectValue placeholder="Choose existing supplier…" />
+                  <SelectValue placeholder={t("Choose existing supplier…", "اختر موردًا موجودًا…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {allVendors.map(v => (
@@ -656,7 +662,7 @@ export default function ScanReview() {
               <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0"
                 disabled={createVendorMut.isPending}
                 onClick={() => createVendorMut.mutate({
-                  name:       fields.vendorName || "New Supplier",
+                  name:       fields.vendorName || t("New Supplier", "مورّد جديد"),
                   nameAr:     fields.vendorNameAr || undefined,
                   taxNumber:  fields.supplierVatNumber || undefined,
                   isActive:   true,
@@ -665,7 +671,7 @@ export default function ScanReview() {
                 {createVendorMut.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Plus className="w-3.5 h-3.5" />}
-                Create new
+                {t("Create new", "إنشاء جديد")}
               </Button>
             </div>
           </div>
@@ -676,8 +682,8 @@ export default function ScanReview() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" /> Proposed Journal Entry
-            <span className="text-xs text-muted-foreground font-normal">— nothing posts until you confirm below</span>
+            <BookOpen className="w-4 h-4 text-primary" /> {t("Proposed Journal Entry", "قيد اليومية المقترح")}
+            <span className="text-xs text-muted-foreground font-normal">{t("— nothing posts until you confirm below", "— لا يُرحّل شيء حتى تؤكد أدناه")}</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -686,8 +692,8 @@ export default function ScanReview() {
               <thead className="bg-secondary/40">
                 <tr>
                   <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">{t("Account", "الحساب")}</th>
-                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Debit (SAR)</th>
-                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">Credit (SAR)</th>
+                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">{t("Debit (SAR)", "مدين (ر.س)")}</th>
+                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">{t("Credit (SAR)", "دائن (ر.س)")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -744,7 +750,7 @@ export default function ScanReview() {
            Math.abs(previewSubtotal + previewVat - previewTotal) > 0.02 && (
             <p className="text-xs text-negative mt-2 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
-              Journal entry does not balance — fix the amounts before posting.
+              {t("Journal entry does not balance — fix the amounts before posting.", "قيد اليومية غير متوازن — صحّح المبالغ قبل الترحيل.")}
             </p>
           )}
         </CardContent>
@@ -753,7 +759,7 @@ export default function ScanReview() {
       {/* ── action bar ───────────────────────────────────────────────────── */}
       <div className="flex gap-3 pb-8">
         <Button variant="outline" className="gap-2" onClick={() => navigate("/bills")} disabled={isPosting}>
-          Cancel
+          {t("Cancel", "إلغاء")}
         </Button>
         <Button
           className="flex-1 gap-2"
@@ -761,8 +767,8 @@ export default function ScanReview() {
           disabled={isPosting || (!selectedVendorId && !createNew && !manualVendorId)}
         >
           {isPosting
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Posting…</>
-            : <><CheckCircle2 className="w-4 h-4" /> Confirm & Post Bill</>}
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("Posting…", "جارٍ الترحيل…")}</>
+            : <><CheckCircle2 className="w-4 h-4" /> {t("Confirm & Post Bill", "تأكيد وترحيل الفاتورة")}</>}
         </Button>
       </div>
     </div>

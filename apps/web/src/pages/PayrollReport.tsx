@@ -99,7 +99,7 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" />

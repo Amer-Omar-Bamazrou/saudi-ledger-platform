@@ -156,7 +156,7 @@ export default function CreditNotes() {
           <DialogTrigger asChild>
             <Button disabled={correctable.length === 0}>
               <Plus className="h-4 w-4 me-2" />
-              New note
+              {t("New note", "إشعار جديد")}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -216,8 +216,10 @@ export default function CreditNotes() {
                 <Label>{t("Date", "التاريخ")}</Label>
                 <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                 <p className="text-xs text-muted-foreground mt-1">
-                  The note posts to ITS OWN period. Correcting an invoice from a closed period is
-                  fine — date the note in an open one.
+                  {t(
+                    "The note posts to ITS OWN period. Correcting an invoice from a closed period is fine — date the note in an open one.",
+                    "يُرحَّل الإشعار في فترته هو. تصحيح فاتورة من فترة مقفلة أمر سليم — أرِّخ الإشعار في فترة مفتوحة.",
+                  )}
                 </p>
               </div>
               <div>
@@ -225,7 +227,7 @@ export default function CreditNotes() {
                 <Input
                   value={form.noteReason}
                   onChange={(e) => setForm({ ...form, noteReason: e.target.value })}
-                  placeholder={isCredit ? "Goods returned" : "Price correction"}
+                  placeholder={isCredit ? t("Goods returned", "بضاعة مرتجعة") : t("Price correction", "تصحيح سعر")}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   {t("Required by ZATCA (BR-KSA-17) — every note must say why it was issued.", "مطلوب من هيئة الزكاة والضريبة (BR-KSA-17) — يجب أن يذكر كل إشعار سبب إصداره.")}
@@ -274,8 +276,10 @@ export default function CreditNotes() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            There are no issued invoices to correct yet. A note can only be raised against an
-            invoice that has been approved and issued.
+            {t(
+              "There are no issued invoices to correct yet. A note can only be raised against an invoice that has been approved and issued.",
+              "لا توجد فواتير صادرة للتصحيح بعد. لا يُصدر الإشعار إلا على فاتورة معتمدة وصادرة.",
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -305,7 +309,7 @@ export default function CreditNotes() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-muted-foreground">Loading…</p>
+            <p className="text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : notes.length === 0 ? (
             <p className="text-muted-foreground">{t("No credit or debit notes yet.", "لا توجد إشعارات دائنة أو مدينة بعد.")}</p>
           ) : (

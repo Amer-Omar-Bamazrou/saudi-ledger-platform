@@ -49,12 +49,12 @@ const BUCKET_COLORS: Record<string, string> = {
   over_90: "text-red-600",
 };
 
-const BUCKET_LABELS: Record<string, string> = {
-  current: "Current",
-  days_1_30: "1–30 Days",
-  days_31_60: "31–60 Days",
-  days_61_90: "61–90 Days",
-  over_90: "Over 90",
+const BUCKET_LABELS: Record<string, { en: string; ar: string }> = {
+  current: { en: "Current", ar: "جارٍ" },
+  days_1_30: { en: "1–30 Days", ar: "1–30 يومًا" },
+  days_31_60: { en: "31–60 Days", ar: "31–60 يومًا" },
+  days_61_90: { en: "61–90 Days", ar: "61–90 يومًا" },
+  over_90: { en: "Over 90", ar: "أكثر من 90" },
 };
 
 export default function ApAging() {
@@ -83,7 +83,7 @@ export default function ApAging() {
         {(Object.keys(BUCKET_LABELS) as (keyof ApAgingReport["buckets"])[]).map((key) => (
           <Card key={key} className="border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-muted-foreground">{BUCKET_LABELS[key]}</CardTitle>
+              <CardTitle className="text-xs text-muted-foreground">{t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className={`text-xl font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum(totals[key])}</div>
@@ -94,7 +94,7 @@ export default function ApAging() {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
           : isError ? (
             /* 🔴 A failed load is NOT an empty report. Saying "no outstanding
                payables" when the request failed would be a confident wrong
@@ -102,7 +102,7 @@ export default function ApAging() {
             <div className="text-center py-16 text-muted-foreground">
               <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40 text-negative" />
               <p className="text-sm text-negative">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</p>
-              <p className="text-xs mt-1 opacity-60">{(error as Error)?.message ?? "Please try again."}</p>
+              <p className="text-xs mt-1 opacity-60">{(error as Error)?.message ?? t("Please try again.", "يرجى المحاولة مرة أخرى.")}</p>
             </div>
           ) : report.items.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
@@ -131,7 +131,7 @@ export default function ApAging() {
                       </td>
                       <td className="py-3 pe-4">
                         <span className={`font-mono text-xs ${BUCKET_COLORS[bucket]}`}>
-                          {BUCKET_LABELS[bucket]}
+                          {t(BUCKET_LABELS[bucket].en, BUCKET_LABELS[bucket].ar)}
                           {item.daysPastDue > 0 && <span className="opacity-70"> · {item.daysPastDue}d</span>}
                         </span>
                       </td>

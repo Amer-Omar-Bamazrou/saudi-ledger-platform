@@ -83,10 +83,10 @@ export default function ZatcaOnboarding() {
       setError("");
       qc.invalidateQueries({ queryKey: ["zatca-onboarding"] });
       toast({
-        title: data.activated ? "ZATCA onboarding complete" : "Compliance checks failed",
+        title: data.activated ? t("ZATCA onboarding complete", "اكتمل الربط مع هيئة الزكاة") : t("Compliance checks failed", "فشلت فحوصات الامتثال"),
         description: data.activated
-          ? "This company can now issue ZATCA-cleared invoices."
-          : "No certificate was stored. See the failing documents below.",
+          ? t("This company can now issue ZATCA-cleared invoices.", "يمكن لهذه الشركة الآن إصدار فواتير معتمدة من الهيئة.")
+          : t("No certificate was stored. See the failing documents below.", "لم تُحفظ أي شهادة. راجع المستندات المرفوضة أدناه."),
         variant: data.activated ? undefined : "destructive",
       });
     },

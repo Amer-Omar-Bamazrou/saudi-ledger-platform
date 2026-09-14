@@ -62,7 +62,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
             <div className="min-w-56">
               <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
               <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select account…" /></SelectTrigger>
+                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select account…", "اختر حسابًا…")} /></SelectTrigger>
                 <SelectContent>
                   {cats.map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
@@ -115,7 +115,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Date", "Entry #", "Reference", "Description", "Debit", "Credit", "Balance"].map(h => (
+                  {[t("Date", "التاريخ"), t("Entry #", "رقم القيد"), t("Reference", "المرجع"), t("Description", "الوصف"), t("Debit", "مدين"), t("Credit", "دائن"), t("Balance", "الرصيد")].map(h => (
                     <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>

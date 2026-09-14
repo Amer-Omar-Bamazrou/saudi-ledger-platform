@@ -16,12 +16,12 @@ const BUCKET_COLORS: Record<string, string> = {
   over_90: "text-red-600",
 };
 
-const BUCKET_LABELS: Record<string, string> = {
-  current: "Current",
-  days_1_30: "1–30 Days",
-  days_31_60: "31–60 Days",
-  days_61_90: "61–90 Days",
-  over_90: "90+ Days",
+const BUCKET_LABELS: Record<string, { en: string; ar: string }> = {
+  current: { en: "Current", ar: "جارٍ" },
+  days_1_30: { en: "1–30 Days", ar: "1–30 يومًا" },
+  days_31_60: { en: "31–60 Days", ar: "31–60 يومًا" },
+  days_61_90: { en: "61–90 Days", ar: "61–90 يومًا" },
+  over_90: { en: "90+ Days", ar: "أكثر من 90 يومًا" },
 };
 
 function agingBucket(days: number): string {
@@ -44,7 +44,7 @@ export default function ArAging() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t("AR Aging Report", "تقرير أعمار الذمم المدينة")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">Outstanding customer balances by age · Auto-refreshes every minute</p>
+        <p className="text-muted-foreground text-sm mt-1">{t("Outstanding customer balances by age · Auto-refreshes every minute", "أرصدة العملاء المستحقة حسب العمر · تحديث تلقائي كل دقيقة")}</p>
       </div>
 
       {data && (
@@ -52,7 +52,7 @@ export default function ArAging() {
           <div className="grid grid-cols-5 gap-3">
             {Object.entries(BUCKET_LABELS).map(([key, label]) => (
               <Card key={key} className="border-border bg-card">
-                <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{label}</CardTitle></CardHeader>
+                <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(label.en, label.ar)}</CardTitle></CardHeader>
                 <CardContent>
                   <div className={`text-lg font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum((data.buckets as any)[key] ?? 0)}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
@@ -71,13 +71,13 @@ export default function ArAging() {
                   const pct = data.total > 0 ? ((data.buckets as any)[key] / data.total) * 100 : 0;
                   if (pct === 0) return null;
                   const bg: Record<string, string> = { current: "bg-positive-surface", days_1_30: "bg-attention-surface", days_31_60: "bg-orange-500", days_61_90: "bg-negative-surface", over_90: "bg-red-700" };
-                  return <div key={key} style={{ width: `${pct}%` }} className={`h-full transition-all ${bg[key]}`} title={`${BUCKET_LABELS[key]}: ${fmtNum((data.buckets as any)[key])}`} />;
+                  return <div key={key} style={{ width: `${pct}%` }} className={`h-full transition-all ${bg[key]}`} title={`${t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}: ${fmtNum((data.buckets as any)[key])}`} />;
                 })}
               </div>
               <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                <span>Least overdue ←</span>
+                <span>{t("Least overdue", "الأقل تأخرًا")} ←</span>
                 <span className="font-bold text-foreground">Total Outstanding: {fmtNum(data.total)}</span>
-                <span>→ Most overdue</span>
+                <span>→ {t("Most overdue", "الأكثر تأخرًا")}</span>
               </div>
             </CardContent>
           </Card>
@@ -96,7 +96,7 @@ export default function ArAging() {
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Invoice #", "Customer", "Due Date", "Days Past Due", "Outstanding", "Aging"].map(h => (
+                  {[t("Invoice #", "رقم الفاتورة"), t("Customer", "العميل"), t("Due Date", "تاريخ الاستحقاق"), t("Days Past Due", "أيام التأخر"), t("Outstanding", "المستحق"), t("Aging", "التقادم")].map(h => (
                     <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>
@@ -117,7 +117,7 @@ export default function ArAging() {
                       <td className="py-3 pe-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
                       <td className="py-3">
                         <Badge className={`text-xs ${bucket === "current" ? "bg-positive-surface/20 text-positive" : bucket === "days_1_30" ? "bg-attention-surface/20 text-attention" : "bg-negative-surface/20 text-negative"}`}>
-                          {BUCKET_LABELS[bucket]}
+                          {t(BUCKET_LABELS[bucket].en, BUCKET_LABELS[bucket].ar)}
                         </Badge>
                       </td>
                     </tr>
