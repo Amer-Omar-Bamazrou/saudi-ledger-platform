@@ -218,11 +218,20 @@ export async function postJournalEntry(opts: {
       throw new MissingPartyError(l.systemCode, l.accountName);
     }
   }
+  const totalDebit = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
+  const totalCredit = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
+  if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
+    throw new UnbalancedEntryError(totalDebit, totalCredit);
+  }
+
   // 🔴 N3's remaining half (closed 2026-09-14): the accountId arm is gated
   // too. A caller naming the AR/AP account BY ID was the one way to reach a
   // control account party-less — the manual-JE form now has its picker (and
   // its own 422 at journalEntries.service), so the ERPNext-grade rule can be
-  // unconditional here: one lookup, every path, no override.
+  // unconditional here: one lookup, every path, no override. Placed AFTER
+  // the pure checks: this is the function's first DB read, and the balance
+  // guard must fire before any query does (its own test proves it without a
+  // database).
   const idLines = lines.filter((l) => l.accountId != null && l.party === undefined);
   if (idLines.length > 0) {
     const rows = await db
@@ -234,11 +243,6 @@ export async function postJournalEntry(opts: {
       const code = codeOf.get(l.accountId!);
       if (code && PARTY_REQUIRED.has(code)) throw new MissingPartyError(code, l.accountName);
     }
-  }
-  const totalDebit = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
-  const totalCredit = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
-  if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
-    throw new UnbalancedEntryError(totalDebit, totalCredit);
   }
 
   // Resolve BEFORE writing anything, so an incomplete chart cannot leave a
