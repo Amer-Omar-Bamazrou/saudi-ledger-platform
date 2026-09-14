@@ -97,11 +97,11 @@ describeMaybe("the sentinel family — dead, and inexpressible to reintroduce", 
   });
 
   it("🔴 the write boundary stores '' as NULL — the stand-in cannot be typed back in", async () => {
-    const created = await inTenant(() => customersService.create({ name: "SF Client", nameAr: "" } as never, null));
+    const created = await inTenant(() => customersService.create({ name: "SF Client", nameAr: "" }));
     const { rows } = await pool.query(`SELECT name_ar FROM customers WHERE id = $1`, [(created as { id: number }).id]);
     expect(rows[0].name_ar).toBeNull();
     // Movement: real Arabic persists as itself.
-    const withAr = await inTenant(() => customersService.create({ name: "SF Client 2", nameAr: "عميل" } as never, null));
+    const withAr = await inTenant(() => customersService.create({ name: "SF Client 2", nameAr: "عميل" }));
     const r2 = await pool.query(`SELECT name_ar FROM customers WHERE id = $1`, [(withAr as { id: number }).id]);
     expect(r2.rows[0].name_ar).toBe("عميل");
   });
