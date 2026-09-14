@@ -95,6 +95,26 @@ describeMaybe("journal entry date — required at the write boundary", () => {
     });
   });
 
+  it("🔴 the DB is the floor (CHECK 0071): a raw INSERT with a malformed date is refused below every app guard", async () => {
+    // Deliberately NOT through the service — the point is what stands
+    // between the application and the column when the application is wrong.
+    for (const bad of ["", "2026-9-1", "not-a-date"]) {
+      await expect(
+        pool.query(
+          `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description)
+           VALUES ($1, $2, $3, $4, 'floor probe')`,
+          [orgId, companyId, `CHK-${bad.length}`, bad],
+        ),
+        `the column must refuse ${JSON.stringify(bad)}`,
+      ).rejects.toMatchObject({ constraint: "journal_entries_date_format_chk" });
+    }
+    // …and the SIBLINGS carry the same floor (presence, not only absence).
+    const chk = await pool.query(
+      `SELECT conrelid::regclass::text AS t FROM pg_constraint WHERE conname LIKE '%_date_format_chk' ORDER BY 1`,
+    );
+    expect(chk.rows.map((r) => r.t).sort()).toEqual(["bills", "invoices", "journal_entries"]);
+  });
+
   it("movement: a real date still creates — the gate refuses the absence, not the entry", async () => {
     const out = await inTenant(() => journalEntriesService.create(entry("2026-09-10"), null));
     expect(out.id).toBeTruthy();

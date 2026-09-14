@@ -6677,3 +6677,55 @@ The 2026-09-14 record's "final instrument count: 47, all classified … zero
 unclassified user-facing English" is RETRACTED (a pointer is placed on that
 entry). §5's Arabic line now states the measured position and cites this
 entry; its "PROVISIONAL" marker leaves.
+
+## 2026-09-15 — THE DATE-COLUMN AUDIT, and the floor under three application guards (migration 0071)
+
+**Why.** `journal_entries.date = ""` had passed THREE application guards —
+the falsy-skipped `assertDateString` and `checkPeriodOpen` at create (both
+written `if (jeData.date) …`), and `NOT NULL`, which an empty string
+satisfies — and would have posted an entry that no date-ranged report
+shows and no period lock examined (the pool-close round, §2). The write
+boundary was fixed the same day. The owner's question: does the existing
+DATA carry such a row, and is there anything BELOW the application
+standing between it and the column?
+
+**The audit — the record the migration cites.** Run 2026-09-15 against the
+committed baseline (5f67cd9 + the split), by SQL over every row, three
+regexes and a cast:
+
+| Environment | Table | Rows | `NULL` | `''` | not `YYYY-MM-DD` | fails `::date` | in the books / issued |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| local Supabase (Postgres 17.6, the ONLY environment — nothing is deployed) | `journal_entries` | 75 | 0 | 0 | 0 | 0 | 73 posted/reversed |
+| same | `invoices` | 96 | 0 | 0 | 0 | 0 | 26 |
+| same | `bills` | 13 | 0 | 0 | 0 | 0 | 10 |
+
+**Frame stated beside the number:** "every environment" is ONE
+environment. No hosted database exists (CLAUDE.md §2: nothing is
+deployed), so there is no second set of rows to audit and no production
+row this could have missed. **No remediation is needed — nothing is in the
+books with a bad date.** The audit is what the migration comment points
+at; the comment itself states no number.
+
+**What stood below the application: nothing.** All three `date` columns
+are `text NOT NULL` with no CHECK (`pg_constraint`, contype `c`, inspected
+per table — invoices and bills carry the 0020/0049/0062 CHECKs on notes,
+amounts and currency; none on `date`). The floor is now
+`<table>_date_format_chk CHECK (date ~ '^\d{4}-\d{2}-\d{2}$')` on
+`journal_entries`, `invoices` and `bills` — the two siblings share the
+column type, the writers' shape and the class (the pool-close round found
+the same optional-blank date class on `Bills.dueDate` and `Employees.joiningDate`, client-side), so all
+three get the identical floor rather than waiting for the sibling to be
+found the hard way. Hand-written (the 0020/0049/0062 precedent: CHECKs
+drizzle does not express), journaled, noted on the three schema columns so
+a snapshot diff cannot read them as droppable. `je-empty-date.test.ts`
+gains the floor test: a raw `INSERT` with `''`, `2026-9-1` and
+`not-a-date` is refused by the named constraint, below every application
+guard.
+
+**Not constrained, deliberately:** `due_date` (nullable, optional — the
+write boundary already sends `undefined` for blank, #152), and the format
+regex checks SHAPE only: `2026-02-30` passes the regex and fails
+`::date`. The audit's cast column shows no such row exists; a stricter
+`CHECK (date::date IS NOT NULL)` would be immutable-safe but the shape
+check is the class that was passed, and the cast is the application's job
+(`assertDateString` rejects `2026-02-30` explicitly). Recorded so the gap is named, not discovered.

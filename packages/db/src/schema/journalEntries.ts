@@ -22,6 +22,13 @@ export const journalEntriesTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     entryNumber: text("entry_number").notNull(),
+    /**
+     * 🔴 CHECK journal_entries_date_format_chk (migration 0071, hand-written — the
+     * 0020/0049/0062 precedent): exactly YYYY-MM-DD, below every application
+     * guard. Do not drop on a snapshot diff; drizzle does not track CHECKs.
+     * Why, and the audit that preceded it: findings file, "THE DATE-COLUMN
+     * AUDIT" (2026-09-15).
+     */
     date: text("date").notNull(),
     description: text("description").notNull(),
     reference: text("reference"),          // invoice/bill reference

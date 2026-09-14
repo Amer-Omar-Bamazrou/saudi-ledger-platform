@@ -23,6 +23,13 @@ export const billsTable = pgTable(
       .references(() => companiesTable.id),
     billNumber: text("bill_number").notNull(),
     vendorReference: text("vendor_reference"),
+    /**
+     * 🔴 CHECK bills_date_format_chk (migration 0071, hand-written — the
+     * 0020/0049/0062 precedent): exactly YYYY-MM-DD, below every application
+     * guard. Do not drop on a snapshot diff; drizzle does not track CHECKs.
+     * Why, and the audit that preceded it: findings file, "THE DATE-COLUMN
+     * AUDIT" (2026-09-15).
+     */
     date: text("date").notNull(),
     dueDate: text("due_date"),
     vendorId: integer("vendor_id").references(() => vendorsTable.id, { onDelete: "restrict" }),

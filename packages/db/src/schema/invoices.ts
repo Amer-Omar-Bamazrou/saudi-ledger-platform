@@ -22,6 +22,13 @@ export const invoicesTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     invoiceNumber: text("invoice_number").notNull(),
+    /**
+     * 🔴 CHECK invoices_date_format_chk (migration 0071, hand-written — the
+     * 0020/0049/0062 precedent): exactly YYYY-MM-DD, below every application
+     * guard. Do not drop on a snapshot diff; drizzle does not track CHECKs.
+     * Why, and the audit that preceded it: findings file, "THE DATE-COLUMN
+     * AUDIT" (2026-09-15).
+     */
     date: text("date").notNull(),
     dueDate: text("due_date"),
     customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
