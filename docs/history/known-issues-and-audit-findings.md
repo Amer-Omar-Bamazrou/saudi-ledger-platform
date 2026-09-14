@@ -1544,3 +1544,47 @@ The pool-close validation round (findings file, 2026-09-14) is the gate the
 close passed through: it retracted one number, found three more instances of
 the spread-into-body class (one of them in the books), re-guarded 69 mutate
 sites, and caught its own conflict-marker guard blind.
+
+## SECOND-OPINION AUDIT FIXES — CLOSED 2026-09-15 (three findings, two of them in the books' arithmetic)
+
+Full audit record, all seven items with their disconfirming conditions:
+findings file, "THE SECOND-OPINION AUDIT" (2026-09-15). Closed here:
+
+- **A journal entry could become POSTED while its stored lines did not
+  balance.** Two gaps: the manual create path checked the RAW request
+  amounts under the GL tolerance and stored `.toFixed(2)` per line (0.015 +
+  0.015 vs 0.03 balanced raw, persisted 0.02 + 0.02 vs 0.03); and
+  `onApprove` flipped `status` without reading the lines, so a draft whose
+  stored lines were unbalanced posted. Fixed at both moments in the
+  existing shape — `round2` before the check and `money2` to store; the
+  approvable re-asserts balance on the stored rows and refuses 422
+  `journal_entry_unbalanced`. `je-balance-floor.test.ts` proves both red
+  then green, keeps the balanced movement case, and pins the route
+  inventory (no line-delete or reassignment path exists — an absence
+  asserted, not a guard). No trigger added: drafts were never allowed to be
+  unbalanced, so nothing legitimate is broken by refusing them.
+- **Asset depreciation drifted from purchase cost by a halala.** Three
+  values rounded independently from one unrounded division; at the
+  half-cent (12.06 over 12 months = 1.005) book + accumulated read 12.05 by
+  month five. Fixed with one rounded addend and `money2`
+  (`assets-depreciation-rounding.test.ts`, red with the fix reversed, green
+  with it).
+- **The tenant-context three-request test did not exist.** Written and
+  running in `verify` (`packages/db/src/__tests__/pooled-tenant-context.test.ts`):
+  A then B on the same backend PID, C with no context fails closed, the
+  application layer refuses, an unsettled connection cannot leak — with a
+  planted session-level leak proving the instrument can see one. The
+  mechanism itself (transaction-local `SET LOCAL ROLE` + `set_config(…, true)`,
+  released only on settle) was already correct.
+
+Not changed by the audit, each already correct with its evidence in the
+findings entry: money column precision (74 × `numeric(15,2)`; quantities
+15,3; rates 5,2), the driver's string mapping, the invoice chain's advisory
+lock and its existing 8-way concurrency test, audit-row grants
+(INSERT+SELECT only; `security_audit_logs` owner-only), the QR tag layout
+and clearance/reporting routing (cited to Security Features Standard
+v1.2 of 2023-05-19 and Detailed Technical Guidelines v2, both unchanged
+live on 2026-09-15), per-line VAT rounding with one set of stored values
+end to end (accepted by the official SDK validator on four non-round
+cases), and the production boundary as `m12-status.md` §0 states it (one
+stale B1 row corrected).

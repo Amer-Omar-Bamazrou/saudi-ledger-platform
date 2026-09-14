@@ -6515,6 +6515,7 @@ split could not source was re-derived instead (report-is-a-sample, below).
 | The frame is part of the count | **3** | derived | (1) the dead Export buttons — 1 (the walk), 7 (the sweep's frame), 12 (the inventory) — "CONTRACT BATCH 1" §"the pairing" and "CONTRACT BATCH 2" §"the frame is part of the count"; (2) the default-VAT sweep whose `?? 15` grep missed the form-state literals and the schema defaults — known-issues file, "CONSTANTS CONSOLIDATION" ("the frame widened on contact"); (3) the spread-into-body sweep whose literal `type="date"` grep missed the dynamic form — "THE POOL-CLOSE VALIDATION ROUND" §2. |
 | The report is a sample, not an inventory | **5** | re-derived — the committed text said 3 | (1) "THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one" (2026-08-30 — the rule's origin); (2) "TWO REGRESSIONS I INTRODUCED" (2026-08-30, "the uncomfortable part"); (3) "A STACK'S TIP IS NOT ITS BODY OF WORK" (2026-08-31, "the reusable form"); (4) the seven dead Export buttons — one reported, seven inventoried (2026-09-01); (5) ScanReview — the heuristic surfaced 5, reading inventoried 14 (2026-09-14). The committed "Three instances" predates (4) and (5); corrected to 5 in the same commit as this table. |
 | An instrument validated on the set used to tune it reports its fit | **2** | derived | (1) the 2026-09-14 pool-close round: five files tuned-until-clean, reported as "47, all classified" — fit; (2) this round's own rounds 1 and 2: each widening consumed its hold-out, so their post-widening exactness is fit and only round 4 is error. Record: "THE HELD-OUT VALIDATION" (2026-09-15). |
+| A tolerance applied to the values you compute, not the values you store | **2** | derived | (1) the invoice header/line seam that N2 closed (owner-named 2026-09-03); (2) the manual journal-entry create path — raw sums checked under the tolerance, lines stored `.toFixed(2)`, 0.015 + 0.015 vs 0.03 persisted unbalanced — "THE SECOND-OPINION AUDIT" item 2 (2026-09-15). |
 | After closing an item, ask what it changed the meaning of | 2 | copied | "AUTO-APPROVE REMOVED" (closed the solo-approver finding) and "RANK 1 FIXED: the silent fallback" (`getApplication` revealed as an RLS bypass) — both 2026-08-28/29. |
 | Run the check on your own conclusions (search shape) | 2 | copied | Finding #7's OCR; M16.2's `bank_accounts` — named in the committed text. |
 | Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
@@ -6873,3 +6874,336 @@ constructors rendered at 71 client sites. Display-only: 51 raw enum
 renders, 15 persisted English narratives, and data.** Nothing fixed.
 Placed in CLAUDE.md §5 as one open row for the owner's ranking, with the
 class-1 item marked as the one that is wrong in the books today.
+
+## 2026-09-15 — THE SECOND-OPINION AUDIT: seven items, each traced in the repository, each with the condition that would have failed it
+
+**The charge (owner):** a second-opinion review raised seven items. Audit
+each against the ACTUAL repository — files, callers, database objects,
+tests — never from this file or from memory. Fix only what is genuinely
+deficient; say where the answer was already yes; and for every "already
+correct", state what was inspected and what would have made it fail. No
+new infrastructure, no restructuring, no parallel status vocabulary.
+Regulatory conclusions cite the latest applicable official ZATCA document
+and note any supersession.
+
+**Verdicts in one line each:** (1) money precision — columns and mapping
+already correct; ONE lossy site found and fixed (asset depreciation);
+(2) balance invariant — no line-delete or reassignment path exists; TWO
+gaps found and fixed (the manual create checked unrounded values; posting
+never re-checked); (3) tenant context — mechanism already correct; the
+pooled three-request test did not exist, now written, validated and
+running; (4) audit chain — the premise is wrong (there is no hash chain on
+audit rows); the invoice chain's concurrency test already exists and
+passes; audit-row grants already correct; (5) QR tags and routing —
+already correct, cited to the official documents, which have not been
+superseded; (6) VAT rounding — already correct and consistent end to end,
+and the official SDK validator accepts it on non-round lines; (7) the
+production boundary — already stated correctly in `m12-status.md`; one
+stale row corrected.
+
+### 1. Money precision — columns already correct; one lossy site, fixed
+
+**Inspected.** Every numeric column in the LIVE database
+(`information_schema.columns`, 84 rows) against every `numeric(` in
+`packages/db/src/schema` — identical lists. **Money: 74 columns, all
+`numeric(15,2)`. Quantities: 9, `numeric(15,3)` (`quantity` ×6,
+`stock_qty`, `reorder_point`, conversion quantities). Rates: 5,
+`numeric(5,2)` (`vat_rate`). Other: `useful_life_years numeric(5,1)`,
+`confidence_score numeric(5,4)`.** No money column with a scale other than
+2; no quantity or rate stored in a money column. *Not changed — the review
+asked that columns not be blanket-altered, and none needs altering.*
+
+**The driver boundary.** `pg` returns `numeric` as strings; there is no
+`setTypeParser` and no `customType` on a numeric column anywhere in
+`packages/db/src` (the only `customType` is `bytea` on the credential
+vault). A monetary value never becomes a double in the mapping layer.
+**Safe.**
+
+**The API boundary.** `assertAmount` (`lib/writeGuards.ts`) accepts any
+finite number up to `NUMERIC_15_2_MAX` and does NOT round; the OpenAPI
+contract types money as JSON `number`. A 2-dp decimal survives
+JSON→double→string exactly for |x| ≤ 9×10¹³, and `numeric(15,2)` caps at
+10¹³ — **safe by magnitude.** Sub-cent INPUT (10.005) is the already-recorded
+§5 trap (UI inputs step 0.01; the raw API is the only route) — **unknown by
+design, unchanged.**
+
+**Arithmetic, the count.** In `apps/api/src/{services,repositories,
+controllers,lib}` (tests excluded): **305 `Number(`/`parseFloat(` sites** —
+parses of 2-dp strings (safe by magnitude) and the arithmetic on them;
+**~95 `.toFixed(2)` stores**, classified by what feeds them: an operand
+already `round2`'d, or a sum of 2-dp values (float error ≪ half a cent) —
+**safe**; the assembler's `money()` and `percent()` over stored strings —
+safe; `reports.service`'s `fmt2` over computed sums — display only, safe;
+`assertAmount(...).toFixed(2)` on raw input (assets, bank accounts,
+budgets, products, employees, PO conversion unit price) — **lossy only for
+sub-cent input**, the §5 trap; and 🔴 **`assets.service.depreciate` — LOSSY,
+fixed:** a monthly amount from an unrounded division was stored three
+times, rounded independently (`amount.toFixed(2)`,
+`(book − amount).toFixed(2)`, `(acc + amount).toFixed(2)`). At a half-cent
+they round in different directions: 12.06 over 12 months is 1.005 a month,
+and after month five the asset read book 7.01 + accumulated 5.04 = 12.05
+against a 12.06 cost — proven red by
+`assets-depreciation-rounding.test.ts` with the fix reversed, green with it
+(one rounded addend, the other two derived from it, `money2` to store).
+`round2` itself is half-up on the binary double, so an exact decimal
+half-cent product (1.005 × 1) rounds down where decimal half-up would
+round up — bounded to ±0.01 per line, applied identically everywhere by the
+one seam, and accepted by the official validator (item 6).
+
+**The frontend.** 138 `Number(`/`parseFloat(` sites (form parsing and
+display); two local `round2` previews (Quotations, PurchaseOrders) that
+mirror the server and persist nothing; `toFixed(1)` on percentages. The
+frontend never stores money. **Safe.**
+
+**What would have failed it:** a money column with scale ≠ 2; a
+`setTypeParser` turning `numeric` into a double; a stored `.toFixed(2)`
+whose operand was an unrounded product or quotient. The third condition was
+met once — the depreciation path — and that is the fix.
+
+### 2. Balance invariant — no mutation path to guard; two gaps at the moments that matter, fixed
+
+**Inspected.** `postJournalEntry` (`glPosting.ts`): balance on the
+`round2`'d lines it persists (N2) — every automated posting. The manual
+path `journalEntries.service.create`: summed the RAW request amounts,
+compared under `GL_BALANCE_TOLERANCE` (0.005), then stored each line
+through `.toFixed(2)`. `journalEntryApprovable.onApprove`: `checkPeriodOpen`
+then `status = 'posted'` — it never read the lines. The router
+(`routes/journalEntries.ts`): `get /`, `get /:id`, `post /`,
+`post /:id/approve|reject|post|reverse`, `delete /:id` — and `remove`
+deletes a whole DRAFT with its lines. No service or repository method
+updates `journal_entry_id` on a line or deletes a single line (grep of
+every `journalEntryId:` write: inserts only, plus `transactions.journal_entry_id
+= null` on a different table). Database: no trigger, no balance
+constraint (`je_lines_amounts_non_negative` only).
+
+**Drafts unbalanced on purpose?** No — the create path refuses an unbalanced
+entry with 422 `journal_entry_unbalanced` even for a draft, so no trigger
+was needed and none was added (the review's caution honoured: nothing
+breaks legitimate draft construction because unbalanced drafts were never
+legitimate here).
+
+**The two gaps, both real, both fixed in the existing shape:**
+(a) *the check ran on values that were not the values stored* — 0.015 +
+0.015 against 0.03 balanced as raw doubles and persisted as 0.02 + 0.02 vs
+0.03 (`(0.015).toFixed(2)` is "0.01" on the double, `round2(0.015)` is
+0.02). Now `round2` runs BEFORE the check and `money2` stores the same
+number — the owner's 2026-09-03 rule ("a tolerance applied to the values you
+compute, not the values you store, checks a different thing than it appears
+to"), second instance. (b) *posting never re-checked* — a draft whose STORED
+lines do not balance (planted below the application) became posted. Now
+`onApprove` sums the stored rows and refuses 422 before flipping status.
+`je-balance-floor.test.ts`: both red before, green after; the balanced
+movement case still creates and posts; and the route inventory is asserted
+so an added line-mutation route fails the test rather than slipping past a
+guard that never saw it.
+
+**What would have failed it:** a route or method that deletes or re-parents a
+line (none); a posted entry whose stored lines do not balance (was
+possible via (a)+(b); the test now refuses both).
+
+### 3. Tenant context under pooling — mechanism already correct; the test was missing, now run
+
+**The mechanism, traced.** `packages/db/src/index.ts` `beginTenantConnection`:
+`pool.connect()` → `BEGIN` → `SET LOCAL ROLE "<DB_APP_ROLE>"` →
+`SET LOCAL idle_in_transaction_session_timeout` →
+`set_config('app.current_org_id', $1, true)` and
+`set_config('app.current_company_id', $1, true)` — **`is_local = true`,
+transaction-local by construction.** The client is released ONLY in
+`finish()` after `COMMIT`/`ROLLBACK`; `lib/tenant.ts` settles every request
+through `commitBeforeResponse` and rolls back on `res.on("close")` if
+nothing settled. The `db` proxy REFUSES outside a tenant store
+(`UnscopedDatabaseAccessError`); the deliberate wide path is `ownerDb`. The
+RLS predicate (`0003_rls_policies.sql`):
+`organization_id::text = current_setting('app.current_org_id', true)` —
+NULL compares false, so no context means no rows. **Background and
+privileged paths use the SAME mechanism:** `findings.schedule.service`,
+`findings.explain.service`, `recurring/generation.service`, the seed and
+benchmark scripts all call `beginTenantConnection`; the 19 `ownerDb`
+importers are identity, operator, invitation, vault and owner-only-table
+code; `demoReset` checks out a raw client for its `TRUNCATE` with an error
+listener and releases after settling.
+
+**The test, written and RUN** (`packages/db/src/__tests__/pooled-tenant-context.test.ts`,
+in `verify`): request A (org A) inserts and reads — sees only A; request B
+(org B) on the **same backend PID (asserted — the planted positive for
+reuse)** inserts and reads — sees only B; the owner sees both, so B's
+absence of A is RLS, not an empty table; request C, a raw checkout of the
+same PID with NO context: `app.current_org_id` is NULL, `SET LOCAL ROLE
+authenticated` + select returns **zero rows — fail closed**, and the role
+has reset after the transaction; the application layer refuses
+synchronously; an UNSETTLED tenant connection cannot leak (the next checkout
+is a different PID and clean; settling it later releases it clean). **The
+instrument is validated in the leak direction:** a deliberately
+session-level `set_config(…, false)` DOES survive into the next checkout,
+so the GUC read that says "gone" can see a leak when one exists. The
+existing `tenant-isolation.test.ts` had proved RLS on one dedicated session
+client — never the pool; this file is the missing half.
+
+**What would have failed it:** any `set_config(…, false)`, `SET ROLE` or
+`SET app.` without `LOCAL` in the runtime path (grep: none outside the
+planted test); a client released before settle (none — the only release is
+`finish`); a request C that saw rows (it saw none).
+
+### 4. "Audit hash chain" — the premise corrected; the real chain already concurrency-tested; audit rows already immutable to the app role
+
+**There is no hash chain on audit rows.** `audit_logs` and
+`security_audit_logs` carry no hash or previous-hash column (schema and
+migrations grep). The chains in this repository are on INVOICES: the
+homegrown `invoices.invoice_hash`/`previous_hash`, and the legal ZATCA
+chain on `einvoice_documents`. **Concurrency:** `invoices.approvable.ts`
+takes `lockCompanySequence` — `pg_advisory_xact_lock(hashtextextended(companyId))`
+— BEFORE `previousInvoiceHash` and `nextIcv`, so the head read and the
+write are inside one lock. **The concurrent test already exists**
+(`invoice-icv-concurrency.test.ts`: 8 parallel approvals over separate
+tenant connections via `Promise.allSettled` — dense unique ICVs, one
+unbroken chain with every link pointing at its predecessor, the legal
+`einvoice_documents` chain holding for an onboarded company, and no
+serialisation across companies); run today, 4/4 green. A second test was
+not written — the review asked for the test, and the test is there.
+
+**Audit-row permissions, from the database not the endpoints**
+(`information_schema.role_table_grants`, live): `audit_logs` —
+`authenticated`: **INSERT, SELECT only**; `security_audit_logs` — **no grant
+to any app role** (owner-only; written through `ownerDb`). Both pinned by
+tests (`audit-logs.test.ts`: UPDATE and DELETE forbidden;
+`security-audit-log.test.ts`: SELECT and INSERT forbidden to the app role;
+`destructive-grants.test.ts`: append-only). One local artefact: a role
+`tenant_rls_test` holding DELETE/UPDATE on `audit_logs` exists in the LOCAL
+dev database and nowhere in the repository or its history (`git log -S`:
+nothing) — a leftover of some earlier local test session, not a runtime
+role, not present on any deployment (there is none). Noted; not a repo
+change.
+
+**What would have failed it:** an UPDATE/DELETE/TRUNCATE grant to
+`authenticated` on either audit table (none); the head read outside the
+advisory lock (it is inside); a fork or a duplicate ICV under 8 parallel
+approvals (none).
+
+### 5. QR tag semantics and routing — already correct, cited; no supersession
+
+**The documents (fetched live 2026-09-15; SHA-256 identical to the copies
+pinned by `docs/zatca/fetch-specs.sh` — nothing has superseded them).**
+ZATCA's Laws & Regulations page (last updated 21 Jun 2026) lists only the
+2020 Regulation and the 2023-05-19 Resolution; the Guidelines page (updated
+10 Aug 2026) lists the same Detailed Technical Guideline file.
+
+- *"Security Features Implementation Standards to the E-Invoicing
+  resolution dated 2023-05-19"*, **Version 1.2, 2023-05-19**
+  (zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/20230519_…_vF.pdf),
+  Table 3 (pp. 25–26): **tag 7 "ECDSA signature of the XML Hash"; tag 8
+  "ECDSA public key extracted from the signing private key"; tag 9 "For
+  Simplified Tax Invoices and their associated notes, the ECDSA signature
+  of the cryptographic stamp's [public key] issued by ZATCA's technical
+  CA"**. Encoding: one-byte tag, one-byte length, UTF-8 value for tags
+  1–5; tag 6 stated as "32 bytes".
+- *"E-invoicing Detailed Technical Guidelines"*, **Version 2** (the file
+  carries no date on its version line; live file unchanged), §6: the same
+  tag table (p. 58), the XPath of each tag (tag 7 = `ds:SignatureValue`,
+  tag 8 = the public key, tag 9 = the certificate's `ecdsa-with-SHA256`
+  signature value), and its own worked example encodes **tag 6 with length
+  44 — a base64 STRING**, contradicting the Standard's "32 bytes".
+- *"Guide to Developed FATOORA Compliant QR Code"*, **18 Nov 2021** —
+  tags 1–5 only, 500-character limit: **superseded** by Standard v1.2 (700
+  characters, tags 6–9) and noted as such.
+- Routing: Detailed Technical Guidelines v2 — "Reporting applies for
+  Simplified documents (B2C)… within 24 hours of the transaction";
+  "Clearance applies for Standard documents (B2B)"; the Resolution of
+  2023-05-19 is the legal text behind both.
+
+**The implementation (`einvoice/crypto/qr.ts`).** Tags 1–5 UTF-8; **tag 6
+the base64 STRING of the hash; tag 7 the base64 STRING of the document's
+`SignatureValue`; tag 8 the SPKI DER public key as RAW bytes; tag 9 the
+CA's signature over the certificate as RAW bytes**; TLV = one-byte tag +
+one-byte length (≤ 255 bytes per field, refused with a readable error
+above it), whole payload base64, ≤ 700 characters; `decodeZatcaQr` walks
+it back. The mixed encoding is where the Standard's text is silent or
+wrong (tag 6) and was pinned by the LIVE sandbox compliance API
+(divergence #13: the all-base64 variant re-triggers
+`publicKey_QRCODE_INVALID` and `CERTIFICATE_SIGNATURE_QRCODE_INVALID`);
+today's `verify` re-ran the six compliance documents PASS. **Routing:**
+`outbox/enqueue.ts` — `flow = subtype === "standard" ? "clearance" :
+"reporting"`; `liveZatcaClient.ts` maps to `/invoices/clearance/single`
+and `/invoices/reporting/single`; `errorMapping.ts` refuses to silently
+switch a standard invoice to reporting.
+
+**What would have failed it:** a tag assignment differing from Table 3
+(none); tags 8/9 as base64 text or 6/7 as raw bytes (the live API rejects
+both, and the record says which error); a simplified invoice routed to
+clearance (none).
+
+### 6. VAT rounding — already correct, one set of values everywhere; official validator accepts it
+
+**Where rounding happens.** PER LINE: `base = round2(qty × price − discount)`,
+`vat = round2(base × rate / 100)` (invoices, bills, quotations, purchase
+orders — one shape in four services). HEADER: `subtotal` and `vatTotal` are
+Σ of the rounded lines, `total = round2(subtotal + vatTotal − discount)`,
+stored as such (N2: header = Σ stored lines). Then every consumer reads the
+STORED strings: GL posting (`invoices.approvable`: `toNum(inv.subtotal |
+vatAmount | total)`), the API (the same rows), the UBL assembler
+(`money(it.vatAmount)` per line; tax subtotals summed from the line strings;
+`taxTotal = money(invoice.vatAmount)`; `taxInclusiveTotal =
+money(invoice.total)`), and the QR (tags 4/5 are the assembler's
+`taxInclusiveTotal`/`taxTotal` strings). **DB = API = GL = XML = QR, from one
+seam.**
+
+**The official requirement** (ZATCA SDK 2.0.3, rules
+`20210819_ZATCA_E-invoice_Validation_Rules.xsl` and `CEN-EN16931-UBL.xsl`,
+every rule below `flag="error"`): BR-KSA-50 line VAT (KSA-11) = line net
+(BT-131) × rate/100; BR-KSA-51 line amount with VAT (KSA-12) = net + VAT;
+BR-KSA-DEC-03/04 and BR-DEC-13/14/19/20: two decimals at line level and on
+totals; BR-CO-14: BT-110 = Σ BT-117; BR-CO-15: BT-112 = BT-109 + BT-110;
+**BR-CO-17: BT-117 = BT-116 × rate, "rounded to two decimals" — whose XSL
+test admits ±1.00** (`abs(TaxAmount) − 1 < round(…) < abs(TaxAmount) + 1`).
+The Detailed Guideline (E-Invoicing_Detailed__Guideline.pdf, unchanged
+live) states two-decimal rounding for advance-payment adjustments. **No
+official document mandates per-line versus per-document rounding**; the
+rules constrain both levels, and the category-level tolerance is what
+absorbs the difference between Σ-of-rounded-lines and a recomputed
+category amount.
+
+**Measured against the official validator** (fatoora CLI 3.0.8, `-sign`
+then `-validate`, four documents built the product's way): a single 33.33
+line (VAT 4.9995 → 5.00); 3 × 33.33 (category 14.9985 → 15.00);
+0.03 + 0.03 (each line 0.00; category recomputes to 0.01); 7 × 0.10 (each
+line 0.02; Σ 0.14 against a recomputed 0.11) — **XSD, EN and KSA all
+PASSED, zero errors, zero warnings, in all four.** The strict-looking
+BR-KSA-50 does not fire on per-line rounding.
+
+**What would have failed it:** a document whose BT-110 ≠ Σ line VAT
+(impossible by construction); a KSA-11 with more than two decimals
+(`money()` always emits two); the SDK rejecting a non-round line (it
+accepted 4 of 4).
+
+### 7. The ZATCA production boundary — already stated correctly; one stale row fixed
+
+Evidenced in the repository, stage by stage (the doc that already says
+this is `docs/zatca/m12-status.md` §0, verified line by line today):
+
+| Stage | Evidenced? | By |
+| --- | --- | --- |
+| Technically implemented | yes | the pipeline: UBL, XAdES, QR, outbox, archive (`local-fs`), vault, enqueue-on-issuance, live client |
+| Locally tested | yes | `verify`: 141 API test files incl. the mocked outbox transport and UBL generation |
+| Official SDK validated | yes | `ubl-zatca-validator.test.ts` (fatoora `-sign`/`-validate`: XSD + EN 16931 + BR-KSA + QR PASSED for standard and simplified; ran in today's verify) + today's four rounding cases |
+| Sandbox tested | **yes — for document CONSTRUCTION only** | `zatca-compliance-live.test.ts` and `credit-notes-zatca-live.test.ts` against `gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal` `/compliance` and `/compliance/invoices` — ran LIVE in today's verify (six documents, the zero-rated case, the EDU/HEA refusal); the sandbox PCSID observed 2026-08-09 |
+| Production integration tested | **NO** | `/invoices/clearance/single` and `/invoices/reporting/single` appear only in `liveZatcaClient.ts`; no test imports it; `zatcaDirectProvider.ts` says so in its own words. Never called in the sandbox either. Simulation never used. |
+| Production credentials and onboarding | **NO** | no registered Saudi entity, no VAT registration, no ERAD credentials, no production PCSID; the sandbox PCSID is a shared canned certificate not bound to our key |
+
+**One drift corrected:** `m12-status.md` §4 B1 said the mailer "is still
+`noopMailer`"; `lib/mailer.ts` now carries Resend and Postmark
+implementations and `loadEnv` refuses a production boot without a
+provider — what remains is the deployment-time wiring, as CLAUDE.md §5
+records. The row now points there instead of stating status in its own
+words.
+
+### What the audit changed, and what it did not
+
+Changed: `journalEntries.service.ts` (round before the check, `money2`
+to store), `journalEntries.approvable.ts` (balance re-asserted on the
+stored lines at posting), `assets.service.ts` (one rounded addend),
+`m12-status.md` (B1 row). Added: `je-balance-floor.test.ts`,
+`assets-depreciation-rounding.test.ts`,
+`pooled-tenant-context.test.ts`. Not changed, deliberately: no column
+types, no triggers, no second concurrency test, no new mechanism for
+tenant context, nothing in the QR/UBL/routing code, no test weakened or
+removed. Records: this entry; the two closed findings in the known-issues
+file; §3's tolerance rule gains its second instance.

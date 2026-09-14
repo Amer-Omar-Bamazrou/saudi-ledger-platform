@@ -17,6 +17,7 @@ import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
+import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
@@ -86,8 +87,13 @@ export const journalEntriesService = {
       accountId: l.accountId as number | null,
       accountName: String(l.accountName ?? ""),
       description: (l.description ?? null) as string | null,
-      debitAmount: assertAmount(l.debitAmount ?? 0, `line ${i + 1} debit`),
-      creditAmount: assertAmount(l.creditAmount ?? 0, `line ${i + 1} credit`),
+      // 🔴 Rounded HERE, before the balance check — so the check runs on the
+      // values the ledger will STORE (2026-09-15, review item 2): 0.015 + 0.015
+      // against 0.03 balanced as raw doubles and persisted as 0.02 + 0.02 vs
+      // 0.03. A tolerance applied to the values you compute, not the values
+      // you store, checks a different thing than it appears to.
+      debitAmount: round2(assertAmount(l.debitAmount ?? 0, `line ${i + 1} debit`)),
+      creditAmount: round2(assertAmount(l.creditAmount ?? 0, `line ${i + 1} credit`)),
       customerId: l.customerId == null ? null : Number(l.customerId),
       vendorId: l.vendorId == null ? null : Number(l.vendorId),
     }));
@@ -230,8 +236,9 @@ export const journalEntriesService = {
             parsedLines.map((l) => ({
               ...l,
               journalEntryId: je.id,
-              debitAmount: l.debitAmount.toFixed(2),
-              creditAmount: l.creditAmount.toFixed(2),
+              // Already round2'd above — money2 stores exactly what the check saw.
+              debitAmount: money2(l.debitAmount),
+              creditAmount: money2(l.creditAmount),
               // Validated above; the CHECK (0066) makes an inconsistent
               // combination unstorable regardless.
               partyType: l.customerId != null ? "customer" : l.vendorId != null ? "vendor" : null,
