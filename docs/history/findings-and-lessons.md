@@ -6134,3 +6134,44 @@ frame: it translates via 26 `lang === "ar"` conditionals, which is why the
 sweep counts BOTH.
 
 After: suspect count 0. Re-run before launch stands.
+
+## 2026-09-14 — THE UI LEGS OF THE THREE BLOCKED FLOWS, WALKED BY CLICKING
+
+The 2026-09-04 QA pass verified bill create→post→pay, PO→bill at a
+different price, and quotation partial conversion via the API (the resized
+viewport made clicks unreliable) — authoritative for the ledger, blind to
+the surface. Walked today in a real browser, by clicking, on local dev:
+
+1. **Bill create → post → pay** ✅ — and the walk immediately caught what
+   the API leg structurally could not: **the New Bill form 400'd whenever
+   the optional Due Date was left blank** (`...body` spread sent
+   `dueDate: ""`; the server rightly refused not-a-date; the update path
+   and the invoice form already sent `|| undefined`). Every API test builds
+   its request the way the server expects — only the client's own
+   construction shows this class. Fixed; the refusal HAD surfaced properly
+   in the toast, which is how it was diagnosed in seconds. After the fix:
+   created (201), posted (200) — proposed JE correct (Dr Purchases 1,000 /
+   Dr Input VAT 150 / Cr AP 1,150) — paid (200), row → paid, Outstanding
+   AP −1,150 and Paid +1,150 (the headline figures MOVED). Also seen live:
+   the QA modal-scroll fix (the dialog scrolls inside itself; Post
+   reachable), the dead-controls fix (draft rows: Edit/Delete/Post;
+   received: Pay; submitted: neither), and the bad-vendor-VAT refusal
+   naming the malformed number on a post attempt.
+2. **Quotation partial conversion** ✅ — 10 units created→submitted→
+   approved (the AUD-6 Approve/Send back/Reject controls all present);
+   convert 4 → "Partly invoiced", the dialog listing the prior conversion
+   (INV-2026-000055, SAR 460); over-convert 7 → **409 refused**; final 6 →
+   "Invoiced" and the Convert control GONE — a fully-converted quotation
+   no longer offers it.
+3. **PO → bill at a different price** ✅ — order 1 × 200 approved; Record
+   bill defaults the price to the ordered 200 and says "change it if the
+   supplier charged something else"; billed at 250 → the ORDER keeps
+   SAR 230.00 and reads Fully billed, the draft bill carries 250.00 +
+   37.50 VAT = 287.50. The billing-not-delivery honesty note and the
+   quantity over-billing acknowledgment are both present.
+
+Walk data left in the local dev org: one paid bill (1,150), one converted
+draft bill (287.50, the PO conversion's honest record), one fully-invoiced
+quotation + its two draft invoices. The stray draft from the dueDate
+diagnosis was deleted through the UI (whose confirm correctly stated its
+scope: "nothing has been posted").
