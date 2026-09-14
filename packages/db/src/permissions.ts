@@ -113,7 +113,9 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // Company settings (M11.6): everyone may READ the company profile (it is
   // displayed on invoices and reports), but only an admin may change the legal
   // identity — the VAT/CR numbers feed the ZATCA QR and invoice hash chain.
-  companies: { read: READ_ALL, update: ADMIN_ONLY },
+  // `delete` (L1, 2026-09-14) covers exactly one route today — removing the
+  // company LOGO — and is admin-only for the same reason update is.
+  companies: { read: READ_ALL, update: ADMIN_ONLY, delete: ADMIN_ONLY },
 
   /**
    * ZATCA onboarding (M12.4). Read is open so any role can see the prerequisite

@@ -1353,6 +1353,37 @@ same entry WITH a party posting (movement: the gate refuses the omission,
 not the account), and tenant-scoped id resolution. Zero-movement suite
 unaffected.
 
+## L1 LOGO UPLOAD — SHIPPED 2026-09-14 (the level-1 branding remainder)
+
+The decided shape (design-invoice-document.md §2, owner 2026-09-02), built
+exactly: one upload in Company Settings, PNG/JPG/SVG at a 2 MB cap, bytes
+sniffed (M-5's rule — PNG/JPG by magic bytes; SVG structurally, since it has
+none, with ACTIVE CONTENT refused outright), malware-scanned before any byte
+reaches storage, kept through the existing storage seam in the private
+bucket (`<org>/logo/<company>-<uuid>.<ext>`). Absent logo = the invoice
+header carries the registered name alone — no fallback mark; the renderer's
+slot only fills when a logo exists (`loadLogoDataUrl`, best-effort with a
+logged degradation to the designed absence — branding never fails a legal
+document).
+
+Surface: `GET/PUT/DELETE /companies/current/logo` (spec'd; the multipart
+body deliberately schemaless — a binary multipart schema generates DOM types
+the node-side Zod package cannot compile; the client builds FormData by
+hand, the capture pattern). The GET serves INLINE for the settings preview
+but sandboxed (`Content-Security-Policy: sandbox`, nosniff) so a
+directly-navigated SVG runs nothing in our origin — documentHttp's
+attachment rule's inline counterpart. `companies` gained `delete:
+ADMIN_ONLY` in the permission matrix (the DELETE route would otherwise have
+been a dead control — the QA pass's controls-that-can-only-fail class,
+caught at design time). `hasLogo` joins the Company contract.
+
+Proof: `company-logo.test.ts` — the validator proven to FAIL (garbage, PDF,
+scripted SVG, oversize) and to pass (PNG, clean SVG); upload→read
+byte-for-byte; replace repoints; a REJECTED upload changes nothing; remove
+is idempotent first-class absence. `invoice-document-render.test.ts` gained
+the PRESENCE half beside its existing absence rule: a logo model renders the
+slot AND the registered name. Migration 0069 (drizzle generate, T1 flow).
+
 ## L-1 — CLOSED 2026-09-14: a failed security-audit write pages critical
 
 The finding: `securityAuditService.record` swallowed a failed insert with a

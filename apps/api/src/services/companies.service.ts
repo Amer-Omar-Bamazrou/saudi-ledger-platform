@@ -13,7 +13,11 @@ import {
   UpdateCurrentCompanyBody,
   UpdateCurrentCompanyResponse,
 } from "@workspace/api-zod";
+import { randomUUID } from "node:crypto";
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { storage } from "../lib/storage";
+import { validateLogoBytes, LOGO_ALLOWED_MIME } from "../lib/fileValidation";
+import { assertFileIsClean } from "../lib/malwareScanner";
 import {
   BUILDING_NUMBER_RE, CR_NUMBER_HELP, CR_NUMBER_RE,
   POSTAL_CODE_RE, VAT_NUMBER_HELP, VAT_NUMBER_RE,
@@ -42,6 +46,7 @@ function buildCompanyOut(c: Company) {
     fiscalYearStart: c.fiscalYearStart,
     fiscalCalendar: c.fiscalCalendar,
     ownershipType: c.ownershipType ?? null,
+    hasLogo: !!c.logoPath,
     buildingNumber: c.buildingNumber ?? null,
     street: c.street ?? null,
     district: c.district ?? null,
@@ -199,5 +204,55 @@ export const companiesService = {
     const [updated] = await companiesRepository.update(company.id, updates);
     await auditService.updated("company", company.id, buildCompanyOut(company), buildCompanyOut(updated));
     return UpdateCurrentCompanyResponse.parse(buildCompanyOut(updated));
+  },
+
+  // ── L1 level-1 branding: the logo (design-invoice-document.md §2) ─────────
+  // One upload per company, brokered through the API into the private bucket
+  // (the storage seam). Absent = the invoice header carries the registered
+  // name alone — no fallback mark, by decision.
+
+  /** Validate, scan, store, and record the company logo. Replaces any existing one. */
+  async uploadLogo(organizationId: string, file: { buffer: Buffer } | undefined) {
+    if (!file || !file.buffer) throw new BadRequestError("A file is required (field name: 'file').");
+    const company = await companiesRepository.findActive();
+    if (!company) throw new NotFoundError("No company is configured for this organization.");
+
+    // Trust the bytes (M-5's rule applies to the logo too), then scan BEFORE
+    // any bytes reach storage.
+    const mimeType = validateLogoBytes(file.buffer);
+    await assertFileIsClean(file.buffer, { kind: "company_logo" });
+
+    const ext = LOGO_ALLOWED_MIME[mimeType];
+    const objectPath = `${organizationId}/logo/${company.id}-${randomUUID()}.${ext}`;
+
+    await storage.ensureBucket();
+    await storage.putObject(objectPath, file.buffer, mimeType);
+
+    const previous = company.logoPath;
+    await companiesRepository.update(company.id, { logoPath: objectPath });
+    await auditService.updated("company", company.id, { logoPath: previous }, { logoPath: objectPath });
+
+    // The old object is unreferenced the moment the row points elsewhere;
+    // removal is best-effort by the seam's own contract.
+    if (previous) await storage.removeObject(previous);
+    return { hasLogo: true as const };
+  },
+
+  /** The stored logo's bytes + content type. 404 when there is none. */
+  async getLogo() {
+    const company = await companiesRepository.findActive();
+    if (!company?.logoPath) throw new NotFoundError("This company has no logo.");
+    return storage.getObject(company.logoPath);
+  },
+
+  /** Remove the logo: the header returns to the registered name alone. */
+  async removeLogo() {
+    const company = await companiesRepository.findActive();
+    if (!company) throw new NotFoundError("No company is configured for this organization.");
+    if (!company.logoPath) return { hasLogo: false as const };
+    await companiesRepository.update(company.id, { logoPath: null });
+    await auditService.updated("company", company.id, { logoPath: company.logoPath }, { logoPath: null });
+    await storage.removeObject(company.logoPath);
+    return { hasLogo: false as const };
   },
 };
