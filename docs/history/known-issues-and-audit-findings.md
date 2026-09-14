@@ -1322,6 +1322,31 @@ carries 250); quotation partial conversion (4 of 10 leaves 6; over-converting
 rejection (400). Two well-formed refusals seen and kept: a bad vendor VAT on
 bill-approve (offers `force:true`), and convert-before-approve on quotations.
 
+## L-1 — CLOSED 2026-09-14: a failed security-audit write pages critical
+
+The finding: `securityAuditService.record` swallowed a failed insert with a
+`console.error` — the "unnoticed" multiplier on the identity layer, where
+the mutation the event describes has ALREADY committed, so the trail is the
+only witness. The never-throw contract is correct (throwing would report a
+committed mutation as failed) and stands; what changes is who finds out.
+
+The fix: the catch now logs structured (pino) and FIRES the platform alarm
+(`security-audit-write-failed`, critical) through the existing `alerter`
+seam — the same channel as a failed tenant commit. The alert itself is
+belt-wrapped so an alerting failure cannot break the caller either.
+
+Proof (`security-audit.test.ts`): a failing implementation injected the
+honest way — circular metadata makes the INSERT itself throw — pages exactly
+once with the right key and severity, the caller resolves, and the row is
+confirmed absent (the condition the page reports). Movement: a normal
+record with the same captured alerter pages NOTHING — failure-only, not a
+heartbeat. Sweep of the shape: the remaining `console.error`s in the API
+are CLI scripts, where console IS the surface.
+
+Deployment note: the page arrives only where B2's `ALERT_WEBHOOK_URL` is
+wired — the unwired-alarm caveat in §2 applies to this alarm like every
+other.
+
 ## CONSTANTS CONSOLIDATION — CLOSED 2026-09-14: `@workspace/shared` is the one definition
 
 The 2026-09-03 sweep's disposition, built: a new tiny workspace package
