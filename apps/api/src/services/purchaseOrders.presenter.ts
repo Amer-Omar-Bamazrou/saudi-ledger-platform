@@ -40,7 +40,7 @@ export interface PurchaseOrderItemOut {
   id: number;
   productId: number | null;
   description: string;
-  descriptionAr: string;
+  descriptionAr: string | null;
   quantity: number;
   unitPrice: number;
   vatRate: number;

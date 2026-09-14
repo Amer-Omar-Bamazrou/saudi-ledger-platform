@@ -11,7 +11,8 @@ export interface PurchaseOrderItem {
   id: number;
   productId?: number | null;
   description: string;
-  descriptionAr?: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   quantity: number;
   /** The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused. */
   unitPrice: number;

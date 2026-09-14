@@ -21,7 +21,7 @@ export const fixedAssetsTable = pgTable(
       .references(() => companiesTable.id),
     assetNumber: text("asset_number").notNull(),
     name: text("name").notNull(),
-    nameAr: text("name_ar").notNull().default("(not yet translated)"),
+    nameAr: text("name_ar"),
     categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "set null" }),
     purchaseDate: text("purchase_date").notNull(),
     purchaseCost: numeric("purchase_cost", { precision: 15, scale: 2 }).notNull(),

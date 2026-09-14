@@ -11,7 +11,8 @@ export interface AssetInputFields {
   assetNumber?: string;
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   categoryId?: number | null;
   purchaseDate?: string;

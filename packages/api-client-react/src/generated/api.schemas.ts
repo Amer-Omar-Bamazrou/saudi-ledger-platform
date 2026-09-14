@@ -1388,7 +1388,8 @@ export interface QuotationItem {
   id: number;
   productId?: number | null;
   description: string;
-  descriptionAr?: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   quantity: number;
   /** The QUOTED price. Conversion copies this value and never re-reads the product's current price. */
   unitPrice: number;
@@ -1650,7 +1651,8 @@ export interface PurchaseOrderItem {
   id: number;
   productId?: number | null;
   description: string;
-  descriptionAr?: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   quantity: number;
   /** The price we ORDERED at. Unlike a quotation, this does not bind the supplier - their bill may say something else, and that difference is recorded rather than refused. */
   unitPrice: number;
@@ -2584,7 +2586,8 @@ export interface PartyTotals {
 export interface Customer {
   id: number;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   taxNumber: string | null;
   /** @nullable */
@@ -2641,7 +2644,8 @@ export type CustomerDetail = CustomerWithBalance & {
 export interface CustomerInputFields {
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */
@@ -2687,7 +2691,8 @@ export interface CustomerInputFields {
 export interface CreateCustomerInput {
   /** @minLength 1 */
   name: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */
@@ -2735,7 +2740,8 @@ export type UpdateCustomerInput = CustomerInputFields;
 export interface Vendor {
   id: number;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   taxNumber: string | null;
   /** @nullable */
@@ -2779,7 +2785,8 @@ export type VendorCreated = Vendor & {
 export interface VendorInputFields {
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */
@@ -2808,7 +2815,8 @@ export interface VendorInputFields {
 export interface CreateVendorInput {
   /** @minLength 1 */
   name: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */
@@ -3131,14 +3139,16 @@ export interface Employee {
   id: number;
   employeeNumber: string;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   nationalId: string | null;
   /** @nullable */
   nationality: string | null;
   /** @nullable */
   jobTitle: string | null;
-  jobTitleAr: string;
+  /** @nullable */
+  jobTitleAr: string | null;
   /** @nullable */
   department: string | null;
   basicSalary: number;
@@ -3178,14 +3188,16 @@ export interface EmployeeInputFields {
   employeeNumber?: string;
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   nationalId?: string | null;
   /** @nullable */
   nationality?: string | null;
   /** @nullable */
   jobTitle?: string | null;
-  jobTitleAr?: string;
+  /** @nullable */
+  jobTitleAr?: string | null;
   /** @nullable */
   department?: string | null;
   /** @minimum 0 */
@@ -3255,7 +3267,8 @@ export interface Asset {
   id: number;
   assetNumber: string;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   categoryId: number | null;
   purchaseDate: string;
@@ -3312,7 +3325,8 @@ export interface AssetInputFields {
   assetNumber?: string;
   /** @minLength 1 */
   name?: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   categoryId?: number | null;
   purchaseDate?: string;
@@ -3341,7 +3355,8 @@ export interface CreateAssetInput {
   assetNumber: string;
   /** @minLength 1 */
   name: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   categoryId?: number | null;
   purchaseDate: string;

@@ -132,7 +132,7 @@ export const quotationItemsTable = pgTable(
       .references(() => quotationsTable.id, { onDelete: "cascade" }),
     productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
     description: text("description").notNull(),
-    descriptionAr: text("description_ar").notNull().default("(not yet translated)"),
+    descriptionAr: text("description_ar"),
     quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),
     /**
      * 🔴 The QUOTED price, and the reason this column exists rather than a

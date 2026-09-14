@@ -20,11 +20,11 @@ export const employeesTable = pgTable(
       .references(() => companiesTable.id),
     employeeNumber: text("employee_number").notNull(),
     name: text("name").notNull(),
-    nameAr: text("name_ar").notNull().default("(not yet translated)"),
+    nameAr: text("name_ar"),
     nationalId: text("national_id"),        // Saudi ID / Iqama number
     nationality: text("nationality").default("SA"),
     jobTitle: text("job_title"),
-    jobTitleAr: text("job_title_ar").notNull().default("(not yet translated)"),
+    jobTitleAr: text("job_title_ar"),
     department: text("department"),
     basicSalary: numeric("basic_salary", { precision: 15, scale: 2 }).notNull(),
     housingAllowance: numeric("housing_allowance", { precision: 15, scale: 2 }).default("0"),

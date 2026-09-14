@@ -177,10 +177,9 @@ export const invoiceItemsTable = pgTable(
      * string "(not yet translated)", which the document design then had to
      * legislate against printing. NULL is the honest absence: the Arabic PDF
      * falls back to the English description, and nothing has to RECOGNISE a
-     * magic string to know a translation is missing. (🔴 The same sentinel
-     * default survives on ~8 OTHER columns — assets/budgets/customers/
-     * employees nameAr etc. — a named family for the same treatment when each
-     * gains its form field; migration 0067 converts only THIS column.)
+     * magic string to know a translation is missing. (The named FAMILY on
+     * the other ~8 columns died 2026-09-14 — every sentinel default is gone,
+     * and sentinel-family.test.ts refuses any new one mechanically.)
      */
     descriptionAr: text("description_ar"),
     quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull().default("1"),

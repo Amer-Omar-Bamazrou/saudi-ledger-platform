@@ -4937,7 +4937,7 @@ components:
         id: { type: integer }
         productId: { type: integer, nullable: true }
         description: { type: string }
-        descriptionAr: { type: string }
+        descriptionAr: { type: ["string", "null"] }
         quantity: { type: number }
         unitPrice:
           type: number
@@ -5114,7 +5114,7 @@ components:
         id: { type: integer }
         productId: { type: integer, nullable: true }
         description: { type: string }
-        descriptionAr: { type: string }
+        descriptionAr: { type: ["string", "null"] }
         quantity: { type: number }
         unitPrice:
           type: number
@@ -6133,7 +6133,7 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         nationalId: { type: ["string", "null"] }
@@ -6177,7 +6177,7 @@ components:
       type: object
       properties:
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         nationalId: { type: ["string", "null"] }
@@ -6205,7 +6205,7 @@ components:
       required: [name]
       properties:
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         nationalId: { type: ["string", "null"] }
@@ -6239,7 +6239,7 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         phone: { type: ["string", "null"] }
@@ -6282,7 +6282,7 @@ components:
       type: object
       properties:
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         phone: { type: ["string", "null"] }
@@ -6301,7 +6301,7 @@ components:
       required: [name]
       properties:
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         taxNumber: { type: ["string", "null"] }
         crNumber: { type: ["string", "null"] }
         phone: { type: ["string", "null"] }
@@ -6610,11 +6610,11 @@ components:
         id: { type: integer }
         employeeNumber: { type: string }
         name: { type: string }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         nationalId: { type: ["string", "null"] }
         nationality: { type: ["string", "null"] }
         jobTitle: { type: ["string", "null"] }
-        jobTitleAr: { type: string }
+        jobTitleAr: { type: ["string", "null"] }
         department: { type: ["string", "null"] }
         basicSalary: { type: number }
         housingAllowance: { type: number }
@@ -6651,11 +6651,11 @@ components:
       properties:
         employeeNumber: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         nationalId: { type: ["string", "null"] }
         nationality: { type: ["string", "null"] }
         jobTitle: { type: ["string", "null"] }
-        jobTitleAr: { type: string }
+        jobTitleAr: { type: ["string", "null"] }
         department: { type: ["string", "null"] }
         basicSalary: { type: number, minimum: 0 }
         housingAllowance: { type: number, minimum: 0 }
@@ -6705,7 +6705,7 @@ components:
         id: { type: integer }
         assetNumber: { type: string }
         name: { type: string }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         categoryId: { type: ["integer", "null"] }
         purchaseDate: { type: string }
         purchaseCost: { type: number }
@@ -6769,7 +6769,7 @@ components:
       properties:
         assetNumber: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         categoryId: { type: ["integer", "null"] }
         purchaseDate: { type: string }
         purchaseCost: { type: number, minimum: 0 }
@@ -6789,7 +6789,7 @@ components:
       properties:
         assetNumber: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
-        nameAr: { type: string }
+        nameAr: { type: ["string", "null"] }
         categoryId: { type: ["integer", "null"] }
         purchaseDate: { type: string }
         purchaseCost: { type: number, minimum: 0 }

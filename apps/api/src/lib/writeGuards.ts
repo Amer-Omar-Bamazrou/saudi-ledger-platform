@@ -145,3 +145,13 @@ export function assertDateString(value: unknown, field: string): string {
   }
   return value;
 }
+
+/**
+ * The sentinel family's write-boundary half (2026-09-14): an empty Arabic
+ * text field is an ABSENCE — store NULL, never "" (the stand-in the sentinel
+ * migration removed; "" would reintroduce it one keystroke at a time).
+ */
+export function nullifyEmptyText<T extends Record<string, unknown>>(obj: T, keys: readonly (keyof T & string)[]): T {
+  for (const k of keys) if (obj[k] === "") (obj as Record<string, unknown>)[k] = null;
+  return obj;
+}

@@ -10,7 +10,8 @@ export interface Asset {
   id: number;
   assetNumber: string;
   name: string;
-  nameAr: string;
+  /** @nullable */
+  nameAr: string | null;
   /** @nullable */
   categoryId: number | null;
   purchaseDate: string;

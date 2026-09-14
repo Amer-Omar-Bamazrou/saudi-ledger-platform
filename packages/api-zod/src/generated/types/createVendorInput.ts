@@ -9,7 +9,8 @@
 export interface CreateVendorInput {
   /** @minLength 1 */
   name: string;
-  nameAr?: string;
+  /** @nullable */
+  nameAr?: string | null;
   /** @nullable */
   taxNumber?: string | null;
   /** @nullable */

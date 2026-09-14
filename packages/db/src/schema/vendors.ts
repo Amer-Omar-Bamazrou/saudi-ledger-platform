@@ -15,7 +15,7 @@ export const vendorsTable = pgTable(
       .default(sql`app_default_org_id()`)
       .references(() => organizationsTable.id),
     name: text("name").notNull(),
-    nameAr: text("name_ar").notNull().default("(not yet translated)"),
+    nameAr: text("name_ar"),
     taxNumber: text("tax_number"),       // VAT registration / ZATCA number
     crNumber: text("cr_number"),
     phone: text("phone"),

@@ -1,6 +1,6 @@
 /** Budgets service — budget-vs-actual computation. Behavior preserved from pre-M6. */
 import { NotFoundError } from "../lib/errors";
-import { pick, assertAmount } from "../lib/writeGuards";
+import { pick, assertAmount , nullifyEmptyText } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable budget fields. */
 const BUDGET_FIELDS = ["name", "nameAr", "period", "categoryId", "budgetedAmount", "notes"] as const;
@@ -73,7 +73,7 @@ export const budgetsService = {
   async create(data: Record<string, unknown>) {
     // 🔴 H1/H2 — ALLOWLIST + validate. `String(undefined)` → "undefined" → 500;
     // negatives persisted. budgetedAmount ≥ 0.
-    const picked = pick<Record<string, unknown>>(data, BUDGET_FIELDS);
+    const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, BUDGET_FIELDS), ["nameAr"]);
     const amount = assertAmount(data.budgetedAmount, "budgetedAmount", { min: 0, allowZero: true });
     const values = { ...picked, budgetedAmount: amount.toFixed(2) } as typeof budgetsTable.$inferInsert;
     const [row] = await budgetsRepository.insert(values);
@@ -84,7 +84,7 @@ export const budgetsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await budgetsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = pick<Record<string, unknown>>(data, BUDGET_FIELDS);
+    const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, BUDGET_FIELDS), ["nameAr"]);
     if (updates.budgetedAmount != null) updates.budgetedAmount = assertAmount(updates.budgetedAmount, "budgetedAmount", { min: 0, allowZero: true }).toFixed(2);
     const [row] = await budgetsRepository.update(id, updates as Partial<typeof budgetsTable.$inferInsert>);
     await auditService.updated("budget", id, before, row);

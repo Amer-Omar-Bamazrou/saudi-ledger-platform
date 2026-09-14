@@ -62,8 +62,10 @@ ERPNext comparison; N1–N4 + T1 closed; L1's core SHIPPED (the invoice leaves
 the product — PDF/A-3, veraPDF PASS both renderings) and L2 SHIPPED (the
 responsive shell, the no-sideways-scroll property pinned per route).**
 **2026-09-14** — the QA-pass fixes (#142) and break-glass (#141) MERGED ten
-days after going green (lesson: §3). Records: §5's board block and the
-history files.
+days after going green (lesson: §3) — and 🔴 **THE DECISION-FREE POOL
+CLOSED the same day** (all eight items; the three blocked flows' UI legs
+also walked by clicking, catching and fixing two client defects). Records:
+§5's board block and the history files.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -496,9 +498,10 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
-**The decision-free pool** (break-glass ✅ · C6a ✅ ·
-constants ✅ · L-1 ✅ · logo ✅ · party picker ✅ · sentinel family · Arabic re-sweep ✅),
-**after which every path runs through a door the OWNER holds**: entity ·
+**The decision-free pool — CLOSED 2026-09-14** (break-glass ✅ · C6a ✅ ·
+constants ✅ · L-1 ✅ · logo ✅ · party picker ✅ · sentinel family ✅ · Arabic re-sweep ✅;
+records: known-issues + findings files). **Every remaining path now runs
+through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
 🔴 **Four ERPNext findings await the OWNER'S RANKING** — withholding tax and

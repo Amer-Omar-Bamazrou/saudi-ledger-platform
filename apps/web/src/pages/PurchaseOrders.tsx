@@ -40,7 +40,7 @@ import type { CreatePurchaseOrderInput, PurchaseOrder, PurchaseOrderConversion, 
 const json = { create: (b: CreatePurchaseOrderInput) => JSON.stringify(b), update: (b: CreatePurchaseOrderInput) => JSON.stringify(b) };
 
 /** A line being typed — the form model, not a response claim; responses use the generated types. */
-type PoLineForm = { id?: number; description: string; quantity: number | string; unitPrice?: number | string; vatRate: number | string; total?: number; billedQuantity?: number; unbilledQuantity?: number };
+type PoLineForm = { id?: number; description: string; descriptionAr?: string | null; quantity: number | string; unitPrice?: number | string; vatRate: number | string; total?: number; billedQuantity?: number; unbilledQuantity?: number };
 
 
 
@@ -57,7 +57,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   approved: <CheckCircle className="w-3 h-3" />,
 };
 
-const emptyLine = (): Partial<PoLineForm> => ({ description: "", quantity: 1, unitPrice: undefined, vatRate: DEFAULT_VAT_RATE });
+const emptyLine = (): Partial<PoLineForm> => ({ description: "", descriptionAr: "", quantity: 1, unitPrice: undefined, vatRate: DEFAULT_VAT_RATE });
 
 export default function PurchaseOrders() {
   const { t, lang } = useLanguage();
@@ -110,6 +110,7 @@ export default function PurchaseOrders() {
           notes: form.notes || undefined,
           items: lines.map((l) => ({
             description: l.description ?? "",
+            ...(String(l.descriptionAr ?? "").trim() ? { descriptionAr: String(l.descriptionAr).trim() } : {}),
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
             vatRate: Number(l.vatRate),
@@ -153,6 +154,7 @@ export default function PurchaseOrders() {
           items: lines.map((l) => ({
             ...(l.id != null ? { id: l.id } : {}),
             description: l.description ?? "",
+            ...(String(l.descriptionAr ?? "").trim() ? { descriptionAr: String(l.descriptionAr).trim() } : {}),
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
             vatRate: Number(l.vatRate),
@@ -182,6 +184,7 @@ export default function PurchaseOrders() {
         (detail.items ?? []).map((i: any) => ({
           id: i.id,
           description: i.description,
+          descriptionAr: i.descriptionAr ?? "",
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           vatRate: i.vatRate,
@@ -349,7 +352,8 @@ export default function PurchaseOrders() {
                   <Label className="text-xs text-muted-foreground">{t("Lines", "البنود")}</Label>
                   {lines.map((l, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      <Input className="col-span-5 h-8 text-sm" placeholder={t("Description", "الوصف")} value={l.description ?? ""} onChange={(e) => setLine(i, { description: e.target.value })} />
+                      <Input className="col-span-3 h-8 text-sm" placeholder={t("Description", "الوصف")} value={l.description ?? ""} onChange={(e) => setLine(i, { description: e.target.value })} />
+                      <Input className="col-span-2 h-8 text-sm" dir="rtl" placeholder={t("Arabic description", "الوصف بالعربية")} value={l.descriptionAr ?? ""} onChange={(e) => setLine(i, { descriptionAr: e.target.value })} />
                       <Input className="col-span-2 h-8 text-sm font-mono" type="number" step="0.001" placeholder={t("Qty", "الكمية")} value={l.quantity ?? ""} onChange={(e) => setLine(i, { quantity: Number(e.target.value) })} />
                       <Input className="col-span-2 h-8 text-sm font-mono" type="number" step="0.01" placeholder={t("Price", "السعر")} value={l.unitPrice ?? ""} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} />
                       <Input className="col-span-2 h-8 text-sm font-mono" type="number" step="0.01" placeholder={t("VAT %", "ض.ق.م ٪")} value={l.vatRate ?? ""} onChange={(e) => setLine(i, { vatRate: Number(e.target.value) })} />
