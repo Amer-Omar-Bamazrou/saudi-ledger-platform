@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
@@ -91,6 +91,14 @@ export const companiesTable = pgTable("companies", {
    * Maps to `cbc:PlotIdentification` in the UBL seller PostalAddress.
    */
   additionalNumber: varchar("additional_number", { length: 10 }),
+
+  /**
+   * L1 level-1 branding (design-invoice-document.md §2, owner 2026-09-02):
+   * the storage object path of the company logo, org-prefixed, in the private
+   * bucket. NULL = no logo, and the invoice header then carries the
+   * registered name alone — NO fallback mark ("a text mark is a fake logo").
+   */
+  logoPath: text("logo_path"),
 
   // ── ZATCA Phase 2 EGS identity (M12.1a) ────────────────────────────────────
   /**

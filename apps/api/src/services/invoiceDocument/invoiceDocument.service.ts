@@ -39,6 +39,8 @@ import { companiesRepository } from "../../repositories/companies.repository";
 import { bankAccountsRepository } from "../../repositories/bankAccounts.repository";
 import { einvoiceDocumentsRepository } from "../../repositories/einvoiceDocuments.repository";
 import { NotFoundError, ConflictError } from "../../lib/errors";
+import { storage, isStorageConfigured } from "../../lib/storage";
+import { logger } from "../../lib/logger";
 import { dayNumberFromIso, toHijri } from "../../lib/hijriCalendar";
 import { renderInvoiceHtml, type InvoiceDocModel, type DocLine } from "./renderInvoiceHtml";
 import { documentTitle, type DocLang } from "./labels";
@@ -162,13 +164,32 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     total: String(inv.total),
     paidAmount: String(inv.paidAmount ?? "0"),
     qrDataUrl,
-    logoDataUrl: null, // level-1 logo: upload lands with the settings UI; absent = registered name alone (no fallback mark)
+    logoDataUrl: await loadLogoDataUrl(company?.logoPath),
     termsAndConditions: inv.termsAndConditions ?? null,
     bankDetails: defaultBank
       ? { bankName: defaultBank.bankName ?? defaultBank.name, iban: defaultBank.iban ?? "", accountName: defaultBank.name }
       : null,
     noteReason: inv.noteReason ?? null,
   };
+}
+
+/**
+ * L1 level-1 branding: the stored logo, inlined as a data URL for the header
+ * slot. Best-effort by design — a storage hiccup degrades to the DESIGNED
+ * absence (the registered name alone) rather than failing a legal document
+ * over branding, and the failure is logged, never silent. The storage call is
+ * a small external read inside the request transaction — the same accepted
+ * idle the header documents for the Chromium render, and far smaller.
+ */
+async function loadLogoDataUrl(logoPath: string | null | undefined): Promise<string | null> {
+  if (!logoPath || !isStorageConfigured()) return null;
+  try {
+    const { bytes, contentType } = await storage.getObject(logoPath);
+    return `data:${contentType};base64,${bytes.toString("base64")}`;
+  } catch (err) {
+    logger.warn({ logoPath, err }, "company logo could not be loaded — rendering without it");
+    return null;
+  }
 }
 
 /** The signed-XML attachment, when the invoice has a ZATCA document. Read
