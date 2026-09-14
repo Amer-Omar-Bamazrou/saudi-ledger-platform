@@ -15,7 +15,8 @@ import { DualDate } from "@/components/DualDate";
 import { FilterScope } from "@/components/FilterScope";
 import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 
-import type { Category, CreateJournalEntryInput, JournalEntry, JournalEntryLineInput, ListJournalEntries200 } from "@workspace/api-client-react";
+import type { Category, CreateJournalEntryInput, Customer, JournalEntry, JournalEntryLineInput, ListJournalEntries200, Vendor } from "@workspace/api-client-react";
+import { fetchPickerOptions } from "@/lib/pagedList";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreateJournalEntryInput) => JSON.stringify(b) };
@@ -64,6 +65,16 @@ export default function JournalEntries() {
   const jePageInfo = jePage?.page;
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: () => apiFetch("/categories") });
   /**
+   * N3 — the party picker. A line posting to the AR/AP control account must
+   * say WHO the receivable/payable is with (the server refuses it otherwise),
+   * so the pickers load as soon as the form can express such a line.
+   */
+  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const customers = customersPage?.items ?? [];
+  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<Vendor>("/vendors") });
+  const vendors = vendorsPage?.items ?? [];
+  const systemCodeOf = (accountId?: number) => categories.find((c) => c.id === accountId)?.systemCode ?? null;
+  /**
    * 🔴 The detail panel FETCHES the entry (contract batch 4). It used to read
    * `lines` from the LIST row, and list rows carry no lines — so the panel
    * showed an entry with an empty line table and zero totals, for every entry.
@@ -105,6 +116,11 @@ export default function JournalEntries() {
   const totalDebit = lines.reduce((s, l) => s + Number(l.debitAmount || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + Number(l.creditAmount || 0), 0);
   const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  // N3 — an AR/AP line without its party would only 422 on save; say so before.
+  const partyMissing = lines.some((l) => {
+    const code = systemCodeOf(l.accountId);
+    return (code === "AR" && l.customerId == null) || (code === "AP" && l.vendorId == null);
+  });
 
   const updateLine = (i: number, k: keyof LineForm, v: any) => setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
 
@@ -143,10 +159,23 @@ export default function JournalEntries() {
                   {lines.map((l, i) => (
                     <tr key={i}>
                       <td className="pe-2 py-1">
-                        <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);updateLine(i,"accountId",Number(v));updateLine(i,"accountName",cat?.name??v);}}>
+                        <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null}:ln));}}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
                           <SelectContent>{categories.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
+                        {/* N3 — a control-account line names its party; the picker appears exactly when the rule applies. */}
+                        {systemCodeOf(l.accountId) === "AR" && (
+                          <Select value={String(l.customerId??"")} onValueChange={v=>updateLine(i,"customerId",Number(v))}>
+                            <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder={t("Customer (required)...", "العميل (مطلوب)...")} /></SelectTrigger>
+                            <SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        )}
+                        {systemCodeOf(l.accountId) === "AP" && (
+                          <Select value={String(l.vendorId??"")} onValueChange={v=>updateLine(i,"vendorId",Number(v))}>
+                            <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder={t("Vendor (required)...", "المورّد (مطلوب)...")} /></SelectTrigger>
+                            <SelectContent>{vendors.map(v2=><SelectItem key={v2.id} value={String(v2.id)}>{v2.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        )}
                       </td>
                       <td className="pe-2 py-1"><Input value={l.description??""} onChange={e=>updateLine(i,"description",e.target.value)} className="h-7 text-xs" placeholder={t("Description...", "الوصف...")} /></td>
                       <td className="pe-2 py-1"><Input type="number" value={l.debitAmount||""} onChange={e=>updateLine(i,"debitAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" /></td>
@@ -195,7 +224,8 @@ export default function JournalEntries() {
             )}
             </div>
 
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.description||!balanced||createMut.isPending}>
+            {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.description||!balanced||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>

@@ -2156,6 +2156,7 @@ export const DeleteTransactionResponse = zod.void()
  */
 export const ListCategoriesResponseItem = zod.object({
   "id": zod.number(),
+  "systemCode": zod.string().nullish().describe('The account\'s system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.\n'),
   "name": zod.string(),
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
@@ -2180,6 +2181,7 @@ export const CreateCategoryBody = zod.object({
 
 export const CreateCategoryResponse = zod.object({
   "id": zod.number(),
+  "systemCode": zod.string().nullish().describe('The account\'s system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.\n'),
   "name": zod.string(),
   "nameAr": zod.string(),
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
@@ -3350,7 +3352,10 @@ export const ListJournalEntriesResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })),
   "page": zod.object({
@@ -3385,7 +3390,9 @@ export const CreateJournalEntryBody = zod.object({
   "accountName": zod.string().min(1),
   "description": zod.string().nullish(),
   "debitAmount": zod.number().min(createJournalEntryBodyLinesItemDebitAmountMin),
-  "creditAmount": zod.number().min(createJournalEntryBodyLinesItemCreditAmountMin)
+  "creditAmount": zod.number().min(createJournalEntryBodyLinesItemCreditAmountMin),
+  "customerId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization.\n'),
+  "vendorId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Payable control account, refused on any other account. Tenant-scoped.\n')
 })).min(createJournalEntryBodyLinesMin)
 })
 
@@ -3409,7 +3416,10 @@ export const CreateJournalEntryResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })
 
@@ -3441,7 +3451,10 @@ export const GetJournalEntryResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })
 
@@ -3483,7 +3496,10 @@ export const PostJournalEntryResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })
 
@@ -3519,7 +3535,10 @@ export const ReverseJournalEntryResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })
 })
@@ -4106,7 +4125,10 @@ export const ApproveJournalEntryResponse = zod.object({
   "accountName": zod.string(),
   "description": zod.string().nullish(),
   "debitAmount": zod.number(),
-  "creditAmount": zod.number()
+  "creditAmount": zod.number(),
+  "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
+  "customerId": zod.number().nullish(),
+  "vendorId": zod.number().nullish()
 }))
 })
 

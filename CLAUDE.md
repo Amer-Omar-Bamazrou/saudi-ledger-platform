@@ -497,7 +497,7 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
 **The decision-free pool** (break-glass ✅ · C6a ✅ ·
-constants ✅ · L-1 ✅ · logo ✅ · party picker · sentinel family · Arabic re-sweep ✅),
+constants ✅ · L-1 ✅ · logo ✅ · party picker ✅ · sentinel family · Arabic re-sweep ✅),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
@@ -585,7 +585,6 @@ launch. Record: findings file.
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
-- 🔴 **N3's remaining half:** the manual-JE form has no party picker, so a hand-named AR/AP line posts party-less (document paths ARE gated). Arrives with the picker.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
 - Settlement links are readable from the transaction side only (the design said "either side").
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.

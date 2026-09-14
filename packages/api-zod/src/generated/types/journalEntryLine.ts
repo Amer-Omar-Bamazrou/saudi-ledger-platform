@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { JournalEntryLinePartyType } from './journalEntryLinePartyType';
 
 export interface JournalEntryLine {
   id: number;
@@ -16,4 +17,13 @@ export interface JournalEntryLine {
   description?: string | null;
   debitAmount: number;
   creditAmount: number;
+  /**
+     * N3 — who this control-account line is with; null on non-AR/AP lines and on pre-N3 rows.
+     * @nullable
+     */
+  partyType?: JournalEntryLinePartyType;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
 }

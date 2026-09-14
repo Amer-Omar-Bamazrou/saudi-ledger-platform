@@ -32,6 +32,10 @@ export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
       description: l.description,
       debitAmount: toNum(l.debitAmount),
       creditAmount: toNum(l.creditAmount),
+      // N3 — who a control-account line is with (null on non-AR/AP lines and pre-N3 rows).
+      partyType: l.partyType ?? null,
+      customerId: l.customerId ?? null,
+      vendorId: l.vendorId ?? null,
     })),
   };
 }

@@ -16,6 +16,9 @@ export const categoriesService = {
     return ListCategoriesResponse.parse(
       rows.map((r) => ({
         id: r.id,
+        // N3: the JE form needs to know a control account when it sees one —
+        // an AR/AP line must ask for its party.
+        systemCode: r.systemCode ?? null,
         name: r.name,
         nameAr: r.nameAr,
         type: r.type,
