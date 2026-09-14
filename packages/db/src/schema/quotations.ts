@@ -30,6 +30,7 @@
  * platform never decides on the tenant's behalf that a remainder is dead
  * (the M17.1 / M20.0 posture, in a fourth place).
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -141,7 +142,7 @@ export const quotationItemsTable = pgTable(
      * customer agreed to.
      */
     unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
-    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default("15"),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).default(String(DEFAULT_VAT_RATE)),
     vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).default("0"),
     discount: numeric("discount", { precision: 15, scale: 2 }).default("0"),
     total: numeric("total", { precision: 15, scale: 2 }).notNull().default("0"),

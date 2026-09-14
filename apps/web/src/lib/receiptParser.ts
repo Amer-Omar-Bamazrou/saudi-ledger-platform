@@ -25,11 +25,10 @@ export interface ParsedReceipt {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function normalizeDigits(s: string): string {
-  return s
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/\u066B/g, "."); // Arabic decimal separator U+066B
-}
+// normalizeDigits moved to @workspace/shared (2026-09-14) — this WAS the
+// canonical copy, with a hand-copied twin in the API's explanationVerifier;
+// both now import the one definition.
+import { normalizeDigits } from "@workspace/shared";
 
 /**
  * Parse a numeric token into a float.

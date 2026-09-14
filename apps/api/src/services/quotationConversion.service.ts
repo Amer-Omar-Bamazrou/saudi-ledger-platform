@@ -25,6 +25,7 @@
  * A quoted price is a commitment; re-reading would silently honour a different
  * price than the one the customer agreed to.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { assertAmount, assertDateString } from "../lib/writeGuards";
 import { quotationsRepository } from "../repositories/quotations.repository";
@@ -184,7 +185,7 @@ export const quotationConversionService = {
         descriptionAr: item.descriptionAr,
         quantity,
         unitPrice: Number(item.unitPrice),
-        vatRate: Number(item.vatRate ?? 15),
+        vatRate: Number(item.vatRate ?? DEFAULT_VAT_RATE),
         discount: scaledDiscount,
         taxCategoryCode: item.taxCategoryCode ?? undefined,
         unitCode: item.unitCode,

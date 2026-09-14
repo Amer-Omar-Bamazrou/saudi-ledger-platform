@@ -497,7 +497,7 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04)
 
 **The decision-free pool** (break-glass ✅ · C6a ✅ ·
-constants · L-1 · logo · party picker · sentinel family ✅ · Arabic re-sweep),
+constants ✅ · L-1 ✅ · logo ✅ · party picker · sentinel family ✅ · Arabic re-sweep),
 **after which every path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
@@ -516,7 +516,7 @@ evidence: [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining — waiting on DECISIONS/PROVIDERS, not effort; do not read as unfinished work** (owner, 2026-09-04): the level-1 LOGO upload (settings UI through the storage seam — absent logo renders the registered name alone, by design), and "send" once B1's mail provider is wired at deployment. |
+| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product**: `GET /invoices/:id/document` renders PDF/A-3B via Chromium+pdf-lib (veraPDF PASS 3b, both renderings), Arabic = THE tax invoice, English = labelled translation, QR + signed-XML attach, download buttons on issued rows, `descriptionAr` captured on the line form, missing Arabic surfaced as a finding. Record: known-issues file; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. *(Logo upload ✅ shipped 2026-09-14 — record: known-issues file.)* |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -555,13 +555,12 @@ is the reason the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (operator surface: generated-never-chosen temp password shown once; every live session revoked in the same act; operator-targets refused AND the refusal audited — record: known-issues file). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and C's recorded risk stands: the break-glass must not quietly become the permanent answer. | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-1** security-audit write failures only `console.error` · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed.)* | L-1 carries the **unnoticed** multiplier and belongs with rank 3 when that is taken. | The genuine long tail. |
+| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed; L-1 closed 2026-09-14 — a failed security-audit write now pages critical.)* | — | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip); `normalizeDigits`
-exists twice pending a shared package — 🔴 and the 2026-09-03 constants sweep
-found its siblings (GOSI rates ×4, default VAT ×7; inventory + consolidation:
-findings file).
+`platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
+consolidation closed 2026-09-14 — `@workspace/shared` is the one definition
+for GOSI/VAT-default/`normalizeDigits`; record: known-issues file.)*
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);

@@ -54,6 +54,7 @@ import type {
   CategoryBreakdown,
   CategoryInput,
   Company,
+  CompanyLogoState,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CreateAssetInput,
@@ -6135,6 +6136,231 @@ export const useUpdateCurrentCompany = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateCurrentCompanyMutationOptions(options));
+    }
+
+export const getGetCompanyLogoUrl = () => {
+
+
+
+
+  return `/api/companies/current/logo`
+}
+
+/**
+ * @summary The stored company logo, served inline (sandboxed, nosniff) for the settings preview and the invoice renderer. 404 when none is stored.
+
+ */
+export const getCompanyLogo = async ( options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetCompanyLogoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanyLogoQueryKey = () => {
+    return [
+    `/api/companies/current/logo`
+    ] as const;
+    }
+
+
+export const getGetCompanyLogoQueryOptions = <TData = Awaited<ReturnType<typeof getCompanyLogo>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanyLogoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanyLogo>>> = ({ signal }) => getCompanyLogo({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanyLogo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanyLogoQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanyLogo>>>
+export type GetCompanyLogoQueryError = ErrorType<void>
+
+
+/**
+ * @summary The stored company logo, served inline (sandboxed, nosniff) for the settings preview and the invoice renderer. 404 when none is stored.
+
+ */
+
+export function useGetCompanyLogo<TData = Awaited<ReturnType<typeof getCompanyLogo>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanyLogoQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadCompanyLogoUrl = () => {
+
+
+
+
+  return `/api/companies/current/logo`
+}
+
+/**
+ * @summary Upload/replace the company logo (admin only). PNG/JPG/SVG, 2 MB cap, bytes sniffed (M-5's rule); SVG with active content refused. Body is multipart/form-data with a single 'file' field — left schemaless here deliberately: a binary multipart schema generates DOM types (File/Blob) the node-side Zod package cannot compile, and the client builds FormData by hand (the capture pattern).
+
+ */
+export const uploadCompanyLogo = async ( options?: RequestInit): Promise<CompanyLogoState> => {
+
+  return customFetch<CompanyLogoState>(getUploadCompanyLogoUrl(),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getUploadCompanyLogoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCompanyLogo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadCompanyLogo>>, TError,void, TContext> => {
+
+const mutationKey = ['uploadCompanyLogo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadCompanyLogo>>, void> = () => {
+
+
+          return  uploadCompanyLogo(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadCompanyLogoMutationResult = NonNullable<Awaited<ReturnType<typeof uploadCompanyLogo>>>
+
+    export type UploadCompanyLogoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload/replace the company logo (admin only). PNG/JPG/SVG, 2 MB cap, bytes sniffed (M-5's rule); SVG with active content refused. Body is multipart/form-data with a single 'file' field — left schemaless here deliberately: a binary multipart schema generates DOM types (File/Blob) the node-side Zod package cannot compile, and the client builds FormData by hand (the capture pattern).
+
+ */
+export const useUploadCompanyLogo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCompanyLogo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadCompanyLogo>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUploadCompanyLogoMutationOptions(options));
+    }
+
+export const getRemoveCompanyLogoUrl = () => {
+
+
+
+
+  return `/api/companies/current/logo`
+}
+
+/**
+ * @summary Remove the company logo (admin only). The invoice header returns to the registered name alone.
+
+ */
+export const removeCompanyLogo = async ( options?: RequestInit): Promise<CompanyLogoState> => {
+
+  return customFetch<CompanyLogoState>(getRemoveCompanyLogoUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveCompanyLogoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCompanyLogo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeCompanyLogo>>, TError,void, TContext> => {
+
+const mutationKey = ['removeCompanyLogo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeCompanyLogo>>, void> = () => {
+
+
+          return  removeCompanyLogo(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveCompanyLogoMutationResult = NonNullable<Awaited<ReturnType<typeof removeCompanyLogo>>>
+
+    export type RemoveCompanyLogoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove the company logo (admin only). The invoice header returns to the registered name alone.
+
+ */
+export const useRemoveCompanyLogo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCompanyLogo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeCompanyLogo>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRemoveCompanyLogoMutationOptions(options));
     }
 
 export const getGetZatcaOnboardingStatusUrl = () => {

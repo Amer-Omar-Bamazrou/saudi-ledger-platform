@@ -101,6 +101,10 @@ export interface ZatcaOnboardResult {
   activated: boolean;
 }
 
+export interface CompanyLogoState {
+  hasLogo: boolean;
+}
+
 /**
  * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
  */
@@ -130,6 +134,8 @@ export const CompanyOwnershipType = {
  */
 export interface Company {
   id: string;
+  /** L1 level-1 branding: whether a logo is stored for this company. Absent logo = the invoice header carries the registered name alone (no fallback mark, by decision — design-invoice-document.md §2). */
+  hasLogo: boolean;
   name: string;
   /** @nullable */
   nameAr: string | null;

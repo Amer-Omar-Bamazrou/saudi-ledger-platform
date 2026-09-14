@@ -51,6 +51,54 @@ export function validateDocumentBytes(buf: Buffer): string {
   return sniffed;
 }
 
+// ── Company logo (L1 level-1 branding) ──────────────────────────────────────
+
+/** 2 MB — a logo, not a scan; big enough for any real mark, small enough to bound abuse. */
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
+/** Logo types per the owner decision (2026-09-02): PNG / JPG / SVG. */
+export const LOGO_ALLOWED_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/svg+xml": "svg",
+};
+
+/**
+ * SVG has no magic bytes, so the sniff is structural: optional BOM,
+ * whitespace, XML declaration and comments, then an `<svg` root. Active
+ * content is refused outright — the logo renders in our own origin (settings
+ * preview, PDF renderer), and an image needs none of it. A blocklist here is
+ * DEFENSE IN DEPTH, not the boundary: the serving endpoint also sandboxes the
+ * response (CSP) and never lets the browser sniff.
+ */
+function sniffSvg(buf: Buffer): boolean {
+  const head = buf.subarray(0, 1024).toString("utf8").replace(/^﻿/, "");
+  const stripped = head.replace(/^\s*(<\?xml[\s\S]*?\?>)?\s*(<!--[\s\S]*?-->\s*)*(<!DOCTYPE[^>]*>\s*)*/i, "");
+  return /^<svg[\s>]/i.test(stripped);
+}
+
+const SVG_ACTIVE_CONTENT = /<script|<foreignObject|javascript:|\son\w+\s*=/i;
+
+/**
+ * Validate logo bytes: size cap, PNG/JPG by magic bytes, SVG structurally
+ * with active content refused. Returns the trusted mime type; throws 400.
+ */
+export function validateLogoBytes(buf: Buffer): string {
+  if (buf.length === 0) throw new BadRequestError("Uploaded file is empty.");
+  if (buf.length > MAX_LOGO_BYTES) {
+    throw new BadRequestError(`Logo exceeds the ${Math.floor(MAX_LOGO_BYTES / (1024 * 1024))} MB limit.`);
+  }
+  const sniffed = sniffMimeType(buf);
+  if (sniffed === "image/png" || sniffed === "image/jpeg") return sniffed;
+  if (sniffSvg(buf)) {
+    if (SVG_ACTIVE_CONTENT.test(buf.toString("utf8"))) {
+      throw new BadRequestError("SVG logos must not contain scripts or event handlers.");
+    }
+    return "image/svg+xml";
+  }
+  throw new BadRequestError("Unsupported logo type. Allowed: PNG, JPEG, SVG.");
+}
+
 /**
  * Sanitize a client filename to a safe basename: strip any directory component,
  * collapse to a conservative charset, bound the length, and guarantee an

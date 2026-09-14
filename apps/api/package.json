@@ -23,6 +23,7 @@
     "@workspace/api-zod": "workspace:*",
     "@workspace/config": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/shared": "workspace:*",
     "@workspace/zatca-tlv": "workspace:*",
     "@xmldom/xmldom": "^0.9.10",
     "bcryptjs": "^3.0.3",

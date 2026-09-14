@@ -1,3 +1,4 @@
+import { GOSI_RATES, gosiPercentLabel } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -84,8 +85,8 @@ export default function Employees() {
               {form.basicSalary && (
                 <div className="col-span-2 bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
                   <p className="font-medium text-muted-foreground">{t("GOSI Preview", "معاينة التأمين الاجتماعي")} ({form.nationality === "SA" ? t("Saudi", "سعودي") : t("Expat", "وافد")})</p>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({form.nationality==="SA"?"9.75%":"0%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.0975:0))}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({form.nationality==="SA"?"11.75%":"2%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?0.1175:0.02))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({form.nationality==="SA"?gosiPercentLabel(GOSI_RATES.saudiEmployee):"0%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?GOSI_RATES.saudiEmployee:0))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({gosiPercentLabel(form.nationality==="SA"?GOSI_RATES.saudiEmployer:GOSI_RATES.nonSaudiEmployer)})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?GOSI_RATES.saudiEmployer:GOSI_RATES.nonSaudiEmployer))}</span></div>
                 </div>
               )}
             </div>

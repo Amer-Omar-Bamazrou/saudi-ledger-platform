@@ -83,6 +83,7 @@
   },
   "dependencies": {
     "@types/papaparse": "^5.5.2",
+    "@workspace/shared": "workspace:*",
     "@workspace/zatca-tlv": "workspace:*",
     "jsqr": "^1.4.0",
     "papaparse": "^5.5.4",

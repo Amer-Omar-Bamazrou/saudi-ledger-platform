@@ -1,8 +1,9 @@
 /**
  * Employees service — GOSI (Saudi social insurance) computation + view.
- * GOSI rates preserved exactly: Saudi nationals 9.75% employee / 11.75% employer;
- * expats 0% / 2%. Behavior unchanged from pre-M6.
+ * GOSI rates come from @workspace/shared (one definition; consolidated
+ * 2026-09-14). Behavior unchanged from pre-M6.
  */
+import { GOSI_RATES } from "@workspace/shared";
 import { NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertDateString , nullifyEmptyText } from "../lib/writeGuards";
 
@@ -28,8 +29,11 @@ const toView = (e: Employee) => ({
   otherAllowances: toNum(e.otherAllowances),
   grossSalary:
     toNum(e.basicSalary) + toNum(e.housingAllowance) + toNum(e.transportAllowance) + toNum(e.otherAllowances),
-  gosiEmployee: e.nationality === "SA" ? toNum(e.basicSalary) * 0.0975 : 0,
-  gosiEmployer: e.nationality === "SA" ? toNum(e.basicSalary) * 0.1175 : toNum(e.basicSalary) * 0.02,
+  gosiEmployee: e.nationality === "SA" ? toNum(e.basicSalary) * GOSI_RATES.saudiEmployee : 0,
+  gosiEmployer:
+    e.nationality === "SA"
+      ? toNum(e.basicSalary) * GOSI_RATES.saudiEmployer
+      : toNum(e.basicSalary) * GOSI_RATES.nonSaudiEmployer,
 });
 
 export const employeesService = {

@@ -1322,6 +1322,92 @@ carries 250); quotation partial conversion (4 of 10 leaves 6; over-converting
 rejection (400). Two well-formed refusals seen and kept: a bad vendor VAT on
 bill-approve (offers `force:true`), and convert-before-approve on quotations.
 
+## L1 LOGO UPLOAD — SHIPPED 2026-09-14 (the level-1 branding remainder)
+
+The decided shape (design-invoice-document.md §2, owner 2026-09-02), built
+exactly: one upload in Company Settings, PNG/JPG/SVG at a 2 MB cap, bytes
+sniffed (M-5's rule — PNG/JPG by magic bytes; SVG structurally, since it has
+none, with ACTIVE CONTENT refused outright), malware-scanned before any byte
+reaches storage, kept through the existing storage seam in the private
+bucket (`<org>/logo/<company>-<uuid>.<ext>`). Absent logo = the invoice
+header carries the registered name alone — no fallback mark; the renderer's
+slot only fills when a logo exists (`loadLogoDataUrl`, best-effort with a
+logged degradation to the designed absence — branding never fails a legal
+document).
+
+Surface: `GET/PUT/DELETE /companies/current/logo` (spec'd; the multipart
+body deliberately schemaless — a binary multipart schema generates DOM types
+the node-side Zod package cannot compile; the client builds FormData by
+hand, the capture pattern). The GET serves INLINE for the settings preview
+but sandboxed (`Content-Security-Policy: sandbox`, nosniff) so a
+directly-navigated SVG runs nothing in our origin — documentHttp's
+attachment rule's inline counterpart. `companies` gained `delete:
+ADMIN_ONLY` in the permission matrix (the DELETE route would otherwise have
+been a dead control — the QA pass's controls-that-can-only-fail class,
+caught at design time). `hasLogo` joins the Company contract.
+
+Proof: `company-logo.test.ts` — the validator proven to FAIL (garbage, PDF,
+scripted SVG, oversize) and to pass (PNG, clean SVG); upload→read
+byte-for-byte; replace repoints; a REJECTED upload changes nothing; remove
+is idempotent first-class absence. `invoice-document-render.test.ts` gained
+the PRESENCE half beside its existing absence rule: a logo model renders the
+slot AND the registered name. Migration 0069 (drizzle generate, T1 flow).
+
+## L-1 — CLOSED 2026-09-14: a failed security-audit write pages critical
+
+The finding: `securityAuditService.record` swallowed a failed insert with a
+`console.error` — the "unnoticed" multiplier on the identity layer, where
+the mutation the event describes has ALREADY committed, so the trail is the
+only witness. The never-throw contract is correct (throwing would report a
+committed mutation as failed) and stands; what changes is who finds out.
+
+The fix: the catch now logs structured (pino) and FIRES the platform alarm
+(`security-audit-write-failed`, critical) through the existing `alerter`
+seam — the same channel as a failed tenant commit. The alert itself is
+belt-wrapped so an alerting failure cannot break the caller either.
+
+Proof (`security-audit.test.ts`): a failing implementation injected the
+honest way — circular metadata makes the INSERT itself throw — pages exactly
+once with the right key and severity, the caller resolves, and the row is
+confirmed absent (the condition the page reports). Movement: a normal
+record with the same captured alerter pages NOTHING — failure-only, not a
+heartbeat. Sweep of the shape: the remaining `console.error`s in the API
+are CLI scripts, where console IS the surface.
+
+Deployment note: the page arrives only where B2's `ALERT_WEBHOOK_URL` is
+wired — the unwired-alarm caveat in §2 applies to this alarm like every
+other.
+
+## CONSTANTS CONSOLIDATION — CLOSED 2026-09-14: `@workspace/shared` is the one definition
+
+The 2026-09-03 sweep's disposition, built: a new tiny workspace package
+(`packages/shared`, source-exported like `zatca-tlv`, importable from api,
+web AND db) now holds the single definition of each statutory fact, and the
+copies are REMOVED — the "remove the second" arm of the two-definitions
+rule, not the pinned-equivalence arm.
+
+- **GOSI rates** (9.75/11.75/2): `GOSI_RATES` replaces four sets of literals
+  — the payroll posting path, the employees preview, the SQL aggregate in
+  `employees.repository` (now BOUND as parameters into the same query), and
+  `Employees.tsx`, whose display copy ("9.75%") is now DERIVED via
+  `gosiPercentLabel` so the label cannot drift from the arithmetic.
+- **Default VAT rate**: `DEFAULT_VAT_RATE` replaces the seven `?? 15`s the
+  sweep counted — and 🔴 the frame widened on contact, as the frame rule
+  predicts: the sweep's `?? 15` grep had missed the form-state literals
+  (`vatRate: "15"` in Invoices.tsx ×5 — now one `emptyLine()` —
+  CreditNotes, PurchaseOrders, Quotations) and the FOUR schema-level
+  `.default("15")` columns. The schema files now compute the default from
+  the constant; `drizzle-kit generate` confirms no schema change (same
+  value, one source). Seed-data line rates stay literal deliberately:
+  samples are historical documents, not defaults.
+- **`normalizeDigits`**: the canonical web copy and the hand-copied API twin
+  are one exported function; the equivalence test became the pin on the
+  single copy.
+
+Proof: full `pnpm run verify` green; the N2 measured payroll case (basic
+3,010 × 3) green — the GOSI arithmetic is bit-identical; `drizzle-kit
+generate`: "No schema changes".
+
 ## C6a — CLOSED 2026-09-14: no transaction is held across a model call
 
 The queue entry: `findings.schedule.service.ts` called the AI provider inside
@@ -1382,3 +1468,23 @@ column reintroducing the pattern fails mechanically, not by review. The
 probe is validated against a known-present default first; the nine columns
 are asserted nullable; and the write boundary is proven through a real
 service write ("" → NULL, real Arabic → itself).
+
+## 2026-09-14 — THE "SYNCHRONOUS" DOUBLE-SUBMIT GUARD WASN'T, AND CI CAUGHT THE SECOND POST
+
+The QA fix's client half checked `createMut.isPending` inside onClick and
+its comment CLAIMED React Query flips it synchronously. It does not:
+`isPending` is a render snapshot, so two clicks landing before the
+re-render both read `false` — invisible on a fast machine (the re-render
+wins the race), real on a loaded CI runner, where `invoice-double-submit`
+counted a second POST on a branch that never touched invoices. A claim
+inside a guard is still a claim (§3), and this one had a spec asserting the
+property the implementation didn't guarantee.
+
+Fixed with the thing that actually has no render in its loop: a ref
+(`submittingRef`), set in onClick, cleared in both mutations' `onSettled`.
+The server idempotency key was the durable half all along — the duplicate
+would have resolved to ONE invoice — so the exposure was a wasted request
+and a red spec, not a duplicate document. Sibling create buttons
+(bills/quotations/POs/JEs) keep the render-time guard only: their duplicate
+is a DELETABLE DRAFT, and only invoices carry the idempotency key and the
+ICV-permanence composition that justified the belt.

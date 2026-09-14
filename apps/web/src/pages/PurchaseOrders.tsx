@@ -12,6 +12,7 @@
  * "received", "delivered" or "outstanding". A reviewer should scan for any
  * word implying we know what arrived; there must not be one.
  */
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -56,7 +57,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   approved: <CheckCircle className="w-3 h-3" />,
 };
 
-const emptyLine = (): Partial<PoLineForm> => ({ description: "", descriptionAr: "", quantity: 1, unitPrice: undefined, vatRate: 15 });
+const emptyLine = (): Partial<PoLineForm> => ({ description: "", descriptionAr: "", quantity: 1, unitPrice: undefined, vatRate: DEFAULT_VAT_RATE });
 
 export default function PurchaseOrders() {
   const { t, lang } = useLanguage();

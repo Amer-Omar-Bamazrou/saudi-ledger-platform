@@ -1,5 +1,5 @@
 {
-  "id": "f735cec1-6713-4c41-8995-c799346a448c",
+  "id": "dd537b89-156f-4a1c-9c97-df16a528966d",
   "prevId": "a4e92950-2c14-4ce0-b5ca-617905163660",
   "version": "7",
   "dialect": "postgresql",
@@ -515,7 +515,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "tax_number": {
           "name": "tax_number",
@@ -708,7 +709,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "tax_number": {
           "name": "tax_number",
@@ -865,7 +867,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "type": {
           "name": "type",
@@ -1930,7 +1933,8 @@
           "name": "description_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "quantity": {
           "name": "quantity",
@@ -2625,7 +2629,8 @@
           "name": "description_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "quantity": {
           "name": "quantity",
@@ -3898,7 +3903,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "national_id": {
           "name": "national_id",
@@ -3923,7 +3929,8 @@
           "name": "job_title_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "department": {
           "name": "department",
@@ -4582,7 +4589,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "category_id": {
           "name": "category_id",
@@ -4926,7 +4934,8 @@
           "name": "name_ar",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'(not yet translated)'"
         },
         "period": {
           "name": "period",
@@ -7128,6 +7137,12 @@
         "additional_number": {
           "name": "additional_number",
           "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_path": {
+          "name": "logo_path",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
