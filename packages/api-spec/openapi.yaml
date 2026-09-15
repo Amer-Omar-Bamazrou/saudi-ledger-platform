@@ -2355,28 +2355,6 @@ paths:
               schema: { $ref: "#/components/schemas/AssetDetail" }
         "404":
           description: Not found
-    patch:
-      operationId: updateAsset
-      tags: [assets]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateAssetInput" }
-      responses:
-        "200":
-          description: The asset
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Asset" }
-        "400":
-          description: Body failed validation
-    delete:
-      operationId: deleteAsset
-      tags: [assets]
-      responses:
-        "204":
-          description: Deleted
 
   /assets/{id}/depreciate:
     post:
@@ -6784,25 +6762,6 @@ components:
         accumulatedDepreciation: { type: number }
         currentBookValue: { type: number }
 
-    AssetInputFields:
-      type: object
-      properties:
-        assetNumber: { type: string, minLength: 1 }
-        name: { type: string, minLength: 1 }
-        nameAr: { type: ["string", "null"] }
-        categoryId: { type: ["integer", "null"] }
-        purchaseDate: { type: string }
-        purchaseCost: { type: number, minimum: 0 }
-        salvageValue: { type: number, minimum: 0 }
-        usefulLifeYears: { type: number, exclusiveMinimum: 0 }
-        depreciationMethod: { type: string }
-        location: { type: ["string", "null"] }
-        serialNumber: { type: ["string", "null"] }
-        status: { type: string }
-        disposalDate: { type: ["string", "null"] }
-        disposalValue: { type: ["number", "null"] }
-        notes: { type: ["string", "null"] }
-
     CreateAssetInput:
       type: object
       required: [assetNumber, name, purchaseDate, purchaseCost, usefulLifeYears]
@@ -6822,9 +6781,6 @@ components:
         disposalDate: { type: ["string", "null"] }
         disposalValue: { type: ["number", "null"] }
         notes: { type: ["string", "null"] }
-
-    UpdateAssetInput:
-      $ref: "#/components/schemas/AssetInputFields"
 
     DepreciateInput:
       type: object

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CreateAssetBody, DepreciateAssetBody, UpdateAssetBody } from "@workspace/api-zod";
+import { CreateAssetBody, DepreciateAssetBody } from "@workspace/api-zod";
 import { assetsService } from "../services/assets.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
@@ -20,15 +20,8 @@ export const assetsController = {
   async create(req: Request, res: Response) {
     res.status(201).json(await assetsService.create(parseOr400(CreateAssetBody.safeParse(req.body))));
   },
-  async update(req: Request, res: Response) {
-    res.json(await assetsService.update(requireIdParam(req), parseOr400(UpdateAssetBody.safeParse(req.body))));
-  },
   async depreciate(req: Request, res: Response) {
     const { period } = parseOr400(DepreciateAssetBody.safeParse(req.body));
     res.json(await assetsService.depreciate(requireIdParam(req), period));
-  },
-  async remove(req: Request, res: Response) {
-    await assetsService.remove(requireIdParam(req));
-    res.status(204).send();
   },
 };

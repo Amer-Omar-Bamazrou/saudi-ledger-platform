@@ -78,20 +78,6 @@ export const assetsService = {
     return toView(row);
   },
 
-  async update(id: number, data: Record<string, unknown>) {
-    const [before] = await assetsRepository.findById(id);
-    if (!before) throw new NotFoundError("Not found");
-    const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, [...ASSET_FIELDS, "currentBookValue"]), ["nameAr"]);
-    if (updates.purchaseDate != null) assertDateString(updates.purchaseDate, "purchaseDate");
-    for (const f of ["purchaseCost", "salvageValue", "currentBookValue"] as const) {
-      if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);
-    }
-    if (updates.usefulLifeYears != null) updates.usefulLifeYears = String(Math.trunc(assertAmount(updates.usefulLifeYears, "usefulLifeYears", { min: 1 })));
-    const [row] = await assetsRepository.update(id, updates as Partial<typeof fixedAssetsTable.$inferInsert>);
-    await auditService.updated("asset", id, before, row);
-    return toView(row);
-  },
-
   /** Run one month of straight-line depreciation for an asset. */
   async depreciate(id: number, period: string) {
     const [asset] = await assetsRepository.findById(id);
@@ -130,9 +116,4 @@ export const assetsService = {
     return toEntryView(entry);
   },
 
-  async remove(id: number) {
-    const [before] = await assetsRepository.findById(id);
-    await assetsRepository.remove(id);
-    if (before) await auditService.deleted("asset", id, before);
-  },
 };
