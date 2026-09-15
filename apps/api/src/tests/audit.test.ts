@@ -30,7 +30,11 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
     await pool.query(`DELETE FROM customers WHERE name LIKE 'AUDIT-CUST%'`);
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
     await pool.query(`DELETE FROM users WHERE email = 'audit-int@test.local'`);
-    await pool.query(`DELETE FROM companies WHERE name = 'AUDIT Co'`);
+    // Scoped to THIS org, not the name: audit-trail.test.ts also names its company
+    // 'AUDIT Co' and writes period locks under it, and the two files run in
+    // parallel — a by-name delete here hit that file's company through the
+    // period_locks FK (2026-09-15, once in a full run, never alone).
+    await pool.query(`DELETE FROM companies WHERE organization_id IN (SELECT id FROM organizations WHERE slug = 'audit-int')`);
     await pool.query(`DELETE FROM organizations WHERE slug = 'audit-int'`);
   };
 

@@ -6521,7 +6521,7 @@ split could not source was re-derived instead (report-is-a-sample, below).
 | Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
 | A UI-automation set that skips the framework's event | 2 | copied | "THE INSTRUMENT WAS WRONG BEFORE THE CODE WAS" — the vendor-selection false positive and the negative-amount "no-op" (2026-09-14). |
 | A hardening step is untested code | 2 | copied | (1) the P5 readiness wait — "A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED" (2026-08-31); (2) the believed-correct `pool.on("error")` fix that crashed the next run identically — "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31, "re-run the thing you just hardened — already a standing rule, here earning"). |
-| Two definitions of one fact | **6** | copied + derived | (1–4) enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance; (5) `lib/accounts.ts`'s 14 names vs the seeded chart's — 3 of 14 match, 11 post to Purchases under the chosen label; (6) OwnerEquity's substring match vs `reports.service`'s labels — both in "THE ENGLISH-CONTENT DEPENDENCY COUNT" (2026-09-15). |
+| Two definitions of one fact | **7** | copied + derived | (1–4) enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance; (5) `lib/accounts.ts`'s 14 names vs the seeded chart's — 3 of 14 match, 11 post to Purchases under the chosen label; (6) OwnerEquity's substring match vs `reports.service`'s labels — both in "THE ENGLISH-CONTENT DEPENDENCY COUNT" (2026-09-15); (7) the tax-journal-entries report's NAME regex vs the posting path's `system_code` — filed under the same count, fixed 2026-09-15 (walk item 3). |
 | A green PR moves nothing | 1 | copied | "TEN DAYS OF GREEN, ZERO MOVEMENT" (#141, #142). |
 | Ask of every severance… | 1 | copied | "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31). |
 | Standing check 1 — stopping at the HTTP boundary | 2 | copied | A1's capture pipeline, A3's recurring rules — the committed text named both; record: finding #1's retroactive sweep. |
@@ -6874,6 +6874,21 @@ constructors rendered at 71 client sites. Display-only: 51 raw enum
 renders, 15 persisted English narratives, and data.** Nothing fixed.
 Placed in CLAUDE.md §5 as one open row for the owner's ranking, with the
 class-1 item marked as the one that is wrong in the books today.
+
+### (7) — the tax-journal-entries report keyed on a NAME regex (found on the second core-path walk, fixed 2026-09-15)
+
+Filed here, not as a standalone finding (owner's instruction). The report
+selected tax lines with `account_name ILIKE %vat% / %tax% / %ضريبة% / %زكاة%`
+and flagged lines by the same regex, while every posting path resolves
+accounts by `system_code` — the same shape as (5) and (6): an English (and
+Arabic) NAME standing in for a fact the system already carries as a code.
+Consequences: a tenant's "Taxi expenses" account was a tax line; a renamed
+VAT Payable was not. Fixed: `TAX_ACCOUNT_SYSTEM_CODES` (one definition, in
+`@workspace/db`'s chart module), the repository joins `categories` and
+filters by code, the service flags lines by account id.
+`tax-journal-entries-keying.test.ts`: presence (VAT_OUTPUT), absence
+("Taxi expenses"), movement (the totals follow the VAT line), and a renamed
+VAT account still counted — red against the regex, green after.
 
 ## 2026-09-15 — THE SECOND-OPINION AUDIT: seven items, each traced in the repository, each with the condition that would have failed it
 
@@ -7645,3 +7660,72 @@ green):**
   past due) — a product behaviour, confirmed, not a seed artefact.
 - Cost: setup 8 s → ~40 s; the API must be up during setup (it is — the
   runner orders it).
+
+### Item 7 — aging: a credit owed is not "past due" (2026-09-15)
+
+The seed now produces the case the walk saw (a credit note approved against
+a paid invoice), so it is product behaviour. The NEGATIVE balance was
+deliberate (Audit Tier 3, finding 6: a refund owed to the customer must be
+shown, or aging drifts from GL AR). What was wrong was aging it: the row
+carried the ORIGINAL invoice's days past due and sat in the 61–90 bucket as
+−115 — "77 days overdue" with a minus sign. Nobody owes us on a credit
+balance, so it carries no days and sits in `current`. Fixed in `arAging`
+(`agedDays = outstanding > 0 ? daysPast : 0`; buckets keyed on it); the
+refund case in `credit-settlement-compose.test.ts` now asserts
+`daysPastDue 0`, `buckets.current −230`, `days_61_90 0` — red before (76
+days, days_61_90 −230), green after. Totals unchanged, so the GL agreement
+property still holds. AP aging has no credit notes and is untouched.
+
+### Item 5 — the Arabic instrument's FOURTH under-report, then the blocks and the dates (2026-09-15)
+
+**The instrument finding, recorded first.** `scripts/arabic-sweep.mjs`
+counts English STRING LITERALS in page source outside `t(...)`. Two whole
+classes of untranslated UI carry no such literal in the pages, so the sweep
+reported them as covered:
+1. **Server-provided English.** The ZATCA onboarding checklist (nine
+   labels and nine hints) is built in
+   `zatcaOnboarding.service.ts`; the owner's-equity statement lines are
+   built in `reports.service.ts`; the page renders `p.label` / `row.label`.
+   The pages' source has no English to count.
+2. **Formatting with no string at all.** `fmtDate` called
+   `toLocaleDateString("en-SA")` unconditionally — every date on every list
+   page rendered "Sep 15, 2026" in the Arabic UI, from a locale argument.
+Plus raw enum values rendered as text (`draft`, `service`, `unit`,
+`invoice`, `monthly`, `straight-line`, `Approved`) — lowercase identifiers
+the sweep's `prose()` filter deliberately excludes as code. Previous
+under-reports: the 2026-09-14 "47, all classified" (fit, not error), and
+hold-out rounds 1 and 2 (each consumed by its own widening). This is the
+fourth, and a different shape from the first three: not a tuning error but
+a FRAME error — the instrument reads source strings, and these are not
+source strings. It cannot be widened into seeing them; the browser walk is
+the instrument that does.
+
+**Fixed:** `fmtDate(d, lang?)` renders in the document's language
+(`ar-SA-u-ca-gregory-nu-latn` — the Gregorian calendar and Latin digits
+pinned, because bare `ar-SA` is the Islamic calendar in ICU), unit-tested in
+both languages (`fmtDate.test.ts`, red on the Islamic-calendar and
+Arabic-digit traps). The owner's-equity breakdown now carries a `key` in
+the contract and the page translates by key, which also closes D's
+instance (6) — the substring match on the English label. The ZATCA
+checklist is translated by `key` on the client with the server's text as
+fallback. AP-aging headers, Users-page role plurals, asset life/method,
+recurring entity/frequency, payroll status, product type/unit, credit-note
+type, and the analytics range buttons are wrapped. Frame: the sites the
+walk hand-read; not a claim about sites it did not.
+
+### Items 2 and 4 — the decoy Status select, and the Approvals page (2026-09-15)
+
+**Item 2.** The invoice create/edit dialog offered Status (draft / sent /
+paid). The wire capture showed the client never sent it and the server
+forces `draft` on create and refuses it on update — a control that could
+only mislead. Removed, with the form field and the edit-load line; a
+comment marks the spot so it is not re-added as a "missing field".
+
+**Item 4.** The Approvals page was the M10.6 "minimal, functional,
+unstyled" worklist: inline styles, `textAlign: "left"` in an RTL app, raw
+English statuses in the Arabic UI, a toast printing the raw route segment
+(`تم: approve`). Rebuilt on the app's primitives (Card, Badge, Button),
+logical alignment, the shared `statusLabel`, and a toast that names the
+act in the reader's language; every action, the server-side authority, and
+the unbounded queue are unchanged. The core path's clicks still land on the
+same controls (`Submit` / `Approve` by role and name).
