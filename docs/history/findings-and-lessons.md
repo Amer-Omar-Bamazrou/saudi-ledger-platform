@@ -7964,3 +7964,44 @@ is what a cleanup that mirrors the product's write shape produces. This
 says nothing about the other 146 API suites, most of which assert ledger
 movement directly; it says that a fixture's cleanup is a claim about what
 the product writes, and it was checked here by the product changing.
+
+## 🔴 2026-09-16 — A PILOT DOCUMENT'S CLAIM ABOUT THE PRODUCT'S BEHAVIOUR, NEVER TESTED (the single-row Accept)
+
+**The incident.** The pilot package's limitations table (row "Bulk-accepting
+a row dated in a closed month returns success", 2026-09-16) and the
+runbook's §7 item 6 both stated that **single-row acceptance refused
+correctly** — only the bulk path had the gap. The accountant was to be
+told this in plain language. The pre-pilot batch's regression suite
+(`bulk-accept-closed-period.test.ts`) was run against the UNCHANGED code
+before the fix, as this repo requires: **7 of 7 failed, and the named
+single-row Accept resolved `{ accepted: 1 }`** — it took the same
+swallowed `postMany` path as the bulk button, because the Review page's
+per-row control calls the same endpoint with one id. The claim was false.
+
+**What kind of defect this is.** Not only a code defect — the code half is
+recorded as CLOSED in the known-issues file ("BULK ACCEPT INTO A CLOSED
+MONTH"). The second half is a **documentation claim about product
+behaviour that nothing had exercised**: the audit had read `postMany` and
+correctly named the bulk button, and the package generalised from "the
+bulk button swallows" to "the single-row button refuses" without anyone
+clicking the single-row button in a closed month. It is the same class as
+"A CLAIM WITHOUT ITS EVIDENCE" (2026-09-15, above) and the QA-drive's
+"three claims it did not support" (2026-08-28): a sentence written in the
+shape of a finding, carrying no record of the observation that would have
+produced it. The distinguishing feature here is the AUDIENCE — a pilot
+document is read by the person being asked to trust it, and a wrong
+"this path is safe" would have been recorded by the accountant as a pass
+on the one path that was not.
+
+**The rule, already in §3, applied to pilot documents.** A statement that
+a path REFUSES is a negative claim, and a negative claim needs the
+planted positive: the row, the lock, the click, the observed 423. The
+package's other refusals (invoice, bill, journal entry, payment) had each
+been walked; this one had been inferred from the neighbouring finding.
+Countermeasure taken: the claim is replaced by tested behaviour on both
+surfaces (the service suite and `e2e/bulk-accept-closed-month.spec.ts`,
+which clicks the single-row Accept and asserts the dialog), and the
+package row now records the correction rather than silently rewording.
+Standing form for the runbook and package from here: **a "this refuses"
+sentence names the walk or test that observed it, or is written as
+"untested".**
