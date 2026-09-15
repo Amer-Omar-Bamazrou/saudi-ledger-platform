@@ -491,6 +491,18 @@ export const transactionsService = {
     });
     await auditService.created("transaction", tx.id, tx);
 
+    // 🔴 A MANUAL ROW POSTS LIKE AN IMPORTED ONE (2026-09-15, workflow audit
+    // W7 B3). This path inserted the row as accepted and returned; only
+    // `acceptPending` called the posting seam, so a hand-typed row appeared in
+    // the transactions list and never in the ledger. Same seam, same rules:
+    // `post` derives the lines, numbers the entry, enforces the period lock
+    // and balance through `postJournalEntry`, and links the row — inside this
+    // request's tenant transaction, so a refused post (a closed month, an
+    // unbalanced line) rolls the INSERT back with it and the caller sees the
+    // error, never an accepted-but-unposted row. Unlike bulk accept, a single
+    // row does not swallow the failure.
+    await transactionPostingService.post(tx.id);
+
     const [row] = await transactionsRepository.findWithCategory(tx.id);
     if (!row) throw new AppError(500, "Insert failed");
     return CreateTransactionResponse.parse(buildTransactionRow(row.tx, row.cat));
