@@ -175,7 +175,7 @@ const MONEY_CHECK = () => {
       // (2026-09-15). The planted positive below is exactly the clipping case.
       const clippedBy = (() => {
         if (!hit || !hit.contains(el)) return null;
-        for (let n = el.parentElement; n; n = n.parentElement) {
+        for (let n: HTMLElement | null = el ? el.parentElement : null; n; n = n.parentElement) {
           const o = getComputedStyle(n);
           if (/(hidden|clip)/.test(o.overflowX) || /(hidden|clip)/.test(o.overflowY)) {
             const r = n.getBoundingClientRect();
