@@ -5,8 +5,11 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { OwnerEquityReportBreakdownItemKey } from './ownerEquityReportBreakdownItemKey';
 
 export type OwnerEquityReportBreakdownItem = {
+  /** The contract; the page translates by key. `label` is the English fallback. */
+  key: OwnerEquityReportBreakdownItemKey;
   label: string;
   amount: number;
 };

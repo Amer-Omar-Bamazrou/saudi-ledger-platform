@@ -2471,7 +2471,23 @@ export type OwnerEquityReportPeriod = {
   to: string;
 };
 
+/**
+ * The contract; the page translates by key. `label` is the English fallback.
+ */
+export type OwnerEquityReportBreakdownItemKey = typeof OwnerEquityReportBreakdownItemKey[keyof typeof OwnerEquityReportBreakdownItemKey];
+
+
+export const OwnerEquityReportBreakdownItemKey = {
+  openingEquity: 'openingEquity',
+  netIncome: 'netIncome',
+  contributions: 'contributions',
+  withdrawals: 'withdrawals',
+  closingEquity: 'closingEquity',
+} as const;
+
 export type OwnerEquityReportBreakdownItem = {
+  /** The contract; the page translates by key. `label` is the English fallback. */
+  key: OwnerEquityReportBreakdownItemKey;
   label: string;
   amount: number;
 };

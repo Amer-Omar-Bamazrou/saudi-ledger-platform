@@ -220,6 +220,7 @@ export * from './listVendors200';
 export * from './listVendorsParams';
 export * from './ownerEquityReport';
 export * from './ownerEquityReportBreakdownItem';
+export * from './ownerEquityReportBreakdownItemKey';
 export * from './ownerEquityReportPeriod';
 export * from './pageInfo';
 export * from './partyTotals';

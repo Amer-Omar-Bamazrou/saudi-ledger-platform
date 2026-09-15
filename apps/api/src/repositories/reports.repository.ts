@@ -7,6 +7,7 @@ import {
   db,
   transactionsTable,
   categoriesTable,
+  TAX_ACCOUNT_SYSTEM_CODES,
   invoicesTable,
   invoiceItemsTable,
   billsTable,
@@ -301,20 +302,24 @@ export const reportsRepository = {
   },
 
   // tax-journal-entries
+  /** The tenant's tax accounts, by system_code — the set a line's account id is tested against. */
+  taxAccountIds() {
+    return db
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(inArray(categoriesTable.systemCode, [...TAX_ACCOUNT_SYSTEM_CODES]));
+  },
   taxLineEntryIds(date_from?: string, date_to?: string) {
     return db
       .select({ journalEntryId: journalEntryLinesTable.journalEntryId })
       .from(journalEntryLinesTable)
       .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      // By system_code, the posting path's own definition — never by name.
+      .innerJoin(categoriesTable, eq(journalEntryLinesTable.accountId, categoriesTable.id))
       .where(
         and(
           ...jeConditions(date_from, date_to),
-          or(
-            ilike(journalEntryLinesTable.accountName, "%vat%"),
-            ilike(journalEntryLinesTable.accountName, "%tax%"),
-            ilike(journalEntryLinesTable.accountName, "%ضريبة%"),
-            ilike(journalEntryLinesTable.accountName, "%زكاة%"),
-          ),
+          inArray(categoriesTable.systemCode, [...TAX_ACCOUNT_SYSTEM_CODES]),
         ),
       );
   },

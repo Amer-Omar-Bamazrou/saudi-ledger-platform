@@ -3202,6 +3202,7 @@ export const GetOwnerEquityResponse = zod.object({
   "withdrawals": zod.number(),
   "closingEquity": zod.number(),
   "breakdown": zod.array(zod.object({
+  "key": zod.enum(['openingEquity', 'netIncome', 'contributions', 'withdrawals', 'closingEquity']).describe('The contract; the page translates by key. `label` is the English fallback.'),
   "label": zod.string(),
   "amount": zod.number()
 }))

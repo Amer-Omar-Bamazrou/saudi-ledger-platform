@@ -5976,8 +5976,12 @@ components:
           type: array
           items:
             type: object
-            required: [label, amount]
+            required: [key, label, amount]
             properties:
+              key:
+                type: string
+                enum: [openingEquity, netIncome, contributions, withdrawals, closingEquity]
+                description: The contract; the page translates by key. `label` is the English fallback.
               label: { type: string }
               amount: { type: number }
 
