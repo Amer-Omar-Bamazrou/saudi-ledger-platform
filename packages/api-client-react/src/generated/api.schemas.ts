@@ -1364,11 +1364,16 @@ export interface Bill {
 }
 
 /**
- * Optional post options when approving a bill.
+ * Optional post options when approving a bill. The expense account is resolved BY ID from the tenant's own chart; a supplied id or name that resolves to nothing is refused (422 `expense_account_unresolved`) — never silently posted elsewhere. With neither supplied, the line posts to the PURCHASES system account under that account's real name.
  */
 export interface BillApproveInput {
   /**
-     * Expense/debit account name for the GL entry.
+     * The id of an EXPENSE account in this tenant's chart of accounts (GET /categories, type = expense). The line is stored under that account's name.
+     * @nullable
+     */
+  debitAccountId?: number | null;
+  /**
+     * Legacy — an account NAME, matched case-insensitively against the tenant's chart. Refused if it matches nothing. Prefer `debitAccountId`.
      * @nullable
      */
   debitAccount?: string | null;
@@ -3080,6 +3085,10 @@ export interface JournalEntryLineInput {
 export interface CreateJournalEntryInput {
   /** Allocated by the server when omitted or blank. */
   entryNumber?: string;
+  /**
+     * Required and non-empty — "" used to slip past a falsy guard, skipping the period lock and posting an entry no date-ranged report could see (2026-09-14).
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
   /** @minLength 1 */
   description: string;

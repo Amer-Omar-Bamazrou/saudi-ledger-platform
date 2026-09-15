@@ -7207,3 +7207,134 @@ types, no triggers, no second concurrency test, no new mechanism for
 tenant context, nothing in the QR/UBL/routing code, no test weakened or
 removed. Records: this entry; the two closed findings in the known-issues
 file; §3's tolerance rule gains its second instance.
+
+## 🔴 2026-09-15 — ACCOUNTS.TS, CLOSED: resolved by id, refused when unresolved, and the rows that went through the old path
+
+**The owner's reframing:** not a ranking item — posting wrong today. Eleven
+of fourteen picker names, the default included, resolved to nothing and
+posted to PURCHASES while the line displayed the label the user chose:
+posts and hides, the class that made the empty journal date critical.
+Fix it: resolve by id, fail closed and visibly, and add the regression that
+fails on a name-based lookup returning nothing. And answer the same
+question C asked about dates, about accounts: were rows posted through
+the broken path?
+
+### The rows, audited first (the only environment; nothing is deployed)
+
+SQL over every `BILL-*` journal line joined to its account: **6 posted
+lines in 6 entries, SAR 15,860.00 of debits, across 2 orgs (`default` —
+the dev seed; `e2e-smoke` — the browser suite's org), every one labelled
+"Purchases and Cost of Sales" on a line whose account is `Purchases`
+(PURCHASES).** All six are the DEFAULT name's near-miss; **no row carries
+any of the other ten names** (the labels in use on bill lines are exactly:
+Accounts Payable ×9, Input VAT Receivable ×6, Purchases and Cost of Sales
+×6, Cash and Bank ×3). So the account the six posted to is the account the
+default MEANT — the misposting in the data is label-only: the ledger shows
+a name that is not the account's name. Frame: 9 `BILL-*` entries exist in
+total; the other 3 posted before the expense line carried a label from the
+picker. **Remediation, proposed, not done:** a one-off
+`UPDATE journal_entry_lines SET account_name = 'Purchases' WHERE …` on those
+six lines (the account id is already right; only the denormalised label is
+wrong) — a data correction of display text on posted entries, in dev and
+e2e data only. It is proposed rather than done because the lines are in
+posted entries and the standing rule is that a correction is the owner's
+act, even when the account was never wrong.
+
+### The fix, in the existing shape
+
+- **Contract** (`BillApproveInput`): `debitAccountId` — the id of an
+  expense account in the tenant's chart; `debitAccount` (name) kept as
+  legacy, documented as refused when it matches nothing. Codegen re-run.
+- **Server** (`bills.approvable.ts` `resolveExpenseLine`): an id resolves
+  against the tenant's chart (RLS-scoped, so another org's id and a missing
+  id are the same absence) and must be an expense account; a legacy name
+  resolves case-insensitively; **a supplied value that resolves to nothing
+  is refused — 422 `expense_account_unresolved`, naming the value and the
+  next step** — never posted elsewhere. The stored label is ALWAYS the
+  resolved account's own name, so label and account cannot disagree by
+  construction. With nothing supplied, the one default posts to the
+  PURCHASES system account under its real name — stated in the contract,
+  not wearing another label.
+- **Client:** `lib/accounts.ts` is no longer a list of 14 names but one hook
+  over the tenant's chart (`GET /categories`, type = expense, labelled in
+  the active language, default = the PURCHASES account); Bills (create and
+  post-review) and ScanReview send `debitAccountId`; the JE preview shows
+  the account's real name. The two-definitions instance is closed by
+  removing the second definition, not by syncing it.
+- **Regression test** (`bills-expense-account.test.ts`): a NAME that
+  resolves to nothing is REFUSED and nothing posts (red against the old
+  code: it resolved and posted); an id resolves and the line carries the
+  account's real name (red: it posted to Purchases under the old label); a
+  matching legacy name stores the account's name, not the request's
+  casing; a non-expense id, another org's id and a nonexistent id are all
+  the same refusal (red: posted); with nothing supplied the default carries
+  its real name, never "Purchases and Cost of Sales". Four of five cases
+  proven red by reversing the fix, then restored and re-verified.
+
+**What would have failed it:** a name-based lookup returning nothing and
+the bill still posting (now the first test); a stored `account_name` that
+differs from `categories.name` for the same id (now impossible: the label
+is taken from the resolved row).
+
+## 2026-09-15 — THE DEPRECIATION DATA AUDIT: no rounding drift in existing rows; two fixture artefacts, named
+
+**The question (owner):** the calculation was fixed, but were entries
+already posted with the drift? C audited dates; nobody had audited amounts.
+
+**Frame:** `fixed_assets` (4 rows, 3 with depreciation) and
+`depreciation_entries`, the only environment. Two identities checked:
+`purchase_cost = current_book_value + accumulated_depreciation` on every
+asset, and `Σ depreciation_entries.amount = accumulated_depreciation` per
+asset. Also: `journal_entries` mentioning depreciation — **0** (depreciation
+never posts to the GL at all; that is the ERPNext "fixed-assets GL"
+finding already awaiting the owner's ranking in §5, not this audit's).
+
+**Rounding drift (the class the fix closed): 0 assets.** Every asset that
+went through `depreciate()` holds `cost = book + accumulated` exactly.
+
+**Two other disagreements, neither rounding:**
+1. **Asset 146 `E2E-FA-001` (org `e2e-smoke`): cost 12,000.00, book 9,000.00,
+   accumulated 0.00 — a 3,000.00 gap.** No audit trail (no application
+   path wrote it): `apps/web/e2e/global-setup.ts` line 308 INSERTs the row
+   raw with `current_book_value = 9000` and no accumulated figure. A test
+   fixture that asserts an identity the product maintains, without
+   maintaining it. **Proposed:** the fixture sets `accumulated_depreciation
+   = 3000` (or book = cost); no product change.
+2. **Assets 126–128 `DEMO-FA-01..03` (created 2026-09-03): accumulated
+   9,000.00 / 9,500.00 / 10,333.33 against ONE depreciation entry each of
+   1,500.00 / 1,583.33 / 1,722.22** — the identity `cost = book +
+   accumulated` HOLDS, but the history explains a twelfth of the balance.
+   No producer exists in the current repository (`DEMO-FA` appears nowhere
+   in code, migrations or history): a seed that has since been removed
+   wrote opening accumulated figures without opening entries. **Proposed:**
+   delete the three rows and their entries (demo data with no producer), or
+   insert an opening `depreciation_entries` row per asset so Σ entries =
+   accumulated. Either is the owner's call; neither is a product defect.
+3. **A product gap the audit exposes, not a data error:** `PATCH /assets/:id`
+   accepts `currentBookValue` independently of `accumulatedDepreciation`
+   (`assets.service.update`), so a raw API caller can create exactly asset
+   146's state through the product. Named here, not fixed: it is a write
+   boundary decision (refuse the field, or derive one from the other), and
+   the owner ordered no unrelated changes in this pass.
+
+## 2026-09-15 — THE 24–48 HOUR PROMISE: a claim nobody decided, shown to users — removed
+
+**Found by** the held-out Arabic round (task B, hand-reading
+`VerificationStatus.tsx`), then swept: the same sentence in `Signup.tsx`.
+Both said review takes "usually within 24–48 hours"; CLAUDE.md §5 L3 says
+the verification SLA is UNDEFINED — "the owner decides the target
+turnaround, who staffs it, and what the pending screen promises."
+
+**Which case it is:** the UI was asserting something nobody had decided.
+Searched for a decision: `docs/product/owner-actions.md`, the known-issues
+file, the phase-1 onboarding record, git history for "24" near
+"verification" — no record of an SLA commitment anywhere; L3 is the only
+statement, and it says undecided. The number came from the M11.5 signup
+copy (commit `fc4f7e6`, 2026-08-03) and was never tied to a process. So §5 is right and the copy was
+wrong — the claim-without-evidence class with a user on the receiving end.
+
+**Done:** the turnaround clause removed from both pages, both languages;
+the copy now says what happens ("reviewed by our team before it is
+activated" / "you'll get access as soon as it's approved"), not when. The
+code comments point at L3. When the owner decides an SLA, the sentence
+returns WITH its decision record cited.

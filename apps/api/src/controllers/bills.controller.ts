@@ -55,7 +55,12 @@ export const billsController = {
   },
   async post(req: Request, res: Response) {
     const raw = req.body == null || Object.keys(req.body).length === 0 ? {} : parseOr400(PostBillBody.safeParse(req.body));
-    const opts = { debitAccount: raw.debitAccount ?? undefined, force: raw.force ?? undefined, captureId: raw.captureId ?? undefined };
+    const opts = {
+      debitAccountId: raw.debitAccountId ?? undefined,
+      debitAccount: raw.debitAccount ?? undefined,
+      force: raw.force ?? undefined,
+      captureId: raw.captureId ?? undefined,
+    };
     res.json(await billsService.post(requireIdParam(req), opts, req.session?.userId ?? null));
   },
   async update(req: Request, res: Response) {

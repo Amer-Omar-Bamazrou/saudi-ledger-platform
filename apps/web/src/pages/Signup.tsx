@@ -68,8 +68,12 @@ export default function Signup() {
             <CardTitle>{t("Sign up", "إنشاء حساب")}</CardTitle>
             <CardDescription>
               {t(
-                "Register your business. Your account is reviewed by our team (usually within 24–48 hours) before it is activated.",
-                "سجّل نشاطك التجاري. تتم مراجعة حسابك من قبل فريقنا (عادة خلال 24-48 ساعة) قبل تفعيله.",
+                // 🔴 No turnaround promise here (2026-09-15): the review SLA is
+                // an undecided owner-process question (CLAUDE.md §5, L3). A
+                // number nobody has committed to is a claim with a user on
+                // the receiving end — the copy says what happens, not when.
+                "Register your business. Your account is reviewed by our team before it is activated.",
+                "سجّل نشاطك التجاري. تتم مراجعة حسابك من قبل فريقنا قبل تفعيله.",
               )}
             </CardDescription>
           </CardHeader>

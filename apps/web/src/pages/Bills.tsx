@@ -18,7 +18,7 @@ import type { ParsedReceipt } from "@/lib/receiptParser";
 import { storeScanData } from "@/lib/scanReviewStore";
 import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
-import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
+import { useExpenseAccounts } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
@@ -70,7 +70,8 @@ const makeEmpty = () => ({
   vatAmount: "",
   total: "",
   notes: "",
-  debitAccount: DEFAULT_EXPENSE_ACCOUNT as string,
+  // null = "the chart's default" (the PURCHASES system account) until the user picks.
+  debitAccountId: null as number | null,
 });
 
 // ── small JE preview used inside the manual-bill dialog ──────────────────────
@@ -131,7 +132,11 @@ export default function Bills() {
   const { demoMode } = useDeployment();
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [postReviewOpen, setPostReviewOpen] = useState<Bill | null>(null);
-  const [postDebitAccount, setPostDebitAccount] = useState<string>(DEFAULT_EXPENSE_ACCOUNT);
+  // The tenant's own expense accounts, by id — the server resolves the id and
+  // refuses anything it cannot; the label shown is the account's real name.
+  const { accounts: expenseAccounts, defaultId: defaultExpenseId, labelOf: expenseLabel } = useExpenseAccounts();
+  const [postDebitAccountId, setPostDebitAccountId] = useState<number | null>(null);
+  const effectivePostAccountId = postDebitAccountId ?? defaultExpenseId;
   const [form, setForm] = useState(makeEmpty());
   const [payAmount, setPayAmount] = useState("");
   // The pay double-fire gate — a PARTIAL payment sent twice is two accepted
@@ -242,7 +247,7 @@ export default function Bills() {
       if (Number(body.total) > 0) {
         await apiFetch(`/bills/${bill.id}/post`, {
           method: "POST",
-          body: json.post({ debitAccount: body.debitAccount }),
+          body: json.post({ debitAccountId: body.debitAccountId ?? defaultExpenseId }),
         });
       }
       return bill;
@@ -260,10 +265,10 @@ export default function Bills() {
   // so the accountant can choose the debit account and see the JE preview,
   // matching the scanner review flow.
   const postMut = useMutation({
-    mutationFn: ({ id, debitAccount }: { id: number; debitAccount: string }) =>
+    mutationFn: ({ id, debitAccountId }: { id: number; debitAccountId: number | null }) =>
       apiFetch(`/bills/${id}/post`, {
         method: "POST",
-        body: json.post({ debitAccount }),
+        body: json.post({ debitAccountId }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
@@ -442,14 +447,14 @@ export default function Bills() {
                 {/* Fix 2: debit account dropdown — same 14 accounts as scanner flow */}
                 <div>
                   <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
-                  <Select value={form.debitAccount}
-                    onValueChange={v => setForm(p => ({ ...p, debitAccount: v }))}>
+                  <Select value={String(form.debitAccountId ?? defaultExpenseId ?? "")}
+                    onValueChange={v => setForm(p => ({ ...p, debitAccountId: Number(v) }))}>
                     <SelectTrigger className="mt-1 h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {EXPENSE_ACCOUNTS.map(a => (
-                        <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                      {expenseAccounts.map(a => (
+                        <SelectItem key={a.id} value={String(a.id)} className="text-xs">{a.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -468,7 +473,7 @@ export default function Bills() {
                     subtotal={previewSubtotal}
                     vatAmount={previewVat}
                     total={previewTotal}
-                    debitAccount={form.debitAccount}
+                    debitAccount={expenseLabel(form.debitAccountId ?? defaultExpenseId)}
                   />
                 )}
               </div>
@@ -605,7 +610,7 @@ export default function Bills() {
                       )}
                       {b.status === "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-info"
-                          onClick={() => { setPostReviewOpen(b); setPostDebitAccount(DEFAULT_EXPENSE_ACCOUNT); }}>
+                          onClick={() => { setPostReviewOpen(b); setPostDebitAccountId(null); }}>
                           {t("Post", "ترحيل")}
                         </Button>
                       )}
@@ -672,13 +677,13 @@ export default function Bills() {
               </p>
               <div>
                 <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
-                <Select value={postDebitAccount} onValueChange={setPostDebitAccount}>
+                <Select value={String(effectivePostAccountId ?? "")} onValueChange={v => setPostDebitAccountId(Number(v))}>
                   <SelectTrigger className="mt-1 h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EXPENSE_ACCOUNTS.map(a => (
-                      <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                    {expenseAccounts.map(a => (
+                      <SelectItem key={a.id} value={String(a.id)} className="text-xs">{a.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -687,12 +692,12 @@ export default function Bills() {
                 subtotal={postReviewOpen.subtotal}
                 vatAmount={postReviewOpen.vatAmount}
                 total={postReviewOpen.total}
-                debitAccount={postDebitAccount}
+                debitAccount={expenseLabel(effectivePostAccountId)}
               />
               <Button
                 className="w-full"
                 disabled={postMut.isPending}
-                onClick={() => postMut.mutate({ id: postReviewOpen.id, debitAccount: postDebitAccount })}
+                onClick={() => postMut.mutate({ id: postReviewOpen.id, debitAccountId: effectivePostAccountId })}
               >
                 {postMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Confirm & Post", "تأكيد والترحيل")}
               </Button>

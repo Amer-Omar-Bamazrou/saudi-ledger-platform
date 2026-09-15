@@ -1588,3 +1588,27 @@ live on 2026-09-15), per-line VAT rounding with one set of stored values
 end to end (accepted by the official SDK validator on four non-round
 cases), and the production boundary as `m12-status.md` §0 states it (one
 stale B1 row corrected).
+
+## ACCOUNTS.TS — CLOSED 2026-09-15: the expense account is resolved by id, refused when unresolved, never relabelled
+
+Owner-ordered out of the ranking queue: it was posting wrong today. The
+bill post path matched a NAME from a 14-entry client list against the
+chart and, on a miss, posted the line to PURCHASES while storing the name
+the user chose as the line's label — 11 of the 14 names, the default
+included, matched nothing. Posts and hides.
+
+**Closed by:** `BillApproveInput.debitAccountId` (the tenant's own expense
+account, by id; the legacy name arm refused when it matches nothing),
+`resolveExpenseLine` in `bills.approvable.ts` (422
+`expense_account_unresolved`; the stored label is always the resolved
+account's own name; one default — PURCHASES under its real name — when
+nothing is supplied), the client pickers rebuilt over `GET /categories`
+through one hook (`lib/accounts.ts`), and `bills-expense-account.test.ts`
+(the name-lookup-returns-nothing regression, four cases proven red against
+the old code). Record with the audit of existing rows: findings file,
+"ACCOUNTS.TS, CLOSED".
+
+**Existing rows:** 6 posted lines (dev seed + e2e org, SAR 15,860 of
+debits), all the DEFAULT name's near-miss — the account is right
+(Purchases), only the stored label is wrong. Remediation proposed (a label
+correction on six posted lines), not done: the owner's act.
