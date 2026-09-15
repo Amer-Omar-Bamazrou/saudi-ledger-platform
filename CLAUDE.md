@@ -59,11 +59,10 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02** — the contract milestone CLOSED at a deliberate stop (rules and
 the pinned inventory: §5). **2026-09-03/04** — the ERPNext comparison; N1–N4 +
-T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten days
-after going green (lesson: §3), and 🔴 **THE DECISION-FREE POOL CLOSED** (all
-eight items; record: known-issues file, "the decision-free pool").
+T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten days after going green (lesson: §3);
+🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
-to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it).
+to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -544,12 +543,10 @@ the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed; L-1 closed 2026-09-14 — a failed security-audit write now pages critical.)* | — | The genuine long tail. |
+| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The genuine long tail. |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
-consolidation closed 2026-09-14 — `@workspace/shared` is the one definition
-for GOSI/VAT-default/`normalizeDigits`; known-issues file, "CONSTANTS CONSOLIDATION".)*
+`platform-alarms` is NOT operator-runnable (a one-line flip).
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);

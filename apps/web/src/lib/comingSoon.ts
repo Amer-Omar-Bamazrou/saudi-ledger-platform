@@ -309,8 +309,8 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     summary: "One account's full picture — balance history, its transactions, and its reconciliation state.",
     summaryAr: "الصورة الكاملة لحساب واحد — تاريخ الرصيد، ومعاملاته، وحالة تسويته.",
     blocker: "build",
-    whenCleared: "The list and create pages exist; this is the per-account page underneath them.",
-    whenClearedAr: "صفحتا القائمة والإنشاء موجودتان؛ هذه هي صفحة الحساب المفرد تحتهما.",
+    whenCleared: "The list and create pages exist, and the list page sets which account appears on invoices; this is the per-account page underneath them.",
+    whenClearedAr: "صفحتا القائمة والإنشاء موجودتان، وصفحة القائمة تحدد الحساب الذي يظهر على الفواتير؛ هذه هي صفحة الحساب المفرد تحتهما.",
   },
   {
     slug: "bank-statement-register",

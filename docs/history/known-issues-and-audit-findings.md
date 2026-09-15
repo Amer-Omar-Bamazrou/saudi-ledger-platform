@@ -1612,3 +1612,120 @@ the old code). Record with the audit of existing rows: findings file,
 debits), all the DEFAULT name's near-miss — the account is right
 (Purchases), only the stored label is wrong. Remediation proposed (a label
 correction on six posted lines), not done: the owner's act.
+
+## THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15 (PR #160, one commit each, every fix proven red-before)
+
+Found by the seven-workflow audit (findings file, "THE SEVEN-WORKFLOW
+AUDIT"), which traced each workflow end to end against code, callers and
+tests after the owner asked whether an accountant can finish one. None of
+the five was visible to the route walk, the reachability guard, the
+zero-movement standard or the contract conformance tests: four were found
+by following a caller chain to its consequence, the fifth by asking who
+writes a flag. Owner-ranked as Part 1; recorded here after the fixes, on
+the owner's instruction.
+
+**1. A credit note could be paid.** Discovery: audit W3, then verified by
+reading `invoicesService.pay` and the Mark Paid condition. Path:
+`Invoices.tsx` Mark Paid (keyed on `status === "sent"`) → `POST
+/invoices/:id/pay` → `invoices.service.ts pay`, which guarded on status
+only; a note is a row in the same table with the same statuses. Failure:
+one click posted Dr CASH / Cr AR against the note — the opposite of the
+refund it represents — and marked it `paid`. Fix (`4d7261d`): the guard at
+the top of `pay`, the single writer, so settlement and the seed scripts
+inherit it; the button shows only on `documentType === "invoice"`.
+Regression: `credit-note-not-payable.test.ts` — a credit note and a debit
+note refused with no payment row and no journal entry; the original on
+the same fixture still pays. Red 2/3 before. Missed by: the walk (never
+clicked Mark Paid on a note row) and the payment tests (never paid one).
+State: CLOSED.
+
+**2. A manual transaction never posted.** Discovery: audit W7 B3. Path:
+`POST /transactions` → `transactions.service.ts create`, which inserted
+the row `accepted` and returned; only `acceptPending` called the posting
+seam. Failure: the row appeared in the transactions list and never in the
+ledger — the dashboard-versus-ledger divergence flaw #1 closed for
+imports, reopened for manual rows. Fix (`4f8e9b8`): `create` calls the
+same `transactionPostingService.post` import acceptance calls, inside the
+request's tenant transaction; a refused post (closed month, unbalanced)
+rolls the INSERT back, so no accepted-but-unposted row survives and the
+caller sees the 423 or the validation error; `shouldPost` refuses a
+linked row, so a retry cannot double-post. Regression:
+`manual-transaction-posts.test.ts` — six cases: accounts, balance, date,
+tenant, company, link, audit; SUSPENSE when uncategorised; closed period
+(refused, rolled back, no orphan); idempotent re-post; tenant isolation
+with movement; imported rows unchanged. Red 5/6 before. Missed by:
+`transactions-to-ledger.test.ts`, which proves acceptance posts and never
+exercised `create`; the walk, which imports. State: CLOSED. Downstream:
+two onboarding suites' cleanup had encoded the absence (findings file,
+"TWO ONBOARDING SUITES PASSED WHILE THE ACCOUNTING EFFECT WAS ABSENT").
+
+**3. Deleting a posted transaction orphaned its entry.** Discovery: audit
+W5 G1 / W7 B4. Path: `DELETE /transactions/:id` → `transactions.service.ts
+remove`, which guarded settlements only; `transactions.journal_entry_id`
+is `ON DELETE SET NULL`, the wrong direction to help. Failure: the entry
+stayed in the books with nothing pointing at it; the P&L kept the
+expense, ledger cash stayed reduced, and `cash.service.ts` folded the
+orphan into its `ledger_only` residual so the reconciliation read as
+explained. Raw API only — no page calls the route — which is why the API
+had to be safe alone. Fix (`8ddc4bf`): reverse-then-delete through the
+same `journalEntriesService.reverse` the edit path's reverse-and-repost
+uses; chosen over refusing because removing a mis-imported accepted row
+is a real need. Settlements still refuse. Regression:
+`transaction-delete-reverses.test.ts` — original `reversed` + mirror
+`posted`, cash restored exactly, the reconciliation's residual unchanged
+over the window containing the mirror, audited; pending row deletes
+cleanly; settled row 409; another tenant touches nothing. Red 1/4 before.
+Missed by: `write-boundary-invariants.test.ts`, which asserts only the
+settlement refusal. State: CLOSED, with one limitation carried: the
+reversal seam dates every mirror TODAY (the edit path's posture; audit
+W7 B1), so the row's month keeps the outflow and the correction lands in
+the current month.
+
+**4. The expense account was lost at bill approval.** Discovery: audit W2
+G1. Path: the choice lived only in the post request's body; the
+one-person flow sent it on `/post`; the two-person flow submitted from
+`Approvals.tsx`, which sends no body, and `bills.controller.ts approve`
+passed the empty body through, so `resolveExpenseLine` got nothing and
+fell back to Purchases. Failure: every bill approved by a second person
+posted to Purchases, silently, under a label that said so. Fix
+(`56c9c76`): `bills.expense_account_id` (migration 0072, FK → categories,
+set-null), written at create and draft update from the picker the page
+already shows and refused at ENTRY if not one of the tenant's expense
+accounts; the resolver's caller falls back to it when the body names
+nothing (the body still wins, so the post-review dialog and scan-review
+are unchanged); `approve` parses its body exactly as `post` does; the
+queue label names the account. One resolver, one picker, one default.
+Regression: two cases in `bills-expense-account.test.ts` — create with an
+account → submit → approve with an EMPTY body posts to that account (red
+without the fallback); the body still wins; a non-expense account is
+refused at entry. Also driven live through the running queue. Missed by:
+`bills-approval-zero-movement.test.ts`, which asserts zero movement before
+approval and never which account after; the walk's core path, which
+posted a bill one-person. State: CLOSED.
+
+**5. No control set the bank account shown on invoices.** Discovery: the
+coming-soon test in the audit ("bank-account-detail"), then verified:
+`invoiceDocument.service.ts` prints bank details for the account flagged
+`is_default`; `BankAccounts.tsx` hard-coded the flag false on create and
+offered no control; the only writer was `demoSeed.service.ts`. Nor was the
+flag exclusive — two defaults could coexist and the PDF took the first.
+Failure: every real tenant's invoice shipped with no bank details. Fix
+(`9edb035`): exclusivity at the WRITE — `clearDefaultsExcept` (RLS-scoped)
+in create and update, so one effective default holds when the UI is
+bypassed; a per-card "Use on invoices" control and a line stating which
+account invoices show, through the PATCH the route already accepted; no
+contract change (the page is one of the twenty pinned hand-written
+interfaces — the deliberate stop stands). Regression:
+`bank-account-default.test.ts` — switching clears the previous default,
+a flagged create too, an unrelated update leaves it, another tenant's
+default untouched with movement, the invoice document model follows the
+change. Red 3/3 before. Clicked in the browser. Missed by: the walk (the
+page rendered; nothing on it could be clicked toward this); the reachability
+guard (the update route had no UI caller and was not on its known-gap
+list). State: CLOSED; the per-account PAGE stays coming soon.
+
+**Verification of the set:** `pnpm run verify` green (148 API files, 10
+DB, 1 shared, 8 web, build); browser suite 280/280; focused suites per
+item 29, 64, 36, 74, 31 tests. The first full gate failed the two
+onboarding suites — a downstream effect of fix 2, corrected in their
+cleanup (`a74686b`).
