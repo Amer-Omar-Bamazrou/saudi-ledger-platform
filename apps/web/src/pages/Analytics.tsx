@@ -312,7 +312,7 @@ export default function Analytics() {
               variant={months === n ? "default" : "outline"}
               onClick={() => setMonths(n)}
             >
-              {n}m
+              {t(`${n}m`, `${n} ش`)}
             </Button>
           ))}
         </div>

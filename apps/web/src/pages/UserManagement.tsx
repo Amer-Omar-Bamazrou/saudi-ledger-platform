@@ -267,7 +267,7 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <p className="text-xl sm:text-2xl font-bold font-mono text-foreground">{count}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{role}s</p>
+                    <p className="text-xs text-muted-foreground">{({ viewer: t("Viewers", "المشاهدون"), bookkeeper: t("Bookkeepers", "مدخلو البيانات"), accountant: t("Accountants", "المحاسبون"), admin: t("Admins", "المسؤولون") } as Record<string, string>)[role] ?? role}</p>
                   </div>
                 </div>
               </CardContent>
