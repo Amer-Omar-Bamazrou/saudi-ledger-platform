@@ -7774,3 +7774,14 @@ that does not check") pointed at the DATA rather than at the assertion.
 seed now goes through the product"; the analytics axis: the same entry;
 the fixture-realism sub-finding that led here: "THE SECOND CORE-PATH WALK",
 finding 6.
+
+**Second correction to the money guard (same day, from CI).** The Linux
+runner's wider fonts pushed `-SAR 4,340.00` past its own box into the
+card's padding on three statement pages; the checker flagged every
+ancestor hit as an occlusion and reported figures hidden that were plainly
+on screen — green on Windows, red in CI: an instrument asserting a font
+metric. Now an ancestor hit counts as hidden only when an ancestor on the
+path clips and the point lies outside its box, which is exactly the
+planted positive's shape. Two corrections in one day to one checker is the
+lesson: a probe is validated on the case it must catch AND on the case it
+must not — and on the machine the verdict is read from.
