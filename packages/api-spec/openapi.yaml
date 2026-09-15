@@ -178,11 +178,20 @@ paths:
               $ref: "#/components/schemas/AcceptPendingInput"
       responses:
         "200":
-          description: How many rows were accepted
+          description: >
+            What was accepted and posted, and — for a batch that mixed open and
+            closed months — which rows were refused by the period lock and put
+            back into review. A rejected row has NO journal entry.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AcceptPendingResult"
+        "423":
+          description: >
+            Nothing was accepted because every row's month is closed (a single
+            row's Accept, or a bulk whose rows are all closed). The body is the
+            `period_closed` refusal, carrying the `rejected` rows; every row
+            stays in review with no entry.
 
   /transactions/{id}/settle:
     post:
@@ -4370,11 +4379,33 @@ components:
           type: ["array", "null"]
           items: { type: integer }
 
+    # 2026-09-16: acceptance and posting are ONE act, and the response says
+    # which rows it happened to. `accepted` counts rows that accepted AND
+    # posted; `rejected` names rows the period lock refused — put back to
+    # review, no entry. Before this, a refused row committed as accepted and
+    # the request said 200 with a list nothing read (findings file, "BULK
+    # ACCEPT INTO A CLOSED MONTH").
     AcceptPendingResult:
       type: object
-      required: [accepted]
+      required: [accepted, posted, rejected]
       properties:
         accepted: { type: integer }
+        posted: { type: integer }
+        rejected:
+          type: array
+          items:
+            $ref: "#/components/schemas/AcceptPendingRejection"
+
+    AcceptPendingRejection:
+      type: object
+      required: [id, date, reason, code, period, lockedAt]
+      properties:
+        id: { type: integer }
+        date: { type: ["string", "null"] }
+        reason: { type: string }
+        code: { type: string, enum: [period_closed] }
+        period: { type: ["string", "null"], description: "YYYY-MM — the closed month" }
+        lockedAt: { type: ["string", "null"], description: "YYYY-MM-DD — when it was closed" }
 
     TransactionList:
       type: object

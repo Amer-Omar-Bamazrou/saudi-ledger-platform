@@ -63,6 +63,7 @@ T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten day
 🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
 to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
+**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS").
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -593,16 +594,13 @@ seed grants, git-history secret scanning. Findings file, "THE THREE COVERAGE GAP
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
 known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind
 repository list in `tests/cross-company-isolation.test.ts` (12, on the
-row-level backstop) is pinned and can only SHRINK. *(This entry read "NOT
-enforced; OPEN as a decision" for twelve days after N1 closed it — a queue
-entry records what someone believed then.)*
+row-level backstop) is pinned and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 
-🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20).**
-Every MONEY surface is in `openapi.yaml` under a conformance test parsing real
-responses; `tests/hand-written-interface-ratchet.test.ts` keeps the generator
-closed. Standing rules: 🔴 **a leave and a join in one milestone is the
+🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20;
+`tests/hand-written-interface-ratchet.test.ts` keeps the generator closed).**
+Standing rules: 🔴 **a leave and a join in one milestone is the
 generator running — stop, do not net**; **a `type` alias satisfying the
 detector is the ratchet GAMED** (a file leaves by consuming the generated type,
 never by rephrasing); 🔴 **the 20 pinned files are a STOP, not a backlog**

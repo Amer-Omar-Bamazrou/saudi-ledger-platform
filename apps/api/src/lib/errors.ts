@@ -84,7 +84,12 @@ export class ConflictError extends AppError {
  * inherits the explanation for free.
  */
 export class PeriodLockedError extends AppError {
-  constructor(message: string, detail?: { period: string; lockedAt: string }) {
+  /**
+   * `detail` may carry more than the period — bulk acceptance adds the
+   * `rejected` rows so a batch refused whole still names every row. The
+   * client keys on `code`; extra fields never change what the dialog does.
+   */
+  constructor(message: string, detail?: { period: string; lockedAt: string } & Record<string, unknown>) {
     super(423, message, detail ? { error: message, code: "period_closed", ...detail } : undefined);
   }
 }

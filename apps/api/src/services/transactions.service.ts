@@ -12,8 +12,9 @@ import {
   UpdateTransactionResponse,
   UploadTransactionsBody,
   UploadTransactionsResponse,
+  AcceptPendingTransactionsResponse,
 } from "@workspace/api-zod";
-import { AppError, BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { AppError, BadRequestError, BusinessRuleError, ConflictError, NotFoundError, PeriodLockedError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
@@ -57,6 +58,18 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
 
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
+
+/** A row acceptance refused by the period lock — back in review, named to the caller. */
+export interface AcceptPendingRejection {
+  id: number;
+  date: string | null;
+  reason: string;
+  code: "period_closed";
+  period: string | null;
+  lockedAt: string | null;
+}
+/** The wire shape — parsed through the generated contract before it leaves. */
+export type AcceptPendingOutcome = ReturnType<(typeof AcceptPendingTransactionsResponse)["parse"]>;
 export type CreateTransactionInput = ReturnType<(typeof CreateTransactionBody)["parse"]>;
 export type UpdateTransactionInput = ReturnType<(typeof UpdateTransactionBody)["parse"]>;
 export type UploadTransactionsInput = ReturnType<(typeof UploadTransactionsBody)["parse"]>;
@@ -424,7 +437,7 @@ export const transactionsService = {
    * pending row, including uncategorized). `ids` absent = bulk mode, which the
    * repository restricts to rows safe to accept unread.
    */
-  async acceptPending(ids?: number[]) {
+  async acceptPending(ids?: number[]): Promise<AcceptPendingOutcome> {
     const result = await transactionsRepository.acceptPending({
       ids,
       minConfidence: AUTO_ASSIGN_CONFIDENCE,
@@ -438,23 +451,74 @@ export const transactionsService = {
      * the dashboard and never the income statement — one live SME month showed
      * 0.00 of expenses on the P&L beside 45,063.25 on the dashboard.
      *
-     * A posting failure (a locked period, an incomplete chart) is REPORTED,
-     * not swallowed: the whole point is that nothing lands in the books
-     * silently.
+     * 🔴 A REFUSED ROW IS NOT ACCEPTED (2026-09-16, the pre-pilot batch). The
+     * first version of this handed the ids to `postMany`, which caught EVERY
+     * failure per row and returned a list nothing read: a row dated in a
+     * closed month committed as accepted with no entry, the request said
+     * 200, and the closed-month dialog never fired — the accepted-but-unposted
+     * state this comment promised could not happen, reached through the one
+     * path that swallowed it. Now, per row:
+     *
+     *  - the period lock (`PeriodLockedError`, thrown by `checkPeriodOpen`
+     *    BEFORE the seam writes anything, so the transaction stays usable)
+     *    puts the row BACK to pending and is reported under `rejected` with
+     *    its structured code — a mixed batch names both halves;
+     *  - anything else (an incomplete chart, an unbalanced line, a driver
+     *    error) is RE-THROWN: the request fails and the tenant transaction
+     *    rolls the whole acceptance back. Partial silence is the defect.
+     *
+     * If NOTHING was accepted and something was refused, the request IS the
+     * 423 — so a single row's Accept, and a bulk whose every row is closed,
+     * reach the client the way every other closed-month write does (the
+     * dialog keys on the code). The rejected list rides in the payload.
      */
-    const posting = result.acceptedIds.length > 0
-      ? await transactionPostingService.postMany(result.acceptedIds)
-      : { posted: 0, failed: [] as Array<{ id: number; reason: string }> };
+    const rejected: AcceptPendingRejection[] = [];
+    let posted = 0;
+    const acceptedIds: number[] = [];
+    for (const id of result.acceptedIds) {
+      try {
+        if (await transactionPostingService.post(id)) posted++;
+        acceptedIds.push(id);
+      } catch (err) {
+        if (!(err instanceof PeriodLockedError)) throw err;
+        await transactionsRepository.revertAcceptance(id);
+        const [row] = await transactionsRepository.findWithCategory(id);
+        const detail = (err.payload ?? {}) as { period?: string; lockedAt?: string };
+        rejected.push({
+          id,
+          date: row?.tx.date ?? null,
+          reason: err.message,
+          code: "period_closed",
+          period: detail.period ?? null,
+          lockedAt: detail.lockedAt ?? null,
+        });
+      }
+    }
 
-    if (result.accepted > 0) {
+    if (acceptedIds.length === 0 && rejected.length > 0) {
+      const first = rejected[0];
+      throw new PeriodLockedError(first.reason, {
+        period: first.period ?? "",
+        lockedAt: first.lockedAt ?? "",
+        rejected,
+      });
+    }
+
+    if (acceptedIds.length > 0) {
       await auditService.record({
         action: "update",
         entityType: "transaction",
         entityId: "bulk-accept",
-        after: { accepted: result.accepted, mode: ids?.length ? "explicit" : "bulk", posted: posting.posted },
+        after: {
+          accepted: acceptedIds.length,
+          mode: ids?.length ? "explicit" : "bulk",
+          posted,
+          rejected: rejected.length,
+          rejectedIds: rejected.map((r) => r.id),
+        },
       });
     }
-    return { ...result, posted: posting.posted, postingFailures: posting.failed };
+    return AcceptPendingTransactionsResponse.parse({ accepted: acceptedIds.length, posted, rejected });
   },
 
   /**

@@ -7843,11 +7843,14 @@ file, the closed entry above. Not repeated here.
   every other writer would refuse), and has no guard against
   document-generated entries: an issued invoice's entry can be reversed
   while the document stays approved and aging keeps the receivable.
-- **Bulk acceptance swallows the closed-month refusal** —
-  `transactionPosting.service.ts postMany` catches the lock error per
-  row; the row commits accepted with no entry, the request returns 200
-  with a failures list nothing in the web app reads. The 423 dialog never
-  fires.
+- ~~**Bulk acceptance swallows the closed-month refusal**~~ — **CLOSED
+  2026-09-16** (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH —
+  CLOSED 2026-09-16"). Was: `transactionPosting.service.ts postMany`
+  caught the lock error per row; the row committed accepted with no
+  entry, the request returned 200 with a failures list nothing in the web
+  app read; the 423 dialog never fired. The single-row Accept took the
+  same path — the pilot package's "single-row acceptance refuses
+  correctly" was a wrong claim, corrected in the same commit.
 - **A row cannot be reclassified as a transfer** — the update body has no
   `kind`; only the categoriser sets it at import; the service's own
   message tells the user to change a kind no screen offers.

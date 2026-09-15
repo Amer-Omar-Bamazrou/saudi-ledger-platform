@@ -717,7 +717,7 @@ export const acceptPendingTransactions = async (acceptPendingInput?: AcceptPendi
 
 
 
-export const getAcceptPendingTransactionsMutationOptions = <TError = ErrorType<unknown>,
+export const getAcceptPendingTransactionsMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext> => {
 
@@ -746,12 +746,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AcceptPendingTransactionsMutationResult = NonNullable<Awaited<ReturnType<typeof acceptPendingTransactions>>>
     export type AcceptPendingTransactionsMutationBody = BodyType<AcceptPendingInput> | undefined
-    export type AcceptPendingTransactionsMutationError = ErrorType<unknown>
+    export type AcceptPendingTransactionsMutationError = ErrorType<void>
 
     /**
  * @summary Accept pending transactions (bulk-safe subset, or named ids)
  */
-export const useAcceptPendingTransactions = <TError = ErrorType<unknown>,
+export const useAcceptPendingTransactions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPendingTransactions>>, TError,{data?: BodyType<AcceptPendingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof acceptPendingTransactions>>,

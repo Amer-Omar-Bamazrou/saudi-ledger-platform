@@ -21,6 +21,7 @@ import { CheckCheck, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import type { AcceptPendingResult } from "@workspace/api-client-react";
 
 interface Suggestion {
   documentKind: "invoice" | "bill";
@@ -98,14 +99,38 @@ export default function TransactionReview() {
     qc.invalidateQueries({ queryKey: ["bills"] });
   };
 
+  /**
+   * 🔴 A MIXED BATCH NAMES BOTH HALVES (2026-09-16). The server accepts and
+   * posts the rows whose month is open and puts the rest BACK into review
+   * with the `period_closed` code — nothing accepted-but-unposted. A batch
+   * refused whole is a 423, which the shared handler renders as the
+   * closed-month dialog like every other write. Here: the success toast
+   * carries the count, and a destructive toast names how many rows stayed in
+   * review and which month is closed — keyed on the code, never the copy.
+   */
   const acceptMut = useMutation({
     mutationFn: (ids?: number[]) =>
-      apiFetch("/transactions/review/accept", {
+      apiFetch<AcceptPendingResult>("/transactions/review/accept", {
         method: "POST",
         body: JSON.stringify(ids ? { ids } : {}),
       }),
-    onSuccess: (r: { accepted: number }) => {
+    onSuccess: (r) => {
       toast({ title: lang === "ar" ? `تم قبول ${r.accepted}` : `Accepted ${r.accepted} row(s)` });
+      const closed = r.rejected.filter((x) => x.code === "period_closed");
+      if (closed.length > 0) {
+        const months = [...new Set(closed.map((x) => x.period).filter(Boolean))].join(", ");
+        toast({
+          variant: "destructive",
+          title:
+            lang === "ar"
+              ? `${closed.length} لم تُقبل — الشهر مقفل (${months})`
+              : `${closed.length} not accepted — the books for ${months} are closed`,
+          description:
+            lang === "ar"
+              ? "بقيت هذه الصفوف في المراجعة ولم يُسجَّل لها أي قيد. أعد تأريخها في شهر مفتوح، أو يمكن للمسؤول إعادة فتح الشهر من «الأشهر المقفلة»."
+              : "Those rows stayed in review and nothing was posted for them. Date them in an open month, or an admin can reopen the month from Closed months.",
+        });
+      }
       refresh();
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),

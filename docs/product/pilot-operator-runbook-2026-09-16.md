@@ -169,7 +169,18 @@ you — they ARE the test:
 | Credit note (paid original) | Credit note 200.00 + 15% against INV-000001 — the refund case |
 | Debit note | 100.00 + 15% against INV-000002 |
 | Journal entry | Dr Bank Charges 75 / Cr Cash and Bank 75, dated this month; post |
-| Statement import | A 6-row CSV (package §3.2): one credit matching INV-000002's total with the number in the description, one credit of 10,000.00 (matches INV-000003 by amount), one debit of 400.00 (the bill), "OFFICE RENT 3,000" debit, "TRANSFER TO PAYROLL 5,000" debit, "UNKNOWN DEPOSIT 250" credit |
+| Statement import | A 6-row CSV (package §3.2): one credit matching INV-000002's total with the number in the description, one credit of 10,000.00 (matches INV-000003 by amount), one debit of 400.00 (the bill), "OFFICE RENT 3,000" debit, **"INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000"** debit, "UNKNOWN DEPOSIT 250" credit |
+
+🔴 **The transfer row's wording is the test (pilot-safety correction,
+2026-09-16).** The categoriser recognises a transfer only from an
+own-money signal — `internal transfer`, `own account`, `account to
+account`, `تحويل داخلي`, `تحويل بين حساب` — and deliberately NOT from a
+bare "TRANSFER" (it could be a supplier payment). The earlier wording
+"TRANSFER TO PAYROLL 5,000" was probed through the engine: it is booked as
+**Salaries at 0.72** by the round-amount salary heuristic — an expense,
+not a transfer — so the test would have "passed" for the wrong reason.
+The phrase above lands as `kind: transfer`, 0.9, "Own-account transfer".
+The engine was not changed.
 
 ---
 
@@ -267,19 +278,46 @@ figure written down at the time.
     documents. Record: the documents' paid amounts move; no `TXN-` entry
     for a settlement.
 19. Categorise "OFFICE RENT"; accept "UNKNOWN DEPOSIT" with no category
-    (→ Suspense); accept "TRANSFER TO PAYROLL" then on `/transactions`
-    declare it own-account. Record: the postings.
+    (→ Suspense); accept "INTERNAL TRANSFER TO PAYROLL ACCOUNT" (it shows
+    the `transfer` badge and no category) then on `/transactions` declare
+    it own-account. Record: the postings.
+    🔴 **If an imported row is NOT recognised as a transfer** (no badge,
+    no category), do not pick an expense or revenue category for it just
+    to continue the test — accept it with no category so it stays in
+    **Suspense**, and log it as feedback (§8) with the exact description.
+    A forced category would turn an unknown movement into a confident
+    expense on the P&L and VAT return; Suspense is the truthful answer.
 20. `/analytics`, cash section: record `unexplained` (expect 0).
 21. Journal entry (§3.3): create, post. Try an unbalanced one: refused.
     Then **Reverse** the posted one. Record: the reversal is dated today;
     the original stays, marked reversed.
-22. **(admin)** Lock last month on `/closed-months`. Then the accountant
-    attempts, dated in that month: a new invoice, a bill, a journal entry,
-    a payment with a paid-at in it. Record: each refused with the
-    closed-month dialog. Also try accepting a statement row dated in that
-    month from Review in **bulk**: record what happens (package §8 — it
-    reports success and posts nothing; this is a known gap to observe, not
-    a pass). **(admin)** Unlock.
+    🔴 **Reversal safety (pilot-safety correction, 2026-09-16):** the
+    accountant reverses **only journal entries they created themselves
+    during the pilot** (the entry from this step). They must **not**
+    reverse an entry the system generated from a document — any entry
+    whose number starts `GL-` (an invoice, a credit or debit note, and
+    their `-PAY-` payment entries), `BILL-` (a bill and its payments) or
+    `TXN-` (an accepted bank row).
+    The Reverse control is offered on those too; using it leaves the
+    document approved while its ledger effect is undone, and aging keeps
+    the receivable. A wrong **sale** is corrected with a **credit note**
+    (step 12); a wrong bank row is deleted by you as admin (its entry
+    reverses with it); a wrong bill is logged as feedback (no bill
+    correction document exists — §6). The reversal's DATING stays the
+    policy question in §7 item 3 and is **not changed in code**.
+22. **(admin)** Lock **the previous month — never the current month** —
+    on `/closed-months` (the current month holds the pilot's own entries;
+    locking it would refuse the rest of the checklist). Then the
+    accountant attempts, dated in the locked month: a new invoice, a bill,
+    a journal entry, a payment with a paid-at in it. Record: each refused
+    with the closed-month dialog. Also accept a statement row dated in
+    that month from Review — one row with its **Accept**, and then with
+    **Accept ready** alongside an open-month row: the single row raises
+    the same closed-month dialog; the batch accepts the open row and
+    shows a red notice naming the closed month, and the closed row stays
+    in Review with no entry (fixed 2026-09-16 — this was the "reports
+    success and posts nothing" gap; it is now a refusal to record as a
+    pass). **(admin)** Unlock.
 23. **(admin)** `/audit-trail`: record the rows for one invoice from
     create to pay, and the lock/unlock rows.
 24. Permissions: the accountant confirms `/users` and `/audit-trail` are
@@ -301,21 +339,23 @@ full and partial payment, AR aging, VAT return); purchases end to end
 AP aging, VAT); credit and debit notes against unpaid or part-paid
 invoices; statement import, review, categorise, suspense, settle,
 transfer declaration, the cash reconciliation; manual journal entries and
-their reversal; the approval separation; period lock and its refusals;
-the audit trail; sandbox ZATCA onboarding and the ICV chain; every report
-on the above.
+their reversal (of the accountant's own entries only — §7 item 6); the
+approval separation; period lock and its refusals, including bulk accept
+into a closed month; the audit trail; sandbox ZATCA onboarding and the
+ICV chain; every report on the above.
 
 **SAFE TO TEST WITH LIMITATIONS** (disclose §7 first) — the customer
-statement; a credit note against a paid invoice; reversals; 0% VAT once
-onboarded; the bank card's balance; bulk-accept in a closed month; the
-trial balance without an opening column; converting a PO whose supplier
-reference collides.
+statement; a credit note against a paid invoice; reversal dating; 0% VAT
+once onboarded; the bank card's balance; the trial balance without an
+opening column; converting a PO whose supplier reference collides.
 
 **DO NOT TEST YET** — fixed assets; migration and opening balances;
-Zakat; payroll; withholding tax; advance payments; multi-currency; live
-bank feeds; ZATCA simulation, production or transmission; emailing an
-invoice; recurring rules; document capture; anything on a coming-soon
-page.
+**inventory and cost of goods sold** (product and stock accounting is
+outside this pilot and is not being validated — a product line on an
+invoice is a price and a description, not a stock movement); Zakat;
+payroll; withholding tax; advance payments; multi-currency; live bank
+feeds; ZATCA simulation, production or transmission; emailing an invoice;
+recurring rules; document capture; anything on a coming-soon page.
 
 ---
 
@@ -333,14 +373,19 @@ Plain language, no internals. Give them these nine, in this form:
    the original's date. So a correction to last month lands in this
    month. *Question for you, not a rule:* should a reversal carry the
    original date, today's date, or a date you choose — and how should that
-   interact with a closed month? Tell us what you would expect.
+   interact with a closed month? Tell us what you would expect. (Nothing
+   about reversal dating was changed in code for this pilot; it is a
+   policy question, and your answer is the input.)
 4. **Zero-rated invoices cannot be issued once the company is registered
    with ZATCA in this version.** Keep pilot invoices at 15%.
 5. **The bank account card shows the opening balance you typed**, not a
    live balance. Cash lives on the balance sheet.
-6. **Accepting several statement rows at once in a month that is closed
-   says "done" and posts nothing.** Accepting rows one at a time refuses
-   correctly. We know; please note when you see it.
+6. **Reverse only the journal entries you created yourself in this
+   pilot.** Do not reverse an entry the system created from an invoice, a
+   bill, a payment or a bank row (their numbers start `GL-`, `BILL-` or
+   `TXN-`) even though the button is there — the document would stay
+   approved with its ledger effect undone. To correct a sale, raise a
+   credit note; for anything else, tell us.
 7. **The trial balance shows only the period you pick**, with no opening
    column, so run it from the start of the fiscal year.
 8. **Deleting records and closing months are the administrator's** —

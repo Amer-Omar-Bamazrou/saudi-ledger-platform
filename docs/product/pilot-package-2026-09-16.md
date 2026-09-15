@@ -297,7 +297,7 @@ figures can be checked by hand.
 | Bill B1 (from PO1) | Choose the expense account (e.g. Rent & Utilities) at entry; submit; approve from **Approvals** as a second act → posts to the chosen account (#160 item 4) |
 | Bill B2 from supplier P, 800.00 + 15% | Post; **pay 400.00** → stays `received`, AP aging shows 520.00 remaining; then pay the rest |
 | Journal entry J1 | 2 lines, e.g. Dr Bank Charges 75 / Cr Cash and Bank 75, dated this month; post |
-| Bank statement S1 (CSV upload) | 6 rows: a credit matching I1's total with "I1's number" in the description (matched), a credit of I2's 1,000.00 (matched by amount), a debit of B2's 400.00 (matched), a debit "OFFICE RENT 3,000" (categorise), a debit "TRANSFER TO PAYROLL 5,000" (declare as own-account transfer after accepting), and a credit "UNKNOWN DEPOSIT 250" (accept uncategorised → SUSPENSE) |
+| Bank statement S1 (CSV upload) | 6 rows: a credit matching I1's total with "I1's number" in the description (matched), a credit of I2's 1,000.00 (matched by amount), a debit of B2's 400.00 (matched), a debit "OFFICE RENT 3,000" (categorise), a debit "INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000" (recognised as a transfer by the `internal transfer` rule — a bare "TRANSFER TO PAYROLL" is booked as Salaries by the round-amount heuristic, probed 2026-09-16; declare as own-account after accepting), and a credit "UNKNOWN DEPOSIT 250" (accept uncategorised → SUSPENSE) |
 | Manual transaction M1 | The Upload page's **Manual Entry** tab submits through the IMPORT path, so a typed row lands in Review as pending like any statement row — accept it there. The immediately-posting manual create (#160 item 2) is API-only today: no page calls it. Exercise it by API if you want the evidence, or leave it out |
 
 VAT scenarios the product supports from the UI: standard 15% lines;
@@ -406,9 +406,12 @@ at the time — not a recollection.
 4. **Uncategorised** "UNKNOWN DEPOSIT": accept without a category.
    Evidence: posts to **Suspense**, not to income; the Finance Hub's
    liquidity note mentions the suspense balance.
-5. **Transfer**: accept "TRANSFER TO PAYROLL"; on `/transactions` declare
-   where it went (own account). Evidence: the posting moves from Transfers
-   awaiting declaration to Transfer clearing; the P&L is untouched.
+5. **Transfer**: accept "INTERNAL TRANSFER TO PAYROLL ACCOUNT"; on
+   `/transactions` declare where it went (own account). Evidence: the
+   posting moves from Transfers awaiting declaration to Transfer clearing;
+   the P&L is untouched. 🔴 A row the engine does NOT recognise as a
+   transfer is accepted uncategorised (→ Suspense) and logged as feedback
+   — never forced into an expense or revenue category to continue.
 6. **Reconciliation** (`/analytics`, the cash section): bank movement vs
    ledger cash, itemised; `unexplained` = 0. Evidence: the figure.
 7. **Correction**: re-categorise the rent row → the original entry is
@@ -431,14 +434,23 @@ at the time — not a recollection.
 4. **Period lock** (you, as admin, on `/closed-months` or the Finance Hub):
    lock last month. Then the accountant attempts, in that month: a new
    invoice, a new bill, a journal entry, a payment with a paid-at date in
-   it, and a bank row dated in it accepted from Review. Evidence: each is
-   refused with the closed-month dialog (423) — **except** bulk-accepting a
-   dated row from Review, which returns success while the row stays
-   unposted (§8, a documented gap: record it as observed, not as a pass).
+   it, and a bank row dated in it accepted from Review — one at a time and
+   with **Accept ready** beside an open-month row. Evidence: each is
+   refused with the closed-month dialog (423); the batch accepts the open
+   row and names the refused one in a red notice, and the refused row
+   stays in Review with no entry (fixed 2026-09-16; it used to return
+   success and post nothing). 🔴 Lock the PREVIOUS month, never the
+   current one — the pilot's own entries live there.
 5. **Correction route**: for a wrong invoice, a credit note in the open
-   month (works); for a wrong journal entry, **Reverse** on the
-   Journal Entries page. Evidence: the reversal is dated **today**, the
-   original stays in the books marked `reversed` (§8 on the dating).
+   month (works); for a wrong journal entry **the accountant created
+   themselves**, **Reverse** on the Journal Entries page. Evidence: the
+   reversal is dated **today**, the original stays in the books marked
+   `reversed` (§8 on the dating). 🔴 The accountant must not reverse a
+   document-generated entry (any number starting `GL-`, `BILL-` or
+   `TXN-`, including their `-PAY-` entries) even though the control is
+   offered: the document stays
+   approved while its ledger effect is undone. The dating stays a policy
+   question; nothing in code changed.
 6. **Audit trail** (`/audit-trail`, admin): every create, approve, pay,
    lock, unlock and reverse above has a row with the actor. Evidence: the
    rows for one document from create to pay.
@@ -483,8 +495,8 @@ above.
 **Supported, with limitations the accountant must be told** (§8 has each
 one): the customer statement's shape; a credit note against a paid
 invoice; the reversal's dating; 0% VAT once onboarded; the bank card's
-balance; bulk-accept in a closed month; the trial balance's missing
-opening column; converted-bill numbering.
+balance; the trial balance's missing opening column; converted-bill
+numbering.
 
 **Not ready — must not be presented as pilot-ready:** fixed assets
 (register only; nothing reaches the GL; capitalisation from a bill is
@@ -572,7 +584,7 @@ its handling.
 | **Reversals are dated today**, not the original's date | Reversing a journal entry (or re-categorising / deleting a posted bank row) moves the correction into the current month; the original month keeps the figure | **Accounting-policy question** — record it, do not decide it: *when a posted entry is reversed, should the reversal carry the original date, today's date, or a chosen date, and what does the closed-period rule then mean for it?* The current behaviour is "today", which is what makes a closed month uncorrectable for its own entries. |
 | **0% VAT lines cannot be issued once ZATCA-onboarded** | Approving an invoice with a 0% line fails with the issuance-blocked message; the same invoice issues on a non-onboarded company | **Not implemented** (no Z/E/O picker in the form). Keep pilot invoices at 15%, or test 0% before onboarding and record it. |
 | **The bank card's balance is the typed opening figure** and the opening balance never reaches the ledger | The bank page shows one number, the trial balance another; the reconciliation is movement against movement, not statement against ledger | **Safe to work around**: read cash from the balance sheet; the reconciliation's `unexplained` is the check |
-| **Bulk-accepting a row dated in a closed month returns success** while the row stays unposted | No 423 dialog; the row shows accepted; the ledger has no entry | **Should be avoided** except as the one recorded observation in §4.5; single-row acceptance and every other write refuse correctly |
+| ~~**Bulk-accepting a row dated in a closed month returns success** while the row stays unposted~~ **FIXED 2026-09-16** | A single row's Accept raises the closed-month dialog; a batch accepts the open rows, names the refused ones, and leaves them in Review with no entry (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16") | **Safe to test** as a refusal. The earlier claim that single-row acceptance refused correctly was wrong — it took the same swallowed path |
 | **The trial balance has no opening column** | A period that starts after the first entry does not tie to the balance sheet's cumulative lines | **Safe to work around**: run the trial balance from the fiscal year start |
 | **A converted bill takes the supplier's reference as our bill number** | Two suppliers quoting the same reference make the second conversion fail with a server error | **Safe to work around**: type a bill number on conversion |
 | **A bill has no correction document** | A wrong posted bill can only be reversed at the journal level; the bill stays `received` | **Not implemented**; correct at the journal level and log it |

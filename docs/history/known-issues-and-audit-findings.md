@@ -1729,3 +1729,120 @@ DB, 1 shared, 8 web, build); browser suite 280/280; focused suites per
 item 29, 64, 36, 74, 31 tests. The first full gate failed the two
 onboarding suites — a downstream effect of fix 2, corrected in their
 cleanup (`a74686b`).
+
+## BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16 (the pre-pilot batch, item 1)
+
+Found by the seven-workflow audit (findings file, "THE SEVEN-WORKFLOW
+AUDIT", remaining V1 gaps) and carried into the pilot package as a
+disclosed limitation; ranked a pre-pilot blocker by the owner on
+2026-09-16 because it composes on all three of §3's triage axes at once.
+
+**Original failure.** `transactions.service.ts acceptPending` flipped the
+rows to `accepted` in the repository, then handed the ids to
+`transactionPosting.service.ts postMany`, which caught EVERY error per
+row and returned a `failed` list. The period lock throws from
+`checkPeriodOpen` inside `postJournalEntry` before any insert, so the
+tenant transaction stayed usable and COMMITTED: the row was `accepted`
+with `journal_entry_id NULL`, the request answered 200 `{ accepted: N }`,
+the Review page's toast said "Accepted N row(s)", and the row left the
+list. Nothing in the web app read `postingFailures`, so the closed-month
+dialog — which every other write raised — never fired. Proven red-before
+by the new suite: 7 of 7 failed on the unchanged code, and the SINGLE
+named Accept (the page's per-row button) resolved `{ accepted: 1 }` too,
+which falsified the package's claim that one-at-a-time acceptance refused
+correctly.
+
+**Why a pre-pilot blocker.** Triage check, all three: (1) it POSTS —
+acceptance is the act that makes a bank line a ledger fact, and here it
+made it an accepted fact with no ledger; (2) it removes the CORRECTION —
+the row is out of the holding area, so nothing offers to accept it again,
+and the accountant's only signal is a P&L that quietly omits it; (3) it
+HIDES the result — a 2xx and a success toast. An accountant walking the
+period-lock step would have recorded a pass on the one write that was
+not refused.
+
+**Fix** (`transactions.service.ts`, `transactions.repository.ts`,
+`lib/errors.ts`, `openapi.yaml` + codegen, `TransactionReview.tsx`).
+Acceptance walks its rows itself and calls `transactionPostingService.post`
+per row inside the same tenant transaction. A `PeriodLockedError` puts the
+row BACK to `pending_review` (`revertAcceptance`, guarded on
+`journal_entry_id IS NULL` so it can never un-accept a posted row) and is
+reported under `rejected` with the structured `period_closed` code, the
+period and the row's date. Any OTHER failure is re-thrown, so the request
+fails and the whole acceptance rolls back — the swallow is gone, not
+narrowed. If nothing was accepted and something was refused, the request
+IS the 423 (the rejected list rides in its payload), so a single row's
+Accept and an all-closed bulk reach the client exactly as every other
+closed-month write does and the dialog fires off the code. A mixed batch
+answers 200 `{ accepted, posted, rejected[] }`; the page shows the count
+and a red notice naming the closed month and saying the rows stayed in
+review. The audit record carries `rejected` and `rejectedIds`. `postMany`
+survives for the backfill script only, and its comment now says so.
+`AcceptPendingResult` is a contract with `required: [accepted, posted,
+rejected]`; the page consumes the generated type.
+
+**Regression tests.** `tests/bulk-accept-closed-period.test.ts` (service
+level, real Postgres, rows imported through the product's upload path):
+open-period bulk accepts and posts; closed-period bulk is the 423 with
+every rejected id in the payload, rows still pending, no entry, no audit
+row; a single named closed row is the same 423; a mixed batch is 200 with
+the open row posted and the closed row named, pending, entry-less, and
+the audit record selected by content names it; the branch NOT written — a
+non-lock failure injected on the second row — rolls the first row's
+acceptance back too; tenant isolation with presence, absence and movement
+(this org's lock refuses this org's row; the other org's row in the same
+month accepts and posts in its own company; ids named across orgs accept
+nothing); retry after unlock accepts and posts; a second accept is a
+no-op with one entry per row. `e2e/bulk-accept-closed-month.spec.ts`
+(the real client): the per-row Accept raises the dialog naming the month
+and the row stays; Accept ready over one open and one closed row shows
+"Accepted 1 row(s)" beside "1 not accepted — the books for 2026-02 are
+closed", the refused row is still listed, and the server reads back
+`pending_review` for it.
+
+**Current behaviour.** A closed-month acceptance is refused visibly on
+every path; a refused row is never accepted; a mixed batch names both
+halves; retries after unlock succeed; a retry of an accepted id posts
+nothing twice. Reversal dating is untouched (a policy question, §7 of the
+runbook).
+
+**Missed by:** the route walk (it accepted rows in open months), the
+zero-movement standard (a pending row moves nothing — and this row was
+not pending), the reachability guard (every control worked), and the
+period-lock suite (it tested the seam, not the one caller that caught
+its throw). The lesson is §3's existing one — a stub is the part that
+needed testing; here the "stub" was a catch block.
+
+State: CLOSED.
+
+## THE RUNBOOK'S PILOT-SAFETY CORRECTIONS — 2026-09-16 (items 2–4 of the pre-pilot batch; documentation, not product fixes)
+
+Three corrections to `docs/product/pilot-operator-runbook-2026-09-16.md`
+(mirrored in the package), each a wrong or missing instruction that would
+have produced a wrong observation or an unsafe act during the pilot. No
+engine, posting or policy code changed for any of them.
+
+1. **The transfer test's wording.** The CSV row "TRANSFER TO PAYROLL
+   5,000" was probed through `categorizeTransaction`: Salaries at 0.72
+   by the round-amount salary heuristic — an expense, so the "declare it
+   a transfer" step would have passed for the wrong reason. The
+   categoriser recognises transfers only from an own-money signal
+   (`internal transfer`, `own account`, `account to account`, the two
+   Arabic forms) and deliberately not from a bare "TRANSFER". The row is
+   now "INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000" (probed: `transfer`,
+   0.9, "Own-account transfer"). Added disclosure: a row the engine does
+   not recognise as a transfer stays in Suspense and is logged as
+   feedback, never forced into an expense or revenue category.
+2. **Reversal safety.** The accountant reverses only entries they created
+   during the pilot; never a document-generated one (any number starting
+   `GL-`, `BILL-` or `TXN-`, including `-PAY-` entries), which the Reverse
+   control does offer and which would leave the document approved with
+   its ledger effect undone (the audit's "journal reversal bypasses the
+   posting seam" gap, still open). Sales corrections use a credit note.
+   The admin locks the PREVIOUS month, never the current one. Reversal
+   dating remains the §7 policy question, explicitly not changed in code.
+3. **Inventory and COGS** added to Do Not Test Yet: product and stock
+   accounting is outside the pilot and is not being validated.
+
+Also corrected in passing: §6/§7's bulk-accept disclosure, made moot by
+item 1 above, is replaced by the reversal-safety instruction.

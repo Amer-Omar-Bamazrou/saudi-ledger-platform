@@ -7,6 +7,8 @@
  */
 
 export * from './acceptPendingInput';
+export * from './acceptPendingRejection';
+export * from './acceptPendingRejectionCode';
 export * from './acceptPendingResult';
 export * from './accountStatementMovement';
 export * from './accountStatementReport';

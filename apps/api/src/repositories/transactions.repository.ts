@@ -110,6 +110,21 @@ export const transactionsRepository = {
   },
 
   /**
+   * Put an accepted-but-refused row BACK into the holding area (2026-09-16).
+   * Called inside the same tenant transaction as `acceptPending` when the
+   * posting seam refuses the row (a closed month): the acceptance and the
+   * refusal must not disagree, and a row that did not post is not accepted.
+   * Guarded on `journal_entry_id IS NULL` so it can never un-accept a row
+   * that DID post.
+   */
+  async revertAcceptance(id: number): Promise<void> {
+    await db
+      .update(transactionsTable)
+      .set({ reviewStatus: "pending_review" })
+      .where(and(eq(transactionsTable.id, id), eq(transactionsTable.reviewStatus, "accepted"), sql`${transactionsTable.journalEntryId} IS NULL`));
+  },
+
+  /**
    * 🔴 COUNTS OVER THE FULL SET, computed in SQL — never `array.length`.
    *
    * `pendingReview` below is CAPPED (200) because it feeds a review screen that
