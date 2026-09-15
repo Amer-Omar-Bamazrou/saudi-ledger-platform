@@ -64,7 +64,4 @@ export const assetsRepository = {
   insertDepreciationEntry(values: typeof depreciationEntriesTable.$inferInsert) {
     return db.insert(depreciationEntriesTable).values(values).returning();
   },
-  remove(id: number) {
-    return db.delete(fixedAssetsTable).where(eq(fixedAssetsTable.id, id));
-  },
 };

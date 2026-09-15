@@ -52,6 +52,21 @@ export const SYSTEM_ACCOUNTS = {
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
 
 /**
+ * The accounts whose lines ARE tax lines — the one definition (2026-09-15).
+ * The tax-journal-entries report used to decide by a regex over the account
+ * NAME (/vat|tax|ضريبة|زكاة/), a second definition of this fact that flagged
+ * "Taxi expenses" and missed a renamed VAT account.
+ */
+// VAT_PAYMENT and ZAKAT_PAYMENT are chart codes (SYSTEM_CHART_OF_ACCOUNTS) with no
+// SYSTEM_ACCOUNTS key — they are settlement accounts no posting path resolves.
+export const TAX_ACCOUNT_SYSTEM_CODES: readonly string[] = [
+  SYSTEM_ACCOUNTS.VAT_OUTPUT,
+  SYSTEM_ACCOUNTS.VAT_INPUT,
+  "VAT_PAYMENT",
+  "ZAKAT_PAYMENT",
+];
+
+/**
  * M18.1 — where an account sits on the liquidity scale, for the Finance Hub.
  * Balance-sheet accounts only; a DB CHECK refuses it on income/expense/equity.
  */

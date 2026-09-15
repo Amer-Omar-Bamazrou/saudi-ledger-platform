@@ -110,14 +110,14 @@ export default function Recurring() {
         <Card data-row key={rule.id}>
           <CardHeader className="pb-2">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <Badge variant="outline">{rule.entity}</Badge>
+              <Badge variant="outline">{rule.entity === "invoice" ? t("Invoice", "فاتورة") : t("Bill", "فاتورة مورد")}</Badge>
               <span className="font-mono text-sm">
                 {(rule.template as { invoiceNumber?: string; billNumber?: string } | null)?.invoiceNumber ??
                   (rule.template as { billNumber?: string } | null)?.billNumber ??
                   rule.id.slice(0, 8)}
               </span>
               <span className="text-sm font-normal text-muted-foreground">
-                {rule.frequency} · {t("day", "يوم")} {rule.dayOfMonth} · {t("next", "التالي")} <DualDate date={rule.nextRunOn} inline />
+                {({ monthly: t("Monthly", "شهري"), quarterly: t("Quarterly", "ربع سنوي"), yearly: t("Yearly", "سنوي") } as Record<string, string>)[rule.frequency] ?? rule.frequency} · {t("day", "يوم")} {rule.dayOfMonth} · {t("next", "التالي")} <DualDate date={rule.nextRunOn} inline />
               </span>
               {rule.status === "paused" ? (
                 <Badge variant="secondary">{t("Paused", "متوقفة")}</Badge>

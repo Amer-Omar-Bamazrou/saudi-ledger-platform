@@ -111,8 +111,8 @@ export default function Products() {
                 return (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                     <td className="py-3 pe-4"><div className="font-medium">{p.name}</div>{p.code&&<div className="text-xs text-muted-foreground font-mono">{p.code}</div>}</td>
-                    <td className="py-3 pe-4"><Badge variant="outline" className="text-xs capitalize">{p.type}</Badge></td>
-                    <td className="py-3 pe-4 text-muted-foreground text-xs">{p.unit||"—"}</td>
+                    <td className="py-3 pe-4"><Badge variant="outline" className="text-xs">{p.type === "service" ? t("Service", "خدمة") : p.type === "product" ? t("Product", "منتج") : p.type}</Badge></td>
+                    <td className="py-3 pe-4 text-muted-foreground text-xs">{p.unit === "unit" ? t("unit", "وحدة") : (p.unit || "—")}</td>
                     <td className="py-3 pe-4 font-mono">{fmtNum(p.unitPrice)}</td>
                     <td className="py-3 pe-4 font-mono text-muted-foreground">{p.unitCost ? fmtNum(p.unitCost) : "—"}</td>
                     <td className="py-3 pe-4"><span className={`font-mono text-xs ${margin && margin > 30 ? "text-positive" : margin && margin > 0 ? "text-attention" : "text-muted-foreground"}`}>{margin != null ? `${margin.toFixed(1)}%` : "—"}</span></td>

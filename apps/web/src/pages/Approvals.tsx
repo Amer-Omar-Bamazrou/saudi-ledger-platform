@@ -1,22 +1,35 @@
 /**
- * Approvals worklist (M10.6) — minimal, functional, unstyled.
+ * Approvals worklist — the surface where money is released.
  *
- * The first clickable surface for the draft/approval workflow: a single
- * pending-approvals view across all draftable entities (journal entries, bills,
- * invoices, payroll runs) with the workflow actions wired to the API —
- * submit / approve / send-back / reject. Role enforcement is done by the server
- * (a bookkeeper clicking Approve gets a 403 toast); this page intentionally shows
- * the actions by state and lets the backend be the authority. Styling is
- * deliberately minimal — the real worklist UX is a later design phase.
+ * One server-built queue across every draftable entity (journal entries,
+ * bills, invoices, payroll runs) with the workflow actions wired to the API:
+ * submit / approve / send-back / reject. Role enforcement is the server's (a
+ * bookkeeper clicking Approve gets a 403 toast); this page shows the actions
+ * by state and lets the backend be the authority.
+ *
+ * 🔴 REBUILT 2026-09-15 (item 4 of the second core-path walk). The M10.6
+ * version was "minimal, functional, unstyled": inline styles, a hard-coded
+ * `textAlign: "left"` in an RTL app, raw English statuses in the Arabic UI,
+ * and a success toast that printed the raw action name (`تم: approve`). It
+ * was functionally correct — every click on the core path went through it —
+ * and it was where issuing happens, reading as unfinished. Now it uses the
+ * app's own primitives (Card, Badge, Button), logical alignment, the shared
+ * `statusLabel`, and a toast that names the act in the reader's language.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { ClipboardCheck } from "lucide-react";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { statusLabel } from "@/lib/statusLabel";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 import type { ApprovalPendingRow } from "@workspace/api-client-react";
 
 type EntityKey = ApprovalPendingRow["entity"];
+type Action = "submit" | "approve" | "send-back" | "reject";
 
 /**
  * 🔴 ONE server-built queue (contract batch 5, owner decision A). This page
@@ -41,18 +54,29 @@ function usePendingQueue() {
   });
 }
 
+const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  submitted: "bg-attention-surface/20 text-attention",
+};
+
 export default function Approvals() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  // AUD-8: Arabic is a launch requirement, and this page had no i18n at all —
-  // on the surface where money is released.
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const queue = usePendingQueue();
   const byEntity = (entity: EntityKey) => queue.data?.filter((r) => r.entity === entity);
 
+  // The act, named in the reader's language — never the raw route segment.
+  const ACTION_DONE: Record<Action, string> = {
+    submit: t("Submitted for approval", "أُرسل للاعتماد"),
+    approve: t("Approved", "تم الاعتماد"),
+    "send-back": t("Sent back for editing", "أُعيد للتعديل"),
+    reject: t("Rejected", "تم الرفض"),
+  };
+
   const act = useMutation({
-    mutationFn: async ({ key, id, action }: { key: EntityKey; id: number; action: string }) => {
+    mutationFn: async ({ key, id, action }: { key: EntityKey; id: number; action: Action }) => {
       let body: string | undefined;
       if (action === "send-back") {
         const note = window.prompt(t("Reason for sending back (optional):", "سبب الإعادة للتعديل (اختياري):")) ?? "";
@@ -62,59 +86,73 @@ export default function Approvals() {
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
-      toast({ title: t(`Done: ${v.action}`, `تم: ${v.action}`) });
+      toast({ title: ACTION_DONE[v.action] });
     },
     onError: (e: Error) => toast({ title: t("Action failed", "فشل الإجراء"), description: e.message, variant: "destructive" as any }),
   });
 
   const Section = ({ title, entityKey, rows, canSubmit }: { title: string; entityKey: EntityKey; rows?: ApprovalPendingRow[]; canSubmit: boolean }) => (
-    <section style={{ marginBottom: 24 }}>
-      <h2 style={{ fontWeight: 600, marginBottom: 8 }}>{title}</h2>
-      {!rows || rows.length === 0 ? (
-        <p style={{ color: "#888", fontSize: 13 }}>{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
-      ) : (
-        <div className="overflow-x-auto"><table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-              <th style={{ padding: 4 }}>#</th>
-              <th style={{ padding: 4 }}>{t("Status", "الحالة")}</th>
-              <th style={{ padding: 4 }}>{t("Amount", "المبلغ")}</th>
-              <th style={{ padding: 4 }}>{t("Actions", "إجراءات")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: 4, fontFamily: "monospace" }}>{r.label}</td>
-                <td style={{ padding: 4 }}>{r.status}</td>
-                <td style={{ padding: 4, fontFamily: "monospace" }}>{r.amount?.toLocaleString?.() ?? r.amount}</td>
-                <td style={{ padding: 4, display: "flex", gap: 6 }}>
-                  {r.status === "draft" && canSubmit && (
-                    <button onClick={() => act.mutate({ key: entityKey, id: r.id, action: "submit" })}>{t("Submit", "إرسال")}</button>
-                  )}
-                  <button onClick={() => act.mutate({ key: entityKey, id: r.id, action: "approve" })}>{t("Approve", "اعتماد")}</button>
-                  {r.status === "submitted" && (
-                    <button onClick={() => act.mutate({ key: entityKey, id: r.id, action: "send-back" })}>{t("Send back", "إعادة للتعديل")}</button>
-                  )}
-                  <button onClick={() => act.mutate({ key: entityKey, id: r.id, action: "reject" })}>{t("Reject", "رفض")}</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      )}
-    </section>
+    <Card className="border-border bg-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          {title}
+          {rows && rows.length > 0 && <Badge variant="outline" className="font-mono text-xs">{rows.length}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!rows || rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
+                  <th className="text-start pb-2 pe-4 font-medium">#</th>
+                  <th className="text-start pb-2 pe-4 font-medium">{t("Status", "الحالة")}</th>
+                  <th className="text-end pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
+                  <th className="text-start pb-2 font-medium">{t("Actions", "إجراءات")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {rows.map((r) => (
+                  <tr key={r.id} data-row>
+                    <td className="py-2 pe-4 font-mono text-xs">{r.label}</td>
+                    <td className="py-2 pe-4"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
+                    <td className="py-2 pe-4 text-end font-mono">{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
+                    <td className="py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {r.status === "draft" && canSubmit && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs" disabled={act.isPending} onClick={() => act.mutate({ key: entityKey, id: r.id, action: "submit" })}>{t("Submit", "إرسال")}</Button>
+                        )}
+                        <Button size="sm" className="h-7 text-xs" disabled={act.isPending} onClick={() => act.mutate({ key: entityKey, id: r.id, action: "approve" })}>{t("Approve", "اعتماد")}</Button>
+                        {r.status === "submitted" && (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={act.isPending} onClick={() => act.mutate({ key: entityKey, id: r.id, action: "send-back" })}>{t("Send back", "إعادة للتعديل")}</Button>
+                        )}
+                        <Button variant="ghost" size="sm" className="h-7 text-xs text-negative" disabled={act.isPending} onClick={() => act.mutate({ key: entityKey, id: r.id, action: "reject" })}>{t("Reject", "رفض")}</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 
   return (
-    <div style={{ padding: 16, maxWidth: 900 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{t("Approvals", "الاعتمادات")}</h1>
-      <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
-        {t(
-          "Pending drafts across all financial records. Submit is a bookkeeper action; approve / send-back / reject require approver authority (enforced by the server).",
-          "المسودات المعلّقة في كل السجلات المالية. الإرسال إجراء لمُدخل البيانات؛ أما الاعتماد والإعادة والرفض فتتطلب صلاحية اعتماد (يفرضها الخادم).",
-        )}
-      </p>
+    <div className="space-y-4 max-w-4xl">
+      <div>
+        <h1 className="text-2xl font-semibold flex items-center gap-2"><ClipboardCheck className="w-6 h-6" />{t("Approvals", "الاعتمادات")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {t(
+            "Pending drafts across all financial records. Submit is a bookkeeper action; approve / send-back / reject require approver authority (enforced by the server).",
+            "المسودات المعلّقة في كل السجلات المالية. الإرسال إجراء لمُدخل البيانات؛ أما الاعتماد والإعادة والرفض فتتطلب صلاحية اعتماد (يفرضها الخادم).",
+          )}
+        </p>
+      </div>
+      {queue.isError && <p className="text-sm text-negative">{(queue.error as Error).message}</p>}
       {/* Journal entries have no submit stage — approved (posted) straight from draft. */}
       <Section title={t("Journal Entries", "قيود اليومية")} entityKey="journal-entries" rows={byEntity("journal-entries")} canSubmit={false} />
       <Section title={t("Bills", "فواتير الموردين")} entityKey="bills" rows={byEntity("bills")} canSubmit />

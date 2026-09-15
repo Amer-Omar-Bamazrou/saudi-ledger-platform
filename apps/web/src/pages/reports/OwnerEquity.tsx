@@ -88,15 +88,15 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
             <div className="max-w-md">
               {data.breakdown.map((row, i) => {
                 const isClosing = i === data.breakdown.length - 1;
-                const isIncome  = row.label.includes("Net Income");
-                const isWithdrawal = row.label.includes("Withdrawal");
+                const isIncome  = row.key === "netIncome";
+                const isWithdrawal = row.key === "withdrawals";
                 return (
                   <div key={row.label} className={cn(
                     "flex items-center justify-between py-3",
                     isClosing ? "border-t-2 border-border mt-2 pt-4" : "border-b border-border/30",
                     isClosing && "font-bold"
                   )}>
-                    <span className={cn("text-sm", isClosing ? "text-foreground" : "text-muted-foreground")}>{row.label}</span>
+                    <span className={cn("text-sm", isClosing ? "text-foreground" : "text-muted-foreground")}>{({ openingEquity: t("Opening Equity", "حقوق الملكية الافتتاحية"), netIncome: t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), contributions: t("Capital Contributions", "المساهمات الرأسمالية"), withdrawals: t("Withdrawals / Drawings", "المسحوبات"), closingEquity: t("Closing Equity", "حقوق الملكية الختامية") } as Record<string, string>)[row.key] ?? row.label}</span>
                     <span className={cn(
                       "font-mono text-sm",
                       isClosing ? "text-lg font-bold text-foreground" : "",

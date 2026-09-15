@@ -93,4 +93,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 // the unit a lie. It is now correct by construction rather than by luck.
 export const fmt = new Intl.NumberFormat("en-SA", { style: "currency", currency: "SAR", minimumFractionDigits: 2 });
 export const fmtNum = (v: number) => fmt.format(v);
-export const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-SA", { day: "2-digit", month: "short", year: "numeric" });
+/**
+ * 🔴 ONE date formatter, in the reader's language (2026-09-15, walk item 5).
+ * It was `en-SA` unconditionally, so every list page in the Arabic UI showed
+ * "Sep 15, 2026" — no string literal anywhere, so the Arabic sweep, which
+ * counts strings in source, could not see it (the instrument's 4th
+ * under-report). The language comes from the document (set before first
+ * paint and kept current by LanguageContext) unless the caller passes it.
+ * `ar-SA` alone defaults to the Islamic calendar in ICU — the Gregorian
+ * calendar and Latin digits are pinned explicitly.
+ */
+export const fmtDate = (d: string, lang?: "en" | "ar") => {
+  const l = lang ?? (typeof document !== "undefined" && document.documentElement.lang === "ar" ? "ar" : "en");
+  return new Date(d).toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-SA", { day: "2-digit", month: "short", year: "numeric" });
+};

@@ -36,8 +36,6 @@ import {
   ListAssetsResponse,
   CreateAssetBody,
   CreateAssetResponse,
-  UpdateAssetBody,
-  UpdateAssetResponse,
   GetAssetResponse,
   DepreciateAssetBody,
   DepreciateAssetResponse,
@@ -228,7 +226,7 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
   // ── assets ──────────────────────────────────────────────────────────────
   let assetId = 0;
 
-  it("POST /assets, GET /assets (with totals), GET/PATCH /assets/{id}", async () => {
+  it("POST /assets, GET /assets (with totals), GET /assets/{id}", async () => {
     expect(CreateAssetBody.safeParse({ assetNumber: "A", name: "x", purchaseDate: DATE, purchaseCost: 1000, usefulLifeYears: 0 }).success).toBe(false);
     const a = await inTenant(() => assetsService.create(CreateAssetBody.parse({ assetNumber: "FA-1", name: "Laptop", purchaseDate: DATE, purchaseCost: 12000, salvageValue: 0, usefulLifeYears: 5 })));
     assetId = a.id;
@@ -240,9 +238,6 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
     conforms(ListAssetsResponse, list, "listAssets");
     const got = await inTenant(() => assetsService.getById(assetId));
     conforms(GetAssetResponse, got, "getAsset");
-    const upd = await inTenant(() => assetsService.update(assetId, UpdateAssetBody.parse({ location: "HQ" })));
-    expect(upd.location).toBe("HQ");
-    conforms(UpdateAssetResponse, upd, "updateAsset");
   });
 
   it("POST /assets/{id}/depreciate — one month, and the history shows it", async () => {

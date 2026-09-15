@@ -332,7 +332,7 @@ export default function CreditNotes() {
                       <td className="py-2 font-medium">{n.invoiceNumber}</td>
                       <td>
                         <Badge variant="outline">
-                          {n.documentType === "credit_note" ? "Credit" : "Debit"}
+                          {n.documentType === "credit_note" ? t("Credit", "دائن") : t("Debit", "مدين")}
                         </Badge>
                       </td>
                       <td><DualDate date={n.date} /></td>

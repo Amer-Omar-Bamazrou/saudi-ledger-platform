@@ -130,7 +130,7 @@ describeMaybe("Audit Tier 3 — credit/settlement composition, cash-flow buckets
     const agingTotal = (aging as { total: number }).total;
     const bsAr = (bs as { assets: { accountsReceivable: number } }).assets.accountsReceivable;
     expect(agingTotal).toBe(bsAr);
-    return { aging: aging as { total: number; items: Array<{ invoiceNumber: string; outstanding: number }> }, bsAr };
+    return { aging: aging as { total: number; buckets: Record<string, number>; items: Array<{ invoiceNumber: string; outstanding: number; daysPastDue: number }> }, bsAr };
   }
 
   it("🔴 a credited invoice settles at total − credited: matching quotes it, paying it marks PAID, aging nets it", async () => {
@@ -163,6 +163,11 @@ describeMaybe("Audit Tier 3 — credit/settlement composition, cash-flow buckets
     const { aging } = await agingAgreesWithBalanceSheet();
     const row = aging.items.find((i) => i.invoiceNumber === "CC-2");
     expect(row?.outstanding).toBe(-230); // refund owed to the customer — visible, not vanished
+    // 🔴 2026-09-15 (walk item 7): a credit owed is NOT past due. Pre-fix this
+    // row carried the original's age (76 days) and sat in days_61_90 as −230.
+    expect(row?.daysPastDue).toBe(0);
+    expect(aging.buckets.current).toBe(-230);
+    expect(aging.buckets.days_61_90).toBe(0);
   });
 
   it("overpaying the CREDIT-AWARE outstanding is refused", async () => {

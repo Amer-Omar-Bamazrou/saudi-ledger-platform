@@ -2471,7 +2471,23 @@ export type OwnerEquityReportPeriod = {
   to: string;
 };
 
+/**
+ * The contract; the page translates by key. `label` is the English fallback.
+ */
+export type OwnerEquityReportBreakdownItemKey = typeof OwnerEquityReportBreakdownItemKey[keyof typeof OwnerEquityReportBreakdownItemKey];
+
+
+export const OwnerEquityReportBreakdownItemKey = {
+  openingEquity: 'openingEquity',
+  netIncome: 'netIncome',
+  contributions: 'contributions',
+  withdrawals: 'withdrawals',
+  closingEquity: 'closingEquity',
+} as const;
+
 export type OwnerEquityReportBreakdownItem = {
+  /** The contract; the page translates by key. `label` is the English fallback. */
+  key: OwnerEquityReportBreakdownItemKey;
   label: string;
   amount: number;
 };
@@ -3329,36 +3345,6 @@ export interface AssetTotals {
   currentBookValue: number;
 }
 
-export interface AssetInputFields {
-  /** @minLength 1 */
-  assetNumber?: string;
-  /** @minLength 1 */
-  name?: string;
-  /** @nullable */
-  nameAr?: string | null;
-  /** @nullable */
-  categoryId?: number | null;
-  purchaseDate?: string;
-  /** @minimum 0 */
-  purchaseCost?: number;
-  /** @minimum 0 */
-  salvageValue?: number;
-  /** @exclusiveMinimum 0 */
-  usefulLifeYears?: number;
-  depreciationMethod?: string;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
-  serialNumber?: string | null;
-  status?: string;
-  /** @nullable */
-  disposalDate?: string | null;
-  /** @nullable */
-  disposalValue?: number | null;
-  /** @nullable */
-  notes?: string | null;
-}
-
 export interface CreateAssetInput {
   /** @minLength 1 */
   assetNumber: string;
@@ -3388,8 +3374,6 @@ export interface CreateAssetInput {
   /** @nullable */
   notes?: string | null;
 }
-
-export type UpdateAssetInput = AssetInputFields;
 
 export interface DepreciateInput {
   /** YYYY-MM */

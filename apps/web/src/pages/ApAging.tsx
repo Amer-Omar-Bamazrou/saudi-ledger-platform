@@ -114,7 +114,7 @@ export default function ApAging() {
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {["Bill", "Vendor", "Due", "Bucket", "Outstanding"].map(h => (
+                  {[t("Bill", "الفاتورة"), t("Vendor", "المورد"), t("Due", "الاستحقاق"), t("Bucket", "الفئة"), t("Outstanding", "المستحق")].map(h => (
                     <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
                   ))}
                 </tr>

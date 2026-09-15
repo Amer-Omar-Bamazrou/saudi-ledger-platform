@@ -526,12 +526,15 @@ export const reportsService = {
     return {
       period: { from: date_from ?? "all", to: date_to ?? "all" },
       openingEquity, netIncome, contributions: fmt2(contributions), withdrawals: fmt2(withdrawals), closingEquity,
+      // `key` is the contract; `label` is the English fallback. The page
+      // translates by key — it used to match SUBSTRINGS of the English label
+      // (D's English-coupling count, instance 6; closed 2026-09-15).
       breakdown: [
-        { label: "Opening Equity", amount: openingEquity },
-        { label: "Net Income / (Loss)", amount: netIncome },
-        { label: "Capital Contributions", amount: contributions },
-        { label: "Withdrawals / Drawings", amount: -withdrawals },
-        { label: "Closing Equity", amount: closingEquity },
+        { key: "openingEquity", label: "Opening Equity", amount: openingEquity },
+        { key: "netIncome", label: "Net Income / (Loss)", amount: netIncome },
+        { key: "contributions", label: "Capital Contributions", amount: contributions },
+        { key: "withdrawals", label: "Withdrawals / Drawings", amount: -withdrawals },
+        { key: "closingEquity", label: "Closing Equity", amount: closingEquity },
       ],
     };
   },
@@ -579,11 +582,17 @@ export const reportsService = {
       if (Math.abs(outstanding) < 0.01) continue;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
-      if (daysPast <= 0) buckets.current += outstanding;
-      else if (daysPast <= 30) buckets.days_1_30 += outstanding;
-      else if (daysPast <= 60) buckets.days_31_60 += outstanding;
-      else if (daysPast <= 90) buckets.days_61_90 += outstanding;
+      // 🔴 A NEGATIVE balance is a credit OWED TO the customer (2026-09-15, walk
+      // item 7). It is shown — hiding it would desync aging from GL AR — but it
+      // is not "past due": nobody owes us, so it carries no days and sits in
+      // "current". The old code aged it by the original's due date, and a
+      // refunded invoice read as "77 days overdue" with a minus sign.
+      const agedDays = outstanding > 0 ? daysPast : 0;
+      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, agedDays) });
+      if (agedDays <= 0) buckets.current += outstanding;
+      else if (agedDays <= 30) buckets.days_1_30 += outstanding;
+      else if (agedDays <= 60) buckets.days_31_60 += outstanding;
+      else if (agedDays <= 90) buckets.days_61_90 += outstanding;
       else buckets.over_90 += outstanding;
     }
     const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
@@ -625,13 +634,20 @@ export const reportsService = {
       linesByEntry.get(l.journalEntryId)!.push(l);
     }
 
+    // 🔴 A tax line is a line on a TAX ACCOUNT — by system_code, the one
+    // definition the posting path uses (2026-09-15, walk item 3; D's
+    // English-coupling class, instance 7). The old test was a name regex
+    // (/vat|tax|ضريبة|زكاة/), which flagged "Taxi expenses" and missed a
+    // renamed VAT account.
+    const taxIds = new Set((await reportsRepository.taxAccountIds()).map((r) => r.id));
+    const isTax = (l: { accountId: number | null }) => l.accountId != null && taxIds.has(l.accountId);
     const result = entries.map((e) => {
       const entryLines = linesByEntry.get(e.id) ?? [];
       return {
         id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, reference: e.reference,
-        lines: entryLines.map((l) => ({ accountName: l.accountName, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)), isTaxLine: /vat|tax|ضريبة|زكاة/i.test(l.accountName) })),
-        totalVatDebit: fmt2(entryLines.filter((l) => /vat|tax|ضريبة/i.test(l.accountName)).reduce((s, l) => s + toNum(l.debitAmount), 0)),
-        totalVatCredit: fmt2(entryLines.filter((l) => /vat|tax|ضريبة/i.test(l.accountName)).reduce((s, l) => s + toNum(l.creditAmount), 0)),
+        lines: entryLines.map((l) => ({ accountName: l.accountName, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)), isTaxLine: isTax(l) })),
+        totalVatDebit: fmt2(entryLines.filter(isTax).reduce((s, l) => s + toNum(l.debitAmount), 0)),
+        totalVatCredit: fmt2(entryLines.filter(isTax).reduce((s, l) => s + toNum(l.creditAmount), 0)),
       };
     });
 

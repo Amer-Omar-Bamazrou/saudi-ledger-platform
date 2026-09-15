@@ -58,6 +58,23 @@ function expiryTone(days: number | null): { label: string; className: string } {
   return { label: `${days} days left`, className: "text-muted-foreground" };
 }
 
+/**
+ * The server's prerequisite checklist carries English label/hint text (an
+ * English-content dependency, D's class). The page translates by KEY and
+ * falls back to the server's text for a key it has not met.
+ */
+const PREREQ_TEXT = (t: (en: string, ar: string) => string): Record<string, { label: string; hint: string }> => ({
+  vatNumber: { label: t("VAT registration number", "رقم التسجيل الضريبي"), hint: t("15 digits, starting and ending with 3. Stamped into every invoice's QR and hash.", "15 رقمًا، يبدأ وينتهي بالرقم 3. يُطبع في رمز QR وبصمة كل فاتورة.") },
+  crNumber: { label: t("Commercial registration (CR)", "السجل التجاري"), hint: t("10 digits. Identifies the seller on standard invoices.", "10 أرقام. يعرّف البائع في الفواتير الضريبية.") },
+  nameAr: { label: t("Arabic legal name", "الاسم القانوني بالعربية"), hint: t("Required on ZATCA Phase 2 invoices.", "مطلوب في فواتير المرحلة الثانية من الهيئة.") },
+  buildingNumber: { label: t("Building number", "رقم المبنى"), hint: t("4 digits — BR-KSA-09, and capped at 4 characters by BR-CL-KSA-17.", "4 أرقام — القاعدة BR-KSA-09، وبحد أقصى 4 خانات وفق BR-CL-KSA-17.") },
+  street: { label: t("Street", "الشارع"), hint: t("National Address street name.", "اسم الشارع وفق العنوان الوطني.") },
+  district: { label: t("District / neighbourhood", "الحي"), hint: t("KSA-3 — required by BR-KSA-09.", "KSA-3 — مطلوب وفق BR-KSA-09.") },
+  city: { label: t("City", "المدينة"), hint: t("BT-37.", "BT-37.") },
+  postalCode: { label: t("Postal code", "الرمز البريدي"), hint: t("5 digits — BT-38.", "5 أرقام — BT-38.") },
+  additionalNumber: { label: t("Additional number", "الرقم الإضافي"), hint: t("KSA-23, 4 digits. BR-KSA-09 needs it; the rule text does not say so.", "KSA-23، 4 أرقام. تتطلبه القاعدة BR-KSA-09 وإن لم ينص عليه النص صراحة.") },
+});
+
 export default function ZatcaOnboarding() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -182,9 +199,9 @@ export default function ZatcaOnboarding() {
                   <XCircle className="h-4 w-4 mt-0.5 text-destructive shrink-0" />
                 )}
                 <span>
-                  <span className={p.satisfied ? "" : "font-medium"}>{p.label}</span>
+                  <span className={p.satisfied ? "" : "font-medium"}>{PREREQ_TEXT(t)[p.key]?.label ?? p.label}</span>
                   {!p.satisfied && (
-                    <span className="block text-muted-foreground">{p.hint}</span>
+                    <span className="block text-muted-foreground">{PREREQ_TEXT(t)[p.key]?.hint ?? p.hint}</span>
                   )}
                 </span>
               </li>

@@ -95,8 +95,8 @@ export default function AssetSchedule() {
                     <td className="py-2 pe-3 text-muted-foreground text-xs">{a.categoryName ?? "—"}</td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={a.purchaseDate} /></td>
                     <td className="py-2 pe-3 font-mono text-xs">{fmtNum(a.purchaseCost)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLifeYears}y</td>
-                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciationMethod}</td>
+                    <td className="py-2 pe-3 font-mono text-xs">{a.usefulLifeYears} {t("yrs", "سنة")}</td>
+                    <td className="py-2 pe-3 text-xs text-muted-foreground">{a.depreciationMethod === "straight-line" ? t("Straight-line", "القسط الثابت") : a.depreciationMethod === "declining" ? t("Declining balance", "القسط المتناقص") : a.depreciationMethod}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(a.accumulatedDepreciation)}</td>
                     <td className="py-2 pe-3 font-mono text-xs font-semibold text-positive">{fmtNum(a.currentBookValue)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{a.status.replace("_", " ")}</Badge></td>

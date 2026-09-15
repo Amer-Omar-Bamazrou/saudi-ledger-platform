@@ -58,7 +58,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 // uniqueness. The server now allocates from a monotonic per-company counter;
 // leaving this blank is what asks it to. A number typed here is still honoured
 // (legacy imports), and the DB constraint judges it.
-const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", status: "draft", notes: "" };
+const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", notes: "" };
 
 /** One definition of a fresh line — the default VAT rate comes from @workspace/shared, never a literal. */
 const emptyLine = () => ({ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: String(DEFAULT_VAT_RATE) });
@@ -271,7 +271,6 @@ export default function Invoices() {
         date: detail.date ?? "",
         dueDate: detail.dueDate ?? "",
         customerId: String(detail.customerId ?? ""),
-        status: detail.status ?? "draft",
         notes: detail.notes ?? "",
       });
       setLines(
@@ -327,9 +326,9 @@ export default function Invoices() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label className="text-xs text-muted-foreground">{t("Due Date", "تاريخ الاستحقاق")}</Label><Input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
-                <div><Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
-                  <Select value={form.status} onValueChange={v=>setForm(p=>({...p,status:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["draft","sent","paid"].map(s=><SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>
-                </div>
+{/* 🔴 No Status here (2026-09-15, walk item 2): a create is ALWAYS a draft and the
+                    server forces it — the select that stood here was collected and never sent. */}
+
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
                 <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}<PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent></Select>

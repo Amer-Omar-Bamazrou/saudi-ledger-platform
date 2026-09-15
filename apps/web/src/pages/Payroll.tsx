@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { statusLabel } from "@/lib/statusLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ export default function Payroll() {
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const { data: runs = [], isLoading } = useQuery<PayrollRunListItem[]>({ queryKey: ["payroll"], queryFn: () => apiFetch("/payroll") });
   const { data: detail } = useQuery<PayrollRunDetail>({ queryKey: ["payroll", selectedId], queryFn: () => apiFetch(`/payroll/${selectedId}`), enabled: selectedId !== null });
@@ -91,7 +92,7 @@ export default function Payroll() {
                       <div className="text-xs text-muted-foreground mt-0.5">{fmtNum(r.totalNetPay)} {t("net", "صافي")}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{r.status}</Badge>
+                      <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                     </div>
                   </div>
