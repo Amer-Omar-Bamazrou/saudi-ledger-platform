@@ -62,6 +62,10 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${orgFilter} OR actor_user_id IN ${userFilter} OR target_user_id IN ${userFilter}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${orgFilter}`);
+    // A manual transaction POSTS since 2026-09-15 (workflow audit W7 B3), so the
+    // org now owns journal entries that reference its company.
+    await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${orgFilter}`);
+    await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${userFilter}`);
