@@ -49,7 +49,7 @@ export default function ArAging() {
 
       {data && (
         <>
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {Object.entries(BUCKET_LABELS).map(([key, label]) => (
               <Card key={key} className="border-border bg-card">
                 <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(label.en, label.ar)}</CardTitle></CardHeader>

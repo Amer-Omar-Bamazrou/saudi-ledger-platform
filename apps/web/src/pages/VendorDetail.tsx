@@ -30,7 +30,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
     <Card>
       <CardContent className="pt-6">
         <p className="text-xs uppercase text-muted-foreground mb-1">{label}</p>
-        <p className={`text-2xl font-mono font-semibold ${tone === "warn" ? "text-attention" : tone === "good" ? "text-positive" : "text-foreground"}`}>
+        <p className={`text-xl sm:text-2xl font-mono font-semibold ${tone === "warn" ? "text-attention" : tone === "good" ? "text-positive" : "text-foreground"}`}>
           {value}
         </p>
       </CardContent>

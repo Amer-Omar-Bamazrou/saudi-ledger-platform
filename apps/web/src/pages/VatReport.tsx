@@ -104,7 +104,7 @@ export default function VatReport() {
             {isLoading ? (
               <Skeleton className="h-10 w-32" />
             ) : (
-              <p className="text-3xl font-mono font-bold text-foreground">{formatCurrency(sales?.box8_totalOutputVat || 0)}</p>
+              <p className="text-2xl sm:text-3xl font-mono font-bold text-foreground">{formatCurrency(sales?.box8_totalOutputVat || 0)}</p>
             )}
             <p className="text-xs text-muted-foreground">
               {t("From issued invoices, credit notes deducted", "من الفواتير الصادرة، بعد خصم الإشعارات الدائنة")}
@@ -120,7 +120,7 @@ export default function VatReport() {
             {isLoading ? (
               <Skeleton className="h-10 w-32" />
             ) : (
-              <p className="text-3xl font-mono font-bold text-foreground">{formatCurrency(purchases?.box13_recoverableInputVat || 0)}</p>
+              <p className="text-2xl sm:text-3xl font-mono font-bold text-foreground">{formatCurrency(purchases?.box13_recoverableInputVat || 0)}</p>
             )}
             <p className="text-xs text-muted-foreground">{t("From approved bills", "من فواتير المشتريات المعتمدة")}</p>
           </CardContent>
@@ -215,19 +215,19 @@ export default function VatReport() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Net VAT per your documents", "صافي الضريبة حسب مستنداتك")}</p>
-                <p className="text-2xl font-mono font-bold text-foreground">{formatCurrency(netDue)}</p>
+                <p className="text-xl sm:text-2xl font-mono font-bold text-foreground">{formatCurrency(netDue)}</p>
                 <p className="text-xs text-muted-foreground">{t("This is the filing figure", "هذا هو رقم الإقرار")}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Net VAT per bank activity", "صافي الضريبة حسب الحركة البنكية")}</p>
-                <p className="text-2xl font-mono font-bold text-foreground">{formatCurrency(bankNet)}</p>
+                <p className="text-xl sm:text-2xl font-mono font-bold text-foreground">{formatCurrency(bankNet)}</p>
                 <p className="text-xs text-muted-foreground">
                   {t("Estimated from imported transactions", "مقدّر من المعاملات المستوردة")}
                 </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">{t("Gap", "الفجوة")}</p>
-                <p className={`text-2xl font-mono font-bold ${Math.abs(gap) < 0.01 ? "text-positive" : "text-attention"}`}>
+                <p className={`text-xl sm:text-2xl font-mono font-bold ${Math.abs(gap) < 0.01 ? "text-positive" : "text-attention"}`}>
                   {formatCurrency(gap)}
                 </p>
                 <p className="text-xs text-muted-foreground">

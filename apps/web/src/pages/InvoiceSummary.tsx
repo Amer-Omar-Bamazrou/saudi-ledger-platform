@@ -96,7 +96,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
           {t("Showing", "يعرض")} {invoices.length} {t("of", "من")} {setTotal} {t("invoices in this range — the figures below cover only the rows shown. Narrow the range for a complete total.", "فاتورة في هذه الفترة — الأرقام أدناه تغطي الصفوف المعروضة فقط. ضيّق الفترة للحصول على إجمالي كامل.")}
         </p>
       )}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           [t("Total Invoices", "إجمالي الفواتير"), filtered.length, "text-primary"],
           [t("Revenue (excl. VAT)", "الإيراد (دون الضريبة)"), fmtNum(totalRevenue), "text-primary"],
@@ -105,7 +105,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
           </Card>
         ))}
       </div>

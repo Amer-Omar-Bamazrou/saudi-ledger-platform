@@ -182,7 +182,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {data && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             [t("Total Revenue", "إجمالي الإيرادات"), fmtNum(data.totalRevenue), "text-positive"],
             [t("Total Expenses", "إجمالي المصروفات"), fmtNum(data.totalExpenses), "text-negative"],

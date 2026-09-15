@@ -83,7 +83,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             [t("Account", "الحساب"), n(data.accountName, data.accountNameAr), "text-primary"],
             [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), "text-primary"],

@@ -66,7 +66,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {[
             [t("Tax Entries", "القيود الضريبية"), data.count, "text-primary"],
             [t("Total VAT Debited", "إجمالي الضريبة المدينة"), fmtNum(totalVatDebit), "text-info"],
@@ -74,7 +74,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>
