@@ -205,7 +205,16 @@ export const AcceptPendingTransactionsBody = zod.object({
 })
 
 export const AcceptPendingTransactionsResponse = zod.object({
-  "accepted": zod.number()
+  "accepted": zod.number(),
+  "posted": zod.number(),
+  "rejected": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string().nullable(),
+  "reason": zod.string(),
+  "code": zod.enum(['period_closed']),
+  "period": zod.string().nullable().describe('YYYY-MM — the closed month'),
+  "lockedAt": zod.string().nullable().describe('YYYY-MM-DD — when it was closed')
+}))
 })
 
 

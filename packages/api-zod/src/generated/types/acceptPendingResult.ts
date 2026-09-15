@@ -5,7 +5,10 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { AcceptPendingRejection } from './acceptPendingRejection';
 
 export interface AcceptPendingResult {
   accepted: number;
+  posted: number;
+  rejected: AcceptPendingRejection[];
 }

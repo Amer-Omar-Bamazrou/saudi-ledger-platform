@@ -156,7 +156,17 @@ export const transactionPostingService = {
     return je.id;
   },
 
-  /** Post many (bulk accept). One failure must not strand the rest. */
+  /**
+   * Post many — the BACKFILL loop only. One failure must not strand the rest
+   * of a maintenance run, and the run's caller prints the list.
+   *
+   * 🔴 NOT the acceptance path (2026-09-16). Bulk accept used this too, and
+   * "recorded, never swallowed" was true only of the log line: the row had
+   * already committed as accepted, the request said 200, and the `failed`
+   * list reached nothing that rendered it. `transactions.service.acceptPending`
+   * now walks its rows itself — a lock refusal un-accepts the row and is
+   * reported; anything else throws and rolls the acceptance back.
+   */
   async postMany(ids: number[]): Promise<{ posted: number; failed: Array<{ id: number; reason: string }> }> {
     let posted = 0;
     const failed: Array<{ id: number; reason: string }> = [];
@@ -164,8 +174,7 @@ export const transactionPostingService = {
       try {
         if (await this.post(id)) posted++;
       } catch (err) {
-        // Recorded, never swallowed: an accepted row that did not post is the
-        // exact silence this milestone exists to remove.
+        // Logged and returned to the backfill's caller, which prints it.
         const reason = err instanceof Error ? err.message : String(err);
         logger.error({ err, transactionId: id }, "transaction accepted but could not post to the ledger");
         failed.push({ id, reason });

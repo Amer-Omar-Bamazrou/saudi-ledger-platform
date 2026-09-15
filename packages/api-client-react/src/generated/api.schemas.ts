@@ -950,8 +950,35 @@ export interface AcceptPendingInput {
   ids?: number[] | null;
 }
 
+export type AcceptPendingRejectionCode = typeof AcceptPendingRejectionCode[keyof typeof AcceptPendingRejectionCode];
+
+
+export const AcceptPendingRejectionCode = {
+  period_closed: 'period_closed',
+} as const;
+
+export interface AcceptPendingRejection {
+  id: number;
+  /** @nullable */
+  date: string | null;
+  reason: string;
+  code: AcceptPendingRejectionCode;
+  /**
+     * YYYY-MM — the closed month
+     * @nullable
+     */
+  period: string | null;
+  /**
+     * YYYY-MM-DD — when it was closed
+     * @nullable
+     */
+  lockedAt: string | null;
+}
+
 export interface AcceptPendingResult {
   accepted: number;
+  posted: number;
+  rejected: AcceptPendingRejection[];
 }
 
 export interface TransactionList {
