@@ -7592,3 +7592,56 @@ one residual — the balance sheet's Assets | Liabilities two-column section
 at 390px — stacked to one column below `md` (the 28th grid); re-run: green,
 planted positive reporting. Frame: the 57 `app` + `param` routes, 390×844,
 English (the RTL side is the same DOM mirrored; not separately measured).
+
+### Item 6 — the e2e seed now goes through the product; the statements get a number; what changed (2026-09-15)
+
+**Done.** `global-setup.ts` writes only the identity layer directly
+(organization, company, user, membership — outside RLS by design, and the
+sign-up path would park the org in `pending_review`). Everything else is the
+product: company VAT/CR via `PATCH /companies/current` (approval fails
+closed without it); customers, vendors, an equity account (`POST
+/categories` — the seeded chart's only equity account is the transfers
+one); the opening entry with real account ids, posted; four invoices with
+lines, three submitted+approved in date order (ICV 1–3, hash, QR, issue
+date, GL), one paid in full and one in part through `/pay`; a credit note
+against the paid invoice (ICV 4); two bills posted through `/bills/:id/post`
+(PURCHASES by default), one paid; a bank account and three movements
+through `/transactions/upload` so they land in review; a product; an
+employee; a payroll run created, submitted, approved (GL); an asset created
+and depreciated six months by the product (`cost = book + accumulated` by
+construction); a budget; a quotation submitted; a PO approved; a recurring
+rule dated 2099 so the scheduler never generates; a closed month. Document
+numbers are kept, so every locator resolves. Verified in the database:
+0 account-less lines, 11 posted entries, every issued document carrying its
+issuance fields. Playwright's ordering confirmed in the runner (plugin setup
+— the web servers — before the globalSetup file).
+
+**The assertion that would have failed:** `statement-figures.spec.ts` —
+balance-sheet AR (GL) must EQUAL the AR-aging total (documents) and be
+non-zero; the trial balance balanced AND non-trivial with every line
+carrying an account id; the balance-sheet PAGE showing the ledger's AR
+figure. **Run against the OLD seed first: all three RED** (AR received 0,
+expected 4,635; `accountId` null). On the new seed: green, 4,635 both ways,
+trial balance 24,945 = 24,945 over 12 accounts.
+
+**What changed when the suite ran on legitimate data (the list, not a
+green):**
+- **No pre-existing test changed status — 219 of 219 still pass.** That is
+  the finding the owner predicted: the suite was indifferent to whether the
+  ledger was real. The 12 rows-expected routes that had only impossible rows
+  now have real ones and pass exactly as before, because "≥ 1 row" is
+  satisfied either way; they were asserting nothing about content and still
+  are — the content assertion is the new spec.
+- `invoice-document.spec` now downloads the PDF of a GENUINELY issued
+  invoice (hash, QR, ICV 2) instead of an un-issued "sent" one; same
+  assertions, a different claim proven.
+- **One test now fails correctly:** the money guard on `/analytics`. With
+  real cash in the ledger the trend chart renders, and its currency y-axis
+  formatted every tick as `SAR 12,000.00` inside a 64px axis — clipped at
+  the left. Fixed: axis ticks are a SCALE, so they are compact (`12K`) and
+  the full value stays in the tooltip. Green after.
+- Item 7's negative-and-overdue aging line is now PRODUCED by the product
+  (a credit note approved against a paid invoice: outstanding −115, 77 days
+  past due) — a product behaviour, confirmed, not a seed artefact.
+- Cost: setup 8 s → ~40 s; the API must be up during setup (it is — the
+  runner orders it).

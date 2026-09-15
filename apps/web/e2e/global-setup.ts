@@ -1,10 +1,10 @@
-import { request } from "@playwright/test";
+import { request, type APIRequestContext } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Seed the suite's own tenant, log in once, and save the session.
+ * Seed the suite's own tenant THROUGH THE PRODUCT, log in once, save the session.
  *
  * 🔴 THE DATA IS THIS SUITE'S OWN, AND IT IS NOT THE DEV ORG. A crawl that
  * asserts against whatever happens to be in a developer's database asserts
@@ -16,8 +16,34 @@ import { fileURLToPath } from "node:url";
  * renders its empty state, nothing touches a money path, and the pages that
  * broke in this project's history — a GL showing SAR 0.00, an AP aging page
  * that rendered blank, a KPI that was a permanent zero — all render *fine* with
- * no data. So the fixture carries an issued invoice, a partly-paid one, a bill
- * and a payment: enough that a page which cannot render real figures says so.
+ * no data.
+ *
+ * ── 🔴 AND IT IS WRITTEN BY THE PRODUCT'S OWN WRITE PATH (2026-09-15) ────────
+ * The first version of this file INSERTed business rows directly. Measured on
+ * the second core-path walk: every issued document and every ledger row it
+ * wrote was one the product could not produce — invoices in `sent`/`paid` with
+ * no hash, QR, ICV, issue date or GL entry; bills in posted states with no GL;
+ * an approved payroll with no GL; journal lines with no account (the server
+ * refuses them); an asset whose cost ≠ book + accumulated. The statements met
+ * impossible rows (the balance sheet excluded the account-less lines and read
+ * ALL ZERO against 4,635.00 of open invoices), and 12 of the crawl's 29
+ * rows-expected routes were satisfied by exactly those rows. Nothing noticed,
+ * because "a row renders" was the only assertion — see
+ * `statement-figures.spec.ts` for the one that would have failed.
+ *
+ * So now: the IDENTITY layer (organization, company, user, membership — outside
+ * RLS by design, and the sign-up path would park the org in `pending_review`)
+ * is still inserted directly. EVERYTHING ELSE is created by logging in and
+ * calling the API the pages call: invoices with lines, submitted and approved
+ * (hash, QR, ICV, GL — the real chain), paid through the pay path; a credit
+ * note against a paid invoice; bills posted and paid; a payroll run approved
+ * (GL); an opening entry with real account ids, posted; an asset depreciated
+ * by the product; bank transactions imported through the upload path so they
+ * land in review. Standing rule 2 applied to the browser suite: only real rows
+ * test the code you forgot to write.
+ *
+ * The document numbers are kept (`invoiceNumber`/`billNumber` are accepted on
+ * create) so every locator in the specs still resolves.
  */
 
 export const E2E = {
@@ -41,6 +67,14 @@ export interface SeededIds {
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
+
+/** One API call; any non-2xx is a seed failure that names the call and the server's answer. */
+async function api<T = any>(ctx: APIRequestContext, method: "GET" | "POST" | "PATCH", path: string, data?: unknown): Promise<T> {
+  const res = await ctx.fetch(`/api${path}`, { method, data, headers: { "content-type": "application/json" } });
+  if (!res.ok()) throw new Error(`e2e seed: ${method} ${path} → ${res.status()} ${(await res.text()).slice(0, 400)}`);
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
 
 export default async function globalSetup(): Promise<void> {
   const { Client } = await import("pg");
@@ -108,6 +142,7 @@ export default async function globalSetup(): Promise<void> {
     await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
   }
 
+  // ── The identity layer: the only rows written directly ─────────────────────
   const orgId = (
     await db.query(
       `INSERT INTO organizations (name, slug, verification_status)
@@ -116,9 +151,7 @@ export default async function globalSetup(): Promise<void> {
     )
   ).rows[0].id as string;
 
-  const companyId = (
-    await db.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'E2E Smoke Co') RETURNING id`, [orgId])
-  ).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'E2E Smoke Co')`, [orgId]);
 
   const bcrypt = (await import("bcryptjs")).default;
   const hash = await bcrypt.hash(E2E.password, 10);
@@ -137,234 +170,6 @@ export default async function globalSetup(): Promise<void> {
      VALUES ($1,$2,'admin','active')`,
     [orgId, userId],
   );
-
-  const customerId = (
-    await db.query(
-      `INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'E2E Customer','310000000000003') RETURNING id`,
-      [orgId],
-    )
-  ).rows[0].id as number;
-  const vendorId = (
-    await db.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'E2E Vendor') RETURNING id`, [orgId])
-  ).rows[0].id as number;
-
-  // Money on both sides, one of each shape a page might get wrong: fully paid,
-  // partly paid, unpaid, and a draft that must move nothing.
-  await db.query(
-    `INSERT INTO invoices
-       (organization_id, company_id, customer_id, invoice_number, document_type,
-        date, due_date, subtotal, vat_amount, total, paid_amount, status)
-     VALUES
-       ($1,$2,$3,'E2E-INV-001','invoice','2026-06-01','2026-06-30',1000,150,1150,1150,'paid'),
-       ($1,$2,$3,'E2E-INV-002','invoice','2026-07-01','2026-07-31',2000,300,2300,1000,'sent'),
-       ($1,$2,$3,'E2E-INV-003','invoice','2026-08-01','2026-08-31',3000,450,3450,0,'sent'),
-       ($1,$2,$3,'E2E-INV-004','invoice','2026-08-15','2026-09-15',500,75,575,0,'draft')`,
-    [orgId, companyId, customerId],
-  );
-  await db.query(
-    `INSERT INTO bills
-       (organization_id, company_id, vendor_id, bill_number, date, due_date,
-        subtotal, vat_amount, total, paid_amount, status)
-     VALUES
-       ($1,$2,$3,'E2E-BILL-001','2026-06-05','2026-07-05',400,60,460,460,'paid'),
-       ($1,$2,$3,'E2E-BILL-002','2026-07-10','2026-08-10',800,120,920,0,'received')`,
-    [orgId, companyId, vendorId],
-  );
-
-  /**
-   * ── 🔴 BREADTH — THE THIRD AXIS, ADDED 2026-08-31 AFTER MEASURING IT ──────
-   *
-   * The fixture above seeds customers, vendors, invoices and bills. That was
-   * always known to be "not empty"; what was NOT known, until it was measured,
-   * is how little of the product it reaches:
-   *
-   *   * 11 tenant-scoped tables populated, **40 empty**
-   *   * **17 of 54** crawled app routes rendered a row; **37** rendered an
-   *     empty state and passed the crawl anyway, because "the body has more
-   *     than 20 characters" is satisfied by a heading and "No X found."
-   *   * 123 data-driven `.map(` render sites exist across 58 files
-   *
-   * 🔴 **`invoice_items` and `bill_items` were among the empty forty** — the
-   * two most consequential tables in the product. The four seeded invoices had
-   * NO LINES, so every render path over a document's lines was unexecuted, on
-   * the document type that carries the ZATCA chain.
-   *
-   * 🔴 **Volume on four entities does not touch thirty-seven routes' render
-   * paths.** That is why breadth is a separate axis from the volume and
-   * collision work in `tests/scale-and-collision.test.ts`, and not a bigger
-   * version of it. Ten thousand invoices still leave `/payroll` empty.
-   *
-   * ── 🔴 AND THE LIMIT THAT MAKES SEEDING DELIBERATE RATHER THAN OPTIONAL ───
-   * **A vacuous pass is indistinguishable from a real pass in every report the
-   * suite produces, and no measurement taken from inside the suite can
-   * enumerate what was missed.** That is the defect's defining property, not a
-   * gap in our tooling: the suite has no way to tell "this assertion held"
-   * from "this assertion was never reached". Coverage instrumentation would
-   * narrow it and still not close it, because a line can execute against data
-   * too uniform to expose a collision.
-   *
-   * So breadth is SEEDED ON PURPOSE rather than hoped for. `ROWS_EXPECTED` in
-   * `routes.ts` is the other half: it names the routes that must render a row,
-   * so a page falling back to its empty state goes RED instead of passing
-   * quietly. Data without that assertion would just be more rows.
-   */
-  const bankAccountId = (
-    await db.query(
-      `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, currency, balance, opening_balance)
-       VALUES ($1,$2,'E2E Current Account','Al Rajhi Bank','SAR',25000,20000) RETURNING id`,
-      [orgId, companyId],
-    )
-  ).rows[0].id as number;
-
-  // Lines for the documents that already existed. Amounts agree with the
-  // headers above — a fixture whose lines contradict its totals would make
-  // every "the figures are consistent" assertion meaningless.
-  await db.query(
-    `INSERT INTO invoice_items (organization_id, company_id, invoice_id, description, quantity, unit_price, vat_rate, vat_amount, total)
-     SELECT $1, i.company_id, i.id, 'Consulting services', 1, i.subtotal, 15, i.vat_amount, i.total
-     FROM invoices i WHERE i.organization_id = $1`,
-    [orgId],
-  );
-  await db.query(
-    `INSERT INTO bill_items (organization_id, company_id, bill_id, description, quantity, unit_price, vat_rate, vat_amount, total)
-     SELECT $1, b.company_id, b.id, 'Office supplies', 1, b.subtotal, 15, b.vat_amount, b.total
-     FROM bills b WHERE b.organization_id = $1`,
-    [orgId],
-  );
-
-  // A credit note, which the CHECK constraint requires to reference an
-  // original invoice AND carry a reason — the schema refuses a floating one.
-  await db.query(
-    `INSERT INTO invoices
-       (organization_id, company_id, customer_id, invoice_number, document_type,
-        original_invoice_id, note_reason, date, subtotal, vat_amount, total, status)
-     SELECT $1,$2,$3,'E2E-CN-001','credit_note', i.id, 'Goods returned',
-            '2026-08-20', 100, 15, 115, 'sent'
-     FROM invoices i WHERE i.organization_id = $1 AND i.invoice_number = 'E2E-INV-001'`,
-    [orgId, companyId, customerId],
-  );
-
-  // A posted journal entry with balanced lines: the ledger reports, the trial
-  // balance, and the statements all read from these.
-  const jeId = (
-    await db.query(
-      `INSERT INTO journal_entries
-         (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,'E2E-JE-001','2026-07-15','Opening balance entry','posted') RETURNING id`,
-      [orgId, companyId],
-    )
-  ).rows[0].id as number;
-  await db.query(
-    `INSERT INTO journal_entry_lines
-       (organization_id, company_id, journal_entry_id, account_name, description, debit_amount, credit_amount)
-     VALUES
-       ($1,$3,$2,'Cash','Opening cash',5000,0),
-       ($1,$3,$2,'Owner Equity','Opening equity',0,5000)`,
-    [orgId, jeId, companyId],
-  );
-
-  // Bank movement. `type` is debit|credit; `kind` defaults to 'operating'.
-  await db.query(
-    `INSERT INTO transactions
-       (organization_id, company_id, bank_account_id, date, description, amount, type, currency)
-     VALUES
-       ($1,$2,$3,'2026-07-02','Customer payment received',1150,'credit','SAR'),
-       ($1,$2,$3,'2026-07-06','Supplier payment',460,'debit','SAR'),
-       ($1,$2,$3,'2026-08-03','Office rent',3000,'debit','SAR')`,
-    [orgId, companyId, bankAccountId],
-  );
-
-  await db.query(
-    `INSERT INTO products (organization_id, name, description, unit_price, vat_applicable)
-     VALUES ($1,'Consulting hour','Professional services',500,true)`,
-    [orgId],
-  );
-
-  const employeeId = (
-    await db.query(
-      `INSERT INTO employees (organization_id, company_id, employee_number, name, basic_salary, status)
-       VALUES ($1,$2,'E2E-EMP-001','E2E Employee',8000,'active') RETURNING id`,
-      [orgId, companyId],
-    )
-  ).rows[0].id as number;
-  const payrollRunId = (
-    await db.query(
-      `INSERT INTO payroll_runs (organization_id, company_id, period, status)
-       VALUES ($1,$2,'2026-07','approved') RETURNING id`,
-      [orgId, companyId],
-    )
-  ).rows[0].id as number;
-  await db.query(
-    `INSERT INTO payroll_items
-       (organization_id, company_id, payroll_run_id, employee_id, basic_salary, gross_salary, net_pay)
-     VALUES ($1,$4,$2,$3,8000,9000,8500)`,
-    [orgId, payrollRunId, employeeId, companyId],
-  );
-
-  await db.query(
-    `INSERT INTO fixed_assets
-       (organization_id, company_id, asset_number, name, purchase_date, purchase_cost,
-        useful_life_years, current_book_value, status)
-     VALUES ($1,$2,'E2E-FA-001','Office laptop','2026-01-15',12000,4,9000,'active')`,
-    [orgId, companyId],
-  );
-
-  await db.query(
-    `INSERT INTO budgets (organization_id, company_id, name, period, budgeted_amount)
-     VALUES ($1,$2,'E2E Marketing Budget','2026',50000)`,
-    [orgId, companyId],
-  );
-
-  const quotationId = (
-    await db.query(
-      `INSERT INTO quotations
-         (organization_id, company_id, customer_id, quotation_number, date, valid_until,
-          subtotal, vat_amount, total, status)
-       VALUES ($1,$2,$3,'E2E-QUO-001','2026-08-01','2999-01-01',2000,300,2300,'submitted') RETURNING id`,
-      [orgId, companyId, customerId],
-    )
-  ).rows[0].id as number;
-  await db.query(
-    `INSERT INTO quotation_items
-       (organization_id, company_id, quotation_id, description, quantity, unit_price, vat_rate, vat_amount, total)
-     VALUES ($1,$3,$2,'Proposed engagement',1,2000,15,300,2300)`,
-    [orgId, quotationId, companyId],
-  );
-
-  const purchaseOrderId = (
-    await db.query(
-      `INSERT INTO purchase_orders
-         (organization_id, company_id, vendor_id, order_number, date,
-          subtotal, vat_amount, total, status)
-       VALUES ($1,$2,$3,'E2E-PO-001','2026-08-02',1500,225,1725,'approved') RETURNING id`,
-      [orgId, companyId, vendorId],
-    )
-  ).rows[0].id as number;
-  await db.query(
-    `INSERT INTO purchase_order_items
-       (organization_id, company_id, purchase_order_id, description, quantity, unit_price, vat_rate, vat_amount, total)
-     VALUES ($1,$3,$2,'Hardware order',1,1500,15,225,1725)`,
-    [orgId, purchaseOrderId, companyId],
-  );
-
-  // A recurring rule. Drafts-only by design, so this generates nothing on its
-  // own — it exists so `/recurring` renders a row rather than an empty state.
-  await db.query(
-    `INSERT INTO recurring_rules
-       (organization_id, company_id, entity, template, frequency, day_of_month,
-        starts_on, next_run_on, status)
-     VALUES ($1,$2,'invoice',$3::jsonb,'monthly',1,'2026-01-01','2099-01-01','active')`,
-    [orgId, companyId, JSON.stringify({ customerId, items: [{ description: "Retainer", quantity: 1, unitPrice: 1000, vatRate: 15 }] })],
-  );
-
-  // A closed month, so `/closed-months` has something to show. Deliberately a
-  // period no seeded document falls in, so nothing above becomes unpostable.
-  await db.query(
-    `INSERT INTO period_locks (organization_id, company_id, period, locked_by)
-     VALUES ($1,$2,'2025-12',$3)`,
-    [orgId, companyId, userId],
-  );
-
   await db.end();
 
   /**
@@ -372,10 +177,11 @@ export default async function globalSetup(): Promise<void> {
    *
    * 🔴 This is not a retry papering over an ordering problem — the §3 lesson
    * says a retry cannot fix ordering, and it is right. The API has a creator
-   * (Playwright's `webServer`) that is scheduled before this, and `/api/health`
-   * is its documented readiness signal. Waiting on a signal the server
-   * publishes is what `webServer.url` already does; this makes globalSetup
-   * independent of the two being ordered, rather than hoping they are.
+   * (Playwright's `webServer`, whose plugin setup the runner schedules before
+   * this file) and `/api/healthz` is its documented readiness signal. Waiting
+   * on a signal the server publishes is what `webServer.url` already does;
+   * this makes globalSetup independent of the two being ordered, rather than
+   * hoping they are.
    */
   const ctx = await request.newContext({ baseURL: API });
   let ready = false;
@@ -387,12 +193,186 @@ export default async function globalSetup(): Promise<void> {
     }
     if (!ready) await new Promise((r) => setTimeout(r, 1000));
   }
-  if (!ready) throw new Error("e2e: the API never became healthy at /api/health");
+  if (!ready) throw new Error("e2e: the API never became healthy at /api/healthz");
 
-  const res = await ctx.post("/api/auth/login", { data: { email: E2E.email, password: E2E.password } });
-  if (!res.ok()) {
-    throw new Error(`e2e login failed: ${res.status()} ${await res.text()}`);
+  const login = await ctx.post("/api/auth/login", { data: { email: E2E.email, password: E2E.password } });
+  if (!login.ok()) throw new Error(`e2e login failed: ${login.status()} ${await login.text()}`);
+
+  // ── Everything below is the product writing its own rows ───────────────────
+
+  // Issuing an invoice fails closed without the company's VAT number (the
+  // walk of 2026-09-15 hit exactly this 400). Set the legal identity first.
+  await api(ctx, "PATCH", "/companies/current", {
+    name: "E2E Smoke Co",
+    nameAr: "شركة الاختبار",
+    crNumber: "1010101010",
+    vatNumber: "300000000000003",
+    fiscalCalendar: "gregorian",
+  });
+
+  const customer = await api(ctx, "POST", "/customers", { name: "E2E Customer", taxNumber: "310000000000003" });
+  const vendor = await api(ctx, "POST", "/vendors", { name: "E2E Vendor" });
+  const customerId = customer.id as number;
+  const vendorId = vendor.id as number;
+
+  // The chart: the seeded system accounts plus one equity account for the
+  // opening entry (the seeded chart's only equity account is the transfers
+  // one, which is not where owner capital goes).
+  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string }> = await api(ctx, "GET", "/categories");
+  const cash = categories.find((c) => c.systemCode === "CASH");
+  if (!cash) throw new Error("e2e seed: the seeded chart has no CASH account");
+  const equity = await api(ctx, "POST", "/categories", {
+    name: "Owner Equity",
+    nameAr: "حقوق الملكية",
+    type: "equity",
+    vatApplicable: false,
+  });
+
+  // Opening entry — real account ids, posted through the JE path.
+  const je = await api(ctx, "POST", "/journal-entries", {
+    entryNumber: "E2E-JE-001",
+    date: "2026-07-15",
+    description: "Opening balance entry",
+    lines: [
+      { accountId: cash.id, accountName: cash.name, debitAmount: 5000, creditAmount: 0 },
+      { accountId: equity.id, accountName: equity.name, debitAmount: 0, creditAmount: 5000 },
+    ],
+  });
+  await api(ctx, "POST", `/journal-entries/${je.id}/post`);
+
+  // Money on both sides, one of each shape a page might get wrong: fully paid,
+  // partly paid, unpaid, and a draft that must move nothing. Approved in date
+  // order so the ICV chain is the one a tenant would have.
+  const line = (description: string, unitPrice: number) => [{ description, quantity: 1, unitPrice, vatRate: 15 }];
+  const invoice = async (invoiceNumber: string, date: string, dueDate: string, subtotal: number) =>
+    api(ctx, "POST", "/invoices", { invoiceNumber, date, dueDate, customerId, items: line("Consulting services", subtotal) });
+  const issue = async (id: number) => {
+    await api(ctx, "POST", `/invoices/${id}/submit`);
+    await api(ctx, "POST", `/invoices/${id}/approve`);
+  };
+
+  const inv1 = await invoice("E2E-INV-001", "2026-06-01", "2026-06-30", 1000);
+  await issue(inv1.id);
+  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28" });
+
+  const inv2 = await invoice("E2E-INV-002", "2026-07-01", "2026-07-31", 2000);
+  await issue(inv2.id);
+  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20" });
+
+  const inv3 = await invoice("E2E-INV-003", "2026-08-01", "2026-08-31", 3000);
+  await issue(inv3.id);
+
+  await invoice("E2E-INV-004", "2026-08-15", "2026-09-15", 500); // stays a draft
+
+  // A credit note against the PAID invoice — the shape aging must show as a
+  // negative receivable (item 7 of the 2026-09-15 walk).
+  const cn = await api(ctx, "POST", "/invoices", {
+    invoiceNumber: "E2E-CN-001",
+    documentType: "credit_note",
+    originalInvoiceId: inv1.id,
+    noteReason: "Goods returned",
+    date: "2026-08-20",
+    customerId,
+    items: line("Goods returned", 100),
+  });
+  await issue(cn.id);
+
+  // Bills: posted through the bill path (PURCHASES by default), one paid.
+  const bill = async (billNumber: string, date: string, dueDate: string, subtotal: number) =>
+    api(ctx, "POST", "/bills", {
+      billNumber,
+      date,
+      dueDate,
+      vendorId,
+      subtotal,
+      vatAmount: subtotal * 0.15,
+      total: subtotal * 1.15,
+      items: line("Office supplies", subtotal),
+    });
+  const bill1 = await bill("E2E-BILL-001", "2026-06-05", "2026-07-05", 400);
+  await api(ctx, "POST", `/bills/${bill1.id}/post`, {});
+  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06" });
+  const bill2 = await bill("E2E-BILL-002", "2026-07-10", "2026-08-10", 800);
+  await api(ctx, "POST", `/bills/${bill2.id}/post`, {});
+
+  // A bank account and three imported movements — the upload path is what
+  // lands rows in review, which is the state the review page exists for.
+  const bank = await api(ctx, "POST", "/bank-accounts", {
+    name: "E2E Current Account",
+    bankName: "Al Rajhi Bank",
+    currency: "SAR",
+    balance: 25000,
+    openingBalance: 20000,
+  });
+  await api(ctx, "POST", "/transactions/upload", {
+    bankAccountId: bank.id,
+    rows: [
+      { date: "2026-07-02", description: "Customer payment received", amount: 1150, type: "credit", currency: "SAR" },
+      { date: "2026-07-06", description: "Supplier payment", amount: 460, type: "debit", currency: "SAR" },
+      { date: "2026-08-03", description: "Office rent", amount: 3000, type: "debit", currency: "SAR" },
+    ],
+  });
+
+  await api(ctx, "POST", "/products", {
+    name: "Consulting hour",
+    type: "service",
+    unit: "unit",
+    description: "Professional services",
+    unitPrice: 500,
+    vatApplicable: true,
+    stockQty: 0,
+  });
+
+  await api(ctx, "POST", "/employees", { employeeNumber: "E2E-EMP-001", name: "E2E Employee", basicSalary: 8000, status: "active" });
+
+  // A payroll run: created from the employees, approved through the workflow
+  // (which posts the GL — the old seed's "approved" run had none).
+  const run = await api(ctx, "POST", "/payroll", { period: "2026-07" });
+  await api(ctx, "POST", `/payroll/${run.id}/submit`);
+  await api(ctx, "POST", `/payroll/${run.id}/approve`);
+
+  // An asset, depreciated by the product for six months so cost = book +
+  // accumulated holds by construction and the history explains the balance.
+  const asset = await api(ctx, "POST", "/assets", {
+    assetNumber: "E2E-FA-001",
+    name: "Office laptop",
+    purchaseDate: "2026-01-15",
+    purchaseCost: 12000,
+    salvageValue: 0,
+    usefulLifeYears: 4,
+  });
+  for (const period of ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"]) {
+    await api(ctx, "POST", `/assets/${asset.id}/depreciate`, { period });
   }
+
+  await api(ctx, "POST", "/budgets", { name: "E2E Marketing Budget", period: "2026", budgetedAmount: 50000 });
+
+  const quotation = await api(ctx, "POST", "/quotations", {
+    date: "2026-08-01",
+    validUntil: "2026-12-31",
+    customerId,
+    items: line("Proposed engagement", 2000),
+  });
+  await api(ctx, "POST", `/quotations/${quotation.id}/submit`);
+
+  const po = await api(ctx, "POST", "/purchase-orders", { date: "2026-08-02", vendorId, items: line("Hardware order", 1500) });
+  await api(ctx, "POST", `/purchase-orders/${po.id}/submit`);
+  await api(ctx, "POST", `/purchase-orders/${po.id}/approve`);
+
+  // A recurring rule. Drafts-only by design, and dated so the scheduler never
+  // generates from it — it exists so `/recurring` renders a row.
+  await api(ctx, "POST", "/recurring", {
+    entity: "invoice",
+    template: { customerId, items: line("Retainer", 1000) },
+    frequency: "monthly",
+    dayOfMonth: 1,
+    startsOn: "2099-01-01",
+  });
+
+  // A closed month, so `/closed-months` has something to show. Deliberately a
+  // period no seeded document falls in, so nothing above becomes unpostable.
+  await api(ctx, "POST", "/period-locks", { period: "2025-12" });
+
   mkdirSync(dirname(E2E.storageState), { recursive: true });
   await ctx.storageState({ path: E2E.storageState });
   await ctx.dispose();

@@ -14,6 +14,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+
+/** Chart-axis ticks only — compact so a currency scale fits a phone; never for a figure a reader acts on. */
+const compactTick = (v: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 import { classifyChartState, type EmptyReason } from "@/lib/chartState";
 import { TrendingUp, TriangleAlert, Table as TableIcon } from "lucide-react";
 
@@ -417,7 +420,10 @@ export default function Analytics() {
               <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                 <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={64} tickFormatter={(v) => formatCurrency(Number(v))} />
+                {/* Axis ticks are a SCALE, not a figure: compact ("12K") so they fit the axis at
+                    phone width; the full SAR value lives in the tooltip. The 2026-09-15 money
+                    guard caught "SAR 12,000.00" clipped inside a 64px axis once the seed had real cash. */}
+                <YAxis tick={{ fontSize: 11 }} width={44} tickFormatter={(v) => compactTick(Number(v))} />
                 <Tooltip formatter={(v) => formatCurrency(Number(v))} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line

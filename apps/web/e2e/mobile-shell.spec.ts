@@ -167,7 +167,26 @@ const MONEY_CHECK = () => {
     const y = rect.top + rect.height / 2;
     for (const x of [rect.left + 1, rect.right - 1]) {
       const hit = document.elementFromPoint(x, y);
-      if (!hit || !(hit === el || el.contains(hit))) {
+      // An ANCESTOR as the hit means the text ran past its own box into a parent's
+      // padding — still visible, unless an ancestor on the way CLIPS and the point
+      // lies outside that ancestor's box. The first version flagged every ancestor
+      // hit; on the Linux runner's wider fonts "-SAR 4,340.00" reached its card's
+      // padding on three pages and was reported hidden while plainly on screen
+      // (2026-09-15). The planted positive below is exactly the clipping case.
+      const clippedBy = (() => {
+        if (!hit || !hit.contains(el)) return null;
+        for (let n: HTMLElement | null = el ? el.parentElement : null; n; n = n.parentElement) {
+          const o = getComputedStyle(n);
+          if (/(hidden|clip)/.test(o.overflowX) || /(hidden|clip)/.test(o.overflowY)) {
+            const r = n.getBoundingClientRect();
+            if (x < r.left || x > r.right || y < r.top || y > r.bottom) return n;
+          }
+          if (n === hit) break;
+        }
+        return null;
+      })();
+      const visible = !!hit && (hit === el || el.contains(hit) || (hit.contains(el) && !clippedBy));
+      if (!visible) {
         bad.push(`${(t.textContent ?? "").trim()} — end at x=${Math.round(x)} is ${hit ? "under <" + hit.tagName.toLowerCase() + (hit.className ? "." + String(hit.className).split(" ")[0] : "") + ">" : "outside the viewport"}`);
         break;
       }
