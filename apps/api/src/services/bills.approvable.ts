@@ -34,9 +34,55 @@ type BillRow = { bill: Bill; vendor: Vendor | null };
 
 // Validation constants (mirror receiptValidator.ts on the frontend).
 const RECONCILE_TOLERANCE = 0.02;
+
+/**
+ * The expense line's account, resolved against the TENANT'S chart — by id
+ * first, by legacy name second — and refused, visibly, when a supplied value
+ * matches nothing. Only when NOTHING is supplied does the line take the
+ * PURCHASES system account, and then under that account's real name. The
+ * stored label is always the resolved account's own name: the label and the
+ * account cannot disagree by construction.
+ */
+async function resolveExpenseLine(
+  debitAccountId: unknown,
+  debitAccount: unknown,
+): Promise<{ accountId: number; accountName: string } | { systemCode: "PURCHASES"; accountName: string }> {
+  const refuse = (supplied: string): never => {
+    throw new BusinessRuleError(422, {
+      error:
+        `Expense account ${supplied} is not an expense account in this company's chart of accounts. ` +
+        "Choose one of the tenant's expense accounts (GET /categories, type = expense) and post again.",
+      code: "expense_account_unresolved",
+      field: "debitAccountId",
+    });
+  };
+
+  if (debitAccountId != null && debitAccountId !== "") {
+    const id = Number(debitAccountId);
+    const chosen = Number.isInteger(id) && id > 0 ? await categoriesRepository.findById(id) : null;
+    // RLS scopes findById to the tenant, so another org's id and a missing id
+    // are the same absence; a non-expense account is refused the same way.
+    if (!chosen || chosen.type !== "expense") return refuse(`#${String(debitAccountId)}`);
+    return { accountId: chosen.id, accountName: chosen.name };
+  }
+
+  if (typeof debitAccount === "string" && debitAccount.trim()) {
+    const name = debitAccount.trim();
+    const chosen = await categoriesRepository.findByName(name);
+    if (!chosen || chosen.type !== "expense") return refuse(`"${name}"`);
+    return { accountId: chosen.id, accountName: chosen.name };
+  }
+
+  // Nothing supplied: the one default, under its REAL name.
+  const purchases = await categoriesRepository.findBySystemCode("PURCHASES");
+  return { systemCode: "PURCHASES" as const, accountName: purchases?.name ?? "Purchases" };
+}
 const ZATCA_VAT_RE = /^3\d{13}3$/;
 
 export interface BillApproveOptions {
+  /** The id of an expense account in the tenant's chart — the resolved form. */
+  debitAccountId?: unknown;
+  /** Legacy: an account NAME. Matched against the chart; refused if it matches nothing. */
   debitAccount?: unknown;
   /**
    * The captured document this bill came from (A1).
@@ -61,7 +107,7 @@ async function snapshot(row: BillRow): Promise<BillOut> {
  * only on a transition into `approved` (from draft or the submitted queue).
  */
 async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: ApprovalActor): Promise<BillOut> {
-  const { debitAccount, force = false, captureId } = opts;
+  const { debitAccountId, debitAccount, force = false, captureId } = opts;
   const bill = row.bill;
 
   const subtotal = toNum(bill.subtotal);
@@ -120,12 +166,19 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // Choosing a specific expense account per bill (a picker over the real chart
   // rather than free text) is a follow-up — it is a UX change, not a
   // classification one, and the classification is what M13 is fixing.
-  const expenseAccount =
-    typeof debitAccount === "string" && debitAccount.trim() ? debitAccount.trim() : "Purchases and Cost of Sales";
-  const chosen = await categoriesRepository.findByName(expenseAccount);
-  const expenseLine = chosen
-    ? { accountId: chosen.id, accountName: expenseAccount }
-    : { systemCode: "PURCHASES" as const, accountName: expenseAccount };
+  // 🔴 RESOLVED BY ID, AND NEVER SILENTLY ELSEWHERE (2026-09-15). The old
+  // arm took a NAME, matched it against the chart, and on a miss posted to
+  // PURCHASES while STORING THE NAME THE USER CHOSE as the line's label — so
+  // 11 of the 14 names the picker offered (the default included) posted to
+  // Purchases under a label that said otherwise: posts AND hides, the class
+  // that made the empty journal date critical. Now: an id resolves against
+  // the tenant's own chart (RLS-scoped, so another org's id and a missing id
+  // are the same refusal); a legacy name resolves case-insensitively; a supplied
+  // value that resolves to NOTHING is refused with the next step named; and
+  // the stored label is always the account's REAL name. With nothing supplied
+  // the line posts to the PURCHASES system account under its real name — the
+  // one default, stated in the contract, no longer wearing another label.
+  const expenseLine = await resolveExpenseLine(debitAccountId, debitAccount);
 
   await postJournalEntry({
     entryNumber: `BILL-${bill.billNumber}`,

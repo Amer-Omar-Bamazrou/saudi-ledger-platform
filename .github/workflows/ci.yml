@@ -88,7 +88,14 @@ jobs:
       SUPABASE_URL: http://localhost:5001
       STORAGE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
     steps:
+      # 🔴 Full history, on purpose: `claude-md-pointer-integrity.test.ts`
+      # resolves the commit hashes the operating docs cite with `git cat-file`,
+      # and a shallow checkout would fail every hash older than the tip — or,
+      # made tolerant, would stop checking exactly where CI runs. The test
+      # refuses to run on a shallow repository rather than pass vacuously.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

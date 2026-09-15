@@ -10,6 +10,10 @@ import type { JournalEntryLineInput } from './journalEntryLineInput';
 export interface CreateJournalEntryInput {
   /** Allocated by the server when omitted or blank. */
   entryNumber?: string;
+  /**
+     * Required and non-empty — "" used to slip past a falsy guard, skipping the period lock and posting an entry no date-ranged report could see (2026-09-14).
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
   /** @minLength 1 */
   description: string;

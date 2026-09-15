@@ -6221,7 +6221,11 @@ data (the server-name-matched accounts.ts list — itself a named debt, see
 below; bank names; Upload's sample rows), 3 sentinel-comparison constants,
 ~6 dev-internal strings (console lines, Promise.reject reasons, hook-usage
 errors), ~14 scanner artifacts (code fragments the string-literal pass
-misparses). Zero unclassified user-facing English.
+misparses). Zero unclassified user-facing English. 🔴 **RETRACTED
+2026-09-15** — this count was the instrument's FIT on its own tuning set; a
+held-out round found 14 of 14 missed on fresh files and a quote-parity
+defect that had been reading half of the "fixed" files out of phase. See
+"THE HELD-OUT VALIDATION" below.
 
 **Named debts this exposed, not fixed here:** lib/accounts.ts hardcodes
 14 English account names matched server-side BY NAME (the two-definitions
@@ -6309,3 +6313,1028 @@ exact class twice found this week. The candidate standing rule for §3,
 HELD for the CLAUDE.md split decision: "a server test cannot see the
 client's request construction — a form change ships with a client-path
 test or a walked leg."
+
+## 🔴 2026-09-15 — A CLAIM WITHOUT ITS EVIDENCE (the discarded migration comment; owner-named)
+
+**The incident.** The 2026-09-14 session was killed by the machine, not by
+a clean exit, and the working tree it left behind held an uncommitted,
+un-pushed migration `0071_date_format_checks.sql` — already APPLIED to the
+local database (journal row 105, hash matching the file) — whose header
+comment asserted that `invoices.date` and `bills.date` "were audited clean
+(0 violations in every existing environment, 2026-09-15)". **The audit's
+evidence existed nowhere in the tree**: not in this file, not in the
+known-issues file, not in a test, not in a scratch record. The state
+recovery could not tell whether the audit had run and its record was lost
+with the session, or had never run and the sentence was written ahead of
+the work. A reader six months on could not have told either. The tree was
+discarded whole (owner-ordered: a half-applied split is worse than none),
+the three CHECK constraints dropped and the journal row deleted, and the
+work redone from a verified baseline — with the audit's record written
+BEFORE the migration that cites it.
+
+**Why it is its own class, distinct from instrument-wrong-before-the-code.**
+The retracted Arabic zero (the pool-close round, above) was a measurement
+that was RUN and was WRONG — the instrument was blind, and the number it
+reported was a real output of a real instrument. Here the instrument was
+never run, or was run and never recorded, **and the artifact does not let a
+reader distinguish the two.** Instrument-wrong is caught by validating the
+instrument; claim-without-evidence cannot be caught at all, because there is
+nothing to validate — only a sentence, in a file whose lifetime exceeds the
+memory of whether the work behind it happened. The common ancestor is the
+§3 rule that a claim inside an artifact is still a claim; this is its
+worst form, because the artifact is code, and code reads as fact.
+
+**The rule (owner-stated): an assertion about the state of the world,
+written into code, a comment, or a migration, carries a POINTER to where
+its evidence lives — or it is not written.** "Audited clean" is not a
+statement code may make; "audited clean — see findings 2026-09-15, the
+date-column audit" is. The pointer converts the sentence from a claim into
+a citation, and a citation can be followed, dated, and found wanting. The
+corollary for the writer: the evidence entry is written FIRST, in its
+single-writer home (this file for findings, `docs/` for design facts), and
+the code cites it — never the reverse, and never both restating the
+conclusion.
+
+**How it was applied on the redo.** The date-column audit was re-run from
+the recovered baseline and recorded below with its date, its counts, and
+its frame (one environment — nothing is deployed); the migration's comment
+points at that entry and states no number of its own. The same shape
+governs the Arabic hold-out (task B) and the display-dependency count
+(task D): the number lives here, the code points here.
+
+## 2026-09-15 — THE CLAUDE.md SPLIT (75k → 70k, ratcheted): what left, where it went, and what the move found
+
+**The charge (owner):** a SPLIT, not a compression. Text that leaves
+`CLAUDE.md` lands in its declared single-writer home and the inline line
+points at it; a piece with no destination worth writing to STAYS. Instance
+counts stay inline, one integer per rule — the count is what makes a failure
+mode binding rather than advisory. The budget test's constant is ratcheted
+75,000 → 70,000 so growth past it is a deliberate commit, not a discovery
+at 74.4k. Measured before: 74,406 characters (LF-normalised, as the test
+measures). After: recorded in the commit that carries this entry.
+
+### What the move found — three defects in the operating file itself
+
+1. **🔴 A closed item twelve days stale in §5.** "SAME-ORG CROSS-COMPANY
+   ISOLATION — audited: NOT enforced; OPEN as a decision" was still in §5 on
+   2026-09-15. N1 closed it AT THE ROW on 2026-09-03 (known-issues file, N1:
+   the RLS company arm on 35 policies, `companyScope.ts`, the
+   presence/absence/movement proof). The §5 entry survived the closing
+   commit — eviction rule 1 was not applied — and read as an open security
+   decision for twelve days. *A queue entry records what someone believed
+   then*: anyone planning from §5 would have re-opened a closed question. §5
+   now carries one line (closed; the shrink-only company-blind list of 12
+   stays pinned).
+2. **🔴 Two "incident: findings file" pointers that pointed at nothing.**
+   §10b's four tooling hazards said "(incident: findings file)" and "(Twice;
+   incidents: findings file)"; §11's docs-status rule said "found 2026-08-21
+   across seven docs; incident in the findings file". Neither incident was
+   in this file — only back-references FROM here TO §10b. The same class as
+   the discarded migration comment (the entry above): a citation whose target
+   does not exist reads exactly like one whose target does. Both long forms
+   are written below, from their commits, so the pointers are now true.
+3. **§5's Arabic-coverage block still carried the RETRACTED zero** ("Last
+   measured 2026-09-14: suspect count 0") — held only because the owner had
+   asked that nothing touch `CLAUDE.md` before the split proposal. Corrected
+   in the split; the held-out validation (task B) updates it again.
+
+### The long forms that had no record — written from their commits
+
+**§10b-1 — the Edit tool silently wrote back STALE content** (commit
+`1d01482`, 2026-08-14, #37 — Option A, transactions post to the GL). A
+script had modified `categorizer.ts` (61 field literals, scripted for
+exactly the reason §10b-3 gives); an `Edit` issued afterwards was applied
+against the tool's snapshot taken BEFORE the script ran, so it wrote the
+pre-script content back, reverting the script's change, and reported
+success. Nothing in the session showed a diff going backwards; the loss was
+caught only because a test that had gone green went red again. Mitigations
+adopted: a file touched by a script this session stays on the scripted
+path; after any "modified on disk since you last read it" warning, re-verify
+the earlier change is still present; prefer a test that fails loudly,
+because this loss is invisible to reading.
+
+**§10b-2 — `| tail` threw away the exit code, and "Tests: N passed" was
+read as the verdict** (commit `719f194`, 2026-08-21, #63 — C12, invoice
+numbers; the second instance is the migration-tool "nothing to apply"
+message, recorded at the M12.6 outbox entry: a success message that cannot
+distinguish "did the work" from "found no work"). A test command piped
+through `tail` returned tail's exit status, not vitest's; and vitest's
+summary carries several numbers of which `Tests` is NOT the verdict — a hook
+failure, an import error and an unhandled rejection all fail the FILE while
+every test inside it still counts as passed. The discipline: never pipe the
+command whose status you need (or read `${PIPESTATUS[0]}`); read
+`Test Files` plus the exit code; and when a tool reports several numbers,
+find out which one is the verdict before trusting any of them.
+
+**§10b-3 — a command that cannot distinguish "no target" from "all targets"
+defaults to maximal action** (`scripts/anchored-edit.mjs` added in commit
+`aff3f08`, 2026-08-27, #95 — F1; the §10b line written 2026-09-03 in
+`613eb12`, #135). A scripted edit to a tracked file was driven by a shell
+variable that was empty; `sed`, with no address to match on, applied the
+append to EVERY line of the file and reported success. Same family as
+`rm -rf "$DIR"/` with `DIR` unset, a `DELETE` whose `WHERE` built to nothing,
+a filter with an empty allowlist. The tell is the question *what does this
+do when its input is empty?* — if "everything", quoting discipline is not the
+fix. The countermeasure is construction: `anchored-edit.mjs` requires an
+anchor that matches EXACTLY ONCE; zero matches, two matches or an empty
+anchor abort having written nothing, so "no target" and "all targets" get
+different, loud outcomes. It has refused bad anchors repeatedly since.
+
+**§10b-4 — a revert took uncommitted work with it, silently** (two
+instances; the second 2026-09-03 in `613eb12`, #135, caught by re-grepping
+the symbol before moving on). `git checkout -- <file>` restores the last
+COMMIT, not the last state that was verified — so a revert meant to undo one
+change also undid the verified-but-uncommitted changes beside it, and a
+mixed diet of scripted and tool edits on one file loses work the same way
+(§10b-1's mechanism). The discipline: after ANY revert, re-verify that the
+changes meant to survive are still present — the same check as after a
+stale-snapshot warning. The 2026-09-15 recovery applied it deliberately:
+the whole tree was discarded, then re-verified against the committed
+baseline before anything was rebuilt.
+
+**§11 — the docs staleness sweep: seven fixes and the convention that
+prevents the eighth** (commit `0f94e0c`, 2026-08-21, #65; the commit body is
+the record). The README's twenty-milestone drift prompted a sweep of
+everything a newcomer reads. Seven findings, worst first: (1) the ZATCA
+manifest omitted the two LEGAL texts C9 and C12 cite clause by clause, so a
+revision to the law our verdicts rest on would have passed silently — both
+pinned by SHA-256 + Last-Modified; (2) the development guide's cookbook
+walked a HYPOTHETICAL quotations resource that had since been built — the
+real implementation became the cookbook; (3) the architecture blueprint
+said "Keep/adopt Redis" and "leaning Redis", both settled the other way by
+C1 — marked SUPERSEDED in place; (4) `feature-spec-automation`'s header said
+"specced, not built" while its own children recorded BUILT — the
+narrower-claim shape as a header describing the doc's oldest state; (5–7)
+three header lags: the quotations doc's title said "building" while its §12
+said built, a3-recurring said "UI is the remaining piece" with Recurring.tsx
+shipped, m12-status re-dated. THE CONVENTION: docs never state current
+status in their own words — a status line reads
+"Status (YYYY-MM-DD): <claim>. Current state authority: CLAUDE.md §2." The
+date makes staleness visible instead of silent; the pointer makes §2 the
+single writer for "now" (one-writer-per-effect, applied to prose); and a
+header must never lag its own body.
+
+### The move ledger — every block that left, and its home
+
+| Left `CLAUDE.md` | Went to |
+| --- | --- |
+| Header: the 207k/35k/157k story | Stays (shortened) — it IS the budget's rationale, and the test file carries the long form |
+| §2 narrative paragraph (as-built detail for 09-02/03/04/14) | Already in this file and known-issues; §2 keeps the status line |
+| §3 triage check 4 — the two observed instances | This file: the auto-approve removal (the solo-approver finding closed) and the unscoped-`db` fix (`getApplication` revealed as an RLS bypass); the rule keeps "(2 instances)" |
+| §3 standing check 1 — the A1/A3 reachability story | This file: "route-reachability … green while all of it is unreachable"; the rule keeps "(2 instances)" |
+| §3 standing check 5 — finding #7's OCR, M16.2's `bank_accounts` | This file (the search-shape records); the rule keeps "(2 instances)" |
+| §3 index: the inline incidents on nine lines (six audits/four defects · `import.meta.dirname` · the glyph-encoded probe · readiness wait + `pool.on("error")` · 1-then-7-then-12 · the 0.005 fourth instance · idle-in-transaction · two PRs ten days · batches 1 and 2) | All already recorded here (2026-08-31 to 2026-09-14 entries); each line keeps its count |
+| §3 "NO TEST EXERCISES THE CLIENT'S REQUEST CONSTRUCTION" | Upgraded in place to the HELD rule (this file, the pool-close round: "a server test cannot see the client's request construction — a form change ships with a client-path test or a walked leg"), count 3 |
+| §5 board: the closed pool line and the 09-04 working-order line | Known-issues file, "THE DECISION-FREE POOL — CLOSED 2026-09-14" (with the Arabic correction) |
+| §5 L1 row's as-built (Chromium+pdf-lib, veraPDF 3b, the attach list) | Known-issues file, L1 |
+| §5 advisor table: the five long rows | `docs/product/advisor-questions.md` — Blocks A–D already held them; **Block F (invoice dating) was WRITTEN there** — it had no home before |
+| §5 rank-1 row's break-glass as-built | Known-issues file, RANK 1 |
+| §5 "Re-ranked 2026-08-28 … AUD-13 is why" | Duplicate of §3's triage check; the pointer stays |
+| §5 cross-company block | Known-issues file, N1 (closed 2026-09-03) — see finding 1 above |
+| §5 contract-coverage: the "operator/identity, AI, read-only" inventory | This file, "THE STOP (owner decision, 2026-09-02)" |
+| §5 Arabic coverage: the retracted 0 | Corrected to point at the validated round (this file, pool-close §1) |
+| §10 reference-doc summaries (HLD's audience list; owner-actions' snapshot note; analytics round 3; the RTL third-option narrative, 24 of 39) | The docs themselves, and this file's 2026-08-31 RTL decision record |
+| §10b: four tooling incidents | This file, §10b-1..4 above — written from their commits (they were not here) |
+| §11: the docs-drift incident, the HLD rationale and absence incidents | This file: the sweep above (written from `0f94e0c`), and the two 2026-08-31 HLD entries (already here) |
+
+### The inline counts — provenance (owner-ordered: an integer with no derivation is the claim-without-evidence class)
+
+Every §3 count is one of three kinds. **Copied** — the integer was in the
+committed text and its instances are named in this file (not re-derived on
+2026-09-15 unless listed below). **Derived** — the split produced the
+integer by enumerating this file's records; the enumeration is here so the
+number can be checked. **Unverified** — none remain: the one count the
+split could not source was re-derived instead (report-is-a-sample, below).
+
+| Rule (§3) | Count | Kind | The instances that compose it |
+| --- | --- | --- | --- |
+| A negative result from an unvalidated probe | **8** | derived | The six enumerated in "TWO L1 LESSONS THE OWNER NAMED" §2 (2026-09-04): (1) the compressed-PDF grep, (2) verify's spawn, (3) the fault-injection runner, (4) the ICC HTML download, (5) the name[] array probe, (6) the glyph-encoded PDF stream — the first caught BY its planted positive; plus (7) the conflict-marker guard's first version, blind from the wrong cwd, caught by its planted positive ("THE POOL-CLOSE VALIDATION ROUND" §4, 2026-09-14); plus (8) the Arabic heuristic's "suspect count 0", retracted when a hand-read file showed 0 of 30 found (same entry, §1). "2 caught by their own planted positives" = (6) and (7). |
+| A server test cannot see the client's request construction | **3** | derived | "THE POOL-CLOSE VALIDATION ROUND" §2's class enumeration: Bills.dueDate (found by the walk, #152), Employees.joiningDate (found by the sweep), JournalEntries.date (found by the sweep; the one in the books). The walk's "twice found this week" counts the two the WALK found; the class count is the sweep's three. |
+| Assume any completed backend is unreachable until clicked | **4** | derived | The four defects the first browser pass found that six read-only audits had missed — the table under "NOTHING IN THIS PROCESS CHECKS WHETHER A USER CAN REACH WHAT WE BUILT" (2026-08-27, in the "Named failure modes and lessons" block of the 2026-08-30 password-recovery entry). Counted as the DEFECTS found by clicking, not the audits that missed them. |
+| A test that exercises the code but not the artifact | **2** | derived | (1) the ICC OutputIntent profile read by `import.meta.dirname` — green in every source-importing test, ENOENT from the bundle; (2) connect-pg-simple's `table.sql`, named as the same class in the same entry ("TWO L1 LESSONS THE OWNER NAMED" §1). |
+| The frame is part of the count | **3** | derived | (1) the dead Export buttons — 1 (the walk), 7 (the sweep's frame), 12 (the inventory) — "CONTRACT BATCH 1" §"the pairing" and "CONTRACT BATCH 2" §"the frame is part of the count"; (2) the default-VAT sweep whose `?? 15` grep missed the form-state literals and the schema defaults — known-issues file, "CONSTANTS CONSOLIDATION" ("the frame widened on contact"); (3) the spread-into-body sweep whose literal `type="date"` grep missed the dynamic form — "THE POOL-CLOSE VALIDATION ROUND" §2. |
+| The report is a sample, not an inventory | **5** | re-derived — the committed text said 3 | (1) "THE SWEEP AFTER AUD-1: five instances, and the audit named the safest one" (2026-08-30 — the rule's origin); (2) "TWO REGRESSIONS I INTRODUCED" (2026-08-30, "the uncomfortable part"); (3) "A STACK'S TIP IS NOT ITS BODY OF WORK" (2026-08-31, "the reusable form"); (4) the seven dead Export buttons — one reported, seven inventoried (2026-09-01); (5) ScanReview — the heuristic surfaced 5, reading inventoried 14 (2026-09-14). The committed "Three instances" predates (4) and (5); corrected to 5 in the same commit as this table. |
+| An instrument validated on the set used to tune it reports its fit | **2** | derived | (1) the 2026-09-14 pool-close round: five files tuned-until-clean, reported as "47, all classified" — fit; (2) this round's own rounds 1 and 2: each widening consumed its hold-out, so their post-widening exactness is fit and only round 4 is error. Record: "THE HELD-OUT VALIDATION" (2026-09-15). |
+| A tolerance applied to the values you compute, not the values you store | **2** | derived | (1) the invoice header/line seam that N2 closed (owner-named 2026-09-03); (2) the manual journal-entry create path — raw sums checked under the tolerance, lines stored `.toFixed(2)`, 0.015 + 0.015 vs 0.03 persisted unbalanced — "THE SECOND-OPINION AUDIT" item 2 (2026-09-15). |
+| After closing an item, ask what it changed the meaning of | 2 | copied | "AUTO-APPROVE REMOVED" (closed the solo-approver finding) and "RANK 1 FIXED: the silent fallback" (`getApplication` revealed as an RLS bypass) — both 2026-08-28/29. |
+| Run the check on your own conclusions (search shape) | 2 | copied | Finding #7's OCR; M16.2's `bank_accounts` — named in the committed text. |
+| Correct is not connected | 13 (6 live + 7 retroactive) | copied | Finding #1's own count line ("Thirteen instances found so far"). |
+| A UI-automation set that skips the framework's event | 2 | copied | "THE INSTRUMENT WAS WRONG BEFORE THE CODE WAS" — the vendor-selection false positive and the negative-amount "no-op" (2026-09-14). |
+| A hardening step is untested code | 2 | copied | (1) the P5 readiness wait — "A HARDENING STEP IS UNTESTED CODE ADDED AFTER THE TESTS PASSED" (2026-08-31); (2) the believed-correct `pool.on("error")` fix that crashed the next run identically — "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31, "re-run the thing you just hardened — already a standing rule, here earning"). |
+| Two definitions of one fact | **6** | copied + derived | (1–4) enumerated in "TWO N2 LESSONS THE OWNER NAMED" (2026-09-03): the two report families, the two AR computations, the twelve `round2`s, the 0.01-vs-0.005 tolerance; (5) `lib/accounts.ts`'s 14 names vs the seeded chart's — 3 of 14 match, 11 post to Purchases under the chosen label; (6) OwnerEquity's substring match vs `reports.service`'s labels — both in "THE ENGLISH-CONTENT DEPENDENCY COUNT" (2026-09-15). |
+| A green PR moves nothing | 1 | copied | "TEN DAYS OF GREEN, ZERO MOVEMENT" (#141, #142). |
+| Ask of every severance… | 1 | copied | "A GUARDRAIL DESIGNED TO KILL A TRANSACTION WAS KILLING THE SERVER" (2026-08-31). |
+| Standing check 1 — stopping at the HTTP boundary | 2 | copied | A1's capture pipeline, A3's recurring rules — the committed text named both; record: finding #1's retroactive sweep. |
+| §10b: stale write 1 · `\| tail` 2 · maximal action 1 · revert 2 | as listed | copied | The four long forms above, each with its commit. The revert count stays at 2: the discarded tree's "4 instances — twice more on 2026-09-14" could not be verified from any record and was NOT imported. |
+| §11: 7 docs · rationale 1 · absence 1 | as listed | copied | Commit `0f94e0c`; the two 2026-08-31 HLD entries. |
+
+**The rule this table applies:** a count on a §3 line is a pointer, and it
+resolves to an enumeration here or it is not a count. When an instance is
+added, both move in the same commit — the integer on the line and the row
+in this table.
+
+## 🔴 2026-09-15 — THE HELD-OUT VALIDATION: the Arabic instrument's fit, its error, and the difference
+
+**The charge (owner):** the 2026-09-14 "clean validation round" was measured
+on the five files the instrument had been tuned against. That reports its
+FIT, not its error. Hold out files that took no part in the five widening
+iterations, hand-read them in full, measure the committed
+`scripts/arabic-sweep.mjs` against them, report the miss rate as a number;
+if non-zero, widen and hold out a FRESH set again.
+
+### The general form, stated first
+
+**An instrument validated on the set used to tune it reports its fit, not
+its error.** Every widening iteration consumes its own validation set: once
+the instrument has been changed until that set comes back clean, the set
+can no longer say anything about the instrument's miss rate — only about
+its agreement with the cases it was shown. The number that describes the
+error is measured on files the instrument has never been tuned against,
+and each such measurement can be used ONCE. This round applied the rule to
+itself: four hold-outs, each fresh, and the rounds that drove a widening
+are reported as fit, not error, below.
+
+### The three numbers — which is the honest one
+
+| Number | What it measured | What it is |
+| --- | --- | --- |
+| **5 of 14** (64% miss, 2026-09-13) | ScanReview — ONE file, chosen because it was known to be untranslated | The instrument's miss on a known-present case. Honest about that file; not a rate. |
+| **0 of 30** (100% miss, 2026-09-14) | The five-file validation set, BEFORE tuning on it | Honest as the pre-tuning miss on that set. The "clean" that followed, on the same five files, was **FIT** — the number the retracted "47, all classified, zero unclassified user-facing English" rested on. |
+| **14 of 14** (100% miss, 2026-09-15) | Hold-out 1: six fresh files, 137k chars, hand-read in full | 🔴 **THE HONEST ONE for the instrument as committed.** Three sites, fourteen strings, none found. Same shape as the 0-of-30 — the widened instrument was as blind on fresh files as the first one had been on tuned ones. |
+
+### The rounds
+
+**Contamination set** (excluded from every hold-out): the 30 files the
+pool-close round touched, plus `nav/tree.ts`, `lib/comingSoon.ts` and
+`pages/Upload.tsx` — the idioms and the classified residual came from
+reading them. **Frame** for the whole-file counts: `apps/web/src` minus
+`generated/`, `components/ui/`, tests, and the two OCR parsers — 105 files
+(the 2026-09-14 record's frame gave 47 under the same instrument; this
+frame gives 52, the difference being frame, not code).
+
+**Round 1 — Quotations, UserManagement, CompanySettings, components/Layout,
+OperatorReview, ClosedMonths (137k chars).** Hand truth: 14 strings at 3
+sites — `placeholder="Ahmed Al-Rashidi"`; the twelve Gregorian month names
+rendered via `t(m, m)` (the Arabic arm IS the English word — an Arabic user
+sees "January"); a `CR:` label. Committed instrument: **0 found — 14 of 14
+missed.** Why, from the code: (a) `TAILWINDY` treated any hyphenated token as
+a CSS class, so a hyphenated NAME with one of two tokens hyphenated was
+"half class-like" and dropped; (b) the `str:` pass required a space, so
+every single-word literal was invisible by design; (c) `CR:` sat under the
+4-character floor. Widened for the three CLASSES (class-like tokens must be
+lowercase; a const holding ≥3 capitalised English words is a display list
+unless a `_AR`/`Ar` sibling exists; a 2–3-letter label ending in a colon is
+copy). After widening: 3 of 3 sites, 14 of 14 strings — **fit**.
+
+**🔴 Also found in round 1, a pre-existing defect in the committed
+instrument:** `CODE_TOKENS`'s `\b` word boundaries were literal BACKSPACE
+bytes (0x08) — the file had first been written through a template string —
+so `new Date`, `as string` and `validation error` had NEVER matched. Four
+of the 2026-09-14 record's "~14 scanner artifacts" were this defect. Fixed
+by byte replacement; the header comment now says so.
+
+**Round 2 — VatReport, Findings, OperatorZatcaPanel, Assets, Login,
+components/PeriodClosedDialog (72k chars, fresh).** Hand truth: 1 string —
+`err.message ?? "Login failed"`, the thrown-fallback class. Widened
+instrument: **0 found (1 artifact) — 1 of 1 missed.** 🔴 The cause is
+STRUCTURAL: the `str:` pass matched only literals of ≥4 characters, so at
+`navigate("/")` the regex failed at the short literal's opening quote and
+then paired its CLOSING quote with the NEXT string's opening quote — from
+there, every other literal in the file was read as junk. Any `""`, `"/"`,
+`"ar"` or `"en"` before a string desynchronised the pass for the rest of
+the file. Fixed by tokenising EVERY string (a JS string cannot contain a
+raw newline) and filtering by length afterwards; the template-literal twin
+(`[^`]*` pairing a nested backtick with the outer) fixed the same way. The
+parity fix exposed **19 more strings in 8 files the pool-close round had
+"fixed"** — "New passwords do not match.", "Signup failed", "Accept ready",
+ScanReview's two subtitles — which is how a 100% miss on a tuned set
+stayed invisible: the instrument had been reading half of those files out
+of phase. After the fix: 1 of 1 — **fit**.
+
+**Round 3 — Products, AuditTrail, VerificationStatus, Recurring,
+components/AskYourBooks, components/DemoBanner, lib/listFilters (57k,
+fresh).** Hand truth: **0 strings.** Instrument: 0 misses — 🔴 **vacuous
+for the miss rate** (0 of 0 says nothing; when the correct answer equals
+the broken one the test proves nothing). It measured the false-positive
+side: one TS type-cast fragment, closed by adding `??`, `?.`, `| null` to
+the code tokens — so round 3 is also fit, for false positives.
+
+**Round 4 — PurchaseOrders, Transactions, CustomerDetail, Dashboard (80k,
+fresh, chosen for size so a true positive was likely).** Hand truth: 1
+string — `AI:` in Transactions, a label, debatable; and disclosed: that
+one hit had appeared in the whole-frame diff during round 1's widening,
+before this file was read. Instrument: **1 of 1 found, 0 false positives —
+a zero miss rate on a fresh set, the protocol's stopping rule.**
+
+**🔴 How much the final instrument's error rate rests on.** Sixteen
+held-out true positives were measured across 23 files (~346k chars); the
+final instrument finds all sixteen. But fifteen of them were found only
+after widening ON them — fit. The final instrument's genuinely held-out
+evidence is round 4: **one true positive, debatable, on four files.** That
+is thin, and it is stated as thin rather than reported as "clean". The
+next hold-out round is the only thing that makes it thicker; the files
+above are all now contaminated.
+
+### What the frame count is now, classified (74 hits, 105 files)
+
+**30 sites of user-facing untranslated English (41 strings), all invisible
+to the 2026-09-14 instrument** — the retracted "zero unclassified" was
+wrong by this many: ReceiptScanner's five progress/label strings; the
+statement parser's five row-error reasons (surfaced as row tooltips in
+Upload); the "Ahmed Al-Rashidi" placeholder in Signup, AcceptInvite and
+UserManagement; ChangePassword's three validation/failure strings; the
+Login and Signup thrown fallbacks; CreditNotes "Note created";
+TransactionReview "Accept ready"; ScanReview's "Vendor match failed:" and
+two subtitles; the twelve Gregorian month names; the colon-labels `Total
+Outstanding:`, `Status:`, `Expires:`, `CR:`; and two debatable labels
+(`ID:`, `AI:`). **None fixed in this round** — the owner ordered a
+measurement; fixing is its own change and is proposed, not done.
+**Deliberate data, 24:** accounts.ts's 14 server-name-matched names (task
+D's class), 4 bank names, Upload's 6 sample rows. **Sentinel comparisons,
+5:** `"(not yet translated)"` compared, never rendered. **Dev-internal,
+7:** a hook-usage error, four tesseract status keys, two
+`Promise.reject("no selection")`. **A comparison constant, 1:** OwnerEquity's
+`"Net Income"` substring match (task D). **Scanner artifacts, 7:** two CSS
+strings, `as Record` ×2, a `Math.abs` fragment, `"invoiceNumber" in i ?`,
+`Promise`.
+
+### A class the instrument cannot see, by construction
+
+Hand-reading also found **~30 raw-value renders** — a server or client
+enum written to the screen with no label map: `{q.status}`, `{q.outcome}`,
+`{inv.role}`, `{inv.status}`, `{role}s`, `orgRole.toUpperCase()`,
+`{a.status}`, `{c.credentialStatus}`, `{c.environment}`, `{rule.entity}`,
+`{rule.frequency}`, `ENTITY_TYPES`/`ACTIONS` as option labels, `${x.status}`
+interpolated into an Arabic sentence, and `ROLE_AR` lacking `bookkeeper`
+(an Arabic bookkeeper sees "bookkeeper"). These are not literals, so no
+literal scanner can find them; they are exactly task D's inventory and are
+handed to it rather than counted here. Two reverse gaps (an Arabic-only
+label in English mode, Assets and Products), and unit suffixes (`h`, `m`,
+`d`, `KB`) are noted, not counted.
+
+### The retraction, applied
+
+The 2026-09-14 record's "final instrument count: 47, all classified … zero
+unclassified user-facing English" is RETRACTED (a pointer is placed on that
+entry). §5's Arabic line now states the measured position and cites this
+entry; its "PROVISIONAL" marker leaves.
+
+## 2026-09-15 — THE DATE-COLUMN AUDIT, and the floor under three application guards (migration 0071)
+
+**Why.** `journal_entries.date = ""` had passed THREE application guards —
+the falsy-skipped `assertDateString` and `checkPeriodOpen` at create (both
+written `if (jeData.date) …`), and `NOT NULL`, which an empty string
+satisfies — and would have posted an entry that no date-ranged report
+shows and no period lock examined (the pool-close round, §2). The write
+boundary was fixed the same day. The owner's question: does the existing
+DATA carry such a row, and is there anything BELOW the application
+standing between it and the column?
+
+**The audit — the record the migration cites.** Run 2026-09-15 against the
+committed baseline (5f67cd9 + the split), by SQL over every row, three
+regexes and a cast:
+
+| Environment | Table | Rows | `NULL` | `''` | not `YYYY-MM-DD` | fails `::date` | in the books / issued |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| local Supabase (Postgres 17.6, the ONLY environment — nothing is deployed) | `journal_entries` | 75 | 0 | 0 | 0 | 0 | 73 posted/reversed |
+| same | `invoices` | 96 | 0 | 0 | 0 | 0 | 26 |
+| same | `bills` | 13 | 0 | 0 | 0 | 0 | 10 |
+
+**Frame stated beside the number:** "every environment" is ONE
+environment. No hosted database exists (CLAUDE.md §2: nothing is
+deployed), so there is no second set of rows to audit and no production
+row this could have missed. **No remediation is needed — nothing is in the
+books with a bad date.** The audit is what the migration comment points
+at; the comment itself states no number.
+
+**What stood below the application: nothing.** All three `date` columns
+are `text NOT NULL` with no CHECK (`pg_constraint`, contype `c`, inspected
+per table — invoices and bills carry the 0020/0049/0062 CHECKs on notes,
+amounts and currency; none on `date`). The floor is now
+`<table>_date_format_chk CHECK (date ~ '^\d{4}-\d{2}-\d{2}$')` on
+`journal_entries`, `invoices` and `bills` — the two siblings share the
+column type, the writers' shape and the class (the pool-close round found
+the same optional-blank date class on `Bills.dueDate` and `Employees.joiningDate`, client-side), so all
+three get the identical floor rather than waiting for the sibling to be
+found the hard way. Hand-written (the 0020/0049/0062 precedent: CHECKs
+drizzle does not express), journaled, noted on the three schema columns so
+a snapshot diff cannot read them as droppable. `je-empty-date.test.ts`
+gains the floor test: a raw `INSERT` with `''`, `2026-9-1` and
+`not-a-date` is refused by the named constraint, below every application
+guard.
+
+**Not constrained, deliberately:** `due_date` (nullable, optional — the
+write boundary already sends `undefined` for blank, #152), and the format
+regex checks SHAPE only: `2026-02-30` passes the regex and fails
+`::date`. The audit's cast column shows no such row exists; a stricter
+`CHECK (date::date IS NOT NULL)` would be immutable-safe but the shape
+check is the class that was passed, and the cast is the application's job
+(`assertDateString` rejects `2026-02-30` explicitly). Recorded so the gap is named, not discovered.
+
+## 2026-09-15 — THE ENGLISH-CONTENT DEPENDENCY COUNT (task D: count, classify, do not fix)
+
+**The charge (owner):** the three named debts — `lib/accounts.ts`'s
+name-matched list, English-only server error bodies, OwnerEquity's
+substring match — are one class, not three: *client behaviour depends on
+the English content of a server string*. Count every site, classify each
+as needs-an-id, needs-a-code, or genuinely display-only. No fix.
+
+**Frame (stated beside every number):** `apps/web/src` minus `generated/`,
+`components/ui/`, tests and specs (the client); `apps/api/src` minus tests
+(the server). **Search shapes:** (1) every `===`/`!==`/`.includes(`/
+`.startsWith(`/`.match(` against a server field named `name`, `label`,
+`title`, `message`, `description`, `reason`, `error`, `detail`, `kind`,
+`type`, `status`, `category*`, `account*`; (2) every render of `.message`
+/ an error body; (3) every JSX render of a server enum field with no label
+map (`{x.status}`, `.replace(/_/g," ")`, `.toUpperCase()`, enum arrays as
+`<option>` labels); (4) every server refusal constructor and every `code:`
+it carries; (5) every server-authored English `label:` sent to the client
+and every English `description:` template persisted into the ledger; (6)
+the consumers of `lib/accounts.ts` and the server's resolution of what they
+send. What would have falsified "behaviour never keys on message text": a
+hit for shape (1) on `message`/`body.error` — there were none.
+
+### Class 1 — NEEDS AN ID: 1 mechanism (3 client sites, 1 server site) — 🔴 and it is posting wrong today
+
+`lib/accounts.ts` holds 14 English account names. `Bills.tsx` (the create
+form's picker, l.451; the post-review picker, l.680) and `ScanReview.tsx`
+(l.708) send the chosen NAME as `debitAccount`; `bills.approvable.ts`
+l.123–128 resolves it with `categoriesRepository.findByName` (lower-case
+equality) and, when nothing matches, posts the line to `PURCHASES` with
+`accountName` = the text the user chose — stored denormalised on the
+journal line (`journal_entries.ts` l.67, `account_name`) and displayed as
+the line's account (JournalEntries.tsx l.335, JournalReport.tsx l.125).
+
+**Measured against the seeded chart (0029/0024, and the live `categories`
+of all 4 orgs): 3 of the 14 names exist** — Bank Charges, Office Supplies,
+Professional Services. The other 11, INCLUDING the default "Purchases and
+Cost of Sales", are near-misses of seeded names ("Rent Expense" vs the
+chart's "Rent & Utilities"; "Maintenance and Repairs" vs "Repairs &
+Maintenance"; "Marketing and Advertising" vs "Marketing & Advertising";
+"Travel and Transportation" vs "Travel & Accommodation"; "Communication
+Expense" vs "Telecommunications"; "Insurance Expense" vs "Insurance"…) and
+resolve to nothing. **Triage check:** it POSTS (the bill-approval path,
+into the GL) and it HIDES the result (the line reads "Rent Expense" while
+the account is Purchases) — a posted, mislabelled classification at 11 of
+14 picker choices, unnoticed because the label the user chose is the label
+they see back. The two-definitions disease, fifth instance: the client's
+list and the chart's names, joined by nothing, drifted apart at birth.
+**Fix shape (proposed, not done):** the picker offers the tenant's real
+chart and sends `accountId`; the server's free-text arm either goes or
+stays only for raw API callers with an explicit "unmatched → Purchases"
+warning in the response. Rank: this is the one item in this count that is
+wrong in the books today.
+
+### Class 2 — NEEDS A CODE
+
+**2a. OwnerEquity — 2 sites, behaviour keyed on English.** `OwnerEquity.tsx`
+l.91–92: `row.label.includes("Net Income")`, `.includes("Withdrawal")`
+decide a row's styling and sign treatment; the labels come from
+`reports.service.ts` l.531/533 ("Net Income / (Loss)", "Withdrawals /
+Drawings"). The five owner-equity row labels are the ONLY server-authored
+report labels in the codebase (`label: "…"` literals in services: 5, all
+here) — everywhere else the client owns the copy. Two-definitions, sixth
+instance: rename the label on the server and the client's arithmetic
+changes silently. **Fix shape:** a `kind` code per row
+(`opening|net_income|contributions|withdrawals|closing`); the client keys
+and labels on it.
+
+**2b. Server refusal bodies — 372 constructor sites, 8 with a code.**
+`new BadRequestError(` ×153, `NotFoundError` ×86, `ConflictError` ×71,
+`BusinessRuleError` ×43, `ForbiddenError` ×9, `AppError` ×9,
+`PeriodLockedError` ×1 — every body is `{ error: <English sentence> }`.
+Codes exist on exactly 8 shapes: `period_closed`, `org_not_verified`,
+`permission_denied`, `requires_approval_authority`, `demo_mode`,
+`commit_failed`, `invoice_has_no_lines`, `invalid_lang`. **The client's
+BEHAVIOUR keys only on those codes and on HTTP status** — `api.ts`
+`handleApiErrorResponse` (403+`org_not_verified` → redirect; 423+
+`period_closed` → the dialog), `apiFetch` (401 → login), `App.tsx`'s
+mutation cache (423/409/≥500 → generic bilingual titles by STATUS) — and
+**never on message text** (shape 1 over `message`/`body.error`: 0 hits).
+What depends on the English is DISPLAY: the sentence is rendered verbatim
+as a toast description or Alert body at **71 sites in 35 files** (by
+design — "the refusal a user reads is the refusal the API gave"). So the
+364 code-less constructors are needs-a-code for one reason only: an
+Arabic reader gets an English refusal, and the client cannot localise a
+sentence it cannot identify. **Fix shape:** a code per refusal FAMILY
+(not per sentence), rendered by the client's copy with the server's text
+as detail — an API-layer decision, deferred by the owner on 2026-09-14
+and unchanged here.
+
+### Class 3 — genuinely display-only
+
+**3a. Raw enum renders with no label map — 51 sites in 31 files.** A
+server (or client) CODE written to the screen as-is: `{q.status}`,
+`{q.outcome}` (Quotations, PurchaseOrders), `{a.status}` (Assets,
+AssetSchedule, Payroll, PayrollReport, InvoiceSummary, JournalEntries ×2,
+CreditNotes, CustomerDetail ×2, VendorDetail ×2, CustomerLedger),
+`{inv.role}`/`{inv.status}`/`{role}s`/`orgRole.toUpperCase()`/the
+role `<option>`s (UserManagement ×5), `{o.role}` (OrgSwitcher),
+`{preview.role}` (AcceptInvite), `a.status`/`d.type`/`fromStatus →
+toStatus` (OperatorReview ×3), `c.environment`/`c.credentialStatus`
+(OperatorZatcaPanel ×2), `l.action`/`l.entityType`/the two enum
+`<Select>`s (AuditTrail ×4), `rule.entity`/`rule.frequency` (Recurring
+×2), `r.type`/`r.kind`/`TREATMENTS` (TransactionReview ×3), `p.type`
+(Products), `row.type`/`c.type` (TrialBalance, AccountSummary,
+AccountStatement, GeneralLedger), `row.type` (Upload), `${x.entity}`/
+`${x.status}` interpolated into Findings' copy, `d.type`/`DOC_TYPES`
+(VerificationStatus ×2), `cert.status` (ZatcaOnboarding), `Done:
+${v.action}`/`{r.status}` (Approvals ×2), and `ROLE_AR[user.role] ??
+user.role` (Layout — a map that lacks `bookkeeper`). These are codes
+already; **nothing behaves on their English** — the client keys on the
+same codes correctly at 92 sites in 29 files. They are the class no
+literal scanner can see (task B's hold-out found them by hand). **Fix
+shape:** one label map per enum, in the client, `t()`-ed — a translation
+change, not a contract change.
+
+**3b. Server-composed English persisted as DATA — 15 template sites in
+the services.** `description: \`Vendor bill ${…}\``, "Payment for",
+"Receipt for", "Payroll run for period", "Gross salaries", "Employer GOSI",
+"Net pay payable", "Reversal of", "Bill …" — journal-entry narratives the
+posting paths write into the ledger in English, permanently, for every
+tenant. Nothing behaves on them; they are what an Arabic tenant's general
+ledger will read, forever. Recorded as display-only DATA with that caveat;
+the fix (bilingual narratives, or a narrative KEY with parameters
+rendered by the reader) is a design decision, not a sweep.
+
+**3c. Names and user text — display-only, not a debt:** customer, vendor,
+category, product and account names, invoice numbers, reasons, notes, the
+AI explanation pair (`{en, ar}` — already bilingual by contract), the
+demo banner (server sends both languages by design).
+
+**Excluded from the count:** tesseract's four worker status keys
+(third-party, not our server); `formatCurrency(…).replace("SAR","")`
+(Transactions l.189 — a dependency on the client's own formatter).
+
+### The count, in one line
+
+**Needs-an-id: 1 mechanism / 4 sites (posting wrong at 11 of 14 choices).
+Needs-a-code: 2 behavioural sites (OwnerEquity) + 364 code-less refusal
+constructors rendered at 71 client sites. Display-only: 51 raw enum
+renders, 15 persisted English narratives, and data.** Nothing fixed.
+Placed in CLAUDE.md §5 as one open row for the owner's ranking, with the
+class-1 item marked as the one that is wrong in the books today.
+
+## 2026-09-15 — THE SECOND-OPINION AUDIT: seven items, each traced in the repository, each with the condition that would have failed it
+
+**The charge (owner):** a second-opinion review raised seven items. Audit
+each against the ACTUAL repository — files, callers, database objects,
+tests — never from this file or from memory. Fix only what is genuinely
+deficient; say where the answer was already yes; and for every "already
+correct", state what was inspected and what would have made it fail. No
+new infrastructure, no restructuring, no parallel status vocabulary.
+Regulatory conclusions cite the latest applicable official ZATCA document
+and note any supersession.
+
+**Verdicts in one line each:** (1) money precision — columns and mapping
+already correct; ONE lossy site found and fixed (asset depreciation);
+(2) balance invariant — no line-delete or reassignment path exists; TWO
+gaps found and fixed (the manual create checked unrounded values; posting
+never re-checked); (3) tenant context — mechanism already correct; the
+pooled three-request test did not exist, now written, validated and
+running; (4) audit chain — the premise is wrong (there is no hash chain on
+audit rows); the invoice chain's concurrency test already exists and
+passes; audit-row grants already correct; (5) QR tags and routing —
+already correct, cited to the official documents, which have not been
+superseded; (6) VAT rounding — already correct and consistent end to end,
+and the official SDK validator accepts it on non-round lines; (7) the
+production boundary — already stated correctly in `m12-status.md`; one
+stale row corrected.
+
+### 1. Money precision — columns already correct; one lossy site, fixed
+
+**Inspected.** Every numeric column in the LIVE database
+(`information_schema.columns`, 84 rows) against every `numeric(` in
+`packages/db/src/schema` — identical lists. **Money: 74 columns, all
+`numeric(15,2)`. Quantities: 9, `numeric(15,3)` (`quantity` ×6,
+`stock_qty`, `reorder_point`, conversion quantities). Rates: 5,
+`numeric(5,2)` (`vat_rate`). Other: `useful_life_years numeric(5,1)`,
+`confidence_score numeric(5,4)`.** No money column with a scale other than
+2; no quantity or rate stored in a money column. *Not changed — the review
+asked that columns not be blanket-altered, and none needs altering.*
+
+**The driver boundary.** `pg` returns `numeric` as strings; there is no
+`setTypeParser` and no `customType` on a numeric column anywhere in
+`packages/db/src` (the only `customType` is `bytea` on the credential
+vault). A monetary value never becomes a double in the mapping layer.
+**Safe.**
+
+**The API boundary.** `assertAmount` (`lib/writeGuards.ts`) accepts any
+finite number up to `NUMERIC_15_2_MAX` and does NOT round; the OpenAPI
+contract types money as JSON `number`. A 2-dp decimal survives
+JSON→double→string exactly for |x| ≤ 9×10¹³, and `numeric(15,2)` caps at
+10¹³ — **safe by magnitude.** Sub-cent INPUT (10.005) is the already-recorded
+§5 trap (UI inputs step 0.01; the raw API is the only route) — **unknown by
+design, unchanged.**
+
+**Arithmetic, the count.** In `apps/api/src/{services,repositories,
+controllers,lib}` (tests excluded): **305 `Number(`/`parseFloat(` sites** —
+parses of 2-dp strings (safe by magnitude) and the arithmetic on them;
+**~95 `.toFixed(2)` stores**, classified by what feeds them: an operand
+already `round2`'d, or a sum of 2-dp values (float error ≪ half a cent) —
+**safe**; the assembler's `money()` and `percent()` over stored strings —
+safe; `reports.service`'s `fmt2` over computed sums — display only, safe;
+`assertAmount(...).toFixed(2)` on raw input (assets, bank accounts,
+budgets, products, employees, PO conversion unit price) — **lossy only for
+sub-cent input**, the §5 trap; and 🔴 **`assets.service.depreciate` — LOSSY,
+fixed:** a monthly amount from an unrounded division was stored three
+times, rounded independently (`amount.toFixed(2)`,
+`(book − amount).toFixed(2)`, `(acc + amount).toFixed(2)`). At a half-cent
+they round in different directions: 12.06 over 12 months is 1.005 a month,
+and after month five the asset read book 7.01 + accumulated 5.04 = 12.05
+against a 12.06 cost — proven red by
+`assets-depreciation-rounding.test.ts` with the fix reversed, green with it
+(one rounded addend, the other two derived from it, `money2` to store).
+`round2` itself is half-up on the binary double, so an exact decimal
+half-cent product (1.005 × 1) rounds down where decimal half-up would
+round up — bounded to ±0.01 per line, applied identically everywhere by the
+one seam, and accepted by the official validator (item 6).
+
+**The frontend.** 138 `Number(`/`parseFloat(` sites (form parsing and
+display); two local `round2` previews (Quotations, PurchaseOrders) that
+mirror the server and persist nothing; `toFixed(1)` on percentages. The
+frontend never stores money. **Safe.**
+
+**What would have failed it:** a money column with scale ≠ 2; a
+`setTypeParser` turning `numeric` into a double; a stored `.toFixed(2)`
+whose operand was an unrounded product or quotient. The third condition was
+met once — the depreciation path — and that is the fix.
+
+### 2. Balance invariant — no mutation path to guard; two gaps at the moments that matter, fixed
+
+**Inspected.** `postJournalEntry` (`glPosting.ts`): balance on the
+`round2`'d lines it persists (N2) — every automated posting. The manual
+path `journalEntries.service.create`: summed the RAW request amounts,
+compared under `GL_BALANCE_TOLERANCE` (0.005), then stored each line
+through `.toFixed(2)`. `journalEntryApprovable.onApprove`: `checkPeriodOpen`
+then `status = 'posted'` — it never read the lines. The router
+(`routes/journalEntries.ts`): `get /`, `get /:id`, `post /`,
+`post /:id/approve|reject|post|reverse`, `delete /:id` — and `remove`
+deletes a whole DRAFT with its lines. No service or repository method
+updates `journal_entry_id` on a line or deletes a single line (grep of
+every `journalEntryId:` write: inserts only, plus `transactions.journal_entry_id
+= null` on a different table). Database: no trigger, no balance
+constraint (`je_lines_amounts_non_negative` only).
+
+**Drafts unbalanced on purpose?** No — the create path refuses an unbalanced
+entry with 422 `journal_entry_unbalanced` even for a draft, so no trigger
+was needed and none was added (the review's caution honoured: nothing
+breaks legitimate draft construction because unbalanced drafts were never
+legitimate here).
+
+**The two gaps, both real, both fixed in the existing shape:**
+(a) *the check ran on values that were not the values stored* — 0.015 +
+0.015 against 0.03 balanced as raw doubles and persisted as 0.02 + 0.02 vs
+0.03 (`(0.015).toFixed(2)` is "0.01" on the double, `round2(0.015)` is
+0.02). Now `round2` runs BEFORE the check and `money2` stores the same
+number — the owner's 2026-09-03 rule ("a tolerance applied to the values you
+compute, not the values you store, checks a different thing than it appears
+to"), second instance. (b) *posting never re-checked* — a draft whose STORED
+lines do not balance (planted below the application) became posted. Now
+`onApprove` sums the stored rows and refuses 422 before flipping status.
+`je-balance-floor.test.ts`: both red before, green after; the balanced
+movement case still creates and posts; and the route inventory is asserted
+so an added line-mutation route fails the test rather than slipping past a
+guard that never saw it.
+
+**What would have failed it:** a route or method that deletes or re-parents a
+line (none); a posted entry whose stored lines do not balance (was
+possible via (a)+(b); the test now refuses both).
+
+### 3. Tenant context under pooling — mechanism already correct; the test was missing, now run
+
+**The mechanism, traced.** `packages/db/src/index.ts` `beginTenantConnection`:
+`pool.connect()` → `BEGIN` → `SET LOCAL ROLE "<DB_APP_ROLE>"` →
+`SET LOCAL idle_in_transaction_session_timeout` →
+`set_config('app.current_org_id', $1, true)` and
+`set_config('app.current_company_id', $1, true)` — **`is_local = true`,
+transaction-local by construction.** The client is released ONLY in
+`finish()` after `COMMIT`/`ROLLBACK`; `lib/tenant.ts` settles every request
+through `commitBeforeResponse` and rolls back on `res.on("close")` if
+nothing settled. The `db` proxy REFUSES outside a tenant store
+(`UnscopedDatabaseAccessError`); the deliberate wide path is `ownerDb`. The
+RLS predicate (`0003_rls_policies.sql`):
+`organization_id::text = current_setting('app.current_org_id', true)` —
+NULL compares false, so no context means no rows. **Background and
+privileged paths use the SAME mechanism:** `findings.schedule.service`,
+`findings.explain.service`, `recurring/generation.service`, the seed and
+benchmark scripts all call `beginTenantConnection`; the 19 `ownerDb`
+importers are identity, operator, invitation, vault and owner-only-table
+code; `demoReset` checks out a raw client for its `TRUNCATE` with an error
+listener and releases after settling.
+
+**The test, written and RUN** (`packages/db/src/__tests__/pooled-tenant-context.test.ts`,
+in `verify`): request A (org A) inserts and reads — sees only A; request B
+(org B) on the **same backend PID (asserted — the planted positive for
+reuse)** inserts and reads — sees only B; the owner sees both, so B's
+absence of A is RLS, not an empty table; request C, a raw checkout of the
+same PID with NO context: `app.current_org_id` is NULL, `SET LOCAL ROLE
+authenticated` + select returns **zero rows — fail closed**, and the role
+has reset after the transaction; the application layer refuses
+synchronously; an UNSETTLED tenant connection cannot leak (the next checkout
+is a different PID and clean; settling it later releases it clean). **The
+instrument is validated in the leak direction:** a deliberately
+session-level `set_config(…, false)` DOES survive into the next checkout,
+so the GUC read that says "gone" can see a leak when one exists. The
+existing `tenant-isolation.test.ts` had proved RLS on one dedicated session
+client — never the pool; this file is the missing half.
+
+**What would have failed it:** any `set_config(…, false)`, `SET ROLE` or
+`SET app.` without `LOCAL` in the runtime path (grep: none outside the
+planted test); a client released before settle (none — the only release is
+`finish`); a request C that saw rows (it saw none).
+
+### 4. "Audit hash chain" — the premise corrected; the real chain already concurrency-tested; audit rows already immutable to the app role
+
+**There is no hash chain on audit rows.** `audit_logs` and
+`security_audit_logs` carry no hash or previous-hash column (schema and
+migrations grep). The chains in this repository are on INVOICES: the
+homegrown `invoices.invoice_hash`/`previous_hash`, and the legal ZATCA
+chain on `einvoice_documents`. **Concurrency:** `invoices.approvable.ts`
+takes `lockCompanySequence` — `pg_advisory_xact_lock(hashtextextended(companyId))`
+— BEFORE `previousInvoiceHash` and `nextIcv`, so the head read and the
+write are inside one lock. **The concurrent test already exists**
+(`invoice-icv-concurrency.test.ts`: 8 parallel approvals over separate
+tenant connections via `Promise.allSettled` — dense unique ICVs, one
+unbroken chain with every link pointing at its predecessor, the legal
+`einvoice_documents` chain holding for an onboarded company, and no
+serialisation across companies); run today, 4/4 green. A second test was
+not written — the review asked for the test, and the test is there.
+
+**Audit-row permissions, from the database not the endpoints**
+(`information_schema.role_table_grants`, live): `audit_logs` —
+`authenticated`: **INSERT, SELECT only**; `security_audit_logs` — **no grant
+to any app role** (owner-only; written through `ownerDb`). Both pinned by
+tests (`audit-logs.test.ts`: UPDATE and DELETE forbidden;
+`security-audit-log.test.ts`: SELECT and INSERT forbidden to the app role;
+`destructive-grants.test.ts`: append-only). One local artefact: a role
+`tenant_rls_test` holding DELETE/UPDATE on `audit_logs` exists in the LOCAL
+dev database and nowhere in the repository or its history (`git log -S`:
+nothing) — a leftover of some earlier local test session, not a runtime
+role, not present on any deployment (there is none). Noted; not a repo
+change.
+
+**What would have failed it:** an UPDATE/DELETE/TRUNCATE grant to
+`authenticated` on either audit table (none); the head read outside the
+advisory lock (it is inside); a fork or a duplicate ICV under 8 parallel
+approvals (none).
+
+### 5. QR tag semantics and routing — already correct, cited; no supersession
+
+**The documents (fetched live 2026-09-15; SHA-256 identical to the copies
+pinned by `docs/zatca/fetch-specs.sh` — nothing has superseded them).**
+ZATCA's Laws & Regulations page (last updated 21 Jun 2026) lists only the
+2020 Regulation and the 2023-05-19 Resolution; the Guidelines page (updated
+10 Aug 2026) lists the same Detailed Technical Guideline file.
+
+- *"Security Features Implementation Standards to the E-Invoicing
+  resolution dated 2023-05-19"*, **Version 1.2, 2023-05-19**
+  (zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/20230519_…_vF.pdf),
+  Table 3 (pp. 25–26): **tag 7 "ECDSA signature of the XML Hash"; tag 8
+  "ECDSA public key extracted from the signing private key"; tag 9 "For
+  Simplified Tax Invoices and their associated notes, the ECDSA signature
+  of the cryptographic stamp's [public key] issued by ZATCA's technical
+  CA"**. Encoding: one-byte tag, one-byte length, UTF-8 value for tags
+  1–5; tag 6 stated as "32 bytes".
+- *"E-invoicing Detailed Technical Guidelines"*, **Version 2** (the file
+  carries no date on its version line; live file unchanged), §6: the same
+  tag table (p. 58), the XPath of each tag (tag 7 = `ds:SignatureValue`,
+  tag 8 = the public key, tag 9 = the certificate's `ecdsa-with-SHA256`
+  signature value), and its own worked example encodes **tag 6 with length
+  44 — a base64 STRING**, contradicting the Standard's "32 bytes".
+- *"Guide to Developed FATOORA Compliant QR Code"*, **18 Nov 2021** —
+  tags 1–5 only, 500-character limit: **superseded** by Standard v1.2 (700
+  characters, tags 6–9) and noted as such.
+- Routing: Detailed Technical Guidelines v2 — "Reporting applies for
+  Simplified documents (B2C)… within 24 hours of the transaction";
+  "Clearance applies for Standard documents (B2B)"; the Resolution of
+  2023-05-19 is the legal text behind both.
+
+**The implementation (`einvoice/crypto/qr.ts`).** Tags 1–5 UTF-8; **tag 6
+the base64 STRING of the hash; tag 7 the base64 STRING of the document's
+`SignatureValue`; tag 8 the SPKI DER public key as RAW bytes; tag 9 the
+CA's signature over the certificate as RAW bytes**; TLV = one-byte tag +
+one-byte length (≤ 255 bytes per field, refused with a readable error
+above it), whole payload base64, ≤ 700 characters; `decodeZatcaQr` walks
+it back. The mixed encoding is where the Standard's text is silent or
+wrong (tag 6) and was pinned by the LIVE sandbox compliance API
+(divergence #13: the all-base64 variant re-triggers
+`publicKey_QRCODE_INVALID` and `CERTIFICATE_SIGNATURE_QRCODE_INVALID`);
+today's `verify` re-ran the six compliance documents PASS. **Routing:**
+`outbox/enqueue.ts` — `flow = subtype === "standard" ? "clearance" :
+"reporting"`; `liveZatcaClient.ts` maps to `/invoices/clearance/single`
+and `/invoices/reporting/single`; `errorMapping.ts` refuses to silently
+switch a standard invoice to reporting.
+
+**What would have failed it:** a tag assignment differing from Table 3
+(none); tags 8/9 as base64 text or 6/7 as raw bytes (the live API rejects
+both, and the record says which error); a simplified invoice routed to
+clearance (none).
+
+### 6. VAT rounding — already correct, one set of values everywhere; official validator accepts it
+
+**Where rounding happens.** PER LINE: `base = round2(qty × price − discount)`,
+`vat = round2(base × rate / 100)` (invoices, bills, quotations, purchase
+orders — one shape in four services). HEADER: `subtotal` and `vatTotal` are
+Σ of the rounded lines, `total = round2(subtotal + vatTotal − discount)`,
+stored as such (N2: header = Σ stored lines). Then every consumer reads the
+STORED strings: GL posting (`invoices.approvable`: `toNum(inv.subtotal |
+vatAmount | total)`), the API (the same rows), the UBL assembler
+(`money(it.vatAmount)` per line; tax subtotals summed from the line strings;
+`taxTotal = money(invoice.vatAmount)`; `taxInclusiveTotal =
+money(invoice.total)`), and the QR (tags 4/5 are the assembler's
+`taxInclusiveTotal`/`taxTotal` strings). **DB = API = GL = XML = QR, from one
+seam.**
+
+**The official requirement** (ZATCA SDK 2.0.3, rules
+`20210819_ZATCA_E-invoice_Validation_Rules.xsl` and `CEN-EN16931-UBL.xsl`,
+every rule below `flag="error"`): BR-KSA-50 line VAT (KSA-11) = line net
+(BT-131) × rate/100; BR-KSA-51 line amount with VAT (KSA-12) = net + VAT;
+BR-KSA-DEC-03/04 and BR-DEC-13/14/19/20: two decimals at line level and on
+totals; BR-CO-14: BT-110 = Σ BT-117; BR-CO-15: BT-112 = BT-109 + BT-110;
+**BR-CO-17: BT-117 = BT-116 × rate, "rounded to two decimals" — whose XSL
+test admits ±1.00** (`abs(TaxAmount) − 1 < round(…) < abs(TaxAmount) + 1`).
+The Detailed Guideline (E-Invoicing_Detailed__Guideline.pdf, unchanged
+live) states two-decimal rounding for advance-payment adjustments. **No
+official document mandates per-line versus per-document rounding**; the
+rules constrain both levels, and the category-level tolerance is what
+absorbs the difference between Σ-of-rounded-lines and a recomputed
+category amount.
+
+**Measured against the official validator** (fatoora CLI 3.0.8, `-sign`
+then `-validate`, four documents built the product's way): a single 33.33
+line (VAT 4.9995 → 5.00); 3 × 33.33 (category 14.9985 → 15.00);
+0.03 + 0.03 (each line 0.00; category recomputes to 0.01); 7 × 0.10 (each
+line 0.02; Σ 0.14 against a recomputed 0.11) — **XSD, EN and KSA all
+PASSED, zero errors, zero warnings, in all four.** The strict-looking
+BR-KSA-50 does not fire on per-line rounding.
+
+**What would have failed it:** a document whose BT-110 ≠ Σ line VAT
+(impossible by construction); a KSA-11 with more than two decimals
+(`money()` always emits two); the SDK rejecting a non-round line (it
+accepted 4 of 4).
+
+### 7. The ZATCA production boundary — already stated correctly; one stale row fixed
+
+Evidenced in the repository, stage by stage (the doc that already says
+this is `docs/zatca/m12-status.md` §0, verified line by line today):
+
+| Stage | Evidenced? | By |
+| --- | --- | --- |
+| Technically implemented | yes | the pipeline: UBL, XAdES, QR, outbox, archive (`local-fs`), vault, enqueue-on-issuance, live client |
+| Locally tested | yes | `verify`: 141 API test files incl. the mocked outbox transport and UBL generation |
+| Official SDK validated | yes | `ubl-zatca-validator.test.ts` (fatoora `-sign`/`-validate`: XSD + EN 16931 + BR-KSA + QR PASSED for standard and simplified; ran in today's verify) + today's four rounding cases |
+| Sandbox tested | **yes — for document CONSTRUCTION only** | `zatca-compliance-live.test.ts` and `credit-notes-zatca-live.test.ts` against `gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal` `/compliance` and `/compliance/invoices` — ran LIVE in today's verify (six documents, the zero-rated case, the EDU/HEA refusal); the sandbox PCSID observed 2026-08-09 |
+| Production integration tested | **NO** | `/invoices/clearance/single` and `/invoices/reporting/single` appear only in `liveZatcaClient.ts`; no test imports it; `zatcaDirectProvider.ts` says so in its own words. Never called in the sandbox either. Simulation never used. |
+| Production credentials and onboarding | **NO** | no registered Saudi entity, no VAT registration, no ERAD credentials, no production PCSID; the sandbox PCSID is a shared canned certificate not bound to our key |
+
+**One drift corrected:** `m12-status.md` §4 B1 said the mailer "is still
+`noopMailer`"; `lib/mailer.ts` now carries Resend and Postmark
+implementations and `loadEnv` refuses a production boot without a
+provider — what remains is the deployment-time wiring, as CLAUDE.md §5
+records. The row now points there instead of stating status in its own
+words.
+
+### What the audit changed, and what it did not
+
+Changed: `journalEntries.service.ts` (round before the check, `money2`
+to store), `journalEntries.approvable.ts` (balance re-asserted on the
+stored lines at posting), `assets.service.ts` (one rounded addend),
+`m12-status.md` (B1 row). Added: `je-balance-floor.test.ts`,
+`assets-depreciation-rounding.test.ts`,
+`pooled-tenant-context.test.ts`. Not changed, deliberately: no column
+types, no triggers, no second concurrency test, no new mechanism for
+tenant context, nothing in the QR/UBL/routing code, no test weakened or
+removed. Records: this entry; the two closed findings in the known-issues
+file; §3's tolerance rule gains its second instance.
+
+## 🔴 2026-09-15 — ACCOUNTS.TS, CLOSED: resolved by id, refused when unresolved, and the rows that went through the old path
+
+**The owner's reframing:** not a ranking item — posting wrong today. Eleven
+of fourteen picker names, the default included, resolved to nothing and
+posted to PURCHASES while the line displayed the label the user chose:
+posts and hides, the class that made the empty journal date critical.
+Fix it: resolve by id, fail closed and visibly, and add the regression that
+fails on a name-based lookup returning nothing. And answer the same
+question C asked about dates, about accounts: were rows posted through
+the broken path?
+
+### The rows, audited first (the only environment; nothing is deployed)
+
+SQL over every `BILL-*` journal line joined to its account: **6 posted
+lines in 6 entries, SAR 15,860.00 of debits, across 2 orgs (`default` —
+the dev seed; `e2e-smoke` — the browser suite's org), every one labelled
+"Purchases and Cost of Sales" on a line whose account is `Purchases`
+(PURCHASES).** All six are the DEFAULT name's near-miss; **no row carries
+any of the other ten names** (the labels in use on bill lines are exactly:
+Accounts Payable ×9, Input VAT Receivable ×6, Purchases and Cost of Sales
+×6, Cash and Bank ×3). So the account the six posted to is the account the
+default MEANT — the misposting in the data is label-only: the ledger shows
+a name that is not the account's name. Frame: 9 `BILL-*` entries exist in
+total; the other 3 posted before the expense line carried a label from the
+picker. **Remediation, proposed, not done:** a one-off
+`UPDATE journal_entry_lines SET account_name = 'Purchases' WHERE …` on those
+six lines (the account id is already right; only the denormalised label is
+wrong) — a data correction of display text on posted entries, in dev and
+e2e data only. It is proposed rather than done because the lines are in
+posted entries and the standing rule is that a correction is the owner's
+act, even when the account was never wrong.
+
+### The fix, in the existing shape
+
+- **Contract** (`BillApproveInput`): `debitAccountId` — the id of an
+  expense account in the tenant's chart; `debitAccount` (name) kept as
+  legacy, documented as refused when it matches nothing. Codegen re-run.
+- **Server** (`bills.approvable.ts` `resolveExpenseLine`): an id resolves
+  against the tenant's chart (RLS-scoped, so another org's id and a missing
+  id are the same absence) and must be an expense account; a legacy name
+  resolves case-insensitively; **a supplied value that resolves to nothing
+  is refused — 422 `expense_account_unresolved`, naming the value and the
+  next step** — never posted elsewhere. The stored label is ALWAYS the
+  resolved account's own name, so label and account cannot disagree by
+  construction. With nothing supplied, the one default posts to the
+  PURCHASES system account under its real name — stated in the contract,
+  not wearing another label.
+- **Client:** `lib/accounts.ts` is no longer a list of 14 names but one hook
+  over the tenant's chart (`GET /categories`, type = expense, labelled in
+  the active language, default = the PURCHASES account); Bills (create and
+  post-review) and ScanReview send `debitAccountId`; the JE preview shows
+  the account's real name. The two-definitions instance is closed by
+  removing the second definition, not by syncing it.
+- **Regression test** (`bills-expense-account.test.ts`): a NAME that
+  resolves to nothing is REFUSED and nothing posts (red against the old
+  code: it resolved and posted); an id resolves and the line carries the
+  account's real name (red: it posted to Purchases under the old label); a
+  matching legacy name stores the account's name, not the request's
+  casing; a non-expense id, another org's id and a nonexistent id are all
+  the same refusal (red: posted); with nothing supplied the default carries
+  its real name, never "Purchases and Cost of Sales". Four of five cases
+  proven red by reversing the fix, then restored and re-verified.
+
+**What would have failed it:** a name-based lookup returning nothing and
+the bill still posting (now the first test); a stored `account_name` that
+differs from `categories.name` for the same id (now impossible: the label
+is taken from the resolved row).
+
+## 2026-09-15 — THE DEPRECIATION DATA AUDIT: no rounding drift in existing rows; two fixture artefacts, named
+
+**The question (owner):** the calculation was fixed, but were entries
+already posted with the drift? C audited dates; nobody had audited amounts.
+
+**Frame:** `fixed_assets` (4 rows, 3 with depreciation) and
+`depreciation_entries`, the only environment. Two identities checked:
+`purchase_cost = current_book_value + accumulated_depreciation` on every
+asset, and `Σ depreciation_entries.amount = accumulated_depreciation` per
+asset. Also: `journal_entries` mentioning depreciation — **0** (depreciation
+never posts to the GL at all; that is the ERPNext "fixed-assets GL"
+finding already awaiting the owner's ranking in §5, not this audit's).
+
+**Rounding drift (the class the fix closed): 0 assets.** Every asset that
+went through `depreciate()` holds `cost = book + accumulated` exactly.
+
+**Two other disagreements, neither rounding:**
+1. **Asset 146 `E2E-FA-001` (org `e2e-smoke`): cost 12,000.00, book 9,000.00,
+   accumulated 0.00 — a 3,000.00 gap.** No audit trail (no application
+   path wrote it): `apps/web/e2e/global-setup.ts` line 308 INSERTs the row
+   raw with `current_book_value = 9000` and no accumulated figure. A test
+   fixture that asserts an identity the product maintains, without
+   maintaining it. **Proposed:** the fixture sets `accumulated_depreciation
+   = 3000` (or book = cost); no product change.
+2. **Assets 126–128 `DEMO-FA-01..03` (created 2026-09-03): accumulated
+   9,000.00 / 9,500.00 / 10,333.33 against ONE depreciation entry each of
+   1,500.00 / 1,583.33 / 1,722.22** — the identity `cost = book +
+   accumulated` HOLDS, but the history explains a twelfth of the balance.
+   No producer exists in the current repository (`DEMO-FA` appears nowhere
+   in code, migrations or history): a seed that has since been removed
+   wrote opening accumulated figures without opening entries. **Proposed:**
+   delete the three rows and their entries (demo data with no producer), or
+   insert an opening `depreciation_entries` row per asset so Σ entries =
+   accumulated. Either is the owner's call; neither is a product defect.
+3. **A product gap the audit exposes, not a data error:** `PATCH /assets/:id`
+   accepts `currentBookValue` independently of `accumulatedDepreciation`
+   (`assets.service.update`), so a raw API caller can create exactly asset
+   146's state through the product. Named here, not fixed: it is a write
+   boundary decision (refuse the field, or derive one from the other), and
+   the owner ordered no unrelated changes in this pass.
+
+## 2026-09-15 — THE 24–48 HOUR PROMISE: a claim nobody decided, shown to users — removed
+
+**Found by** the held-out Arabic round (task B, hand-reading
+`VerificationStatus.tsx`), then swept: the same sentence in `Signup.tsx`.
+Both said review takes "usually within 24–48 hours"; CLAUDE.md §5 L3 says
+the verification SLA is UNDEFINED — "the owner decides the target
+turnaround, who staffs it, and what the pending screen promises."
+
+**Which case it is:** the UI was asserting something nobody had decided.
+Searched for a decision: `docs/product/owner-actions.md`, the known-issues
+file, the phase-1 onboarding record, git history for "24" near
+"verification" — no record of an SLA commitment anywhere; L3 is the only
+statement, and it says undecided. The number came from the M11.5 signup
+copy (commit `fc4f7e6`, 2026-08-03) and was never tied to a process. So §5 is right and the copy was
+wrong — the claim-without-evidence class with a user on the receiving end.
+
+**Done:** the turnaround clause removed from both pages, both languages;
+the copy now says what happens ("reviewed by our team before it is
+activated" / "you'll get access as soon as it's approved"), not when. The
+code comments point at L3. When the owner decides an SLA, the sentence
+returns WITH its decision record cited.

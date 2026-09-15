@@ -22,7 +22,7 @@ import type { ParsedReceipt } from "@/lib/receiptParser";
 import { loadAndClearScanData } from "@/lib/scanReviewStore";
 import { validateReceipt } from "@/lib/receiptValidator";
 import type { ValidationFlag } from "@/lib/receiptValidator";
-import { EXPENSE_ACCOUNTS, DEFAULT_EXPENSE_ACCOUNT } from "@/lib/accounts";
+import { useExpenseAccounts } from "@/lib/accounts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,7 +97,12 @@ export default function ScanReview() {
   const [manualVendorId, setManualVendorId] = useState<string>("");
 
   // ── JE debit account ──────────────────────────────────────────────────────
-  const [debitAccount, setDebitAccount] = useState<string>(DEFAULT_EXPENSE_ACCOUNT);
+  // The tenant's own expense accounts, by id; null = the chart's default
+  // (PURCHASES) until the reviewer picks. The server resolves the id and
+  // refuses anything it cannot — never a silent fallback under a wrong label.
+  const { accounts: expenseAccounts, defaultId: defaultExpenseId } = useExpenseAccounts();
+  const [debitAccountId, setDebitAccountId] = useState<number | null>(null);
+  const effectiveDebitAccountId = debitAccountId ?? defaultExpenseId;
 
   // ── posting state ─────────────────────────────────────────────────────────
   const [isPosting, setIsPosting] = useState(false);
@@ -249,7 +254,7 @@ export default function ScanReview() {
       // A1 provenance chain: figure → extraction → stored source document.
       await apiFetch(`/bills/${bill.id}/post`, {
         method: "POST",
-        body: JSON.stringify({ debitAccount, ...(captureId ? { captureId } : {}) }),
+        body: JSON.stringify({ debitAccountId: effectiveDebitAccountId, ...(captureId ? { captureId } : {}) }),
       });
 
       qc.invalidateQueries({ queryKey: ["bills"] });
@@ -700,13 +705,13 @@ export default function ScanReview() {
                 {/* editable debit line */}
                 <tr className="hover:bg-secondary/20">
                   <td className="px-3 py-2">
-                    <Select value={debitAccount} onValueChange={setDebitAccount}>
+                    <Select value={String(effectiveDebitAccountId ?? "")} onValueChange={v => setDebitAccountId(Number(v))}>
                       <SelectTrigger className="h-7 text-xs border-dashed w-full max-w-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {EXPENSE_ACCOUNTS.map(a => (
-                          <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                        {expenseAccounts.map(a => (
+                          <SelectItem key={a.id} value={String(a.id)} className="text-xs">{a.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

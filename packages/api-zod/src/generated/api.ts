@@ -3369,6 +3369,7 @@ export const ListJournalEntriesResponse = zod.object({
 /**
  * @summary Create a DRAFT journal entry — lines must balance
  */
+export const createJournalEntryBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const createJournalEntryBodyLinesItemDebitAmountMin = 0;
@@ -3381,7 +3382,7 @@ export const createJournalEntryBodyLinesMin = 2;
 
 export const CreateJournalEntryBody = zod.object({
   "entryNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
-  "date": zod.string(),
+  "date": zod.string().regex(createJournalEntryBodyDateRegExp).describe('Required and non-empty — \"\" used to slip past a falsy guard, skipping the period lock and posting an entry no date-ranged report could see (2026-09-14).\n'),
   "description": zod.string().min(1),
   "reference": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -4239,10 +4240,11 @@ export const ApproveBillParams = zod.object({
 })
 
 export const ApproveBillBody = zod.object({
-  "debitAccount": zod.string().nullish().describe('Expense\/debit account name for the GL entry.'),
+  "debitAccountId": zod.number().nullish().describe('The id of an EXPENSE account in this tenant\'s chart of accounts (GET \/categories, type = expense). The line is stored under that account\'s name.\n'),
+  "debitAccount": zod.string().nullish().describe('Legacy — an account NAME, matched case-insensitively against the tenant\'s chart. Refused if it matches nothing. Prefer `debitAccountId`.\n'),
   "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.'),
   "captureId": zod.string().nullish().describe('A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.\n')
-}).describe('Optional post options when approving a bill.')
+}).describe('Optional post options when approving a bill. The expense account is resolved BY ID from the tenant\'s own chart; a supplied id or name that resolves to nothing is refused (422 `expense_account_unresolved`) — never silently posted elsewhere. With neither supplied, the line posts to the PURCHASES system account under that account\'s real name.\n')
 
 export const ApproveBillResponse = zod.object({
   "id": zod.number(),
@@ -5445,10 +5447,11 @@ export const PostBillParams = zod.object({
 })
 
 export const PostBillBody = zod.object({
-  "debitAccount": zod.string().nullish().describe('Expense\/debit account name for the GL entry.'),
+  "debitAccountId": zod.number().nullish().describe('The id of an EXPENSE account in this tenant\'s chart of accounts (GET \/categories, type = expense). The line is stored under that account\'s name.\n'),
+  "debitAccount": zod.string().nullish().describe('Legacy — an account NAME, matched case-insensitively against the tenant\'s chart. Refused if it matches nothing. Prefer `debitAccountId`.\n'),
   "force": zod.boolean().nullish().describe('Override totals-mismatch and invalid-VAT-number rejections.'),
   "captureId": zod.string().nullish().describe('A1 — the staged captured document this bill was posted from. Links the bill to its source photograph atomically with the posting; the promotion job then moves the bytes into the immutable archive.\n')
-}).describe('Optional post options when approving a bill.')
+}).describe('Optional post options when approving a bill. The expense account is resolved BY ID from the tenant\'s own chart; a supplied id or name that resolves to nothing is refused (422 `expense_account_unresolved`) — never silently posted elsewhere. With neither supplied, the line posts to the PURCHASES system account under that account\'s real name.\n')
 
 export const PostBillResponse = zod.object({
   "id": zod.number(),

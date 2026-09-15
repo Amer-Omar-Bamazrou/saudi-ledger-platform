@@ -3,6 +3,7 @@
  * All arithmetic and guards preserved byte-for-byte from the pre-M6 route.
  */
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { round2, money2 } from "../lib/money";
 import { pick, assertAmount, assertDateString , nullifyEmptyText } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable asset fields (computed/depreciation fields excluded). */
@@ -100,23 +101,29 @@ export const assetsService = {
     const bookValue = toNum(asset.currentBookValue);
     const salvage = toNum(asset.salvageValue);
     const monthlyAmount = (toNum(asset.purchaseCost) - salvage) / (toNum(asset.usefulLifeYears) * 12);
-    const amount = Math.min(monthlyAmount, Math.max(0, bookValue - salvage));
+    // 🔴 ONE rounded addend (2026-09-15, review item 1). The division is not a
+    // 2-dp number; storing `amount.toFixed(2)`, `(book - amount).toFixed(2)` and
+    // `(acc + amount).toFixed(2)` rounded three UNROUNDED values independently,
+    // and at a half-cent (12.06 over 12 months → 1.005) book + accumulated
+    // drifted from purchase cost by a halala. Round the addend once; derive the
+    // rest from it; then cost = book + accumulated holds by construction.
+    const amount = round2(Math.min(monthlyAmount, Math.max(0, bookValue - salvage)));
     if (amount <= 0) throw new BadRequestError("Asset fully depreciated");
 
-    const newBookValue = bookValue - amount;
-    const newAccumulated = toNum(asset.accumulatedDepreciation) + amount;
+    const newBookValue = round2(bookValue - amount);
+    const newAccumulated = round2(toNum(asset.accumulatedDepreciation) + amount);
 
     const [updated] = await assetsRepository.update(id, {
-      currentBookValue: String(newBookValue.toFixed(2)),
-      accumulatedDepreciation: String(newAccumulated.toFixed(2)),
+      currentBookValue: money2(newBookValue),
+      accumulatedDepreciation: money2(newAccumulated),
       status: newBookValue <= salvage ? "fully-depreciated" : "active",
     });
 
     const [entry] = await assetsRepository.insertDepreciationEntry({
       assetId: id,
       period,
-      amount: String(amount.toFixed(2)),
-      bookValueAfter: String(newBookValue.toFixed(2)),
+      amount: money2(amount),
+      bookValueAfter: money2(newBookValue),
     });
     // A depreciation run mutates the asset's book value — record it as an update.
     await auditService.updated("asset", id, asset, { ...updated, depreciationEntry: entry });

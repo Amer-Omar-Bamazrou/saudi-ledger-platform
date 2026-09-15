@@ -28,7 +28,14 @@ import { join } from "node:path";
  * of `CLAUDE.md` say where each kind of thing goes. Raising the number is how
  * the file reached 157k the first time.
  */
-const BUDGET = 75_000;
+/**
+ * 🔴 RATCHETED 75k → 70k with the 2026-09-15 split (owner-ordered). The file
+ * had crept to 74.4k and the crowding was DISCOVERED, not decided. Growth past
+ * this line now requires raising the number in a commit — a deliberate act
+ * someone argues for — never something found at the ceiling. The constant
+ * only moves on purpose, and only upward by argument.
+ */
+const BUDGET = 70_000;
 
 /**
  * The point of truncation is what makes an over-budget file DANGEROUS rather

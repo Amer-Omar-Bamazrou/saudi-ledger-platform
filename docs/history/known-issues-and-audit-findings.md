@@ -1519,3 +1519,96 @@ and a red spec, not a duplicate document. Sibling create buttons
 (bills/quotations/POs/JEs) keep the render-time guard only: their duplicate
 is a DELETABLE DRAFT, and only invoices carry the idempotency key and the
 ICV-permanence composition that justified the belt.
+
+## THE DECISION-FREE POOL — CLOSED 2026-09-14 (the board block, evicted from CLAUDE.md §5 on 2026-09-15)
+
+The 2026-09-04 board named eight items that needed no owner decision, and
+all eight closed on 2026-09-14. Each has its own record; this entry is the
+pool's, so §5 can carry one line. Records, in this file unless stated:
+
+| Item | Record |
+| --- | --- |
+| Break-glass password reset | RANK 1 (2026-09-04) — the email half stays open on the mail provider |
+| C6a — no transaction held across a model call | C6a — CLOSED 2026-09-14 |
+| Constants consolidation (`@workspace/shared`) | CONSTANTS CONSOLIDATION — CLOSED 2026-09-14 |
+| L-1 — a failed security-audit write pages critical | L-1 — CLOSED 2026-09-14 |
+| L1 logo upload | L1 LOGO UPLOAD — SHIPPED 2026-09-14 |
+| N3's remaining half — the party picker | N3's REMAINING HALF — CLOSED 2026-09-14 |
+| The sentinel family | THE SENTINEL FAMILY — CLOSED 2026-09-14 |
+| The Arabic re-sweep | 🔴 **Closed with a CORRECTION.** The morning record's "suspect count 0" was RETRACTED the same day: the instrument was blind (0 of 30 found in a hand-read file). The honest record is the findings file, "the pool-close validation round" §1 — the validated instrument (`scripts/arabic-sweep.mjs`) found ~110 real strings, all fixed, final count 47 all classified as non-copy. The §5 board line's "Arabic re-sweep ✅" overstated for one day and left with this entry. |
+
+**What the closure means for planning:** every remaining path runs through a
+door the owner holds — entity · advisor · mail provider · R1 design ·
+deployment + Groq — and that statement, not the pool, is what §5 now carries.
+The pool-close validation round (findings file, 2026-09-14) is the gate the
+close passed through: it retracted one number, found three more instances of
+the spread-into-body class (one of them in the books), re-guarded 69 mutate
+sites, and caught its own conflict-marker guard blind.
+
+## SECOND-OPINION AUDIT FIXES — CLOSED 2026-09-15 (three findings, two of them in the books' arithmetic)
+
+Full audit record, all seven items with their disconfirming conditions:
+findings file, "THE SECOND-OPINION AUDIT" (2026-09-15). Closed here:
+
+- **A journal entry could become POSTED while its stored lines did not
+  balance.** Two gaps: the manual create path checked the RAW request
+  amounts under the GL tolerance and stored `.toFixed(2)` per line (0.015 +
+  0.015 vs 0.03 balanced raw, persisted 0.02 + 0.02 vs 0.03); and
+  `onApprove` flipped `status` without reading the lines, so a draft whose
+  stored lines were unbalanced posted. Fixed at both moments in the
+  existing shape — `round2` before the check and `money2` to store; the
+  approvable re-asserts balance on the stored rows and refuses 422
+  `journal_entry_unbalanced`. `je-balance-floor.test.ts` proves both red
+  then green, keeps the balanced movement case, and pins the route
+  inventory (no line-delete or reassignment path exists — an absence
+  asserted, not a guard). No trigger added: drafts were never allowed to be
+  unbalanced, so nothing legitimate is broken by refusing them.
+- **Asset depreciation drifted from purchase cost by a halala.** Three
+  values rounded independently from one unrounded division; at the
+  half-cent (12.06 over 12 months = 1.005) book + accumulated read 12.05 by
+  month five. Fixed with one rounded addend and `money2`
+  (`assets-depreciation-rounding.test.ts`, red with the fix reversed, green
+  with it).
+- **The tenant-context three-request test did not exist.** Written and
+  running in `verify` (`packages/db/src/__tests__/pooled-tenant-context.test.ts`):
+  A then B on the same backend PID, C with no context fails closed, the
+  application layer refuses, an unsettled connection cannot leak — with a
+  planted session-level leak proving the instrument can see one. The
+  mechanism itself (transaction-local `SET LOCAL ROLE` + `set_config(…, true)`,
+  released only on settle) was already correct.
+
+Not changed by the audit, each already correct with its evidence in the
+findings entry: money column precision (74 × `numeric(15,2)`; quantities
+15,3; rates 5,2), the driver's string mapping, the invoice chain's advisory
+lock and its existing 8-way concurrency test, audit-row grants
+(INSERT+SELECT only; `security_audit_logs` owner-only), the QR tag layout
+and clearance/reporting routing (cited to Security Features Standard
+v1.2 of 2023-05-19 and Detailed Technical Guidelines v2, both unchanged
+live on 2026-09-15), per-line VAT rounding with one set of stored values
+end to end (accepted by the official SDK validator on four non-round
+cases), and the production boundary as `m12-status.md` §0 states it (one
+stale B1 row corrected).
+
+## ACCOUNTS.TS — CLOSED 2026-09-15: the expense account is resolved by id, refused when unresolved, never relabelled
+
+Owner-ordered out of the ranking queue: it was posting wrong today. The
+bill post path matched a NAME from a 14-entry client list against the
+chart and, on a miss, posted the line to PURCHASES while storing the name
+the user chose as the line's label — 11 of the 14 names, the default
+included, matched nothing. Posts and hides.
+
+**Closed by:** `BillApproveInput.debitAccountId` (the tenant's own expense
+account, by id; the legacy name arm refused when it matches nothing),
+`resolveExpenseLine` in `bills.approvable.ts` (422
+`expense_account_unresolved`; the stored label is always the resolved
+account's own name; one default — PURCHASES under its real name — when
+nothing is supplied), the client pickers rebuilt over `GET /categories`
+through one hook (`lib/accounts.ts`), and `bills-expense-account.test.ts`
+(the name-lookup-returns-nothing regression, four cases proven red against
+the old code). Record with the audit of existing rows: findings file,
+"ACCOUNTS.TS, CLOSED".
+
+**Existing rows:** 6 posted lines (dev seed + e2e org, SAR 15,860 of
+debits), all the DEFAULT name's near-miss — the account is right
+(Purchases), only the stored label is wrong. Remediation proposed (a label
+correction on six posted lines), not done: the owner's act.

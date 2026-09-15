@@ -16,6 +16,7 @@ because it was already wrong once (it read "not four" while carrying five).
 | **C** | Zakat design §4 | The Zakat base computation itself (M17.4) |
 | **D** | C12 | Invoice numbering in practice — gaps, and the Arabic reading |
 | **E** | CoA design §9.4 | The seeded chart of accounts — and its **shared dependency with M17.3** |
+| **F** | Invoice dating (§5) | Closed-period dating — does Saudi practice admit any exception? |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -335,3 +336,40 @@ the classification simply mapped on afterwards?
 **A "yes" means the two milestones cannot be designed separately**, and the
 seeded chart is partly determined by Zakat requirements we have not yet
 confirmed. See the dependency recorded in both design documents.
+
+---
+
+## Block F — invoice dating into closed periods (added 2026-09-15)
+
+**Status: the POLICY is decided and enforced; this block asks whether Saudi
+practice admits any exception.** The decision record is
+[`known-issues-and-audit-findings.md`](../history/known-issues-and-audit-findings.md)
+("INVOICE DATING INTO CLOSED MONTHS — owner-decided 2026-08-23,
+REASONED-NOT-VERIFIED"). It is *reasoned, not verified*: the source is the
+owner's accounting reasoning, not an accountant.
+
+### F1 — May an invoice ever be dated into a closed period?
+
+**What the platform does today:** an invoice or bill must not be dated into a
+closed period at all — on create, and on any later change to `date` (a 423
+`period_closed`, explained by the M22 dialog). Work that genuinely happened in
+a closed month is issued in the current open period; revenue that belongs to
+the closed month is an accrual made *before* closing, never a backdated
+document after. The guard reads the accounting date (`document.date`), not
+the ZATCA timestamp (`issued_at`), which is a different fact.
+
+**Why the rule was chosen:** closing a month means its figures are final, and
+Saudi VAT files per period — a backdated document makes a filed return wrong
+or forces an amendment.
+
+**What we cannot answer from our own reasoning:** whether Saudi practice
+permits ANY exception — a grace window after period end (common in other
+jurisdictions for late supplier bills), or an audited override for a
+correction that must carry the original date.
+
+**What would settle it:** the advisor's answer, with the ground (a GAZT/ZATCA
+practice, a filing rule, or "none — the strict rule is the safe one"). A "no
+exception" answer closes the item permanently; a "grace window" answer is a
+small, contained build (a per-company window on `checkPeriodOpen`, audited); an
+"audited override" answer is the larger one and should be costed before it is
+promised.

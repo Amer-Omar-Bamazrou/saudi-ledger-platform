@@ -158,7 +158,7 @@ distinction.
 
 | | Item |
 | --- | --- |
-| **B1** | **Email delivery.** `lib/mailer.ts` is still `noopMailer` — the renewal reminder exists as a row and in the UI and **is sent to no one**. Its entire value is lead time for an action only the tenant can take (a fresh CSR + an OTP from their own Fatoora portal). Implement `Mailer.send` and swap the export. **AWS SES** ~$0.10/1,000 · **Resend** free to 3,000/mo then ~$20/mo · **Postmark** ~$15/mo. |
+| **B1** | **Email delivery.** Status (2026-09-15): the CODE is done — `lib/mailer.ts` carries Resend and Postmark implementations and `loadEnv` refuses a production boot without a provider; what remains is deployment-time wiring (`MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM` + a verified sending domain). Current state authority: CLAUDE.md §5 (B1/B2 wiring). The row here used to say the mailer was still `noopMailer` — stale by 2026-09-15, corrected by the second-opinion audit (findings file). The value of the reminder is unchanged: lead time for an action only the tenant can take (a fresh CSR + an OTP from their own Fatoora portal). |
 | **B2** | **Visibility is not alerting.** The operator panel surfaces the outbox age alarm and PCSID expiry, but **nothing pages a human**. Both failures are quiet neglect, not loud rejection — nobody watches a panel that is usually green. Wire `listOverdue()` and `renewalService` to real alerting. |
 
 ### A — One migration closes these (grants/config)

@@ -21,6 +21,8 @@
  * with the standard closed-period error — approval is when it hits the GL.
  */
 import { checkPeriodOpen } from "./accounting/periodLock";
+import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
+import { BusinessRuleError } from "../lib/errors";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { buildJEOut, type JournalEntryOut } from "./journalEntries.presenter";
 import type { Approvable, ApprovalState } from "./approval";
@@ -44,6 +46,24 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
   async onApprove(je) {
     // Approval is the ledger-affecting moment — enforce the period lock here.
     await checkPeriodOpen(je.date);
+    // 🔴 And the balance — on the STORED lines, not on whatever request created
+    // them (2026-09-15, review item 2). The invariant that matters is that an
+    // entry cannot BECOME posted while unbalanced; the create path's check is a
+    // different moment and a different set of numbers. Stored amounts are
+    // exact 2-dp strings, so the sum is compared under the GL tolerance only
+    // to absorb float addition, never to admit a real halala.
+    const storedLines = await journalEntriesRepository.linesByEntry(je.id);
+    const totalDebit = storedLines.reduce((s, l) => s + Number(l.debitAmount), 0);
+    const totalCredit = storedLines.reduce((s, l) => s + Number(l.creditAmount), 0);
+    if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {
+      throw new BusinessRuleError(422, {
+        error:
+          `Journal entry cannot be posted: its stored lines do not balance — debits ${totalDebit.toFixed(2)} ` +
+          `vs credits ${totalCredit.toFixed(2)}. Correct the entry before posting.`,
+        code: "journal_entry_unbalanced",
+        field: "lines",
+      });
+    }
     const [posted] = await journalEntriesRepository.updateEntry(je.id, {
       status: "posted",
       postedAt: new Date(),

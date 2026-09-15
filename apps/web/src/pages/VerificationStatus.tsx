@@ -115,8 +115,12 @@ export default function VerificationStatus() {
             {isPending && (
               <p className="text-sm text-muted-foreground">
                 {t(
-                  "Our team reviews new organizations, usually within 24–48 hours. You'll get access as soon as it's approved.",
-                  "يقوم فريقنا بمراجعة المؤسسات الجديدة، عادةً خلال 24-48 ساعة. ستحصل على الوصول فور الموافقة.",
+                  // 🔴 No turnaround promise (2026-09-15): the SLA is undecided
+                  // (CLAUDE.md §5, L3 — the owner decides the target, the
+                  // staffing and what this screen may promise). Until then the
+                  // screen says what happens, not when.
+                  "Our team reviews new organizations. You'll get access as soon as it's approved.",
+                  "يقوم فريقنا بمراجعة المؤسسات الجديدة. ستحصل على الوصول فور الموافقة.",
                 )}
               </p>
             )}
