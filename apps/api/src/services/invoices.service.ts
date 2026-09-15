@@ -418,6 +418,20 @@ export const invoicesService = {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
 
+    // 🔴 A NOTE IS NOT PAYABLE (2026-09-15, workflow audit W3 G2). Credit and
+    // debit notes are rows in this table with the same statuses, so a note in
+    // `sent` passed the status guard below and this function posted Dr CASH /
+    // Cr AR against it — the OPPOSITE of the refund a credit note represents —
+    // and marked the note "paid". A credit note settles by netting into its
+    // original (see `outstanding` below); a refund owed is a separate act this
+    // path does not perform. Refused here, at the one writer, so a bypassed
+    // UI cannot reach it.
+    if (isNoteType(existing.documentType)) {
+      throw new ConflictError(
+        "A credit or debit note cannot be paid. A credit note reduces what its original invoice owes; record the payment against the invoice.",
+      );
+    }
+
     // Only an issued (approved) invoice has a receivable to settle.
     if (existing.status === "draft" || existing.status === "submitted") {
       throw new ConflictError("Invoice must be approved before a payment can be recorded.");
