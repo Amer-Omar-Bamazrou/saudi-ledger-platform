@@ -83,7 +83,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             [t("Account", "الحساب"), data.account.name, "text-primary"],
             [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],

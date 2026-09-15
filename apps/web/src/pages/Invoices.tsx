@@ -455,7 +455,7 @@ export default function Invoices() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           // Every figure here is the SERVER's, over the whole filtered set.
           [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],
@@ -463,7 +463,7 @@ export default function Invoices() {
           [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-positive"],
           [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-negative"],
         ].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
+          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
 

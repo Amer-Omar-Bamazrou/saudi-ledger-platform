@@ -247,13 +247,13 @@ export default function JournalEntries() {
         answer that question by asking the server, which is the only place the
         real count exists.
       */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">{t("Entries", "القيود")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-primary">
+            <div className="text-xl sm:text-2xl font-bold font-mono text-primary">
               {jePageInfo ? jePageInfo.total.toLocaleString() : "—"}
             </div>
           </CardContent>
@@ -276,7 +276,7 @@ export default function JournalEntries() {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <Card className="col-span-3 border-border bg-card">
           <CardContent className="pt-4">
             {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : entries.length === 0 ? (

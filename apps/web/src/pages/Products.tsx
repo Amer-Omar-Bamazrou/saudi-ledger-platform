@@ -84,9 +84,9 @@ export default function Products() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[[t("Total Items","إجمالي العناصر"), paged?.page.total ?? 0, "text-primary"],[t("Services","الخدمات"), counts?.serviceCount ?? 0, "text-info"],[t("Products","المنتجات"), counts?.productCount ?? 0, "text-attention"],[t("VAT-Applicable","خاضع لضريبة القيمة المضافة"), counts?.vatApplicableCount ?? 0, "text-muted-foreground"]].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
+          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
 

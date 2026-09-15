@@ -69,7 +69,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {[[t("Entries", "القيود"), data.count, "text-primary"], [t("Total Debits", "إجمالي المدين"), fmtNum(data.grandDebit), "text-info"], [t("Total Credits", "إجمالي الدائن"), fmtNum(data.grandCredit), "text-positive"]].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
