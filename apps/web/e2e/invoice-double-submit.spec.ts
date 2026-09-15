@@ -36,7 +36,8 @@ test("🔴 double-clicking Create Invoice fires ONE create, not two", async ({ p
   await dialog.getByPlaceholder("Unit price").first().fill("100");
 
   // The customer combobox (first button-style combobox in the dialog).
-  await dialog.getByRole("combobox").nth(1).click();
+  await // The customer control, by what it SAYS — not by position: the Status select that used to sit before it was removed on 2026-09-15 (walk item 2).
+  await dialog.getByRole("combobox").filter({ hasText: /select customer|اختر العميل/i }).click();
   await page.getByRole("option").first().click();
 
   const create = dialog.getByRole("button", { name: /create invoice/i });
@@ -78,7 +79,8 @@ test("🔴 two clicks in the SAME TICK fire one create — the render-snapshot r
   await dialog.getByPlaceholder("Description").first().fill("Same-tick probe");
   await dialog.getByPlaceholder("Qty").first().fill("1");
   await dialog.getByPlaceholder("Unit price").first().fill("100");
-  await dialog.getByRole("combobox").nth(1).click();
+  await // The customer control, by what it SAYS — not by position: the Status select that used to sit before it was removed on 2026-09-15 (walk item 2).
+  await dialog.getByRole("combobox").filter({ hasText: /select customer|اختر العميل/i }).click();
   await page.getByRole("option").first().click();
 
   const create = dialog.getByRole("button", { name: /create invoice/i });
