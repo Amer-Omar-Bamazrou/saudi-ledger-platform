@@ -56,7 +56,7 @@ export default function AssetSchedule() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           [t("Total Assets", "إجمالي الأصول"), paged?.totals.activeCount ?? 0, "text-primary"],
           [t("Total Cost", "إجمالي التكلفة"), fmtNum(totalCost), "text-primary"],
@@ -65,7 +65,7 @@ export default function AssetSchedule() {
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
           </Card>
         ))}
       </div>

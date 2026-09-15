@@ -45,7 +45,7 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
   return (
     <div className="space-y-4">
       {/* Buckets */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {BUCKET_LABELS.map(b => (
           <Card key={b.key} className="border-border bg-card">
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(b.en, b.ar)}</CardTitle></CardHeader>

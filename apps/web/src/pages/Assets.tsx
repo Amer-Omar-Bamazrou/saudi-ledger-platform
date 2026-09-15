@@ -93,7 +93,7 @@ export default function Assets() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[[t("Assets","الأصول"), paged?.page.total ?? 0, "text-primary"],[t("Total Cost","إجمالي التكلفة"), fmtNum(totalCost), "text-foreground"],[t("Book Value","القيمة الدفترية"), fmtNum(totalBookValue), "text-attention"],[t("Accumulated Depreciation","الاستهلاك المتراكم"), fmtNum(totalDepreciation), "text-muted-foreground"]].map(([l,v,c])=>(
           <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}

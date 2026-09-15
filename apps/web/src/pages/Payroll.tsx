@@ -61,7 +61,7 @@ export default function Payroll() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {runs.length > 0 && (() => {
           const last = runs[0];
           return [
@@ -76,7 +76,7 @@ export default function Payroll() {
         })()}
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <Card className="col-span-2 border-border bg-card">
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Payroll Runs", "مسيرات الرواتب")}</CardTitle></CardHeader>
           <CardContent>

@@ -7444,3 +7444,151 @@ hub liquid 230 / due 30. **Every figure moved by exactly the walk's amounts.**
 **What this walk could not see:** the operator surface, accept-invite,
 scan-review with a capture, sign-up through the gate, any control the core
 path did not click, Arabic-desktop / English-phone.
+### 2026-09-15, after the owner's ranking — what was applied, what was proposed
+
+**The six-label correction — APPLIED (owner-approved: cosmetic, no row on
+the wrong account).** The frame had moved: the guarded transaction found
+FIVE lines, not six, and refused. The sixth was the e2e org's
+`BILL-BILL-000001`, and the browser suite's `global-setup` had dropped and
+re-created that org during the day's run; its re-seeded bill posted through
+the FIXED path and already carried the right label. Re-run on the verified
+frame of five (all `default`, all `PURCHASES`):
+`UPDATE journal_entry_lines l SET account_name = c.name FROM categories c
+WHERE c.id = l.account_id AND l.account_name = 'Purchases and Cost of Sales'
+AND c.system_code = 'PURCHASES'` → 5 rows (ids 63392, 63395, 63398, 118236,
+120529), 0 remaining with the old label. Lesson in passing: a correction
+proposed against a count is applied against a RE-COUNT — the guard that
+refused on 5 ≠ 6 is what made this safe to run twice.
+
+**The asset write boundary — PROPOSAL: close it off, do not harden it**
+(owner's framing: a dead implementation that also accepts garbage). Callers
+of `PATCH /assets/:id`, enumerated: in `apps/web` — none (the Assets page
+calls list, create, depreciate; nothing edits an asset); in `apps/api` — the
+route, the controller method, `assetsService.update`; in tests — ONE, the
+`ledger-contract-conformance` case that PATCHes `location: "HQ"` to prove the
+response shape; in docs — no design says an asset is edited after creation
+(the draft-approval spec lists fixed assets as an approvable entity, which is
+a different thing). Nothing is intended to call it later. The close-off:
+delete the route line, the controller method, `assetsService.update` and the
+`currentBookValue` pick with it, the `updateAsset` operation and
+`UpdateAssetInput` from the spec, regenerate, and drop the one conformance
+case (`UpdateAssetResponse` goes with it). What a tenant loses: nothing they
+had. What they may want later — correcting a typo in an asset's name or
+serial — comes back as a deliberate build with the write boundary designed
+(status enum, date floor, no cost edits after depreciation), not as this
+route. `DELETE /assets/:id` is in the same position (no UI caller) and is
+NOT in this proposal; it is named so it is not mistaken for covered.
+
+**Item 6 — the e2e seed, measured before anything is changed (owner: "this
+may be larger than it looks"). It is.** Frame: org `e2e-smoke` as
+`global-setup.ts` writes it, 2026-09-15. Rows the product's own write paths
+could not have produced:
+- 4 invoices in issued states with NO issuance — `E2E-INV-001` (paid),
+  `-002` (sent, part-paid), `-003` (sent), `E2E-CN-001` (sent credit note):
+  no `icv`, no `invoice_hash`, no `qr_code`, no `issued_at`, no GL entry.
+  The product mints all five at approval.
+- 2 bills in posted states with no GL — `E2E-BILL-001` (paid), `-002`
+  (received); the product posts on approve and again on pay.
+- 1 payroll run `approved` with no GL.
+- 2 journal lines with no `account_id` (the server refuses them at create).
+- 1 asset with `cost ≠ book + accumulated` (raw INSERT, no depreciation row).
+Every "issued" document and every ledger row in the suite's org is
+impossible; only the drafts, the parties, products, budgets, quotations, POs,
+transactions and the period lock are real shapes.
+
+**What rests on them.** (a) `smoke-crawl`'s ROWS_EXPECTED assertion on 29
+routes — it asserts `tbody tr` count > 0 and nothing else. On 12 of the 29
+the ONLY row available is an impossible one — credit-notes, bills, payroll,
+journal-entries, trial-balance, reports/journal-report,
+reports/account-summary, assets, ar-aging, ap-aging, reports/aging, vat
+(the return reads issued invoices only, and every issued one is impossible);
+on 2 more it is uncertain without reading the page (reports/general-ledger,
+reports/customer-ledger); invoices and invoice-summary also show the one
+real draft. Those 12 tests prove "a row renders" and nothing about what
+the row says. (b) `invoice-document.spec` downloads the
+PDF of `E2E-INV-002` — an invoice with no hash and no QR, a document the
+product can never mint in that state; the spec proves the renderer tolerates
+an un-issued issued invoice, not that an issued one renders. (c) `nav-tree`'s
+filter counts and `deep-link-scope`'s customer ledger read counts and rows
+by status, which the impossible rows satisfy as well as real ones would —
+those are fine. (d) Nothing asserts a figure on any statement, which is why
+the e2e org's balance sheet read all-zero against 4,635.00 of open invoices
+for as long as the suite has existed and no test noticed.
+
+**What it was hiding, seen on the walk:** the balance sheet excluding the
+account-less lines (all-zero statements), the income statement filing them
+under expenses with a 0.00 total, the trial balance and account summary
+typing them `Other`. None is a product defect; all are the statements
+meeting rows the product refuses — and the crawl's statement coverage has
+been satisfied by exactly those rows.
+
+**Proposed fix (not applied — for review):** seed through the product's own
+write path. `global-setup` runs after Playwright's `webServer` is up
+(confirmed in the runner: `createGlobalSetupTasks` runs the plugin setup —
+the web servers — before the globalSetup file), so it can log in and
+drive the API: create the customer/vendor; create invoices WITH lines,
+submit, approve (which requires the company VAT/CR the seed currently
+omits — set them via `PATCH /companies/current` first), pay `-001` in full
+and `-002` in part; create the credit note against `-001`; bills: create,
+post, pay `-001`; payroll: create and approve; the opening entry: `POST
+/journal-entries` with `accountId`s resolved from `GET /categories`
+(`CASH`, and an equity account — the seeded chart has no owner-equity
+system code, which is itself a finding for the chart: the only equity
+account is `EXTERNAL_TRANSFERS`); the asset: `POST /assets` then one
+`depreciate`. Keep the document numbers (`invoiceNumber` is accepted on
+create) so every existing locator still resolves. Cost: roughly half of
+`global-setup.ts` rewritten, one run-time dependency added (the API must be
+up during setup), and ~20 s more setup. Gain: every statement the crawl
+touches then shows real figures, and a cross-report assertion becomes
+possible (balance-sheet AR = invoices outstanding).
+
+### Item 1 — phone money clipping: FIXED, and the guard that could not see it rewritten (2026-09-15)
+
+**What the guard was actually asserting.** `mobile-shell.spec.ts` — "no
+page scrolls sideways at phone width" — asserted exactly one thing per route:
+`documentElement.scrollWidth <= clientWidth + 1`. That is true of a page
+whose KPI card paints `SAR 25,000.00` and whose NEXT card paints over the
+leading digits: nothing scrolls, the digits are under another element, and
+the phone shows `5,000.00`. The assertion was one layer coarser than the
+defect — the instrument class again, in the guard built for the phone.
+
+**The mechanism** (measured, not assumed): `Card` has no `overflow:
+hidden`. A 4- or 5-column grid at 390px gives each card ~80 px; the value
+div overflows toward the inline-start edge and the neighbouring card,
+painted later with `bg-card`, covers it. Occlusion, not clipping — which is
+why a `scrollWidth` check on the value's own box would also have missed it.
+
+**The fix, at the base and by mechanical, counted edits:** (a) every bare
+KPI grid — 27 sites across 27 pages, each anchored on its exact class string
+and refused if the anchor matched an unexpected count — collapses to two
+columns below `sm` (`grid-cols-2 sm:grid-cols-{3,4,5}`); form rows that
+also use `grid-cols-3` were left alone by name. (b) Every money-bearing
+value (`text-2xl`/`text-3xl` with `font-mono`, 30 sites in 18 files) steps
+one size down below `sm`. (c) `CardHeader`/`CardContent` padding is
+`p-4 sm:p-6` in the base component, so every card gains 16 px of content
+width on a phone.
+
+**The guard, rewritten to see the defect:** a new block in the same spec —
+for every text node shaped like money outside a container that legitimately
+scrolls, both ends of the RENDERED text (a `Range` rect) must resolve via
+`elementFromPoint` to the text's own element. Painted-under, clipped-by-an-
+ancestor and outside-the-viewport all fail the same way. A **planted
+positive** injects an over-long figure into a narrow `overflow:hidden` box
+and asserts the checker reports it. Result: 119/119 green on the fixed
+pages, the planted positive reporting; and — recorded below once measured —
+the same checker against the PRE-fix pages.
+
+**Measured, both directions (the check that is never optional).** The
+FIRST version of the new checker, run against the PRE-fix pages: 58/58
+green — it had skipped every card, because the content wrapper's computed
+`overflow` is "hidden auto" and the skip rule matched it; only the planted
+positive, fixed to `<body>`, was ever checked. An instrument validated by
+its own planted case and nothing else. Corrected (a scroller is an ancestor
+that CAN scroll sideways, the walk stops at `<main>`, each figure is scrolled
+into view, the positive lives inside the wrapper) and re-run: PRE-fix pages
+**23 of 58 routes RED** (the 22 hand-counted plus scan-review's redirect to
+bills — the hand count and the instrument agree); FIXED pages: 57 of 58,
+one residual — the balance sheet's Assets | Liabilities two-column section
+at 390px — stacked to one column below `md` (the 28th grid); re-run: green,
+planted positive reporting. Frame: the 57 `app` + `param` routes, 390×844,
+English (the RTL side is the same DOM mirrored; not separately measured).

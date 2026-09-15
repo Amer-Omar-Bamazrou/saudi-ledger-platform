@@ -32,7 +32,7 @@ function CFBlock({ title, data, color, icon, prior }: { title: string; data: Cas
           {icon}
           <CardTitle className={`text-sm font-semibold ${color}`}>{title}</CardTitle>
         </div>
-        <div className={`text-2xl font-bold font-mono mt-1 ${color}`}>{fmtNum(data.total)}</div>
+        <div className={`text-xl sm:text-2xl font-bold font-mono mt-1 ${color}`}>{fmtNum(data.total)}</div>
         {prior !== undefined && (
           <div className="text-xs text-muted-foreground font-mono">
             {t("prior", "السابق")} {fmtNum(prior)} · Δ {data.total - prior >= 0 ? "+" : ""}{fmtNum(data.total - prior)} · {fmtPctChange(data.total, prior)}
@@ -138,7 +138,7 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
         <div className={`rounded-lg border px-6 py-4 flex items-center justify-between ${data.netChange >= 0 ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
           <div>
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{t("Net Change in Cash", "صافي التغير في النقدية")}</div>
-            <div className={`text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-positive" : "text-negative"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
+            <div className={`text-2xl sm:text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-positive" : "text-negative"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
           </div>
           <div className="text-end text-xs text-muted-foreground space-y-1">
             <div>{t("Operating", "التشغيلية")}: <span className={data.operating.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.operating.total)}</span></div>
@@ -154,7 +154,7 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} color={data.operating.total >= 0 ? "text-positive" : "text-negative"} icon={<ArrowUpRight className="w-4 h-4 text-positive" />} prior={comparing ? priorData!.operating.total : undefined} />
           <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} color={data.investing.total >= 0 ? "text-positive" : "text-attention"} icon={<Minus className="w-4 h-4 text-attention" />} prior={comparing ? priorData!.investing.total : undefined} />
           <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} color={data.financing.total >= 0 ? "text-positive" : "text-info"} icon={<ArrowDownRight className="w-4 h-4 text-info" />} prior={comparing ? priorData!.financing.total : undefined} />
