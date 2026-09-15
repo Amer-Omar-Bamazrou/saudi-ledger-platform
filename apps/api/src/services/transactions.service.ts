@@ -32,6 +32,7 @@ import { transactionsRepository, type TransactionFilter } from "../repositories/
 import { reconciliationService } from "./reconciliation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { transactionPostingService } from "./transactionPosting.service";
+import { journalEntriesService } from "./journalEntries.service";
 import type { transactionsTable, categoriesTable } from "@workspace/db";
 
 /**
@@ -764,6 +765,19 @@ export const transactionsService = {
       throw new ConflictError(
         "This transaction settles an invoice/bill and is the bank-side record of that payment. It cannot be deleted while the payment stands.",
       );
+    }
+    // 🔴 A POSTED ROW IS REVERSED BEFORE IT IS DELETED (2026-09-15, workflow
+    // audit W5 G1 / W7 B4). This path deleted an accepted-and-posted row and
+    // the FK nulled the link, leaving its journal entry in the books with
+    // nothing pointing at it: the P&L kept the expense, ledger cash stayed
+    // reduced, and the cash reconciliation folded the orphan into a residual
+    // so it read as explained. The same seam the edit path uses (reverse,
+    // then re-post) is used here without the re-post: the original stays in
+    // the books as the trail, its mirror cancels it, and the delete follows in
+    // the same tenant transaction — a refused reversal (a closed month) rolls
+    // the delete back with it.
+    if (existing?.tx.journalEntryId != null) {
+      await journalEntriesService.reverse(existing.tx.journalEntryId);
     }
     await transactionsRepository.remove(id);
     if (existing) await auditService.deleted("transaction", id, existing.tx);
