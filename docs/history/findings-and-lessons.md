@@ -7729,3 +7729,48 @@ logical alignment, the shared `statusLabel`, and a toast that names the
 act in the reader's language; every action, the server-side authority, and
 the unbounded queue are unchanged. The core path's clicks still land on the
 same controls (`Submit` / `Approve` by role and name).
+
+## 🔴 2026-09-15 — A PASSING SUITE SAYS NOTHING ABOUT DATA VALIDITY UNLESS SOMETHING ASSERTS A FIGURE (owner-named)
+
+**The fact.** The browser suite's seeded org carried, for as long as the
+suite existed, rows the product cannot produce: issued invoices with no
+hash, QR, ICV or ledger entry; posted bills and an approved payroll with no
+ledger entry; journal lines with no account; an asset whose cost ≠ book +
+accumulated. Its balance sheet read ALL ZERO against 4,635.00 of open
+invoices. **219 of 219 tests passed on that data. The seed was rewritten to
+go through the product's own write path, and 219 of 219 passed on the real
+data too.** Not one pre-existing test changed status in either direction.
+
+**What that means.** The suite was indifferent to whether the ledger was
+real. Every assertion it made — a row renders, a page has a body, a
+download starts with `%PDF-`, a filter shows a count, a PATCH returns 201 —
+is satisfied equally by a real row and an impossible one. A green run
+therefore said nothing about the validity of the data the product was
+showing, and could not have: no test compared a number produced by one
+path with a number produced by another. **The only reason we know is that
+a figure assertion was finally written** — `statement-figures.spec.ts`:
+balance-sheet AR from the ledger equals the aging total from the
+documents, non-zero; the trial balance balanced AND non-trivial; the page
+shows the figure. Red on the old seed (AR 0 vs 4,635), green on the new.
+
+**And the first figure assertion paid for itself on its first run.** The
+same run that turned it green failed the money-visibility guard on
+`/analytics`: with real cash in the ledger the trend chart rendered for the
+first time and its currency axis clipped `SAR 12,000.00` at phone width.
+That defect had been unreachable for the whole life of the suite — the
+chart never had a figure to draw — and it surfaced the moment the data
+became real. One new assertion about a number, one real defect, same run.
+
+**The rule, stated so it can be acted on without this story:** a suite
+that asserts presence proves reachability; only an assertion that a FIGURE
+computed one way equals the same figure computed another way proves the
+data is real. When a fixture is seeded, at least one test must compare two
+independently computed figures on it and require them non-zero — "a row
+renders" and "the request succeeded" are both true of a fixture the product
+would refuse to write. This is the vacuous-green family (§3, "the check
+that does not check") pointed at the DATA rather than at the assertion.
+
+**Cross-references.** The seed rewrite and its diff: "Item 6 — the e2e
+seed now goes through the product"; the analytics axis: the same entry;
+the fixture-realism sub-finding that led here: "THE SECOND CORE-PATH WALK",
+finding 6.

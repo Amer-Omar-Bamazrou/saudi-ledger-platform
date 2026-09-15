@@ -63,7 +63,7 @@ T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten day
 after going green (lesson: §3), and 🔴 **THE DECISION-FREE POOL CLOSED** (all
 eight items; record: known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
-to end and left seven findings for ranking (§5, row W).
+to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -247,6 +247,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 A NARROWER VERIFICATION REPORTED AS A BROADER ONE** — the vacuous-green family aimed at the REPORTER rather than the guard ("the tests pass" does not cover "the typecheck passes"). 🔴 **`pnpm run verify` IS the verification step**; a filtered command never stands in for it.
 - **Assert the property, not the number** — change one thing, prove the figure does not move, and prove something else DID.
 - **🔴 When the CORRECT answer equals the BROKEN one, the test proves nothing** — assert presence AND absence, and that the figure MOVES.
+- **🔴 A PASSING SUITE SAYS NOTHING ABOUT DATA VALIDITY UNLESS SOMETHING ASSERTS A FIGURE** (owner-named 2026-09-15) — 219/219 passed on rows the product cannot write, and 219/219 on real ones; only a test comparing one figure computed two ways, non-zero, proves the data is real. Seed a fixture, write that test. *(1 instance — and the first such assertion caught a real defect on its first run.)*
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing. *(2 instances.)*
@@ -544,7 +545,6 @@ the order is not the severity order.**
 | **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). *(M-4 closed; L-1 closed 2026-09-14 — a failed security-audit write now pages critical.)* | — | The genuine long tail. |
-| **W** | 🔴 **THE SECOND CORE-PATH WALK (2026-09-15) — owner-ranked 1+6 · 7 · 3 · 5 · 2+4.** ✅ #1 FIXED (guard: `mobile-shell.spec.ts` "money is never clipped", proven red-before). ✅ #6 seed now goes THROUGH THE PRODUCT + `statement-figures.spec.ts` (red on the old seed). ✅ #7 · ✅ #3 (D's instance 7) · ✅ #5 (instrument's 4th under-report recorded) · ✅ #2 · ✅ #4 · ✅ asset update/delete routes closed off · six labels applied. | Nothing posts; Arabic-on-mobile is a launch requirement. | [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK". |
 
 **Open DECISIONS** (flagged so they are decided, not defaulted):
 `platform-alarms` is NOT operator-runnable (a one-line flip). *(The constants
