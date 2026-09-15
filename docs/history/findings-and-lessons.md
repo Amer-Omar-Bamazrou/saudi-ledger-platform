@@ -7310,12 +7310,34 @@ went through `depreciate()` holds `cost = book + accumulated` exactly.
    delete the three rows and their entries (demo data with no producer), or
    insert an opening `depreciation_entries` row per asset so Σ entries =
    accumulated. Either is the owner's call; neither is a product defect.
-3. **A product gap the audit exposes, not a data error:** `PATCH /assets/:id`
-   accepts `currentBookValue` independently of `accumulatedDepreciation`
-   (`assets.service.update`), so a raw API caller can create exactly asset
-   146's state through the product. Named here, not fixed: it is a write
-   boundary decision (refuse the field, or derive one from the other), and
-   the owner ordered no unrelated changes in this pass.
+3. **A product gap the audit exposes, not a data error — RE-MEASURED
+   2026-09-15, and the first statement of it was WRONG.** As first written:
+   "`PATCH /assets/:id` accepts `currentBookValue` … a raw API caller can
+   create exactly asset 146's state through the product." It cannot. The
+   service's `pick` list does name `currentBookValue`, but the controller
+   parses the body with the generated `UpdateAssetBody` first, and orval's
+   zod objects STRIP unknown keys — probed with a planted positive
+   (`purchaseCost` kept, `currentBookValue` → `{}`, `accumulatedDepreciation`
+   → `{}`). The pick entry is a shape without a consumer: dead today, live the
+   day someone adds the field to the spec. **What the body DOES admit, each
+   confirmed by the same probe:** `status` (any string — the column is text
+   with no enum; `depreciate()` keys on `=== "active"`), `depreciationMethod`
+   (any string), `disposalDate` (`""` and `"not-a-date"` — a TEXT column with
+   no CHECK and no `assertDateString`, the exact shape of the empty journal
+   date; `purchaseDate` IS asserted on update), `disposalValue` (negative),
+   and `purchaseCost` / `salvageValue` / `usefulLifeYears` AFTER depreciation
+   has run, which breaks `cost = book + accumulated` and changes every later
+   monthly amount. **Consequence:** confined to the asset register — nothing
+   in `fixed_assets` reaches the GL or any statement (depreciation never
+   posts; the only readers are `/assets` and the schedule page), so no wrong
+   or invisible POSTING is reachable through it. **No existing row came in
+   through it:** `audit_logs` holds zero asset rows of any action, and the
+   Assets page never calls the update route at all (it calls only
+   `depreciate`) — the route is API-only. The decision (fix now or queue) is
+   the owner's; the fix shape is `assertDateString` on `disposalDate`, an
+   enum on `status`/`depreciationMethod`, `assertAmount` on `disposalValue`,
+   and a refusal to change cost/salvage/life once `accumulated_depreciation
+   > 0`.
 
 ## 2026-09-15 — THE 24–48 HOUR PROMISE: a claim nobody decided, shown to users — removed
 
@@ -7338,3 +7360,87 @@ the copy now says what happens ("reviewed by our team before it is
 activated" / "you'll get access as soon as it's approved"), not when. The
 code comments point at L3. When the owner decides an SLA, the sentence
 returns WITH its decision record cited.
+
+## 🔴 2026-09-15 — THE SECOND CORE-PATH WALK: the path works; twenty-two pages clip money on a phone
+
+**Owner's order:** merge #154, answer two questions (below), then the feature
+inventory and the browser walks. The inventory is
+[`docs/product/feature-inventory-2026-09-15.md`](../product/feature-inventory-2026-09-15.md)
+(a DATED artifact: frame, walk, route table, findings). This entry is the
+record of what the walk did and what it settled.
+
+### The two questions, answered from the data
+
+**1. The six posted bill lines — which way round is the defect?** Both
+statements were true of different cases. The CODE path was: match the chosen
+name against the chart; on a miss, post to PURCHASES and store the chosen
+name as the label. For the ten non-default picker names that is "wrong
+account, right label" (D's framing). For the DEFAULT name, "Purchases and
+Cost of Sales", the account the name MEANT is the account it fell back to —
+so it is "right account, wrong label". Every one of the six rows is the
+default case; no row carries any of the other ten names (frame: every
+`BILL-*` journal line in the only environment, 24 lines, 6 expense lines).
+Per line (entry · org · posted to · should have posted to · label stored):
+GOS-4471 · default · Purchases (PURCHASES, id 261) · Purchases · "Purchases
+and Cost of Sales" · 2,400.00 — TAM-2210 · default · same · same · same ·
+9,500.00 — GOS-4620 · default · same · same · same · 1,860.00 — QA-REAL-2 ·
+default · same · same · same · 1,000.00 — BILL-000002 · default · same ·
+same · same · 1,000.00 — BILL-000001 · e2e-smoke · Purchases (id 910326) ·
+Purchases · same · 100.00. The audit rows do not carry the name that was
+sent, so "should have posted to" is read from the stored label, which is what
+the user chose or left. **None sits on the wrong account; the correction is
+cosmetic** — six `account_name` values on posted lines — and it is PROPOSED,
+not applied: `UPDATE journal_entry_lines SET account_name = 'Purchases' WHERE
+account_name = 'Purchases and Cost of Sales'` (dev + e2e data). Not done
+because they are posted lines and the standing rule makes that the owner's
+act.
+
+**2. The asset write boundary — named precisely.** Re-measured above under
+"THE DEPRECIATION DATA AUDIT", item 3: the earlier claim that
+`currentBookValue` reaches the database was WRONG (the generated zod body
+strips it; probed with a planted positive). What does reach it: any `status`
+string, any `depreciationMethod`, a blank or garbage `disposalDate` (text
+column, no CHECK, no `assertDateString` — the empty-journal-date shape), a
+negative `disposalValue`, and cost/salvage/life edits after depreciation has
+run. It cannot produce a wrong or invisible POSTING: nothing in `fixed_assets`
+reaches the GL or a statement. No existing row came in through it: zero
+asset audit rows, and the Assets page never calls the update route. Fix or
+queue is the owner's call; the fix shape is stated there.
+
+### The walk
+
+Suite green (219). Route walk: 62 routes × desktop-English and phone-Arabic,
+0 uncaught exceptions, 0 API 5xx, 0 API 404 in 124 loads, `dir`/`lang`
+correct on every page. Core path clicked in Arabic on a 390px phone with
+every non-GET request and response captured: create (the client sends NO
+`status` — the form's Status select is a decoy) → submit → approve REFUSED
+400 `company_vat_missing` (fail-closed, next step named) → Company Settings
+PATCH (VAT + CR) → approve 200 (hash, PIH = GENESIS, QR, ICV 1, issued_at;
+`einvoice_documents` 0 — no credential, skipped as designed) → GL AR 230 /
+Sales 200 / VAT 30 → both PDFs (`%PDF-`, 63,406 / 56,175 bytes; Hijri date,
+seller VAT/CR, QR) → pay 230 pre-filled → GL Cash 230 / AR 230 → balance
+sheet 230 = 30 + 200 from all-zero → VAT box 1 +200, output VAT +30 → finance
+hub liquid 230 / due 30. **Every figure moved by exactly the walk's amounts.**
+
+### What the walk found (ranked; the long list is in the inventory)
+
+1. 🔴 **Money clipped on phone KPI cards, 22 of 62 routes** — leading digits
+   lost (`25,000.00` → `5,000.00`). Invisible to `mobile-shell.spec.ts`
+   (page-level scroll only). Countermeasure: assert every money cell's
+   `scrollWidth <= clientWidth` in the browser.
+2. 🔴 **A decoy Status select on the invoice create form** — collected,
+   never sent, would be ignored. Remove it.
+3. 🔴 **Tax-journal-entries keys "tax line" on a NAME regex** while posting
+   keys on `system_code` — two definitions, no forcing function.
+4. The Approvals page: inline-styled, `textAlign: left` in RTL, raw English
+   statuses, `تم: approve` toast.
+5. Untranslated BLOCKS (ZATCA checklist ×9, AP-aging headers, owner's-equity
+   lines, Users KPIs, badges) and one formatter (en-US dates everywhere).
+6. The e2e seed writes rows the product refuses (account-less journal lines,
+   an asset with `cost ≠ book + accumulated`): the statements meet impossible
+   rows and the "rows expected" coverage is satisfied by them.
+7. Aging: a credit-noted paid invoice reads −115.00 AND "77 days overdue".
+
+**What this walk could not see:** the operator surface, accept-invite,
+scan-review with a capture, sign-up through the gate, any control the core
+path did not click, Arabic-desktop / English-phone.
