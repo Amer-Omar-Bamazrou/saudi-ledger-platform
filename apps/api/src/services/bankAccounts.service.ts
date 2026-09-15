@@ -36,6 +36,13 @@ export const bankAccountsService = {
     const balance = assertAmount(data.balance ?? data.openingBalance ?? 0, "balance", { min: -MAX });
     const openingBalance = assertAmount(data.openingBalance ?? 0, "openingBalance", { min: 0, allowZero: true });
     const values = { ...picked, balance: balance.toFixed(2), openingBalance: openingBalance.toFixed(2) } as typeof bankAccountsTable.$inferInsert;
+    // 🔴 ONE DEFAULT (2026-09-15, workflow audit, coming-soon "bank-account-detail").
+    // The invoice PDF prints bank details for the account flagged default and
+    // nothing in the product could set that flag except the demo seed, so real
+    // tenants issued invoices with no bank details. Exclusivity is enforced
+    // HERE, at the write: a create or update that sets the flag clears it on
+    // the tenant's other accounts first, in the same transaction.
+    if (values.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(null);
     const [row] = await bankAccountsRepository.insert(values);
     await auditService.created("bank_account", row.id, row);
     return toView(row);
@@ -48,6 +55,7 @@ export const bankAccountsService = {
     assertSupportedCurrency(updates.currency);
     if (updates.balance != null) updates.balance = assertAmount(updates.balance, "balance", { min: -MAX }).toFixed(2);
     if (updates.openingBalance != null) updates.openingBalance = assertAmount(updates.openingBalance, "openingBalance", { min: 0, allowZero: true }).toFixed(2);
+    if (updates.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(id);
     const [row] = await bankAccountsRepository.update(id, updates as Partial<typeof bankAccountsTable.$inferInsert>);
     await auditService.updated("bank_account", id, before, row);
     return toView(row);

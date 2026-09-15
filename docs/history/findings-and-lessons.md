@@ -7785,3 +7785,179 @@ path clips and the point lies outside its box, which is exactly the
 planted positive's shape. Two corrections in one day to one checker is the
 lesson: a probe is validated on the case it must catch AND on the case it
 must not — and on the machine the verdict is read from.
+
+## 🔴 2026-09-15 — THE SEVEN-WORKFLOW AUDIT: can an accountant finish the workflow?
+
+**The question (owner):** can a real Saudi accountant start a business
+event and finish it without a dead end, with the correct accounting, VAT,
+ZATCA, reporting and audit consequences? Traced against code, callers and
+tests — UI control → route → service → write → downstream reader → test —
+with the existing records as the baseline; nothing re-derived from the
+inventory or the walk. Frame: main at `b532774`, 2026-09-15; eight
+read-only traces, every load-bearing claim re-verified by hand before it
+was reported. "Pilot" means one accountant, one company, supervised; "V1"
+means paid, unsupervised, public.
+
+**The answer, in one line each:** the sales, purchase, credit-note and
+bank-import workflows FINISH; fixed assets, migration and period-close
+each have an exact, recorded boundary. Five defects were pilot blockers;
+they are CLOSED by #160 (known-issues file, "THE FIVE PILOT BLOCKERS —
+CLOSED 2026-09-15"). The rest is below, kept in its categories so a
+deferred item is never read as fixed.
+
+### Fixed by #160 (the five pilot blockers)
+
+Credit note payable · manual transaction never posted · deleting a posted
+transaction orphaned its entry · the expense account lost at bill
+approval · no control for the invoice's bank account. Each: known-issues
+file, the closed entry above. Not repeated here.
+
+### Remaining V1 gaps (verified, not fixed, not queued here)
+
+- **The customer statement is an open-items list, not a dated statement**
+  — `reports.service.ts customerLedger` filters by INVOICE date with a
+  lifetime paid column, never reads `invoice_payments`, has no opening
+  balance; a payment received in month N against month N−1's invoice is
+  invisible in month N. Each row's outstanding ignores credit notes while
+  aging nets them, so rows and totals disagree on a credited invoice.
+- **The refund dead end** — a credit note against a PAID invoice leaves a
+  credit owed with no product path to pay it out or apply it: `pay`
+  refuses the original as paid, settlement of a bank debit accepts only
+  bills, credit on invoice A never offsets invoice B. A manual journal
+  entry zeroes GL AR while aging keeps the negative row forever.
+- **Overdue counts notes and fully credited invoices** —
+  `invoices.repository.ts OVERDUE` has no document-type filter and
+  subtracts payments but not credits.
+- **The customer page's own aging** (`lib/partyDetail.ts computeAging`)
+  is total − paid, disagreeing with the server's aging on any credited
+  invoice — D's two-definitions class.
+- **Converted bills can collide on the vendor's reference** —
+  `purchaseOrderConversion.service.ts` uses the vendor's reference as OUR
+  bill number with no unique-violation mapping: a raw 500 on the second.
+- **A bill has no correction document** — no vendor credit note or
+  cancel-with-reversal; the only route is the raw journal reversal below,
+  which leaves the bill approved.
+- **The journal reversal bypasses the posting seam** —
+  `journalEntries.service.ts reverse` inserts directly, dated today, with
+  no period-lock check, drops the party columns (a party-less AR reversal
+  every other writer would refuse), and has no guard against
+  document-generated entries: an issued invoice's entry can be reversed
+  while the document stays approved and aging keeps the receivable.
+- **Bulk acceptance swallows the closed-month refusal** —
+  `transactionPosting.service.ts postMany` catches the lock error per
+  row; the row commits accepted with no entry, the request returns 200
+  with a failures list nothing in the web app reads. The 423 dialog never
+  fires.
+- **A row cannot be reclassified as a transfer** — the update body has no
+  `kind`; only the categoriser sets it at import; the service's own
+  message tells the user to change a kind no screen offers.
+- **Payroll posts under the approval date**, not the run's period — a
+  dating mismatch, not a bypass.
+- **Bank opening balance never reaches the ledger** — written by
+  `bankAccounts.service`, read only for display; the bank card and the
+  trial balance disagree. **The trial balance has no opening column** (a
+  window only, while the balance sheet reads to the date; ERPNext §4).
+- **Historical receivables have no path** — every approval mints an ICV;
+  no opening flag; a journal entry to AR with the customer as party is
+  stored but never read by aging, the customer ledger or customer
+  balances. GL AR and aging diverge from day one for a migrated business.
+- **Fixed assets, the exact boundary:** capitalisation from a bill is
+  impossible (`resolveExpenseLine` admits only expense accounts; no bill
+  table links to an asset), while an accepted bank debit categorised to
+  FIXED_ASSETS or a manual entry DOES post there without creating a
+  register row; depreciation posts nothing (no depreciation-expense or
+  accumulated-depreciation system account; no lock; no uniqueness on
+  asset + period — the same month can run twice); no disposal route.
+  Reports: balance sheet shows bill-bought assets as Purchases expense,
+  income statement carries no depreciation, cash flow classes asset
+  purchases as operating. ERPNext §6 and its triage row already cost the
+  fix; this is the boundary only.
+- Input VAT is claimed on every posted bill regardless of the
+  blocked-input category (C9 closed the transaction side only); `force`
+  posts AP at the computed total while the stored total stands (the API
+  offers it; the UI never sends it).
+
+### Intentional exclusions (recorded elsewhere; not defects)
+
+Live bank feeds (A2), ZATCA transmission and mail "send" (deployment
+dependencies, §5), the vendor statement (`VendorDetail.tsx` says so), the
+bank card's balance being the typed opening figure and no statement
+closing balance captured (coming-soon entries), a payment that cannot be
+undone (ERPNext §7), the header discount (ERPNext §13), VAT box 4 (§5
+traps), the reconciliation being movement-against-movement.
+
+### Pilot limitations (policy, not code)
+
+With #160 merged, a pilot avoids by policy: fixed assets; refunds against
+paid invoices; migrating a business with history; closing the current
+month (the reversal seam dates every mirror today, so a closed current
+month traps the correction route).
+
+### Verified as working, with the weakest link named
+
+- **Sales** (quotation → invoice → issue → PDF → pay → AR → GL → VAT):
+  every step has a control, a writer, a reader and a test on real rows;
+  partial payment leaves the invoice `sent` at the residual; the VAT
+  return reads issued documents only and nets credit notes; GL AR equals
+  aging by `statement-figures.spec.ts`. Weakest: the statement (above).
+- **Purchases** (PO → bill → post → pay → AP → GL → VAT): conversion
+  carries lines, vendor and VAT; partial payment accumulates; AP aging
+  equals GL AP. Weakest, now closed: the two-person account loss.
+- **Credit note**: GL reversal, VAT netting, aging, ZATCA 381 with
+  billing reference (live sandbox test), PDF. Weakest: the refund (above).
+- **Bank import**: upload with dedupe → review → SUSPENSE or category →
+  settlement through the single pay path → transfers once declared → an
+  itemised cash reconciliation. Weakest, now closed: the delete orphan.
+- **Period close**: the lock is ONE seam inside `postJournalEntry`,
+  company-scoped by the session variable, so every write through it —
+  payments on their paid-at date included — is covered by construction;
+  lock and unlock are audited and admin-only; the invoice correction route
+  (a credit note in the open period) works. Weakest: the reversal and the
+  swallowed bulk refusal (above).
+
+### The 24 coming-soon build slugs, one test each
+
+Three fail "does an implemented workflow dead-end without it": the bank
+account shown on invoices (CLOSED by #160 at the write and the list page;
+the per-account PAGE stays coming soon), the transfer reclassification
+(above), and multi-currency (a guarded row-by-row refusal with a named
+workaround, not a defect). `debit-notes` is STALE — the credit-notes page
+already creates, lists and counts them; the nav sends users to a
+placeholder one entry below the working page. `ip-restrictions` names a
+prerequisite already implemented. The other nineteen stay coming soon.
+
+**Instruments.** None of the five closed defects was visible to the route
+walk (it navigates; it does not click Mark Paid on a note or delete a row),
+to the reachability guard (every route was reachable), to the zero-movement
+standard (it asserts absence before approval, not the right account after),
+or to the contract conformance tests (the shapes were right). Four of the
+five were found only by tracing a caller chain end to end; the fifth by
+asking who writes a flag. The instrument that sees a workflow is a trace of
+it, and the walk was the sample that said which to trace.
+
+## 2026-09-15 — TWO ONBOARDING SUITES PASSED WHILE THE ACCOUNTING EFFECT WAS ABSENT
+
+**Frame: `signup.test.ts` and `verification-gating.test.ts` only.** Both
+POST a manual transaction through the API to prove a business route
+answers (403 for a pending org, 201 for an approved one). Their cleanup
+deleted transactions and companies and never journal entries — correctly,
+at the time: a manual transaction produced none (workflow audit W7 B3),
+so there was nothing to clean. Both suites were green for their whole
+life while the accounting effect their fixture implied did not exist.
+
+**What happened when the effect arrived.** #160's second commit made a
+manual transaction post. On the first full gate both suites FAILED — in
+cleanup, on the `journal_entries → companies` foreign key: the entries
+now existed and the delete order had never accounted for them. Cleanup
+was extended to remove the org's entries first; the gate is green.
+
+**The lesson, scoped to what it proves.** A test that passes while an
+expected accounting effect is absent is evidence about the TEST'S
+COVERAGE, not about the workflow: these two suites asserted the route's
+answer and were silent on the ledger, so they could not distinguish a
+manual row that posts from one that does not, and their cleanup encoded
+the absence. The correct failure — red the moment the effect appeared —
+is what a cleanup that mirrors the product's write shape produces. This
+says nothing about the other 146 API suites, most of which assert ledger
+movement directly; it says that a fixture's cleanup is a claim about what
+the product writes, and it was checked here by the product changing.

@@ -23,6 +23,11 @@ export interface BillHeaderInput {
   /** @nullable */
   reviewNote?: string | null;
   /**
+     * The EXPENSE account this bill will post to (GET /categories, type = expense), chosen at entry so it survives submit → approve. Refused (422) if it is not one of the tenant's expense accounts. The approve/post body's debitAccountId, when sent, overrides it.
+     * @nullable
+     */
+  expenseAccountId?: number | null;
+  /**
      * Header totals are used only when there are NO lines; with lines they are recomputed.
      * @minimum 0
      */

@@ -7,8 +7,8 @@
  * The pending set is bounded by what approvers have not acted on, not by data
  * volume; a LIMIT returning here would be the same defect wearing the fix.
  */
-import { db, billsTable, invoicesTable, journalEntriesTable, payrollRunsTable } from "@workspace/db";
-import { and, desc, inArray, sql } from "drizzle-orm";
+import { db, billsTable, categoriesTable, invoicesTable, journalEntriesTable, payrollRunsTable } from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 const PENDING = ["draft", "submitted"];
 
@@ -34,8 +34,17 @@ export const approvalsQueueRepository = {
 
   pendingBills() {
     return db
-      .select({ id: billsTable.id, label: billsTable.billNumber, status: billsTable.status, amount: billsTable.total })
+      // The label names the expense account the bill will post to on approval
+      // (its own choice, or the seeded default), so the approver sees what they
+      // are releasing — the queue is where the two-person flow ends.
+      .select({
+        id: billsTable.id,
+        label: sql<string>`${billsTable.billNumber} || ' → ' || coalesce(${categoriesTable.name}, 'Purchases')`,
+        status: billsTable.status,
+        amount: billsTable.total,
+      })
       .from(billsTable)
+      .leftJoin(categoriesTable, eq(categoriesTable.id, billsTable.expenseAccountId))
       .where(and(inArray(billsTable.status, PENDING), sql`${billsTable.companyId} = ${currentCompany}`))
       .orderBy(desc(billsTable.date), desc(billsTable.id));
   },

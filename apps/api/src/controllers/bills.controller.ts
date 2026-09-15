@@ -51,7 +51,16 @@ export const billsController = {
     res.status(204).send();
   },
   async approve(req: Request, res: Response) {
-    res.json(await billsService.approve(requireIdParam(req), req.body ?? {}, req.session?.userId ?? null));
+    // Parsed like post(): an approve body is the SAME contract (debitAccountId /
+    // force / captureId), so a caller that sends one is validated identically.
+    const raw = req.body == null || Object.keys(req.body).length === 0 ? {} : parseOr400(PostBillBody.safeParse(req.body));
+    const opts = {
+      debitAccountId: raw.debitAccountId ?? undefined,
+      debitAccount: raw.debitAccount ?? undefined,
+      force: raw.force ?? undefined,
+      captureId: raw.captureId ?? undefined,
+    };
+    res.json(await billsService.approve(requireIdParam(req), opts, req.session?.userId ?? null));
   },
   async post(req: Request, res: Response) {
     const raw = req.body == null || Object.keys(req.body).length === 0 ? {} : parseOr400(PostBillBody.safeParse(req.body));

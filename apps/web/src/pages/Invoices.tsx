@@ -535,7 +535,7 @@ export default function Invoices() {
                           recorded"), so offering it there was a control that
                           could only fail — the same show-only-where-valid rule
                           the draft-only Edit/Delete already follow. */}
-                      {inv.status === "sent" && (
+                      {inv.status === "sent" && inv.documentType === "invoice" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
                       {/* L1 — the invoice leaves the product. ع is THE tax

@@ -28,6 +28,7 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     paidAmount: toNum(bill.paidAmount),
     paidAt: bill.paidAt,
     reviewNote: bill.reviewNote,
+    expenseAccountId: bill.expenseAccountId ?? null,
     notes: bill.notes,
     createdAt: bill.createdAt.toISOString(),
     items:

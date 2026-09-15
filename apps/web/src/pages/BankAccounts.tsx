@@ -32,6 +32,16 @@ export default function BankAccounts() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
+  // The account whose details print on issued invoices. One effective default
+  // is enforced by the server on write (bankAccounts.service); this control
+  // only says which one. Same PATCH the route already accepted.
+  const setDefaultMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/bank-accounts/${id}`, { method: "PATCH", body: JSON.stringify({ isDefault: true }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-accounts"] }); toast({ title: t("This account will now appear on invoices", "سيظهر هذا الحساب على الفواتير الآن") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+  const invoiceAccount = accounts.find(a => a.isDefault);
+
   const totalBalance = accounts.filter(a => a.isActive && a.currency === "SAR").reduce((s, a) => s + a.balance, 0);
 
   return (
@@ -70,6 +80,12 @@ export default function BankAccounts() {
         </Dialog>
       </div>
 
+      <p className="text-sm text-muted-foreground" data-testid="invoice-bank-account">
+        {invoiceAccount
+          ? t(`Invoices show the bank details of: ${invoiceAccount.name} (${invoiceAccount.bankName}).`, `تعرض الفواتير بيانات الحساب: ${invoiceAccount.name} (${invoiceAccount.bankName}).`)
+          : t("No account is set to appear on invoices — issued invoices will carry no bank details until you choose one below.", "لم يُحدَّد حساب للظهور على الفواتير — ستصدر الفواتير بدون بيانات بنكية حتى تختار حسابًا أدناه.")}
+      </p>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-positive">{fmtNum(totalBalance)}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts", "الحسابات")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{accounts.length}</div></CardContent></Card>
@@ -100,6 +116,15 @@ export default function BankAccounts() {
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <div className="text-xs text-muted-foreground">IBAN: <span className="font-mono">{acc.iban ? acc.iban.slice(0, 16) + "..." : "—"}</span></div>
                   <div className="text-xs text-muted-foreground">{t("A/C", "حساب")}: <span className="font-mono">{acc.accountNumber || "—"}</span></div>
+                </div>
+                <div className="mt-3">
+                  {acc.isDefault ? (
+                    <span className="text-xs text-primary">{t("Shown on invoices", "يظهر على الفواتير")}</span>
+                  ) : (
+                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={setDefaultMut.isPending} onClick={() => setDefaultMut.mutate(acc.id)}>
+                      {t("Use on invoices", "استخدمه على الفواتير")}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

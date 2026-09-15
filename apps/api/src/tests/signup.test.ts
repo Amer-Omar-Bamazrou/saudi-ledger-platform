@@ -54,6 +54,10 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
     await pool.query(`DELETE FROM verification_documents WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${ORG_FILTER}`);
+    // A manual transaction POSTS since 2026-09-15 (workflow audit W7 B3), so the
+    // org now owns journal entries that reference its company.
+    await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${ORG_FILTER}`);
+    await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM platform_operators WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM organizations WHERE slug LIKE 'signuptest%' OR name LIKE 'SignupTest%'`);
