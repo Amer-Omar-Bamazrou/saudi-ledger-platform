@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { vendorsTable } from "./vendors";
+import { categoriesTable } from "./categories";
 import { productsTable } from "./products";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
@@ -47,6 +48,16 @@ export const billsTable = pgTable(
     // Correction note an approver leaves when sending a submitted bill back to the
     // bookkeeper for edit; shown while editing, cleared on resubmit/approve (M10.3).
     reviewNote: text("review_note"),
+    /**
+     * The expense account the bill posts to, chosen at entry (2026-09-15,
+     * workflow audit W2 G1). It lives ON the bill so it survives submit →
+     * approve: the Approvals queue sends no body, and the choice used to exist
+     * only in the post request, so every two-person bill fell back to
+     * Purchases. Resolved by `resolveExpenseLine` when the post/approve body
+     * supplies nothing; a body value still wins. Nullable — the seeded default
+     * (PURCHASES) applies when neither is given.
+     */
+    expenseAccountId: integer("expense_account_id").references(() => categoriesTable.id, { onDelete: "set null" }),
     notes: text("notes"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),

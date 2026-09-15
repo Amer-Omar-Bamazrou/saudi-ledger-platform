@@ -128,6 +128,27 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
     }
   });
 
+  it("🔴 TWO-PERSON FLOW: the account chosen at ENTRY survives submit → approve with NO body — it used to fall back to Purchases", async () => {
+    const bill = await inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
+    expect(bill.expenseAccountId).toBe(rentId);
+    await inTenant(() => billsService.submit(bill.id, null));
+    // The Approvals queue approves with an EMPTY body — exactly what the page sends.
+    await inTenant(() => billsService.approve(bill.id, {}, null));
+    const line = await expenseLine(bill.billNumber);
+    expect(line.account_id).toBe(rentId);
+    expect(line.account_name).toBe(rentName);
+  });
+
+  it("the body still WINS over the bill's own choice, and a non-expense account is refused at ENTRY", async () => {
+    const bill = await inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
+    const purchases = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'PURCHASES'`, [orgId])).rows[0].id;
+    await inTenant(() => billsService.post(bill.id, { debitAccountId: purchases }, null));
+    expect((await expenseLine(bill.billNumber)).system_code).toBe("PURCHASES");
+    await expect(
+      inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 1, vatAmount: 0, total: 1, items: [], expenseAccountId: cashId }, null)),
+    ).rejects.toMatchObject({ statusCode: 422, payload: { code: "expense_account_unresolved", field: "expenseAccountId" } });
+  });
+
   it("with NOTHING supplied, the one default posts to PURCHASES under its real name — label = account", async () => {
     const bill = await inTenant(draft);
     await inTenant(() => billsService.post(bill.id, {}, null));

@@ -178,7 +178,10 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // the stored label is always the account's REAL name. With nothing supplied
   // the line posts to the PURCHASES system account under its real name — the
   // one default, stated in the contract, no longer wearing another label.
-  const expenseLine = await resolveExpenseLine(debitAccountId, debitAccount);
+  // The request body wins when it names an account; otherwise the account
+  // chosen at ENTRY (bills.expense_account_id) — which is what survives the
+  // submit → approve path, where the Approvals queue sends no body.
+  const expenseLine = await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount);
 
   await postJournalEntry({
     entryNumber: `BILL-${bill.billNumber}`,

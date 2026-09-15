@@ -505,6 +505,13 @@
       "when": 1789422892842,
       "tag": "0071_date_format_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789492675366,
+      "tag": "0072_bills_expense_account",
+      "breakpoints": true
     }
   ]
 }

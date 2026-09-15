@@ -179,6 +179,7 @@ export default function Bills() {
           vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
           total: body.total ? Number(body.total) : undefined,
           notes: body.notes || undefined,
+          expenseAccountId: body.debitAccountId ?? undefined,
         }),
       }),
     onSuccess: () => {
@@ -213,6 +214,7 @@ export default function Bills() {
         vatAmount: String(d.vatAmount ?? ""),
         total: String(d.total ?? ""),
         notes: d.notes ?? "",
+        debitAccountId: d.expenseAccountId ?? null,
       } as never);
       setEditingBill(row);
       setOpen(true);
@@ -239,6 +241,10 @@ export default function Bills() {
           subtotal:  body.subtotal  ? Number(body.subtotal)  : undefined,
           vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
           total:     body.total     ? Number(body.total)     : undefined,
+          // The chosen account lives ON the bill, so it survives submit → approve
+          // (the Approvals queue sends no body). The post call below still
+          // sends it explicitly for the one-person flow.
+          expenseAccountId: body.debitAccountId ?? defaultExpenseId ?? undefined,
           items: [],
         }),
       });
@@ -610,7 +616,7 @@ export default function Bills() {
                       )}
                       {b.status === "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-info"
-                          onClick={() => { setPostReviewOpen(b); setPostDebitAccountId(null); }}>
+                          onClick={() => { setPostReviewOpen(b); setPostDebitAccountId(b.expenseAccountId ?? null); }}>
                           {t("Post", "ترحيل")}
                         </Button>
                       )}

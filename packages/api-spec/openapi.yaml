@@ -4882,6 +4882,9 @@ components:
           type: ["string", "null"]
         reviewNote:
           type: ["string", "null"]
+        expenseAccountId:
+          type: ["integer", "null"]
+          description: The expense account chosen at entry; the account the bill posts to on approval when the approve/post body names none.
         notes:
           type: ["string", "null"]
         createdAt:
@@ -6471,6 +6474,13 @@ components:
         currency: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         reviewNote: { type: ["string", "null"] }
+        expenseAccountId:
+          type: ["integer", "null"]
+          description: >
+            The EXPENSE account this bill will post to (GET /categories, type = expense),
+            chosen at entry so it survives submit → approve. Refused (422) if it is not one
+            of the tenant's expense accounts. The approve/post body's debitAccountId, when
+            sent, overrides it.
         subtotal:
           type: number
           minimum: 0

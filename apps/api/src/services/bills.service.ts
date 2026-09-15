@@ -18,6 +18,7 @@ import { documentNumbersRepository } from "../repositories/documentNumbers.repos
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
+import { categoriesRepository } from "../repositories/categories.repository";
 
 /**
  * MED (audit 2026-08-20): the vendor twin of invoices' assertCustomerExists —
@@ -25,6 +26,19 @@ import { vendorsRepository } from "../repositories/vendors.repository";
  * another tenant's vendor id. Tenant-scoped lookup; 422 (semantically invalid
  * input that passed schema validation — status policy, 2026-08-23).
  */
+/** The chosen expense account must be one of THIS tenant's expense accounts (RLS scopes the read). */
+async function assertExpenseAccount(id: unknown): Promise<void> {
+  const n = Number(id);
+  const cat = Number.isInteger(n) && n > 0 ? await categoriesRepository.findById(n) : null;
+  if (!cat || cat.type !== "expense") {
+    throw new BusinessRuleError(422, {
+      error: `Expense account #${String(id)} is not an expense account in this company's chart of accounts.`,
+      code: "expense_account_unresolved",
+      field: "expenseAccountId",
+    });
+  }
+}
+
 async function assertVendorExists(vendorId: unknown): Promise<void> {
   if (vendorId == null) return;
   const [v] = await vendorsRepository.findById(Number(vendorId));
@@ -113,8 +127,12 @@ export const billsService = {
 
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
-      "notes", "reviewNote", "subtotal", "vatAmount", "total",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId",
     ]) as Record<string, any>;
+    // The chosen expense account must be one of the tenant's EXPENSE accounts —
+    // the same rule resolveExpenseLine applies at posting, checked at entry so
+    // a wrong choice is refused when it is made, not when it is approved.
+    if (billData.expenseAccountId != null) await assertExpenseAccount(billData.expenseAccountId);
     // 🔴 H2 — item amounts validated (see invoices.create).
     (items as any[]).forEach((it, i) => {
       assertAmount(it.quantity, `item ${i + 1} quantity`, { min: 0, allowZero: true });
@@ -208,8 +226,9 @@ export const billsService = {
     // 🔴 H1 — ALLOWLIST (see create). `status`/`paidAmount`/`paidAt` excluded.
     const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
-      "notes", "reviewNote", "subtotal", "vatAmount", "total",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId",
     ]);
+    if (values.expenseAccountId != null) await assertExpenseAccount(values.expenseAccountId);
     if (values.date !== undefined) {
       assertDateString(values.date, "date");
       // Owner policy (2026-08-23): a document must not be DATED into a closed

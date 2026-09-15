@@ -1605,6 +1605,7 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4106,6 +4107,7 @@ export const SubmitBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4151,6 +4153,7 @@ export const SendBackBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4199,6 +4202,7 @@ export const ApproveBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4736,6 +4740,7 @@ export const ListBillsResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4792,6 +4797,7 @@ export const CreateBillBody = zod.object({
   "currency": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The EXPENSE account this bill will post to (GET \/categories, type = expense), chosen at entry so it survives submit → approve. Refused (422) if it is not one of the tenant\'s expense accounts. The approve\/post body\'s debitAccountId, when sent, overrides it.\n'),
   "subtotal": zod.number().min(createBillBodyOneSubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(createBillBodyOneVatAmountMin).optional(),
   "total": zod.number().min(createBillBodyOneTotalMin).optional()
@@ -4822,6 +4828,7 @@ export const CreateBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5287,6 +5294,7 @@ export const GetBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5328,6 +5336,7 @@ export const UpdateBillBody = zod.object({
   "currency": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The EXPENSE account this bill will post to (GET \/categories, type = expense), chosen at entry so it survives submit → approve. Refused (422) if it is not one of the tenant\'s expense accounts. The approve\/post body\'s debitAccountId, when sent, overrides it.\n'),
   "subtotal": zod.number().min(updateBillBodySubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(updateBillBodyVatAmountMin).optional(),
   "total": zod.number().min(updateBillBodyTotalMin).optional()
@@ -5349,6 +5358,7 @@ export const UpdateBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5406,6 +5416,7 @@ export const PostBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5455,6 +5466,7 @@ export const PayBillResponse = zod.object({
   "paidAmount": zod.number(),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({

@@ -31,6 +31,11 @@ export interface Bill {
   paidAt?: string | null;
   /** @nullable */
   reviewNote?: string | null;
+  /**
+     * The expense account chosen at entry; the account the bill posts to on approval when the approve/post body names none.
+     * @nullable
+     */
+  expenseAccountId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
