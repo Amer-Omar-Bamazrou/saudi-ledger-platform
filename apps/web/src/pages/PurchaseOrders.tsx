@@ -35,6 +35,7 @@ import { PURCHASE_ORDER_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/
 import { DualDate } from "@/components/DualDate";
 
 import type { CreatePurchaseOrderInput, PurchaseOrder, PurchaseOrderConversion, Vendor } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 5): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreatePurchaseOrderInput) => JSON.stringify(b), update: (b: CreatePurchaseOrderInput) => JSON.stringify(b) };
@@ -79,7 +80,7 @@ export default function PurchaseOrders() {
    */
   const [editing, setEditing] = useState<{ id: number; number: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(PURCHASE_ORDER_FILTERS));
-  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
+  const [form, setForm] = useState({ date: businessToday(), validUntil: "", vendorId: "", notes: "" });
   const [lines, setLines] = useState<Partial<PoLineForm>[]>([emptyLine()]);
 
   const [page, setPage] = useState(0);
@@ -120,7 +121,7 @@ export default function PurchaseOrders() {
     onSuccess: (po: PurchaseOrder) => {
       setOpen(false);
       setLines([emptyLine()]);
-      setForm({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
+      setForm({ date: businessToday(), validUntil: "", vendorId: "", notes: "" });
       refresh();
       toast({ title: t("Purchase order created", "تم إنشاء أمر الشراء"), description: po.orderNumber });
     },
@@ -217,7 +218,7 @@ export default function PurchaseOrders() {
   const [billing, setBilling] = useState<PurchaseOrder | null>(null);
   const [billQty, setBillQty] = useState<Record<number, string>>({});
   const [billPrice, setBillPrice] = useState<Record<number, string>>({});
-  const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
+  const [billDate, setBillDate] = useState(businessToday());
   const [vendorRef, setVendorRef] = useState("");
   const [allowOver, setAllowOver] = useState(false);
 
@@ -239,7 +240,7 @@ export default function PurchaseOrders() {
     setBillPrice({});
     setVendorRef("");
     setAllowOver(false);
-    setBillDate(new Date().toISOString().split("T")[0]);
+    setBillDate(businessToday());
   };
 
   const convertMut = useMutation({
@@ -318,7 +319,7 @@ export default function PurchaseOrders() {
               if (!o) {
                 setEditing(null);
                 setLines([emptyLine()]);
-                setForm({ date: new Date().toISOString().split("T")[0], validUntil: "", vendorId: "", notes: "" });
+                setForm({ date: businessToday(), validUntil: "", vendorId: "", notes: "" });
               }
             }}
           >

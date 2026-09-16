@@ -32,6 +32,7 @@ import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../rep
 import { paymentsRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 
 /**
  * MED (audit 2026-08-20): a nonexistent customerId surfaced as a raw 500
@@ -154,7 +155,12 @@ export const invoicesService = {
       // string. Named 400 here; DB CHECK 0056 is the backstop.
       assertTaxCategoryCode(it.taxCategoryCode, `item ${i + 1} taxCategoryCode`);
     });
-    if (invData.date != null) assertDateString(invData.date, "date");
+    // An omitted date is DATED TODAY — the business calendar day (Asia/Riyadh),
+    // decided here at the write boundary so the period check, the number's
+    // year prefix and the stored row all agree. (It used to check the period
+    // on "today" and then insert NULL into a NOT NULL column: a 500.)
+    if (invData.date == null) invData.date = businessToday();
+    assertDateString(invData.date, "date");
     if (invData.dueDate != null) assertDateString(invData.dueDate, "dueDate");
     await assertCustomerExists(invData.customerId);
     // ── Audit fix (Tier 1, finding 2): HEADER = Σ ROUNDED LINES, exactly. ──
@@ -235,7 +241,7 @@ export const invoicesService = {
     // correction posts in the current open period, which is standard practice.
     // The consequence is that the closed period's VAT return does not change;
     // the adjustment lands in the note's period.
-    await checkPeriodOpen(invData.date ?? new Date().toISOString().split("T")[0]);
+    await checkPeriodOpen(invData.date);
 
     // Credit/debit notes: validate the reference, the reason and the credit
     // ceiling before anything is written.
@@ -473,7 +479,7 @@ export const invoicesService = {
     const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
     const fullySettled = outstanding - paid < 0.01;
 
-    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
+    const payDate = paidAt ?? businessToday();
     const [inv] = await invoicesRepository.update(id, {
       paidAmount: String(newPaid),
       paidAt: payDate,

@@ -27,6 +27,7 @@ import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import type { journalEntriesTable } from "@workspace/db";
+import { businessToday } from "@workspace/shared";
 
 export const journalEntriesService = {
   /** A PAGE of entries, plus the count for the whole filtered set. */
@@ -278,7 +279,7 @@ export const journalEntriesService = {
     if (original.status !== "posted") throw new ConflictError("Only posted entries can be reversed.");
 
     const lines = await journalEntriesRepository.linesByEntry(id);
-    const today = new Date().toISOString().split("T")[0];
+    const today = businessToday();
     const now = new Date();
     const [reversal] = await journalEntriesRepository.insertEntry({
       entryNumber: `${original.entryNumber}-REV`,

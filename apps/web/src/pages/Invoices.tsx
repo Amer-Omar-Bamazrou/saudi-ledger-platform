@@ -23,6 +23,7 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 const PAGE_SIZE = 50;
 
 import type { CreateInvoiceInput, Customer, Invoice, ListInvoices200, PaymentInput, UpdateInvoiceInput } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /**
  * Request bodies go through the GENERATED input types (contract batch 3), so
@@ -58,7 +59,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 // uniqueness. The server now allocates from a monotonic per-company counter;
 // leaving this blank is what asks it to. A number typed here is still honoured
 // (legacy imports), and the DB constraint judges it.
-const emptyForm = { invoiceNumber: "", date: new Date().toISOString().split("T")[0], dueDate: "", customerId: "", notes: "" };
+const emptyForm = { invoiceNumber: "", date: businessToday(), dueDate: "", customerId: "", notes: "" };
 
 /** One definition of a fresh line — the default VAT rate comes from @workspace/shared, never a literal. */
 const emptyLine = () => ({ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: String(DEFAULT_VAT_RATE) });
@@ -164,7 +165,7 @@ export default function Invoices() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: new Date().toISOString().split("T")[0] }) }),
+    mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: businessToday() }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
     onSettled: () => { payingRef.current = false; },

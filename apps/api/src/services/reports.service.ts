@@ -8,6 +8,7 @@ import { reportsRepository, documentSign } from "../repositories/reports.reposit
 // N2: ONE tolerance, imported from the write side — a read-side literal 2x the
 // write-side constant was the two-constants disease glPosting diagnoses for itself.
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
+import { businessToday } from "@workspace/shared";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -241,7 +242,7 @@ export const reportsService = {
     );
 
     return {
-      asOf: as_of ?? new Date().toISOString().split("T")[0],
+      asOf: as_of ?? businessToday(),
       assets: {
         items: assetItems.sort((a, b) => b.amount - a.amount),
         accountsReceivable: arBalance,

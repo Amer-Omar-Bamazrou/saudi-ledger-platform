@@ -26,6 +26,7 @@ import { invoicesService } from "../invoices.service";
 import { billsService } from "../bills.service";
 import { recurringJobRepository, type DueRule } from "../../repositories/recurring.repository";
 import { nextOccurrence } from "./recurring.service";
+import { businessToday } from "@workspace/shared";
 
 export interface GenerationResult {
   due: number;
@@ -35,7 +36,7 @@ export interface GenerationResult {
 }
 
 /** Today, UTC, as YYYY-MM-DD. */
-const today = (): string => new Date().toISOString().slice(0, 10);
+const today = (): string => businessToday();
 
 export const recurringGenerationService = {
   async runOnce(onDate: string = today(), organizationId?: string): Promise<GenerationResult> {

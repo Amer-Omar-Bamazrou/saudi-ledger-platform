@@ -30,6 +30,7 @@ import { DualDate } from "@/components/DualDate";
  * an additional charge and increases it.
  */
 import type { CreateInvoiceInput, Invoice, ListInvoices200 } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /**
  * Request bodies go through the GENERATED input types (contract batch 3), so
@@ -61,7 +62,7 @@ const makeEmpty = () => ({
    */
   invoiceNumber: "",
   originalInvoiceId: "",
-  date: new Date().toISOString().split("T")[0],
+  date: businessToday(),
   noteReason: "",
   description: "",
   quantity: "1",

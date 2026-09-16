@@ -11,6 +11,7 @@
  * arrive, so the shape the UI reads does not change when they do.
  */
 import type { quotationsTable, quotationItemsTable, customersTable } from "@workspace/db";
+import { businessToday } from "@workspace/shared";
 
 type Quotation = typeof quotationsTable.$inferSelect;
 type QuotationItem = typeof quotationItemsTable.$inferSelect;
@@ -120,7 +121,7 @@ export function buildQuotationOut(
   items?: QuotationItem[],
   /** line id → converted quantity. Empty in M21.1; supplied by M21.2. */
   convertedByItem: Map<number, number> = new Map(),
-  today = new Date().toISOString().slice(0, 10),
+  today = businessToday(),
   /**
    * 🔴 AUD-3 — the LIST's substitute for line data it does not fetch.
    *

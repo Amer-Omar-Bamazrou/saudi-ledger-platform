@@ -46,6 +46,7 @@ import { analyticsService } from "./analytics.service";
 import { financeHubService } from "./financeHub.service";
 import { reportsService } from "./reports.service";
 import { verifyExplanation } from "./findings.explanationVerifier";
+import { businessToday } from "@workspace/shared";
 
 const TRAILING_MONTHS = 6;
 
@@ -124,13 +125,10 @@ export const ASK_TOOLS: Record<string, ToolDef> = {
     run: async (a) => {
       const added = Number(a.addedMonthlyCost);
       if (!Number.isFinite(added) || added < 0) throw new BadRequestError("addedMonthlyCost must be a non-negative number");
-      const today = new Date();
-      const prior = new Date(today);
-      prior.setUTCMonth(prior.getUTCMonth() - TRAILING_MONTHS);
-      const [now, then] = await Promise.all([
-        glCash(today.toISOString().slice(0, 10)),
-        glCash(prior.toISOString().slice(0, 10)),
-      ]);
+      const today = businessToday();
+      const [ty, tmo, td] = today.split("-").map(Number);
+      const prior = new Date(Date.UTC(ty, tmo - 1 - TRAILING_MONTHS, td)).toISOString().slice(0, 10);
+      const [now, then] = await Promise.all([glCash(today), glCash(prior)]);
 
       // 🔴 The liquidity-claim rule carries over (A, 2026-08-17): cash the
       // platform cannot classify blocks the CLAIM. A projection built on

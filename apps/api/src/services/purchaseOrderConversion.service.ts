@@ -34,6 +34,7 @@ import { assertAmount, assertDateString } from "../lib/writeGuards";
 import { purchaseOrdersRepository } from "../repositories/purchaseOrders.repository";
 import { billsService } from "./bills.service";
 import { auditService } from "./audit.service";
+import { businessToday } from "@workspace/shared";
 
 export interface ConvertPoLineInput {
   purchaseOrderItemId: number;
@@ -150,7 +151,7 @@ export const purchaseOrderConversionService = {
       }
     }
 
-    const date = input.date ?? new Date().toISOString().slice(0, 10);
+    const date = input.date ?? businessToday();
     assertDateString(date, "date");
     if (input.dueDate != null) assertDateString(input.dueDate, "dueDate");
 

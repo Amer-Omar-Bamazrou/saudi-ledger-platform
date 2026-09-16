@@ -18,6 +18,7 @@ import { payrollRepository } from "../repositories/payroll.repository";
 import { runToOut, toNum, type PayrollRunOut } from "./payroll.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { payrollRunsTable } from "@workspace/db";
+import { businessToday } from "@workspace/shared";
 
 type PayrollRun = typeof payrollRunsTable.$inferSelect;
 
@@ -27,7 +28,7 @@ async function postPayrollGL(run: PayrollRun): Promise<PayrollRunOut> {
   const gosiEmp = toNum(run.totalGosiEmployee);
   const gosiEr = toNum(run.totalGosiEmployer);
   const netPay = toNum(run.totalNetPay);
-  const approveDate = new Date().toISOString().split("T")[0];
+  const approveDate = businessToday();
 
   await postJournalEntry({
     // N3: suffixed with the run id — `PAY-<period>` alone collided the day a
