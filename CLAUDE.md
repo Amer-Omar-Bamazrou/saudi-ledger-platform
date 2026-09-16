@@ -576,6 +576,7 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
+- 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. A GCC tenant outside KSA gets Riyadh's day. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
