@@ -32,3 +32,15 @@ export function gosiPercentLabel(rate: number): string {
  * Moved 5% → 15% in real life in 2020 — the argument for one definition.
  */
 export const DEFAULT_VAT_RATE = 15;
+
+/**
+ * 🔴 System accounts whose GL lines must NAME A PARTY (a customer or a
+ * vendor): the receivable and payable control accounts. ONE definition
+ * (2026-09-16): the posting seam refuses a party-less line on these, the
+ * transaction writers refuse categorising a bank row to them (a bank line
+ * carries no party — the movement belongs to an invoice or bill, settled
+ * from Review), and the web picker does not offer them. Before this the
+ * set lived only inside `glPosting.ts`, so the picker offered Accounts
+ * Receivable for "CUSTOMER DEPOSIT — NAJD" and the save was a 500.
+ */
+export const PARTY_REQUIRED_SYSTEM_CODES = ["AR", "AP"] as const;

@@ -35,6 +35,7 @@ import {
   AlertCircle, AlertTriangle, CheckCircle2, ArrowLeft, Trash2,
   Building2, Plus, ScanLine, BookOpen, Loader2,
 } from "lucide-react";
+import { businessToday } from "@workspace/shared";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 // `created` is returned by POST /vendors so the UI knows the vendor was
@@ -69,7 +70,7 @@ export default function ScanReview() {
     vendorNameAr:        "",   // populated when OCR detects Arabic vendor name
     supplierVatNumber:   "",
     invoiceNumber:       "",
-    date:                new Date().toISOString().split("T")[0],
+    date:                businessToday(),
     subtotal:            "" as string | number,
     vatAmount:           "" as string | number,
     total:               "" as string | number,
@@ -122,7 +123,7 @@ export default function ScanReview() {
         vendorNameAr:      data.vendorNameAr ?? "",
         supplierVatNumber: data.supplierVatNumber ?? "",
         invoiceNumber:     data.vendorReference ?? "",
-        date:              data.date || new Date().toISOString().split("T")[0],
+        date:              data.date || businessToday(),
         subtotal:          data.subtotal > 0 ? data.subtotal : "",
         vatAmount:         data.vatAmount > 0 ? data.vatAmount : "",
         total:             data.total > 0 ? data.total : "",

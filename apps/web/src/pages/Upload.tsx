@@ -20,6 +20,7 @@ import { getListTransactionsQueryKey } from "@workspace/api-client-react";
 import Papa from "papaparse";
 import { parseStatementRow } from "@/lib/statementParser";
 import * as XLSX from "xlsx";
+import { businessToday } from "@workspace/shared";
 
 /* ─── types ──────────────────────────────────────────────────────────────── */
 interface TxRow {
@@ -114,7 +115,7 @@ export default function Upload() {
 
   /* manual tab state */
   const [manualRows, setManualRows] = useState<Array<{ date: string; description: string; amount: string; type: "debit" | "credit" }>>([
-    { date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" },
+    { date: businessToday(), description: "", amount: "", type: "debit" },
   ]);
 
   const uploadMut = useUploadTransactions({
@@ -145,7 +146,7 @@ export default function Upload() {
           });
         }
         setPreview([]); setFileName(null); setCsvData("");
-        setManualRows([{ date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" }]);
+        setManualRows([{ date: businessToday(), description: "", amount: "", type: "debit" }]);
         qc.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
       },
       onError: (err: any) => toast({ title: t("Import failed", "فشل الاستيراد"), description: err?.message ?? t("Check your data.", "تحقق من بياناتك."), variant: "destructive" }),
@@ -466,7 +467,7 @@ export default function Upload() {
               </div>
               <div className="flex items-center justify-between pt-2">
                 <Button variant="outline" size="sm" className="gap-2"
-                  onClick={() => setManualRows([...manualRows, { date: new Date().toISOString().split("T")[0], description: "", amount: "", type: "debit" }])}>
+                  onClick={() => setManualRows([...manualRows, { date: businessToday(), description: "", amount: "", type: "debit" }])}>
                   <Plus className="w-4 h-4" /> {t("Add row", "إضافة صف")}
                 </Button>
                 <Button onClick={submitManual} disabled={uploadMut.isPending || manualRows.every(r => !r.description)} className="gap-2">

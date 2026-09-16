@@ -8,6 +8,7 @@ import {
   invoiceNumberCountersTable,
 } from "@workspace/db";
 import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { businessToday } from "@workspace/shared";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -178,7 +179,7 @@ export const invoicesRepository = {
    * invoice_number)` index is the backstop if anything ever bypasses this.
    */
   async allocateInvoiceNumber(date?: string): Promise<string> {
-    const year = (date ?? new Date().toISOString().slice(0, 10)).slice(0, 4);
+    const year = (date ?? businessToday()).slice(0, 4);
     const res = await db.execute<{ last_value: number }>(sql`
       INSERT INTO invoice_number_counters (organization_id, company_id, last_value)
       VALUES (DEFAULT, DEFAULT, 1)

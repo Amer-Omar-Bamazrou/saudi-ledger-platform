@@ -19,9 +19,12 @@ import { bankAccountsRepository } from "../repositories/bankAccounts.repository"
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
+import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
 /** A row-failure reason safe to show a user — never the driver's SQL dump. */
 function reasonFor(err: unknown): string {
+  // A refusal WE wrote (a 422 from the category guard) already reads as a sentence.
+  if (err instanceof BusinessRuleError) return ` — ${err.message}`;
   const code = (err as { code?: string })?.code;
   if (code === "23503") return " — it references a category that does not exist.";
   if (code === "23505") return " — an identical row already exists.";
@@ -51,6 +54,23 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
     throw new BusinessRuleError(422, {
       error: `Category ${categoryId} does not exist for this organization.`,
       code: "reference_not_found",
+      field: "categoryId",
+    });
+  }
+  // 🔴 A bank row cannot be categorised to a CONTROL account (2026-09-16, the
+  // pre-pilot sanity walk). The picker offered Accounts Receivable for
+  // "CUSTOMER DEPOSIT — NAJD"; the posting seam then refused the party-less
+  // AR line — correctly — as a 500 with a developer message. The refusal
+  // belongs HERE, at the write boundary every writer of `category_id` passes
+  // (create, update, upload), as a 422 that names the workflow: a customer
+  // or supplier movement is an invoice or bill payment, settled from Review.
+  if (cat.systemCode && (PARTY_REQUIRED_SYSTEM_CODES as readonly string[]).includes(cat.systemCode)) {
+    throw new BusinessRuleError(422, {
+      error:
+        `${cat.name} is a customer/supplier control account and cannot be a bank transaction's category. ` +
+        `A payment from a customer or to a supplier belongs to their invoice or bill — accept the row with ` +
+        `"Accept & settle" on the Review page, or leave it uncategorised (Suspense) until the document exists.`,
+      code: "category_needs_party",
       field: "categoryId",
     });
   }
@@ -237,6 +257,7 @@ export const transactionsService = {
         }
 
         let catId: number | null = row.categoryId ?? null;
+        if (catId != null) await assertCategoryExists(catId);
         let vatAmount: string | null = row.vatAmount != null ? String(row.vatAmount) : null;
         let vatRate: string | null = row.vatRate != null ? String(row.vatRate) : null;
         let confidenceScore: string | null = null;

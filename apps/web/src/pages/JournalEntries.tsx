@@ -17,6 +17,7 @@ import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/l
 
 import type { Category, CreateJournalEntryInput, Customer, JournalEntry, JournalEntryLineInput, ListJournalEntries200, Vendor } from "@workspace/api-client-react";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreateJournalEntryInput) => JSON.stringify(b) };
@@ -36,7 +37,7 @@ export default function JournalEntries() {
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [form, setForm] = useState({ entryNumber: "", date: new Date().toISOString().split("T")[0], description: "", reference: "", notes: "" });
+  const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "" });
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();

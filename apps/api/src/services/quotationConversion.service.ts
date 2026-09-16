@@ -32,6 +32,7 @@ import { quotationsRepository } from "../repositories/quotations.repository";
 import { invoicesService } from "./invoices.service";
 import { auditService } from "./audit.service";
 import { allocateLineDiscount } from "./conversionArithmetic";
+import { businessToday } from "@workspace/shared";
 
 export interface ConvertLineInput {
   quotationItemId: number;
@@ -156,7 +157,7 @@ export const quotationConversionService = {
       }
     }
 
-    const date = input.date ?? new Date().toISOString().slice(0, 10);
+    const date = input.date ?? businessToday();
     assertDateString(date, "date");
     if (input.dueDate != null) assertDateString(input.dueDate, "dueDate");
     const convertedOn = input.convertedOn ?? date;

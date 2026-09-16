@@ -19,6 +19,7 @@ import { journalEntriesTable, journalEntryLinesTable, categoriesTable } from "@w
 import type { SystemAccountCode } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
+import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
 /**
  * One posting line. It MUST identify its account in exactly one of two ways.
@@ -72,7 +73,7 @@ export type GLLine = {
  * its party picker and its own readable 422 at journalEntries.service. The
  * named gap in §5's traps closed with it.
  */
-const PARTY_REQUIRED: ReadonlySet<string> = new Set(["AR", "AP"]);
+const PARTY_REQUIRED: ReadonlySet<string> = new Set(PARTY_REQUIRED_SYSTEM_CODES);
 
 export class MissingPartyError extends Error {
   readonly statusCode = 500; // an internal caller built the line wrong — our bug, not the user's

@@ -27,8 +27,21 @@ describe("rollingLast12Months", () => {
   it("crosses a year boundary without arithmetic drift", () => {
     // Date.UTC normalises negative months; pin it anyway — a wrong month here
     // is a wrong window on every report at once.
-    const r = rollingLast12Months(new Date("2026-03-31T23:59:59Z"));
+    // 🔴 The instant is 23:59:59 in RIYADH (20:59:59Z). This case used to pass
+    // 23:59:59Z — which is 02:59 on 1 April in Riyadh — and expect the March
+    // window: an assertion of the UTC-day defect (findings file, "THE NIGHT
+    // WINDOW"). The window follows the business day; the next case pins the
+    // other side of that midnight.
+    const r = rollingLast12Months(new Date("2026-03-31T20:59:59Z"));
     expect(r.from).toBe("2025-04-01");
+    expect(r.to).toBe("2026-03-31");
+  });
+
+  it("🔴 the window turns with the Riyadh midnight, not the UTC one", () => {
+    // 21:00:00Z on 31 March is 00:00 on 1 April in Riyadh: already April.
+    const r = rollingLast12Months(new Date("2026-03-31T21:00:00Z"));
+    expect(r.to).toBe("2026-04-01");
+    expect(r.from).toBe("2025-05-01");
   });
 
   it("31st-of-month 'now' does not skip or double a month", () => {

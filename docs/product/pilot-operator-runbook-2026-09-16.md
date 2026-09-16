@@ -67,6 +67,13 @@ pnpm --filter @workspace/api-server run dev                 # API on :3000
 pnpm --filter @workspace/bookkeeping run dev                # web on :5173
 ```
 
+🔴 **`apps/api/.env` must have `AI_PROVIDER=none`** (pilot-safety
+correction, 2026-09-16). With `groq` and a key set, the Finance Hub shows
+the accountant an "Ask your books" box that answers **500** on this
+machine — and CLAUDE.md forbids tenant data reaching Groq's free tier
+before the Enterprise agreement. Check `http://localhost:3000/api/ask/status`
+→ `{"available":false}` before he starts.
+
 Check: `http://localhost:3000/api/healthz` → `{"status":"ok"}`;
 `http://localhost:5173` → the login page. Today both are running.
 
@@ -163,13 +170,13 @@ you — they ARE the test:
 | Scenario | How |
 | --- | --- |
 | Overdue invoice | New invoice to Rawabi Logistics dated two months ago with a due date one month ago; approve |
-| Partially paid bill | New bill from Gulf Office Supplies 800.00 + 15%; post; pay 400.00 |
-| Two-person bill | New bill from Tamimi Facilities, choose **Rent & Utilities** in the dialog, do NOT post; then Approvals → Submit → Approve |
+| Partially paid bill | New bill from Gulf Office Supplies, bill number **`GOS-9001`**, 800.00 + 15% = 920.00; the dialog's button posts it; then **Pay 400.00** from the list. The remaining 520.00 is settled from the bank statement (below) |
+| Two-person bill | 🔴 The **New Bill dialog posts in one act** — it has no "save as draft" (pilot-safety correction, 2026-09-16). The two-person flow is walked on the **PO-converted draft** instead: PO-2026-0001 → **Record bill** creates a draft carrying the PO's lines; on `/bills` **Edit** it and choose **Rent & Utilities**; then Approvals → Submit → Approve. (A bill typed straight into New Bill is single-person by design.) |
 | Credit note (unpaid original) | Credit note 300.00 + 15% against INV-000003 |
 | Credit note (paid original) | Credit note 200.00 + 15% against INV-000001 — the refund case |
 | Debit note | 100.00 + 15% against INV-000002 |
 | Journal entry | Dr Bank Charges 75 / Cr Cash and Bank 75, dated this month; post |
-| Statement import | A 6-row CSV (package §3.2): one credit matching INV-000002's total with the number in the description, one credit of 10,000.00 (matches INV-000003 by amount), one debit of 400.00 (the bill), "OFFICE RENT 3,000" debit, **"INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000"** debit, "UNKNOWN DEPOSIT 250" credit |
+| Statement import | A 6-row CSV (package §3.2), each row written to exercise one matching rule — **the description decides the match** (pilot-safety correction, 2026-09-16; seed unchanged): (1) credit **11,730.00** "PAYMENT INV-2026-000002 RAWABI" → *matched by number, full*; (2) credit **10,000.00** "PAYMENT INV-2026-000003 NAJD" → *matched by number, PARTIAL* (INV-2026-000003's outstanding is 20,015.00 after the seeded 10,000.00 part-payment; a 10,000.00 credit with **no** number in its description gets NO suggestion — amount-only partials are never guessed); (3) debit **520.00** "PAYMENT GOS-9001" → *matched by number, full* (the bill's second instalment); (4) debit 3,000.00 "OFFICE RENT" → categorised Rent & Utilities, bulk-safe; (5) debit 5,000.00 **"INTERNAL TRANSFER TO PAYROLL ACCOUNT"** → `transfer`; (6) credit 250.00 "UNKNOWN DEPOSIT" → needs attention |
 
 🔴 **The transfer row's wording is the test (pilot-safety correction,
 2026-09-16).** The categoriser recognises a transfer only from an
@@ -252,14 +259,23 @@ figure written down at the time.
 **Day 2 — purchases and credit notes**
 9. PO-2026-0001 → **Record bill** → bill B1 draft with the PO's lines.
    Record.
-10. The two-person bill (§3.3): choose Rent & Utilities, submit,
-    approve from Approvals. Record: the queue row shows "→ Rent &
-    Utilities"; the `BILL-…` entry debits Rent & Utilities, not Purchases.
-11. The partial bill (§3.3): post, pay 400. Record: `/ap-aging` shows
-    520 remaining; status `received`. Pay the rest. Record: `paid`.
-12. Credit note against INV-000003 (unpaid part). Record: the `GL-CN…`
-    entry (Dr Sales / Dr VAT Payable / Cr AR), aging nets it, box 6 drops.
-13. Debit note against INV-000002. Record: posts in the invoice direction.
+10. The two-person bill (§3.3): on `/bills`, **Edit** the PO-converted
+    draft from step 9 and choose **Rent & Utilities**; do not post it
+    there. Approvals → Submit → Approve. Record: the queue row shows
+    "→ Rent & Utilities"; the `BILL-…` entry debits Rent & Utilities,
+    not Purchases.
+11. The partial bill (§3.3, `GOS-9001`): the dialog posts it; **Pay
+    400.00**. Record: `/ap-aging` shows 520.00 remaining; status
+    `received`. Leave the 520.00 — the statement settles it on Day 3.
+12. Credit note against INV-2026-000003 (the unpaid part), on **Credit
+    Notes** (the page is titled "Credit & debit notes"; New note → type
+    Credit note). Record: the note is numbered **in the invoice series**
+    (`INV-2026-…` — one sequence for invoices and notes is the ZATCA
+    rule) and its entry is **`GL-INV-2026-…`**; aging nets it; box 6
+    drops. The PDF is titled إشعار دائن and names the original.
+13. Debit note against INV-2026-000002 — same page, New note → type
+    **Debit note** (the sidebar's "Debit Notes" entry is a coming-soon
+    page; ignore it). Record: posts in the invoice direction.
 14. Credit note against the **paid** INV-000001. Record: aging shows a
     negative balance at 0 days; note that nothing on any screen pays it
     out (package §8).
@@ -268,15 +284,25 @@ figure written down at the time.
     outstanding on INV-000003 is refused. Record each refusal.
 
 **Day 3 — banking and controls**
-16. Review the five seeded suspense rows on `/review`: categorise STC to
-    Telecommunications, bank charges to Bank Charges, the salary transfer
-    to Salaries and Wages; leave the POS settlement and the Najd deposit.
-    Record: each re-categorisation reverses and re-posts (two entries).
+16. The five seeded suspense rows are **accepted** (§3.1), so they are
+    NOT on `/review` — that page lists only rows awaiting a decision.
+    Categorise them on **`/transactions`** (the pencil on each row):
+    STC to Telecommunications, bank charges to Bank Charges, the salary
+    transfer to Salaries and Wages; leave the POS settlement and the Najd
+    deposit. Record: each re-categorisation reverses and re-posts (two
+    entries). 🔴 The picker does not offer Accounts Receivable or
+    Accounts Payable — a customer or supplier movement is settled against
+    its document from Review, never categorised (a refusal names this if
+    tried by API).
 17. Upload the 6-row CSV (§3.3) on `/upload`. Record: 6 rows pending;
-    the trial balance unchanged.
-18. Settle the two matched credits and the 400 debit against their
-    documents. Record: the documents' paid amounts move; no `TXN-` entry
-    for a settlement.
+    the trial balance unchanged; on `/review`, rows 1–3 show a
+    suggestion line ("settles INV-… — matched by number", row 2 marked
+    *partial*); rows 4–5 sit under "Ready to accept", row 6 under
+    "Needs attention".
+18. **Accept & settle** rows 1–3 against their documents. Record:
+    INV-2026-000002 → `paid`; INV-2026-000003's outstanding falls by
+    10,000.00 (still `sent`); GOS-9001 → `paid`; no `TXN-` entry for a
+    settlement (the payment entries are `GL-…-PAY-…` / `BILL-…-PAY-…`).
 19. Categorise "OFFICE RENT"; accept "UNKNOWN DEPOSIT" with no category
     (→ Suspense); accept "INTERNAL TRANSFER TO PAYROLL ACCOUNT" (it shows
     the `transfer` badge and no category) then on `/transactions` declare
@@ -309,8 +335,11 @@ figure written down at the time.
     on `/closed-months` (the current month holds the pilot's own entries;
     locking it would refuse the rest of the checklist). Then the
     accountant attempts, dated in the locked month: a new invoice, a bill,
-    a journal entry, a payment with a paid-at in it. Record: each refused
-    with the closed-month dialog. Also accept a statement row dated in
+    a journal entry. Record: each refused with the closed-month dialog.
+    (A payment is always dated the day it is recorded — the Record
+    Payment dialog has no date field — so a payment cannot be dated into
+    the locked month from the UI; it is refused only if TODAY is locked,
+    which is why the current month is never the one you lock.) Also accept a statement row dated in
     that month from Review — one row with its **Accept**, and then with
     **Accept ready** alongside an open-month row: the single row raises
     the same closed-month dialog; the batch accepts the open row and
@@ -388,6 +417,13 @@ Plain language, no internals. Give them these nine, in this form:
    credit note; for anything else, tell us.
 7. **The trial balance shows only the period you pick**, with no opening
    column, so run it from the start of the fiscal year.
+10. **A bank credit is matched to an invoice only when the description
+    carries the invoice number, or the amount equals exactly one open
+    document's outstanding balance.** A part-payment with no number in
+    the description is never guessed — accept it uncategorised (Suspense)
+    and tell us. Credit and debit notes are numbered in the invoice
+    series (`INV-2026-…`) — that is the ZATCA one-sequence rule, not a
+    mistake — and are created on the Credit Notes page.
 8. **Deleting records and closing months are the administrator's** —
    ask, and it will be done while you watch. The audit trail is likewise
    read by the administrator.
@@ -448,6 +484,8 @@ settled — log it as a question with the accountant's opinion.
       credential shown on `/zatca`) or deliberately not; the 0% rule
       disclosed accordingly. `ZATCA_WORKER_ENABLED` is unset/false, so
       nothing transmits.
+- [ ] `AI_PROVIDER=none` in `apps/api/.env`; `/api/ask/status` answers
+      `{"available":false}`; the Finance Hub shows no "Ask your books" box.
 - [ ] Accountant user created on `/users` with role Accountant; their
       login works; a probe confirms `/users` is refused to them.
 - [ ] §7 disclosed to the accountant; §8 format agreed.

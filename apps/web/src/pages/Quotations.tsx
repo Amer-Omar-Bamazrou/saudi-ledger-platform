@@ -36,6 +36,7 @@ import { QUOTATION_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/l
 import { DualDate } from "@/components/DualDate";
 
 import type { CreateQuotationInput, Customer, Quotation, QuotationConversion, UpdateQuotationInput } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 5): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreateQuotationInput) => JSON.stringify(b), update: (b: UpdateQuotationInput) => JSON.stringify(b) };
@@ -80,7 +81,7 @@ export default function Quotations() {
   const [editing, setEditing] = useState<{ id: number; number: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(QUOTATION_FILTERS));
   const [form, setForm] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: businessToday(),
     validUntil: "",
     customerId: "",
     notes: "",
@@ -135,7 +136,7 @@ export default function Quotations() {
     onSuccess: (q: Quotation) => {
       setOpen(false);
       setLines([emptyLine()]);
-      setForm({ date: new Date().toISOString().split("T")[0], validUntil: "", customerId: "", notes: "" });
+      setForm({ date: businessToday(), validUntil: "", customerId: "", notes: "" });
       refresh();
       toast({ title: t("Quotation created", "تم إنشاء عرض السعر"), description: q.quotationNumber });
     },
@@ -234,7 +235,7 @@ export default function Quotations() {
   // ── Conversion (M21.2) ───────────────────────────────────────────────────
   const [converting, setConverting] = useState<Quotation | null>(null);
   const [convertQty, setConvertQty] = useState<Record<number, string>>({});
-  const [convertDate, setConvertDate] = useState(new Date().toISOString().split("T")[0]);
+  const [convertDate, setConvertDate] = useState(businessToday());
 
   // The dialog needs the LINES, which the list response does not carry.
   const { data: convertDetail } = useQuery<Quotation>({
@@ -252,7 +253,7 @@ export default function Quotations() {
   const openConvert = (q: Quotation) => {
     setConverting(q);
     setConvertQty({});
-    setConvertDate(new Date().toISOString().split("T")[0]);
+    setConvertDate(businessToday());
   };
 
   const convertMut = useMutation({
@@ -333,7 +334,7 @@ export default function Quotations() {
               if (!o) {
                 setEditing(null);
                 setLines([emptyLine()]);
-                setForm({ date: new Date().toISOString().split("T")[0], validUntil: "", customerId: "", notes: "" });
+                setForm({ date: businessToday(), validUntil: "", customerId: "", notes: "" });
               }
             }}
           >

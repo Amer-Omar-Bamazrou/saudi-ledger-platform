@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { DualDate } from "@/components/DualDate";
+import { businessToday } from "@workspace/shared";
 
 interface PeriodLock {
   id: number;
@@ -50,7 +51,7 @@ function monthLabel(period: string, lang: string): string {
   }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
-const thisMonth = () => new Date().toISOString().slice(0, 7);
+const thisMonth = () => businessToday().slice(0, 7);
 
 export default function ClosedMonths() {
   const { t, lang } = useLanguage();

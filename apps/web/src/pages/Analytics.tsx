@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/utils";
 const compactTick = (v: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 import { classifyChartState, type EmptyReason } from "@/lib/chartState";
 import { TrendingUp, TriangleAlert, Table as TableIcon } from "lucide-react";
+import { businessToday } from "@workspace/shared";
 
 /**
  * Analytics (M19.3) — "how is the business doing".
@@ -64,9 +65,10 @@ function lastNMonths(n: number): { from: string; to: string } {
 
 /** First and last day of the current month, for the decomposition window. */
 function currentMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
+  // The business day's month (Asia/Riyadh), never the UTC clock's.
+  const [by, bm] = businessToday().split("-").map(Number);
+  const y = by;
+  const m = bm - 1;
   const pad = (d: Date) => d.toISOString().slice(0, 10);
   return { from: pad(new Date(Date.UTC(y, m, 1))), to: pad(new Date(Date.UTC(y, m + 1, 0))) };
 }
