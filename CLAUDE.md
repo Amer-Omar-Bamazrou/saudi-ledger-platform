@@ -519,7 +519,7 @@ triage addendum; invisible to planning until placed.
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter in either direction. |
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
-| **C6** | **Residency / hosting, the AI hosting decision — and now a real deployment WEIGHT.** 🔴 L1's renderer is Chromium — the only engine that shapes Arabic correctly — adding **~150 MB** to whatever we deploy: a hosting line, not a footnote. (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) Confirm an Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS) unchanged; no hosted Supabase project exists yet. |
+| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project exists yet. L1's Chromium renderer adds ~150 MB to the deployment. |
 
 ### Advisor package — one conversation
 
@@ -546,8 +546,7 @@ the order is not the severity order.**
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The genuine long tail. |
 
-**Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip).
+**Open DECISION:** `platform-alarms` is NOT operator-runnable (a one-line flip).
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -564,10 +563,9 @@ needs a checkable reason and leaves the day it is fixed.
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
 by `scripts/arabic-sweep.mjs`, whose count is believed only after a HELD-OUT
-round (files it was never tuned on, hand-read in full). 🔴 **An instrument
-validated on the set used to tune it reports its fit, not its error**: the
-2026-09-14 "47, all classified" was fit — the committed instrument missed
-14 of 14 on fresh files. Measured 2026-09-15 (frame: 105 files): **30 sites
+round (files it was never tuned on, hand-read in full — §3: an instrument
+validated on its tuning set reports its fit, not its error). Measured
+2026-09-15 (frame: 105 files): **30 sites
 of untranslated user-facing English remain, UNFIXED** (fix proposed, not
 done); the final instrument's held-out evidence is one round, one true
 positive — thin. Every widening needs a fresh hold-out; re-run before launch.
@@ -590,7 +588,7 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
-seed grants, git-history secret scanning. Findings file, "THE THREE COVERAGE GAPS, AUDITED".
+seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAPS, AUDITED").
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
 known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind
