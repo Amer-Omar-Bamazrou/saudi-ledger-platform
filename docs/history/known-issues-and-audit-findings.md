@@ -1910,3 +1910,37 @@ edit-dialog saving with no category (a reverse + identical re-post); the
 Finance Hub's net "unclassified" figure; the browser title; the
 pagination controls rendered inside the JE dialog; `/audit-trail`'s
 endless spinner for a non-admin.
+
+## ZATCA ONBOARDING UNREACHABLE FROM THE UI — OPEN, 2026-09-16 (found during pilot setup; documentation only)
+
+**The finding.** `/zatca`'s "Before you start" checklist requires nine
+company facts, the ninth being the national address **additional number**
+(KSA-23, 4 digits — "BR-KSA-09 needs it; the rule text does not say so").
+`/company` (Company Settings) offers five address fields — building,
+street, district, city, postal code — and **no additional-number field**;
+`companies.additional_number` exists and the API accepts it, but nothing
+in the web app writes it. So the checklist can never go green from the
+UI, the Onboard button stays disabled ("Complete the missing company
+details above before onboarding"), and sandbox onboarding — which the
+package §1.6 called "optional, but the pilot should do it" — is
+unreachable by an operator using the product. The runbook's §3.2 step 1
+described an "additional 4 digits" field that does not exist (corrected
+the same day); the rehearsal org was never onboarded either, which is
+why the rehearsal did not notice.
+
+**Class.** §3's oldest lesson: *a completed backend is unreachable until
+someone has clicked it* — the onboarding path is built, live-verified
+against the sandbox, and gated on a field only the API can set. The
+route-reachability guard cannot see it (every route is reachable; a
+button is disabled by data).
+
+**Decision taken.** The pilot runs **deliberately not onboarded** (owner,
+2026-09-16): invoices mint ICV/hash/QR, no signed e-invoice document is
+built, the 0% rule does not apply; disclosed in the runbook §7 item 4.
+
+**What would close it.** An additional-number input on Company Settings
+(one field, `additionalNumber`, 4 digits, wired like the five beside it)
+and a walked leg proving the `/zatca` checklist goes green from the UI.
+Not done now on the owner's instruction (documentation only).
+
+State: OPEN (docs corrected; the field is not added).
