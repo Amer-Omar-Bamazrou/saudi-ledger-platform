@@ -297,7 +297,7 @@ figures can be checked by hand.
 | Bill B1 (from PO1) | Choose the expense account (e.g. Rent & Utilities) at entry; submit; approve from **Approvals** as a second act → posts to the chosen account (#160 item 4) |
 | Bill B2 from supplier P, 800.00 + 15% | Post; **pay 400.00** → stays `received`, AP aging shows 520.00 remaining; then pay the rest |
 | Journal entry J1 | 2 lines, e.g. Dr Bank Charges 75 / Cr Cash and Bank 75, dated this month; post |
-| Bank statement S1 (CSV upload) | 6 rows: a credit matching I1's total with "I1's number" in the description (matched), a credit of I2's 1,000.00 (matched by amount), a debit of B2's 400.00 (matched), a debit "OFFICE RENT 3,000" (categorise), a debit "INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000" (recognised as a transfer by the `internal transfer` rule — a bare "TRANSFER TO PAYROLL" is booked as Salaries by the round-amount heuristic, probed 2026-09-16; declare as own-account after accepting), and a credit "UNKNOWN DEPOSIT 250" (accept uncategorised → SUSPENSE) |
+| Bank statement S1 (CSV upload) | 6 rows, each worded for one matching rule (the runbook §3.3 has the exact amounts; corrected 2026-09-16 to what the seeded data actually matches): a credit with the paid invoice's number in the description (matched by number, full); a 10,000.00 credit with **INV-2026-000003's number** in the description (matched by number, **partial** — an amount-only partial is never suggested); a 520.00 debit with the partial bill's number (matched by number, full — its second instalment); a debit "OFFICE RENT 3,000" (categorised); a debit "INTERNAL TRANSFER TO PAYROLL ACCOUNT 5,000" (recognised as a transfer by the `internal transfer` rule — a bare "TRANSFER TO PAYROLL" is booked as Salaries by the round-amount heuristic, probed 2026-09-16; declare as own-account after accepting); and a credit "UNKNOWN DEPOSIT 250" (accept uncategorised → SUSPENSE) |
 | Manual transaction M1 | The Upload page's **Manual Entry** tab submits through the IMPORT path, so a typed row lands in Review as pending like any statement row — accept it there. The immediately-posting manual create (#160 item 2) is API-only today: no page calls it. Exercise it by API if you want the evidence, or leave it out |
 
 VAT scenarios the product supports from the UI: standard 15% lines;
@@ -434,8 +434,9 @@ at the time — not a recollection.
 4. **Period lock** (you, as admin, on `/closed-months` or the Finance Hub):
    lock last month. Then the accountant attempts, in that month: a new
    invoice, a new bill, a journal entry, a payment with a paid-at date in
-   it, and a bank row dated in it accepted from Review — one at a time and
-   with **Accept ready** beside an open-month row. Evidence: each is
+   it (a payment cannot be dated from the UI — it is always dated the day
+   it is recorded), and a bank row dated in it accepted from Review — one
+   at a time and with **Accept ready** beside an open-month row. Evidence: each is
    refused with the closed-month dialog (423); the batch accepts the open
    row and names the refused one in a red notice, and the refused row
    stays in Review with no entry (fixed 2026-09-16; it used to return

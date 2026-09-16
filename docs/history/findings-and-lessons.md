@@ -8005,3 +8005,75 @@ package row now records the correction rather than silently rewording.
 Standing form for the runbook and package from here: **a "this refuses"
 sentence names the walk or test that observed it, or is written as
 "untested".**
+
+## 🔴 2026-09-16 — THE NIGHT WINDOW: every "today" was the UTC day, and every test and walk ran in daytime
+
+**The incident.** The pre-pilot sanity walk of the runbook ran at
+02:25–02:45 Riyadh time (UTC+3), the first work on this codebase ever
+done between 00:00 and 03:00 local. Two things were observed, each read
+back from the database rather than from a screen:
+
+- The New Invoice form defaulted its date to **2026-09-15** on the 16th;
+  the invoice was issued (ICV 7, hash, QR) with that date as its legal
+  issue date — wrong for ZATCA purposes by one day.
+- A journal entry created and posted with date **2026-09-16** was reversed
+  by `journalEntries.service.ts reverse`, which dated the reversal
+  `new Date().toISOString().split("T")[0]` = **2026-09-15** — a reversal
+  dated BEFORE the entry it reverses, and (had September been closed)
+  into a closed month, because the reversal path never checked the lock.
+
+**The cause, measured.** `grep` over both apps found 58 sites deriving a
+calendar day from the raw clock (`new Date().toISOString().slice(0, 10)`,
+`.split("T")[0]`, `.slice(0, 7)` for a month): 25 in the API (invoice,
+bill and note period checks; payment `paidAt` defaults; the reversal
+date; PO/quotation conversion dates; the invoice number's year prefix;
+the balance-sheet `asOf` default; recurring generation; the closed-month
+"closed on" label) and 33 in the web (every form's dated-today default,
+the pay dialogs' `paidAt`, the current-month and rolling-12-month
+report windows). Every one answered the UTC day. There was no
+abstraction: no `today()`, no time zone anywhere in the code or the
+schema.
+
+**Why nothing had seen it.** The property is invisible for 21 hours of
+every day. The 1,401-test API suite, the 282-test browser suite, the
+two core-path walks, the seven-workflow audit and the second-opinion
+audit all ran between 03:00 and 24:00 Riyadh, where the UTC day and the
+Riyadh day coincide and the wrong expression gives the right answer.
+No test pinned the clock: every "today" assertion compared the code's
+answer to the same `new Date()` it was computed from — the correct
+answer equal to the broken one, §3's oldest rule. The blind spot was
+not a missing case; it was a missing INSTRUMENT (a fixed clock).
+
+**The fix.** One seam, `packages/shared/src/businessDate.ts`
+(`businessToday()`, `businessDate(at)`, `businessDateShift()`,
+`BUSINESS_TIME_ZONE = "Asia/Riyadh"`), imported by both apps, so the
+server and the browser cannot disagree on what day it is; every one of
+the 58 sites routed through it (deliberate UTC month arithmetic on a
+`Date.UTC(...)` value, day-number conversions and full-timestamp audit
+strings were left alone — they are instants or pure arithmetic, not
+business days). The module probes at load that the zone is honoured
+(22:00Z on 1 Jan must read 2 Jan) and refuses to load otherwise. The
+invoice writer now DEFAULTS an omitted date at the write boundary (it
+used to check the period on "today" and then insert NULL — a 500).
+
+**The instrument that closes the blind spot.**
+`tests/business-date-night-window.test.ts` fixes the process clock at
+**2026-09-30T22:00Z = 01:00 on 1 October, Riyadh**, with September
+LOCKED, and drives the product's own writers: an invoice created with no
+date is dated 2026-10-01 and approves into the open month; a payment
+with no `paidAt` is dated 2026-10-01 and its entry posts; a journal
+entry dated the business day posts and its reversal is dated the SAME
+day (asserted `>=` the original); noon gives the same answers. Under
+the old code every one of those dates was 2026-09-30 — into the closed
+month, or before the original — so the suite was **red 4/4 on the
+DB-backed cases before the fix** and green after; the seam's own three
+cases need no database and no machine clock. `tests/business-date-seam.test.ts`
+then makes the wrong expression inexpressible: any new day/month/year
+sliced off the raw clock in either app fails CI naming the line (proven
+on a planted violation).
+
+**The lesson, in §3's terms.** *When the correct answer equals the broken
+one, the test proves nothing* — and a clock is the input most tests
+never vary. A property that depends on the time of day is tested at
+a FIXED time of day, chosen to be the one where the wrong answer
+differs, or it is not tested.

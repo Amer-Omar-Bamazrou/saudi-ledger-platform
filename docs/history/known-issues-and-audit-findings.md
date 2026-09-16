@@ -1846,3 +1846,67 @@ engine, posting or policy code changed for any of them.
 
 Also corrected in passing: §6/§7's bulk-accept disclosure, made moot by
 item 1 above, is replaced by the reversal-safety instruction.
+
+## THE PRE-PILOT SANITY WALK — CLOSED 2026-09-16 (branch `fix/pre-pilot-blockers-2`)
+
+The read-only walk of the runbook, as the accountant, in both languages,
+on merged `main` `b6a2f8e`, at 02:25–02:45 Riyadh. Every figure tied
+(GL AR = aging, GL AP = AP aging, trial balance balanced, VAT boxes
+recomputed by hand, cash `unexplained` = 0). What it found and what
+closed:
+
+**1. Bank row categorised to a control account → 500.** The
+`/transactions` edit picker offered every chart account; choosing
+Accounts Receivable for "STC PAYMENT" (or the natural case, "CUSTOMER
+DEPOSIT — NAJD") reached `repost` → the posting seam's `MissingPartyError`
+(status 500, a developer message). The tenant transaction rolled the
+reversal back, so the books were untouched — verified in Postgres — but
+the accountant saw "failed to update" from an ordinary control. **Fix:**
+`assertCategoryExists` — the one guard every writer of `category_id`
+passes (create, update, upload) — refuses a party-required account with
+**422 `category_needs_party`** and a sentence naming the workflow (settle
+from Review); the picker no longer offers AR/AP; the set is one shared
+definition `PARTY_REQUIRED_SYSTEM_CODES` (`@workspace/shared`) consumed by
+the posting seam, the guard and the picker. **Regression:**
+`transaction-control-account-refused.test.ts` — update to AR/AP refused
+with the row, its link and its Suspense entry untouched; create refused
+with nothing inserted; upload reports the row by name and imports its
+sibling; an expense category still re-posts (movement). Red 4/6 before.
+
+**2. The UTC calendar day was every "today".** Findings file, "THE NIGHT
+WINDOW". Fix: the business-date seam; regression:
+`business-date-night-window.test.ts` (red 4/4 before) and the
+`business-date-seam.test.ts` guard.
+
+**3. "Ask your books" offered to the accountant and answering 500.** The
+pilot machine's `apps/api/.env` had `AI_PROVIDER=groq` with a key; the
+Finance Hub showed the box and `POST /api/ask` failed. Not a code
+change: `AI_PROVIDER=none` on the pilot machine, and the runbook §1/§9
+now require `/api/ask/status` → `{"available":false}` before the pilot
+starts. (CLAUDE.md's rule stands: no tenant data reaches Groq's free
+tier before the Enterprise agreement.)
+
+**4–7. Runbook contradictions (pilot-safety corrections, docs only).**
+Step 16 sent him to `/review` for rows that are already accepted (they
+are re-categorised on `/transactions`); step 10's "choose the account, do
+NOT post" is impossible in the New Bill dialog (it posts in one act — the
+two-person flow is walked on the PO-converted draft, verified: PATCH sets
+`expenseAccountId` on a draft and the queue row shows it); the CSV's
+"10,000 matches INV-000003 by amount" could not match (outstanding is
+20,015 after the seeded part-payment; amount-only partials are never
+suggested) and the 400 debit could match nothing — the CSV is now worded
+so each row exercises one rule (number-full, number-PARTIAL, number-full
+on the bill's 520 second instalment), **the seed unchanged**; step 22's
+"a payment with a paid-at" is not a UI field (payments are dated the day
+recorded); the document numbers are `INV-2026-…`, notes share the series
+and post `GL-INV-…`, not `GL-CN…`; debit notes live on the Credit Notes
+page (the sidebar entry is coming-soon).
+
+**Recorded and DEFERRED (not in this batch):** the credit-note row's
+appearance in the invoice list; the Debit Notes navigation; Arabic
+translation gaps on core pages (`posted`, `approved`, `debit`/`credit`,
+the picker's English names); the VAT reconciliation wording; the
+edit-dialog saving with no category (a reverse + identical re-post); the
+Finance Hub's net "unclassified" figure; the browser title; the
+pagination controls rendered inside the JE dialog; `/audit-trail`'s
+endless spinner for a non-admin.
