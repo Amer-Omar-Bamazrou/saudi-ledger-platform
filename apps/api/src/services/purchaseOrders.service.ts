@@ -43,6 +43,7 @@ import {
 } from "../repositories/purchaseOrders.repository";
 import { buildPurchaseOrderOut, type PriceVariance } from "./purchaseOrders.presenter";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 
 
 const PO_FIELDS = ["date", "validUntil", "vendorId", "currency", "notes"] as const;
@@ -177,7 +178,7 @@ export const purchaseOrdersService = {
     validateItems(items);
 
     const header = pick<Record<string, unknown>>(body, [...PO_FIELDS]) as Record<string, any>;
-    const date = header.date ?? new Date().toISOString().slice(0, 10);
+    const date = header.date ?? businessToday();
     assertDateString(date, "date");
     if (header.validUntil != null) assertDateString(header.validUntil, "validUntil");
     await assertVendorExists(header.vendorId);

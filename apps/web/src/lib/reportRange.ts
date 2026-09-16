@@ -1,3 +1,5 @@
+import { businessDate } from "@workspace/shared";
+
 /**
  * The rolling fallback window (M20.1, F11) — what a report opens with when no
  * fiscal year is declared.
@@ -11,11 +13,12 @@
  * activity without claiming to BE anyone's year.
  */
 export function rollingLast12Months(now: Date = new Date()): { from: string; to: string } {
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
-  return {
-    from: start.toISOString().slice(0, 10),
-    to: now.toISOString().slice(0, 10),
-  };
+  // "today" is the BUSINESS day (Asia/Riyadh), never the UTC day — the
+  // month arithmetic below runs on that day's y/m, in UTC on purpose.
+  const to = businessDate(now);
+  const [y, m] = to.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1 - 11, 1));
+  return { from: start.toISOString().slice(0, 10), to };
 }
 
 /** An inclusive ISO date range — what every shortcut resolves to. */

@@ -29,6 +29,7 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 const BILL_PAGE_SIZE = 50;
 
 import type { Bill, BillApproveInput, CreateBillInput, ListBills200, PaymentInput, UpdateBillInput, Vendor } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /**
  * Request bodies go through the GENERATED input types (contract batch 3), so
@@ -62,7 +63,7 @@ const makeEmpty = () => ({
    */
   billNumber: "",
   vendorReference: "",
-  date: new Date().toISOString().split("T")[0],
+  date: businessToday(),
   dueDate: "",
   vendorId: "",
   status: "received",
@@ -288,7 +289,7 @@ export default function Bills() {
     mutationFn: ({ id, amount }: { id: number; amount: number }) =>
       apiFetch(`/bills/${id}/pay`, {
         method: "POST",
-        body: json.pay({ amount, paidAt: new Date().toISOString().split("T")[0] }),
+        body: json.pay({ amount, paidAt: businessToday() }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });

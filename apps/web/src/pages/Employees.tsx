@@ -17,12 +17,13 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 
 import type { CreateEmployeeInput, Employee, EmployeeTotals } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreateEmployeeInput) => JSON.stringify(b) };
 
 
-const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: new Date().toISOString().split("T")[0], status: "active" };
+const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: businessToday(), status: "active" };
 
 export default function Employees() {
   const [open, setOpen] = useState(false);

@@ -25,13 +25,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
  */
 
 import type { ActivityReport as ActivityReportData } from "@workspace/api-client-react";
+import { businessToday, businessDateShift } from "@workspace/shared";
 
 const STATUS_STYLES: Record<string, string> = { posted: "bg-positive-surface/20 text-positive", draft: "bg-secondary text-muted-foreground", reversed: "bg-negative-surface/20 text-negative" };
 
 export default function ActivityReport() {
   const { t } = useLanguage();
-  const today = new Date().toISOString().split("T")[0];
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  const today = businessToday();
+  const thirtyDaysAgo = businessDateShift(today, -30);
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo,   setDateTo]   = useState(today);
   const [applied,  setApplied]  = useState({ from: thirtyDaysAgo, to: today });

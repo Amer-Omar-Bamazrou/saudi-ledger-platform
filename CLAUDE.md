@@ -63,7 +63,7 @@ T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten day
 🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
 to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
-**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS").
+**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"). **THE PRE-PILOT SANITY WALK** CLOSED (same file; findings file, "THE NIGHT WINDOW" — the business-date seam).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -507,7 +507,7 @@ triage addendum; invisible to planning until placed.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ **CORE SHIPPED 2026-09-03 — the invoice LEAVES the product** (PDF/A-3, veraPDF PASS both renderings; logo upload ✅ 2026-09-14). Records: known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT" and "L1 LOGO UPLOAD"; [`design-invoice-document.md`](docs/product/design-invoice-document.md) stays the single writer. | **Remaining** (owner, 2026-09-04): "send" once B1's mail provider is wired at deployment — a PROVIDER wait, not unfinished work. |
+| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT", "L1 LOGO UPLOAD"; [`design-invoice-document.md`](docs/product/design-invoice-document.md) is the single writer). | **Remaining**: "send", once B1's mail provider is wired — a PROVIDER wait. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -519,7 +519,7 @@ triage addendum; invisible to planning until placed.
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter in either direction. |
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
-| **C6** | **Residency / hosting, the AI hosting decision — and now a real deployment WEIGHT.** 🔴 L1's renderer is Chromium — the only engine that shapes Arabic correctly — adding **~150 MB** to whatever we deploy: a hosting line, not a footnote. (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) Confirm an Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS) unchanged; no hosted Supabase project exists yet. |
+| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project exists yet. L1's Chromium renderer adds ~150 MB to the deployment. |
 
 ### Advisor package — one conversation
 
@@ -546,8 +546,7 @@ the order is not the severity order.**
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The genuine long tail. |
 
-**Open DECISIONS** (flagged so they are decided, not defaulted):
-`platform-alarms` is NOT operator-runnable (a one-line flip).
+**Open DECISION:** `platform-alarms` is NOT operator-runnable (a one-line flip).
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -564,10 +563,9 @@ needs a checkable reason and leaves the day it is fixed.
 
 Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
 by `scripts/arabic-sweep.mjs`, whose count is believed only after a HELD-OUT
-round (files it was never tuned on, hand-read in full). 🔴 **An instrument
-validated on the set used to tune it reports its fit, not its error**: the
-2026-09-14 "47, all classified" was fit — the committed instrument missed
-14 of 14 on fresh files. Measured 2026-09-15 (frame: 105 files): **30 sites
+round (files it was never tuned on, hand-read in full — §3: an instrument
+validated on its tuning set reports its fit, not its error). Measured
+2026-09-15 (frame: 105 files): **30 sites
 of untranslated user-facing English remain, UNFIXED** (fix proposed, not
 done); the final instrument's held-out evidence is one round, one true
 positive — thin. Every widening needs a fresh hold-out; re-run before launch.
@@ -576,6 +574,7 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
+- 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. A GCC tenant outside KSA gets Riyadh's day. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
@@ -589,7 +588,7 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
-seed grants, git-history secret scanning. Findings file, "THE THREE COVERAGE GAPS, AUDITED".
+seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAPS, AUDITED").
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
 known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind

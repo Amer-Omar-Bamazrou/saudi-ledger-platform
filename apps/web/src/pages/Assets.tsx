@@ -16,6 +16,7 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 
 import type { AssetListItem, AssetTotals, CreateAssetInput, DepreciateInput } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreateAssetInput) => JSON.stringify(b), depreciate: (b: DepreciateInput) => JSON.stringify(b) };
@@ -23,13 +24,13 @@ const json = { create: (b: CreateAssetInput) => JSON.stringify(b), depreciate: (
 
 const STATUS_STYLES: Record<string, string> = { active: "bg-positive-surface/20 text-positive", "fully-depreciated": "bg-secondary text-muted-foreground", disposed: "bg-negative-surface/20 text-negative", sold: "bg-info-surface/20 text-info" };
 
-const emptyForm = { assetNumber: `FA-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", purchaseDate: new Date().toISOString().split("T")[0], purchaseCost: "", salvageValue: "0", usefulLifeYears: "5", depreciationMethod: "straight-line", location: "", serialNumber: "", notes: "" };
+const emptyForm = { assetNumber: `FA-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", purchaseDate: businessToday(), purchaseCost: "", salvageValue: "0", usefulLifeYears: "5", depreciationMethod: "straight-line", location: "", serialNumber: "", notes: "" };
 
 export default function Assets() {
   const [open, setOpen] = useState(false);
   const [depOpen, setDepOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [depPeriod, setDepPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [depPeriod, setDepPeriod] = useState(businessToday().slice(0, 7));
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();

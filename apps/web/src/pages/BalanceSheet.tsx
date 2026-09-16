@@ -13,6 +13,7 @@ import { CompareSelect, ComparisonUnavailable, priorAsOfLabel, type CompareSetti
 import { derivePriorAsOf, fmtPctChange } from "@/lib/priorPeriod";
 
 import type { BalanceSheetReport, ReportKeyedAmount } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /**
  * 🔴 The equity accounts PLUS the retained-earnings line — because that is what
@@ -90,8 +91,8 @@ function Section({ title, titleAr, color, rows, extra, total, priorRows, priorEx
 
 export default function BalanceSheet() {
   const { t, lang } = useLanguage();
-  const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [applied, setApplied] = useState(new Date().toISOString().split("T")[0]);
+  const [asOf, setAsOf] = useState(businessToday());
+  const [applied, setApplied] = useState(businessToday());
   const [compare, setCompare] = useState<CompareSetting>("off");
 
   const { data: fiscalYears } = useFiscalYearsQuery();

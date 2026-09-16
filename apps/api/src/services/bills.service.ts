@@ -59,6 +59,7 @@ import { buildBillOut } from "./bills.presenter";
 import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 
 
 export const billsService = {
@@ -171,7 +172,7 @@ export const billsService = {
     const finalVatAmount = items.length > 0 ? vatTotal : Number(billData.vatAmount ?? 0);
     const finalTotal = items.length > 0 ? subtotal + vatTotal : Number(billData.total ?? 0);
 
-    await checkPeriodOpen(billData.date ?? new Date().toISOString().split("T")[0]);
+    await checkPeriodOpen(billData.date ?? businessToday());
     const [bill] = await billsRepository.insert({
       ...billData,
       subtotal: String(finalSubtotal.toFixed(2)),
@@ -279,7 +280,7 @@ export const billsService = {
     const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
     const fullySettled = outstanding - paid < 0.01;
 
-    const payDate = paidAt ?? new Date().toISOString().split("T")[0];
+    const payDate = paidAt ?? businessToday();
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(newPaid),
       paidAt: payDate,

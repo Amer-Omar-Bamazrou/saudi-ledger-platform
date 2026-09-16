@@ -13,6 +13,7 @@ import { Banknote, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import type { CreatePayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
 const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b) };
@@ -22,7 +23,7 @@ const STATUS_STYLES: Record<string, string> = { draft: "bg-attention-surface/20 
 export default function Payroll() {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [period, setPeriod] = useState(businessToday().slice(0, 7));
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();

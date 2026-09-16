@@ -6,6 +6,7 @@ import { db } from "@workspace/db";
 import { periodLocksTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { PeriodLockedError } from "../../lib/errors";
+import { businessDate } from "@workspace/shared";
 
 /** Extract YYYY-MM from a date string or Date. */
 function toPeriod(date: string | Date): string {
@@ -44,7 +45,7 @@ export async function checkPeriodOpen(date: string | Date): Promise<void> {
     )
     .limit(1);
   if (lock) {
-    const lockedAt = lock.lockedAt.toISOString().slice(0, 10);
+    const lockedAt = businessDate(lock.lockedAt);
     // Plain words, not accountant vocabulary ("post a reversing entry" told a
     // non-accountant nothing). The client keys on the CODE in the payload and
     // renders its own copy; this message is the fallback for API callers and

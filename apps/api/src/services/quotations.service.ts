@@ -43,6 +43,7 @@ import { quotationApprovable } from "./quotations.approvable";
 import { quotationsRepository, type QuotationListFilter } from "../repositories/quotations.repository";
 import { buildQuotationOut } from "./quotations.presenter";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 
 
 /** Header fields a client may set. Everything else is derived or minted. */
@@ -193,7 +194,7 @@ export const quotationsService = {
     validateItems(items);
 
     const header = pick<Record<string, unknown>>(body, [...QUOTATION_FIELDS]) as Record<string, any>;
-    const date = header.date ?? new Date().toISOString().slice(0, 10);
+    const date = header.date ?? businessToday();
     assertDateString(date, "date");
     if (header.validUntil != null) assertDateString(header.validUntil, "validUntil");
     if (header.discount != null) assertAmount(header.discount, "discount", { min: 0, allowZero: true });

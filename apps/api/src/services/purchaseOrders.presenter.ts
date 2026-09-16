@@ -15,6 +15,7 @@
  * that claims knowledge of goods movement. There must not be one.
  */
 import type { purchaseOrdersTable, purchaseOrderItemsTable, vendorsTable } from "@workspace/db";
+import { businessToday } from "@workspace/shared";
 
 type PurchaseOrder = typeof purchaseOrdersTable.$inferSelect;
 type PurchaseOrderItem = typeof purchaseOrderItemsTable.$inferSelect;
@@ -125,7 +126,7 @@ export function buildPurchaseOrderOut(
   items?: PurchaseOrderItem[],
   billedByItem: Map<number, number> = new Map(),
   variancesByItem: Map<number, PriceVariance[]> = new Map(),
-  today = new Date().toISOString().slice(0, 10),
+  today = businessToday(),
   /**
    * 🔴 AUD-3 — the LIST's substitute for line data it does not fetch. A caller
    * with neither items nor totals gets `open`, which is only true of a PO that

@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
 export default function Transactions() {
   const queryClient = useQueryClient();
@@ -344,7 +345,11 @@ const PAGE_SIZE = 50;
                     <SelectValue placeholder={t("Select a category", "اختر فئة")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories?.map(c => (
+                    {/* Control accounts that need a party (AR/AP) are not offered: a bank
+                        row carries no customer or vendor — that movement is settled
+                        against its invoice or bill from Review. The server refuses them
+                        too (422 category_needs_party); this keeps the dead end off the screen. */}
+                    {categories?.filter(c => !(PARTY_REQUIRED_SYSTEM_CODES as readonly string[]).includes(c.systemCode ?? "")).map(c => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
