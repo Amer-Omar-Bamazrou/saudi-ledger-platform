@@ -150,17 +150,27 @@ VAT line and audit row is real). Re-running is a no-op. Expect:
 
 1. **`/company`**: set the **Arabic legal name**, the **fiscal calendar**
    (Gregorian) and **fiscal year start** (January), and the national
-   address fields (building 4 digits, street, district, city, postal 5
-   digits, additional 4 digits). Save. Reports default to the fiscal year
-   from here.
+   address fields the page has — **building (4 digits), street, district,
+   city, postal code (5 digits)**. Save. Reports default to the fiscal
+   year from here. 🔴 There is **no "additional number" field** on this
+   page (corrected 2026-09-16; the earlier text described one). The ZATCA
+   checklist on `/zatca` requires it (KSA-23), so see step 3.
 2. **`/bank-accounts`**: click **"Use on invoices"** on Main Operating
    Account; the line at the top now names it. Add a second account
    ("Payroll SAR", any bank) so the switch can be tested later.
-3. **`/zatca`** (optional, recommended): the checklist is green once step 1
-   is complete; **Onboard with ZATCA**, any OTP. This stores a sandbox
-   credential and, from then on, every approved invoice also builds a
-   signed e-invoice document. Read the package §8 first: after onboarding,
-   a **0% VAT line cannot be issued**.
+3. **`/zatca` — DECIDED 2026-09-16 (owner): the pilot runs
+   deliberately NOT onboarded.** Two reasons, recorded: (a) sandbox
+   onboarding proves the integration, not the pilot's accounting; and (b)
+   it is **unreachable from the UI today** — the `/zatca` checklist
+   requires an *Additional number* (KSA-23, 4 digits) that Company
+   Settings has no field for, so the checklist never goes green and
+   **Onboard with ZATCA** stays disabled ("Complete the missing company
+   details above"). Known-issues file, "ZATCA ONBOARDING UNREACHABLE FROM
+   THE UI". Consequences the accountant is told (§7 item 4): every
+   approved invoice still mints its ICV, hash and QR, but **no signed
+   e-invoice document is built**; and the 0% rule does **not** apply —
+   a 0% line issues. Do not onboard mid-pilot: it would change that
+   behaviour under him.
 
 ### 3.3 The scenarios the seeder leaves for the accountant
 
@@ -405,8 +415,13 @@ Plain language, no internals. Give them these nine, in this form:
    interact with a closed month? Tell us what you would expect. (Nothing
    about reversal dating was changed in code for this pilot; it is a
    policy question, and your answer is the input.)
-4. **Zero-rated invoices cannot be issued once the company is registered
-   with ZATCA in this version.** Keep pilot invoices at 15%.
+4. **This company is not registered with ZATCA for the pilot — on
+   purpose.** Your invoices still get their ZATCA counter, hash and QR,
+   but no signed e-invoice document is produced and nothing is sent to
+   ZATCA. A 0% VAT line issues normally during the pilot (once a company
+   IS registered, a 0% line cannot be issued in this version — that rule
+   does not apply here). Keep pilot invoices at 15% unless a scenario
+   calls for 0%.
 5. **The bank account card shows the opening balance you typed**, not a
    live balance. Cash lives on the balance sheet.
 6. **Reverse only the journal entries you created yourself in this
@@ -480,10 +495,9 @@ settled — log it as a question with the accountant's opinion.
       saved; VAT/CR present (the seeder's test numbers are fine).
 - [ ] Bank: Main Operating Account set **"Use on invoices"**; a second
       account exists.
-- [ ] ZATCA: decided — either onboarded to the sandbox (checklist green,
-      credential shown on `/zatca`) or deliberately not; the 0% rule
-      disclosed accordingly. `ZATCA_WORKER_ENABLED` is unset/false, so
-      nothing transmits.
+- [x] ZATCA: **deliberately not onboarded** (owner, 2026-09-16; §3.2
+      step 3). `/zatca` shows "No certificate yet"; §7 item 4 disclosed.
+      `ZATCA_WORKER_ENABLED` is unset/false, so nothing transmits.
 - [ ] `AI_PROVIDER=none` in `apps/api/.env`; `/api/ask/status` answers
       `{"available":false}`; the Finance Hub shows no "Ask your books" box.
 - [ ] Accountant user created on `/users` with role Accountant; their

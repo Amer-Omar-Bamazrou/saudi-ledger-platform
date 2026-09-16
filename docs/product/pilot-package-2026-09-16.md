@@ -128,8 +128,10 @@ ZATCA checklist wants the rest:
 - **Ownership type** — needed only for the Zakat page's applicability
   message; the Zakat module is held (§5 C10), so this is cosmetic here.
 - National address: building number (4 digits), street, district, city,
-  postal code (5 digits), additional number — the ZATCA onboarding
-  checklist requires all of them.
+  postal code (5 digits). 🔴 The ZATCA onboarding checklist ALSO requires
+  an **additional number** (KSA-23), and Company Settings has **no field
+  for it** — so the checklist cannot go green from the UI (known-issues
+  file, "ZATCA ONBOARDING UNREACHABLE FROM THE UI", 2026-09-16).
 - **Logo** (optional): PNG/JPG/SVG up to 2 MB; prints on the PDF.
 
 ### 1.3 Chart of accounts (`/categories`)
@@ -163,6 +165,11 @@ opening figure. Imports and postings never move it, and the opening
 balance never reaches the ledger (audit; §8 below).
 
 ### 1.6 ZATCA onboarding (`/zatca`) — sandbox
+
+🔴 **Pilot decision (owner, 2026-09-16): NOT onboarded.** Runbook §3.2
+step 3 records why; the paragraphs below describe what onboarding does
+when it is reachable. Today it is not: the checklist needs an additional
+number the company form cannot set.
 
 Optional, but the pilot should do it to exercise the chain. Once the
 company details above are complete, the page's checklist goes green;
