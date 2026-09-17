@@ -3223,6 +3223,105 @@ paths:
         "423":
           description: "`period_closed` — corrections are dated today; a closed current month refuses"
 
+  /payments/matching:
+    get:
+      operationId: classifyStatementRows
+      tags: [payments]
+      summary: "Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read."
+      parameters:
+        - { in: query, name: bank_account_id, required: false, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string } }
+        - { in: query, name: date_to, required: false, schema: { type: string } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+      responses:
+        "200":
+          description: One classification per statement row
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StatementRowClassification" }
+
+  /payments/matching/apply:
+    post:
+      operationId: applyDeterministicMatches
+      tags: [payments]
+      summary: "Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted."
+      parameters:
+        - { in: query, name: bank_account_id, required: false, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string } }
+        - { in: query, name: date_to, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: What was recorded and what remains for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchingApplyResult" }
+        "409":
+          description: A row or counterpart was matched concurrently — re-run
+
+  /payments/matching/override:
+    post:
+      operationId: overrideMatch
+      tags: [payments]
+      summary: "Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MatchOverrideInput" }
+      responses:
+        "201":
+          description: The match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "400":
+          description: Missing reason, or not exactly one counterpart
+        "409":
+          description: The row or the counterpart already has an active match; the row was settled; the receipt was created from another row
+        "422":
+          description: "`match_bank_mismatch`, `match_direction_mismatch`, `reference_not_found`, `bank_account_required`"
+
+  /payments/matching/{id}:
+    get:
+      operationId: getMatch
+      tags: [payments]
+      summary: One match with its reversal, if any
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "404":
+          description: Not found
+
+  /payments/matching/{id}/unmatch:
+    post:
+      operationId: unmatch
+      tags: [payments]
+      summary: "Phase D — supersede a match with a reversal record; the match row stays visible"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnmatchInput" }
+      responses:
+        "200":
+          description: The match, now reversed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "404":
+          description: Not found
+        "409":
+          description: "`match_already_reversed`"
+
   /payments/{id}:
     get:
       operationId: getPayment
@@ -6849,6 +6948,104 @@ components:
         applications:
           type: array
           items: { $ref: "#/components/schemas/PaymentAllocation" }
+
+    MatchCandidate:
+      type: object
+      required: [kind, id, amount, date, reference, identifiedBy]
+      properties:
+        kind: { type: string, enum: [payment, refund] }
+        id: { type: integer }
+        amount: { type: number }
+        date: { type: string }
+        reference: { type: ["string", "null"] }
+        identifiedBy: { type: ["string", "null"], description: "The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null." }
+
+    StatementMatch:
+      type: object
+      required: [id, transactionId, paymentId, refundId, method, evidence, reason, createdBy, createdAt, reversedBy]
+      properties:
+        id: { type: integer }
+        transactionId: { type: integer }
+        paymentId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        method: { type: string, enum: [deterministic, manual, settlement] }
+        evidence: { description: What was seen when the match was made. }
+        reason: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        reversedBy:
+          oneOf:
+            - type: object
+              required: [id, reason, createdAt]
+              properties:
+                id: { type: integer }
+                reason: { type: string }
+                createdAt: { type: string }
+            - { type: "null" }
+
+    StatementRowClassification:
+      type: object
+      required: [transactionId, bankAccountId, direction, amount, date, description, classification, reason, target, candidates, match, window]
+      properties:
+        transactionId: { type: integer }
+        bankAccountId: { type: integer }
+        direction: { type: string, enum: [in, out] }
+        amount: { type: number }
+        date: { type: string }
+        description: { type: string }
+        classification: { type: string, enum: [MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT] }
+        reason: { type: string }
+        target:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchCandidate" }
+            - { type: "null" }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/MatchCandidate" }
+        match:
+          oneOf:
+            - { $ref: "#/components/schemas/StatementMatch" }
+            - { type: "null" }
+        window:
+          type: object
+          required: [from, to, days]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            days: { type: integer }
+
+    MatchingApplyResult:
+      type: object
+      required: [recorded, summary]
+      properties:
+        recorded:
+          type: array
+          items: { $ref: "#/components/schemas/StatementMatch" }
+        summary:
+          type: object
+          required: [deterministic, ambiguous, unmatched, inconsistent, matched]
+          properties:
+            deterministic: { type: integer }
+            ambiguous: { type: integer }
+            unmatched: { type: integer }
+            inconsistent: { type: integer }
+            matched: { type: integer }
+
+    MatchOverrideInput:
+      type: object
+      required: [transactionId, reason]
+      properties:
+        transactionId: { type: integer }
+        paymentId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    UnmatchInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500 }
 
     CustomerCredits:
       type: object

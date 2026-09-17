@@ -1990,3 +1990,37 @@ State: OPEN. Consequence while open: pre-D-3 cash sits on the header, new
 cash on the banks' own accounts; total cash is conserved and both are
 visible on the balance sheet — an honest split, not a hidden one.
 
+
+## THE DEFAULT-ORG AR/AP DIVERGENCE — KNOWN DATA CONDITION, NOT A DEFECT (recorded 2026-09-17, Batch 1B Part 2)
+
+**What it is.** On the local development database the `default` organization's
+GL AR (76,982.50) does not equal its invoice subledger (126,792.50), and its GL
+AP by vendor does not equal its bills. Found by the Part 1 review's whole-database
+sweep; it predates D-4 and D-4 did not touch it.
+
+**Cause, by rule (never by org name).** Two shapes of pre-D-4 dev data:
+
+- **RULE-J — invoices without an issue journal.** Six `DEMO-INV-100x` invoices
+  (49,910.00 outstanding) written by the demo seed around the posting path have
+  no `GL-<number>` entry at all: they exist in the subledger and nowhere in the
+  GL. (A seventh, `INV-2026-000049`, is a 0.00 invoice.)
+- **RULE-P — party-less control-account lines.** Twelve AR lines (net 75,430.00)
+  and four AP lines (net −13,064.00) in `default`, and eight AR lines (920.00) in
+  `dbg-fork`, were posted before N3 (2026-09-03) put the party on every control
+  line. They cannot be attributed to a customer or vendor, so the by-party
+  reconciliation cannot cover them. `QA-CLICK-001` (a manual AR line of 100.00)
+  is one of them.
+
+**How the sweep treats it.** `apps/api/src/scripts/ledgerInvariants.ts`
+(`pnpm --filter @workspace/api-server run invariants:ledger`) reconciles AR/AP by
+party over the COVERED set — documents whose issue journal exists and carries
+the party — and lists RULE-J and RULE-P residuals per org as information. Every
+other invariant (journal balance, outstanding ≥ 0, source consumption, caches,
+deposit and credit reconciliation, one-to-one matching) holds with no
+exceptions. A new divergence in a D-4-era org therefore fails the sweep; it
+cannot hide behind this record.
+
+**Not fixed now, by decision.** Re-posting demo invoices or back-filling parties
+onto pre-N3 lines would be a rewrite of history for dev data nobody depends on.
+State: KNOWN. Consequence: none for any tenant created since N3; the pilot,
+rehearsal and e2e organizations reconcile exactly.

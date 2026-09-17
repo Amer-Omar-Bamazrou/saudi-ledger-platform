@@ -5499,6 +5499,200 @@ export const UnallocateResponse = zod.object({
 
 
 /**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+export const classifyStatementRowsQueryLimitDefault = 200;
+export const classifyStatementRowsQueryLimitMax = 500;
+
+
+
+export const ClassifyStatementRowsQueryParams = zod.object({
+  "bank_account_id": zod.coerce.number().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(classifyStatementRowsQueryLimitMax).default(classifyStatementRowsQueryLimitDefault)
+})
+
+export const ClassifyStatementRowsResponseItem = zod.object({
+  "transactionId": zod.number(),
+  "bankAccountId": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "classification": zod.enum(['MATCHED', 'DETERMINISTIC', 'AMBIGUOUS', 'UNMATCHED', 'INCONSISTENT']),
+  "reason": zod.string(),
+  "target": zod.union([zod.object({
+  "kind": zod.enum(['payment', 'refund']),
+  "id": zod.number(),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "reference": zod.string().nullable(),
+  "identifiedBy": zod.string().nullable().describe('The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.')
+}),zod.null()]),
+  "candidates": zod.array(zod.object({
+  "kind": zod.enum(['payment', 'refund']),
+  "id": zod.number(),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "reference": zod.string().nullable(),
+  "identifiedBy": zod.string().nullable().describe('The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.')
+})),
+  "match": zod.union([zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+}),zod.null()]),
+  "window": zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "days": zod.number()
+})
+})
+export const ClassifyStatementRowsResponse = zod.array(ClassifyStatementRowsResponseItem)
+
+
+/**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const ApplyDeterministicMatchesQueryParams = zod.object({
+  "bank_account_id": zod.coerce.number().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const ApplyDeterministicMatchesResponse = zod.object({
+  "recorded": zod.array(zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})),
+  "summary": zod.object({
+  "deterministic": zod.number(),
+  "ambiguous": zod.number(),
+  "unmatched": zod.number(),
+  "inconsistent": zod.number(),
+  "matched": zod.number()
+})
+})
+
+
+/**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const overrideMatchBodyReasonMax = 500;
+
+export const overrideMatchBodyIdempotencyKeyMax = 120;
+
+
+
+export const OverrideMatchBody = zod.object({
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullish(),
+  "refundId": zod.number().nullish(),
+  "reason": zod.string().min(1).max(overrideMatchBodyReasonMax),
+  "idempotencyKey": zod.string().max(overrideMatchBodyIdempotencyKeyMax).nullish()
+})
+
+export const OverrideMatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary One match with its reversal, if any
+ */
+export const GetMatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const UnmatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const unmatchBodyReasonMax = 500;
+
+
+
+export const UnmatchBody = zod.object({
+  "reason": zod.string().min(1).max(unmatchBodyReasonMax)
+})
+
+export const UnmatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
  * @summary One payment with its allocations
  */
 export const GetPaymentParams = zod.object({

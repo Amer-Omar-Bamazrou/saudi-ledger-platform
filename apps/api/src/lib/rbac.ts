@@ -54,7 +54,8 @@ const ACTIVATION_ACTIONS = new Set(["approve"]);
 // `allocate` / `apply` (D-4): allocating a deposit or applying a credit note
 // posts a journal entry — approver authority, same reasoning as `pay`.
 // `unallocate` (Phase A) posts the correcting entry — the same authority.
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate)\/?$/i;
+// `override` / `unmatch` (Phase D) decide reconciliation identity — a review decision, same reasoning as `settle`.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {

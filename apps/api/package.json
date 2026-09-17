@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "seed:sample": "tsx src/scripts/seedSampleData.ts",
+    "invariants:ledger": "tsx src/scripts/ledgerInvariants.ts",
     "benchmark:categorizer": "tsx src/scripts/benchmark/benchmarkCategorizer.ts",
     "benchmark:vision": "tsx src/scripts/benchmark/benchmarkVision.ts"
   },

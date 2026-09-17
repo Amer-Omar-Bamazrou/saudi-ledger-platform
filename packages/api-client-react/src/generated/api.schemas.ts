@@ -3185,6 +3185,140 @@ export interface CreditNoteApplications {
   applications: PaymentAllocation[];
 }
 
+export type MatchCandidateKind = typeof MatchCandidateKind[keyof typeof MatchCandidateKind];
+
+
+export const MatchCandidateKind = {
+  payment: 'payment',
+  refund: 'refund',
+} as const;
+
+export interface MatchCandidate {
+  kind: MatchCandidateKind;
+  id: number;
+  amount: number;
+  date: string;
+  /** @nullable */
+  reference: string | null;
+  /**
+     * The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.
+     * @nullable
+     */
+  identifiedBy: string | null;
+}
+
+export type StatementMatchMethod = typeof StatementMatchMethod[keyof typeof StatementMatchMethod];
+
+
+export const StatementMatchMethod = {
+  deterministic: 'deterministic',
+  manual: 'manual',
+  settlement: 'settlement',
+} as const;
+
+export type StatementMatchReversedBy = {
+  id: number;
+  reason: string;
+  createdAt: string;
+} | null;
+
+export interface StatementMatch {
+  id: number;
+  transactionId: number;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  refundId: number | null;
+  method: StatementMatchMethod;
+  /** What was seen when the match was made. */
+  evidence: unknown;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  reversedBy: StatementMatchReversedBy;
+}
+
+export type StatementRowClassificationDirection = typeof StatementRowClassificationDirection[keyof typeof StatementRowClassificationDirection];
+
+
+export const StatementRowClassificationDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type StatementRowClassificationClassification = typeof StatementRowClassificationClassification[keyof typeof StatementRowClassificationClassification];
+
+
+export const StatementRowClassificationClassification = {
+  MATCHED: 'MATCHED',
+  DETERMINISTIC: 'DETERMINISTIC',
+  AMBIGUOUS: 'AMBIGUOUS',
+  UNMATCHED: 'UNMATCHED',
+  INCONSISTENT: 'INCONSISTENT',
+} as const;
+
+export type StatementRowClassificationWindow = {
+  from: string;
+  to: string;
+  days: number;
+};
+
+export interface StatementRowClassification {
+  transactionId: number;
+  bankAccountId: number;
+  direction: StatementRowClassificationDirection;
+  amount: number;
+  date: string;
+  description: string;
+  classification: StatementRowClassificationClassification;
+  reason: string;
+  target: MatchCandidate | null;
+  candidates: MatchCandidate[];
+  match: StatementMatch | null;
+  window: StatementRowClassificationWindow;
+}
+
+export type MatchingApplyResultSummary = {
+  deterministic: number;
+  ambiguous: number;
+  unmatched: number;
+  inconsistent: number;
+  matched: number;
+};
+
+export interface MatchingApplyResult {
+  recorded: StatementMatch[];
+  summary: MatchingApplyResultSummary;
+}
+
+export interface MatchOverrideInput {
+  transactionId: number;
+  /** @nullable */
+  paymentId?: number | null;
+  /** @nullable */
+  refundId?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface UnmatchInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+}
+
 export interface CustomerCredits {
   customerId: number;
   /** Σ unapplied over the customer's receipts — Customer deposits and advances. */
@@ -4302,6 +4436,23 @@ limit?: number;
  * @minimum 0
  */
 offset?: number;
+};
+
+export type ClassifyStatementRowsParams = {
+bank_account_id?: number;
+date_from?: string;
+date_to?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+};
+
+export type ApplyDeterministicMatchesParams = {
+bank_account_id?: number;
+date_from?: string;
+date_to?: string;
 };
 
 export type GetInvoiceDocumentParams = {

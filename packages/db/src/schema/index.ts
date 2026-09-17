@@ -40,3 +40,4 @@ export * from "./zatcaCredentials";
 export * from "./zatcaCredentialReminders";
 export * from "./permissions";
 export * from "./featureFlags";
+export * from "./statementMatches";

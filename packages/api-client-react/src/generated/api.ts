@@ -28,6 +28,7 @@ import type {
   AllocatePaymentInput,
   ApAgingReport,
   ApplyCreditNoteInput,
+  ApplyDeterministicMatchesParams,
   ApprovalPendingRow,
   ArAgingReport,
   AskInput,
@@ -54,6 +55,7 @@ import type {
   Category,
   CategoryBreakdown,
   CategoryInput,
+  ClassifyStatementRowsParams,
   Company,
   CompanyLogoState,
   ConvertPurchaseOrderInput,
@@ -148,6 +150,8 @@ import type {
   ListTransactionsParams,
   ListVendors200,
   ListVendorsParams,
+  MatchOverrideInput,
+  MatchingApplyResult,
   OwnerEquityReport,
   Payment,
   PaymentAllocationDetail,
@@ -172,6 +176,8 @@ import type {
   RefundCustomerInput,
   SendBackInput,
   SettleTransactionInput,
+  StatementMatch,
+  StatementRowClassification,
   TaxCompliance,
   TaxJournalEntriesReport,
   Transaction,
@@ -182,6 +188,7 @@ import type {
   TrendPoint,
   TrialBalanceReport,
   UnallocateInput,
+  UnmatchInput,
   UpdateBudgetInput,
   UpdateCompanyInput,
   UpdateInvoiceInput,
@@ -11846,6 +11853,388 @@ export const useUnallocate = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUnallocateMutationOptions(options));
+    }
+
+export const getClassifyStatementRowsUrl = (params?: ClassifyStatementRowsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/matching?${stringifiedParams}` : `/api/payments/matching`
+}
+
+/**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+export const classifyStatementRows = async (params?: ClassifyStatementRowsParams, options?: RequestInit): Promise<StatementRowClassification[]> => {
+
+  return customFetch<StatementRowClassification[]>(getClassifyStatementRowsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getClassifyStatementRowsQueryKey = (params?: ClassifyStatementRowsParams,) => {
+    return [
+    `/api/payments/matching`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getClassifyStatementRowsQueryOptions = <TData = Awaited<ReturnType<typeof classifyStatementRows>>, TError = ErrorType<unknown>>(params?: ClassifyStatementRowsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifyStatementRowsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifyStatementRows>>> = ({ signal }) => classifyStatementRows(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ClassifyStatementRowsQueryResult = NonNullable<Awaited<ReturnType<typeof classifyStatementRows>>>
+export type ClassifyStatementRowsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+
+export function useClassifyStatementRows<TData = Awaited<ReturnType<typeof classifyStatementRows>>, TError = ErrorType<unknown>>(
+ params?: ClassifyStatementRowsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getClassifyStatementRowsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplyDeterministicMatchesUrl = (params?: ApplyDeterministicMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/matching/apply?${stringifiedParams}` : `/api/payments/matching/apply`
+}
+
+/**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const applyDeterministicMatches = async (params?: ApplyDeterministicMatchesParams, options?: RequestInit): Promise<MatchingApplyResult> => {
+
+  return customFetch<MatchingApplyResult>(getApplyDeterministicMatchesUrl(params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApplyDeterministicMatchesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext> => {
+
+const mutationKey = ['applyDeterministicMatches'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyDeterministicMatches>>, {params?: ApplyDeterministicMatchesParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  applyDeterministicMatches(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyDeterministicMatchesMutationResult = NonNullable<Awaited<ReturnType<typeof applyDeterministicMatches>>>
+
+    export type ApplyDeterministicMatchesMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const useApplyDeterministicMatches = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyDeterministicMatches>>,
+        TError,
+        {params?: ApplyDeterministicMatchesParams},
+        TContext
+      > => {
+      return useMutation(getApplyDeterministicMatchesMutationOptions(options));
+    }
+
+export const getOverrideMatchUrl = () => {
+
+
+
+
+  return `/api/payments/matching/override`
+}
+
+/**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const overrideMatch = async (matchOverrideInput: MatchOverrideInput, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getOverrideMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchOverrideInput)
+  }
+);}
+
+
+
+
+
+export const getOverrideMatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext> => {
+
+const mutationKey = ['overrideMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideMatch>>, {data: BodyType<MatchOverrideInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  overrideMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverrideMatchMutationResult = NonNullable<Awaited<ReturnType<typeof overrideMatch>>>
+    export type OverrideMatchMutationBody = BodyType<MatchOverrideInput>
+    export type OverrideMatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const useOverrideMatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overrideMatch>>,
+        TError,
+        {data: BodyType<MatchOverrideInput>},
+        TContext
+      > => {
+      return useMutation(getOverrideMatchMutationOptions(options));
+    }
+
+export const getGetMatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/matching/${id}`
+}
+
+/**
+ * @summary One match with its reversal, if any
+ */
+export const getMatch = async (id: number, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getGetMatchUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMatchQueryKey = (id: number,) => {
+    return [
+    `/api/payments/matching/${id}`
+    ] as const;
+    }
+
+
+export const getGetMatchQueryOptions = <TData = Awaited<ReturnType<typeof getMatch>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMatchQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatch>>> = ({ signal }) => getMatch(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getMatch>>>
+export type GetMatchQueryError = ErrorType<void>
+
+
+/**
+ * @summary One match with its reversal, if any
+ */
+
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMatchQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUnmatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/matching/${id}/unmatch`
+}
+
+/**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const unmatch = async (id: number,
+    unmatchInput: UnmatchInput, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getUnmatchUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(unmatchInput)
+  }
+);}
+
+
+
+
+
+export const getUnmatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext> => {
+
+const mutationKey = ['unmatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unmatch>>, {id: number;data: BodyType<UnmatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  unmatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnmatchMutationResult = NonNullable<Awaited<ReturnType<typeof unmatch>>>
+    export type UnmatchMutationBody = BodyType<UnmatchInput>
+    export type UnmatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const useUnmatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unmatch>>,
+        TError,
+        {id: number;data: BodyType<UnmatchInput>},
+        TContext
+      > => {
+      return useMutation(getUnmatchMutationOptions(options));
     }
 
 export const getGetPaymentUrl = (id: number,) => {
