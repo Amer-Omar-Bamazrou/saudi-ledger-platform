@@ -79,6 +79,7 @@ import type {
   CustomerLedgerReport,
   CustomerPayment,
   CustomerRefund,
+  CustomerStatement,
   Decomposition,
   DeploymentBanner,
   DepreciateInput,
@@ -103,6 +104,7 @@ import type {
   GetCashFlowParams,
   GetCashReconciliationParams,
   GetCustomerLedgerParams,
+  GetCustomerStatementParams,
   GetDecompositionParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
@@ -7719,7 +7721,7 @@ export const getGetArAgingReportUrl = () => {
 }
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
 export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingReport> => {
 
@@ -7766,7 +7768,7 @@ export type GetArAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
 
 export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(
@@ -10230,6 +10232,95 @@ export function useGetCustomerCredits<TData = Awaited<ReturnType<typeof getCusto
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCustomerCreditsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomerStatementUrl = (id: number,
+    params?: GetCustomerStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/${id}/statement?${stringifiedParams}` : `/api/customers/${id}/statement`
+}
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+export const getCustomerStatement = async (id: number,
+    params?: GetCustomerStatementParams, options?: RequestInit): Promise<CustomerStatement> => {
+
+  return customFetch<CustomerStatement>(getGetCustomerStatementUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerStatementQueryKey = (id: number,
+    params?: GetCustomerStatementParams,) => {
+    return [
+    `/api/customers/${id}/statement`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCustomerStatementQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<void>>(id: number,
+    params?: GetCustomerStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerStatementQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerStatement>>> = ({ signal }) => getCustomerStatement(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerStatementQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerStatement>>>
+export type GetCustomerStatementQueryError = ErrorType<void>
+
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+
+export function useGetCustomerStatement<TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetCustomerStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerStatementQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

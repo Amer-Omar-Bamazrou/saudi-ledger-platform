@@ -10,3 +10,5 @@ export * from './generated/types';
  * This file is hand-maintained (it is not under generated/**).
  */
 export type { GetInvoiceDocumentParams } from './generated/types';
+// Same collision for the customer statement (path id + query date range; Phase E).
+export type { GetCustomerStatementParams } from './generated/types';

@@ -2024,3 +2024,41 @@ cannot hide behind this record.
 onto pre-N3 lines would be a rewrite of history for dev data nobody depends on.
 State: KNOWN. Consequence: none for any tenant created since N3; the pilot,
 rehearsal and e2e organizations reconcile exactly.
+
+## THE CUSTOMER BALANCE READERS — AUDITED AND CORRECTED (2026-09-17, Batch 1B Part 2 Phase E)
+
+**The question.** Under D-4 a customer's position has three parts with their own
+GL accounts — Accounts Receivable, Customer credit balances, Customer deposits —
+so any reader that still computed ONE number from `total − paid` reads a
+liability as a NEGATIVE receivable (or, worse, does not see it at all).
+
+**The frame.** Every reader of `invoices.paid_amount` / `credited_amount` in
+`apps/api/src/{services,repositories,controllers}` that produces a customer- or
+document-level balance (grep `paidAmount|paid_amount`; bills/AP, e-invoice and
+capture readers excluded — they are not customer balances).
+
+| Reader | Pre-E | Phase E |
+| --- | --- | --- |
+| `customers.repository.customerBalances` / `listTotals` | Σ sign·total − Σ sign·paid — an unapplied credit note or an unallocated receipt read as negative AR; `credited_amount` ignored, so a credited invoice still read as owed | Delegates to `customerStatement.repository.positions`: `receivable ≥ 0`, `creditBalance ≥ 0`, `depositBalance ≥ 0`, `netPosition` DERIVED; `balance` IS `netPosition` (net exposure kept under its old name) |
+| `customers.service.list` / `getById` | as above | carries the three components + net on every row and in the set-wide totals |
+| `payments.service.customerCredits` | its own SQL in `payments.repository.customerCreditPosition` (a second definition) | reads `positions` — one definition |
+| `reports.service.customerLedger` | note rows carried `outstanding = −total`; invoice rows ignored `credited_amount` | invoice/debit-note `outstanding = total − paid − credited ≥ 0`, note rows 0 with `creditedAmount` surfaced; per-customer `position` (current) beside the window `balance`; report totals for receivable / credit / deposit / net |
+| `reports.service.arAging` | items already ≥ 0 since D-4 | `liabilities.customerCredits`, `liabilities.customerDeposits` and `netCustomerPosition` beside the buckets; never folded in |
+| `invoiceDocument` "Balance due" | `total − paid` — a credited invoice printed the credited part as still due | `total − paid − credited`, with a "Credited" row when > 0 |
+| `invoices.repository.listMeta.outstanding`, `OVERDUE`, `findings.repository` overdue-invoice queries, `reconciliation.service` outstanding | already `total − paid − credited`, notes excluded (D-4) | unchanged — verified in the frame |
+| `apps/web` `CustomerDetail`, `Customers`, `CustomerLedger`, `partyDetail.ts` | render `balance` | unchanged (they now render the NET, labelled "Outstanding"/"Total AR") — **the labels and the three-component display are Phase F** |
+
+**New surface.** `GET /customers/{id}/statement?date_from&date_to`: every event
+that moved the position (invoice, debit note, credit note, receipt, allocation,
+credit application, unallocation, refund) in chronology — business date, then
+recorded timestamp, then a kind rank — with three running balances and the
+derived net; `opening` / `closing` for the window, `current` for all events,
+`subledger` from the caches, and `reconciled` saying whether the two agree.
+Rebuilt from the events, so it is the independent check of the caches.
+Guard: `tests/d4-customer-statement.test.ts` (17).
+
+**Not done, by scope.** `customerCreditPosition`'s `invoice_hash IS NOT NULL`
+issuance test was replaced by `status NOT IN ('draft','submitted')` (the
+`INVOICE_NOT_IN_BOOKS` predicate every other reader uses); the two coincide on
+every local row (measured 2026-09-17: 41 issued documents, all hashed). Web
+rendering of the three components: Phase F.

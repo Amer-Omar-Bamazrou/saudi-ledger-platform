@@ -2488,7 +2488,7 @@ export interface AccountSummaryReport {
 }
 
 /**
- * A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+ * A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it. `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit note (its unapplied remainder is a liability in the customer's `position.creditBalance`, never a negative receivable).
  */
 export interface CustomerLedgerInvoice {
   id: number;
@@ -2500,9 +2500,24 @@ export interface CustomerLedgerInvoice {
   status: string;
   total: number;
   paidAmount: number;
+  creditedAmount: number;
+  /** @minimum 0 */
   outstanding: number;
   vatAmount: number;
   subtotal: number;
+}
+
+/**
+ * Phase E — a customer's position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.
+ */
+export interface CustomerPosition {
+  /** @minimum 0 */
+  receivable: number;
+  /** @minimum 0 */
+  creditBalance: number;
+  /** @minimum 0 */
+  depositBalance: number;
+  netPosition: number;
 }
 
 export interface CustomerLedgerCustomer {
@@ -2514,12 +2529,24 @@ export interface CustomerLedgerCustomer {
   invoices: CustomerLedgerInvoice[];
   totalInvoiced: number;
   totalPaid: number;
+  /**
+     * Σ outstanding over the LISTED documents — the receivable within the window.
+     * @minimum 0
+     */
   balance: number;
+  /** The customer's CURRENT position (whole history, not the window). */
+  position: CustomerPosition;
 }
 
 export interface CustomerLedgerReport {
   customers: CustomerLedgerCustomer[];
+  /** Σ balance over the listed customers (window receivable). */
   totalBalance: number;
+  /** Σ current receivable over the listed customers. */
+  totalReceivable: number;
+  totalCreditBalance: number;
+  totalDepositBalance: number;
+  totalNetPosition: number;
 }
 
 export type OwnerEquityReportPeriod = {
@@ -2577,9 +2604,29 @@ export interface ArAgingItem {
   daysPastDue: number;
 }
 
+export type ArAgingReportLiabilities = {
+  /**
+     * Σ unapplied credit-note balances (GL Customer credit balances).
+     * @minimum 0
+     */
+  customerCredits: number;
+  /**
+     * Σ unapplied receipts (GL Customer deposits).
+     * @minimum 0
+     */
+  customerDeposits: number;
+};
+
+/**
+ * Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.
+ */
 export interface ArAgingReport {
   buckets: AgingBuckets;
+  /** @minimum 0 */
   total: number;
+  liabilities: ArAgingReportLiabilities;
+  /** total − customerCredits − customerDeposits. */
+  netCustomerPosition: number;
   items: ArAgingItem[];
 }
 
@@ -2708,7 +2755,88 @@ export interface Customer {
   createdAt: string;
 }
 
-export type CustomerWithBalance = Customer & PartyTotals;
+/**
+ * `balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it.
+ */
+export type CustomerTotals = PartyTotals & CustomerPosition;
+
+/**
+ * `balance` IS `netPosition` (see CustomerPosition).
+ */
+export type CustomerWithBalance = Customer & PartyTotals & CustomerPosition;
+
+export type CustomerStatementLineKind = typeof CustomerStatementLineKind[keyof typeof CustomerStatementLineKind];
+
+
+export const CustomerStatementLineKind = {
+  invoice: 'invoice',
+  debit_note: 'debit_note',
+  credit_note: 'credit_note',
+  receipt: 'receipt',
+  allocation: 'allocation',
+  credit_application: 'credit_application',
+  unallocation: 'unallocation',
+  refund: 'refund',
+} as const;
+
+export interface CustomerStatementLine {
+  seq: number;
+  date: string;
+  kind: CustomerStatementLineKind;
+  documentNumber: string;
+  /** @nullable */
+  reference: string | null;
+  description: string;
+  amount: number;
+  receivableDelta: number;
+  creditDelta: number;
+  depositDelta: number;
+  /** Running Accounts Receivable after this line */
+  receivable: number;
+  /** Running Customer Credits after this line */
+  creditBalance: number;
+  /** Running Customer Deposits after this line */
+  depositBalance: number;
+  /** Derived — receivable − creditBalance − depositBalance */
+  netPosition: number;
+  /** @nullable */
+  invoiceId: number | null;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+  /** @nullable */
+  allocationId: number | null;
+  /** @nullable */
+  refundId: number | null;
+  /** @nullable */
+  journalEntryId: number | null;
+}
+
+export type CustomerStatementPeriod = {
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+};
+
+export interface CustomerStatement {
+  customerId: number;
+  customerName: string;
+  /** @nullable */
+  customerNameAr: string | null;
+  period: CustomerStatementPeriod;
+  opening: CustomerPosition;
+  lines: CustomerStatementLine[];
+  closing: CustomerPosition;
+  /** The position after EVERY event, ignoring the window — what the events say the customer's position is today. */
+  current: CustomerPosition;
+  /** The same position read from the subledger caches and active-allocation sets. */
+  subledger: CustomerPosition;
+  /** `current` equals `subledger` on all three components (to the halala). */
+  reconciled: boolean;
+  eventCount: number;
+}
 
 export type CustomerDetail = CustomerWithBalance & {
   /** ISSUED invoices only — drafts and submitted documents do not count. */
@@ -4321,7 +4449,18 @@ offset?: number;
 export type ListCustomers200 = {
   items: CustomerWithBalance[];
   page: PageInfo;
-  totals: PartyTotals;
+  totals: CustomerTotals;
+};
+
+export type GetCustomerStatementParams = {
+/**
+ * YYYY-MM-DD; events before it are folded into `opening`
+ */
+date_from?: string;
+/**
+ * YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`
+ */
+date_to?: string;
 };
 
 export type ListVendorsParams = {

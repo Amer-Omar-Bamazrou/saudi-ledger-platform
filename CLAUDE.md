@@ -590,7 +590,7 @@ seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAP
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
 file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind
-repository list in `tests/cross-company-isolation.test.ts` (12) is pinned
+repository list in `tests/cross-company-isolation.test.ts` (11) is pinned
 and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).

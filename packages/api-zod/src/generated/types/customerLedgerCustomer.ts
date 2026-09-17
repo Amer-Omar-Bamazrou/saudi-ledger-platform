@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CustomerLedgerInvoice } from './customerLedgerInvoice';
+import type { CustomerPosition } from './customerPosition';
 
 export interface CustomerLedgerCustomer {
   /** @nullable */
@@ -16,5 +17,11 @@ export interface CustomerLedgerCustomer {
   invoices: CustomerLedgerInvoice[];
   totalInvoiced: number;
   totalPaid: number;
+  /**
+     * Σ outstanding over the LISTED documents — the receivable within the window.
+     * @minimum 0
+     */
   balance: number;
+  /** The customer's CURRENT position (whole history, not the window). */
+  position: CustomerPosition;
 }

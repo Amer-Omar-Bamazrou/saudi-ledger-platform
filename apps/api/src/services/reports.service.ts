@@ -5,6 +5,7 @@
  */
 import { BadRequestError } from "../lib/errors";
 import { reportsRepository, documentSign } from "../repositories/reports.repository";
+import { customersRepository } from "../repositories/customers.repository";
 // N2: ONE tolerance, imported from the write side — a read-side literal 2x the
 // write-side constant was the two-constants disease glPosting diagnoses for itself.
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
@@ -471,27 +472,58 @@ export const reportsService = {
     for (const { inv, cust } of rows) {
       const cid = inv.customerId ?? 0;
       if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
-      // M12.1b: a credit note appears on the ledger as a NEGATIVE line, so the
-      // running balance is what the customer actually owes. `documentType` is
-      // surfaced so the UI can label the row rather than infer from the sign.
+      // M12.1b: a credit note appears on the ledger as a NEGATIVE line (its
+      // total, VAT and subtotal), so the document list reads as the customer
+      // saw it. `documentType` is surfaced so the UI can label the row rather
+      // than infer from the sign.
+      //
+      // Phase E (2026-09-17): a row's `outstanding` is what THAT document still
+      // has receivable — total − paid − credited for an invoice or debit note,
+      // and 0 for a credit note, whose unapplied remainder is a LIABILITY
+      // carried in `position.creditBalance`, never a negative receivable.
+      // Pre-E the note row carried −total as "outstanding" and the invoice row
+      // ignored `credited_amount`, so a credited invoice still read as owed.
       const sign = documentSign(inv.documentType);
+      const isNote = inv.documentType === "credit_note";
+      const credited = toNum(inv.creditedAmount);
       custMap.get(cid)!.invoices.push({
         id: inv.id, invoiceNumber: inv.invoiceNumber, date: inv.date, dueDate: inv.dueDate,
         documentType: inv.documentType,
         status: inv.status,
-        total: fmt2(sign * toNum(inv.total)), paidAmount: fmt2(sign * toNum(inv.paidAmount)),
-        outstanding: fmt2(sign * (toNum(inv.total) - toNum(inv.paidAmount))),
+        total: fmt2(sign * toNum(inv.total)), paidAmount: fmt2(isNote ? 0 : toNum(inv.paidAmount)),
+        creditedAmount: fmt2(isNote ? 0 : credited),
+        outstanding: fmt2(isNote ? 0 : toNum(inv.total) - toNum(inv.paidAmount) - credited),
         vatAmount: fmt2(sign * toNum(inv.vatAmount)), subtotal: fmt2(sign * toNum(inv.subtotal)),
       });
     }
-    const customers = Array.from(custMap.values()).map(({ customer, invoices }) => ({
-      customerId: customer?.id, customerName: customer?.name ?? "Unknown", taxNumber: customer?.taxNumber,
-      invoices,
-      totalInvoiced: fmt2(invoices.reduce((s, i) => s + i.total, 0)),
-      totalPaid: fmt2(invoices.reduce((s, i) => s + i.paidAmount, 0)),
-      balance: fmt2(invoices.reduce((s, i) => s + i.outstanding, 0)),
-    }));
-    return { customers, totalBalance: fmt2(customers.reduce((s, c) => s + c.balance, 0)) };
+    // The CURRENT position of each listed customer (whole history, not the
+    // window): three non-negative components and the derived net.
+    const positions = new Map((await customersRepository.customerBalances()).map((p) => [p.customerId, p]));
+    const customers = Array.from(custMap.values()).map(({ customer, invoices }) => {
+      const pos = customer?.id != null ? positions.get(customer.id) : undefined;
+      return {
+        customerId: customer?.id, customerName: customer?.name ?? "Unknown", taxNumber: customer?.taxNumber,
+        invoices,
+        totalInvoiced: fmt2(invoices.reduce((s, i) => s + i.total, 0)),
+        totalPaid: fmt2(invoices.reduce((s, i) => s + i.paidAmount, 0)),
+        // Σ outstanding over the LISTED documents — receivable within the window, ≥ 0.
+        balance: fmt2(invoices.reduce((s, i) => s + i.outstanding, 0)),
+        position: {
+          receivable: fmt2(pos?.receivable ?? 0),
+          creditBalance: fmt2(pos?.creditBalance ?? 0),
+          depositBalance: fmt2(pos?.depositBalance ?? 0),
+          netPosition: fmt2(pos?.netPosition ?? 0),
+        },
+      };
+    });
+    return {
+      customers,
+      totalBalance: fmt2(customers.reduce((s, c) => s + c.balance, 0)),
+      totalReceivable: fmt2(customers.reduce((s, c) => s + c.position.receivable, 0)),
+      totalCreditBalance: fmt2(customers.reduce((s, c) => s + c.position.creditBalance, 0)),
+      totalDepositBalance: fmt2(customers.reduce((s, c) => s + c.position.depositBalance, 0)),
+      totalNetPosition: fmt2(customers.reduce((s, c) => s + c.position.netPosition, 0)),
+    };
   },
 
   async ownerEquity(date_from?: string, date_to?: string) {
@@ -596,7 +628,21 @@ export const reportsService = {
       else buckets.over_90 += outstanding;
     }
     const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
-    return { buckets: fmtBuckets, total: fmt2(Object.values(buckets).reduce((s, v) => s + v, 0)), items: items.sort((a, b) => b.daysPastDue - a.daysPastDue) };
+    const total = fmt2(Object.values(buckets).reduce((s, v) => s + v, 0));
+    // Phase E (2026-09-17): the ageing carries ONLY real receivable exposure
+    // (every item ≥ 0). What we owe customers is shown BESIDE it — two
+    // liability totals from the same position definition the customer row
+    // uses — and the net is derived, never folded into a bucket.
+    const positions = await customersRepository.customerBalances();
+    const customerCredits = fmt2(positions.reduce((s, p) => s + p.creditBalance, 0));
+    const customerDeposits = fmt2(positions.reduce((s, p) => s + p.depositBalance, 0));
+    return {
+      buckets: fmtBuckets,
+      total,
+      liabilities: { customerCredits, customerDeposits },
+      netCustomerPosition: fmt2(total - customerCredits - customerDeposits),
+      items: items.sort((a, b) => b.daysPastDue - a.daysPastDue),
+    };
   },
 
   async apAging() {

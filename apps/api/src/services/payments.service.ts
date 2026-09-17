@@ -41,6 +41,7 @@ import { assertDateString } from "../lib/writeGuards";
 import { businessToday } from "@workspace/shared";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
+import { customerStatementRepository } from "../repositories/customerStatement.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { postJournalEntry, type GLLine, type GLParty } from "./accounting/glPosting";
@@ -758,11 +759,16 @@ export const paymentsService = {
     return rows.map(toRefundOut);
   },
 
-  /** A customer's credit position — deposits and credit-note balances, shown apart. */
+  /**
+   * A customer's credit position — deposits and credit-note balances, shown
+   * apart. Phase E: read from the ONE position definition
+   * (`customerStatementRepository.positions`), the same figures the customer
+   * row, the statement and the ageing report carry.
+   */
   async customerCredits(customerId: number) {
     const [cust] = await customersRepository.findById(customerId);
     if (!cust) throw new NotFoundError("Customer not found");
-    const pos = await paymentsRepository.customerCreditPosition(customerId);
-    return { customerId, deposits: round2(pos.deposits), creditNotes: round2(pos.creditNotes) };
+    const [pos] = await customerStatementRepository.positions({ customerId });
+    return { customerId, deposits: round2(pos?.depositBalance ?? 0), creditNotes: round2(pos?.creditBalance ?? 0) };
   },
 };

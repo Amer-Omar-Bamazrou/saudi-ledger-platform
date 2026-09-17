@@ -163,6 +163,7 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     vatAmount: String(inv.vatAmount),
     total: String(inv.total),
     paidAmount: String(inv.paidAmount ?? "0"),
+    creditedAmount: String(inv.creditedAmount ?? "0"),
     qrDataUrl,
     logoDataUrl: await loadLogoDataUrl(company?.logoPath),
     termsAndConditions: inv.termsAndConditions ?? null,

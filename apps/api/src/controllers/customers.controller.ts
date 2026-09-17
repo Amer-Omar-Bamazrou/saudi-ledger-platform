@@ -6,6 +6,7 @@ import type { Request, Response } from "express";
 import { CreateCustomerBody, UpdateCustomerBody } from "@workspace/api-zod";
 import { customersService } from "../services/customers.service";
 import { paymentsService } from "../services/payments.service";
+import { customerStatementService } from "../services/customerStatement.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
 
@@ -29,6 +30,10 @@ export const customersController = {
   /** D-4: deposits and credit-note balances, shown apart — never one "credit" figure. */
   async credits(req: Request, res: Response) {
     res.json(await paymentsService.customerCredits(requireIdParam(req)));
+  },
+  async statement(req: Request, res: Response) {
+    const { date_from, date_to } = req.query as Record<string, string | undefined>;
+    res.json(await customerStatementService.statement(requireIdParam(req), { from: date_from || undefined, to: date_to || undefined }));
   },
 
   // 🔴 Contract batch 2: the body is validated against the GENERATED schema, so

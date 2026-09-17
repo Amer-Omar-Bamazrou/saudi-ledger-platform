@@ -18,6 +18,21 @@ const CUSTOMER_FIELDS = [
 ] as const;
 
 type Customer = typeof customersTable.$inferSelect;
+
+/**
+ * Phase E: the position a customer row carries. `balance` is the NET position
+ * (receivable − credit − deposit), kept under its old name; the three
+ * non-negative components ride beside it so no reader has to infer a
+ * liability from a minus sign. A customer with nothing in the books is all
+ * zeros — an absence that looks like an absence.
+ */
+function positionOf(bal: Awaited<ReturnType<typeof customersRepository.customerBalances>>[number] | undefined) {
+  const receivable = bal?.receivable ?? 0;
+  const creditBalance = bal?.creditBalance ?? 0;
+  const depositBalance = bal?.depositBalance ?? 0;
+  const netPosition = bal?.netPosition ?? 0;
+  return { totalBilled: bal?.totalBilled ?? 0, totalPaid: bal?.totalPaid ?? 0, receivable, creditBalance, depositBalance, netPosition, balance: netPosition };
+}
 type CustomerInsert = typeof customersTable.$inferInsert;
 
 const toView = (c: Customer) => ({
@@ -67,12 +82,7 @@ export const customersService = {
       customersRepository.listTotals(filter),
     ]);
     const byCustomer = new Map(balances.map((b) => [b.customerId, b]));
-    const items = rows.map((c) => {
-      const bal = byCustomer.get(c.id);
-      const totalBilled = Number(bal?.totalBilled ?? 0);
-      const totalPaid = Number(bal?.totalPaid ?? 0);
-      return { ...toView(c), totalBilled, totalPaid, balance: totalBilled - totalPaid };
-    });
+    const items = rows.map((c) => ({ ...toView(c), ...positionOf(byCustomer.get(c.id)) }));
     return {
       items,
       page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
@@ -101,14 +111,10 @@ export const customersService = {
      * change; where they are stated did.
      */
     const [bal] = await customersRepository.customerBalances(id);
-    const totalBilled = Number(bal?.totalBilled ?? 0);
-    const totalPaid = Number(bal?.totalPaid ?? 0);
 
     return {
       ...toView(customer),
-      totalBilled,
-      totalPaid,
-      balance: totalBilled - totalPaid,
+      ...positionOf(bal),
       invoiceCount: Number(bal?.invoiceCount ?? 0),
     };
   },

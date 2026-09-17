@@ -3178,6 +3178,18 @@ export const GetCustomerLedgerQueryParams = zod.object({
   "date_to": zod.coerce.string().optional()
 })
 
+export const getCustomerLedgerResponseCustomersItemInvoicesItemOutstandingMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemBalanceMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneReceivableMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneCreditBalanceMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneDepositBalanceMin = 0;
+
+
+
 export const GetCustomerLedgerResponse = zod.object({
   "customers": zod.array(zod.object({
   "customerId": zod.number().nullish(),
@@ -3192,15 +3204,26 @@ export const GetCustomerLedgerResponse = zod.object({
   "status": zod.string(),
   "total": zod.number(),
   "paidAmount": zod.number(),
-  "outstanding": zod.number(),
+  "creditedAmount": zod.number(),
+  "outstanding": zod.number().min(getCustomerLedgerResponseCustomersItemInvoicesItemOutstandingMin),
   "vatAmount": zod.number(),
   "subtotal": zod.number()
-}).describe('A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.')),
+}).describe('A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it. `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit note (its unapplied remainder is a liability in the customer\'s `position.creditBalance`, never a negative receivable).')),
   "totalInvoiced": zod.number(),
   "totalPaid": zod.number(),
-  "balance": zod.number()
+  "balance": zod.number().min(getCustomerLedgerResponseCustomersItemBalanceMin).describe('Σ outstanding over the LISTED documents — the receivable within the window.'),
+  "position": zod.object({
+  "receivable": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The customer\'s CURRENT position (whole history, not the window).')
 })),
-  "totalBalance": zod.number()
+  "totalBalance": zod.number().describe('Σ balance over the listed customers (window receivable).'),
+  "totalReceivable": zod.number().describe('Σ current receivable over the listed customers.'),
+  "totalCreditBalance": zod.number(),
+  "totalDepositBalance": zod.number(),
+  "totalNetPosition": zod.number()
 })
 
 
@@ -3231,8 +3254,16 @@ export const GetOwnerEquityResponse = zod.object({
 
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
+export const getArAgingReportResponseTotalMin = 0;
+
+export const getArAgingReportResponseLiabilitiesCustomerCreditsMin = 0;
+
+export const getArAgingReportResponseLiabilitiesCustomerDepositsMin = 0;
+
+
+
 export const GetArAgingReportResponse = zod.object({
   "buckets": zod.object({
   "current": zod.number(),
@@ -3241,7 +3272,12 @@ export const GetArAgingReportResponse = zod.object({
   "days_61_90": zod.number(),
   "over_90": zod.number()
 }),
-  "total": zod.number(),
+  "total": zod.number().min(getArAgingReportResponseTotalMin),
+  "liabilities": zod.object({
+  "customerCredits": zod.number().min(getArAgingReportResponseLiabilitiesCustomerCreditsMin).describe('Σ unapplied credit-note balances (GL Customer credit balances).'),
+  "customerDeposits": zod.number().min(getArAgingReportResponseLiabilitiesCustomerDepositsMin).describe('Σ unapplied receipts (GL Customer deposits).')
+}),
+  "netCustomerPosition": zod.number().describe('total − customerCredits − customerDeposits.'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
@@ -3251,7 +3287,7 @@ export const GetArAgingReportResponse = zod.object({
   "outstanding": zod.number(),
   "daysPastDue": zod.number()
 }))
-})
+}).describe('Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.')
 
 
 /**
@@ -4269,6 +4305,20 @@ export const ListCustomersQueryParams = zod.object({
   "offset": zod.coerce.number().min(listCustomersQueryOffsetMin).default(listCustomersQueryOffsetDefault)
 })
 
+export const listCustomersResponseItemsItemThreeReceivableMin = 0;
+
+export const listCustomersResponseItemsItemThreeCreditBalanceMin = 0;
+
+export const listCustomersResponseItemsItemThreeDepositBalanceMin = 0;
+
+export const listCustomersResponseTotalsTwoReceivableMin = 0;
+
+export const listCustomersResponseTotalsTwoCreditBalanceMin = 0;
+
+export const listCustomersResponseTotalsTwoDepositBalanceMin = 0;
+
+
+
 export const ListCustomersResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -4298,7 +4348,12 @@ export const ListCustomersResponse = zod.object({
   "totalBilled": zod.number(),
   "totalPaid": zod.number(),
   "balance": zod.number()
-}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.'))),
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "receivable": zod.number().min(listCustomersResponseItemsItemThreeReceivableMin),
+  "creditBalance": zod.number().min(listCustomersResponseItemsItemThreeCreditBalanceMin),
+  "depositBalance": zod.number().min(listCustomersResponseItemsItemThreeDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` (see CustomerPosition).')),
   "page": zod.object({
   "limit": zod.number(),
   "offset": zod.number(),
@@ -4308,7 +4363,12 @@ export const ListCustomersResponse = zod.object({
   "totalBilled": zod.number(),
   "totalPaid": zod.number(),
   "balance": zod.number()
-}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.').and(zod.object({
+  "receivable": zod.number().min(listCustomersResponseTotalsTwoReceivableMin),
+  "creditBalance": zod.number().min(listCustomersResponseTotalsTwoCreditBalanceMin),
+  "depositBalance": zod.number().min(listCustomersResponseTotalsTwoDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it.')
 })
 
 
@@ -4378,6 +4438,14 @@ export const GetCustomerParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getCustomerResponseOneThreeReceivableMin = 0;
+
+export const getCustomerResponseOneThreeCreditBalanceMin = 0;
+
+export const getCustomerResponseOneThreeDepositBalanceMin = 0;
+
+
+
 export const GetCustomerResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -4407,6 +4475,11 @@ export const GetCustomerResponse = zod.object({
   "totalPaid": zod.number(),
   "balance": zod.number()
 }).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "receivable": zod.number().min(getCustomerResponseOneThreeReceivableMin),
+  "creditBalance": zod.number().min(getCustomerResponseOneThreeCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerResponseOneThreeDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` (see CustomerPosition).').and(zod.object({
   "invoiceCount": zod.number().describe('ISSUED invoices only — drafts and submitted documents do not count.')
 }))
 
@@ -4495,6 +4568,103 @@ export const GetCustomerCreditsResponse = zod.object({
   "customerId": zod.number(),
   "deposits": zod.number().describe('Σ unapplied over the customer\'s receipts — Customer deposits and advances.'),
   "creditNotes": zod.number().describe('Σ unconsumed over the customer\'s issued credit notes — Customer credit balances.')
+})
+
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+export const GetCustomerStatementParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerStatementQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional().describe('YYYY-MM-DD; events before it are folded into `opening`'),
+  "date_to": zod.coerce.string().optional().describe('YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`')
+})
+
+export const getCustomerStatementResponseOpeningReceivableMin = 0;
+
+export const getCustomerStatementResponseOpeningCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseOpeningDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseClosingReceivableMin = 0;
+
+export const getCustomerStatementResponseClosingCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseClosingDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseCurrentOneReceivableMin = 0;
+
+export const getCustomerStatementResponseCurrentOneCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseCurrentOneDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneReceivableMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneDepositBalanceMin = 0;
+
+
+
+export const GetCustomerStatementResponse = zod.object({
+  "customerId": zod.number(),
+  "customerName": zod.string(),
+  "customerNameAr": zod.string().nullable(),
+  "period": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}),
+  "opening": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseOpeningReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseOpeningCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseOpeningDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.'),
+  "lines": zod.array(zod.object({
+  "seq": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['invoice', 'debit_note', 'credit_note', 'receipt', 'allocation', 'credit_application', 'unallocation', 'refund']),
+  "documentNumber": zod.string(),
+  "reference": zod.string().nullable(),
+  "description": zod.string(),
+  "amount": zod.number(),
+  "receivableDelta": zod.number(),
+  "creditDelta": zod.number(),
+  "depositDelta": zod.number(),
+  "receivable": zod.number().describe('Running Accounts Receivable after this line'),
+  "creditBalance": zod.number().describe('Running Customer Credits after this line'),
+  "depositBalance": zod.number().describe('Running Customer Deposits after this line'),
+  "netPosition": zod.number().describe('Derived — receivable − creditBalance − depositBalance'),
+  "invoiceId": zod.number().nullable(),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "allocationId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "journalEntryId": zod.number().nullable()
+})),
+  "closing": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseClosingReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseClosingCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseClosingDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.'),
+  "current": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseCurrentOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseCurrentOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseCurrentOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The position after EVERY event, ignoring the window — what the events say the customer\'s position is today.'),
+  "subledger": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseSubledgerOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseSubledgerOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseSubledgerOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The same position read from the subledger caches and active-allocation sets.'),
+  "reconciled": zod.boolean().describe('`current` equals `subledger` on all three components (to the halala).'),
+  "eventCount": zod.number()
 })
 
 

@@ -7,9 +7,17 @@
  */
 import type { AgingBuckets } from './agingBuckets';
 import type { ArAgingItem } from './arAgingItem';
+import type { ArAgingReportLiabilities } from './arAgingReportLiabilities';
 
+/**
+ * Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.
+ */
 export interface ArAgingReport {
   buckets: AgingBuckets;
+  /** @minimum 0 */
   total: number;
+  liabilities: ArAgingReportLiabilities;
+  /** total − customerCredits − customerDeposits. */
+  netCustomerPosition: number;
   items: ArAgingItem[];
 }

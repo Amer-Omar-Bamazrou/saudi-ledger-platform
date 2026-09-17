@@ -5,11 +5,10 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { Customer } from './customer';
 import type { CustomerPosition } from './customerPosition';
 import type { PartyTotals } from './partyTotals';
 
 /**
- * `balance` IS `netPosition` (see CustomerPosition).
+ * `balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it.
  */
-export type CustomerWithBalance = Customer & PartyTotals & CustomerPosition;
+export type CustomerTotals = PartyTotals & CustomerPosition;

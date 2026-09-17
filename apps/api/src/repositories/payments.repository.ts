@@ -231,32 +231,6 @@ export const paymentsRepository = {
       .where(source.paymentId != null ? eq(customerRefundsTable.paymentId, source.paymentId) : eq(customerRefundsTable.creditNoteId, source.creditNoteId!));
     return Number(rows[0]?.total ?? 0);
   },
-
-  /**
-   * A customer's credit position, from the subledger: Σ unapplied over their
-   * receipts (deposit) and Σ unconsumed over their approved credit notes
-   * (credit-note balance). The two are shown apart, never summed into one
-   * "customer credit" (they have different natures, VAT states and exits).
-   */
-  async customerCreditPosition(customerId: number): Promise<{ deposits: number; creditNotes: number }> {
-    // deposits = Σ receipts − Σ ACTIVE allocations − Σ deposit refunds
-    const dep = await db.execute<{ v: string }>(sql`
-      SELECT coalesce((SELECT sum(p.amount) FROM payments p WHERE p.customer_id = ${customerId} AND p.direction = 'in'), 0)
-           - coalesce((SELECT sum(a.amount) FROM payment_allocations a
-                         JOIN payments q ON q.id = a.payment_id
-                         LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id
-                        WHERE q.customer_id = ${customerId} AND q.direction = 'in' AND r.id IS NULL), 0)
-           - coalesce((SELECT sum(f.amount) FROM customer_refunds f WHERE f.customer_id = ${customerId} AND f.origin = 'deposit'), 0) AS v`);
-    // credit notes = Σ issued note totals − Σ ACTIVE applications − Σ credit-note refunds
-    const cn = await db.execute<{ v: string }>(sql`
-      SELECT coalesce((SELECT sum(n.total::numeric) FROM invoices n WHERE n.customer_id = ${customerId} AND n.document_type = 'credit_note' AND n.invoice_hash IS NOT NULL), 0)
-           - coalesce((SELECT sum(a.amount) FROM payment_allocations a
-                         JOIN invoices m ON m.id = a.credit_note_id
-                         LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id
-                        WHERE m.customer_id = ${customerId} AND m.document_type = 'credit_note' AND m.invoice_hash IS NOT NULL AND r.id IS NULL), 0)
-           - coalesce((SELECT sum(f.amount) FROM customer_refunds f WHERE f.customer_id = ${customerId} AND f.origin = 'credit_note'), 0) AS v`);
-    return { deposits: Number(dep.rows[0]?.v ?? 0), creditNotes: Number(cn.rows[0]?.v ?? 0) };
-  },
 };
 
 /** Kept beside the payments repository so the two caches have one writer set. */

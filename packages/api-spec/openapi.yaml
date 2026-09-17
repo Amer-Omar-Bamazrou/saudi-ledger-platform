@@ -2028,7 +2028,7 @@ paths:
     get:
       operationId: getArAgingReport
       tags: [reports]
-      summary: Accounts receivable aging (credit notes netted into their originals)
+      summary: Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
       responses:
         "200":
           description: AR aging
@@ -2673,7 +2673,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/CustomerWithBalance" }
                   page: { $ref: "#/components/schemas/PageInfo" }
-                  totals: { $ref: "#/components/schemas/PartyTotals" }
+                  totals: { $ref: "#/components/schemas/CustomerTotals" }
     post:
       operationId: createCustomer
       tags: [customers]
@@ -2747,6 +2747,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CustomerCredits" }
+        "404":
+          description: Customer not found
+
+  /customers/{id}/statement:
+    get:
+      operationId: getCustomerStatement
+      tags: [customers]
+      summary: "Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string }, description: "YYYY-MM-DD; events before it are folded into `opening`" }
+        - { in: query, name: date_to, required: false, schema: { type: string }, description: "YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`" }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerStatement" }
+        "400":
+          description: Malformed date, or date_from after date_to
         "404":
           description: Customer not found
 
@@ -6358,9 +6378,12 @@ components:
         count: { type: integer }
 
     CustomerLedgerInvoice:
-      description: A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+      description: >-
+        A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it.
+        `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit
+        note (its unapplied remainder is a liability in the customer's `position.creditBalance`, never a negative receivable).
       type: object
-      required: [id, invoiceNumber, date, dueDate, documentType, status, total, paidAmount, outstanding, vatAmount, subtotal]
+      required: [id, invoiceNumber, date, dueDate, documentType, status, total, paidAmount, creditedAmount, outstanding, vatAmount, subtotal]
       properties:
         id: { type: integer }
         invoiceNumber: { type: string }
@@ -6370,13 +6393,14 @@ components:
         status: { type: string }
         total: { type: number }
         paidAmount: { type: number }
-        outstanding: { type: number }
+        creditedAmount: { type: number }
+        outstanding: { type: number, minimum: 0 }
         vatAmount: { type: number }
         subtotal: { type: number }
 
     CustomerLedgerCustomer:
       type: object
-      required: [customerName, invoices, totalInvoiced, totalPaid, balance]
+      required: [customerName, invoices, totalInvoiced, totalPaid, balance, position]
       properties:
         customerId: { type: ["integer", "null"] }
         customerName: { type: string }
@@ -6386,16 +6410,24 @@ components:
           items: { $ref: "#/components/schemas/CustomerLedgerInvoice" }
         totalInvoiced: { type: number }
         totalPaid: { type: number }
-        balance: { type: number }
+        balance: { type: number, minimum: 0, description: Σ outstanding over the LISTED documents — the receivable within the window. }
+        position:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The customer's CURRENT position (whole history, not the window).
 
     CustomerLedgerReport:
       type: object
-      required: [customers, totalBalance]
+      required: [customers, totalBalance, totalReceivable, totalCreditBalance, totalDepositBalance, totalNetPosition]
       properties:
         customers:
           type: array
           items: { $ref: "#/components/schemas/CustomerLedgerCustomer" }
-        totalBalance: { type: number }
+        totalBalance: { type: number, description: Σ balance over the listed customers (window receivable). }
+        totalReceivable: { type: number, description: Σ current receivable over the listed customers. }
+        totalCreditBalance: { type: number }
+        totalDepositBalance: { type: number }
+        totalNetPosition: { type: number }
 
     OwnerEquityReport:
       type: object
@@ -6448,11 +6480,21 @@ components:
         daysPastDue: { type: integer }
 
     ArAgingReport:
+      description: >-
+        Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is
+        shown beside them, never folded into a bucket, and the net is derived.
       type: object
-      required: [buckets, total, items]
+      required: [buckets, total, liabilities, netCustomerPosition, items]
       properties:
         buckets: { $ref: "#/components/schemas/AgingBuckets" }
-        total: { type: number }
+        total: { type: number, minimum: 0 }
+        liabilities:
+          type: object
+          required: [customerCredits, customerDeposits]
+          properties:
+            customerCredits: { type: number, minimum: 0, description: Σ unapplied credit-note balances (GL Customer credit balances). }
+            customerDeposits: { type: number, minimum: 0, description: Σ unapplied receipts (GL Customer deposits). }
+        netCustomerPosition: { type: number, description: total − customerCredits − customerDeposits. }
         items:
           type: array
           items: { $ref: "#/components/schemas/ArAgingItem" }
@@ -6593,10 +6635,88 @@ components:
         isActive: { type: boolean }
         createdAt: { type: string }
 
+    CustomerPosition:
+      description: >-
+        Phase E — a customer's position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net.
+        `receivable` (Accounts Receivable) is Σ over issued invoices/debit notes of total − paid − credited; `creditBalance` (Customer Credits)
+        is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active
+        allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative:
+        we owe the customer). A liability is never expressed as a negative receivable.
+      type: object
+      required: [receivable, creditBalance, depositBalance, netPosition]
+      properties:
+        receivable: { type: number, minimum: 0 }
+        creditBalance: { type: number, minimum: 0 }
+        depositBalance: { type: number, minimum: 0 }
+        netPosition: { type: number }
+
+    CustomerTotals:
+      description: "`balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it."
+      allOf:
+        - { $ref: "#/components/schemas/PartyTotals" }
+        - { $ref: "#/components/schemas/CustomerPosition" }
+
     CustomerWithBalance:
+      description: "`balance` IS `netPosition` (see CustomerPosition)."
       allOf:
         - { $ref: "#/components/schemas/Customer" }
         - { $ref: "#/components/schemas/PartyTotals" }
+        - { $ref: "#/components/schemas/CustomerPosition" }
+
+    CustomerStatementLine:
+      type: object
+      required: [seq, date, kind, documentNumber, reference, description, amount, receivableDelta, creditDelta, depositDelta,
+                 receivable, creditBalance, depositBalance, netPosition, invoiceId, paymentId, creditNoteId, allocationId, refundId, journalEntryId]
+      properties:
+        seq: { type: integer }
+        date: { type: string }
+        kind: { type: string, enum: [invoice, debit_note, credit_note, receipt, allocation, credit_application, unallocation, refund] }
+        documentNumber: { type: string }
+        reference: { type: ["string", "null"] }
+        description: { type: string }
+        amount: { type: number }
+        receivableDelta: { type: number }
+        creditDelta: { type: number }
+        depositDelta: { type: number }
+        receivable: { type: number, description: Running Accounts Receivable after this line }
+        creditBalance: { type: number, description: Running Customer Credits after this line }
+        depositBalance: { type: number, description: Running Customer Deposits after this line }
+        netPosition: { type: number, description: Derived — receivable − creditBalance − depositBalance }
+        invoiceId: { type: ["integer", "null"] }
+        paymentId: { type: ["integer", "null"] }
+        creditNoteId: { type: ["integer", "null"] }
+        allocationId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        journalEntryId: { type: ["integer", "null"] }
+
+    CustomerStatement:
+      type: object
+      required: [customerId, customerName, customerNameAr, period, opening, lines, closing, current, subledger, reconciled, eventCount]
+      properties:
+        customerId: { type: integer }
+        customerName: { type: string }
+        customerNameAr: { type: ["string", "null"] }
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: ["string", "null"] }
+            to: { type: ["string", "null"] }
+        opening: { $ref: "#/components/schemas/CustomerPosition" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerStatementLine" }
+        closing: { $ref: "#/components/schemas/CustomerPosition" }
+        current:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The position after EVERY event, ignoring the window — what the events say the customer's position is today.
+        subledger:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The same position read from the subledger caches and active-allocation sets.
+        reconciled: { type: boolean, description: "`current` equals `subledger` on all three components (to the halala)." }
+        eventCount: { type: integer }
 
     CustomerDetail:
       allOf:
