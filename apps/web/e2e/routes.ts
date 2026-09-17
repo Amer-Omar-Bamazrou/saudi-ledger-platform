@@ -46,6 +46,7 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/audit-trail": "app",
   "/balance-sheet": "app",
   "/bank-accounts": "app",
+  "/bank-matching": "app",
   "/bills": "app",
   "/budgets": "app",
   "/cash-flow": "app",
@@ -63,6 +64,7 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/invoices": "app",
   "/invoice-summary": "app",
   "/journal-entries": "app",
+  "/payments": "app",
   "/payroll": "app",
   "/payroll-report": "app",
   "/products": "app",
@@ -99,6 +101,7 @@ export const EXPECTATIONS: Record<string, Kind> = {
 
   "/integrations": "app",
   "/customers/:id": "param",
+  "/customers/:id/statement": "param",
   "/vendors/:id": "param",
   // One representative placeholder, so the smoke crawl covers the shape. Every
   // registered slug is crawled individually by `nav-tree.spec.ts` — this entry
@@ -143,6 +146,12 @@ export const ROWS_EXPECTED: ReadonlySet<string> = new Set([
   "/journal-entries",
   "/transactions",
   "/bank-accounts",
+  // Phase F: the seed's receipts (invoice pay path) render as payments; its
+  // imported statement rows render as classified matching rows; the customer's
+  // statement has the seeded events.
+  "/payments",
+  "/bank-matching",
+  "/customers/:id/statement",
   "/products",
   "/employees",
   "/payroll",

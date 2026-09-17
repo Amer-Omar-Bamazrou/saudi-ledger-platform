@@ -31,6 +31,11 @@ import ZakatReport from '@/pages/ZakatReport';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
 import CustomerDetail from '@/pages/CustomerDetail';
+// Batch 1B Phase F (2026-09-17): payments/allocations, the customer statement
+// and bank matching — the UI for the D-4 payment core.
+import CustomerStatement from '@/pages/CustomerStatement';
+import Payments from '@/pages/Payments';
+import BankMatching from '@/pages/BankMatching';
 // Both BUILT (M21) — real routes, real persistence. The last two façades the
 // 2026-08-20 audit found are gone; `KNOWN_UNBACKED` is now empty.
 import Quotations from '@/pages/Quotations';
@@ -185,6 +190,8 @@ function Router() {
               {/* Sales */}
               <Route path="/customers" component={Customers} />
               <Route path="/customers/:id" component={CustomerDetail} />
+              <Route path="/customers/:id/statement" component={CustomerStatement} />
+              <Route path="/payments" component={Payments} />
               <Route path="/quotations" component={Quotations} />
               <Route path="/invoices" component={Invoices} />
               <Route path="/credit-notes" component={CreditNotes} />
@@ -232,6 +239,7 @@ function Router() {
               <Route path="/products" component={Products} />
               {/* Banking */}
               <Route path="/bank-accounts" component={BankAccounts} />
+              <Route path="/bank-matching" component={BankMatching} />
               {/* Planning */}
               <Route path="/budgets" component={Budgets} />
               {/* Settings */}

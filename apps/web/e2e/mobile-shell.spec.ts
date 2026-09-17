@@ -33,6 +33,7 @@ function ids(): SeededIds {
 function concrete(route: string): string {
   const { customerId, vendorId } = ids();
   if (route === "/customers/:id") return `/customers/${customerId}`;
+  if (route === "/customers/:id/statement") return `/customers/${customerId}/statement`;
   if (route === "/vendors/:id") return `/vendors/${vendorId}`;
   if (route === "/coming-soon/:slug") return "/coming-soon/transfers";
   return route;

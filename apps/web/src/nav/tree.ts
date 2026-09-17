@@ -176,6 +176,7 @@ export const NAV_TREE: readonly NavSection[] = [
         ...built("/customers", "Customers", "العملاء", Users),
         children: [
           built("/customers", "All Customers", "كل العملاء"),
+          built("/payments", "Payments & Allocations", "المدفوعات والتخصيصات"),
           built("/reports/customer-ledger", "Customer Statements", "كشوف حساب العملاء"),
           built("/ar-aging", "Customer Aging", "أعمار ذمم العملاء"),
           soon("customer-groups", "Customer Groups", "مجموعات العملاء"),
@@ -266,6 +267,8 @@ export const NAV_TREE: readonly NavSection[] = [
       built("/transactions", "Transactions", "المعاملات", ListOrdered),
       soon("transfers", "Transfers", "التحويلات", ArrowLeftRight),
       built("/review", "Reconciliation", "التسوية البنكية", ListChecks),
+      // Phase D/F: statement rows ↔ receipts/refunds, classified with evidence.
+      built("/bank-matching", "Bank Matching", "مطابقة كشوف البنك", SearchCheck),
       soon("live-bank-feeds", "Live Bank Feeds", "الربط المباشر مع البنوك", Plug),
       {
         label: "Banking Reports", labelAr: "التقارير البنكية", marker: "built",

@@ -2062,3 +2062,84 @@ issuance test was replaced by `status NOT IN ('draft','submitted')` (the
 `INVOICE_NOT_IN_BOOKS` predicate every other reader uses); the two coincide on
 every local row (measured 2026-09-17: 41 issued documents, all hashed). Web
 rendering of the three components: Phase F.
+
+## BATCH 1B — CLOSED 2026-09-17 (D-4 payments: Parts 1–2, Phases A–F)
+
+**What closed, in order.** Part 1 — the payment core (`payments`,
+`payment_allocations`; `POST /payments`, `/payments/{id}/allocate`,
+`/payments/credit-notes/{id}/apply`; the unallocated remainder of a receipt
+is a *Customer deposits* liability, a credit note's excess a *Customer credit
+balances* liability — decision pack §1, Model C). Phase A — corrections:
+`/payments/allocations/{id}/unallocate` writes a superseding reversal record
+(Dr AR / Cr the origin's liability, dated today, period-controlled); the
+allocation row is never edited; a credit note's settlement of its own original
+is immutable (a further note corrects it). Phase B — party-correct reversal:
+every control-account line a reversal writes carries the party of the line it
+cancels (`tests/reversal-party.test.ts`). Phase C — refunds:
+`POST /payments/refunds` settles a deposit (from a named receipt) or a credit-
+note balance (from a named issued note), Dr the origin's liability / Cr the
+bank leaf, reason required, no VAT touched; the receipt and the note stay as
+they were. Phase D — deterministic bank matching:
+`GET /payments/matching` classifies every statement row MATCHED /
+DETERMINISTIC / AMBIGUOUS / UNMATCHED / INCONSISTENT with its evidence
+(`services/statementMatching.service.ts`; identity clauses, ±3-day window as
+the one product value in `matchingPolicy.ts`); `apply` records the
+deterministic set as an explicit act; `override` records the human's match
+with actor, reason and evidence; `unmatch` supersedes with a reversal row; the
+database refuses a second active match per row or counterpart. Phase E — the
+customer statement and the three-component position (the record above).
+
+**Phase F — the UI (2026-09-17).** `/payments` (receipts newest first, a
+refunds tab, a customer filter, "Record receipt" on account); the customer
+page's position tiles (AR · Customer credits · Customer deposits · Net,
+derived), its Payments section (a receipt opens into its ALLOCATIONS — active
+and corrected, allocate / unallocate / refund deposit), its Credit Notes
+section (remaining credit per note; apply / unallocate / refund credit; the
+original application shown as the tax document's effect, no control) and a
+Refunds section; `/customers/:id/statement` (the Phase E statement: three
+running balances, derived net, opening/closing/current, the server's
+`reconciled` verdict shown either way; cards on a phone); `/bank-matching`
+(bank and date filters, counts per class, per-row evidence — candidates,
+identifying reference, window, reason — Accept naming its scope before the
+act, Match manually with a required reason, Unmatch); `/ar-aging` now shows
+the two liabilities and the derived net beside the buckets. Shared dialogs in
+`apps/web/src/components/payments/`. Approver-level acts render DISABLED with
+the reason for other roles (the server judges). Every string through `t()`;
+the Arabic sweep on the new files reports 0 user-facing English.
+
+**Browser validation (`e2e/batch-1b-payment-flows.spec.ts`, 10 tests, by
+clicking; effects read back from the API).** English desktop: the payment flow
+(view → allocate 300 of 800 to INV-002 → outstanding falls → unallocate with a
+reason → 800 available again, the corrected row still visible → reallocate 200
++ 100 across two invoices); the credit flow (CN-001's 115 is a credit, AR ≥ 0;
+apply 50 → correct → 115 restored); the refund flow (deposit 100 with the
+two-step confirmation naming customer, origin, amount, bank, reason and the
+balance after; credit 115 in full; both sources still listed); bank matching
+(DETERMINISTIC accepted → MATCHED with method deterministic; AMBIGUOUS shown
+with its reason and candidate, matched by hand with a reason → method manual,
+actor and narrative in the evidence; unmatch → the row returns to AMBIGUOUS
+and the historical match still reads with its reversal); the statement (all
+seven kinds present, running balances are the server's, last line = closing,
+current = the customer page's position, reconciled); AR ageing (Σ buckets =
+total, no negative item, the credit note absent, net = total − credits −
+deposits). English phone, Arabic desktop RTL and Arabic phone RTL: a receipt
+recorded through the dialog, allocated and corrected; dialogs within the
+viewport; no page scrolls sideways on the four new surfaces.
+
+**Not done, by scope (genuine limitations).** (1) Allocation from the
+Invoices page's "Mark Paid" stays the one-invoice path; a receipt across
+several invoices is recorded on account and allocated from the customer page.
+(2) `/payments` filters by customer only (the API's own filter); no date or
+bank filter yet. (3) A refund is not routed through the approval engine (the
+pack's second-person approval is a FUTURE PHASE per-company setting).
+(4) The Payments page names a credit note by id in the Refunds tab when the
+customer's invoice list is not loaded. (5) The dev org's RULE-J / RULE-P
+condition (the record above) is unchanged and still listed by the sweep as
+information. (6) Found while validating, NOT fixed (API, outside the UI
+scope): `invoiceDocument.service` caches ONE Chromium for the life of the
+process; when that child dies (a killed test run orphaned the API and took
+its browser with it) every PDF download answers 500 until the API restarts.
+A `browser.isConnected()` check that clears `browserPromise` is the fix;
+severance lesson, §3.
+
+State: CLOSED. Current state authority: CLAUDE.md §2.

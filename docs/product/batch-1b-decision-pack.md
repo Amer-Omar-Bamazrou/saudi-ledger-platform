@@ -1,6 +1,6 @@
 # Batch 1B decision pack — D-4 payments, credits, allocation, matching, migration (2026-09-17)
 
-**Status (2026-09-17): RESEARCH AND ARCHITECTURE ONLY — nothing here is implemented. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-17): IMPLEMENTED — Batch 1B (Parts 1–2, Phases A–F, UI included) is built and browser-validated; the as-built record is the known-issues file, "BATCH 1B — CLOSED 2026-09-17". The research below is the decision record and is not re-argued. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Reads first: [`d3-cash-policy-research-2026-09-17.md`](d3-cash-policy-research-2026-09-17.md) (settled; not reopened here), [`accounting-architecture-decision-pack.md`](accounting-architecture-decision-pack.md) §D-4, [`design-per-bank-cash.md`](design-per-bank-cash.md).
 

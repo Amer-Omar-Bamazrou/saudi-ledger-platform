@@ -38,6 +38,7 @@ function ids(): SeededIds {
 function concrete(route: string): string {
   const { customerId, vendorId } = ids();
   if (route === "/customers/:id") return `/customers/${customerId}`;
+  if (route === "/customers/:id/statement") return `/customers/${customerId}/statement`;
   if (route === "/vendors/:id") return `/vendors/${vendorId}`;
   // A slug that must exist in `lib/comingSoon.ts`; `nav-tree.spec.ts` asserts it.
   if (route === "/coming-soon/:slug") return "/coming-soon/transfers";

@@ -64,6 +64,9 @@ const API = "http://localhost:3000";
 export interface SeededIds {
   customerId: number;
   vendorId: number;
+  /** Phase F: the one bank account, and the receipt held on account (a deposit). */
+  bankId: number;
+  depositPaymentId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
@@ -320,6 +323,30 @@ export default async function globalSetup(): Promise<void> {
     ],
   });
 
+  // Batch 1B Phase F (2026-09-17): a receipt ON ACCOUNT — a customer deposit
+  // with no allocation — and statement rows that classify one way each:
+  // DETERMINISTIC (the narrative names the receipt's reference; same bank,
+  // exact amount, next day) and AMBIGUOUS (agrees with the 1,000 partial
+  // payment of INV-002 on bank, amount and date, but nothing in the narrative
+  // identifies it — amount and date alone never match). The 1,150 row above
+  // is UNMATCHED: its receipt is dated 2026-06-28, outside the ±3-day window.
+  const deposit = await api(ctx, "POST", "/payments", {
+    customerId,
+    amount: 800,
+    bankAccountId: bank.id,
+    paidAt: "2026-08-25",
+    method: "transfer",
+    reference: "E2E-DEP-800",
+    allocations: [],
+  });
+  await api(ctx, "POST", "/transactions/upload", {
+    bankAccountId: bank.id,
+    rows: [
+      { date: "2026-08-26", description: "Incoming transfer E2E-DEP-800", amount: 800, type: "credit", currency: "SAR" },
+      { date: "2026-07-21", description: "Incoming transfer", amount: 1000, type: "credit", currency: "SAR" },
+    ],
+  });
+
   await api(ctx, "POST", "/products", {
     name: "Consulting hour",
     type: "service",
@@ -384,5 +411,5 @@ export default async function globalSetup(): Promise<void> {
   await ctx.storageState({ path: E2E.storageState });
   await ctx.dispose();
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId } satisfies SeededIds, null, 2));
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id } satisfies SeededIds, null, 2));
 }

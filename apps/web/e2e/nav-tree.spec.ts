@@ -164,7 +164,7 @@ test.describe("the tree is internally consistent", () => {
     const EXEMPT = new Set([
       "/login", "/signup", "/accept-invite", "/operator", "/verification-status",
       // Reached from a record, not a menu.
-      "/customers/:id", "/vendors/:id",
+      "/customers/:id", "/vendors/:id", "/customers/:id/statement",
       // The placeholder route itself; its entries are counted individually.
       "/coming-soon/:slug",
     ]);

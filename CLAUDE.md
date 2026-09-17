@@ -59,11 +59,11 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02** — the contract milestone CLOSED at a deliberate stop (rules and
 the pinned inventory: §5). **2026-09-03/04** — the ERPNext comparison; N1–N4 +
-T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten days after going green (lesson: §3);
-🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
-**2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
-to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
-**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"). **THE PRE-PILOT SANITY WALK** CLOSED (same file; findings file, "THE NIGHT WINDOW" — the business-date seam). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A, uncommitted); the cut-over is NOT run** — record [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); open item in §5.
+T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged (lesson: §3);
+🔴 **THE DECISION-FREE POOL CLOSED** (known-issues file, "the decision-free pool").
+**2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean; its findings CLOSED ([`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK"). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS"); its V1 gaps stay in that record, unqueued.
+**2026-09-16** — the pre-pilot batch CLOSED (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH", "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"; findings file, "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** — record [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); open item in §5.
+**2026-09-17** — 🔴 **BATCH 1B CLOSED (D-4 payments, Phases A–F, UI included)** — validated by clicking in EN/AR, desktop/phone (`e2e/batch-1b-payment-flows.spec.ts`). Record: known-issues file, "BATCH 1B — CLOSED 2026-09-17"; decisions [`batch-1b-decision-pack.md`](docs/product/batch-1b-decision-pack.md). Batch 1C not started.
 
 **Where things stand, in one table.** Status only; the record is the link.
 

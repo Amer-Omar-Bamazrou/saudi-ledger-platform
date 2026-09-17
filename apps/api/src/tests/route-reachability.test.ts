@@ -69,8 +69,10 @@ const NON_UI_SURFACES: Record<string, string> = {
  * standing check's caller-grep passes.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
-  "/payments":
-    "D-4 Batch 1B Part 1 (2026-09-17) is API-only by instruction: the customer payment/allocation core lands without a page; Part 2 builds the receive-payment and allocation UI. Checkable: apps/web names no \"/payments\" path and imports no generated payments hook. Delete this entry when it does.",
+  // "/payments" — CLOSED by Batch 1B Phase F (2026-09-17). `/payments`
+  // (receipts, allocations, refunds), the customer detail's payment and
+  // credit-note sections, and `/bank-matching` are its first readers. Deleted,
+  // not reworded, per the pattern.
   // "/period-locks" — CLOSED by M18.4. The Finance Hub (`/finance-hub`) is its
   // first UI: a tenant can now close and reopen a month from the product. Left
   // as a comment rather than deleted so the entry's history is visible: it sat

@@ -38,7 +38,7 @@ function ids(): SeededIds {
 
 test.use({ storageState: E2E.storageState });
 
-test("🔴 'Open statement' carries the customer to the ledger report", async ({ page }) => {
+test("🔴 'Ledger report' carries the customer to the ledger report", async ({ page }) => {
   const { customerId } = ids();
 
   await page.goto(`/customers/${customerId}`, { waitUntil: "networkidle" });
@@ -47,8 +47,11 @@ test("🔴 'Open statement' carries the customer to the ledger report", async ({
   // Follow the link the way a user does, rather than navigating to the URL we
   // believe it has. The bug was in the destination, but a test that builds the
   // URL itself would also pass if the SOURCE stopped sending the parameter.
-  const statement = page.getByRole("link", { name: /statement/i }).first();
-  await expect(statement, "no 'Open statement' link on the customer detail page").toBeVisible();
+  // (Batch 1B Phase F renamed the link: "Open statement" now opens the
+  // customer's own statement page — asserted below — and this GL report link
+  // reads "Ledger report".)
+  const statement = page.getByRole("link", { name: /ledger report/i }).first();
+  await expect(statement, "no 'Ledger report' link on the customer detail page").toBeVisible();
   await statement.click();
 
   await page.waitForURL(/customer-ledger/, { timeout: 10_000 });
@@ -80,6 +83,18 @@ test("🔴 'Open statement' carries the customer to the ledger report", async ({
     "the ledger report opened on ALL CUSTOMERS despite arriving with ?customer_id — " +
       "nothing errored and no figure is wrong, and the answer is about the wrong set",
   ).not.toContainText("All Customers");
+});
+
+test("🔴 'Open statement' opens THIS customer's statement (Phase F) — the destination names the customer", async ({ page }) => {
+  const { customerId } = ids();
+  await page.goto(`/customers/${customerId}`, { waitUntil: "networkidle" });
+  const statement = page.getByRole("link", { name: /open statement/i }).first();
+  await expect(statement).toBeVisible();
+  await statement.click();
+  await page.waitForURL(new RegExp(`/customers/${customerId}/statement`), { timeout: 10_000 });
+  const main = page.locator("main");
+  await expect(main, "the statement does not name the customer it was opened from").toContainText("E2E Customer");
+  await expect(main.getByTestId("statement-reconciled")).toBeVisible();
 });
 
 test("the report still defaults to every customer when opened without a parameter", async ({ page }) => {
