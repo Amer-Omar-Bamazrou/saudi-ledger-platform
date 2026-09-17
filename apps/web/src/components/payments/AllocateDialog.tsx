@@ -162,6 +162,18 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
           </div>
         </div>
         {remaining < -0.005 && <p className="text-xs text-destructive">{t("Allocations exceed what is available.", "التخصيصات تتجاوز المتاح.")}</p>}
+        {lines.length > 0 && remaining >= -0.005 && (
+          <p className="text-xs text-foreground rounded-md border border-border bg-secondary/20 p-2" data-testid="allocate-consequence">
+            {(() => {
+              const targetsText = lines.map((l) => `${targets.find((i) => i.id === l.invoiceId)?.invoiceNumber ?? `#${l.invoiceId}`} (${fmtNum(l.amount)})`).join(", ");
+              return source.kind === "payment"
+                ? t(`This will allocate ${fmtNum(requested)} of receipt ${receiptNumber(source.id)} against ${targetsText}. ${fmtNum(remaining)} stays on account as the customer's deposit. Each allocation posts Dr Customer deposits / Cr Accounts receivable.`,
+                    `سيُخصَّص ${fmtNum(requested)} من الإيصال ${receiptNumber(source.id)} مقابل ${targetsText}. يبقى ${fmtNum(remaining)} على الحساب كعربون للعميل. كل تخصيص يرحّل: من ح/ عرابين العملاء إلى ح/ الذمم المدينة.`)
+                : t(`This will apply ${fmtNum(requested)} of credit note ${source.number} against ${targetsText}. ${fmtNum(remaining)} remains as the customer's credit balance. The credit note itself is not changed.`,
+                    `سيُطبَّق ${fmtNum(requested)} من إشعار الدائن ${source.number} مقابل ${targetsText}. يبقى ${fmtNum(remaining)} رصيدًا دائنًا للعميل. لا يتغير إشعار الدائن نفسه.`);
+            })()}
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -132,6 +132,10 @@ export function RefundDialog({ customer, source, open, onClose }: { customer: { 
               <Row k={t("Reason", "السبب")} v={reason.trim()} />
               <Row k={t("Balance remaining after", "الرصيد المتبقي بعده")} v={<span className="font-mono">{fmtNum(after)}</span>} testId="refund-after" />
             </div>
+            <p className="text-xs text-foreground rounded-md border border-border bg-secondary/20 p-2" data-testid="refund-consequence">
+              {t(`This will refund ${fmtNum(n)} of ${customer.name}'s ${source.origin === "deposit" ? "deposit" : "credit-note balance"} from ${bankRow ? bankRow.name : `bank #${bank}`}, leaving ${fmtNum(after)} on ${source.label}. It posts Dr ${source.origin === "deposit" ? "Customer deposits" : "Customer credit balances"} / Cr the bank account; no VAT is touched.`,
+                 `سيُردّ ${fmtNum(n)} من ${source.origin === "deposit" ? "عربون" : "رصيد إشعار الدائن لـ"} ${customer.name} من ${bankRow ? bankRow.name : `البنك #${bank}`}، ويبقى ${fmtNum(after)} على ${source.label}. يُرحَّل: من ح/ ${source.origin === "deposit" ? "عرابين العملاء" : "أرصدة دائنة للعملاء"} إلى ح/ الحساب البنكي؛ لا تُمسّ ضريبة القيمة المضافة.`)}
+            </p>
             <p className="text-xs text-muted-foreground">
               {t(`The ${source.origin === "deposit" ? "receipt" : "credit note"} ${source.label} stays on the customer's statement; this refund is recorded beside it.`,
                  `يبقى ${source.origin === "deposit" ? "الإيصال" : "إشعار الدائن"} ${source.label} في كشف حساب العميل؛ ويُسجَّل هذا الردّ بجانبه.`)}

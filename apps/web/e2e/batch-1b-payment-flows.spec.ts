@@ -122,6 +122,8 @@ test.describe("Phase F — English desktop", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByTestId("allocate-row-E2E-INV-002").getByRole("spinbutton").fill("300");
     await expect(dialog.getByTestId("allocate-remaining")).toContainText(money(500));
+    // The consequence is stated in accounting terms, not "are you sure".
+    await expect(dialog.getByTestId("allocate-consequence")).toContainText(`This will allocate SAR 300.00 of receipt RCPT-${ids.depositPaymentId} against E2E-INV-002`);
     await dialog.getByTestId("allocate-submit").click();
     await expect(toast(page, "Payment allocated")).toBeVisible();
     await expect(dialog).toBeHidden();
@@ -138,7 +140,8 @@ test.describe("Phase F — English desktop", () => {
     await page.getByTestId(`unallocate-${active.id}`).click();
     const un = page.getByTestId("unallocate-dialog");
     await expect(un).toBeVisible();
-    await expect(un.getByText("E2E-INV-002")).toBeVisible();
+    await expect(un.getByText("E2E-INV-002", { exact: true })).toBeVisible();
+    await expect(un.getByTestId("unallocate-consequence")).toContainText(`return SAR 300.00 to RCPT-${ids.depositPaymentId}'s unapplied balance`);
     await un.getByTestId("unallocate-reason").fill("Allocated to the wrong invoice");
     await un.getByTestId("unallocate-submit").click();
     await expect(toast(page, "Allocation corrected")).toBeVisible();
@@ -236,6 +239,7 @@ test.describe("Phase F — English desktop", () => {
     await expect(summary).toContainText("E2E Current Account");
     await expect(summary).toContainText("Overpayment returned");
     await expect(summary.getByTestId("refund-after")).toContainText(money(depositBefore - 100));
+    await expect(dialog.getByTestId("refund-consequence")).toContainText("This will refund SAR 100.00 of E2E Customer's deposit from E2E Current Account");
     await dialog.getByTestId("refund-confirm").click();
     await expect(toast(page, "Refund recorded")).toBeVisible();
     await expect(dialog).toBeHidden();

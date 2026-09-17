@@ -66,6 +66,13 @@ export function UnallocateDialog({
           <Row k={t("Amount", "المبلغ")} v={<span className="font-mono">{fmtNum(allocation.amount)}</span>} />
           <Row k={t("Returns to", "يعود إلى")} v={`${sourceLabel} · ${origin === "deposit" ? t("customer deposit", "عربون العميل") : t("credit-note balance", "رصيد إشعار الدائن")}`} />
         </div>
+        <p className="text-xs text-foreground rounded-md border border-border bg-secondary/20 p-2" data-testid="unallocate-consequence">
+          {origin === "deposit"
+            ? t(`This will reverse allocation #${allocation.id} and return ${fmtNum(allocation.amount)} to ${sourceLabel}'s unapplied balance; invoice ${invoiceNumber} will owe ${fmtNum(allocation.amount)} more. The original allocation remains in the audit history; a correcting entry dated today posts Dr Accounts receivable / Cr Customer deposits.`,
+                `سيُعكس التخصيص #${allocation.id} ويُعاد ${fmtNum(allocation.amount)} إلى الرصيد غير المخصص للإيصال ${sourceLabel}؛ وتصبح الفاتورة ${invoiceNumber} مدينة بـ ${fmtNum(allocation.amount)} إضافية. يبقى التخصيص الأصلي في سجل التدقيق؛ ويُرحَّل قيد تصحيحي بتاريخ اليوم: من ح/ الذمم المدينة إلى ح/ عرابين العملاء.`)
+            : t(`This will reverse application #${allocation.id} and return ${fmtNum(allocation.amount)} to credit note ${sourceLabel}'s remaining credit; invoice ${invoiceNumber} will owe ${fmtNum(allocation.amount)} more. The original application remains in the audit history; a correcting entry dated today posts Dr Accounts receivable / Cr Customer credit balances.`,
+                `سيُعكس التطبيق #${allocation.id} ويُعاد ${fmtNum(allocation.amount)} إلى الرصيد المتبقي لإشعار الدائن ${sourceLabel}؛ وتصبح الفاتورة ${invoiceNumber} مدينة بـ ${fmtNum(allocation.amount)} إضافية. يبقى التطبيق الأصلي في سجل التدقيق؛ ويُرحَّل قيد تصحيحي بتاريخ اليوم: من ح/ الذمم المدينة إلى ح/ أرصدة دائنة للعملاء.`)}
+        </p>
         <div>
           <p className="text-xs text-muted-foreground mb-1">{t("Reason *", "السبب *")}</p>
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} data-testid="unallocate-reason" placeholder={t("Why this allocation was wrong", "لماذا كان هذا التخصيص خاطئًا")} />
