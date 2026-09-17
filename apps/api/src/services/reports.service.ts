@@ -566,19 +566,18 @@ export const reportsService = {
      * must surface; an ordinarily-paid invoice nets to 0 and drops out on the
      * magnitude test alone.
      */
-    const creditedByOriginal = new Map<number, number>();
-    for (const { inv } of rows) {
-      if (inv.documentType === "credit_note" && inv.originalInvoiceId != null) {
-        creditedByOriginal.set(
-          inv.originalInvoiceId,
-          (creditedByOriginal.get(inv.originalInvoiceId) ?? 0) + toNum(inv.total),
-        );
-      }
-    }
-
+    /**
+     * D-4 (2026-09-17): `credited` is the invoice's `credited_amount` — the
+     * cache of credit-note ALLOCATIONS to it (its original's note at issue,
+     * or any note applied to it later). A note's unapplied remainder is no
+     * longer a negative receivable: it is a liability (Customer credit
+     * balances) and never appears here, so every aged amount is ≥ 0 and the
+     * total still equals GL AR. The "paid-then-credited shows −X" behaviour
+     * this replaced was the AR-credit model the accountant excluded.
+     */
     for (const { inv, cust } of rows) {
-      if (inv.documentType === "credit_note") continue; // folded into its original
-      const credited = creditedByOriginal.get(inv.id) ?? 0;
+      if (inv.documentType === "credit_note") continue; // a note is applied to invoices; it is not itself receivable
+      const credited = toNum(inv.creditedAmount);
       const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited) * 100) / 100;
       if (Math.abs(outstanding) < 0.01) continue;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);

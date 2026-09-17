@@ -24,6 +24,18 @@ export interface Category {
      * @nullable
      */
   liquidityClass?: CategoryLiquidityClass;
+  /**
+     * D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is "Cash and Bank"); every other account is null. Not a general chart hierarchy.
+     * @nullable
+     */
+  parentId?: number | null;
+  /**
+     * D-3: set on a bank's own GL cash account — the explicit, rename-proof relationship to the application bank account.
+     * @nullable
+     */
+  bankAccountId?: number | null;
+  /** D-3: false on a HEADER account ("Cash and Bank"), which accepts no postings — a cash line names a bank account and posts to that bank's leaf. Pickers exclude non-posting accounts. */
+  isPosting?: boolean;
   /** @nullable */
   description?: string | null;
 }

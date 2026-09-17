@@ -51,7 +51,10 @@ const METHOD_ACTION: Record<string, PermissionAction> = {
  */
 const ACTIVATION_ACTIONS = new Set(["approve"]);
 
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge)\/?$/i;
+// `allocate` / `apply` (D-4): allocating a deposit or applying a credit note
+// posts a journal entry — approver authority, same reasoning as `pay`.
+// `unallocate` (Phase A) posts the correcting entry — the same authority.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {

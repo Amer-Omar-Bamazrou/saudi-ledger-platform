@@ -27,6 +27,8 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     total: toNum(inv.total),
     currency: inv.currency,
     paidAmount: toNum(inv.paidAmount),
+    // D-4: the part settled by credit notes (cache of credit allocations); outstanding = total − paid − credited.
+    creditedAmount: toNum(inv.creditedAmount),
     paidAt: inv.paidAt,
     reviewNote: inv.reviewNote,
     notes: inv.notes,

@@ -24,7 +24,7 @@
  * either way (open document, amount within outstanding — enforced in the pay
  * path, shared with every other payment).
  */
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BankAccountRequiredError, ConflictError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { billsService } from "./bills.service";
 import { invoicesService } from "./invoices.service";
@@ -141,13 +141,13 @@ export const reconciliationService = {
     // Audit Tier 3 (finding 6): outstanding is CREDIT-AWARE — the customer
     // pays `total − credited − paid`, and that is the amount a bank credit
     // will actually carry, so it is the amount matching must quote and match.
-    const credited = wantInvoices ? await invoicesRepository.creditedTotalsByOriginal() : new Map<number, number>();
+    // D-4: `credited_amount` is the cache of credit-note allocations to the invoice.
     const openInvoices: OpenDocument[] = invoiceRows
       .map(({ inv, cust }) => ({
         id: inv.id,
         number: inv.invoiceNumber,
         counterpartyName: cust?.name ?? null,
-        outstanding: round2(Number(inv.total) - (credited.get(inv.id) ?? 0) - Number(inv.paidAmount ?? 0)),
+        outstanding: round2(Number(inv.total) - Number(inv.creditedAmount ?? 0) - Number(inv.paidAmount ?? 0)),
       }))
       .filter((d) => d.outstanding >= 0.01); // fully credited ⇒ nothing to settle
     const openBills: OpenDocument[] = billRows.map(({ bill, vendor }) => ({
@@ -195,19 +195,31 @@ export const reconciliationService = {
     }
 
     const amount = Number(tx.amount);
+    // 🔴 D-3: a settlement's bank is the ROW'S bank — the one deterministic
+    // fact a statement line carries. A row with no bank cannot settle
+    // anything (the pay path would have no account to post cash to); the
+    // refusal names the row so the reviewer can set its bank first.
+    if (tx.bankAccountId == null) {
+      throw new BankAccountRequiredError(
+        `Transaction ${tx.id} names no bank account, so it cannot settle a document. Set the bank account on the row first.`,
+        "bankAccountId",
+        { transactionId: tx.id },
+      );
+    }
     if (invoiceId != null) {
       if (tx.type !== "credit") {
         throw new BadRequestError("Only a credit (money in) can settle a customer invoice.");
       }
       // The EXISTING pay path: validates the invoice is approved and unpaid,
       // refuses an amount beyond the outstanding balance, accumulates partial
-      // payments, and posts Dr Cash / Cr AR. One writer per effect.
-      await invoicesService.pay(invoiceId, { amount, paidAt: tx.date }, userId);
+      // payments, and posts Dr <bank leaf> / Cr AR. One writer per effect.
+      // D-4: the payment records the bank row it was settled from (`source = settlement`).
+      await invoicesService.pay(invoiceId, { amount, paidAt: tx.date, bankAccountId: tx.bankAccountId }, userId, { source: "settlement", sourceTransactionId: tx.id });
     } else {
       if (tx.type !== "debit") {
         throw new BadRequestError("Only a debit (money out) can pay a vendor bill.");
       }
-      await billsService.pay(billId!, { amount, paidAt: tx.date }, userId);
+      await billsService.pay(billId!, { amount, paidAt: tx.date, bankAccountId: tx.bankAccountId }, userId);
     }
 
     // The row itself: accepted out of the holding area, classified as a

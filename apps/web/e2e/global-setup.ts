@@ -111,9 +111,12 @@ export default async function globalSetup(): Promise<void> {
 
   if (orgRows.length > 0) {
     const ids = orgRows.map((r) => r.id);
+    // BASE TABLES only: `journal_line_bank_identity` (D-3, migration 0073) is
+    // a VIEW carrying organization_id, and a DELETE against it fails.
     const { rows: scoped } = await db.query<{ table_name: string }>(
-      `SELECT table_name FROM information_schema.columns
-        WHERE table_schema = 'public' AND column_name = 'organization_id'`,
+      `SELECT c.table_name FROM information_schema.columns c
+        JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+        WHERE c.table_schema = 'public' AND c.column_name = 'organization_id' AND t.table_type = 'BASE TABLE'`,
     );
 
     await db.query(`SET session_replication_role = replica`);
@@ -218,9 +221,19 @@ export default async function globalSetup(): Promise<void> {
   // The chart: the seeded system accounts plus one equity account for the
   // opening entry (the seeded chart's only equity account is the transfers
   // one, which is not where owner capital goes).
-  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string }> = await api(ctx, "GET", "/categories");
-  const cash = categories.find((c) => c.systemCode === "CASH");
-  if (!cash) throw new Error("e2e seed: the seeded chart has no CASH account");
+  // D-3: cash lives on a bank's OWN GL account, so the bank account comes
+  // first; the opening entry's cash line names that account, never the
+  // "Cash and Bank" header (which accepts no postings).
+  const bank = await api(ctx, "POST", "/bank-accounts", {
+    name: "E2E Current Account",
+    bankName: "Al Rajhi Bank",
+    currency: "SAR",
+    balance: 25000,
+    openingBalance: 20000,
+  });
+  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string; bankAccountId: number | null }> = await api(ctx, "GET", "/categories");
+  const cash = categories.find((c) => c.bankAccountId === bank.id);
+  if (!cash) throw new Error("e2e seed: the bank account has no GL cash account");
   const equity = await api(ctx, "POST", "/categories", {
     name: "Owner Equity",
     nameAr: "حقوق الملكية",
@@ -253,11 +266,11 @@ export default async function globalSetup(): Promise<void> {
 
   const inv1 = await invoice("E2E-INV-001", "2026-06-01", "2026-06-30", 1000);
   await issue(inv1.id);
-  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28" });
+  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28", bankAccountId: bank.id });
 
   const inv2 = await invoice("E2E-INV-002", "2026-07-01", "2026-07-31", 2000);
   await issue(inv2.id);
-  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20" });
+  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20", bankAccountId: bank.id });
 
   const inv3 = await invoice("E2E-INV-003", "2026-08-01", "2026-08-31", 3000);
   await issue(inv3.id);
@@ -291,19 +304,13 @@ export default async function globalSetup(): Promise<void> {
     });
   const bill1 = await bill("E2E-BILL-001", "2026-06-05", "2026-07-05", 400);
   await api(ctx, "POST", `/bills/${bill1.id}/post`, {});
-  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06" });
+  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06", bankAccountId: bank.id });
   const bill2 = await bill("E2E-BILL-002", "2026-07-10", "2026-08-10", 800);
   await api(ctx, "POST", `/bills/${bill2.id}/post`, {});
 
-  // A bank account and three imported movements — the upload path is what
-  // lands rows in review, which is the state the review page exists for.
-  const bank = await api(ctx, "POST", "/bank-accounts", {
-    name: "E2E Current Account",
-    bankName: "Al Rajhi Bank",
-    currency: "SAR",
-    balance: 25000,
-    openingBalance: 20000,
-  });
+  // Three imported movements on the bank account created above — the upload
+  // path is what lands rows in review, which is the state the review page
+  // exists for.
   await api(ctx, "POST", "/transactions/upload", {
     bankAccountId: bank.id,
     rows: [

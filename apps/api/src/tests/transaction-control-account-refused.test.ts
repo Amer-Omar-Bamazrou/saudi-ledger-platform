@@ -35,6 +35,7 @@ const EMAIL = "txn-control-account@test.local";
 describeMaybe("a bank transaction cannot be categorised to a party-required control account", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let arId = 0;
   let apId = 0;
@@ -54,7 +55,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
 
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
-    for (const t of ["journal_entry_lines", "journal_entries", "transactions", "audit_logs", "organization_memberships", "categories", "companies"]) {
+    for (const t of ["journal_entry_lines", "journal_entries", "transactions", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
@@ -65,6 +66,8 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Control Account Org','${SLUG}') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'CA Co') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','CA',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     const cat = async (code: string) => (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgId, code])).rows[0].id;
@@ -84,12 +87,13 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
     )).rows[0];
 
   it("the set is one definition and holds the receivable and payable control accounts", () => {
-    expect([...PARTY_REQUIRED_SYSTEM_CODES]).toEqual(["AR", "AP"]);
+    // D-4 (2026-09-17): the two customer-credit liabilities carry a customer like AR does.
+    expect([...PARTY_REQUIRED_SYSTEM_CODES]).toEqual(["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"]);
   });
 
   it("🔴 UPDATE to Accounts Receivable is a 422 naming the workflow — the row, its link and its Suspense entry are untouched", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-05", description: "CUSTOMER DEPOSIT — NAJD", amount: 12000, currency: "SAR", type: "credit" }),
+      transactionsService.create({ date: "2026-05-05", description: "CUSTOMER DEPOSIT — NAJD", amount: 12000, currency: "SAR", type: "credit", bankAccountId: bankId }),
     );
     const before = await state(tx.id);
     expect(before.journal_entry_id, "the row posted to Suspense on creation").not.toBeNull();
@@ -113,7 +117,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
 
   it("🔴 UPDATE to Accounts Payable is refused the same way", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-06", description: "PAYMENT TO TAMIMI", amount: 400, currency: "SAR", type: "debit" }),
+      transactionsService.create({ date: "2026-05-06", description: "PAYMENT TO TAMIMI", amount: 400, currency: "SAR", type: "debit", bankAccountId: bankId }),
     );
     await expect(inTenant(() => transactionsService.update(tx.id, { categoryId: apId }))).rejects.toMatchObject({ statusCode: 422 });
     expect((await state(tx.id)).category_id).toBeNull();
@@ -123,7 +127,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
     const n = async () => (await pool.query(`SELECT count(*)::int AS n FROM transactions WHERE organization_id = $1`, [orgId])).rows[0].n;
     const before = await n();
     await expect(
-      inTenant(() => transactionsService.create({ date: "2026-05-07", description: "AR by create", amount: 10, currency: "SAR", type: "credit", categoryId: arId })),
+      inTenant(() => transactionsService.create({ date: "2026-05-07", description: "AR by create", amount: 10, currency: "SAR", type: "credit", categoryId: arId, bankAccountId: bankId })),
     ).rejects.toMatchObject({ statusCode: 422 });
     expect(await n()).toBe(before);
   });
@@ -136,6 +140,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
           { date: "2026-05-08", description: "UPLOAD TO RENT", amount: 30, currency: "SAR", type: "debit", categoryId: rentId },
         ],
         autoCategrize: false,
+        bankAccountId: bankId,
       } as never),
     )) as { inserted: number; errors: string[] };
     expect(r.inserted).toBe(1);
@@ -146,7 +151,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
 
   it("MOVEMENT: an ordinary expense category still works — the row re-posts to it", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-09", description: "OFFICE RENT", amount: 3000, currency: "SAR", type: "debit" }),
+      transactionsService.create({ date: "2026-05-09", description: "OFFICE RENT", amount: 3000, currency: "SAR", type: "debit", bankAccountId: bankId }),
     );
     await inTenant(() => transactionsService.update(tx.id, { categoryId: rentId }));
     const after = await state(tx.id);

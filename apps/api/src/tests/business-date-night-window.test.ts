@@ -68,6 +68,7 @@ describe("businessDate — the seam itself (no database, no machine clock)", () 
 describeMaybe("business dates at 01:00 Riyadh, through the product's own write paths", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let cashId = 0;
@@ -100,6 +101,7 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -113,13 +115,16 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','NW',' ','admin',true) RETURNING id`)
     ).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'NW Customer') RETURNING id`, [orgId])).rows[0].id;
     const cat = async (code: string) => (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgId, code])).rows[0].id;
-    cashId = await cat("CASH");
+    // D-3: the postable cash account is the bank's own leaf.
+    cashId = (await pool.query(`SELECT id FROM categories WHERE bank_account_id = $1`, [bankId])).rows[0].id;
     bankChargesId = await cat("BANK_CHARGES");
     // The month the UTC clock still thinks it is. Every wrongly-dated write lands here and is refused.
     await inTenant(() => periodLocksService.lock({ period: LOCKED, notes: "the UTC-yesterday month", userId }));
@@ -152,12 +157,12 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
       invoicesService.create({ date: RIYADH_DAY, customerId, items: [{ description: "Pay", quantity: 1, unitPrice: 200, vatRate: 15 }] }, userId),
     );
     await inTenant(() => invoicesService.approve(inv.id, userId));
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 230 }, userId));
-    const { rows: [pay] } = await pool.query(`SELECT paid_at::text AS date FROM invoice_payments WHERE invoice_id = $1`, [inv.id]);
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 230, bankAccountId: bankId }, userId));
+    const { rows: [pay] } = await pool.query(`SELECT p.paid_at::text AS date FROM payments p JOIN payment_allocations a ON a.payment_id = p.id WHERE a.invoice_id = $1`, [inv.id]);
     expect(pay.date).toBe(RIYADH_DAY);
     const { rows: [je] } = await pool.query(
       `SELECT date::text AS date FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE $2`,
-      [orgId, `GL-${inv.invoiceNumber}-PAY-%`],
+      [orgId, `GL-${inv.invoiceNumber}-RCPT-%`],
     );
     expect(je.date).toBe(RIYADH_DAY);
   });
@@ -195,8 +200,8 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
     );
     expect(inv.date).toBe(RIYADH_DAY);
     await inTenant(() => invoicesService.approve(inv.id, userId));
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 57.5 }, userId));
-    const { rows: [pay] } = await pool.query(`SELECT paid_at::text AS date FROM invoice_payments WHERE invoice_id = $1`, [inv.id]);
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 57.5, bankAccountId: bankId }, userId));
+    const { rows: [pay] } = await pool.query(`SELECT p.paid_at::text AS date FROM payments p JOIN payment_allocations a ON a.payment_id = p.id WHERE a.invoice_id = $1`, [inv.id]);
     expect(pay.date).toBe(RIYADH_DAY);
   });
 });

@@ -596,6 +596,18 @@ export interface Category {
      * @nullable
      */
   liquidityClass?: CategoryLiquidityClass;
+  /**
+     * D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is "Cash and Bank"); every other account is null. Not a general chart hierarchy.
+     * @nullable
+     */
+  parentId?: number | null;
+  /**
+     * D-3: set on a bank's own GL cash account — the explicit, rename-proof relationship to the application bank account.
+     * @nullable
+     */
+  bankAccountId?: number | null;
+  /** D-3: false on a HEADER account ("Cash and Bank"), which accepts no postings — a cash line names a bank account and posts to that bank's leaf. Pickers exclude non-posting accounts. */
+  isPosting?: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -955,6 +967,7 @@ export type AcceptPendingRejectionCode = typeof AcceptPendingRejectionCode[keyof
 
 export const AcceptPendingRejectionCode = {
   period_closed: 'period_closed',
+  bank_account_required: 'bank_account_required',
 } as const;
 
 export interface AcceptPendingRejection {
@@ -1040,6 +1053,11 @@ export interface TransactionInput {
   notes?: string | null;
   /** @nullable */
   source?: string | null;
+  /**
+     * D-3: the bank account this movement belongs to. REQUIRED on `POST /transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank's GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement's `bankAccountId` applies.
+     * @nullable
+     */
+  bankAccountId?: number | null;
 }
 
 /**
@@ -1094,6 +1112,8 @@ export const TransactionUpdateTransferDirection = {
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
+  /** D-3: record WHICH bank account the row belongs to. Settable only while the row has none (a bank is a fact about the movement, not a classification to revise); a posted row whose history still sits on the "Cash and Bank" header is left for the cut-over to remap, a row already posted to a bank's GL account is reversed and re-posted to the named bank. */
+  bankAccountId?: number;
   /**
      * @minimum 0
      * @nullable
@@ -1152,9 +1172,11 @@ export interface TransactionUpload {
      * M16.2 — which bank account this statement belongs to. Scopes
      * duplicate detection to the account and is the foundation for
      * transfer-leg pairing. Validated against the tenant's own accounts.
-     * @nullable
+     * 🔴 REQUIRED since D-3 (2026-09-16): an accepted row's cash leg
+     * posts to this bank's own GL account, and a row with no bank cannot
+     * be accepted. A missing id is a 422 `bank_account_required`.
      */
-  bankAccountId?: number | null;
+  bankAccountId: number;
 }
 
 export type UploadResultDuplicatesItem = {
@@ -1630,6 +1652,8 @@ export interface Invoice {
   /** @nullable */
   currency: string | null;
   paidAmount: number;
+  /** D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount. */
+  creditedAmount: number;
   /** @nullable */
   paidAt: string | null;
   /** @nullable */
@@ -2918,18 +2942,270 @@ export interface VendorMatchResult {
 }
 
 export interface Payment {
+  /** The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`. */
   id: number;
   amount: number;
   paidAt: string;
   /** An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment. */
   backfilled: boolean;
+  /**
+     * D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.
+     * @nullable
+     */
+  paymentId: number | null;
+}
+
+export interface PaymentAllocationInput {
+  invoiceId: number;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+}
+
+export interface ReceivePaymentInput {
+  /**
+     * The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
+     * @nullable
+     */
+  customerId?: number | null;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** YYYY-MM-DD; defaults to today (business date). */
+  paidAt?: string;
+  /** D-3 — which bank account the money arrived in; the cash line posts to its own GL account. */
+  bankAccountId: number;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  method?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * Unique per company. The same key twice returns the first payment.
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+  /** Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account. */
+  allocations?: PaymentAllocationInput[];
+}
+
+export interface AllocatePaymentInput {
+  /** @minItems 1 */
+  allocations: PaymentAllocationInput[];
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface ApplyCreditNoteInput {
+  /** @minItems 1 */
+  allocations: PaymentAllocationInput[];
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface AllocationReversal {
+  id: number;
+  /** The correcting entry (UNALLOC-<id>): Dr AR / Cr the origin's liability. */
+  journalEntryId: number;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PaymentAllocation {
+  id: number;
+  invoiceId: number;
+  amount: number;
+  /**
+     * Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt's entry.
+     * @nullable
+     */
+  journalEntryId: number | null;
+  createdAt: string;
+  /** Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited. */
+  reversedBy: AllocationReversal | null;
+}
+
+export type PaymentAllocationDetail = PaymentAllocation & ({
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+});
+
+export interface UnallocateInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type RefundCustomerInputOrigin = typeof RefundCustomerInputOrigin[keyof typeof RefundCustomerInputOrigin];
+
+
+export const RefundCustomerInputOrigin = {
+  deposit: 'deposit',
+  credit_note: 'credit_note',
+} as const;
+
+export interface RefundCustomerInput {
+  customerId: number;
+  origin: RefundCustomerInputOrigin;
+  /**
+     * Required when origin is deposit: the receipt whose unapplied remainder is returned.
+     * @nullable
+     */
+  paymentId?: number | null;
+  /**
+     * Required when origin is credit_note: the issued note whose unconsumed balance is returned.
+     * @nullable
+     */
+  creditNoteId?: number | null;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** D-3 — the bank the refund is paid from. */
+  bankAccountId: number;
+  /** YYYY-MM-DD; defaults to today (business date). Period-controlled. */
+  refundedAt?: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type CustomerRefundOrigin = typeof CustomerRefundOrigin[keyof typeof CustomerRefundOrigin];
+
+
+export const CustomerRefundOrigin = {
+  deposit: 'deposit',
+  credit_note: 'credit_note',
+} as const;
+
+export interface CustomerRefund {
+  id: number;
+  customerId: number;
+  bankAccountId: number;
+  origin: CustomerRefundOrigin;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+  amount: number;
+  refundedAt: string;
+  reason: string;
+  /** @nullable */
+  reference: string | null;
+  journalEntryId: number;
+  /** @nullable */
+  idempotencyKey: string | null;
+  createdAt: string;
+}
+
+export type CustomerPaymentDirection = typeof CustomerPaymentDirection[keyof typeof CustomerPaymentDirection];
+
+
+export const CustomerPaymentDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
+
+
+export const CustomerPaymentSource = {
+  manual: 'manual',
+  invoice_pay: 'invoice_pay',
+  settlement: 'settlement',
+} as const;
+
+export interface CustomerPayment {
+  id: number;
+  direction: CustomerPaymentDirection;
+  /** @nullable */
+  customerId: number | null;
+  bankAccountId: number;
+  amount: number;
+  paidAt: string;
+  /** @nullable */
+  method: string | null;
+  /** @nullable */
+  reference: string | null;
+  source: CustomerPaymentSource;
+  /** @nullable */
+  idempotencyKey: string | null;
+  journalEntryId: number;
+  /** @nullable */
+  sourceTransactionId: number | null;
+  /** Σ ACTIVE allocations (a corrected allocation no longer counts). */
+  allocatedAmount: number;
+  /** Phase C — Σ deposit refunds paid out of this receipt. */
+  refundedAmount: number;
+  /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
+  unappliedAmount: number;
+  allocations: PaymentAllocation[];
+  createdAt: string;
+}
+
+export interface CreditNoteApplications {
+  creditNoteId: number;
+  invoiceNumber: string;
+  total: number;
+  /** Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected. */
+  appliedAmount: number;
+  /** Phase C — Σ refunds paid out of this note's balance. */
+  refundedAmount: number;
+  /** The customer's credit-note balance from this note (a liability, not AR): total − applied − refunded. */
+  remainingAmount: number;
+  applications: PaymentAllocation[];
+}
+
+export interface CustomerCredits {
+  customerId: number;
+  /** Σ unapplied over the customer's receipts — Customer deposits and advances. */
+  deposits: number;
+  /** Σ unconsumed over the customer's issued credit notes — Customer credit balances. */
+  creditNotes: number;
 }
 
 export interface PaymentInput {
   /** @exclusiveMinimum 0 */
   amount: number;
+  /**
+     * D-4 — unique per company; the same key twice records one payment.
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
   /** YYYY-MM-DD; defaults to today. */
   paidAt?: string;
+  /** D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank's own GL cash account — there is no shared cash account and no default. Validated against the tenant's own accounts; a missing or unknown id is a 422 (`bank_account_required` / `reference_not_found`). Recorded on the payment row as its bank evidence. */
+  bankAccountId: number;
 }
 
 export interface InvoiceLineInput {
@@ -3697,6 +3973,10 @@ from: string;
  * YYYY-MM
  */
 to: string;
+/**
+ * D-3: reconcile ONE bank — its accepted rows against its own GL cash account. Omitted = every bank and every cash account, as before. Pre-cut-over history still on the "Cash and Bank" header belongs to no bank and is excluded from a per-bank view.
+ */
+bankAccountId?: number;
 };
 
 export type GetDecompositionParams = {
@@ -3996,6 +4276,32 @@ export type ListInvoices200 = {
   items: Invoice[];
   page: ListInvoices200Page;
   totals: ListInvoices200Totals;
+};
+
+export type ListPaymentsParams = {
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListRefundsParams = {
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };
 
 export type GetInvoiceDocumentParams = {

@@ -1944,3 +1944,49 @@ and a walked leg proving the `/zatca` checklist goes green from the UI.
 Not done now on the owner's instruction (documentation only).
 
 State: OPEN (docs corrected; the field is not added).
+
+## THE CASH CUT-OVER IS BLOCKED BY HISTORY THAT NAMES NO BANK — OPEN, 2026-09-16 (D-3 / G3, Batch 1A)
+
+**What was built.** One GL cash account per bank account, "Cash and Bank" a
+non-posting header, every cash-posting path naming a bank and failing closed
+without one, and a per-company cut-over that classifies every historical cash
+line and ATTRIBUTES (annotates — never rewrites a posted line) only what
+source evidence ties to a bank — as-built record
+`docs/product/design-per-bank-cash.md`; decision record the decision pack
+§D-3. (The first build remapped `account_id` in place; the 2026-09-16
+architectural review withdrew that, and the 2026-09-17 remediation replaced
+it with `cash_line_bank_attributions` + the one resolver view.)
+
+**The finding.** The dry-run on every local company (2026-09-16, unchanged
+under the strict one-to-one settlement pairing of 2026-09-17): `default`
+51 lines — 39 DETERMINISTIC, 12 AMBIGUOUS_REQUIRES_REVIEW;
+`pilot-trading-est` 8 — 0 / 8; `rehearsal-trading-est` 20 — 5 / 15;
+0 UNMAPPABLE, 0 INCONSISTENT (`e2e-smoke` is re-seeded per run and has no
+header lines since 0073). Every company is blocked. Three shapes block:
+(1) **Mark-Paid payments** — `invoice_payments`/`bill_payments` rows recorded
+with no bank and no settlement row; (2) **manual journal entries** whose cash
+line names no bank; (3) **transactions with `bank_account_id` NULL** — rows
+typed through `POST /transactions` before it required a bank (the pilot's
+own five seeded rows are this shape: the seeder passed `bankAccountId` and the
+create path silently dropped it).
+
+**Why it is not forced.** The accountant confirmed that having exactly one
+bank account is NOT evidence of which account an old payment went through;
+the pack's remediation for (1) and (2) is an admin OVERRIDE, and what an
+override must cite is an open accountant decision (pack §D-3 §13). Guessing
+would be the shared-cash-account defect in a new shape.
+
+**What remediates today.** Shape (3) only: `PATCH /transactions/{id}
+{ bankAccountId }` (settable once, while the row has none) — the
+Transactions edit dialog shows the picker for such rows — then re-run the
+dry-run. The pilot's five rows can be remediated by the pilot admin this
+way; its three Mark-Paid rows wait on the override decision.
+
+**What would close it.** The override policy (what it must cite; who may
+record it) → an override table and a dry-run rule A4 → the pilot's dry-run
+clean → `scripts/cashCutover.ts --commit --company <pilot>`.
+
+State: OPEN. Consequence while open: pre-D-3 cash sits on the header, new
+cash on the banks' own accounts; total cash is conserved and both are
+visible on the balance sheet — an honest split, not a hidden one.
+

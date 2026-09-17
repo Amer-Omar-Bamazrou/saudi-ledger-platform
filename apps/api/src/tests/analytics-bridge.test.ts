@@ -40,6 +40,7 @@ const EMAIL = "m19-bridge@test.local";
 describeMaybe("M19.6 — the receivables bridge", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let seq = 0;
@@ -82,6 +83,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
       `DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`,
     );
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -102,6 +104,8 @@ describeMaybe("M19.6 — the receivables bridge", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active)
@@ -182,7 +186,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
 
   it("🔴 a PAYMENT is collected, not credited", async () => {
     await inTenant(() =>
-      invoicesService.pay(inv1.id, { amount: 5_000, paidAt: "2026-02-14" }, userId),
+      invoicesService.pay(inv1.id, { amount: 5_000, paidAt: "2026-02-14", bankAccountId: bankId }, userId),
     );
 
     const feb = (await bridge()).find((p) => p.period === "2026-02")!;

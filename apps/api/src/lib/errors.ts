@@ -37,6 +37,21 @@ export class BusinessRuleError extends AppError {
   }
 }
 
+/**
+ * 🔴 D-3 (2026-09-16): a cash effect with NO BANK ACCOUNT is refused — 422,
+ * structured, at every path that would post cash (a payment, a bank row's
+ * acceptance, a settlement, an import). There is no default bank and no
+ * generic cash account to fall back to: "which account did the money move
+ * through" is a fact only the caller has, and posting without it is the
+ * shared-cash-account defect the per-bank GL removes. The `code` is what the
+ * UI keys on; `field` names the input that must carry the bank.
+ */
+export class BankAccountRequiredError extends BusinessRuleError {
+  constructor(message: string, field = "bankAccountId", extra: Record<string, unknown> = {}) {
+    super(422, { error: message, code: "bank_account_required", field, ...extra });
+  }
+}
+
 /** 400 — malformed/invalid request input. */
 export class BadRequestError extends AppError {
   constructor(message = "Bad request") {

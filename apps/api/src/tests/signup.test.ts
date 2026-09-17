@@ -58,6 +58,7 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
     // org now owns journal entries that reference its company.
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${ORG_FILTER}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM platform_operators WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM organizations WHERE slug LIKE 'signuptest%' OR name LIKE 'SignupTest%'`);
@@ -219,8 +220,12 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
       expect(ap.status).toBe(200);
       expect(await orgStatus()).toBe("approved");
 
+      // D-3: the approved tenant does what a tenant now must — opens a bank
+      // account, then records the movement against it.
+      const bank = await api("applicant", "POST", "/bank-accounts", { name: "Signup Main", bankName: "ANB", currency: "SAR" });
+      expect(bank.status).toBe(201);
       const tx = await api("applicant", "POST", "/transactions", {
-        date: "2026-03-01", description: "now allowed", amount: 100, currency: "SAR", type: "debit",
+        date: "2026-03-01", description: "now allowed", amount: 100, currency: "SAR", type: "debit", bankAccountId: bank.body.id,
       });
       expect(tx.status).toBe(201);
     });

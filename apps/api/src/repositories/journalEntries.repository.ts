@@ -1,6 +1,6 @@
 /** Journal entries repository — tenant-scoped via RLS. */
-import { db, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { db, journalEntriesTable, journalEntryLinesTable, categoriesTable, cashLineBankAttributionsTable } from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
@@ -46,6 +46,15 @@ export const journalEntriesRepository = {
   findById(id: number) {
     return db.select().from(journalEntriesTable).where(eq(journalEntriesTable.id, id)).limit(1);
   },
+  /** D-3: which of these accounts are non-posting headers (the approval gate). */
+  async nonPostingAccountsOf(accountIds: number[]) {
+    if (accountIds.length === 0) return [];
+    return db
+      .select({ id: categoriesTable.id, name: categoriesTable.name })
+      .from(categoriesTable)
+      .where(and(inArray(categoriesTable.id, accountIds), eq(categoriesTable.isPosting, false)));
+  },
+
   linesByEntry(id: number) {
     return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, id));
   },
@@ -73,6 +82,44 @@ export const journalEntriesRepository = {
   insertEntry(values: typeof journalEntriesTable.$inferInsert) {
     return db.insert(journalEntriesTable).values(values).returning();
   },
+  /**
+   * D-3: for every mirror line whose ORIGINAL line carries a bank attribution,
+   * insert the same attribution for the mirror (rule A3, no run). Idempotent
+   * on the unique line_id; a mirror of an unattributed line gets nothing.
+   */
+  async copyBankAttributions(pairs: Array<{ originalLineId: number; mirrorLineId: number; journalEntryId: number }>) {
+    if (pairs.length === 0) return;
+    const originals = await db
+      .select()
+      .from(cashLineBankAttributionsTable)
+      .where(inArray(cashLineBankAttributionsTable.lineId, pairs.map((p) => p.originalLineId)));
+    if (originals.length === 0) return;
+    const byOriginal = new Map(originals.map((a) => [a.lineId, a]));
+    const mirrors = await db
+      .select({ id: journalEntryLinesTable.id, accountId: journalEntryLinesTable.accountId, accountName: journalEntryLinesTable.accountName })
+      .from(journalEntryLinesTable)
+      .where(inArray(journalEntryLinesTable.id, pairs.map((p) => p.mirrorLineId)));
+    const mirrorById = new Map(mirrors.map((m) => [m.id, m]));
+    const rows = pairs
+      .filter((p) => byOriginal.has(p.originalLineId))
+      .map((p) => {
+        const a = byOriginal.get(p.originalLineId)!;
+        const m = mirrorById.get(p.mirrorLineId)!;
+        return {
+          runId: null,
+          lineId: p.mirrorLineId,
+          journalEntryId: p.journalEntryId,
+          accountId: m.accountId!,
+          accountName: m.accountName,
+          bankAccountId: a.bankAccountId,
+          glAccountId: a.glAccountId,
+          classification: "DETERMINISTIC",
+          rule: "A3_mirror_of_attributed",
+        };
+      });
+    if (rows.length > 0) await db.insert(cashLineBankAttributionsTable).values(rows).onConflictDoNothing({ target: cashLineBankAttributionsTable.lineId });
+  },
+
   insertLines(values: (typeof journalEntryLinesTable.$inferInsert)[]) {
     return db.insert(journalEntryLinesTable).values(values).returning();
   },

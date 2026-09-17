@@ -48,6 +48,17 @@ export const invoicesTable = pgTable(
     currency: text("currency").default("SAR"),
     paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
     paidAt: text("paid_at"),
+    /**
+     * D-4 (2026-09-17): the part of this invoice settled by CREDIT NOTES —
+     * Σ credit-note allocations targeting it (`payment_allocations`). The
+     * cache beside `paid_amount` (cash), so every reader computes
+     * `outstanding = total − paid − credited` from two columns instead of
+     * re-deriving the credited part from note rows by original id — the
+     * old derivation could not see a note applied to a DIFFERENT invoice
+     * and went negative when a note exceeded its original's open balance.
+     * Asserted equal to Σ allocations by the D-4 invariants test.
+     */
+    creditedAmount: numeric("credited_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     // Correction note an approver leaves when sending a submitted invoice back to
     // the enterer; shown while editing, cleared on resubmit/approve (M10.4).
     reviewNote: text("review_note"),

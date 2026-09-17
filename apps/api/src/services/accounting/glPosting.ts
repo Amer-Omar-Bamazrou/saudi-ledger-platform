@@ -15,11 +15,12 @@
  */
 import { db } from "@workspace/db";
 import { round2 } from "../../lib/money";
-import { journalEntriesTable, journalEntryLinesTable, categoriesTable } from "@workspace/db";
+import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccountsTable } from "@workspace/db";
 import type { SystemAccountCode } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
+import { BusinessRuleError } from "../../lib/errors";
 
 /**
  * One posting line. It MUST identify its account in exactly one of two ways.
@@ -57,14 +58,27 @@ export type GLParty =
    */
   | { type: "none"; reason: string };
 
+/**
+ * 🔴 D-3 (2026-09-16): the THIRD way a line names its account — by BANK.
+ *
+ * `bankAccountId` — a cash line. Resolved to the bank's own GL leaf through
+ *   `categories.bank_account_id` (created by construction for every bank
+ *   account; see migration 0073). Never by name, never by `CASH`: "Cash and
+ *   Bank" is a non-posting header now, and a cash line that cannot name its
+ *   bank is refused — there is no default account to fall back to.
+ */
 export type GLLine = {
-  accountName: string;
   description?: string;
   debitAmount: number;
   creditAmount: number;
   /** Required on systemCode AR/AP lines — enforced below. */
   party?: GLParty;
-} & ({ systemCode: SystemAccountCode; accountId?: never } | { accountId: number; systemCode?: never });
+} & (
+  | { systemCode: SystemAccountCode; accountName: string; accountId?: never; bankAccountId?: never }
+  | { accountId: number; accountName: string; systemCode?: never; bankAccountId?: never }
+  /** A bank line takes the leaf's own name — the caller does not label it. */
+  | { bankAccountId: number; accountName?: never; systemCode?: never; accountId?: never }
+);
 
 /**
  * 🔴 A control-account line without a party is refused — BOTH arms since
@@ -149,6 +163,67 @@ export class AccountResolutionError extends Error {
 }
 
 /**
+ * Thrown when a cash line names a bank account that has no GL leaf in the
+ * tenant's chart. Unreachable in normal operation — the leaf is created by
+ * the DB trigger on every bank-account INSERT and backfilled by 0073 — so
+ * reaching it means the bank id belongs to another tenant (RLS hides it) or
+ * the chart was tampered with. 500: an internal invariant, not user input.
+ * Callers validate the bank id at their own write boundary (422) first.
+ */
+export class BankAccountUnresolvedError extends Error {
+  readonly statusCode = 500;
+  constructor(public readonly bankAccountIds: number[]) {
+    super(
+      `No GL account exists for bank account(s) ${bankAccountIds.join(", ")} in this organization. ` +
+        "Every bank account gets one by construction (migration 0073); this bank either belongs to another " +
+        "organization or its chart entry was removed. Nothing was posted.",
+    );
+    this.name = "BankAccountUnresolvedError";
+  }
+}
+
+/**
+ * 🔴 D-3: a NON-POSTING account (a header — `CASH` today) accepts no line.
+ * 422 rather than 500 because one arm IS user-reachable: a bill's expense
+ * account or a manual-JE line can name any account by id. The DB trigger
+ * `refuse_non_posting_account_line` is the boundary beneath this one.
+ */
+export class NonPostingAccountError extends BusinessRuleError {
+  constructor(accountName: string) {
+    super(422, {
+      error:
+        `${accountName} is a header account and accepts no postings. A cash line names a bank account ` +
+        "and posts to that bank's own GL account.",
+      code: "account_not_posting",
+      field: "accountId",
+    });
+  }
+}
+
+/**
+ * Resolve bank accounts → their GL leaves for the ACTIVE tenant (RLS-scoped,
+ * like `resolveAccounts`). Fails closed on any bank with no leaf.
+ */
+async function resolveBankLeaves(bankAccountIds: number[]): Promise<Map<number, { id: number; name: string }>> {
+  const unique = [...new Set(bankAccountIds)];
+  if (unique.length === 0) return new Map();
+  // The INNER JOIN on bank_accounts is the company boundary: the chart is
+  // per organization, but a bank account belongs to ONE company, and RLS
+  // (N1's company arm) hides another company's bank rows from this request
+  // — so a leaf whose bank this company cannot see resolves to nothing and
+  // the posting is refused. A cross-company cash posting is inexpressible.
+  const rows = await db
+    .select({ id: categoriesTable.id, name: categoriesTable.name, bankAccountId: categoriesTable.bankAccountId })
+    .from(categoriesTable)
+    .innerJoin(bankAccountsTable, eq(bankAccountsTable.id, categoriesTable.bankAccountId))
+    .where(and(isNotNull(categoriesTable.bankAccountId), inArray(categoriesTable.bankAccountId, unique)));
+  const map = new Map(rows.map((r) => [r.bankAccountId as number, { id: r.id, name: r.name }]));
+  const missing = unique.filter((b) => !map.has(b));
+  if (missing.length > 0) throw new BankAccountUnresolvedError(missing);
+  return map;
+}
+
+/**
  * Resolve system codes → `categories.id` for the ACTIVE tenant.
  *
  * No organization filter is written here on purpose: this runs inside the
@@ -162,9 +237,15 @@ async function resolveAccounts(codes: SystemAccountCode[]): Promise<Map<string, 
   if (unique.length === 0) return new Map();
 
   const rows = await db
-    .select({ id: categoriesTable.id, code: categoriesTable.systemCode })
+    .select({ id: categoriesTable.id, code: categoriesTable.systemCode, name: categoriesTable.name, isPosting: categoriesTable.isPosting })
     .from(categoriesTable)
     .where(and(isNotNull(categoriesTable.systemCode), inArray(categoriesTable.systemCode, unique)));
+
+  // 🔴 D-3: a system code that names a HEADER (`CASH`) is refused here, so
+  // the old `{ systemCode: "CASH" }` line is inexpressible for every caller
+  // — the type still admits the code, the seam does not.
+  const header = rows.find((r) => r.isPosting === false);
+  if (header) throw new NonPostingAccountError(header.name);
 
   const map = new Map(rows.filter((r) => r.code).map((r) => [r.code as string, r.id]));
 
@@ -216,7 +297,7 @@ export async function postJournalEntry(opts: {
   }));
   for (const l of lines) {
     if (l.systemCode && PARTY_REQUIRED.has(l.systemCode) && l.party === undefined) {
-      throw new MissingPartyError(l.systemCode, l.accountName);
+      throw new MissingPartyError(l.systemCode, l.accountName ?? "");
     }
   }
   const totalDebit = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
@@ -233,16 +314,20 @@ export async function postJournalEntry(opts: {
   // the pure checks: this is the function's first DB read, and the balance
   // guard must fire before any query does (its own test proves it without a
   // database).
-  const idLines = lines.filter((l) => l.accountId != null && l.party === undefined);
+  // The accountId arm is looked up once for two rules: the party rule (N3)
+  // and, since D-3, the non-posting rule — a header named by id is refused
+  // the same way a header named by code is.
+  const idLines = lines.filter((l) => l.accountId != null);
   if (idLines.length > 0) {
     const rows = await db
-      .select({ id: categoriesTable.id, code: categoriesTable.systemCode })
+      .select({ id: categoriesTable.id, code: categoriesTable.systemCode, name: categoriesTable.name, isPosting: categoriesTable.isPosting })
       .from(categoriesTable)
       .where(inArray(categoriesTable.id, [...new Set(idLines.map((l) => l.accountId!))]));
-    const codeOf = new Map(rows.map((r) => [r.id, r.code]));
+    const byId = new Map(rows.map((r) => [r.id, r]));
     for (const l of idLines) {
-      const code = codeOf.get(l.accountId!);
-      if (code && PARTY_REQUIRED.has(code)) throw new MissingPartyError(code, l.accountName);
+      const row = byId.get(l.accountId!);
+      if (row && row.isPosting === false) throw new NonPostingAccountError(row.name);
+      if (row?.code && PARTY_REQUIRED.has(row.code) && l.party === undefined) throw new MissingPartyError(row.code, l.accountName ?? "");
     }
   }
 
@@ -250,6 +335,10 @@ export async function postJournalEntry(opts: {
   // half-posted entry behind.
   const accounts = await resolveAccounts(
     lines.map((l) => l.systemCode).filter((c): c is SystemAccountCode => !!c),
+  );
+  // D-3: every cash line names a bank; the bank's leaf is the account.
+  const bankLeaves = await resolveBankLeaves(
+    lines.map((l) => l.bankAccountId).filter((b): b is number => b != null),
   );
 
   // Enforce period lock — block posting into closed periods
@@ -271,11 +360,17 @@ export async function postJournalEntry(opts: {
   await db.insert(journalEntryLinesTable).values(
     lines.map((l) => ({
       journalEntryId: je.id,
-      accountName: l.accountName,
-      // One of the two is always present — the GLLine union makes "neither" a
-      // type error, and `resolveAccounts` has already refused an unresolvable
-      // code. So this can never write a NULL.
-      accountId: l.systemCode ? accounts.get(l.systemCode)! : l.accountId!,
+      // A bank line carries the LEAF's current name, so the denormalised
+      // history label matches the account the line actually sits on.
+      accountName: l.bankAccountId != null ? bankLeaves.get(l.bankAccountId)!.name : l.accountName!,
+      // One of the three is always present — the GLLine union makes "none" a
+      // type error, and the resolvers have already refused anything
+      // unresolvable. So this can never write a NULL.
+      accountId: l.systemCode
+        ? accounts.get(l.systemCode)!
+        : l.bankAccountId != null
+          ? bankLeaves.get(l.bankAccountId)!.id
+          : l.accountId!,
       description: l.description ?? null,
       // `l` is already round2'd above, so this stores EXACTLY what the
       // balance check saw — money2 would re-round to the same value; toFixed

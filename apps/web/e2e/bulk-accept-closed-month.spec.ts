@@ -46,8 +46,12 @@ test.beforeAll(async () => {
   const expense = categories.find((c) => c.systemCode === "RENT_UTILITIES") ?? categories.find((c) => c.type === "expense");
   if (!expense) throw new Error("e2e: the seeded chart has no expense category");
 
+  // D-3: a statement belongs to a bank account — the seeded one.
+  const banks: Array<{ id: number }> = await (await api.get("/api/bank-accounts")).json();
+  if (!banks[0]) throw new Error("e2e: the seed created no bank account");
   const up = await api.post("/api/transactions/upload", {
     data: {
+      bankAccountId: banks[0].id,
       rows: [
         { date: "2026-06-11", description: OPEN_DESC, amount: 210, type: "debit", currency: "SAR" },
         { date: "2026-02-11", description: CLOSED_DESC, amount: 220, type: "debit", currency: "SAR" },

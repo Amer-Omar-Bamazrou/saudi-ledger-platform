@@ -30,6 +30,7 @@ const DATE = "2026-07-14";
 describeMaybe("a credit note cannot be paid; its original still can", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
 
@@ -59,6 +60,7 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -72,6 +74,8 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','CN',' ','admin',true) RETURNING id`)
     ).rows[0].id;
@@ -92,8 +96,9 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
   }
   const ledger = async (invoiceId: number) => {
     const inv = (await pool.query(`SELECT invoice_number, status, paid_amount::text FROM invoices WHERE id = $1`, [invoiceId])).rows[0];
-    const pays = (await pool.query(`SELECT count(*)::int AS n FROM invoice_payments WHERE invoice_id = $1`, [invoiceId])).rows[0].n;
-    const jes = (await pool.query(`SELECT count(*)::int AS n FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE $2`, [orgId, `GL-${inv.invoice_number}-PAY-%`])).rows[0].n;
+    // D-4: a payment is a `payments` row reached through its allocation (invoice_payments is pre-D-4 history only).
+    const pays = (await pool.query(`SELECT count(*)::int AS n FROM payment_allocations WHERE invoice_id = $1 AND payment_id IS NOT NULL`, [invoiceId])).rows[0].n;
+    const jes = (await pool.query(`SELECT count(*)::int AS n FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE $2`, [orgId, `GL-${inv.invoice_number}-RCPT-%`])).rows[0].n;
     return { status: inv.status, paidAmount: inv.paid_amount, payments: pays, paymentEntries: jes };
   };
 
@@ -101,7 +106,7 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
     const original = await issue("CNP-1", 1000); // 1150
     const note = await issue("CNP-CN1", 200, { documentType: "credit_note", originalInvoiceId: original, noteReason: "partial return" }); // 230
 
-    await expect(inTenant(() => invoicesService.pay(note, { amount: 230 }, userId))).rejects.toBeInstanceOf(ConflictError);
+    await expect(inTenant(() => invoicesService.pay(note, { amount: 230, bankAccountId: bankId }, userId))).rejects.toBeInstanceOf(ConflictError);
 
     expect(await ledger(note)).toEqual({ status: "sent", paidAmount: "0.00", payments: 0, paymentEntries: 0 });
   });
@@ -109,7 +114,7 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
   it("paying a DEBIT NOTE is refused the same way", async () => {
     const original = await issue("CNP-2", 100);
     const note = await issue("CNP-DN1", 50, { documentType: "debit_note", originalInvoiceId: original, noteReason: "underbilled" });
-    await expect(inTenant(() => invoicesService.pay(note, { amount: 57.5 }, userId))).rejects.toBeInstanceOf(ConflictError);
+    await expect(inTenant(() => invoicesService.pay(note, { amount: 57.5, bankAccountId: bankId }, userId))).rejects.toBeInstanceOf(ConflictError);
     expect((await ledger(note)).paymentEntries).toBe(0);
   });
 
@@ -117,7 +122,7 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
     const original = await issue("CNP-3", 1000); // 1150
     await issue("CNP-CN3", 200, { documentType: "credit_note", originalInvoiceId: original, noteReason: "return" }); // credits 230
     // outstanding is credit-aware: 1150 − 230 = 920
-    await inTenant(() => invoicesService.pay(original, { amount: 920 }, userId));
+    await inTenant(() => invoicesService.pay(original, { amount: 920, bankAccountId: bankId }, userId));
     expect(await ledger(original)).toEqual({ status: "paid", paidAmount: "920.00", payments: 1, paymentEntries: 1 });
   });
 });

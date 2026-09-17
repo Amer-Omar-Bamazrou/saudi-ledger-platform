@@ -200,13 +200,14 @@ describeMaybe("flaw #1 — acceptance posts to the ledger", () => {
     const { rows: [tf] } = await pool.query(`SELECT journal_entry_id FROM transactions WHERE id = $1`, [transferId]);
     expect(tf.journal_entry_id).not.toBeNull();
     const { rows: lines } = await pool.query(
-      `SELECT c.system_code, l.debit_amount::numeric AS debit, l.credit_amount::numeric AS credit
+      // D-3: the cash leg is the bank's own GL account (no system code); name it by its bank.
+      `SELECT coalesce(c.system_code, 'BANK:' || c.bank_account_id::text) AS system_code, l.debit_amount::numeric AS debit, l.credit_amount::numeric AS credit
          FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
-        WHERE l.journal_entry_id = $1 ORDER BY c.system_code`,
+        WHERE l.journal_entry_id = $1 ORDER BY 1`,
       [tf.journal_entry_id],
     );
     expect(lines).toEqual([
-      expect.objectContaining({ system_code: "CASH", credit: "2000.00" }),
+      expect.objectContaining({ system_code: `BANK:${accountId}`, credit: "2000.00" }),
       expect.objectContaining({ system_code: "TRANSFER_SUSPENSE", debit: "2000.00" }),
     ]);
 

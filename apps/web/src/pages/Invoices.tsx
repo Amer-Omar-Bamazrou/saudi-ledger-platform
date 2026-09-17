@@ -109,6 +109,22 @@ export default function Invoices() {
   };
   const invoiceTotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
   const [payAmount, setPayAmount] = useState("");
+  /**
+   * D-3 (2026-09-16): a payment posts to the bank's OWN GL account, so the
+   * dialog asks which account the money arrived in. The default account is
+   * pre-selected and the human clicks — a suggestion, never a silent choice
+   * (the server refuses a payment with no bank: 422 bank_account_required).
+   */
+  const [payBank, setPayBank] = useState<string>("");
+  const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({
+    queryKey: ["bank-accounts"],
+    queryFn: () => apiFetch("/bank-accounts"),
+  });
+  const activeBanks = bankAccounts.filter((b) => b.isActive);
+  // Pre-selection is the bank the user MARKED default — an explicit setting.
+  // "There is only one" is not a setting anyone chose, so it pre-selects
+  // nothing: the user names the bank (D-3: no single-bank inference).
+  const defaultBankId = activeBanks.find((b) => b.isDefault)?.id;
   /** AUD-11/AUD-12 — editing and deleting a DRAFT, the only states the API allows. */
   const [editing, setEditing] = useState<Invoice | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
@@ -165,8 +181,9 @@ export default function Invoices() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number }) => apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: businessToday() }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
+    mutationFn: ({ id, amount, bankAccountId }: { id: number; amount: number; bankAccountId: number }) =>
+      apiFetch(`/invoices/${id}/pay`, { method: "POST", body: json.pay({ amount, paidAt: businessToday(), bankAccountId }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); qc.invalidateQueries({ queryKey: ["bank-accounts"] }); setPayOpen(null); setPayAmount(""); toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
     onSettled: () => { payingRef.current = false; },
   });
@@ -616,9 +633,17 @@ export default function Invoices() {
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           <div className="space-y-3 mt-2">
             <div><Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+            <div>
+              <Label className="text-xs text-muted-foreground">{t("Received into bank account *", "استُلم في الحساب البنكي *")}</Label>
+              <Select value={payBank || (defaultBankId != null ? String(defaultBankId) : "")} onValueChange={setPayBank}>
+                <SelectTrigger className="mt-1 h-8 text-sm" data-testid="pay-bank-account"><SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} /></SelectTrigger>
+                <SelectContent>{activeBanks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}</SelectContent>
+              </Select>
+              {activeBanks.length === 0 && <p className="text-xs text-destructive mt-1">{t("Add a bank account first — a payment is recorded against the account it arrived in.", "أضف حسابًا بنكيًا أولًا — تُسجَّل الدفعة على الحساب الذي وصلت إليه.")}</p>}
+            </div>
             <PaymentHistory entity="invoices" id={payOpen} />
           </div>
-          <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>{ if (payingRef.current || !payOpen) return; payingRef.current = true; payMut.mutate({id:payOpen,amount:Number(payAmount)}); }} disabled={!payAmount||payMut.isPending}>
+          <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>{ const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({id:payOpen,amount:Number(payAmount),bankAccountId:bank}); }} disabled={!payAmount||payMut.isPending||!(payBank||defaultBankId)}>
             {payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
         </DialogContent>

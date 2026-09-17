@@ -287,7 +287,9 @@ export const analyticsRepository = {
    * 🔴 `accepted` only. A pending row is un-reviewed evidence, not a fact, and
    * M15's rule is that it contributes to no figure.
    */
-  async monthlyTransactionCash(from: string, to: string) {
+  async monthlyTransactionCash(from: string, to: string, bankAccountId?: number) {
+    // D-3: an optional per-bank view — the bank's own rows only.
+    const bankArm = bankAccountId != null ? sql`AND bank_account_id = ${bankAccountId}` : sql``;
     const res = await db.execute<{
       month: string;
       kind: string;
@@ -308,6 +310,7 @@ export const analyticsRepository = {
          AND company_id::text = current_setting('app.current_company_id', true)
          AND date >= ${from}
          AND date <= ${to}
+         ${bankArm}
        GROUP BY 1, 2, 3, 4
     `);
     return ((res as unknown as { rows: unknown[] }).rows ?? []) as {
@@ -323,23 +326,30 @@ export const analyticsRepository = {
    * Movement on the CASH-classified GL accounts per month — the ledger's answer.
    *
    * By `liquidity_class = 'cash'`, not by the `CASH` system code, so a
-   * tenant-created bank account classified as cash is included. (Today the
-   * posting path writes one aggregate `CASH` account, which is why the ledger
-   * cannot break cash down per bank account — see queue B5.)
+   * tenant-created bank account classified as cash is included — and, since
+   * D-3 (2026-09-16), so are the per-bank leaves under "Cash and Bank": the
+   * total is conserved by construction across the cut-over. With
+   * `bankAccountId` the query narrows to THAT bank's own GL account
+   * (`categories.bank_account_id`), which is what makes a per-bank
+   * reconciliation possible at all. Pre-cut-over history still on the header
+   * belongs to no bank and is excluded from a per-bank view.
    */
-  async monthlyLedgerCash(from: string, to: string) {
+  async monthlyLedgerCash(from: string, to: string, bankAccountId?: number) {
+    // Per bank: through the ONE bank-identity view (leaf or attribution),
+    // never by re-deriving. The whole-company figure stays the plain
+    // liquidity-class sum, which the view's rows also satisfy.
+    const bankArm = bankAccountId != null ? sql`AND v.bank_account_id = ${bankAccountId}` : sql``;
     const res = await db.execute<{ month: string; net: string }>(sql`
       SELECT to_char(e.date::date, 'YYYY-MM') AS month,
-             coalesce(sum(l.debit_amount - l.credit_amount), 0)::text AS net
-        FROM journal_entry_lines l
-        JOIN journal_entries e ON e.id = l.journal_entry_id
-        JOIN categories c      ON c.id = l.account_id
+             coalesce(sum(v.debit_amount - v.credit_amount), 0)::text AS net
+        FROM journal_line_bank_identity v
+        JOIN journal_entries e ON e.id = v.journal_entry_id
        WHERE e.status IN ('posted','reversed')
          -- N1: the scoped company's books only (see companyScope.ts)
          AND e.company_id::text = current_setting('app.current_company_id', true)
          AND e.date >= ${from}
          AND e.date <= ${to}
-         AND c.liquidity_class = 'cash'
+         ${bankArm}
        GROUP BY 1
     `);
     return ((res as unknown as { rows: unknown[] }).rows ?? []) as {

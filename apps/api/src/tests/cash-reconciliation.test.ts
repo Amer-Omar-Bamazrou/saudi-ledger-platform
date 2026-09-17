@@ -38,6 +38,7 @@ const TO = "2026-03";
 describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let seq = 0;
@@ -72,6 +73,7 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
 
       "invoices",
       "customers",
+      "bank_accounts",
       "categories",
     ]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
@@ -99,6 +101,8 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active)
@@ -180,9 +184,9 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     await pool.query(
       `INSERT INTO transactions
          (organization_id, company_id, date, description, amount, type, kind,
-          review_status, transfer_direction)
-       VALUES ($1,$2,'2026-01-15','own move','2000.00','debit','transfer','accepted','own_account')`,
-      [orgId, companyId],
+          review_status, transfer_direction, bank_account_id)
+       VALUES ($1,$2,'2026-01-15','own move','2000.00','debit','transfer','accepted','own_account',$3)`,
+      [orgId, companyId, bankId],
     );
     const { rows: [row] } = await pool.query(
       `SELECT id FROM transactions WHERE organization_id = $1 AND description = 'own move'`,
@@ -203,9 +207,9 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     await pool.query(
       `INSERT INTO transactions
          (organization_id, company_id, date, description, amount, type, kind,
-          review_status, transfer_direction)
-       VALUES ($1,$2,'2026-01-20','drawings','1000.00','debit','transfer','accepted','external')`,
-      [orgId, companyId],
+          review_status, transfer_direction, bank_account_id)
+       VALUES ($1,$2,'2026-01-20','drawings','1000.00','debit','transfer','accepted','external',$3)`,
+      [orgId, companyId, bankId],
     );
     const { rows: [row] } = await pool.query(
       `SELECT id FROM transactions WHERE organization_id = $1 AND description = 'drawings'`,
@@ -262,7 +266,7 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
         userId),
     );
     await inTenant(() =>
-      invoicesService.pay(inv.id, { amount: 1_150, paidAt: "2026-03-20" }, userId),
+      invoicesService.pay(inv.id, { amount: 1_150, paidAt: "2026-03-20", bankAccountId: bankId }, userId),
     );
 
     const { summary } = await recon();

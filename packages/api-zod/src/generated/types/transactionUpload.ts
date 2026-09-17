@@ -15,7 +15,9 @@ export interface TransactionUpload {
      * M16.2 — which bank account this statement belongs to. Scopes
      * duplicate detection to the account and is the foundation for
      * transfer-leg pairing. Validated against the tenant's own accounts.
-     * @nullable
+     * 🔴 REQUIRED since D-3 (2026-09-16): an accepted row's cash leg
+     * posts to this bank's own GL account, and a row with no bank cannot
+     * be accepted. A missing id is a 422 `bank_account_required`.
      */
-  bankAccountId?: number | null;
+  bankAccountId: number;
 }

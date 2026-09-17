@@ -37,6 +37,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
   let otherCompanyId = "";
   let userId = 0;
   let rentId = 0;
+  const bankByOrg: Record<string, number> = {};
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
     const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
@@ -54,7 +55,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
-      for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "categories", "companies"]) {
+      for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
@@ -73,6 +74,10 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
       await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, o]);
     }
     rentId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'RENT_UTILITIES'`, [orgId])).rows[0].id;
+    // D-3: a manual row names the bank its cash leg posts to; one per org.
+    for (const [o, c] of [[orgId, companyId], [otherOrgId, otherCompanyId]]) {
+      bankByOrg[o] = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'MT Bank','ANB') RETURNING id`, [o, c])).rows[0].id;
+    }
     await inTenant(() => periodLocksService.lock({ period: CLOSED, notes: "closed for the test", userId }));
   });
   afterAll(cleanup);
@@ -80,7 +85,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
   const entryFor = async (txId: number) =>
     (await pool.query(
       `SELECT je.id, je.entry_number, je.date::text, je.status, je.organization_id, je.company_id,
-              (SELECT json_agg(json_build_object('code', c.system_code, 'dr', l.debit_amount::text, 'cr', l.credit_amount::text) ORDER BY l.id)
+              (SELECT json_agg(json_build_object('code', coalesce(c.system_code, 'BANK:' || c.bank_account_id::text), 'dr', l.debit_amount::text, 'cr', l.credit_amount::text) ORDER BY l.id)
                  FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = je.id) AS lines
          FROM transactions t JOIN journal_entries je ON je.id = t.journal_entry_id WHERE t.id = $1`,
       [txId],
@@ -88,7 +93,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
 
   it("🔴 SUCCESS: a categorised debit posts Dr expense / Cr CASH, balanced, on the row's date, in the row's tenant, linked and audited", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-10", description: "Office rent — May", amount: 3000, currency: "SAR", type: "debit", categoryId: rentId }),
+      transactionsService.create({ date: "2026-05-10", description: "Office rent — May", amount: 3000, currency: "SAR", type: "debit", categoryId: rentId, bankAccountId: bankByOrg[orgId] }),
     );
     const je = await entryFor(tx.id);
     expect(je, "the row must be LINKED to a journal entry").toBeDefined();
@@ -99,7 +104,8 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
     expect(je.company_id).toBe(companyId);
     expect(je.lines).toEqual([
       { code: "RENT_UTILITIES", dr: "3000.00", cr: "0.00" },
-      { code: "CASH", dr: "0.00", cr: "3000.00" },
+      // D-3: the cash leg sits on THIS bank's own GL account, never on the header.
+      { code: `BANK:${bankByOrg[orgId]}`, dr: "0.00", cr: "3000.00" },
     ]);
     const audit = await pool.query(`SELECT count(*)::int AS n FROM audit_logs WHERE organization_id = $1 AND entity_type = 'transaction' AND entity_id = $2::text`, [orgId, String(tx.id)]);
     expect(audit.rows[0].n).toBeGreaterThan(0);
@@ -107,15 +113,15 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
 
   it("an UNCATEGORISED manual row posts to SUSPENSE, never to an expense — the same rule as an import", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-11", description: "Unknown payee", amount: 250, currency: "SAR", type: "debit" }),
+      transactionsService.create({ date: "2026-05-11", description: "Unknown payee", amount: 250, currency: "SAR", type: "debit", bankAccountId: bankByOrg[orgId] }),
     );
-    expect((await entryFor(tx.id)).lines.map((l: { code: string }) => l.code)).toEqual(["SUSPENSE", "CASH"]);
+    expect((await entryFor(tx.id)).lines.map((l: { code: string }) => l.code)).toEqual(["SUSPENSE", `BANK:${bankByOrg[orgId]}`]);
   });
 
   it("🔴 CLOSED PERIOD: the create is refused, the caller sees it, and NO accepted-but-unposted row survives", async () => {
     const before = (await pool.query(`SELECT count(*)::int AS n FROM transactions WHERE organization_id = $1`, [orgId])).rows[0].n;
     await expect(
-      inTenant(() => transactionsService.create({ date: "2026-03-15", description: "Backdated into a closed month", amount: 100, currency: "SAR", type: "debit", categoryId: rentId })),
+      inTenant(() => transactionsService.create({ date: "2026-03-15", description: "Backdated into a closed month", amount: 100, currency: "SAR", type: "debit", categoryId: rentId, bankAccountId: bankByOrg[orgId] })),
     ).rejects.toBeInstanceOf(PeriodLockedError);
     const after = (await pool.query(`SELECT count(*)::int AS n FROM transactions WHERE organization_id = $1`, [orgId])).rows[0].n;
     expect(after, "the INSERT must roll back with the refused post").toBe(before);
@@ -125,7 +131,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
 
   it("IDEMPOTENT: posting an already-posted row again is a no-op — one entry, not two", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-12", description: "Idempotency probe", amount: 40, currency: "SAR", type: "debit", categoryId: rentId }),
+      transactionsService.create({ date: "2026-05-12", description: "Idempotency probe", amount: 40, currency: "SAR", type: "debit", categoryId: rentId, bankAccountId: bankByOrg[orgId] }),
     );
     const again = await inTenant(() => transactionPostingService.post(tx.id));
     expect(again).toBeNull();
@@ -135,10 +141,10 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
 
   it("TENANT ISOLATION: the other org's ledger never sees this org's manual row, and its own row posts in its own company", async () => {
     const mine = await inTenant(() =>
-      transactionsService.create({ date: "2026-05-13", description: "Mine", amount: 10, currency: "SAR", type: "debit" }),
+      transactionsService.create({ date: "2026-05-13", description: "Mine", amount: 10, currency: "SAR", type: "debit", bankAccountId: bankByOrg[orgId] }),
     );
     const theirs = await tenant(otherOrgId, otherCompanyId)(() =>
-      transactionsService.create({ date: "2026-05-13", description: "Theirs", amount: 20, currency: "SAR", type: "debit" }),
+      transactionsService.create({ date: "2026-05-13", description: "Theirs", amount: 20, currency: "SAR", type: "debit", bankAccountId: bankByOrg[otherOrgId] }),
     );
     const mineJe = await entryFor(mine.id);
     const theirsJe = await entryFor(theirs.id);
@@ -147,19 +153,19 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
     expect(theirsJe.company_id).toBe(otherCompanyId);
     // presence AND absence AND movement: each org's cash line is its own
     const cash = async (org: string) =>
-      (await pool.query(`SELECT coalesce(sum(l.credit_amount),0)::text AS cr FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.organization_id = $1 AND c.system_code = 'CASH'`, [org])).rows[0].cr;
+      (await pool.query(`SELECT coalesce(sum(l.credit_amount),0)::text AS cr FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.organization_id = $1 AND c.liquidity_class = 'cash'`, [org])).rows[0].cr;
     expect(Number(await cash(otherOrgId))).toBe(20);
     expect(Number(await cash(orgId))).toBeGreaterThanOrEqual(3300);
   });
 
   it("IMPORTED rows are unchanged: upload lands pending and unposted; accept posts it through the same seam", async () => {
     await inTenant(() =>
-      transactionsService.upload({ rows: [{ date: "2026-05-14", description: "IMPORTED ROW 77", amount: 500, currency: "SAR", type: "debit" }], autoCategrize: false } as never),
+      transactionsService.upload({ rows: [{ date: "2026-05-14", description: "IMPORTED ROW 77", amount: 500, currency: "SAR", type: "debit" }], autoCategrize: false, bankAccountId: bankByOrg[orgId] } as never),
     );
     const { rows: [row] } = await pool.query(`SELECT id, review_status, journal_entry_id FROM transactions WHERE organization_id = $1 AND description LIKE 'IMPORTED ROW 77%'`, [orgId]);
     expect(row.review_status).toBe("pending_review");
     expect(row.journal_entry_id).toBeNull();
     await inTenant(() => transactionsService.acceptPending([row.id]));
-    expect((await entryFor(row.id)).lines.map((l: { code: string }) => l.code)).toEqual(["SUSPENSE", "CASH"]);
+    expect((await entryFor(row.id)).lines.map((l: { code: string }) => l.code)).toEqual(["SUSPENSE", `BANK:${bankByOrg[orgId]}`]);
   });
 });

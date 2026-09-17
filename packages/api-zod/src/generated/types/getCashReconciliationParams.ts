@@ -15,4 +15,8 @@ from: string;
  * YYYY-MM
  */
 to: string;
+/**
+ * D-3: reconcile ONE bank — its accepted rows against its own GL cash account. Omitted = every bank and every cash account, as before. Pre-cut-over history still on the "Cash and Bank" header belongs to no bank and is excluded from a per-bank view.
+ */
+bankAccountId?: number;
 };

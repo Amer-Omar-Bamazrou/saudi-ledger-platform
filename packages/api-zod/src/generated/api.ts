@@ -111,7 +111,8 @@ export const CreateTransactionBody = zod.object({
   "vatAmount": zod.number().min(createTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(createTransactionBodyVatRateMin).max(createTransactionBodyVatRateMax).nullish(),
   "notes": zod.string().max(createTransactionBodyNotesMax).nullish(),
-  "source": zod.string().nullish()
+  "source": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish().describe('D-3: the bank account this movement belongs to. REQUIRED on `POST \/transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank\'s GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement\'s `bankAccountId` applies.\n')
 })
 
 export const CreateTransactionResponse = zod.object({
@@ -211,7 +212,7 @@ export const AcceptPendingTransactionsResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().nullable(),
   "reason": zod.string(),
-  "code": zod.enum(['period_closed']),
+  "code": zod.enum(['period_closed', 'bank_account_required']),
   "period": zod.string().nullable().describe('YYYY-MM — the closed month'),
   "lockedAt": zod.string().nullable().describe('YYYY-MM-DD — when it was closed')
 }))
@@ -919,6 +920,7 @@ export const ConvertQuotationResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -2039,10 +2041,11 @@ export const UploadTransactionsBody = zod.object({
   "vatAmount": zod.number().min(uploadTransactionsBodyRowsItemVatAmountMin).nullish(),
   "vatRate": zod.number().min(uploadTransactionsBodyRowsItemVatRateMin).max(uploadTransactionsBodyRowsItemVatRateMax).nullish(),
   "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
-  "source": zod.string().nullish()
+  "source": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish().describe('D-3: the bank account this movement belongs to. REQUIRED on `POST \/transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank\'s GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement\'s `bankAccountId` applies.\n')
 })),
   "autoCategrize": zod.boolean().nullish(),
-  "bankAccountId": zod.number().nullish().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n')
+  "bankAccountId": zod.number().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n🔴 REQUIRED since D-3 (2026-09-16): an accepted row\'s cash leg\nposts to this bank\'s own GL account, and a row with no bank cannot\nbe accepted. A missing id is a 422 `bank_account_required`.\n')
 })
 
 export const UploadTransactionsResponse = zod.object({
@@ -2111,6 +2114,7 @@ export const updateTransactionBodyVatRateMax = 100;
 
 export const UpdateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
+  "bankAccountId": zod.number().optional().describe('D-3: record WHICH bank account the row belongs to. Settable only while the row has none (a bank is a fact about the movement, not a classification to revise); a posted row whose history still sits on the \"Cash and Bank\" header is left for the cut-over to remap, a row already posted to a bank\'s GL account is reversed and re-posted to the named bank.\n'),
   "vatAmount": zod.number().min(updateTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(updateTransactionBodyVatRateMin).max(updateTransactionBodyVatRateMax).nullish(),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
@@ -2172,6 +2176,9 @@ export const ListCategoriesResponseItem = zod.object({
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
   "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
+  "parentId": zod.number().nullish().describe('D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is \"Cash and Bank\"); every other account is null. Not a general chart hierarchy.\n'),
+  "bankAccountId": zod.number().nullish().describe('D-3: set on a bank\'s own GL cash account — the explicit, rename-proof relationship to the application bank account.\n'),
+  "isPosting": zod.boolean().optional().describe('D-3: false on a HEADER account (\"Cash and Bank\"), which accepts no postings — a cash line names a bank account and posts to that bank\'s leaf. Pickers exclude non-posting accounts.\n'),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -2197,6 +2204,9 @@ export const CreateCategoryResponse = zod.object({
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
   "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
+  "parentId": zod.number().nullish().describe('D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is \"Cash and Bank\"); every other account is null. Not a general chart hierarchy.\n'),
+  "bankAccountId": zod.number().nullish().describe('D-3: set on a bank\'s own GL cash account — the explicit, rename-proof relationship to the application bank account.\n'),
+  "isPosting": zod.boolean().optional().describe('D-3: false on a HEADER account (\"Cash and Bank\"), which accepts no postings — a cash line names a bank account and posts to that bank\'s leaf. Pickers exclude non-posting accounts.\n'),
   "description": zod.string().nullish()
 })
 
@@ -2374,7 +2384,8 @@ export const GetReceivablesBridgeResponse = zod.array(GetReceivablesBridgeRespon
  */
 export const GetCashReconciliationQueryParams = zod.object({
   "from": zod.coerce.string().describe('YYYY-MM'),
-  "to": zod.coerce.string().describe('YYYY-MM')
+  "to": zod.coerce.string().describe('YYYY-MM'),
+  "bankAccountId": zod.coerce.number().optional().describe('D-3: reconcile ONE bank — its accepted rows against its own GL cash account. Omitted = every bank and every cash account, as before. Pre-cut-over history still on the \"Cash and Bank\" header belongs to no bank and is excluded from a per-bank view.\n')
 })
 
 export const GetCashReconciliationResponse = zod.object({
@@ -4474,6 +4485,20 @@ export const DeleteCustomerResponse = zod.void()
 
 
 /**
+ * @summary D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart
+ */
+export const GetCustomerCreditsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerCreditsResponse = zod.object({
+  "customerId": zod.number(),
+  "deposits": zod.number().describe('Σ unapplied over the customer\'s receipts — Customer deposits and advances.'),
+  "creditNotes": zod.number().describe('Σ unconsumed over the customer\'s issued credit notes — Customer credit balances.')
+})
+
+
+/**
  * @summary A PAGE of vendors, each with its payable balance, plus set-wide totals
  */
 export const listVendorsQueryLimitDefault = 50;
@@ -4919,6 +4944,7 @@ export const ListInvoicesResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5018,6 +5044,7 @@ export const CreateInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5066,6 +5093,7 @@ export const GetInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5154,6 +5182,7 @@ export const UpdateInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5192,6 +5221,454 @@ export const DeleteInvoiceResponse = zod.void()
 
 
 /**
+ * @summary D-4 — customer payments, newest first
+ */
+export const listPaymentsQueryLimitDefault = 50;
+export const listPaymentsQueryLimitMax = 200;
+
+export const listPaymentsQueryOffsetDefault = 0;
+export const listPaymentsQueryOffsetMin = 0;
+
+
+
+export const ListPaymentsQueryParams = zod.object({
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listPaymentsQueryLimitMax).default(listPaymentsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listPaymentsQueryOffsetMin).default(listPaymentsQueryOffsetDefault)
+})
+
+export const ListPaymentsResponseItem = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem)
+
+
+/**
+ * One payment, one journal entry, zero or more allocations. Allocations are never inferred: none ⇒ the whole amount is a deposit for the customer; some ⇒ the rest is. An allocation beyond an invoice's outstanding (total − paid − credited) is refused; the receipt itself is never refused for being larger than the invoices — the excess is the customer's deposit by the caller's explicit allocation. `idempotencyKey` (unique per company) makes a repeated request return the first payment.
+ * @summary D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest
+ */
+export const receivePaymentBodyAmountExclusiveMin = 0;
+
+export const receivePaymentBodyMethodMax = 40;
+
+export const receivePaymentBodyReferenceMax = 200;
+
+export const receivePaymentBodyIdempotencyKeyMax = 120;
+
+export const receivePaymentBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+
+export const ReceivePaymentBody = zod.object({
+  "customerId": zod.number().nullish().describe('The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.'),
+  "amount": zod.number().gt(receivePaymentBodyAmountExclusiveMin),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today (business date).'),
+  "bankAccountId": zod.number().describe('D-3 — which bank account the money arrived in; the cash line posts to its own GL account.'),
+  "method": zod.string().max(receivePaymentBodyMethodMax).nullish(),
+  "reference": zod.string().max(receivePaymentBodyReferenceMax).nullish(),
+  "idempotencyKey": zod.string().max(receivePaymentBodyIdempotencyKeyMax).nullish().describe('Unique per company. The same key twice returns the first payment.'),
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(receivePaymentBodyAllocationsItemAmountExclusiveMin)
+})).optional().describe('Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice\'s outstanding. Omit for a receipt on account.')
+})
+
+export const ReceivePaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Phase C — customer refunds, newest first
+ */
+export const listRefundsQueryLimitDefault = 50;
+export const listRefundsQueryLimitMax = 200;
+
+export const listRefundsQueryOffsetDefault = 0;
+export const listRefundsQueryOffsetMin = 0;
+
+
+
+export const ListRefundsQueryParams = zod.object({
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listRefundsQueryLimitMax).default(listRefundsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listRefundsQueryOffsetMin).default(listRefundsQueryOffsetDefault)
+})
+
+export const ListRefundsResponseItem = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const ListRefundsResponse = zod.array(ListRefundsResponseItem)
+
+
+/**
+ * Settles an existing credit; never reverses the receipt or the note. The origin is explicit and the source is a specific record. Refused when the amount exceeds the source's refundable balance, when the note is not issued (no tax effect exists yet), when the source is another customer's, or when the bank is missing/inactive/another tenant's. No VAT is posted or altered.
+ * @summary Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank
+ */
+export const refundCustomerBodyAmountExclusiveMin = 0;
+
+export const refundCustomerBodyReasonMax = 500;
+
+export const refundCustomerBodyReferenceMax = 200;
+
+export const refundCustomerBodyIdempotencyKeyMax = 120;
+
+
+
+export const RefundCustomerBody = zod.object({
+  "customerId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullish().describe('Required when origin is deposit: the receipt whose unapplied remainder is returned.'),
+  "creditNoteId": zod.number().nullish().describe('Required when origin is credit_note: the issued note whose unconsumed balance is returned.'),
+  "amount": zod.number().gt(refundCustomerBodyAmountExclusiveMin),
+  "bankAccountId": zod.number().describe('D-3 — the bank the refund is paid from.'),
+  "refundedAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today (business date). Period-controlled.'),
+  "reason": zod.string().min(1).max(refundCustomerBodyReasonMax),
+  "reference": zod.string().max(refundCustomerBodyReferenceMax).nullish(),
+  "idempotencyKey": zod.string().max(refundCustomerBodyIdempotencyKeyMax).nullish()
+})
+
+export const RefundCustomerResponse = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary One refund
+ */
+export const GetRefundParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetRefundResponse = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Phase A — one allocation with its correction, if any
+ */
+export const GetAllocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAllocationResponse = zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}).and(zod.object({
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable()
+}))
+
+
+/**
+ * @summary Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched
+ */
+export const UnallocateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const unallocateBodyReasonMax = 500;
+
+export const unallocateBodyIdempotencyKeyMax = 120;
+
+
+
+export const UnallocateBody = zod.object({
+  "reason": zod.string().min(1).max(unallocateBodyReasonMax),
+  "idempotencyKey": zod.string().max(unallocateBodyIdempotencyKeyMax).nullish()
+})
+
+export const UnallocateResponse = zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}).and(zod.object({
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable()
+}))
+
+
+/**
+ * @summary One payment with its allocations
+ */
+export const GetPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)
+ */
+export const AllocatePaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const allocatePaymentBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+export const allocatePaymentBodyIdempotencyKeyMax = 120;
+
+
+
+export const AllocatePaymentBody = zod.object({
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(allocatePaymentBodyAllocationsItemAmountExclusiveMin)
+})).min(1),
+  "idempotencyKey": zod.string().max(allocatePaymentBodyIdempotencyKeyMax).nullish()
+})
+
+export const AllocatePaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)
+ */
+export const ApplyCreditNoteParams = zod.object({
+  "id": zod.coerce.number().describe('The credit note')
+})
+
+export const applyCreditNoteBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+export const applyCreditNoteBodyIdempotencyKeyMax = 120;
+
+
+
+export const ApplyCreditNoteBody = zod.object({
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(applyCreditNoteBodyAllocationsItemAmountExclusiveMin)
+})).min(1),
+  "idempotencyKey": zod.string().max(applyCreditNoteBodyIdempotencyKeyMax).nullish()
+})
+
+export const ApplyCreditNoteResponse = zod.object({
+  "creditNoteId": zod.number(),
+  "invoiceNumber": zod.string(),
+  "total": zod.number(),
+  "appliedAmount": zod.number().describe('Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected.'),
+  "refundedAmount": zod.number().describe('Phase C — Σ refunds paid out of this note\'s balance.'),
+  "remainingAmount": zod.number().describe('The customer\'s credit-note balance from this note (a liability, not AR): total − applied − refunded.'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}))
+})
+
+
+/**
+ * @summary D-4 — a credit note's applications and remaining balance
+ */
+export const ListCreditNoteApplicationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCreditNoteApplicationsResponse = zod.object({
+  "creditNoteId": zod.number(),
+  "invoiceNumber": zod.string(),
+  "total": zod.number(),
+  "appliedAmount": zod.number().describe('Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected.'),
+  "refundedAmount": zod.number().describe('Phase C — Σ refunds paid out of this note\'s balance.'),
+  "remainingAmount": zod.number().describe('The customer\'s credit-note balance from this note (a liability, not AR): total − applied − refunded.'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}))
+})
+
+
+/**
  * @summary Record a payment against an issued invoice
  */
 export const PayInvoiceParams = zod.object({
@@ -5200,11 +5677,15 @@ export const PayInvoiceParams = zod.object({
 
 export const payInvoiceBodyAmountExclusiveMin = 0;
 
+export const payInvoiceBodyIdempotencyKeyMax = 120;
+
 
 
 export const PayInvoiceBody = zod.object({
   "amount": zod.number().gt(payInvoiceBodyAmountExclusiveMin),
-  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+  "idempotencyKey": zod.string().max(payInvoiceBodyIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.'),
+  "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
 })
 
 export const PayInvoiceResponse = zod.object({
@@ -5221,6 +5702,7 @@ export const PayInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5256,10 +5738,11 @@ export const ListInvoicePaymentsParams = zod.object({
 })
 
 export const ListInvoicePaymentsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.number().describe('The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? \'legacy\'}-${id}`.'),
   "amount": zod.number(),
   "paidAt": zod.string(),
-  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
 })
 export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponseItem)
 
@@ -5452,11 +5935,15 @@ export const PayBillParams = zod.object({
 
 export const payBillBodyAmountExclusiveMin = 0;
 
+export const payBillBodyIdempotencyKeyMax = 120;
+
 
 
 export const PayBillBody = zod.object({
   "amount": zod.number().gt(payBillBodyAmountExclusiveMin),
-  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+  "idempotencyKey": zod.string().max(payBillBodyIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.'),
+  "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
 })
 
 export const PayBillResponse = zod.object({
@@ -5501,10 +5988,11 @@ export const ListBillPaymentsParams = zod.object({
 })
 
 export const ListBillPaymentsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.number().describe('The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? \'legacy\'}-${id}`.'),
   "amount": zod.number(),
   "paidAt": zod.string(),
-  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
 })
 export const ListBillPaymentsResponse = zod.array(ListBillPaymentsResponseItem)
 
@@ -5531,6 +6019,7 @@ export const SubmitInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5584,6 +6073,7 @@ export const SendBackInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5633,6 +6123,7 @@ export const ApproveInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),

@@ -26,6 +26,8 @@ export interface Invoice {
   /** @nullable */
   currency: string | null;
   paidAmount: number;
+  /** D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount. */
+  creditedAmount: number;
   /** @nullable */
   paidAt: string | null;
   /** @nullable */

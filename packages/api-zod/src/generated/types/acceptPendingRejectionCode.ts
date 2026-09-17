@@ -11,4 +11,5 @@ export type AcceptPendingRejectionCode = typeof AcceptPendingRejectionCode[keyof
 
 export const AcceptPendingRejectionCode = {
   period_closed: 'period_closed',
+  bank_account_required: 'bank_account_required',
 } as const;

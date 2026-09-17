@@ -23,6 +23,8 @@ tags:
     description: Vendor bills (AP) and the draft/approval workflow
   - name: invoices
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
+  - name: payments
+    description: "D-4 — customer payments, allocations and credit application. A payment names its bank (D-3) and its customer; allocations say which invoices it settles; the unapplied remainder is a customer deposit (a liability, never a credit inside AR)."
   - name: payroll
     description: Payroll runs and the draft/approval workflow
   - name: period_locks
@@ -186,6 +188,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AcceptPendingResult"
+        "422":
+          description: >
+            Nothing was accepted because no row names a bank account (D-3):
+            the body is the `bank_account_required` refusal, carrying the
+            `rejected` rows; every row stays in review with no entry. Set the
+            bank on each row (PATCH bankAccountId) and accept again.
         "423":
           description: >
             Nothing was accepted because every row's month is closed (a single
@@ -1475,6 +1483,15 @@ paths:
       parameters:
         - { name: from, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
         - { name: to, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+        - name: bankAccountId
+          in: query
+          required: false
+          schema: { type: integer }
+          description: >
+            D-3: reconcile ONE bank — its accepted rows against its own GL
+            cash account. Omitted = every bank and every cash account, as
+            before. Pre-cut-over history still on the "Cash and Bank" header
+            belongs to no bank and is excluded from a per-bank view.
       responses:
         "200":
           description: Both series per month, plus the itemised reconciliation
@@ -2717,6 +2734,22 @@ paths:
         "204":
           description: Deleted
 
+  /customers/{id}/credits:
+    get:
+      operationId: getCustomerCredits
+      tags: [customers]
+      summary: "D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The two balances, from the subledger (Σ unapplied receipts; Σ unconsumed credit notes)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerCredits" }
+        "404":
+          description: Customer not found
+
   /vendors:
     get:
       operationId: listVendors
@@ -3035,6 +3068,240 @@ paths:
           description: Deleted
         "409":
           description: Not a draft
+
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: "D-4 — customer payments, newest first"
+      parameters:
+        - { in: query, name: customer_id, required: false, schema: { type: integer } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Payments with their allocations and unapplied remainders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomerPayment" }
+    post:
+      operationId: receivePayment
+      tags: [payments]
+      summary: "D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest"
+      description: >
+        One payment, one journal entry, zero or more allocations. Allocations are
+        never inferred: none ⇒ the whole amount is a deposit for the customer;
+        some ⇒ the rest is. An allocation beyond an invoice's outstanding
+        (total − paid − credited) is refused; the receipt itself is never refused
+        for being larger than the invoices — the excess is the customer's
+        deposit by the caller's explicit allocation. `idempotencyKey` (unique
+        per company) makes a repeated request return the first payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReceivePaymentInput" }
+      responses:
+        "201":
+          description: The payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "400":
+          description: Not a positive amount, or a malformed allocation
+        "409":
+          description: Allocation beyond an invoice's outstanding; a note or unissued invoice as target; an idempotency key reused for a different payment
+        "422":
+          description: "`bank_account_required`, `bank_account_inactive`, `reference_not_found`, `allocation_exceeds_payment`, `allocation_party_mismatch`, `customer_required_for_unapplied`"
+
+  /payments/refunds:
+    get:
+      operationId: listRefunds
+      tags: [payments]
+      summary: "Phase C — customer refunds, newest first"
+      parameters:
+        - { in: query, name: customer_id, required: false, schema: { type: integer } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Refunds
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomerRefund" }
+    post:
+      operationId: refundCustomer
+      tags: [payments]
+      summary: "Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank"
+      description: >
+        Settles an existing credit; never reverses the receipt or the note. The
+        origin is explicit and the source is a specific record. Refused when the
+        amount exceeds the source's refundable balance, when the note is not
+        issued (no tax effect exists yet), when the source is another
+        customer's, or when the bank is missing/inactive/another tenant's. No
+        VAT is posted or altered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefundCustomerInput" }
+      responses:
+        "201":
+          description: The refund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerRefund" }
+        "400":
+          description: Missing reason, non-positive amount, or malformed origin/source
+        "409":
+          description: "`credit_note_not_issued`; an idempotency key reused for a different refund"
+        "422":
+          description: "`refund_exceeds_balance`, `refund_source_mismatch`, `reference_not_found`, `bank_account_required`, `bank_account_inactive`"
+
+  /payments/refunds/{id}:
+    get:
+      operationId: getRefund
+      tags: [payments]
+      summary: One refund
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The refund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerRefund" }
+        "404":
+          description: Not found
+
+  /payments/allocations/{id}:
+    get:
+      operationId: getAllocation
+      tags: [payments]
+      summary: "Phase A — one allocation with its correction, if any"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The allocation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentAllocationDetail" }
+        "404":
+          description: Not found
+
+  /payments/allocations/{id}/unallocate:
+    post:
+      operationId: unallocate
+      tags: [payments]
+      summary: "Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnallocateInput" }
+      responses:
+        "200":
+          description: The allocation, now reversed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentAllocationDetail" }
+        "400":
+          description: Missing reason
+        "404":
+          description: Not found
+        "409":
+          description: "`allocation_already_corrected` (one correction per allocation — concurrent attempts get this); `credit_note_original_application_immutable`"
+        "422":
+          description: "`customer_required_for_unapplied`"
+        "423":
+          description: "`period_closed` — corrections are dated today; a closed current month refuses"
+
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      summary: One payment with its allocations
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "404":
+          description: Not found
+
+  /payments/{id}/allocate:
+    post:
+      operationId: allocatePayment
+      tags: [payments]
+      summary: "D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AllocatePaymentInput" }
+      responses:
+        "200":
+          description: The payment after the allocation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "404":
+          description: Not found
+        "409":
+          description: Beyond an invoice's outstanding, already allocated to one of these invoices, or not a receipt
+        "422":
+          description: "`allocation_exceeds_payment`, `allocation_party_mismatch`, `reference_not_found`"
+
+  /payments/credit-notes/{id}/apply:
+    post:
+      operationId: applyCreditNote
+      tags: [payments]
+      summary: "D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The credit note" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplyCreditNoteInput" }
+      responses:
+        "200":
+          description: The note's applications after this one
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditNoteApplications" }
+        "409":
+          description: Not a credit note, not issued, already applied to one of these invoices, or an allocation beyond an invoice's outstanding
+        "422":
+          description: "`allocation_exceeds_credit`, `allocation_party_mismatch`, `credit_note_no_customer`, `reference_not_found`"
+
+  /payments/credit-notes/{id}/applications:
+    get:
+      operationId: listCreditNoteApplications
+      tags: [payments]
+      summary: "D-4 — a credit note's applications and remaining balance"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Applications, oldest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditNoteApplications" }
+        "404":
+          description: Not a credit note
 
   /invoices/{id}/pay:
     post:
@@ -4160,6 +4427,23 @@ components:
             or liability means UNCLASSIFIED and is surfaced as such, never
             silently treated as current. Always NULL on income/expense/equity
             accounts, where the distinction is meaningless.
+        parentId:
+          type: ["integer", "null"]
+          description: >
+            D-3: the header this account sits under. Only bank GL leaves carry
+            one today (their parent is "Cash and Bank"); every other account
+            is null. Not a general chart hierarchy.
+        bankAccountId:
+          type: ["integer", "null"]
+          description: >
+            D-3: set on a bank's own GL cash account — the explicit,
+            rename-proof relationship to the application bank account.
+        isPosting:
+          type: boolean
+          description: >
+            D-3: false on a HEADER account ("Cash and Bank"), which accepts no
+            postings — a cash line names a bank account and posts to that
+            bank's leaf. Pickers exclude non-posting accounts.
         description:
           type: ["string", "null"]
 
@@ -4403,7 +4687,7 @@ components:
         id: { type: integer }
         date: { type: ["string", "null"] }
         reason: { type: string }
-        code: { type: string, enum: [period_closed] }
+        code: { type: string, enum: [period_closed, bank_account_required] }
         period: { type: ["string", "null"], description: "YYYY-MM — the closed month" }
         lockedAt: { type: ["string", "null"], description: "YYYY-MM-DD — when it was closed" }
 
@@ -4468,12 +4752,29 @@ components:
           maxLength: 1000
         source:
           type: ["string", "null"]
+        bankAccountId:
+          description: >
+            D-3: the bank account this movement belongs to. REQUIRED on
+            `POST /transactions` (a single manual row is accepted and posted on
+            creation, and its cash leg posts to this bank's GL account — a row
+            without one is refused with 422 `bank_account_required`). Ignored
+            on upload rows, where the statement's `bankAccountId` applies.
+          type: ["integer", "null"]
 
     TransactionUpdate:
       type: object
       properties:
         categoryId:
           type: ["integer", "null"]
+        bankAccountId:
+          description: >
+            D-3: record WHICH bank account the row belongs to. Settable only
+            while the row has none (a bank is a fact about the movement, not a
+            classification to revise); a posted row whose history still sits
+            on the "Cash and Bank" header is left for the cut-over to remap,
+            a row already posted to a bank's GL account is reversed and
+            re-posted to the named bank.
+          type: integer
         # Same bounds as TransactionCreate — the two paths must not disagree
         # about the invariant (audit 2026-08-20, MED). The invariant itself
         # lives in a DB CHECK (migration 0056); these bounds are the contract
@@ -4524,7 +4825,7 @@ components:
 
     TransactionUpload:
       type: object
-      required: [rows]
+      required: [rows, bankAccountId]
       properties:
         rows:
           type: array
@@ -4537,7 +4838,10 @@ components:
             M16.2 — which bank account this statement belongs to. Scopes
             duplicate detection to the account and is the foundation for
             transfer-leg pairing. Validated against the tenant's own accounts.
-          type: ["integer", "null"]
+            🔴 REQUIRED since D-3 (2026-09-16): an accepted row's cash leg
+            posts to this bank's own GL account, and a row with no bank cannot
+            be accepted. A missing id is a 422 `bank_account_required`.
+          type: integer
 
     UploadResult:
       type: object
@@ -5589,7 +5893,7 @@ components:
 
     Invoice:
       type: object
-      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
       properties:
         id:
           type: integer
@@ -5618,6 +5922,9 @@ components:
           type: ["string", "null"]
         paidAmount:
           type: number
+        creditedAmount:
+          type: number
+          description: "D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount."
         paidAt:
           type: ["string", "null"]
         reviewNote:
@@ -6375,25 +6682,205 @@ components:
 
     Payment:
       type: object
-      required: [id, amount, paidAt, backfilled]
+      required: [id, amount, paidAt, backfilled, paymentId]
       properties:
-        id: { type: integer }
+        id: { type: integer, description: "The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`." }
         amount: { type: number }
         paidAt: { type: string }
         backfilled:
           type: boolean
           description: An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.
+        paymentId:
+          type: ["integer", "null"]
+          description: "D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row."
+
+    PaymentAllocationInput:
+      type: object
+      required: [invoiceId, amount]
+      properties:
+        invoiceId: { type: integer }
+        amount: { type: number, exclusiveMinimum: 0 }
+
+    ReceivePaymentInput:
+      type: object
+      required: [amount, bankAccountId]
+      properties:
+        customerId:
+          type: ["integer", "null"]
+          description: The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
+        amount: { type: number, exclusiveMinimum: 0 }
+        paidAt: { type: string, description: "YYYY-MM-DD; defaults to today (business date)." }
+        bankAccountId: { type: integer, description: "D-3 — which bank account the money arrived in; the cash line posts to its own GL account." }
+        method: { type: ["string", "null"], maxLength: 40 }
+        reference: { type: ["string", "null"], maxLength: 200 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120, description: Unique per company. The same key twice returns the first payment. }
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+          description: Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account.
+
+    AllocatePaymentInput:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    ApplyCreditNoteInput:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    AllocationReversal:
+      type: object
+      required: [id, journalEntryId, reason, createdAt]
+      properties:
+        id: { type: integer }
+        journalEntryId: { type: integer, description: "The correcting entry (UNALLOC-<id>): Dr AR / Cr the origin's liability." }
+        reason: { type: string }
+        createdAt: { type: string }
+
+    PaymentAllocation:
+      type: object
+      required: [id, invoiceId, amount, journalEntryId, createdAt, reversedBy]
+      properties:
+        id: { type: integer }
+        invoiceId: { type: integer }
+        amount: { type: number }
+        journalEntryId: { type: ["integer", "null"], description: "Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt's entry." }
+        createdAt: { type: string }
+        reversedBy:
+          oneOf:
+            - { $ref: "#/components/schemas/AllocationReversal" }
+            - { type: "null" }
+          description: "Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited."
+
+    PaymentAllocationDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PaymentAllocation" }
+        - type: object
+          required: [paymentId, creditNoteId]
+          properties:
+            paymentId: { type: ["integer", "null"] }
+            creditNoteId: { type: ["integer", "null"] }
+
+    UnallocateInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    RefundCustomerInput:
+      type: object
+      required: [customerId, origin, amount, bankAccountId, reason]
+      properties:
+        customerId: { type: integer }
+        origin: { type: string, enum: [deposit, credit_note] }
+        paymentId: { type: ["integer", "null"], description: "Required when origin is deposit: the receipt whose unapplied remainder is returned." }
+        creditNoteId: { type: ["integer", "null"], description: "Required when origin is credit_note: the issued note whose unconsumed balance is returned." }
+        amount: { type: number, exclusiveMinimum: 0 }
+        bankAccountId: { type: integer, description: "D-3 — the bank the refund is paid from." }
+        refundedAt: { type: string, description: "YYYY-MM-DD; defaults to today (business date). Period-controlled." }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        reference: { type: ["string", "null"], maxLength: 200 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    CustomerRefund:
+      type: object
+      required: [id, customerId, bankAccountId, origin, paymentId, creditNoteId, amount, refundedAt, reason, reference, journalEntryId, idempotencyKey, createdAt]
+      properties:
+        id: { type: integer }
+        customerId: { type: integer }
+        bankAccountId: { type: integer }
+        origin: { type: string, enum: [deposit, credit_note] }
+        paymentId: { type: ["integer", "null"] }
+        creditNoteId: { type: ["integer", "null"] }
+        amount: { type: number }
+        refundedAt: { type: string }
+        reason: { type: string }
+        reference: { type: ["string", "null"] }
+        journalEntryId: { type: integer }
+        idempotencyKey: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    CustomerPayment:
+      type: object
+      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, createdAt]
+      properties:
+        id: { type: integer }
+        direction: { type: string, enum: [in, out] }
+        customerId: { type: ["integer", "null"] }
+        bankAccountId: { type: integer }
+        amount: { type: number }
+        paidAt: { type: string }
+        method: { type: ["string", "null"] }
+        reference: { type: ["string", "null"] }
+        source: { type: string, enum: [manual, invoice_pay, settlement] }
+        idempotencyKey: { type: ["string", "null"] }
+        journalEntryId: { type: integer }
+        sourceTransactionId: { type: ["integer", "null"] }
+        allocatedAmount: { type: number, description: "Σ ACTIVE allocations (a corrected allocation no longer counts)." }
+        refundedAmount: { type: number, description: "Phase C — Σ deposit refunds paid out of this receipt." }
+        unappliedAmount: { type: number, description: "The customer's deposit still held from this receipt (amount − allocated − refunded)." }
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocation" }
+        createdAt: { type: string }
+
+    CreditNoteApplications:
+      type: object
+      required: [creditNoteId, invoiceNumber, total, appliedAmount, refundedAmount, remainingAmount, applications]
+      properties:
+        creditNoteId: { type: integer }
+        invoiceNumber: { type: string }
+        total: { type: number }
+        appliedAmount: { type: number, description: "Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected." }
+        refundedAmount: { type: number, description: "Phase C — Σ refunds paid out of this note's balance." }
+        remainingAmount: { type: number, description: "The customer's credit-note balance from this note (a liability, not AR): total − applied − refunded." }
+        applications:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocation" }
+
+    CustomerCredits:
+      type: object
+      required: [customerId, deposits, creditNotes]
+      properties:
+        customerId: { type: integer }
+        deposits: { type: number, description: "Σ unapplied over the customer's receipts — Customer deposits and advances." }
+        creditNotes: { type: number, description: "Σ unconsumed over the customer's issued credit notes — Customer credit balances." }
 
     PaymentInput:
       type: object
-      required: [amount]
+      required: [amount, bankAccountId]
       properties:
         amount:
           type: number
           exclusiveMinimum: 0
+        idempotencyKey:
+          type: ["string", "null"]
+          maxLength: 120
+          description: D-4 — unique per company; the same key twice records one payment.
         paidAt:
           type: string
           description: YYYY-MM-DD; defaults to today.
+        bankAccountId:
+          type: integer
+          description: >
+            D-3 (2026-09-16): WHICH bank account the money moved through. The
+            payment posts to that bank's own GL cash account — there is no
+            shared cash account and no default. Validated against the
+            tenant's own accounts; a missing or unknown id is a 422
+            (`bank_account_required` / `reference_not_found`). Recorded on
+            the payment row as its bank evidence.
 
     InvoiceLineInput:
       type: object

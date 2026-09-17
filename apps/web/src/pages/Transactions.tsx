@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import { 
   useListTransactions, 
   useListCategories, 
@@ -83,6 +84,17 @@ const PAGE_SIZE = 50;
   const txTotal = txList?.total ?? 0;
 
   const { data: categories } = useListCategories();
+  /**
+   * D-3 (2026-09-16): a row that names no bank account cannot be accepted or
+   * settled (its cash leg has no GL account to post to), and history imported
+   * before a bank was required sits on the "Cash and Bank" header until the
+   * cut-over can attribute it. The edit dialog lets the human record WHICH
+   * bank — settable once, while the row has none (the server refuses a change).
+   */
+  const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isActive: boolean }>>({
+    queryKey: ["bank-accounts"],
+    queryFn: () => apiFetch("/bank-accounts"),
+  });
 
   const updateMutation = useUpdateTransaction({
     mutation: {
@@ -102,11 +114,14 @@ const PAGE_SIZE = 50;
     if (!editTx) return;
     const formData = new FormData(e.currentTarget);
     const categoryId = formData.get("category_id") as string;
+    const bankAccountId = formData.get("bank_account_id") as string | null;
 
     updateMutation.mutate({
       id: editTx.id,
       data: {
         categoryId: categoryId ? Number(categoryId) : null,
+        // Sent only when the row had none and the human picked one.
+        ...(editTx.bankAccountId == null && bankAccountId ? { bankAccountId: Number(bankAccountId) } : {}),
       }
     });
   };
@@ -349,13 +364,33 @@ const PAGE_SIZE = 50;
                         row carries no customer or vendor — that movement is settled
                         against its invoice or bill from Review. The server refuses them
                         too (422 category_needs_party); this keeps the dead end off the screen. */}
-                    {categories?.filter(c => !(PARTY_REQUIRED_SYSTEM_CODES as readonly string[]).includes(c.systemCode ?? "")).map(c => (
+                    {/* D-3: a bank's own cash account is not a category either (the server
+                        refuses it too, 422 category_is_bank_account) — cash against cash is
+                        a transfer, declared as one. */}
+                    {categories?.filter(c => !(PARTY_REQUIRED_SYSTEM_CODES as readonly string[]).includes(c.systemCode ?? "") && c.bankAccountId == null && c.isPosting !== false).map(c => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">{t("This will mark the transaction as manually overridden.", "سيتم تحديد المعاملة كمعدّلة يدوياً.")}</p>
               </div>
+
+              {editTx.bankAccountId == null && (
+                <div className="space-y-3">
+                  <Label>{t("Bank account", "الحساب البنكي")}</Label>
+                  <Select name="bank_account_id">
+                    <SelectTrigger data-testid="edit-bank-account">
+                      <SelectValue placeholder={t("Which account did this movement go through?", "عبر أي حساب مرّت هذه الحركة؟")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.filter((b) => b.isActive).map((b) => (
+                        <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t("This row names no bank account, so its cash cannot be posted to a bank's ledger account. Record it once; it cannot be changed afterwards.", "لا يحدد هذا الصف حسابًا بنكيًا، فلا يمكن ترحيل نقده إلى حساب الأستاذ الخاص بالبنك. سجّله مرة واحدة؛ لا يمكن تغييره لاحقًا.")}</p>
+                </div>
+              )}
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditTx(null)}>{t("Cancel", "إلغاء")}</Button>

@@ -58,6 +58,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
+import { BankAccountRequiredError } from "../lib/errors";
 
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
@@ -90,7 +91,19 @@ function linesFor(tx: Tx, cat: Cat | null): GLLine[] {
         ? ({ accountName: cat.name, accountId: cat.id } as never)
         : ({ accountName: "Suspense (unclassified)", systemCode: "SUSPENSE" } as never);
 
-  const cash = { accountName: "Cash and Bank", systemCode: "CASH" as const };
+  // 🔴 D-3 (2026-09-16): the cash leg posts to THIS ROW'S bank account's own
+  // GL leaf. A row that names no bank cannot be accepted — there is no
+  // shared cash account and no default; the refusal is a structured 422 the
+  // acceptance path reports per row (like the period lock) so the human can
+  // set the bank and accept again.
+  if (tx.bankAccountId == null) {
+    throw new BankAccountRequiredError(
+      `Transaction ${tx.id} names no bank account, so its cash leg cannot be posted. Set the bank account on the row and accept it again.`,
+      "bankAccountId",
+      { transactionId: tx.id },
+    );
+  }
+  const cash = { bankAccountId: tx.bankAccountId };
 
   return tx.type === "debit"
     ? [

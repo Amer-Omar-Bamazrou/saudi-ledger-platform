@@ -27,6 +27,7 @@ const EMAIL = "b4-payments@test.local";
 describeMaybe("B4 — every payment keeps its date", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let vendorId = 0;
@@ -79,6 +80,8 @@ describeMaybe("B4 — every payment keeps its date", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','B4',' ','viewer',true) RETURNING id`,
@@ -106,8 +109,8 @@ describeMaybe("B4 — every payment keeps its date", () => {
       createApproved(invoicesService, { invoiceNumber: "B4-INV-1", date: "2026-07-01", customerId, items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] },
         userId),
     );
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: "2026-07-10" }, userId));
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 750, paidAt: "2026-08-02" }, userId));
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: "2026-07-10", bankAccountId: bankId }, userId));
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 750, paidAt: "2026-08-02", bankAccountId: bankId }, userId));
 
     const history = await inTenant(() => invoicesService.payments(inv.id));
     expect(history).toHaveLength(2);
@@ -132,8 +135,8 @@ describeMaybe("B4 — every payment keeps its date", () => {
       ),
     );
     await inTenant(() => billsService.approve(bill.id, {}, userId));
-    await inTenant(() => billsService.pay(bill.id, { amount: 100, paidAt: "2026-07-15" }, userId));
-    await inTenant(() => billsService.pay(bill.id, { amount: 130, paidAt: "2026-07-25" }, userId));
+    await inTenant(() => billsService.pay(bill.id, { amount: 100, paidAt: "2026-07-15", bankAccountId: bankId }, userId));
+    await inTenant(() => billsService.pay(bill.id, { amount: 130, paidAt: "2026-07-25", bankAccountId: bankId }, userId));
 
     const history = await inTenant(() => billsService.payments(bill.id));
     expect(history).toHaveLength(2);
@@ -151,6 +154,7 @@ describeMaybe("B4 — every payment keeps its date", () => {
       transactionsService.upload({
         rows: [{ date: "2026-07-20", description: "INCOMING B4-INV-2", amount: 115, currency: "SAR", type: "credit" }],
         autoCategrize: false,
+        bankAccountId: bankId,
       } as never),
     );
     const { rows: [txRow] } = await pool.query(

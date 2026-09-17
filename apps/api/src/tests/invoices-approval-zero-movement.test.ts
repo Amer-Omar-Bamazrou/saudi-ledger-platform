@@ -31,6 +31,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
   let orgId = "";
   let companyId = "";
   let userId = 0;
+  let bankId = 0;
   let customerId = 0;
 
   const DATE = "2026-06-15";
@@ -60,6 +61,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await pool.query(`DELETE FROM bank_accounts WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM customers WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
@@ -72,6 +74,8 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
     await pool.query(`DELETE FROM organizations WHERE slug = 'inv-appr'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('INV-APPR Org','inv-appr') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'INV-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: every payment names the bank it moved through.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'INV-APPR Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('inv-approval@test.local','Inv Approver',' ','admin',true) RETURNING id`,
@@ -131,7 +135,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
   });
 
   it("a draft invoice is NOT payable (must be approved first)", async () => {
-    await expect(inTenant(() => invoicesService.pay(invId, { amount: TOTAL }, userId))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(inTenant(() => invoicesService.pay(invId, { amount: TOTAL, bankAccountId: bankId }, userId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("RESUBMIT then APPROVE issues the invoice: AR posted + ZATCA hash/QR minted", async () => {
@@ -163,7 +167,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
   });
 
   it("pay with a valid amount settles the invoice", async () => {
-    const paid = await inTenant(() => invoicesService.pay(invId, { amount: TOTAL }, userId));
+    const paid = await inTenant(() => invoicesService.pay(invId, { amount: TOTAL, bankAccountId: bankId }, userId));
     expect(paid.status).toBe("paid");
   });
 

@@ -42,5 +42,11 @@ export const DEFAULT_VAT_RATE = 15;
  * from Review), and the web picker does not offer them. Before this the
  * set lived only inside `glPosting.ts`, so the picker offered Accounts
  * Receivable for "CUSTOMER DEPOSIT — NAJD" and the save was a 500.
+ *
+ * D-4 (2026-09-17): the two customer-credit liabilities join the set. A
+ * deposit is a deposit FROM someone and a credit balance is owed TO someone
+ * — a party-less line on either would be a balance nobody can apply or
+ * refund. Which of the two an amount lands on is decided in ONE place,
+ * `services/accounting/customerCreditPolicy.ts`, never at a call site.
  */
-export const PARTY_REQUIRED_SYSTEM_CODES = ["AR", "AP"] as const;
+export const PARTY_REQUIRED_SYSTEM_CODES = ["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"] as const;

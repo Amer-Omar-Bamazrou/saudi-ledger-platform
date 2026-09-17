@@ -63,7 +63,7 @@ T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten day
 🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
 to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
-**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"). **THE PRE-PILOT SANITY WALK** CLOSED (same file; findings file, "THE NIGHT WINDOW" — the business-date seam).
+**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"). **THE PRE-PILOT SANITY WALK** CLOSED (same file; findings file, "THE NIGHT WINDOW" — the business-date seam). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A, uncommitted); the cut-over is NOT run** — record [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); open item in §5.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -90,11 +90,6 @@ services ✅ → **the write paths** (next).
 
 **Live owner actions** (entity → advisor → Groq → receipts):
 [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the single writer for their state; do not restate it here.
-
-🔴 **Three DEPLOYMENT-time items cannot be closed from code:** the real proxy
-count for `TRUST_PROXY_HOPS`, a clamd sidecar for `MALWARE_SCANNER`, and B1/B2's
-provider wiring (a mail provider, and a webhook pointed somewhere real). An
-unwired alarm is the thing B2 exists to prevent.
 
 ### 🔴 What is verified LIVE vs only LOCALLY (ZATCA)
 
@@ -424,6 +419,13 @@ doing the thing it governs rather than only once you know its name.
 - **Accepting the match IS the review** (M16 principle): one user act both
   accepts a held row and records its effect. A second nested confirmation of
   the same fact is a design defect, not extra safety.
+- **🔴 A CASH LINE NAMES A BANK ACCOUNT (D-3).** One GL cash account per
+  bank (`categories.bank_account_id`, trigger-created, protected); `CASH` is
+  a NON-POSTING header. Every cash path FAILS CLOSED without a bank (422
+  `bank_account_required`) — never a default, never one-bank-only inference
+  (server OR UI). Pre-D-3 history is ANNOTATED, never rewritten; "which
+  bank" is answered ONLY by the view `journal_line_bank_identity`. Record:
+  [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md).
 
 ### ZATCA operating rules
 
@@ -492,8 +494,6 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq. Owner sequence
 accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
-(The decision-free pool — eight items — CLOSED 2026-09-14; record: known-issues
-file, "the decision-free pool".)
 🔴 **Four ERPNext findings await the OWNER'S RANKING** — withholding tax and
 advance payments (LEGAL exposures), fixed-assets GL (wrong statements today),
 migration onboarding (blocks any customer with history) — costed in
@@ -507,7 +507,7 @@ triage addendum; invisible to planning until placed.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT", "L1 LOGO UPLOAD"; [`design-invoice-document.md`](docs/product/design-invoice-document.md) is the single writer). | **Remaining**: "send", once B1's mail provider is wired — a PROVIDER wait. |
+| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -561,19 +561,17 @@ needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
-by `scripts/arabic-sweep.mjs`, whose count is believed only after a HELD-OUT
-round (files it was never tuned on, hand-read in full — §3: an instrument
-validated on its tuning set reports its fit, not its error). Measured
-2026-09-15 (frame: 105 files): **30 sites
-of untranslated user-facing English remain, UNFIXED** (fix proposed, not
-done); the final instrument's held-out evidence is one round, one true
-positive — thin. Every widening needs a fresh hold-out; re-run before launch.
-Record: findings file, "THE HELD-OUT VALIDATION".
+Arabic is a **launch requirement**; coverage is MEASURED by
+`scripts/arabic-sweep.mjs` and believed only after a HELD-OUT round (§3).
+Measured 2026-09-15 (frame: 105 files): **30 sites of untranslated
+user-facing English remain, UNFIXED**; the held-out evidence is one round —
+thin. Re-run with a fresh hold-out before launch. Record: findings file,
+"THE HELD-OUT VALIDATION".
 
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
+- 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
 - 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. A GCC tenant outside KSA gets Riyadh's day. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
@@ -590,21 +588,18 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
 seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAPS, AUDITED").
 
-🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
-known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind
-repository list in `tests/cross-company-isolation.test.ts` (12, on the
-row-level backstop) is pinned and can only SHRINK.
+🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
+file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind
+repository list in `tests/cross-company-isolation.test.ts` (12) is pinned
+and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 
 🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20;
-`tests/hand-written-interface-ratchet.test.ts` keeps the generator closed).**
-Standing rules: 🔴 **a leave and a join in one milestone is the
-generator running — stop, do not net**; **a `type` alias satisfying the
-detector is the ratchet GAMED** (a file leaves by consuming the generated type,
-never by rephrasing); 🔴 **the 20 pinned files are a STOP, not a backlog**
-(owner, 2026-09-02 — no tenant money; burning them down would make the COUNT
-the goal). Inventory: findings file, "THE STOP". TanStack is unblocked.
+the ratchet test keeps the generator closed).** Rules: a leave and a join in
+one milestone is the generator running — stop, do not net; a `type` alias
+satisfying the detector is the ratchet GAMED; the 20 pinned files are a
+STOP, not a backlog (owner). Inventory: findings file, "THE STOP".
 
 ## 6. Tech Stack
 

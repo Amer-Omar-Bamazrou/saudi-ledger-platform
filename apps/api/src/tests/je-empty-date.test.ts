@@ -65,7 +65,7 @@ describeMaybe("journal entry date — required at the write boundary", () => {
     ).rows[0].id;
     const acc = async (type: string, notIn: string) =>
       (await pool.query(
-        `SELECT id FROM categories WHERE organization_id = $1 AND type = $2 AND system_code NOT IN (${notIn}) LIMIT 1`,
+        `SELECT id FROM categories WHERE organization_id = $1 AND type = $2 AND system_code NOT IN (${notIn}) AND is_posting LIMIT 1`,
         [orgId, type],
       )).rows[0].id;
     expenseId = await acc("expense", "'AR','AP'");

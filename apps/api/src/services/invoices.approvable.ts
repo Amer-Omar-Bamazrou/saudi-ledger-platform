@@ -27,6 +27,9 @@ import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
+import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
+import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME } from "./accounting/customerCreditPolicy";
+import { round2 } from "../lib/money";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { BusinessRuleError } from "../lib/errors";
@@ -218,25 +221,68 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   if (total > 0) {
     const isCredit = inv.documentType === "credit_note";
     const label = DOCUMENT_LABEL[inv.documentType] ?? "Invoice";
+    const party = inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" };
 
-    await postJournalEntry({
-      entryNumber: `GL-${inv.invoiceNumber}`,
-      date: inv.date,
-      description: `${label} ${inv.invoiceNumber}`,
-      reference: inv.invoiceNumber,
-      lines: isCredit
-        ? [
-            // Reversed: the receivable falls, revenue and output VAT are undone.
-            { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
-            { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
-            { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: total, party: inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" } },
-          ]
-        : [
-            { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0, party: inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" } },
-            { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
-            { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
-          ],
-    });
+    if (isCredit) {
+      /**
+       * 🔴 D-4 (2026-09-17): a credit note SETTLES its original up to what the
+       * original still owes, and what is left over is a LIABILITY, not a
+       * negative receivable (batch-1b decision pack §1.2, Model C):
+       *
+       *   applied = min(note total, original's outstanding)  → Cr AR(customer)
+       *   excess  = note total − applied                    → Cr Customer credit balances(customer)
+       *
+       * The original is locked for the arithmetic; the applied part is recorded
+       * as an allocation (source = this note → original) so `credited_amount`
+       * and Σ allocations agree from the first day. The excess needs a
+       * customer to be owed to — a simplified/B2C original with no identified
+       * customer cannot carry a credit balance, so that case is refused
+       * before anything posts (fail closed; the note stays approvable once the
+       * customer is identified or the note is sized to the open balance).
+       */
+      const [original] = await invoiceSettlementRepository.lockInvoices([inv.originalInvoiceId!]);
+      if (!original) throw new BusinessRuleError(409, { code: "note_original_not_found", error: `The invoice this credit note corrects no longer exists.` });
+      const originalOutstanding = Math.max(0, round2(toNum(original.total) - toNum(original.paidAmount) - toNum(original.creditedAmount)));
+      const applied = round2(Math.min(total, originalOutstanding));
+      const excess = round2(total - applied);
+      if (excess > 0 && inv.customerId == null) {
+        throw new BusinessRuleError(422, {
+          code: "credit_note_excess_unidentified_customer",
+          error:
+            `Credit note ${inv.invoiceNumber} is ${total.toFixed(2)} but invoice ${original.invoiceNumber} only has ${originalOutstanding.toFixed(2)} outstanding, ` +
+            `and the invoice names no customer to owe the remaining ${excess.toFixed(2)} to. Identify the customer, or size the note to the open balance.`,
+          field: "total",
+        });
+      }
+      const lines = [
+        // Reversed: revenue and output VAT are undone in full — that is the tax document's effect.
+        { systemCode: "SALES" as const, accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
+        { systemCode: "VAT_OUTPUT" as const, accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+      ] as Parameters<typeof postJournalEntry>[0]["lines"];
+      if (applied > 0) {
+        lines.push({ systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber} against ${original.invoiceNumber}`, debitAmount: 0, creditAmount: applied, party });
+      }
+      if (excess > 0) {
+        lines.push({ systemCode: CUSTOMER_CREDIT_ACCOUNT.credit_note, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.credit_note, description: `${label} ${inv.invoiceNumber} — balance owed to the customer`, debitAmount: 0, creditAmount: excess, party });
+      }
+      const je = await postJournalEntry({ entryNumber: `GL-${inv.invoiceNumber}`, date: inv.date, description: `${label} ${inv.invoiceNumber}`, reference: inv.invoiceNumber, lines });
+      if (applied > 0) {
+        await paymentsRepository.insertAllocation({ creditNoteId: inv.id, invoiceId: original.id, amount: applied.toFixed(2), journalEntryId: je.id, createdBy: null });
+        await invoiceSettlementRepository.bumpSettled(original.id, { credited: applied });
+      }
+    } else {
+      await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `${label} ${inv.invoiceNumber}`,
+        reference: inv.invoiceNumber,
+        lines: [
+          { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0, party },
+          { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
+          { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
+        ],
+      });
+    }
   }
 
   return buildInvoiceOut(updated, row.cust);

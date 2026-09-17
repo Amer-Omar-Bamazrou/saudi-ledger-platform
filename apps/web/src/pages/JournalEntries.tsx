@@ -162,7 +162,10 @@ export default function JournalEntries() {
                       <td className="pe-2 py-1">
                         <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null}:ln));}}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
-                          <SelectContent>{categories.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                          {/* D-3: a header account ("Cash and Bank") accepts no line — each bank's own
+                              cash account is offered instead. The server refuses a header too
+                              (422 account_not_posting); this keeps the dead end off the screen. */}
+                          <SelectContent>{categories.filter((c) => c.isPosting !== false).map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
                         {/* N3 — a control-account line names its party; the picker appears exactly when the rule applies. */}
                         {systemCodeOf(l.accountId) === "AR" && (

@@ -30,6 +30,7 @@ const SLUG = "ai6a-ask";
 describeMaybe("AI-6a — grounded answers", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
@@ -51,6 +52,7 @@ describeMaybe("AI-6a — grounded answers", () => {
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -64,6 +66,8 @@ describeMaybe("AI-6a — grounded answers", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
   });
 
   afterAll(cleanup);
@@ -153,9 +157,9 @@ describeMaybe("AI-6a — grounded answers", () => {
     // An accepted, undeclared transfer posts to Transfers awaiting
     // declaration (A) — exactly the blocked-cash state the hub withholds on.
     const { rows } = await pool.query(
-      `INSERT INTO transactions (organization_id, company_id, date, description, amount, type, kind, review_status)
-       VALUES ($1,$2,'2026-08-01','ASK MYSTERY TRANSFER','5000.00','debit','transfer','accepted') RETURNING id`,
-      [orgId, companyId],
+      `INSERT INTO transactions (organization_id, company_id, date, description, amount, type, kind, review_status, bank_account_id)
+       VALUES ($1,$2,'2026-08-01','ASK MYSTERY TRANSFER','5000.00','debit','transfer','accepted',$3) RETURNING id`,
+      [orgId, companyId, bankId],
     );
     await inTenant(() => transactionPostingService.postMany([Number(rows[0].id)]));
 

@@ -1,8 +1,9 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, varchar, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, varchar, index, uniqueIndex, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
+import { bankAccountsTable } from "./bankAccounts";
 
 export const categoriesTable = pgTable(
   "categories",
@@ -103,11 +104,44 @@ export const categoriesTable = pgTable(
      * a control signal rather than silently defaulting them.
      */
     liquidityClass: varchar("liquidity_class", { length: 20 }),
+    /**
+     * 🔴 D-3 / G3 (2026-09-16) — THE MINIMUM HIERARCHY: a bank cash leaf under
+     * the "Cash and cash equivalents" header. `parent_id` exists for exactly
+     * that relationship today; it is NOT a general chart-of-accounts tree
+     * (no depth, no roll-up API, no user-managed parents — recorded as an
+     * architectural limitation in docs/product/design-per-bank-cash.md).
+     * Immutable on system rows (trigger `protect_system_categories`).
+     */
+    parentId: integer("parent_id").references((): AnyPgColumn => categoriesTable.id, { onDelete: "restrict" }),
+    /**
+     * 🔴 D-3: THE EXPLICIT bank-account → GL-account relationship. One leaf per
+     * application bank account (unique), created by the DB trigger
+     * `ensure_bank_gl_account` on `bank_accounts` INSERT — so the relationship
+     * is a property of construction, not of whichever writer remembered it.
+     * Never resolved by name: renaming the bank renames the leaf, and the
+     * posting seam resolves a cash line by this column alone. Immutable once
+     * set; the leaf goes with its bank (ON DELETE CASCADE), and only then —
+     * the protection trigger refuses a direct delete, and the lines FK
+     * (RESTRICT) refuses the cascade while history references the leaf.
+     */
+    bankAccountId: integer("bank_account_id").references(() => bankAccountsTable.id, { onDelete: "cascade" }),
+    /**
+     * 🔴 D-3: a NON-POSTING account is a header — `CASH` ("Cash and Bank")
+     * since migration 0073. No new line may name it: the seam refuses it on
+     * both arms, the manual-JE service refuses it with a 422, and the DB
+     * trigger `refuse_non_posting_account_line` refuses every other writer.
+     * The one permitted exception is a REVERSAL mirror of a historical header
+     * line (`journal_entries.reversal_of IS NOT NULL`) — a mirror must name
+     * the account it cancels. Immutable on system rows.
+     */
+    isPosting: boolean("is_posting").notNull().default(true),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     index("categories_org_idx").on(t.organizationId),
+    // D-3: one GL leaf per bank account, and one bank account per leaf.
+    uniqueIndex("categories_bank_account_unq").on(t.bankAccountId),
     // One account per code per org — this is what makes `seedChartOfAccounts`
     // idempotent and safe to run concurrently, including from the migration
     // that back-fills every pre-M13 organization.

@@ -55,6 +55,7 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     approved: "", pending: "", needsInfo: "", rejected: "",
   };
   let approvedCompanyId = "";
+  let approvedBankId = 0;
 
   const cleanup = async () => {
     const orgFilter = `(SELECT id FROM organizations WHERE slug LIKE 'vgate-%')`;
@@ -67,6 +68,7 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${orgFilter}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${userFilter}`);
     await pool.query(`DELETE FROM users WHERE email LIKE 'vgate-test-%'`);
@@ -105,6 +107,11 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     approvedCompanyId = (await pool.query(
       `INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'Gate Co','1010101010','399999999999993') RETURNING id`,
       [org.approved],
+    )).rows[0].id;
+    // D-3: a manual row names the bank its cash leg posts to.
+    approvedBankId = (await pool.query(
+      `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Gate Bank','ANB') RETURNING id`,
+      [org.approved, approvedCompanyId],
     )).rows[0].id;
   });
 
@@ -177,7 +184,7 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
 
     const login = () => api("POST", "/auth/login", { email: "vgate-test-user@test.local", password: PASSWORD });
     const switchOrg = (organizationId: string) => api("POST", "/orgs/switch", { organizationId });
-    const txBody = (description: string) => ({ date: "2026-03-01", description, amount: 250, currency: "SAR", type: "debit" });
+    const txBody = (description: string) => ({ date: "2026-03-01", description, amount: 250, currency: "SAR", type: "debit", bankAccountId: approvedBankId });
 
     async function orgRowCounts(orgId: string): Promise<Record<string, number>> {
       const out: Record<string, number> = {};

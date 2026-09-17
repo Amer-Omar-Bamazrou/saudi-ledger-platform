@@ -29,6 +29,7 @@ const AS_OF = "2026-12-31";
 describeMaybe("M18.3 — the liquidity block", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let entryNo = 0;
 
@@ -44,6 +45,12 @@ describeMaybe("M18.3 — the liquidity block", () => {
       await conn.rollback();
       throw err;
     }
+  }
+
+  /** D-3: the postable cash account is the fixture bank's own GL leaf. */
+  async function cashLeaf(): Promise<number> {
+    const { rows } = await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bankId]);
+    return Number(rows[0].id);
   }
 
   async function acct(code: string): Promise<number> {
@@ -85,6 +92,7 @@ describeMaybe("M18.3 — the liquidity block", () => {
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -98,6 +106,8 @@ describeMaybe("M18.3 — the liquidity block", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','LH',' ','viewer',true) RETURNING id`,
@@ -116,7 +126,7 @@ describeMaybe("M18.3 — the liquidity block", () => {
     //   current liabs  = 50,000 AP + 50,000 LOANS             = 100,000
     //     (LOANS counts as current by the owner's deliberately conservative
     //      decision — design §3.2 — which is what makes it 100,000 not 50,000)
-    await post(await acct("CASH"), await acct("AP"), 40000);
+    await post(await cashLeaf(), await acct("AP"), 40000);
     await post(await acct("INVENTORY"), await acct("AP"), 10000);
     await post(await acct("FIXED_ASSETS"), await acct("LOANS"), 50000);
   });
@@ -152,7 +162,7 @@ describeMaybe("M18.3 — the liquidity block", () => {
     // cannot justify. Suspense is typed `asset`, so without this it would count
     // toward "money you can pay with" and a MESSIER import would produce a
     // BETTER-looking ratio.
-    await post(await acct("SUSPENSE"), await acct("CASH"), 1);
+    await post(await acct("SUSPENSE"), await cashLeaf(), 1);
 
     const l = await inTenant(() => financeHubService.liquidity(AS_OF));
     expect(l.claimable).toBe(false);
@@ -172,7 +182,7 @@ describeMaybe("M18.3 — the liquidity block", () => {
        VALUES ($1,'Unclassified Deposit','وديعة','asset',false) RETURNING id`,
       [orgId],
     );
-    await post(Number(rows[0].id), await acct("CASH"), 750);
+    await post(Number(rows[0].id), await cashLeaf(), 750);
 
     const l = await inTenant(() => financeHubService.liquidity(AS_OF));
     expect(l.claimable).toBe(false);
