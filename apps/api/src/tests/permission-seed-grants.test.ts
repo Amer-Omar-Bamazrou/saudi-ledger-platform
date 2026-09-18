@@ -161,6 +161,11 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
     // Not a readable resource at all: `categorize` is an ACTION endpoint
     // (create only). There is nothing to GET.
     categorize: "action endpoint, create-only — there is no read route",
+    // Batch 1C (2026-09-18): the migration of an existing business is an
+    // admin act with accountant review (decision pack §15, "who may run it").
+    // Its staging holds the old system's full chart and every open item —
+    // not ordinary reading for a bookkeeper or viewer.
+    migration: "admin runs it, accountant reviews it — bookkeeper/viewer do not read the staging",
   };
 
   it("🔴 every guarded resource is readable by every role, or is a NAMED exception", () => {

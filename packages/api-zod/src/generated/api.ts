@@ -6033,6 +6033,323 @@ export const ListCreditNoteApplicationsResponse = zod.object({
 
 
 /**
+ * @summary Batch 1C — this company's migration batches, newest first
+ */
+export const ListMigrationBatchesResponseItem = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMigrationBatchesResponse = zod.array(ListMigrationBatchesResponseItem)
+
+
+/**
+ * @summary Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1
+ */
+export const createMigrationBatchBodySourceSystemMax = 80;
+
+export const createMigrationBatchBodySourceVersionMax = 80;
+
+export const createMigrationBatchBodyNotesMax = 2000;
+
+export const createMigrationBatchBodyIdempotencyKeyMax = 120;
+
+
+
+export const CreateMigrationBatchBody = zod.object({
+  "sourceSystem": zod.string().min(1).max(createMigrationBatchBodySourceSystemMax).describe('The previous system, as named by the operator (\"PreviousERP\", \"Excel\", \"Qoyod export\").'),
+  "sourceVersion": zod.string().max(createMigrationBatchBodySourceVersionMax).nullish(),
+  "cutoverDate": zod.string().describe('YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen.'),
+  "notes": zod.string().max(createMigrationBatchBodyNotesMax).nullish(),
+  "idempotencyKey": zod.string().max(createMigrationBatchBodyIdempotencyKeyMax).nullish()
+})
+
+export const CreateMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary One batch with its staging counts, validation and reconciliation
+ */
+export const GetMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "counts": zod.object({
+  "chartRows": zod.number(),
+  "chartRowsUnmapped": zod.number(),
+  "parties": zod.number(),
+  "openItems": zod.number(),
+  "advances": zod.number()
+}),
+  "validation": zod.unknown().describe('The last validation run, or null.'),
+  "reconciliation": zod.unknown().describe('R1–R10 as computed at commit, or null.')
+}))
+
+
+/**
+ * @summary Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)
+ */
+export const DiscardMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DiscardMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary
+ */
+export const GetMigrationChartParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationChartResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "mapped": zod.number(),
+  "unmapped": zod.number(),
+  "blocked": zod.number().describe('Rows with at least one problem.'),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean().describe('Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented.'),
+  "byDecision": zod.record(zod.string(), zod.number())
+})
+})
+
+
+/**
+ * Every row keeps the old code, name, type, parent and Dr/Cr balance verbatim. A row's TYPE must be one of asset / liability / equity / income / expense as the file states it — nothing is guessed from a name. Duplicate codes in one file are refused. Replacing the chart resets every mapping decision.
+ * @summary Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed.
+ */
+export const ImportMigrationChartParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationChartBodyRowsItemSourceCodeMax = 64;
+
+export const importMigrationChartBodyRowsItemSourceNameMax = 200;
+
+export const importMigrationChartBodyRowsItemSourceNameArMax = 200;
+
+export const importMigrationChartBodyRowsItemSourceParentCodeMax = 64;
+
+export const importMigrationChartBodyRowsItemSourceIsGroupDefault = false;
+export const importMigrationChartBodyRowsItemOpeningDebitDefault = 0;
+export const importMigrationChartBodyRowsItemOpeningDebitMin = 0;
+
+export const importMigrationChartBodyRowsItemOpeningCreditDefault = 0;
+export const importMigrationChartBodyRowsItemOpeningCreditMin = 0;
+
+export const importMigrationChartBodyRowsItemEvidenceNoteMax = 500;
+
+export const importMigrationChartBodyRowsMax = 5000;
+
+
+
+export const ImportMigrationChartBody = zod.object({
+  "rows": zod.array(zod.object({
+  "sourceCode": zod.string().min(1).max(importMigrationChartBodyRowsItemSourceCodeMax),
+  "sourceName": zod.string().min(1).max(importMigrationChartBodyRowsItemSourceNameMax),
+  "sourceNameAr": zod.string().max(importMigrationChartBodyRowsItemSourceNameArMax).nullish(),
+  "sourceParentCode": zod.string().max(importMigrationChartBodyRowsItemSourceParentCodeMax).nullish(),
+  "sourceType": zod.enum(['asset', 'liability', 'equity', 'income', 'expense']).describe('As the file states it. Nothing is inferred from a name.'),
+  "sourceIsGroup": zod.boolean().default(importMigrationChartBodyRowsItemSourceIsGroupDefault),
+  "openingDebit": zod.number().min(importMigrationChartBodyRowsItemOpeningDebitMin).default(importMigrationChartBodyRowsItemOpeningDebitDefault),
+  "openingCredit": zod.number().min(importMigrationChartBodyRowsItemOpeningCreditMin).default(importMigrationChartBodyRowsItemOpeningCreditDefault),
+  "sourceRole": zod.union([zod.literal('receivable'),zod.literal('payable'),zod.literal('bank'),zod.literal('cash'),zod.literal('vat_output'),zod.literal('vat_input'),zod.literal('retained_earnings'),zod.literal('customer_deposits'),zod.literal(null)]).nullish().describe('A ROLE HINT the file carries (the old system\'s account type). Drives the deterministic suggestion; never a name match.'),
+  "evidenceNote": zod.string().max(importMigrationChartBodyRowsItemEvidenceNoteMax).nullish()
+})).min(1).max(importMigrationChartBodyRowsMax)
+})
+
+export const ImportMigrationChartResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "mapped": zod.number(),
+  "unmapped": zod.number(),
+  "blocked": zod.number().describe('Rows with at least one problem.'),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean().describe('Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented.'),
+  "byDecision": zod.record(zod.string(), zod.number())
+})
+})
+
+
+/**
+ * Refused: mapping to OPENING_BALANCE_EQUITY or to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
+ * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
+ */
+export const DecideMigrationChartRowParams = zod.object({
+  "id": zod.coerce.number(),
+  "rowId": zod.coerce.number()
+})
+
+export const decideMigrationChartRowBodySkipReasonMax = 500;
+
+
+
+export const DecideMigrationChartRowBody = zod.object({
+  "decision": zod.enum(['map_to_system', 'map_to_bank', 'create', 'merge_into', 'skip']),
+  "targetSystemCode": zod.string().nullish().describe('map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused.'),
+  "targetBankAccountId": zod.number().nullish().describe('map_to_bank: this company\'s bank account; the balance lands on its D-3 leaf.'),
+  "targetCategoryId": zod.number().nullish().describe('merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional).'),
+  "skipReason": zod.string().max(decideMigrationChartRowBodySkipReasonMax).nullish().describe('skip: required; only a zero-balance row may be skipped.')
+})
+
+export const DecideMigrationChartRowResponse = zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})
+
+
+/**
  * @summary Record a payment against an issued invoice
  */
 export const PayInvoiceParams = zod.object({

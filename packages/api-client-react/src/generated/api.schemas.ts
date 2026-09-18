@@ -4050,6 +4050,297 @@ export interface UpdateBudgetInput {
   notes?: string | null;
 }
 
+export interface CreateMigrationBatchInput {
+  /**
+     * The previous system, as named by the operator ("PreviousERP", "Excel", "Qoyod export").
+     * @minLength 1
+     * @maxLength 80
+     */
+  sourceSystem: string;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  sourceVersion?: string | null;
+  /** YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen. */
+  cutoverDate: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type MigrationBatchStatus = typeof MigrationBatchStatus[keyof typeof MigrationBatchStatus];
+
+
+export const MigrationBatchStatus = {
+  draft: 'draft',
+  validated: 'validated',
+  committed: 'committed',
+  reversed: 'reversed',
+  discarded: 'discarded',
+} as const;
+
+export interface MigrationBatch {
+  id: number;
+  status: MigrationBatchStatus;
+  sourceSystem: string;
+  /** @nullable */
+  sourceVersion: string | null;
+  cutoverDate: string;
+  /** cutover − 1 by definition. */
+  openingDate: string;
+  /** @nullable */
+  notes: string | null;
+  /**
+     * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
+     * @nullable
+     */
+  contentHash: string | null;
+  /** @nullable */
+  openingJournalEntryId: number | null;
+  /**
+     * The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic.
+     * @nullable
+     */
+  clearingJournalEntryId: number | null;
+  /** @nullable */
+  reversalJournalEntryId: number | null;
+  /** @nullable */
+  createdBy: number | null;
+  /** @nullable */
+  validatedAt: string | null;
+  /** @nullable */
+  committedBy: number | null;
+  /** @nullable */
+  committedAt: string | null;
+  /** @nullable */
+  reversedAt: string | null;
+  /** @nullable */
+  reversalReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MigrationBatchDetailCounts = {
+  chartRows: number;
+  chartRowsUnmapped: number;
+  parties: number;
+  openItems: number;
+  advances: number;
+};
+
+export type MigrationBatchDetail = MigrationBatch & {
+  counts: MigrationBatchDetailCounts;
+  /** The last validation run, or null. */
+  validation: unknown;
+  /** R1–R10 as computed at commit, or null. */
+  reconciliation: unknown;
+};
+
+/**
+ * As the file states it. Nothing is inferred from a name.
+ */
+export type MigrationChartRowInputSourceType = typeof MigrationChartRowInputSourceType[keyof typeof MigrationChartRowInputSourceType];
+
+
+export const MigrationChartRowInputSourceType = {
+  asset: 'asset',
+  liability: 'liability',
+  equity: 'equity',
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+/**
+ * A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match.
+ * @nullable
+ */
+export type MigrationChartRowInputSourceRole = typeof MigrationChartRowInputSourceRole[keyof typeof MigrationChartRowInputSourceRole] | null;
+
+
+export const MigrationChartRowInputSourceRole = {
+  receivable: 'receivable',
+  payable: 'payable',
+  bank: 'bank',
+  cash: 'cash',
+  vat_output: 'vat_output',
+  vat_input: 'vat_input',
+  retained_earnings: 'retained_earnings',
+  customer_deposits: 'customer_deposits',
+} as const;
+
+export interface MigrationChartRowInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  sourceCode: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  sourceName: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceNameAr?: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  sourceParentCode?: string | null;
+  /** As the file states it. Nothing is inferred from a name. */
+  sourceType: MigrationChartRowInputSourceType;
+  sourceIsGroup?: boolean;
+  /** @minimum 0 */
+  openingDebit?: number;
+  /** @minimum 0 */
+  openingCredit?: number;
+  /**
+     * A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match.
+     * @nullable
+     */
+  sourceRole?: MigrationChartRowInputSourceRole;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  evidenceNote?: string | null;
+}
+
+export interface ImportMigrationChartInput {
+  /**
+     * @minItems 1
+     * @maxItems 5000
+     */
+  rows: MigrationChartRowInput[];
+}
+
+/**
+ * @nullable
+ */
+export type MigrationChartRowDecision = typeof MigrationChartRowDecision[keyof typeof MigrationChartRowDecision] | null;
+
+
+export const MigrationChartRowDecision = {
+  map_to_system: 'map_to_system',
+  map_to_bank: 'map_to_bank',
+  create: 'create',
+  merge_into: 'merge_into',
+  skip: 'skip',
+} as const;
+
+/**
+ * The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.
+ */
+export type MigrationChartRowSuggestion = {
+  decision: string;
+  /** @nullable */
+  targetSystemCode: string | null;
+} | null;
+
+export interface MigrationChartRow {
+  id: number;
+  sourceCode: string;
+  sourceName: string;
+  /** @nullable */
+  sourceNameAr: string | null;
+  /** @nullable */
+  sourceParentCode: string | null;
+  sourceType: string;
+  sourceIsGroup: boolean;
+  openingDebit: number;
+  openingCredit: number;
+  /** @nullable */
+  sourceRole: string | null;
+  /** @nullable */
+  evidenceNote: string | null;
+  /** @nullable */
+  decision: MigrationChartRowDecision;
+  /** @nullable */
+  targetSystemCode: string | null;
+  /** @nullable */
+  targetBankAccountId: number | null;
+  /** @nullable */
+  targetCategoryId: number | null;
+  /** @nullable */
+  skipReason: string | null;
+  /**
+     * After commit: the category the balance was posted to.
+     * @nullable
+     */
+  resolvedCategoryId: number | null;
+  /** The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides. */
+  suggestion: MigrationChartRowSuggestion;
+  /** What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…). */
+  problems: string[];
+}
+
+export type MigrationChartDecisionInputDecision = typeof MigrationChartDecisionInputDecision[keyof typeof MigrationChartDecisionInputDecision];
+
+
+export const MigrationChartDecisionInputDecision = {
+  map_to_system: 'map_to_system',
+  map_to_bank: 'map_to_bank',
+  create: 'create',
+  merge_into: 'merge_into',
+  skip: 'skip',
+} as const;
+
+export interface MigrationChartDecisionInput {
+  decision: MigrationChartDecisionInputDecision;
+  /**
+     * map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused.
+     * @nullable
+     */
+  targetSystemCode?: string | null;
+  /**
+     * map_to_bank: this company's bank account; the balance lands on its D-3 leaf.
+     * @nullable
+     */
+  targetBankAccountId?: number | null;
+  /**
+     * merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional).
+     * @nullable
+     */
+  targetCategoryId?: number | null;
+  /**
+     * skip: required; only a zero-balance row may be skipped.
+     * @maxLength 500
+     * @nullable
+     */
+  skipReason?: string | null;
+}
+
+export type MigrationChartSummaryByDecision = {[key: string]: number};
+
+export type MigrationChartSummary = {
+  rows: number;
+  mapped: number;
+  unmapped: number;
+  /** Rows with at least one problem. */
+  blocked: number;
+  totalDebit: number;
+  totalCredit: number;
+  /** Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented. */
+  balanced: boolean;
+  byDecision: MigrationChartSummaryByDecision;
+};
+
+export interface MigrationChart {
+  batchId: number;
+  rows: MigrationChartRow[];
+  summary: MigrationChartSummary;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable

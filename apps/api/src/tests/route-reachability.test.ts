@@ -80,6 +80,8 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // "/audit-logs" — CLOSED by M23 (2026-08-21). The Audit Trail page
   // (/audit-trail, admin-gated nav) is its first reader, ~15 months of rows
   // after M7 wrote the first one. Deleted, not reworded, per the pattern.
+  "/migration":
+    "Batch 1C (2026-09-18): the migration domain is being built domain/API first with owner review at three checkpoints, and the wizard UI is the third phase, AFTER the second checkpoint. Admin-only, nothing posts until a batch is committed. This entry leaves in the commit that ships the wizard; it is not a permanent exemption.",
   "/llm":
     "The LLM proposal surface (status/categorize/compare/demo) has no UI. It writes nothing to the ledger by design, so this is inert rather than risky — but the AI layer is parked (hub decision §4), and this route should either gain a consumer when it unparks or be deleted.",
 };

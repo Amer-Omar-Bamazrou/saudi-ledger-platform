@@ -25,6 +25,8 @@ tags:
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
   - name: payments
     description: "D-4 — customer payments, allocations and credit application. A payment names its bank (D-3) and its customer; allocations say which invoices it settles; the unapplied remainder is a customer deposit (a liability, never a credit inside AR)."
+  - name: migration
+    description: "Batch 1C — migrating an existing business: staged chart mapping, parties, open AR/AP items and advances, validated as a set and committed as ONE opening journal dated cutover − 1. Historical items never enter the e-invoice chain or a VAT return. Admin-only."
   - name: payroll
     description: Payroll runs and the draft/approval workflow
   - name: period_locks
@@ -3421,6 +3423,146 @@ paths:
               schema: { $ref: "#/components/schemas/CreditNoteApplications" }
         "404":
           description: Not a credit note
+
+  # ── Batch 1C — migration of an existing business (2026-09-18) ──────────────
+  # Decision record: docs/product/batch-1c-migration-opening-balances-decision-pack.md §15.
+  # Admin-only throughout (pack §D-1 §11). A batch is staged, validated,
+  # committed in ONE transaction, and immutable afterwards.
+  /migration/batches:
+    get:
+      operationId: listMigrationBatches
+      tags: [migration]
+      summary: "Batch 1C — this company's migration batches, newest first"
+      responses:
+        "200":
+          description: Batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MigrationBatch" }
+    post:
+      operationId: createMigrationBatch
+      tags: [migration]
+      summary: "Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMigrationBatchInput" }
+      responses:
+        "201":
+          description: The draft batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "400":
+          description: Malformed date or missing source system
+        "409":
+          description: "`migration_already_committed` — this company already has a live migration; reverse it first"
+
+  /migration/batches/{id}:
+    get:
+      operationId: getMigrationBatch
+      tags: [migration]
+      summary: One batch with its staging counts, validation and reconciliation
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatchDetail" }
+        "404":
+          description: Not found
+
+  /migration/batches/{id}/discard:
+    post:
+      operationId: discardMigrationBatch
+      tags: [migration]
+      summary: "Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The batch, now discarded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "409":
+          description: "`migration_batch_immutable` — a committed batch cannot be discarded; reverse it"
+
+  /migration/batches/{id}/chart:
+    get:
+      operationId: getMigrationChart
+      tags: [migration]
+      summary: "The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Chart rows and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChart" }
+    put:
+      operationId: importMigrationChart
+      tags: [migration]
+      summary: "Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed."
+      description: >
+        Every row keeps the old code, name, type, parent and Dr/Cr balance verbatim.
+        A row's TYPE must be one of asset / liability / equity / income / expense as
+        the file states it — nothing is guessed from a name. Duplicate codes in one
+        file are refused. Replacing the chart resets every mapping decision.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationChartInput" }
+      responses:
+        "200":
+          description: The imported rows and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChart" }
+        "400":
+          description: Malformed rows (duplicate code, unknown type, negative balance, non-SAR)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/chart/{rowId}:
+    patch:
+      operationId: decideMigrationChartRow
+      tags: [migration]
+      summary: "Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)"
+      description: >
+        Refused: mapping to OPENING_BALANCE_EQUITY or to the non-posting CASH header;
+        map_to_bank to a bank that is not this company's or is inactive; merge_into a
+        system account or a header; skip with a non-zero balance; a receivable/payable
+        role hint mapped anywhere but AR/AP; a group row with its own balance.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: rowId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MigrationChartDecisionInput" }
+      responses:
+        "200":
+          description: The row with its decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChartRow" }
+        "404":
+          description: Row not in this batch
+        "409":
+          description: "`migration_batch_immutable`"
+        "422":
+          description: "`mapping_target_refused`, `skip_requires_zero_balance`, `reference_not_found`"
 
   /invoices/{id}/pay:
     post:
@@ -7735,3 +7877,152 @@ components:
         categoryId: { type: ["integer", "null"] }
         budgetedAmount: { type: number, minimum: 0 }
         notes: { type: ["string", "null"] }
+
+    # ── Batch 1C — migration ─────────────────────────────────────────────────
+    CreateMigrationBatchInput:
+      type: object
+      required: [sourceSystem, cutoverDate]
+      properties:
+        sourceSystem: { type: string, minLength: 1, maxLength: 80, description: "The previous system, as named by the operator (\"PreviousERP\", \"Excel\", \"Qoyod export\")." }
+        sourceVersion: { type: ["string", "null"], maxLength: 80 }
+        cutoverDate: { type: string, description: "YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen." }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    MigrationBatch:
+      type: object
+      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, contentHash, openingJournalEntryId, clearingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
+        sourceSystem: { type: string }
+        sourceVersion: { type: ["string", "null"] }
+        cutoverDate: { type: string }
+        openingDate: { type: string, description: "cutover − 1 by definition." }
+        notes: { type: ["string", "null"] }
+        contentHash: { type: ["string", "null"], description: "SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved." }
+        openingJournalEntryId: { type: ["integer", "null"] }
+        clearingJournalEntryId: { type: ["integer", "null"], description: "The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic." }
+        reversalJournalEntryId: { type: ["integer", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        validatedAt: { type: ["string", "null"] }
+        committedBy: { type: ["integer", "null"] }
+        committedAt: { type: ["string", "null"] }
+        reversedAt: { type: ["string", "null"] }
+        reversalReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    MigrationBatchDetail:
+      allOf:
+        - { $ref: "#/components/schemas/MigrationBatch" }
+        - type: object
+          required: [counts, validation, reconciliation]
+          properties:
+            counts:
+              type: object
+              required: [chartRows, chartRowsUnmapped, parties, openItems, advances]
+              properties:
+                chartRows: { type: integer }
+                chartRowsUnmapped: { type: integer }
+                parties: { type: integer }
+                openItems: { type: integer }
+                advances: { type: integer }
+            validation: { description: "The last validation run, or null." }
+            reconciliation: { description: "R1–R10 as computed at commit, or null." }
+
+    MigrationChartRowInput:
+      type: object
+      required: [sourceCode, sourceName, sourceType]
+      properties:
+        sourceCode: { type: string, minLength: 1, maxLength: 64 }
+        sourceName: { type: string, minLength: 1, maxLength: 200 }
+        sourceNameAr: { type: ["string", "null"], maxLength: 200 }
+        sourceParentCode: { type: ["string", "null"], maxLength: 64 }
+        sourceType: { type: string, enum: [asset, liability, equity, income, expense], description: "As the file states it. Nothing is inferred from a name." }
+        sourceIsGroup: { type: boolean, default: false }
+        openingDebit: { type: number, minimum: 0, default: 0 }
+        openingCredit: { type: number, minimum: 0, default: 0 }
+        sourceRole:
+          type: ["string", "null"]
+          enum: [receivable, payable, bank, cash, vat_output, vat_input, retained_earnings, customer_deposits, null]
+          description: "A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match."
+        evidenceNote: { type: ["string", "null"], maxLength: 500 }
+
+    ImportMigrationChartInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items: { $ref: "#/components/schemas/MigrationChartRowInput" }
+
+    MigrationChartRow:
+      type: object
+      required: [id, sourceCode, sourceName, sourceNameAr, sourceParentCode, sourceType, sourceIsGroup, openingDebit, openingCredit, sourceRole, evidenceNote, decision, targetSystemCode, targetBankAccountId, targetCategoryId, skipReason, resolvedCategoryId, suggestion, problems]
+      properties:
+        id: { type: integer }
+        sourceCode: { type: string }
+        sourceName: { type: string }
+        sourceNameAr: { type: ["string", "null"] }
+        sourceParentCode: { type: ["string", "null"] }
+        sourceType: { type: string }
+        sourceIsGroup: { type: boolean }
+        openingDebit: { type: number }
+        openingCredit: { type: number }
+        sourceRole: { type: ["string", "null"] }
+        evidenceNote: { type: ["string", "null"] }
+        decision: { type: ["string", "null"], enum: [map_to_system, map_to_bank, create, merge_into, skip, null] }
+        targetSystemCode: { type: ["string", "null"] }
+        targetBankAccountId: { type: ["integer", "null"] }
+        targetCategoryId: { type: ["integer", "null"] }
+        skipReason: { type: ["string", "null"] }
+        resolvedCategoryId: { type: ["integer", "null"], description: "After commit: the category the balance was posted to." }
+        suggestion:
+          description: "The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides."
+          oneOf:
+            - type: object
+              required: [decision, targetSystemCode]
+              properties:
+                decision: { type: string }
+                targetSystemCode: { type: ["string", "null"] }
+            - { type: "null" }
+        problems:
+          type: array
+          items: { type: string }
+          description: "What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…)."
+
+    MigrationChartDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [map_to_system, map_to_bank, create, merge_into, skip] }
+        targetSystemCode: { type: ["string", "null"], description: "map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused." }
+        targetBankAccountId: { type: ["integer", "null"], description: "map_to_bank: this company's bank account; the balance lands on its D-3 leaf." }
+        targetCategoryId: { type: ["integer", "null"], description: "merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional)." }
+        skipReason: { type: ["string", "null"], maxLength: 500, description: "skip: required; only a zero-balance row may be skipped." }
+
+    MigrationChart:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationChartRow" }
+        summary:
+          type: object
+          required: [rows, mapped, unmapped, blocked, totalDebit, totalCredit, balanced, byDecision]
+          properties:
+            rows: { type: integer }
+            mapped: { type: integer }
+            unmapped: { type: integer }
+            blocked: { type: integer, description: "Rows with at least one problem." }
+            totalDebit: { type: number }
+            totalCredit: { type: number }
+            balanced: { type: boolean, description: "Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented." }
+            byDecision:
+              type: object
+              additionalProperties: { type: integer }
