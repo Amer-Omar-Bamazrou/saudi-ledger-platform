@@ -90,3 +90,4 @@ The objective is not to make Saudi Ledger identical to Odoo or ERPNext. It is to
 ## Applications of the protocol (index)
 
 - 2026-09-18 — Batch 1C, the three questions with the accountant (opening invoices/bills, a party balance with no detail, mid-year YTD P&L): [`docs/product/batch-1c-migration-opening-balances-decision-pack.md`](product/batch-1c-migration-opening-balances-decision-pack.md) §13.
+- 2026-09-18 — Batch 1C, the accountant's decisions verified (12-month input-VAT rule confirmed from IR Art. 40(10)–(11); historical VAT and advances confirmed; the first-PIH-after-solution-change claim NOT confirmed → ZATCA question, no default encoded); chart-of-accounts mapping compared against Odoo and ERPNext source: the same pack, §15.

@@ -63,7 +63,7 @@ T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged (lesson
 🔴 **THE DECISION-FREE POOL CLOSED** (known-issues file, "the decision-free pool").
 **2026-09-15** — #154 merged; **THE SECOND CORE-PATH WALK** ran clean; its findings CLOSED (`docs/product/feature-inventory-2026-09-15.md`; findings file, "THE SECOND CORE-PATH WALK"). **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS"); its V1 gaps stay there, unqueued.
 **2026-09-16** — the pre-pilot batch CLOSED (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH", "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"; findings file, "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** — record [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); open item in §5.
-**2026-09-17** — 🔴 **BATCH 1B CLOSED (D-4 payments, Phases A–F, UI included)** — validated by clicking in EN/AR, desktop/phone. Record: known-issues file, "BATCH 1B — CLOSED 2026-09-17". Batch 1C: research only ([`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md)), gated on the accountant.
+**2026-09-17** — 🔴 **BATCH 1B CLOSED (D-4 payments, Phases A–F, UI included)** — validated by clicking in EN/AR, desktop/phone. Record: known-issues file, "BATCH 1B — CLOSED 2026-09-17". Batch 1C: research only ([`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md)), PIH question with ZATCA.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
