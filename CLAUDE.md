@@ -61,9 +61,9 @@ When in doubt, favor evolving the existing system over replacing it.
 the pinned inventory: §5). **2026-09-03/04** — the ERPNext comparison; N1–N4 +
 T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged (lesson: §3);
 🔴 **THE DECISION-FREE POOL CLOSED** (known-issues file, "the decision-free pool").
-**2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean; its findings CLOSED ([`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK"). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS"); its V1 gaps stay in that record, unqueued.
+**2026-09-15** — #154 merged; **THE SECOND CORE-PATH WALK** ran clean; its findings CLOSED (`docs/product/feature-inventory-2026-09-15.md`; findings file, "THE SECOND CORE-PATH WALK"). **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS"); its V1 gaps stay there, unqueued.
 **2026-09-16** — the pre-pilot batch CLOSED (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH", "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"; findings file, "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** — record [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); open item in §5.
-**2026-09-17** — 🔴 **BATCH 1B CLOSED (D-4 payments, Phases A–F, UI included)** — validated by clicking in EN/AR, desktop/phone (`e2e/batch-1b-payment-flows.spec.ts`). Record: known-issues file, "BATCH 1B — CLOSED 2026-09-17"; decisions [`batch-1b-decision-pack.md`](docs/product/batch-1b-decision-pack.md). Batch 1C not started.
+**2026-09-17** — 🔴 **BATCH 1B CLOSED (D-4 payments, Phases A–F, UI included)** — validated by clicking in EN/AR, desktop/phone. Record: known-issues file, "BATCH 1B — CLOSED 2026-09-17". Batch 1C: research only ([`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md)), gated on the accountant.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -232,7 +232,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see; six read-only audits missed what one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure. *(4 instances.)*
 - **🔴 A TEST THAT EXERCISES THE CODE BUT NOT THE ARTIFACT IS TESTING A DIFFERENT PROGRAM** (owner-named 2026-09-04) — tests import source; dev and prod run the BUNDLE, whose `import.meta.dirname`, assets and externals differ. Anything read at runtime by path is proven through the built artifact — which only P5 runs. *(2 instances.)*
 - **A hand-written `apiFetch<T>` interface is a claim nobody checks** — TypeScript checks it against the COMPONENT, never the response. Prefer the generated client, and treat a page as working only once it has been RENDERED.
-- **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; §5's contract entry burns the pinned ones down.
+- **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; its 20 pinned files are a deliberate STOP, not a backlog; a `type` alias satisfying the detector is the ratchet GAMED (findings file, "THE STOP").
 - **🔴 A SERVER TEST CANNOT SEE THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a malformed body the client actually sends is invisible by construction, and generated input types do not close it (the values are wrong, not the types). A form change ships with a client-path test (`e2e/form-optional-blank.spec.ts` is the pattern) or a walked leg. *(3 instances.)*
 
 #### The check that does not check
@@ -361,6 +361,11 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
 - **🔴 PASSWORDS GO THROUGH `lib/password.ts` — ONE SEAM.** `crypto.scrypt` (N=2^17, off the event loop) for new hashes; bcrypt kept ONLY to verify pre-2026-09-02 hashes, with transparent rehash on the next correct login. Never call a KDF directly, and never store a hash another way: the seam is where the length bound, the parameters and the migration live.
+- **🔴 ACCOUNTING QUESTIONS ARE NEVER GUESSED** (owner, 2026-09-18) — follow
+  [`docs/accounting-escalation-protocol.md`](docs/accounting-escalation-protocol.md):
+  our code, then Odoo and ERPNext SOURCE (cited), then authoritative sources;
+  no Saudi/VAT/ZATCA/policy consequence → product decision; else the
+  accountant, one short list, and STOP.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
   human approves.
@@ -564,8 +569,8 @@ needs a checkable reason and leaves the day it is fixed.
 Arabic is a **launch requirement**; coverage is MEASURED by
 `scripts/arabic-sweep.mjs` and believed only after a HELD-OUT round (§3).
 Measured 2026-09-15 (frame: 105 files): **30 sites of untranslated
-user-facing English remain, UNFIXED**; the held-out evidence is one round —
-thin. Re-run with a fresh hold-out before launch. Record: findings file,
+user-facing English remain, UNFIXED**; one held-out round only. Re-run with a
+fresh hold-out before launch. Record: findings file,
 "THE HELD-OUT VALIDATION".
 
 ### Traps and known-dead surfaces
@@ -595,11 +600,6 @@ and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 
-🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20;
-the ratchet test keeps the generator closed).** Rules: a leave and a join in
-one milestone is the generator running — stop, do not net; a `type` alias
-satisfying the detector is the ratchet GAMED; the 20 pinned files are a
-STOP, not a backlog (owner). Inventory: findings file, "THE STOP".
 
 ## 6. Tech Stack
 
