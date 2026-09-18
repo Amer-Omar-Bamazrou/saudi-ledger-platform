@@ -16,7 +16,7 @@ import { documentNumbersRepository } from "../repositories/documentNumbers.repos
 import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
-import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
+import { GL_BALANCE_TOLERANCE, MigrationOnlyAccountError } from "./accounting/glPosting";
 import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
@@ -26,6 +26,7 @@ import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE } from "../repositori
 import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
+import { MIGRATION_ONLY_SYSTEM_CODES } from "@workspace/db";
 import type { journalEntriesTable } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 
@@ -180,6 +181,10 @@ export const journalEntriesService = {
         });
       }
       const code = l.accountId != null ? systemCodeOf.get(l.accountId) : null;
+      // Batch 1C: Opening balance equity is written by the migration's opening
+      // journal and the accountant's clearing journal only — this path is
+      // neither. The DB trigger beneath every writer refuses it again.
+      if (code && MIGRATION_ONLY_SYSTEM_CODES.includes(code)) throw new MigrationOnlyAccountError(code, acct?.name ?? code);
       const refuse = (error: string, field: string) => {
         throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
       };

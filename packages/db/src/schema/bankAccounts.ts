@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid, integer, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -28,6 +28,14 @@ export const bankAccountsTable = pgTable(
     isDefault: boolean("is_default").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     notes: text("notes"),
+    /**
+     * Batch 1C / G2 (2026-09-18): the opening journal that POSTED this bank's
+     * opening balance to its D-3 leaf. While NULL the typed `openingBalance`
+     * is display-only (the pre-1C state, recorded as a known gap); once set,
+     * `openingBalance` equals the posted line and is read-only — one
+     * definition, the ledger's.
+     */
+    openingJournalEntryId: integer("opening_journal_entry_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("bank_accounts_org_idx").on(t.organizationId)],

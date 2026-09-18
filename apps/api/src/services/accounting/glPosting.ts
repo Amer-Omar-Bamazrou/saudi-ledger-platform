@@ -15,7 +15,7 @@
  */
 import { db } from "@workspace/db";
 import { round2 } from "../../lib/money";
-import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccountsTable } from "@workspace/db";
+import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccountsTable, MIGRATION_ONLY_SYSTEM_CODES } from "@workspace/db";
 import type { SystemAccountCode } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
@@ -188,6 +188,23 @@ export class BankAccountUnresolvedError extends Error {
  * account or a manual-JE line can name any account by id. The DB trigger
  * `refuse_non_posting_account_line` is the boundary beneath this one.
  */
+/**
+ * Batch 1C (2026-09-18): OPENING_BALANCE_EQUITY is postable ONLY by the
+ * migration service and the OBE clearing step. Every other writer — the
+ * manual-JE form included — is refused here, at the seam, so "land it on
+ * opening equity" is inexpressible outside the migration workflow (pack §D-1:
+ * a landing account that any entry can reach is a suspense account).
+ */
+export class MigrationOnlyAccountError extends BusinessRuleError {
+  constructor(code: string, name: string) {
+    super(422, {
+      error: `${name} (${code}) is a migration-only account: it is written by the migration's opening journal and the accountant's clearing journal, never by an ordinary entry.`,
+      code: "migration_only_account",
+      field: "lines",
+    });
+  }
+}
+
 export class NonPostingAccountError extends BusinessRuleError {
   constructor(accountName: string) {
     super(422, {
@@ -232,9 +249,13 @@ async function resolveBankLeaves(bankAccountIds: number[]): Promise<Map<number, 
  * function does not take, and RLS is the mechanism everywhere else in the
  * business layer.
  */
-async function resolveAccounts(codes: SystemAccountCode[]): Promise<Map<string, number>> {
+async function resolveAccounts(codes: SystemAccountCode[], allowMigrationOnly = false): Promise<Map<string, number>> {
   const unique = [...new Set(codes)];
   if (unique.length === 0) return new Map();
+  if (!allowMigrationOnly) {
+    const blocked = unique.find((c) => MIGRATION_ONLY_SYSTEM_CODES.includes(c));
+    if (blocked) throw new MigrationOnlyAccountError(blocked, "Opening balance equity");
+  }
 
   const rows = await db
     .select({ id: categoriesTable.id, code: categoriesTable.systemCode, name: categoriesTable.name, isPosting: categoriesTable.isPosting })
@@ -269,7 +290,17 @@ export async function postJournalEntry(opts: {
   description: string;
   reference?: string;
   lines: GLLine[];
+  /**
+   * Batch 1C: provenance readers key on. `opening` / `opening_clearing` /
+   * `opening_reversal` are written ONLY by the migration service, which is
+   * also the only caller allowed to name OPENING_BALANCE_EQUITY (below).
+   * Omitted (NULL) for every ordinary entry — their provenance stays the
+   * number prefix, as before.
+   */
+  source?: "opening" | "opening_clearing" | "opening_reversal";
+  migrationBatchId?: number;
 }): Promise<typeof journalEntriesTable.$inferSelect> {
+  const migrationCall = opts.source != null;
   /**
    * 🔴 N2 (2026-09-03): the balance check runs on the ROUNDED lines — the
    * values that will actually persist — not on the raw floats. The old order
@@ -327,6 +358,7 @@ export async function postJournalEntry(opts: {
     for (const l of idLines) {
       const row = byId.get(l.accountId!);
       if (row && row.isPosting === false) throw new NonPostingAccountError(row.name);
+      if (!migrationCall && row?.code && MIGRATION_ONLY_SYSTEM_CODES.includes(row.code)) throw new MigrationOnlyAccountError(row.code, row.name);
       if (row?.code && PARTY_REQUIRED.has(row.code) && l.party === undefined) throw new MissingPartyError(row.code, l.accountName ?? "");
     }
   }
@@ -335,6 +367,7 @@ export async function postJournalEntry(opts: {
   // half-posted entry behind.
   const accounts = await resolveAccounts(
     lines.map((l) => l.systemCode).filter((c): c is SystemAccountCode => !!c),
+    migrationCall,
   );
   // D-3: every cash line names a bank; the bank's leaf is the account.
   const bankLeaves = await resolveBankLeaves(
@@ -354,6 +387,8 @@ export async function postJournalEntry(opts: {
       reference: opts.reference ?? null,
       status: "posted",
       postedAt: now,
+      source: opts.source ?? null,
+      migrationBatchId: opts.migrationBatchId ?? null,
     })
     .returning();
 

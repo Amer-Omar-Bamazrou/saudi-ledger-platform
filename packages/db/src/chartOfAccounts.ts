@@ -60,7 +60,22 @@ export const SYSTEM_ACCOUNTS = {
    */
   CUSTOMER_DEPOSITS: "CUSTOMER_DEPOSITS",
   CUSTOMER_CREDITS: "CUSTOMER_CREDITS",
+  /**
+   * Batch 1C (2026-09-18). OPENING_BALANCE_EQUITY: the TEMPORARY landing
+   * account of a migration's opening journal — the balancing side, never a
+   * plug (an unbalanced opening is refused); cleared to RETAINED_EARNINGS by
+   * the accountant's explicit dated journal, never automatically
+   * (accountant-confirmed, pack §D-1/§15.1). Postable ONLY by the migration
+   * service and the clearing step. RETAINED_EARNINGS: the STORED
+   * brought-forward equity a migrated company arrives with; the balance
+   * sheet presents it beside the computed current-period result.
+   */
+  OPENING_BALANCE_EQUITY: "OPENING_BALANCE_EQUITY",
+  RETAINED_EARNINGS: "RETAINED_EARNINGS",
 } as const;
+
+/** System accounts no ordinary writer may name — only the migration service and the OBE clearing step. */
+export const MIGRATION_ONLY_SYSTEM_CODES: readonly string[] = ["OPENING_BALANCE_EQUITY"];
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
 
@@ -162,6 +177,9 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // contribution (credit here). Reclassifiable per-row later by changing the
   // declaration, which reverses and re-posts.
   { code: "EXTERNAL_TRANSFERS", name: "External transfers (money leaving the business)", nameAr: "تحويلات خارجية (أموال خرجت من المنشأة)", type: "equity", legacyNames: [] },
+  // Batch 1C (2026-09-18) — see SYSTEM_ACCOUNTS.
+  { code: "OPENING_BALANCE_EQUITY", name: "Opening balance equity (migration)", nameAr: "حقوق الملكية الافتتاحية (ترحيل)", type: "equity", legacyNames: [] },
+  { code: "RETAINED_EARNINGS", name: "Retained earnings", nameAr: "الأرباح المبقاة", type: "equity", legacyNames: [] },
 
   { code: "SALES", name: "Sales Revenue", nameAr: "إيرادات المبيعات", type: "income", vatApplicable: true, legacyNames: ["Sales Revenue"] },
 

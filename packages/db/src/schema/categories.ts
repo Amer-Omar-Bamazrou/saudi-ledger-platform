@@ -135,6 +135,13 @@ export const categoriesTable = pgTable(
      * the account it cancels. Immutable on system rows.
      */
     isPosting: boolean("is_posting").notNull().default(true),
+    /**
+     * Batch 1C (2026-09-18): the account code as the accountant's chart
+     * numbers it — preserved from a migrated chart, optional otherwise.
+     * Unique per organisation when present. A LABEL for people and for
+     * joining import files; never an identity the posting seam resolves by.
+     */
+    accountCode: text("account_code"),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -146,6 +153,7 @@ export const categoriesTable = pgTable(
     // idempotent and safe to run concurrently, including from the migration
     // that back-fills every pre-M13 organization.
     uniqueIndex("categories_org_system_code_unq").on(t.organizationId, t.systemCode),
+    uniqueIndex("categories_org_account_code_unq").on(t.organizationId, t.accountCode).where(sql`account_code IS NOT NULL`),
   ],
 );
 

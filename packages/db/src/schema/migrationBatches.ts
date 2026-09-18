@@ -1,0 +1,289 @@
+import { pgTable, serial, text, timestamp, integer, numeric, uuid, boolean, jsonb, date, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { organizationsTable } from "./organizations";
+import { companiesTable } from "./companies";
+import { journalEntriesTable } from "./journalEntries";
+import { categoriesTable } from "./categories";
+import { bankAccountsTable } from "./bankAccounts";
+import { customersTable } from "./customers";
+import { vendorsTable } from "./vendors";
+import { invoicesTable } from "./invoices";
+import { billsTable } from "./bills";
+import { paymentsTable } from "./payments";
+import { periodLocksTable } from "./periodLocks";
+
+/**
+ * BATCH 1C (2026-09-18) — MIGRATION OF AN EXISTING BUSINESS.
+ *
+ * Decision record: docs/product/batch-1c-migration-opening-balances-decision-pack.md
+ * (§15 — the accountant's decisions A1/A2/A3, the ZATCA boundary, the
+ * chart-mapping design, the reconciliation gates R1–R10).
+ *
+ * One BATCH per migration attempt; the batch owns STAGING rows (chart rows
+ * with their opening balances, parties, open AR/AP items, customer advances)
+ * that are validated as a set and committed as ONE transaction: parties and
+ * categories created, `opening` invoices/bills and deposit payments inserted,
+ * ONE opening journal posted through `postJournalEntry` (source = 'opening',
+ * dated cutover − 1), the reconciliation stored, the opening month locked.
+ *
+ * Identity is deterministic: `(company_id, source_system, source_id)` on every
+ * staged row, enforced by unique indexes — a re-import of the same source row
+ * is refused or replays idempotently; nothing is ever identified by amount,
+ * date or name. A committed batch is immutable (DB trigger, migration 0077);
+ * corrections after commit are new accounting events (reversal / dated
+ * journals), never edits.
+ */
+
+const orgCol = () =>
+  uuid("organization_id")
+    .notNull()
+    .default(sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid`)
+    .references(() => organizationsTable.id);
+const companyCol = () =>
+  uuid("company_id")
+    .notNull()
+    .default(sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`)
+    .references(() => companiesTable.id);
+
+export const MIGRATION_BATCH_STATUSES = ["draft", "validated", "committed", "reversed", "discarded"] as const;
+export type MigrationBatchStatus = (typeof MIGRATION_BATCH_STATUSES)[number];
+
+export const migrationBatchesTable = pgTable(
+  "migration_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    /** draft → validated → committed (→ reversed); draft → discarded. */
+    status: text("status").notNull().default("draft"),
+    /** The previous system, as the operator names it ("PreviousERP", "Excel", "Qoyod export"…). */
+    sourceSystem: text("source_system").notNull(),
+    sourceVersion: text("source_version"),
+    /** The first business day in Saudi Ledger. */
+    cutoverDate: date("cutover_date").notNull(),
+    /** cutover − 1: the previous system's closing position IS this day's closing position. */
+    openingDate: date("opening_date").notNull(),
+    notes: text("notes"),
+    /** Client idempotency key for the commit; the same key returns the same batch. */
+    idempotencyKey: text("idempotency_key"),
+    /** SHA-256 over the canonical staged content at validation; commit refuses if it moved. */
+    contentHash: text("content_hash"),
+    /** The last validation run: { errors: [...], warnings: [...], totals: {...}, at } */
+    validation: jsonb("validation"),
+    /** R1–R10 as computed at commit (and re-computed after posting). */
+    reconciliation: jsonb("reconciliation"),
+    openingJournalEntryId: integer("opening_journal_entry_id").references(() => journalEntriesTable.id),
+    clearingJournalEntryId: integer("clearing_journal_entry_id").references(() => journalEntriesTable.id),
+    reversalJournalEntryId: integer("reversal_journal_entry_id").references(() => journalEntriesTable.id),
+    periodLockId: integer("period_lock_id").references(() => periodLocksTable.id, { onDelete: "set null" }),
+    createdBy: integer("created_by"),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    committedBy: integer("committed_by"),
+    committedAt: timestamp("committed_at", { withTimezone: true }),
+    reversedBy: integer("reversed_by"),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversalReason: text("reversal_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("migration_batches_company_idx").on(t.companyId),
+    // One LIVE (committed, not reversed) migration per company.
+    uniqueIndex("migration_batches_company_committed_unq").on(t.companyId).where(sql`status = 'committed'`),
+    uniqueIndex("migration_batches_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    check("migration_batches_status_chk", sql`status IN ('draft', 'validated', 'committed', 'reversed', 'discarded')`),
+    // The opening date is DEFINED, not chosen: the day before cutover (pack §5, §15.5).
+    check("migration_batches_opening_date_chk", sql`opening_date = cutover_date - INTERVAL '1 day'`),
+  ],
+);
+
+export const MIGRATION_CHART_DECISIONS = ["map_to_system", "map_to_bank", "create", "merge_into", "skip"] as const;
+export type MigrationChartDecision = (typeof MIGRATION_CHART_DECISIONS)[number];
+
+/**
+ * One row per account of the OLD chart, carrying its opening balance (the
+ * previous system's closing trial balance line) and the operator's mapping
+ * decision. The old code, name, type, parent and balances are preserved here
+ * verbatim; the decision says where the balance lands in Saudi Ledger.
+ */
+export const migrationChartRowsTable = pgTable(
+  "migration_chart_rows",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    batchId: integer("batch_id")
+      .notNull()
+      .references(() => migrationBatchesTable.id, { onDelete: "cascade" }),
+    sourceSystem: text("source_system").notNull(),
+    sourceCode: text("source_code").notNull(),
+    sourceName: text("source_name").notNull(),
+    sourceNameAr: text("source_name_ar"),
+    sourceParentCode: text("source_parent_code"),
+    /** asset | liability | equity | income | expense — as classified from the file; anything else is refused at import. */
+    sourceType: text("source_type").notNull(),
+    sourceIsGroup: boolean("source_is_group").notNull().default(false),
+    sourceCurrency: text("source_currency").notNull().default("SAR"),
+    /** The old system's closing balance for this account, split Dr/Cr as the file states it. */
+    openingDebit: numeric("opening_debit", { precision: 15, scale: 2 }).notNull().default("0"),
+    openingCredit: numeric("opening_credit", { precision: 15, scale: 2 }).notNull().default("0"),
+    /** Role hints the file may carry: receivable | payable | bank | cash | vat_output | vat_input | retained_earnings | null. */
+    sourceRole: text("source_role"),
+    /** Evidence reference for the balance (statement page, TB export line…). */
+    evidenceNote: text("evidence_note"),
+    decision: text("decision"),
+    /** map_to_system → a SYSTEM_ACCOUNTS code (never OPENING_BALANCE_EQUITY, never CASH). */
+    targetSystemCode: text("target_system_code"),
+    /** map_to_bank → the bank whose D-3 leaf takes the balance. */
+    targetBankAccountId: integer("target_bank_account_id").references(() => bankAccountsTable.id, { onDelete: "restrict" }),
+    /** merge_into → an existing non-system category; create → filled with the created category at commit. */
+    targetCategoryId: integer("target_category_id").references(() => categoriesTable.id, { onDelete: "restrict" }),
+    skipReason: text("skip_reason"),
+    decidedBy: integer("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** After commit: the category the balance was posted to (leaf, system account, created or merged). */
+    resolvedCategoryId: integer("resolved_category_id").references(() => categoriesTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("migration_chart_rows_batch_code_unq").on(t.batchId, t.sourceCode),
+    index("migration_chart_rows_batch_idx").on(t.batchId),
+    check("migration_chart_rows_type_chk", sql`source_type IN ('asset', 'liability', 'equity', 'income', 'expense')`),
+    check("migration_chart_rows_decision_chk", sql`decision IS NULL OR decision IN ('map_to_system', 'map_to_bank', 'create', 'merge_into', 'skip')`),
+    check("migration_chart_rows_amounts_chk", sql`opening_debit >= 0 AND opening_credit >= 0`),
+    check("migration_chart_rows_currency_chk", sql`source_currency = 'SAR'`),
+  ],
+);
+
+export const migrationPartiesTable = pgTable(
+  "migration_parties",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    batchId: integer("batch_id")
+      .notNull()
+      .references(() => migrationBatchesTable.id, { onDelete: "cascade" }),
+    sourceSystem: text("source_system").notNull(),
+    partyType: text("party_type").notNull(), // customer | vendor
+    sourceId: text("source_id").notNull(),
+    name: text("name").notNull(),
+    nameAr: text("name_ar"),
+    taxNumber: text("tax_number"),
+    crNumber: text("cr_number"),
+    phone: text("phone"),
+    email: text("email"),
+    address: text("address"),
+    city: text("city"),
+    /** create | use_existing (an explicit choice when the validator finds a likely duplicate). */
+    decision: text("decision").notNull().default("create"),
+    existingCustomerId: integer("existing_customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
+    existingVendorId: integer("existing_vendor_id").references(() => vendorsTable.id, { onDelete: "restrict" }),
+    resolvedCustomerId: integer("resolved_customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
+    resolvedVendorId: integer("resolved_vendor_id").references(() => vendorsTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    // 🔴 THE IDENTITY: (company, source system, party type, source id) — across batches, forever.
+    uniqueIndex("migration_parties_identity_unq").on(t.companyId, t.sourceSystem, t.partyType, t.sourceId),
+    index("migration_parties_batch_idx").on(t.batchId),
+    check("migration_parties_type_chk", sql`party_type IN ('customer', 'vendor')`),
+    check("migration_parties_decision_chk", sql`decision IN ('create', 'use_existing')`),
+  ],
+);
+
+/**
+ * One row per OPEN document of the previous system — receivable (ar) or
+ * payable (ap). Original number, dates and amounts are kept verbatim; the
+ * outstanding amount at cut-off is what the opening journal posts (with the
+ * party) and what the `opening` invoice/bill row carries as its total.
+ * `composition_unknown` marks the one-item representation of a party whose
+ * old system tracked only a balance (pack §13.2).
+ */
+export const migrationOpenItemsTable = pgTable(
+  "migration_open_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    batchId: integer("batch_id")
+      .notNull()
+      .references(() => migrationBatchesTable.id, { onDelete: "cascade" }),
+    sourceSystem: text("source_system").notNull(),
+    sourceId: text("source_id").notNull(),
+    itemType: text("item_type").notNull(), // ar | ap
+    /** The party's source id (→ migration_parties of the same batch). */
+    partySourceId: text("party_source_id").notNull(),
+    documentNumber: text("document_number").notNull(),
+    issueDate: date("issue_date").notNull(),
+    dueDate: date("due_date").notNull(),
+    originalAmount: numeric("original_amount", { precision: 15, scale: 2 }).notNull(),
+    outstandingAmount: numeric("outstanding_amount", { precision: 15, scale: 2 }).notNull(),
+    currency: text("currency").notNull().default("SAR"),
+    compositionUnknown: boolean("composition_unknown").notNull().default(false),
+    /** { rate, amount, taxableAmount, category, reportedPeriod } — kept for reconciliation and the future Art. 40(10) engine; never posted. */
+    historicalVat: jsonb("historical_vat"),
+    description: text("description"),
+    resolvedInvoiceId: integer("resolved_invoice_id").references(() => invoicesTable.id, { onDelete: "restrict" }),
+    resolvedBillId: integer("resolved_bill_id").references(() => billsTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("migration_open_items_identity_unq").on(t.companyId, t.sourceSystem, t.sourceId),
+    index("migration_open_items_batch_idx").on(t.batchId),
+    check("migration_open_items_type_chk", sql`item_type IN ('ar', 'ap')`),
+    check("migration_open_items_amounts_chk", sql`outstanding_amount > 0 AND original_amount >= outstanding_amount`),
+    check("migration_open_items_currency_chk", sql`currency = 'SAR'`),
+  ],
+);
+
+/**
+ * A customer advance held at cut-off: becomes a `payments` row (source =
+ * 'opening', direction in, no allocation) whose deposit line is in the
+ * opening journal; its cash is INSIDE the bank's opening balance, so it posts
+ * no cash line of its own. The old advance tax invoice's identifiers and VAT
+ * position travel with it so a later invoice can reference them (Guideline
+ * §8); `vat_position = unknown` fails closed downstream.
+ */
+export const migrationAdvancesTable = pgTable(
+  "migration_advances",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    batchId: integer("batch_id")
+      .notNull()
+      .references(() => migrationBatchesTable.id, { onDelete: "cascade" }),
+    sourceSystem: text("source_system").notNull(),
+    sourceId: text("source_id").notNull(),
+    partySourceId: text("party_source_id").notNull(),
+    /** The old chart's bank account code the money arrived in (→ a chart row mapped to a bank). */
+    bankSourceCode: text("bank_source_code").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    receivedAt: date("received_at").notNull(),
+    reference: text("reference"),
+    /** invoiced (the old system issued the advance tax invoice) | unknown. */
+    vatPosition: text("vat_position").notNull(),
+    advanceInvoiceNumber: text("advance_invoice_number"),
+    advanceInvoiceDate: date("advance_invoice_date"),
+    advanceInvoiceTime: text("advance_invoice_time"),
+    vatCategory: text("vat_category"),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }),
+    vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }),
+    resolvedPaymentId: integer("resolved_payment_id").references(() => paymentsTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("migration_advances_identity_unq").on(t.companyId, t.sourceSystem, t.sourceId),
+    index("migration_advances_batch_idx").on(t.batchId),
+    check("migration_advances_amount_chk", sql`amount > 0`),
+    check("migration_advances_vat_position_chk", sql`vat_position IN ('invoiced', 'unknown')`),
+    check("migration_advances_invoiced_chk", sql`vat_position <> 'invoiced' OR advance_invoice_number IS NOT NULL`),
+  ],
+);
+
+export type MigrationBatch = typeof migrationBatchesTable.$inferSelect;
+export type MigrationChartRow = typeof migrationChartRowsTable.$inferSelect;
+export type MigrationParty = typeof migrationPartiesTable.$inferSelect;
+export type MigrationOpenItem = typeof migrationOpenItemsTable.$inferSelect;
+export type MigrationAdvance = typeof migrationAdvancesTable.$inferSelect;

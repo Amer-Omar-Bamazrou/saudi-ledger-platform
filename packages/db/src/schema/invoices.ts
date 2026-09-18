@@ -134,6 +134,18 @@ export const invoicesTable = pgTable(
      * one); the index only constrains rows that carry a key.
      */
     idempotencyKey: text("idempotency_key"),
+    /**
+     * 🔴 Batch 1C (2026-09-18): an OPENING item — a historical receivable
+     * migrated at cut-off, NOT a tax invoice this platform issued. It reaches
+     * the books through the migration's opening journal (its AR line carries
+     * the party there), never through issuance: no ICV, hash, QR, e-invoice,
+     * archive, VAT amount or VAT-return effect — every one of those readers
+     * refuses the marker (pack §4, §14.1.8). `total` is the OUTSTANDING amount
+     * at cut-off; the original amount, dates and VAT history live on the
+     * staging row `migration_open_items` this points at.
+     */
+    isOpening: boolean("is_opening").notNull().default(false),
+    migrationOpenItemId: integer("migration_open_item_id"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

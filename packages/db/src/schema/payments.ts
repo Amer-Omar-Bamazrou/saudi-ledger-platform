@@ -158,6 +158,8 @@ export const paymentsTable = pgTable(
       .references(() => journalEntriesTable.id, { onDelete: "cascade" }),
     /** The bank row this payment was settled from, when it was. */
     sourceTransactionId: integer("source_transaction_id").references(() => transactionsTable.id, { onDelete: "set null" }),
+    /** Batch 1C: the staged advance this deposit was migrated from (source = 'opening'); its cash is inside the bank's opening balance. */
+    migrationAdvanceId: integer("migration_advance_id"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -168,7 +170,7 @@ export const paymentsTable = pgTable(
     check("payments_amount_positive_chk", sql`amount > 0`),
     check("payments_direction_chk", sql`direction IN ('in', 'out')`),
     check("payments_party_chk", sql`(party_type = 'customer' AND customer_id IS NOT NULL) OR (party_type = 'none' AND customer_id IS NULL)`),
-    check("payments_source_chk", sql`source IN ('manual', 'invoice_pay', 'settlement')`),
+    check("payments_source_chk", sql`source IN ('manual', 'invoice_pay', 'settlement', 'opening')`),
   ],
 );
 

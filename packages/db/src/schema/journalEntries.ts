@@ -34,6 +34,17 @@ export const journalEntriesTable = pgTable(
     reference: text("reference"),          // invoice/bill reference
     status: text("status").notNull().default("draft"), // draft | posted | reversed
     reversalOf: integer("reversal_of"),    // FK to self if reversal
+    /**
+     * Batch 1C (2026-09-18): what produced the entry. NULL on every entry
+     * written before this column existed (their provenance is the number
+     * prefix, as `ledgerInvariants.ts` reads it); `opening` for a migration's
+     * opening journal, `opening_clearing` for the accountant's OBE clearing,
+     * `opening_reversal` for a reversed migration. Readers that must exclude
+     * the opening from period MOVEMENT key on this, never on the date.
+     */
+    source: text("source"),
+    /** The migration batch that posted this entry (opening, clearing, reversal). */
+    migrationBatchId: integer("migration_batch_id"),
     notes: text("notes"),
     postedAt: timestamp("posted_at"),      // set when status transitions to posted; entry is locked after this
     createdBy: integer("created_by"),      // FK to users.id (nullable — pre-auth entries have no owner)
