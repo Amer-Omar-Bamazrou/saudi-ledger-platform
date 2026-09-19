@@ -49,6 +49,16 @@ export type ChartRowInput = {
   evidenceNote?: string | null;
 };
 
+/** The last filed VAT return's closing position, as supplied (pack §15.6 R9). */
+export type VatPositionInput = {
+  returnReference: string;
+  periodStart: string;
+  periodEnd: string;
+  outputVatPayable: number;
+  inputVatReceivable: number;
+  note?: string | null;
+};
+
 export type ChartDecisionInput = {
   decision: "map_to_system" | "map_to_bank" | "create" | "merge_into" | "skip";
   targetSystemCode?: string | null;
@@ -104,6 +114,7 @@ function toBatchOut(b: MigrationBatch) {
     cutoverDate: b.cutoverDate,
     openingDate: b.openingDate,
     notes: b.notes ?? null,
+    vatPosition: (b.vatPosition ?? null) as VatPositionInput | null,
     contentHash: b.contentHash ?? null,
     openingJournalEntryId: b.openingJournalEntryId ?? null,
     clearingJournalEntryId: b.clearingJournalEntryId ?? null,
@@ -120,6 +131,7 @@ function toBatchOut(b: MigrationBatch) {
 }
 
 export type MigrationBatchOut = ReturnType<typeof toBatchOut>;
+export { toBatchOut, SYSTEM_TYPE };
 
 /** What blocks a row TODAY — computed on read so the wizard and the validator cannot disagree. */
 export function chartRowProblems(row: MigrationChartRow, rows: MigrationChartRow[]): string[] {
@@ -226,6 +238,36 @@ export const migrationService = {
     const [batch] = await migrationRepository.findBatch(id);
     if (!batch) throw new NotFoundError("Migration batch not found");
     return batch;
+  },
+
+  assertDraft,
+
+  async updateBatch(id: number, body: { notes?: string | null; sourceVersion?: string | null; vatPosition?: VatPositionInput | null }, userId: number | null) {
+    const batch = await this.requireBatch(id);
+    assertDraft(batch);
+    const values: Partial<MigrationBatch> = {};
+    if ("notes" in body) values.notes = body.notes?.trim() || null;
+    if ("sourceVersion" in body) values.sourceVersion = body.sourceVersion?.trim() || null;
+    if ("vatPosition" in body) {
+      const v = body.vatPosition;
+      if (v == null) values.vatPosition = null;
+      else {
+        const ref = String(v.returnReference ?? "").trim();
+        if (!ref) throw new BadRequestError("vatPosition.returnReference is required — the return the balances reconcile to.");
+        for (const k of ["periodStart", "periodEnd"] as const) {
+          if (!ISO_DATE.test(String(v[k] ?? "")) || Number.isNaN(Date.parse(v[k]))) throw new BadRequestError(`vatPosition.${k} must be YYYY-MM-DD.`);
+        }
+        if (v.periodEnd < v.periodStart) throw new BadRequestError("vatPosition.periodEnd is before periodStart.");
+        if (v.periodEnd > batch.openingDate) throw new BadRequestError(`vatPosition.periodEnd ${v.periodEnd} is after the opening date ${batch.openingDate} — the position must be the one filed up to cut-off.`);
+        const out = round2(num(v.outputVatPayable)), inp = round2(num(v.inputVatReceivable));
+        if (!Number.isFinite(out) || out < 0 || !Number.isFinite(inp) || inp < 0) throw new BadRequestError("vatPosition amounts must be non-negative numbers.");
+        values.vatPosition = { returnReference: ref, periodStart: v.periodStart, periodEnd: v.periodEnd, outputVatPayable: out, inputVatReceivable: inp, note: v.note?.trim() || null };
+      }
+    }
+    const [updated] = await migrationRepository.updateBatch(id, values);
+    await this.touch(batch);
+    await auditService.record({ action: "migration_batch_update", entityType: "migration_batch", entityId: id, before: { notes: batch.notes, sourceVersion: batch.sourceVersion, vatPosition: batch.vatPosition }, after: { ...values, by: userId } });
+    return toBatchOut(updated);
   },
 
   async discardBatch(id: number, userId: number | null) {

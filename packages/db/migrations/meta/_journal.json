@@ -547,6 +547,13 @@
       "when": 1789745474444,
       "tag": "0077_batch_1c_migration_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789825448561,
+      "tag": "0078_batch_1c_migration_staging",
+      "breakpoints": true
     }
   ]
 }

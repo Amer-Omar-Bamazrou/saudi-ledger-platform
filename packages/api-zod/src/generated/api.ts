@@ -6035,6 +6035,16 @@ export const ListCreditNoteApplicationsResponse = zod.object({
 /**
  * @summary Batch 1C — this company's migration batches, newest first
  */
+export const listMigrationBatchesResponseVatPositionOneReturnReferenceMax = 120;
+
+export const listMigrationBatchesResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const listMigrationBatchesResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const listMigrationBatchesResponseVatPositionOneNoteMax = 500;
+
+
+
 export const ListMigrationBatchesResponseItem = zod.object({
   "id": zod.number(),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
@@ -6043,6 +6053,14 @@ export const ListMigrationBatchesResponseItem = zod.object({
   "cutoverDate": zod.string(),
   "openingDate": zod.string().describe('cutover − 1 by definition.'),
   "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(listMigrationBatchesResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(listMigrationBatchesResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(listMigrationBatchesResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(listMigrationBatchesResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
   "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
@@ -6080,6 +6098,16 @@ export const CreateMigrationBatchBody = zod.object({
   "idempotencyKey": zod.string().max(createMigrationBatchBodyIdempotencyKeyMax).nullish()
 })
 
+export const createMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const createMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const createMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const createMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
+
 export const CreateMigrationBatchResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
@@ -6088,6 +6116,14 @@ export const CreateMigrationBatchResponse = zod.object({
   "cutoverDate": zod.string(),
   "openingDate": zod.string().describe('cutover − 1 by definition.'),
   "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(createMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(createMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(createMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(createMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
   "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
@@ -6110,6 +6146,16 @@ export const GetMigrationBatchParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
+
+export const getMigrationBatchResponseOneVatPositionOneOutputVatPayableMin = 0;
+
+export const getMigrationBatchResponseOneVatPositionOneInputVatReceivableMin = 0;
+
+export const getMigrationBatchResponseOneVatPositionOneNoteMax = 500;
+
+
+
 export const GetMigrationBatchResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
@@ -6118,6 +6164,14 @@ export const GetMigrationBatchResponse = zod.object({
   "cutoverDate": zod.string(),
   "openingDate": zod.string().describe('cutover − 1 by definition.'),
   "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(getMigrationBatchResponseOneVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(getMigrationBatchResponseOneVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(getMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(getMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
   "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
@@ -6144,11 +6198,96 @@ export const GetMigrationBatchResponse = zod.object({
 
 
 /**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const UpdateMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateMigrationBatchBodyNotesMax = 2000;
+
+export const updateMigrationBatchBodySourceVersionMax = 80;
+
+export const updateMigrationBatchBodyVatPositionOneReturnReferenceMax = 120;
+
+export const updateMigrationBatchBodyVatPositionOneOutputVatPayableMin = 0;
+
+export const updateMigrationBatchBodyVatPositionOneInputVatReceivableMin = 0;
+
+export const updateMigrationBatchBodyVatPositionOneNoteMax = 500;
+
+
+
+export const UpdateMigrationBatchBody = zod.object({
+  "notes": zod.string().max(updateMigrationBatchBodyNotesMax).nullish(),
+  "sourceVersion": zod.string().max(updateMigrationBatchBodySourceVersionMax).nullish(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(updateMigrationBatchBodyVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(updateMigrationBatchBodyVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(updateMigrationBatchBodyVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(updateMigrationBatchBodyVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]).optional()
+})
+
+export const updateMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const updateMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const updateMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const updateMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
+
+export const UpdateMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(updateMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(updateMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(updateMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(updateMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)
  */
 export const DiscardMigrationBatchParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const discardMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const discardMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const discardMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const discardMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
 
 export const DiscardMigrationBatchResponse = zod.object({
   "id": zod.number(),
@@ -6158,6 +6297,14 @@ export const DiscardMigrationBatchResponse = zod.object({
   "cutoverDate": zod.string(),
   "openingDate": zod.string().describe('cutover − 1 by definition.'),
   "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(discardMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(discardMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(discardMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(discardMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
   "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
@@ -6346,6 +6493,577 @@ export const DecideMigrationChartRowResponse = zod.object({
   "targetSystemCode": zod.string().nullable()
 }),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
   "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})
+
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+export const GetMigrationPartiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationPartiesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "undecided": zod.number(),
+  "useExisting": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
+ * Every party keeps its source id — the identity every open item and advance refers to. Import sets `create` where no existing record looks like the party; where one does (same VAT number, or the same name) the decision is left EMPTY and blocks validation until the operator chooses create or use_existing. Replacing the parties resets every decision; open items and advances that name a party no longer staged are reported as problems, not deleted.
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const ImportMigrationPartiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationPartiesBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationPartiesBodyRowsItemNameMax = 200;
+
+export const importMigrationPartiesBodyRowsItemNameArMax = 200;
+
+export const importMigrationPartiesBodyRowsItemTaxNumberMax = 40;
+
+export const importMigrationPartiesBodyRowsItemCrNumberMax = 40;
+
+export const importMigrationPartiesBodyRowsItemPhoneMax = 40;
+
+export const importMigrationPartiesBodyRowsItemEmailMax = 200;
+
+export const importMigrationPartiesBodyRowsItemAddressMax = 500;
+
+export const importMigrationPartiesBodyRowsItemCityMax = 100;
+
+export const importMigrationPartiesBodyRowsMax = 20000;
+
+
+
+export const ImportMigrationPartiesBody = zod.object({
+  "rows": zod.array(zod.object({
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string().min(1).max(importMigrationPartiesBodyRowsItemSourceIdMax).describe('The old system\'s id for this party — the identity open items and advances refer to.'),
+  "name": zod.string().min(1).max(importMigrationPartiesBodyRowsItemNameMax),
+  "nameAr": zod.string().max(importMigrationPartiesBodyRowsItemNameArMax).nullish(),
+  "taxNumber": zod.string().max(importMigrationPartiesBodyRowsItemTaxNumberMax).nullish(),
+  "crNumber": zod.string().max(importMigrationPartiesBodyRowsItemCrNumberMax).nullish(),
+  "phone": zod.string().max(importMigrationPartiesBodyRowsItemPhoneMax).nullish(),
+  "email": zod.string().max(importMigrationPartiesBodyRowsItemEmailMax).nullish(),
+  "address": zod.string().max(importMigrationPartiesBodyRowsItemAddressMax).nullish(),
+  "city": zod.string().max(importMigrationPartiesBodyRowsItemCityMax).nullish()
+})).min(1).max(importMigrationPartiesBodyRowsMax)
+})
+
+export const ImportMigrationPartiesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "undecided": zod.number(),
+  "useExisting": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const DecideMigrationPartyParams = zod.object({
+  "id": zod.coerce.number(),
+  "rowId": zod.coerce.number()
+})
+
+export const DecideMigrationPartyBody = zod.object({
+  "decision": zod.enum(['create', 'use_existing']),
+  "existingId": zod.number().nullish().describe('use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation.')
+})
+
+export const DecideMigrationPartyResponse = zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})
+
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+export const GetMigrationOpenItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin = 0;
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax = 100;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin = 0;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+
+
+export const GetMigrationOpenItemsResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
+  "documentNumber": zod.string(),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "originalAmount": zod.number(),
+  "outstandingAmount": zod.number(),
+  "compositionUnknown": zod.boolean(),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
+  "description": zod.string().nullable(),
+  "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "ar": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+}),
+  "ap": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+})
+})
+})
+
+
+/**
+ * One row per open document of the previous system: its original number, issue date, due date, original amount, the amount still outstanding at cut-off, and the party's source id. Where the old system tracked only a balance for a party, ONE row with `compositionUnknown: true` carries that balance — invoice-level history is never fabricated. Historical VAT facts (rate, amount, the return period they were reported in) are kept as data for reconciliation and for the future Art. 40(10)–(11) engine; nothing here posts VAT.
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const ImportMigrationOpenItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationOpenItemsBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationOpenItemsBodyRowsItemPartySourceIdMax = 120;
+
+export const importMigrationOpenItemsBodyRowsItemDocumentNumberMax = 80;
+
+export const importMigrationOpenItemsBodyRowsItemOriginalAmountExclusiveMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemOutstandingAmountExclusiveMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemCompositionUnknownDefault = false;
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMin = 0;
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMax = 100;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+export const importMigrationOpenItemsBodyRowsItemDescriptionMax = 500;
+
+export const importMigrationOpenItemsBodyRowsMax = 50000;
+
+
+
+export const ImportMigrationOpenItemsBody = zod.object({
+  "rows": zod.array(zod.object({
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemSourceIdMax),
+  "partySourceId": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemPartySourceIdMax).describe('A staged customer (ar) or vendor (ap) of this batch.'),
+  "documentNumber": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemDocumentNumberMax).describe('The original document number — kept verbatim; it becomes the opening item\'s number.'),
+  "issueDate": zod.string().describe('YYYY-MM-DD, on or before the opening date.'),
+  "dueDate": zod.string().describe('YYYY-MM-DD — drives ageing exactly as it did in the old system.'),
+  "originalAmount": zod.number().gt(importMigrationOpenItemsBodyRowsItemOriginalAmountExclusiveMin),
+  "outstandingAmount": zod.number().gt(importMigrationOpenItemsBodyRowsItemOutstandingAmountExclusiveMin).describe('Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party.'),
+  "compositionUnknown": zod.boolean().default(importMigrationOpenItemsBodyRowsItemCompositionUnknownDefault).describe('The one-row representation of a party whose old system tracked only a balance. At most one per party.'),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]).optional(),
+  "description": zod.string().max(importMigrationOpenItemsBodyRowsItemDescriptionMax).nullish()
+})).min(1).max(importMigrationOpenItemsBodyRowsMax)
+})
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin = 0;
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax = 100;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin = 0;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+
+
+export const ImportMigrationOpenItemsResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
+  "documentNumber": zod.string(),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "originalAmount": zod.number(),
+  "outstandingAmount": zod.number(),
+  "compositionUnknown": zod.boolean(),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
+  "description": zod.string().nullable(),
+  "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "ar": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+}),
+  "ap": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+})
+})
+})
+
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+export const GetMigrationAdvancesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationAdvancesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "bankSourceCode": zod.string(),
+  "amount": zod.number(),
+  "receivedAt": zod.string(),
+  "reference": zod.string().nullable(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().nullable(),
+  "advanceInvoiceDate": zod.string().nullable(),
+  "advanceInvoiceTime": zod.string().nullable(),
+  "vatCategory": zod.string().nullable(),
+  "vatRate": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "resolvedPaymentId": zod.number().nullable(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "total": zod.number(),
+  "customers": zod.number(),
+  "invoiced": zod.number(),
+  "unknown": zod.number().describe('Advances whose VAT position is unknown — recorded at cash, fail closed downstream.')
+})
+})
+
+
+/**
+ * `vatPosition: invoiced` requires the old advance tax invoice's number and date and the VAT category and rate it was taxed at — a later invoice adjusts through PrepaidAmount by reference to them. `unknown` records the cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever computed for it until an accountant classifies it). The bank the money arrived in is named by the old chart's code: the advance's cash is INSIDE that bank's opening balance and posts no cash line of its own.
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const ImportMigrationAdvancesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationAdvancesBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemPartySourceIdMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemBankSourceCodeMax = 64;
+
+export const importMigrationAdvancesBodyRowsItemAmountExclusiveMin = 0;
+
+export const importMigrationAdvancesBodyRowsItemReferenceMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemAdvanceInvoiceNumberMax = 80;
+
+export const importMigrationAdvancesBodyRowsItemAdvanceInvoiceTimeMax = 16;
+
+export const importMigrationAdvancesBodyRowsItemVatCategoryMax = 8;
+
+export const importMigrationAdvancesBodyRowsItemVatRateMin = 0;
+export const importMigrationAdvancesBodyRowsItemVatRateMax = 100;
+
+export const importMigrationAdvancesBodyRowsItemVatAmountMin = 0;
+
+export const importMigrationAdvancesBodyRowsMax = 20000;
+
+
+
+export const ImportMigrationAdvancesBody = zod.object({
+  "rows": zod.array(zod.object({
+  "sourceId": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemSourceIdMax),
+  "partySourceId": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemPartySourceIdMax).describe('A staged CUSTOMER of this batch.'),
+  "bankSourceCode": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemBankSourceCodeMax).describe('The old chart\'s code of the bank the money arrived in — a chart row mapped to a bank.'),
+  "amount": zod.number().gt(importMigrationAdvancesBodyRowsItemAmountExclusiveMin),
+  "receivedAt": zod.string().describe('YYYY-MM-DD, on or before the opening date.'),
+  "reference": zod.string().max(importMigrationAdvancesBodyRowsItemReferenceMax).nullish(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().max(importMigrationAdvancesBodyRowsItemAdvanceInvoiceNumberMax).nullish(),
+  "advanceInvoiceDate": zod.string().nullish(),
+  "advanceInvoiceTime": zod.string().max(importMigrationAdvancesBodyRowsItemAdvanceInvoiceTimeMax).nullish().describe('HH:MM:SS as the old invoice states it (KSA-25), when known.'),
+  "vatCategory": zod.string().max(importMigrationAdvancesBodyRowsItemVatCategoryMax).nullish(),
+  "vatRate": zod.number().min(importMigrationAdvancesBodyRowsItemVatRateMin).max(importMigrationAdvancesBodyRowsItemVatRateMax).nullish(),
+  "vatAmount": zod.number().min(importMigrationAdvancesBodyRowsItemVatAmountMin).nullish()
+})).min(1).max(importMigrationAdvancesBodyRowsMax)
+})
+
+export const ImportMigrationAdvancesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "bankSourceCode": zod.string(),
+  "amount": zod.number(),
+  "receivedAt": zod.string(),
+  "reference": zod.string().nullable(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().nullable(),
+  "advanceInvoiceDate": zod.string().nullable(),
+  "advanceInvoiceTime": zod.string().nullable(),
+  "vatCategory": zod.string().nullable(),
+  "vatRate": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "resolvedPaymentId": zod.number().nullable(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "total": zod.number(),
+  "customers": zod.number(),
+  "invoiced": zod.number(),
+  "unknown": zod.number().describe('Advances whose VAT position is unknown — recorded at cash, fail closed downstream.')
+})
+})
+
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+export const GetMigrationOpeningPositionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationOpeningPositionResponse = zod.object({
+  "batchId": zod.number(),
+  "openingDate": zod.string(),
+  "lines": zod.array(zod.object({
+  "target": zod.string().describe('A stable key: system:AR, bank:12, category:345, create:<sourceCode>.'),
+  "targetKind": zod.enum(['system', 'bank', 'category', 'create']),
+  "systemCode": zod.string().nullable(),
+  "categoryId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "accountName": zod.string(),
+  "type": zod.enum(['asset', 'liability', 'equity', 'income', 'expense']),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balance": zod.number().describe('debit − credit.'),
+  "sourceCodes": zod.array(zod.string())
+}).describe('One target account of the opening position, with the source rows that land on it.')),
+  "totals": zod.object({
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balanced": zod.boolean(),
+  "openingBalanceEquity": zod.number().describe('credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0.'),
+  "ytdIncome": zod.number(),
+  "ytdExpense": zod.number(),
+  "ytdResult": zod.number().describe('Income − expense of the imported YTD balances (A2).')
+}),
+  "arByCustomer": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "apByVendor": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "depositsByCustomer": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "banks": zod.array(zod.object({
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "sourceCode": zod.string(),
+  "balance": zod.number().describe('The old chart\'s closing balance for this bank (Dr − Cr).'),
+  "typedOpeningBalance": zod.number().nullable().describe('bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2).'),
+  "leafCategoryId": zod.number().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "advancesInside": zod.number().describe('Σ staged advances naming this bank — inside the balance, no cash line of their own.')
+})),
+  "controls": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+}))
+})
+
+
+/**
+ * The checks anticipate the reconciliation gates of pack §15.6 on the STAGED content (the gates themselves run against the posted journal at commit): the chart is fully mapped and balances; AR and AP control balances equal the open-item subledgers, per party and in total (R2, R3); every bank row lands on a D-3 leaf with statement evidence and agrees with the bank's typed opening balance where one was typed (R4); the VAT balances equal the last filed return's closing position as supplied (R9); customer deposits equal the staged advances and each carries its VAT position (R10); every party is decided; no opening item collides with an existing document number; the fiscal year is declared and the P&L rows are consistent with the cutover's place in it (A2).
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const ValidateMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ValidateMigrationBatchResponse = zod.object({
+  "batchId": zod.number(),
+  "ok": zod.boolean(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "contentHash": zod.string().nullable(),
+  "validatedAt": zod.string().nullable()
 })
 
 

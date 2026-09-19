@@ -68,7 +68,14 @@ export const migrationBatchesTable = pgTable(
     idempotencyKey: text("idempotency_key"),
     /** SHA-256 over the canonical staged content at validation; commit refuses if it moved. */
     contentHash: text("content_hash"),
-    /** The last validation run: { errors: [...], warnings: [...], totals: {...}, at } */
+    /**
+     * Phase 2 — the last filed VAT return's closing position, as supplied by
+     * the operator with the return's reference (R9): { returnReference,
+     * periodStart, periodEnd, outputVatPayable, inputVatReceivable, netPayable }.
+     * Required whenever a chart row with a balance maps to VAT_OUTPUT / VAT_INPUT.
+     */
+    vatPosition: jsonb("vat_position"),
+    /** The last validation run: { ok, checks: [...], totals: {...}, at } */
     validation: jsonb("validation"),
     /** R1–R10 as computed at commit (and re-computed after posting). */
     reconciliation: jsonb("reconciliation"),
@@ -175,8 +182,15 @@ export const migrationPartiesTable = pgTable(
     email: text("email"),
     address: text("address"),
     city: text("city"),
-    /** create | use_existing (an explicit choice when the validator finds a likely duplicate). */
-    decision: text("decision").notNull().default("create"),
+    /**
+     * create | use_existing — NULL while undecided. Import sets `create` when no
+     * existing customer/vendor looks like this party; a likely duplicate (same
+     * VAT number, or the same name) leaves it NULL and blocks until the operator
+     * decides. `use_existing` names the existing record.
+     */
+    decision: text("decision"),
+    decidedBy: integer("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
     existingCustomerId: integer("existing_customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
     existingVendorId: integer("existing_vendor_id").references(() => vendorsTable.id, { onDelete: "restrict" }),
     resolvedCustomerId: integer("resolved_customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
@@ -184,8 +198,12 @@ export const migrationPartiesTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    // 🔴 THE IDENTITY: (company, source system, party type, source id) — across batches, forever.
-    uniqueIndex("migration_parties_identity_unq").on(t.companyId, t.sourceSystem, t.partyType, t.sourceId),
+    // 🔴 THE IDENTITY: (company, source system, party type, source id). Unique
+    // within a batch; across batches the one-committed-batch-per-company rule
+    // (migration_batches_company_committed_unq) is what keeps one source row
+    // from producing two accounting events — a discarded or reversed batch has
+    // no live effect, and a re-run after reversal imports the same ids again.
+    uniqueIndex("migration_parties_identity_unq").on(t.batchId, t.partyType, t.sourceId),
     index("migration_parties_batch_idx").on(t.batchId),
     check("migration_parties_type_chk", sql`party_type IN ('customer', 'vendor')`),
     check("migration_parties_decision_chk", sql`decision IN ('create', 'use_existing')`),
@@ -229,7 +247,7 @@ export const migrationOpenItemsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("migration_open_items_identity_unq").on(t.companyId, t.sourceSystem, t.sourceId),
+    uniqueIndex("migration_open_items_identity_unq").on(t.batchId, t.sourceId),
     index("migration_open_items_batch_idx").on(t.batchId),
     check("migration_open_items_type_chk", sql`item_type IN ('ar', 'ap')`),
     check("migration_open_items_amounts_chk", sql`outstanding_amount > 0 AND original_amount >= outstanding_amount`),
@@ -274,7 +292,7 @@ export const migrationAdvancesTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("migration_advances_identity_unq").on(t.companyId, t.sourceSystem, t.sourceId),
+    uniqueIndex("migration_advances_identity_unq").on(t.batchId, t.sourceId),
     index("migration_advances_batch_idx").on(t.batchId),
     check("migration_advances_amount_chk", sql`amount > 0`),
     check("migration_advances_vat_position_chk", sql`vat_position IN ('invoiced', 'unknown')`),

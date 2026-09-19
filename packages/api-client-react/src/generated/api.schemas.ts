@@ -4087,6 +4087,37 @@ export const MigrationBatchStatus = {
   discarded: 'discarded',
 } as const;
 
+/**
+ * The last VAT return filed from the previous system — its closing position, as supplied, with the return's reference (pack §15.6 R9).
+ */
+export interface MigrationVatPosition {
+  /**
+     * The ZATCA return reference / acknowledgement number.
+     * @minLength 1
+     * @maxLength 120
+     */
+  returnReference: string;
+  /** YYYY-MM-DD */
+  periodStart: string;
+  /** YYYY-MM-DD — must not be after the opening date. */
+  periodEnd: string;
+  /**
+     * Output VAT still payable at cut-off (the VAT_OUTPUT balance).
+     * @minimum 0
+     */
+  outputVatPayable: number;
+  /**
+     * Input VAT still recoverable at cut-off (the VAT_INPUT balance).
+     * @minimum 0
+     */
+  inputVatReceivable: number;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+}
+
 export interface MigrationBatch {
   id: number;
   status: MigrationBatchStatus;
@@ -4098,6 +4129,7 @@ export interface MigrationBatch {
   openingDate: string;
   /** @nullable */
   notes: string | null;
+  vatPosition: MigrationVatPosition | null;
   /**
      * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
      * @nullable
@@ -4339,6 +4371,608 @@ export interface MigrationChart {
   batchId: number;
   rows: MigrationChartRow[];
   summary: MigrationChartSummary;
+}
+
+export interface UpdateMigrationBatchInput {
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  sourceVersion?: string | null;
+  vatPosition?: MigrationVatPosition | null;
+}
+
+export type MigrationPartyInputPartyType = typeof MigrationPartyInputPartyType[keyof typeof MigrationPartyInputPartyType];
+
+
+export const MigrationPartyInputPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+export interface MigrationPartyInput {
+  partyType: MigrationPartyInputPartyType;
+  /**
+     * The old system's id for this party — the identity open items and advances refer to.
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  taxNumber?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  crNumber?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  address?: string | null;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  city?: string | null;
+}
+
+export interface ImportMigrationPartiesInput {
+  /**
+     * @minItems 1
+     * @maxItems 20000
+     */
+  rows: MigrationPartyInput[];
+}
+
+/**
+ * What matched — the operator decides; the platform never merges by itself.
+ */
+export type MigrationPartyCandidateReason = typeof MigrationPartyCandidateReason[keyof typeof MigrationPartyCandidateReason];
+
+
+export const MigrationPartyCandidateReason = {
+  tax_number: 'tax_number',
+  name: 'name',
+} as const;
+
+export interface MigrationPartyCandidate {
+  id: number;
+  name: string;
+  /** @nullable */
+  taxNumber: string | null;
+  /** What matched — the operator decides; the platform never merges by itself. */
+  reason: MigrationPartyCandidateReason;
+}
+
+export type MigrationPartyPartyType = typeof MigrationPartyPartyType[keyof typeof MigrationPartyPartyType];
+
+
+export const MigrationPartyPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MigrationPartyDecision = typeof MigrationPartyDecision[keyof typeof MigrationPartyDecision] | null;
+
+
+export const MigrationPartyDecision = {
+  create: 'create',
+  use_existing: 'use_existing',
+} as const;
+
+export interface MigrationParty {
+  id: number;
+  partyType: MigrationPartyPartyType;
+  sourceId: string;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  decision: MigrationPartyDecision;
+  /**
+     * use_existing: the existing customer / vendor id.
+     * @nullable
+     */
+  existingId: number | null;
+  /**
+     * After commit: the customer / vendor the party became.
+     * @nullable
+     */
+  resolvedId: number | null;
+  candidates: MigrationPartyCandidate[];
+  /** Staged open items naming this party. */
+  openItems: number;
+  /** Σ outstanding of those items. */
+  openTotal: number;
+  advances: number;
+  advanceTotal: number;
+  problems: string[];
+}
+
+export type MigrationPartyDecisionInputDecision = typeof MigrationPartyDecisionInputDecision[keyof typeof MigrationPartyDecisionInputDecision];
+
+
+export const MigrationPartyDecisionInputDecision = {
+  create: 'create',
+  use_existing: 'use_existing',
+} as const;
+
+export interface MigrationPartyDecisionInput {
+  decision: MigrationPartyDecisionInputDecision;
+  /**
+     * use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation.
+     * @nullable
+     */
+  existingId?: number | null;
+}
+
+export type MigrationPartiesSummary = {
+  rows: number;
+  customers: number;
+  vendors: number;
+  undecided: number;
+  useExisting: number;
+  blocked: number;
+};
+
+export interface MigrationParties {
+  batchId: number;
+  rows: MigrationParty[];
+  summary: MigrationPartiesSummary;
+}
+
+/**
+ * The VAT facts of the historical document, as data. Never posted; never a VAT event here.
+ */
+export interface MigrationHistoricalVat {
+  /**
+     * S / Z / E / O as the old system recorded it.
+     * @maxLength 8
+     * @nullable
+     */
+  category?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  rate?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  taxableAmount?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount?: number | null;
+  /**
+     * The return period the document's VAT was reported in by the old system.
+     * @maxLength 40
+     * @nullable
+     */
+  reportedPeriod?: string | null;
+}
+
+export type MigrationOpenItemInputItemType = typeof MigrationOpenItemInputItemType[keyof typeof MigrationOpenItemInputItemType];
+
+
+export const MigrationOpenItemInputItemType = {
+  ar: 'ar',
+  ap: 'ap',
+} as const;
+
+export interface MigrationOpenItemInput {
+  itemType: MigrationOpenItemInputItemType;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * A staged customer (ar) or vendor (ap) of this batch.
+     * @minLength 1
+     * @maxLength 120
+     */
+  partySourceId: string;
+  /**
+     * The original document number — kept verbatim; it becomes the opening item's number.
+     * @minLength 1
+     * @maxLength 80
+     */
+  documentNumber: string;
+  /** YYYY-MM-DD, on or before the opening date. */
+  issueDate: string;
+  /** YYYY-MM-DD — drives ageing exactly as it did in the old system. */
+  dueDate: string;
+  /** @exclusiveMinimum 0 */
+  originalAmount: number;
+  /**
+     * Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party.
+     * @exclusiveMinimum 0
+     */
+  outstandingAmount: number;
+  /** The one-row representation of a party whose old system tracked only a balance. At most one per party. */
+  compositionUnknown?: boolean;
+  historicalVat?: MigrationHistoricalVat | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+}
+
+export interface ImportMigrationOpenItemsInput {
+  /**
+     * @minItems 1
+     * @maxItems 50000
+     */
+  rows: MigrationOpenItemInput[];
+}
+
+export type MigrationOpenItemItemType = typeof MigrationOpenItemItemType[keyof typeof MigrationOpenItemItemType];
+
+
+export const MigrationOpenItemItemType = {
+  ar: 'ar',
+  ap: 'ap',
+} as const;
+
+export interface MigrationOpenItem {
+  id: number;
+  itemType: MigrationOpenItemItemType;
+  sourceId: string;
+  partySourceId: string;
+  /**
+     * From the staged party, when it exists.
+     * @nullable
+     */
+  partyName: string | null;
+  documentNumber: string;
+  issueDate: string;
+  dueDate: string;
+  originalAmount: number;
+  outstandingAmount: number;
+  compositionUnknown: boolean;
+  historicalVat: MigrationHistoricalVat | null;
+  /** @nullable */
+  description: string | null;
+  /**
+     * After commit: the opening invoice (ar) or bill (ap) row.
+     * @nullable
+     */
+  resolvedId: number | null;
+  problems: string[];
+}
+
+export interface MigrationSubledgerTotals {
+  items: number;
+  parties: number;
+  total: number;
+  compositionUnknown: number;
+}
+
+export type MigrationOpenItemsSummary = {
+  rows: number;
+  blocked: number;
+  ar: MigrationSubledgerTotals;
+  ap: MigrationSubledgerTotals;
+};
+
+export interface MigrationOpenItems {
+  batchId: number;
+  rows: MigrationOpenItem[];
+  summary: MigrationOpenItemsSummary;
+}
+
+export type MigrationAdvanceInputVatPosition = typeof MigrationAdvanceInputVatPosition[keyof typeof MigrationAdvanceInputVatPosition];
+
+
+export const MigrationAdvanceInputVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+export interface MigrationAdvanceInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * A staged CUSTOMER of this batch.
+     * @minLength 1
+     * @maxLength 120
+     */
+  partySourceId: string;
+  /**
+     * The old chart's code of the bank the money arrived in — a chart row mapped to a bank.
+     * @minLength 1
+     * @maxLength 64
+     */
+  bankSourceCode: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** YYYY-MM-DD, on or before the opening date. */
+  receivedAt: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  reference?: string | null;
+  vatPosition: MigrationAdvanceInputVatPosition;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  advanceInvoiceNumber?: string | null;
+  /** @nullable */
+  advanceInvoiceDate?: string | null;
+  /**
+     * HH:MM:SS as the old invoice states it (KSA-25), when known.
+     * @maxLength 16
+     * @nullable
+     */
+  advanceInvoiceTime?: string | null;
+  /**
+     * @maxLength 8
+     * @nullable
+     */
+  vatCategory?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  vatRate?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  vatAmount?: number | null;
+}
+
+export interface ImportMigrationAdvancesInput {
+  /**
+     * @minItems 1
+     * @maxItems 20000
+     */
+  rows: MigrationAdvanceInput[];
+}
+
+export type MigrationAdvanceVatPosition = typeof MigrationAdvanceVatPosition[keyof typeof MigrationAdvanceVatPosition];
+
+
+export const MigrationAdvanceVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+export interface MigrationAdvance {
+  id: number;
+  sourceId: string;
+  partySourceId: string;
+  /** @nullable */
+  partyName: string | null;
+  bankSourceCode: string;
+  amount: number;
+  receivedAt: string;
+  /** @nullable */
+  reference: string | null;
+  vatPosition: MigrationAdvanceVatPosition;
+  /** @nullable */
+  advanceInvoiceNumber: string | null;
+  /** @nullable */
+  advanceInvoiceDate: string | null;
+  /** @nullable */
+  advanceInvoiceTime: string | null;
+  /** @nullable */
+  vatCategory: string | null;
+  /** @nullable */
+  vatRate: number | null;
+  /** @nullable */
+  vatAmount: number | null;
+  /** @nullable */
+  resolvedPaymentId: number | null;
+  problems: string[];
+}
+
+export type MigrationAdvancesSummary = {
+  rows: number;
+  blocked: number;
+  total: number;
+  customers: number;
+  invoiced: number;
+  /** Advances whose VAT position is unknown — recorded at cash, fail closed downstream. */
+  unknown: number;
+};
+
+export interface MigrationAdvances {
+  batchId: number;
+  rows: MigrationAdvance[];
+  summary: MigrationAdvancesSummary;
+}
+
+export type MigrationOpeningLineTargetKind = typeof MigrationOpeningLineTargetKind[keyof typeof MigrationOpeningLineTargetKind];
+
+
+export const MigrationOpeningLineTargetKind = {
+  system: 'system',
+  bank: 'bank',
+  category: 'category',
+  create: 'create',
+} as const;
+
+export type MigrationOpeningLineType = typeof MigrationOpeningLineType[keyof typeof MigrationOpeningLineType];
+
+
+export const MigrationOpeningLineType = {
+  asset: 'asset',
+  liability: 'liability',
+  equity: 'equity',
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+/**
+ * One target account of the opening position, with the source rows that land on it.
+ */
+export interface MigrationOpeningLine {
+  /** A stable key: system:AR, bank:12, category:345, create:<sourceCode>. */
+  target: string;
+  targetKind: MigrationOpeningLineTargetKind;
+  /** @nullable */
+  systemCode: string | null;
+  /** @nullable */
+  categoryId: number | null;
+  /** @nullable */
+  bankAccountId: number | null;
+  accountName: string;
+  type: MigrationOpeningLineType;
+  debit: number;
+  credit: number;
+  /** debit − credit. */
+  balance: number;
+  sourceCodes: string[];
+}
+
+export interface MigrationPartyBalance {
+  partySourceId: string;
+  /** @nullable */
+  partyName: string | null;
+  items: number;
+  total: number;
+}
+
+export interface MigrationBankOpening {
+  bankAccountId: number;
+  bankName: string;
+  sourceCode: string;
+  /** The old chart's closing balance for this bank (Dr − Cr). */
+  balance: number;
+  /**
+     * bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2).
+     * @nullable
+     */
+  typedOpeningBalance: number | null;
+  /** @nullable */
+  leafCategoryId: number | null;
+  /** @nullable */
+  evidenceNote: string | null;
+  /** Σ staged advances naming this bank — inside the balance, no cash line of their own. */
+  advancesInside: number;
+}
+
+export type MigrationControlCheckStatus = typeof MigrationControlCheckStatus[keyof typeof MigrationControlCheckStatus];
+
+
+export const MigrationControlCheckStatus = {
+  pass: 'pass',
+  fail: 'fail',
+  warn: 'warn',
+  skip: 'skip',
+} as const;
+
+export interface MigrationControlCheck {
+  id: string;
+  title: string;
+  status: MigrationControlCheckStatus;
+  /** @nullable */
+  expected: number | string | null;
+  /** @nullable */
+  actual: number | string | null;
+  detail: string;
+}
+
+export type MigrationOpeningPositionTotals = {
+  debit: number;
+  credit: number;
+  balanced: boolean;
+  /** credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0. */
+  openingBalanceEquity: number;
+  ytdIncome: number;
+  ytdExpense: number;
+  /** Income − expense of the imported YTD balances (A2). */
+  ytdResult: number;
+};
+
+export interface MigrationOpeningPosition {
+  batchId: number;
+  openingDate: string;
+  lines: MigrationOpeningLine[];
+  totals: MigrationOpeningPositionTotals;
+  arByCustomer: MigrationPartyBalance[];
+  apByVendor: MigrationPartyBalance[];
+  depositsByCustomer: MigrationPartyBalance[];
+  banks: MigrationBankOpening[];
+  controls: MigrationControlCheck[];
+}
+
+export type MigrationValidationStatus = typeof MigrationValidationStatus[keyof typeof MigrationValidationStatus];
+
+
+export const MigrationValidationStatus = {
+  draft: 'draft',
+  validated: 'validated',
+  committed: 'committed',
+  reversed: 'reversed',
+  discarded: 'discarded',
+} as const;
+
+export interface MigrationValidation {
+  batchId: number;
+  ok: boolean;
+  status: MigrationValidationStatus;
+  checks: MigrationControlCheck[];
+  /** @nullable */
+  contentHash: string | null;
+  /** @nullable */
+  validatedAt: string | null;
 }
 
 export type ListTransactionsParams = {

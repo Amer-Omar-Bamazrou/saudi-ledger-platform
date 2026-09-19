@@ -123,7 +123,10 @@ import type {
   GetVatSummaryParams,
   GroundedAnswersPage,
   HealthStatus,
+  ImportMigrationAdvancesInput,
   ImportMigrationChartInput,
+  ImportMigrationOpenItemsInput,
+  ImportMigrationPartiesInput,
   IncomeStatementReport,
   Invoice,
   JournalEntry,
@@ -156,11 +159,18 @@ import type {
   ListVendorsParams,
   MatchOverrideInput,
   MatchingApplyResult,
+  MigrationAdvances,
   MigrationBatch,
   MigrationBatchDetail,
   MigrationChart,
   MigrationChartDecisionInput,
   MigrationChartRow,
+  MigrationOpenItems,
+  MigrationOpeningPosition,
+  MigrationParties,
+  MigrationParty,
+  MigrationPartyDecisionInput,
+  MigrationValidation,
   OwnerEquityReport,
   Payment,
   PaymentAllocationDetail,
@@ -201,6 +211,7 @@ import type {
   UpdateBudgetInput,
   UpdateCompanyInput,
   UpdateInvoiceInput,
+  UpdateMigrationBatchInput,
   UpdateQuotationInput,
   UploadResult,
   VatReturn,
@@ -12858,6 +12869,78 @@ export function useGetMigrationBatch<TData = Awaited<ReturnType<typeof getMigrat
 
 
 
+export const getUpdateMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}`
+}
+
+/**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const updateMigrationBatch = async (id: number,
+    updateMigrationBatchInput: UpdateMigrationBatchInput, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getUpdateMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateMigrationBatchInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext> => {
+
+const mutationKey = ['updateMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMigrationBatch>>, {id: number;data: BodyType<UpdateMigrationBatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMigrationBatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateMigrationBatch>>>
+    export type UpdateMigrationBatchMutationBody = BodyType<UpdateMigrationBatchInput>
+    export type UpdateMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const useUpdateMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMigrationBatch>>,
+        TError,
+        {id: number;data: BodyType<UpdateMigrationBatchInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMigrationBatchMutationOptions(options));
+    }
+
 export const getDiscardMigrationBatchUrl = (id: number,) => {
 
 
@@ -13152,6 +13235,679 @@ export const useDecideMigrationChartRow = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideMigrationChartRowMutationOptions(options));
+    }
+
+export const getGetMigrationPartiesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties`
+}
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+export const getMigrationParties = async (id: number, options?: RequestInit): Promise<MigrationParties> => {
+
+  return customFetch<MigrationParties>(getGetMigrationPartiesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationPartiesQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/parties`
+    ] as const;
+    }
+
+
+export const getGetMigrationPartiesQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationParties>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationPartiesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationParties>>> = ({ signal }) => getMigrationParties(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationPartiesQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationParties>>>
+export type GetMigrationPartiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+
+export function useGetMigrationParties<TData = Awaited<ReturnType<typeof getMigrationParties>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationPartiesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationPartiesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties`
+}
+
+/**
+ * Every party keeps its source id — the identity every open item and advance refers to. Import sets `create` where no existing record looks like the party; where one does (same VAT number, or the same name) the decision is left EMPTY and blocks validation until the operator chooses create or use_existing. Replacing the parties resets every decision; open items and advances that name a party no longer staged are reported as problems, not deleted.
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const importMigrationParties = async (id: number,
+    importMigrationPartiesInput: ImportMigrationPartiesInput, options?: RequestInit): Promise<MigrationParties> => {
+
+  return customFetch<MigrationParties>(getImportMigrationPartiesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationPartiesInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationPartiesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext> => {
+
+const mutationKey = ['importMigrationParties'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationParties>>, {id: number;data: BodyType<ImportMigrationPartiesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationParties(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationPartiesMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationParties>>>
+    export type ImportMigrationPartiesMutationBody = BodyType<ImportMigrationPartiesInput>
+    export type ImportMigrationPartiesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const useImportMigrationParties = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationParties>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationPartiesInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationPartiesMutationOptions(options));
+    }
+
+export const getDecideMigrationPartyUrl = (id: number,
+    rowId: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties/${rowId}`
+}
+
+/**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const decideMigrationParty = async (id: number,
+    rowId: number,
+    migrationPartyDecisionInput: MigrationPartyDecisionInput, options?: RequestInit): Promise<MigrationParty> => {
+
+  return customFetch<MigrationParty>(getDecideMigrationPartyUrl(id,rowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(migrationPartyDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideMigrationPartyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideMigrationParty'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideMigrationParty>>, {id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}> = (props) => {
+          const {id,rowId,data} = props ?? {};
+
+          return  decideMigrationParty(id,rowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideMigrationPartyMutationResult = NonNullable<Awaited<ReturnType<typeof decideMigrationParty>>>
+    export type DecideMigrationPartyMutationBody = BodyType<MigrationPartyDecisionInput>
+    export type DecideMigrationPartyMutationError = ErrorType<void>
+
+    /**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const useDecideMigrationParty = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideMigrationParty>>,
+        TError,
+        {id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideMigrationPartyMutationOptions(options));
+    }
+
+export const getGetMigrationOpenItemsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/open-items`
+}
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+export const getMigrationOpenItems = async (id: number, options?: RequestInit): Promise<MigrationOpenItems> => {
+
+  return customFetch<MigrationOpenItems>(getGetMigrationOpenItemsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationOpenItemsQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/open-items`
+    ] as const;
+    }
+
+
+export const getGetMigrationOpenItemsQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationOpenItems>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationOpenItemsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationOpenItems>>> = ({ signal }) => getMigrationOpenItems(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationOpenItemsQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationOpenItems>>>
+export type GetMigrationOpenItemsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+
+export function useGetMigrationOpenItems<TData = Awaited<ReturnType<typeof getMigrationOpenItems>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationOpenItemsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationOpenItemsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/open-items`
+}
+
+/**
+ * One row per open document of the previous system: its original number, issue date, due date, original amount, the amount still outstanding at cut-off, and the party's source id. Where the old system tracked only a balance for a party, ONE row with `compositionUnknown: true` carries that balance — invoice-level history is never fabricated. Historical VAT facts (rate, amount, the return period they were reported in) are kept as data for reconciliation and for the future Art. 40(10)–(11) engine; nothing here posts VAT.
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const importMigrationOpenItems = async (id: number,
+    importMigrationOpenItemsInput: ImportMigrationOpenItemsInput, options?: RequestInit): Promise<MigrationOpenItems> => {
+
+  return customFetch<MigrationOpenItems>(getImportMigrationOpenItemsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationOpenItemsInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationOpenItemsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext> => {
+
+const mutationKey = ['importMigrationOpenItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationOpenItems>>, {id: number;data: BodyType<ImportMigrationOpenItemsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationOpenItems(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationOpenItemsMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationOpenItems>>>
+    export type ImportMigrationOpenItemsMutationBody = BodyType<ImportMigrationOpenItemsInput>
+    export type ImportMigrationOpenItemsMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const useImportMigrationOpenItems = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationOpenItems>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationOpenItemsInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationOpenItemsMutationOptions(options));
+    }
+
+export const getGetMigrationAdvancesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/advances`
+}
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+export const getMigrationAdvances = async (id: number, options?: RequestInit): Promise<MigrationAdvances> => {
+
+  return customFetch<MigrationAdvances>(getGetMigrationAdvancesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationAdvancesQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/advances`
+    ] as const;
+    }
+
+
+export const getGetMigrationAdvancesQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationAdvances>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationAdvancesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationAdvances>>> = ({ signal }) => getMigrationAdvances(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationAdvancesQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationAdvances>>>
+export type GetMigrationAdvancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+
+export function useGetMigrationAdvances<TData = Awaited<ReturnType<typeof getMigrationAdvances>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationAdvancesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationAdvancesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/advances`
+}
+
+/**
+ * `vatPosition: invoiced` requires the old advance tax invoice's number and date and the VAT category and rate it was taxed at — a later invoice adjusts through PrepaidAmount by reference to them. `unknown` records the cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever computed for it until an accountant classifies it). The bank the money arrived in is named by the old chart's code: the advance's cash is INSIDE that bank's opening balance and posts no cash line of its own.
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const importMigrationAdvances = async (id: number,
+    importMigrationAdvancesInput: ImportMigrationAdvancesInput, options?: RequestInit): Promise<MigrationAdvances> => {
+
+  return customFetch<MigrationAdvances>(getImportMigrationAdvancesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationAdvancesInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationAdvancesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext> => {
+
+const mutationKey = ['importMigrationAdvances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationAdvances>>, {id: number;data: BodyType<ImportMigrationAdvancesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationAdvances(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationAdvancesMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationAdvances>>>
+    export type ImportMigrationAdvancesMutationBody = BodyType<ImportMigrationAdvancesInput>
+    export type ImportMigrationAdvancesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const useImportMigrationAdvances = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationAdvances>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationAdvancesInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationAdvancesMutationOptions(options));
+    }
+
+export const getGetMigrationOpeningPositionUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/opening-position`
+}
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+export const getMigrationOpeningPosition = async (id: number, options?: RequestInit): Promise<MigrationOpeningPosition> => {
+
+  return customFetch<MigrationOpeningPosition>(getGetMigrationOpeningPositionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationOpeningPositionQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/opening-position`
+    ] as const;
+    }
+
+
+export const getGetMigrationOpeningPositionQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationOpeningPositionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationOpeningPosition>>> = ({ signal }) => getMigrationOpeningPosition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationOpeningPositionQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationOpeningPosition>>>
+export type GetMigrationOpeningPositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+
+export function useGetMigrationOpeningPosition<TData = Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationOpeningPositionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getValidateMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/validate`
+}
+
+/**
+ * The checks anticipate the reconciliation gates of pack §15.6 on the STAGED content (the gates themselves run against the posted journal at commit): the chart is fully mapped and balances; AR and AP control balances equal the open-item subledgers, per party and in total (R2, R3); every bank row lands on a D-3 leaf with statement evidence and agrees with the bank's typed opening balance where one was typed (R4); the VAT balances equal the last filed return's closing position as supplied (R9); customer deposits equal the staged advances and each carries its VAT position (R10); every party is decided; no opening item collides with an existing document number; the fiscal year is declared and the P&L rows are consistent with the cutover's place in it (A2).
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const validateMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationValidation> => {
+
+  return customFetch<MigrationValidation>(getValidateMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['validateMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateMigrationBatch>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  validateMigrationBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof validateMigrationBatch>>>
+
+    export type ValidateMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const useValidateMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateMigrationBatch>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getValidateMigrationBatchMutationOptions(options));
     }
 
 export const getPayInvoiceUrl = (id: number,) => {

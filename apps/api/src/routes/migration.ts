@@ -17,4 +17,16 @@ router.get("/batches/:id/chart", migrationController.getChart);
 router.put("/batches/:id/chart", migrationController.importChart);
 router.patch("/batches/:id/chart/:rowId", migrationController.decideChartRow);
 
+// Phase 2 — parties, open items, advances, the opening position, validation (zero ledger writes).
+router.patch("/batches/:id", migrationController.update);
+router.get("/batches/:id/parties", migrationController.getParties);
+router.put("/batches/:id/parties", migrationController.importParties);
+router.patch("/batches/:id/parties/:rowId", migrationController.decideParty);
+router.get("/batches/:id/open-items", migrationController.getOpenItems);
+router.put("/batches/:id/open-items", migrationController.importOpenItems);
+router.get("/batches/:id/advances", migrationController.getAdvances);
+router.put("/batches/:id/advances", migrationController.importAdvances);
+router.get("/batches/:id/opening-position", migrationController.openingPosition);
+router.post("/batches/:id/validate", migrationController.validate);
+
 export default router;

@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
-import { CreateMigrationBatchBody, ImportMigrationChartBody, DecideMigrationChartRowBody } from "@workspace/api-zod";
+import {
+  CreateMigrationBatchBody, UpdateMigrationBatchBody, ImportMigrationChartBody, DecideMigrationChartRowBody,
+  ImportMigrationPartiesBody, DecideMigrationPartyBody, ImportMigrationOpenItemsBody, ImportMigrationAdvancesBody,
+} from "@workspace/api-zod";
 import { migrationService } from "../services/migration.service";
+import { migrationStagingService } from "../services/migrationStaging.service";
+import { migrationValidationService } from "../services/migrationValidation.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
 
@@ -40,5 +45,42 @@ export const migrationController = {
   async decideChartRow(req: Request, res: Response) {
     const body = parseOr400(DecideMigrationChartRowBody.safeParse(req.body));
     res.json(await migrationService.decideChartRow(requireIdParam(req), rowIdParam(req), body, req.session?.userId ?? null));
+  },
+
+  // ── Phase 2 ──
+  async update(req: Request, res: Response) {
+    const body = parseOr400(UpdateMigrationBatchBody.safeParse(req.body));
+    res.json(await migrationService.updateBatch(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  async getParties(req: Request, res: Response) {
+    res.json(await migrationStagingService.getParties(requireIdParam(req)));
+  },
+  async importParties(req: Request, res: Response) {
+    const body = parseOr400(ImportMigrationPartiesBody.safeParse(req.body));
+    res.json(await migrationStagingService.importParties(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  async decideParty(req: Request, res: Response) {
+    const body = parseOr400(DecideMigrationPartyBody.safeParse(req.body));
+    res.json(await migrationStagingService.decideParty(requireIdParam(req), rowIdParam(req), body, req.session?.userId ?? null));
+  },
+  async getOpenItems(req: Request, res: Response) {
+    res.json(await migrationStagingService.getOpenItems(requireIdParam(req)));
+  },
+  async importOpenItems(req: Request, res: Response) {
+    const body = parseOr400(ImportMigrationOpenItemsBody.safeParse(req.body));
+    res.json(await migrationStagingService.importOpenItems(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  async getAdvances(req: Request, res: Response) {
+    res.json(await migrationStagingService.getAdvances(requireIdParam(req)));
+  },
+  async importAdvances(req: Request, res: Response) {
+    const body = parseOr400(ImportMigrationAdvancesBody.safeParse(req.body));
+    res.json(await migrationStagingService.importAdvances(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  async openingPosition(req: Request, res: Response) {
+    res.json(await migrationValidationService.getOpeningPosition(requireIdParam(req)));
+  },
+  async validate(req: Request, res: Response) {
+    res.json(await migrationValidationService.validate(requireIdParam(req), req.session?.userId ?? null));
   },
 };

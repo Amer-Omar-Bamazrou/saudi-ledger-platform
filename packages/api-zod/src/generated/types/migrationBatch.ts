@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MigrationBatchStatus } from './migrationBatchStatus';
+import type { MigrationVatPosition } from './migrationVatPosition';
 
 export interface MigrationBatch {
   id: number;
@@ -18,6 +19,7 @@ export interface MigrationBatch {
   openingDate: string;
   /** @nullable */
   notes: string | null;
+  vatPosition: MigrationVatPosition | null;
   /**
      * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
      * @nullable

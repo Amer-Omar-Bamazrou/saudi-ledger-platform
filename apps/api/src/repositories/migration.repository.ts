@@ -15,8 +15,13 @@ import {
   migrationAdvancesTable,
   categoriesTable,
   bankAccountsTable,
+  customersTable,
+  vendorsTable,
+  invoicesTable,
+  billsTable,
+  companiesTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, sql, count } from "drizzle-orm";
+import { and, asc, desc, eq, sql, count, inArray } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 
 export const migrationRepository = {
@@ -64,6 +69,98 @@ export const migrationRepository = {
   },
   updateChartRow(rowId: number, values: Partial<typeof migrationChartRowsTable.$inferInsert>) {
     return db.update(migrationChartRowsTable).set(values).where(eq(migrationChartRowsTable.id, rowId)).returning();
+  },
+
+  // ── parties / open items / advances (Phase 2) ──
+  parties(batchId: number) {
+    return db.select().from(migrationPartiesTable).where(eq(migrationPartiesTable.batchId, batchId)).orderBy(asc(migrationPartiesTable.partyType), asc(migrationPartiesTable.sourceId), asc(migrationPartiesTable.id));
+  },
+  findParty(batchId: number, rowId: number) {
+    return db.select().from(migrationPartiesTable).where(and(eq(migrationPartiesTable.batchId, batchId), eq(migrationPartiesTable.id, rowId))).limit(1);
+  },
+  deleteParties(batchId: number) {
+    return db.delete(migrationPartiesTable).where(eq(migrationPartiesTable.batchId, batchId));
+  },
+  insertParties(values: (typeof migrationPartiesTable.$inferInsert)[]) {
+    if (values.length === 0) return Promise.resolve([]);
+    return db.insert(migrationPartiesTable).values(values).returning();
+  },
+  updateParty(rowId: number, values: Partial<typeof migrationPartiesTable.$inferInsert>) {
+    return db.update(migrationPartiesTable).set(values).where(eq(migrationPartiesTable.id, rowId)).returning();
+  },
+  openItems(batchId: number) {
+    return db.select().from(migrationOpenItemsTable).where(eq(migrationOpenItemsTable.batchId, batchId)).orderBy(asc(migrationOpenItemsTable.itemType), asc(migrationOpenItemsTable.partySourceId), asc(migrationOpenItemsTable.issueDate), asc(migrationOpenItemsTable.id));
+  },
+  deleteOpenItems(batchId: number) {
+    return db.delete(migrationOpenItemsTable).where(eq(migrationOpenItemsTable.batchId, batchId));
+  },
+  insertOpenItems(values: (typeof migrationOpenItemsTable.$inferInsert)[]) {
+    if (values.length === 0) return Promise.resolve([]);
+    return db.insert(migrationOpenItemsTable).values(values).returning();
+  },
+  advances(batchId: number) {
+    return db.select().from(migrationAdvancesTable).where(eq(migrationAdvancesTable.batchId, batchId)).orderBy(asc(migrationAdvancesTable.partySourceId), asc(migrationAdvancesTable.receivedAt), asc(migrationAdvancesTable.id));
+  },
+  deleteAdvances(batchId: number) {
+    return db.delete(migrationAdvancesTable).where(eq(migrationAdvancesTable.batchId, batchId));
+  },
+  insertAdvances(values: (typeof migrationAdvancesTable.$inferInsert)[]) {
+    if (values.length === 0) return Promise.resolve([]);
+    return db.insert(migrationAdvancesTable).values(values).returning();
+  },
+
+  // ── the existing records a party may be (RLS-scoped: this organisation only) ──
+  customersByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([] as (typeof customersTable.$inferSelect)[]);
+    return db.select().from(customersTable).where(inArray(customersTable.id, ids));
+  },
+  vendorsByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([] as (typeof vendorsTable.$inferSelect)[]);
+    return db.select().from(vendorsTable).where(inArray(vendorsTable.id, ids));
+  },
+  /** Likely duplicates: the same VAT number, or the same name (case-insensitive, trimmed). */
+  customerCandidates(taxNumbers: string[], names: string[]) {
+    if (taxNumbers.length === 0 && names.length === 0) return Promise.resolve([] as (typeof customersTable.$inferSelect)[]);
+    const byTax = taxNumbers.length ? inArray(customersTable.taxNumber, taxNumbers) : sql`false`;
+    const byName = names.length ? inArray(sql`lower(trim(${customersTable.name}))`, names) : sql`false`;
+    return db.select().from(customersTable).where(sql`(${byTax}) OR (${byName})`);
+  },
+  vendorCandidates(taxNumbers: string[], names: string[]) {
+    if (taxNumbers.length === 0 && names.length === 0) return Promise.resolve([] as (typeof vendorsTable.$inferSelect)[]);
+    const byTax = taxNumbers.length ? inArray(vendorsTable.taxNumber, taxNumbers) : sql`false`;
+    const byName = names.length ? inArray(sql`lower(trim(${vendorsTable.name}))`, names) : sql`false`;
+    return db.select().from(vendorsTable).where(sql`(${byTax}) OR (${byName})`);
+  },
+  /** Document numbers already taken in this company — an opening item keeps its original number and must not collide. */
+  async takenInvoiceNumbers(numbers: string[]) {
+    if (numbers.length === 0) return new Set<string>();
+    const rows = await db.select({ n: invoicesTable.invoiceNumber }).from(invoicesTable).where(and(companyScoped(invoicesTable.companyId), inArray(invoicesTable.invoiceNumber, numbers)));
+    return new Set(rows.map((r) => r.n));
+  },
+  async takenBillNumbers(numbers: string[]) {
+    if (numbers.length === 0) return new Set<string>();
+    const rows = await db.select({ n: billsTable.billNumber }).from(billsTable).where(and(companyScoped(billsTable.companyId), inArray(billsTable.billNumber, numbers)));
+    return new Set(rows.map((r) => r.n));
+  },
+  bankAccountsByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([] as (typeof bankAccountsTable.$inferSelect)[]);
+    return db.select().from(bankAccountsTable).where(inArray(bankAccountsTable.id, ids));
+  },
+  bankLeaves(bankIds: number[]) {
+    if (bankIds.length === 0) return Promise.resolve([] as (typeof categoriesTable.$inferSelect)[]);
+    return db.select().from(categoriesTable).where(inArray(categoriesTable.bankAccountId, bankIds));
+  },
+  categoriesByIds(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([] as (typeof categoriesTable.$inferSelect)[]);
+    return db.select().from(categoriesTable).where(inArray(categoriesTable.id, ids));
+  },
+  systemCategories(codes: string[]) {
+    if (codes.length === 0) return Promise.resolve([] as (typeof categoriesTable.$inferSelect)[]);
+    return db.select().from(categoriesTable).where(inArray(categoriesTable.systemCode, codes));
+  },
+  /** The batch's company — its fiscal-year declaration decides what the P&L rows may say (A2). */
+  company(companyId: string) {
+    return db.select().from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
   },
 
   // ── lookups the mapping validates against (all RLS-scoped) ──

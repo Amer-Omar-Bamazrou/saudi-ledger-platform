@@ -3476,6 +3476,27 @@ paths:
               schema: { $ref: "#/components/schemas/MigrationBatchDetail" }
         "404":
           description: Not found
+    patch:
+      operationId: updateMigrationBatch
+      tags: [migration]
+      summary: "Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMigrationBatchInput" }
+      responses:
+        "200":
+          description: The batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "400":
+          description: Malformed VAT position
+        "409":
+          description: "`migration_batch_immutable`"
 
   /migration/batches/{id}/discard:
     post:
@@ -3563,6 +3584,205 @@ paths:
           description: "`migration_batch_immutable`"
         "422":
           description: "`mapping_target_refused`, `skip_requires_zero_balance`, `reference_not_found`"
+
+  # ── Batch 1C Phase 2 — parties, open items, advances, the opening position, validation ──
+  /migration/batches/{id}/parties:
+    get:
+      operationId: getMigrationParties
+      tags: [migration]
+      summary: "The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Parties and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParties" }
+    put:
+      operationId: importMigrationParties
+      tags: [migration]
+      summary: "Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed."
+      description: >
+        Every party keeps its source id — the identity every open item and
+        advance refers to. Import sets `create` where no existing record looks
+        like the party; where one does (same VAT number, or the same name) the
+        decision is left EMPTY and blocks validation until the operator chooses
+        create or use_existing. Replacing the parties resets every decision;
+        open items and advances that name a party no longer staged are reported
+        as problems, not deleted.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationPartiesInput" }
+      responses:
+        "200":
+          description: The imported parties and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParties" }
+        "400":
+          description: Malformed rows (duplicate source id, unknown party type, blank name)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/parties/{rowId}:
+    patch:
+      operationId: decideMigrationParty
+      tags: [migration]
+      summary: "Decide one staged party: create a new record, or use an existing customer / supplier of this organisation"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: rowId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MigrationPartyDecisionInput" }
+      responses:
+        "200":
+          description: The party with its decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParty" }
+        "404":
+          description: Row not in this batch
+        "409":
+          description: "`migration_batch_immutable`"
+        "422":
+          description: "`reference_not_found` (the existing record is not this organisation's, or is of the other party type), `party_already_used` (another staged party already uses it)"
+
+  /migration/batches/{id}/open-items:
+    get:
+      operationId: getMigrationOpenItems
+      tags: [migration]
+      summary: "The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Open items and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpenItems" }
+    put:
+      operationId: importMigrationOpenItems
+      tags: [migration]
+      summary: "Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1)."
+      description: >
+        One row per open document of the previous system: its original number,
+        issue date, due date, original amount, the amount still outstanding at
+        cut-off, and the party's source id. Where the old system tracked only
+        a balance for a party, ONE row with `compositionUnknown: true` carries
+        that balance — invoice-level history is never fabricated. Historical VAT
+        facts (rate, amount, the return period they were reported in) are kept
+        as data for reconciliation and for the future Art. 40(10)–(11) engine;
+        nothing here posts VAT.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationOpenItemsInput" }
+      responses:
+        "200":
+          description: The imported items and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpenItems" }
+        "400":
+          description: Malformed rows (duplicate source id, unknown item type, bad dates, outstanding > original, non-positive amounts, non-SAR)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/advances:
+    get:
+      operationId: getMigrationAdvances
+      tags: [migration]
+      summary: "The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Advances and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAdvances" }
+    put:
+      operationId: importMigrationAdvances
+      tags: [migration]
+      summary: "Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D)."
+      description: >
+        `vatPosition: invoiced` requires the old advance tax invoice's number and
+        date and the VAT category and rate it was taxed at — a later invoice
+        adjusts through PrepaidAmount by reference to them. `unknown` records the
+        cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever
+        computed for it until an accountant classifies it). The bank the money
+        arrived in is named by the old chart's code: the advance's cash is
+        INSIDE that bank's opening balance and posts no cash line of its own.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationAdvancesInput" }
+      responses:
+        "200":
+          description: The imported advances and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAdvances" }
+        "400":
+          description: Malformed rows (duplicate source id, non-positive amount, invoiced without its reference, VAT amount above the advance)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/opening-position:
+    get:
+      operationId: getMigrationOpeningPosition
+      tags: [migration]
+      summary: "The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The opening position
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpeningPosition" }
+
+  /migration/batches/{id}/validate:
+    post:
+      operationId: validateMigrationBatch
+      tags: [migration]
+      summary: "Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded."
+      description: >
+        The checks anticipate the reconciliation gates of pack §15.6 on the
+        STAGED content (the gates themselves run against the posted journal at
+        commit): the chart is fully mapped and balances; AR and AP control
+        balances equal the open-item subledgers, per party and in total (R2,
+        R3); every bank row lands on a D-3 leaf with statement evidence and
+        agrees with the bank's typed opening balance where one was typed (R4);
+        the VAT balances equal the last filed return's closing position as
+        supplied (R9); customer deposits equal the staged advances and each
+        carries its VAT position (R10); every party is decided; no opening item
+        collides with an existing document number; the fiscal year is declared
+        and the P&L rows are consistent with the cutover's place in it (A2).
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The validation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationValidation" }
+        "409":
+          description: "`migration_batch_immutable`, `migration_batch_discarded`"
 
   /invoices/{id}/pay:
     post:
@@ -7891,7 +8111,7 @@ components:
 
     MigrationBatch:
       type: object
-      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, contentHash, openingJournalEntryId, clearingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
+      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, contentHash, openingJournalEntryId, clearingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
       properties:
         id: { type: integer }
         status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
@@ -7900,6 +8120,10 @@ components:
         cutoverDate: { type: string }
         openingDate: { type: string, description: "cutover − 1 by definition." }
         notes: { type: ["string", "null"] }
+        vatPosition:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationVatPosition" }
+            - { type: "null" }
         contentHash: { type: ["string", "null"], description: "SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved." }
         openingJournalEntryId: { type: ["integer", "null"] }
         clearingJournalEntryId: { type: ["integer", "null"], description: "The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic." }
@@ -8026,3 +8250,377 @@ components:
             byDecision:
               type: object
               additionalProperties: { type: integer }
+
+    # ── Batch 1C Phase 2 — parties, open items, advances, opening position, validation ──
+    MigrationVatPosition:
+      type: object
+      description: "The last VAT return filed from the previous system — its closing position, as supplied, with the return's reference (pack §15.6 R9)."
+      required: [returnReference, periodStart, periodEnd, outputVatPayable, inputVatReceivable]
+      properties:
+        returnReference: { type: string, minLength: 1, maxLength: 120, description: "The ZATCA return reference / acknowledgement number." }
+        periodStart: { type: string, description: "YYYY-MM-DD" }
+        periodEnd: { type: string, description: "YYYY-MM-DD — must not be after the opening date." }
+        outputVatPayable: { type: number, minimum: 0, description: "Output VAT still payable at cut-off (the VAT_OUTPUT balance)." }
+        inputVatReceivable: { type: number, minimum: 0, description: "Input VAT still recoverable at cut-off (the VAT_INPUT balance)." }
+        note: { type: ["string", "null"], maxLength: 500 }
+
+    UpdateMigrationBatchInput:
+      type: object
+      properties:
+        notes: { type: ["string", "null"], maxLength: 2000 }
+        sourceVersion: { type: ["string", "null"], maxLength: 80 }
+        vatPosition:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationVatPosition" }
+            - { type: "null" }
+
+    MigrationPartyInput:
+      type: object
+      required: [partyType, sourceId, name]
+      properties:
+        partyType: { type: string, enum: [customer, vendor] }
+        sourceId: { type: string, minLength: 1, maxLength: 120, description: "The old system's id for this party — the identity open items and advances refer to." }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        nameAr: { type: ["string", "null"], maxLength: 200 }
+        taxNumber: { type: ["string", "null"], maxLength: 40 }
+        crNumber: { type: ["string", "null"], maxLength: 40 }
+        phone: { type: ["string", "null"], maxLength: 40 }
+        email: { type: ["string", "null"], maxLength: 200 }
+        address: { type: ["string", "null"], maxLength: 500 }
+        city: { type: ["string", "null"], maxLength: 100 }
+
+    ImportMigrationPartiesInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 20000
+          items: { $ref: "#/components/schemas/MigrationPartyInput" }
+
+    MigrationPartyCandidate:
+      type: object
+      required: [id, name, taxNumber, reason]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        reason: { type: string, enum: [tax_number, name], description: "What matched — the operator decides; the platform never merges by itself." }
+
+    MigrationParty:
+      type: object
+      required: [id, partyType, sourceId, name, nameAr, taxNumber, crNumber, phone, email, address, city, decision, existingId, resolvedId, candidates, openItems, openTotal, advances, advanceTotal, problems]
+      properties:
+        id: { type: integer }
+        partyType: { type: string, enum: [customer, vendor] }
+        sourceId: { type: string }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        decision: { type: ["string", "null"], enum: [create, use_existing, null] }
+        existingId: { type: ["integer", "null"], description: "use_existing: the existing customer / vendor id." }
+        resolvedId: { type: ["integer", "null"], description: "After commit: the customer / vendor the party became." }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyCandidate" }
+        openItems: { type: integer, description: "Staged open items naming this party." }
+        openTotal: { type: number, description: "Σ outstanding of those items." }
+        advances: { type: integer }
+        advanceTotal: { type: number }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationPartyDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [create, use_existing] }
+        existingId: { type: ["integer", "null"], description: "use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation." }
+
+    MigrationParties:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationParty" }
+        summary:
+          type: object
+          required: [rows, customers, vendors, undecided, useExisting, blocked]
+          properties:
+            rows: { type: integer }
+            customers: { type: integer }
+            vendors: { type: integer }
+            undecided: { type: integer }
+            useExisting: { type: integer }
+            blocked: { type: integer }
+
+    MigrationHistoricalVat:
+      type: object
+      description: "The VAT facts of the historical document, as data. Never posted; never a VAT event here."
+      properties:
+        category: { type: ["string", "null"], maxLength: 8, description: "S / Z / E / O as the old system recorded it." }
+        rate: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        taxableAmount: { type: ["number", "null"], minimum: 0 }
+        amount: { type: ["number", "null"], minimum: 0 }
+        reportedPeriod: { type: ["string", "null"], maxLength: 40, description: "The return period the document's VAT was reported in by the old system." }
+
+    MigrationOpenItemInput:
+      type: object
+      required: [itemType, sourceId, partySourceId, documentNumber, issueDate, dueDate, originalAmount, outstandingAmount]
+      properties:
+        itemType: { type: string, enum: [ar, ap] }
+        sourceId: { type: string, minLength: 1, maxLength: 120 }
+        partySourceId: { type: string, minLength: 1, maxLength: 120, description: "A staged customer (ar) or vendor (ap) of this batch." }
+        documentNumber: { type: string, minLength: 1, maxLength: 80, description: "The original document number — kept verbatim; it becomes the opening item's number." }
+        issueDate: { type: string, description: "YYYY-MM-DD, on or before the opening date." }
+        dueDate: { type: string, description: "YYYY-MM-DD — drives ageing exactly as it did in the old system." }
+        originalAmount: { type: number, exclusiveMinimum: 0 }
+        outstandingAmount: { type: number, exclusiveMinimum: 0, description: "Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party." }
+        compositionUnknown: { type: boolean, default: false, description: "The one-row representation of a party whose old system tracked only a balance. At most one per party." }
+        historicalVat:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationHistoricalVat" }
+            - { type: "null" }
+        description: { type: ["string", "null"], maxLength: 500 }
+
+    ImportMigrationOpenItemsInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 50000
+          items: { $ref: "#/components/schemas/MigrationOpenItemInput" }
+
+    MigrationOpenItem:
+      type: object
+      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems]
+      properties:
+        id: { type: integer }
+        itemType: { type: string, enum: [ar, ap] }
+        sourceId: { type: string }
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"], description: "From the staged party, when it exists." }
+        documentNumber: { type: string }
+        issueDate: { type: string }
+        dueDate: { type: string }
+        originalAmount: { type: number }
+        outstandingAmount: { type: number }
+        compositionUnknown: { type: boolean }
+        historicalVat:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationHistoricalVat" }
+            - { type: "null" }
+        description: { type: ["string", "null"] }
+        resolvedId: { type: ["integer", "null"], description: "After commit: the opening invoice (ar) or bill (ap) row." }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationSubledgerTotals:
+      type: object
+      required: [items, parties, total, compositionUnknown]
+      properties:
+        items: { type: integer }
+        parties: { type: integer }
+        total: { type: number }
+        compositionUnknown: { type: integer }
+
+    MigrationOpenItems:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationOpenItem" }
+        summary:
+          type: object
+          required: [rows, blocked, ar, ap]
+          properties:
+            rows: { type: integer }
+            blocked: { type: integer }
+            ar: { $ref: "#/components/schemas/MigrationSubledgerTotals" }
+            ap: { $ref: "#/components/schemas/MigrationSubledgerTotals" }
+
+    MigrationAdvanceInput:
+      type: object
+      required: [sourceId, partySourceId, bankSourceCode, amount, receivedAt, vatPosition]
+      properties:
+        sourceId: { type: string, minLength: 1, maxLength: 120 }
+        partySourceId: { type: string, minLength: 1, maxLength: 120, description: "A staged CUSTOMER of this batch." }
+        bankSourceCode: { type: string, minLength: 1, maxLength: 64, description: "The old chart's code of the bank the money arrived in — a chart row mapped to a bank." }
+        amount: { type: number, exclusiveMinimum: 0 }
+        receivedAt: { type: string, description: "YYYY-MM-DD, on or before the opening date." }
+        reference: { type: ["string", "null"], maxLength: 120 }
+        vatPosition: { type: string, enum: [invoiced, unknown] }
+        advanceInvoiceNumber: { type: ["string", "null"], maxLength: 80 }
+        advanceInvoiceDate: { type: ["string", "null"] }
+        advanceInvoiceTime: { type: ["string", "null"], maxLength: 16, description: "HH:MM:SS as the old invoice states it (KSA-25), when known." }
+        vatCategory: { type: ["string", "null"], maxLength: 8 }
+        vatRate: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        vatAmount: { type: ["number", "null"], minimum: 0 }
+
+    ImportMigrationAdvancesInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 20000
+          items: { $ref: "#/components/schemas/MigrationAdvanceInput" }
+
+    MigrationAdvance:
+      type: object
+      required: [id, sourceId, partySourceId, partyName, bankSourceCode, amount, receivedAt, reference, vatPosition, advanceInvoiceNumber, advanceInvoiceDate, advanceInvoiceTime, vatCategory, vatRate, vatAmount, resolvedPaymentId, problems]
+      properties:
+        id: { type: integer }
+        sourceId: { type: string }
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"] }
+        bankSourceCode: { type: string }
+        amount: { type: number }
+        receivedAt: { type: string }
+        reference: { type: ["string", "null"] }
+        vatPosition: { type: string, enum: [invoiced, unknown] }
+        advanceInvoiceNumber: { type: ["string", "null"] }
+        advanceInvoiceDate: { type: ["string", "null"] }
+        advanceInvoiceTime: { type: ["string", "null"] }
+        vatCategory: { type: ["string", "null"] }
+        vatRate: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        resolvedPaymentId: { type: ["integer", "null"] }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationAdvances:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationAdvance" }
+        summary:
+          type: object
+          required: [rows, blocked, total, customers, invoiced, unknown]
+          properties:
+            rows: { type: integer }
+            blocked: { type: integer }
+            total: { type: number }
+            customers: { type: integer }
+            invoiced: { type: integer }
+            unknown: { type: integer, description: "Advances whose VAT position is unknown — recorded at cash, fail closed downstream." }
+
+    MigrationOpeningLine:
+      type: object
+      description: "One target account of the opening position, with the source rows that land on it."
+      required: [target, targetKind, systemCode, categoryId, bankAccountId, accountName, type, debit, credit, balance, sourceCodes]
+      properties:
+        target: { type: string, description: "A stable key: system:AR, bank:12, category:345, create:<sourceCode>." }
+        targetKind: { type: string, enum: [system, bank, category, create] }
+        systemCode: { type: ["string", "null"] }
+        categoryId: { type: ["integer", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        accountName: { type: string }
+        type: { type: string, enum: [asset, liability, equity, income, expense] }
+        debit: { type: number }
+        credit: { type: number }
+        balance: { type: number, description: "debit − credit." }
+        sourceCodes:
+          type: array
+          items: { type: string }
+
+    MigrationPartyBalance:
+      type: object
+      required: [partySourceId, partyName, items, total]
+      properties:
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"] }
+        items: { type: integer }
+        total: { type: number }
+
+    MigrationBankOpening:
+      type: object
+      required: [bankAccountId, bankName, sourceCode, balance, typedOpeningBalance, leafCategoryId, evidenceNote, advancesInside]
+      properties:
+        bankAccountId: { type: integer }
+        bankName: { type: string }
+        sourceCode: { type: string }
+        balance: { type: number, description: "The old chart's closing balance for this bank (Dr − Cr)." }
+        typedOpeningBalance: { type: ["number", "null"], description: "bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2)." }
+        leafCategoryId: { type: ["integer", "null"] }
+        evidenceNote: { type: ["string", "null"] }
+        advancesInside: { type: number, description: "Σ staged advances naming this bank — inside the balance, no cash line of their own." }
+
+    MigrationControlCheck:
+      type: object
+      required: [id, title, status, expected, actual, detail]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [pass, fail, warn, skip] }
+        expected: { type: ["number", "string", "null"] }
+        actual: { type: ["number", "string", "null"] }
+        detail: { type: string }
+
+    MigrationOpeningPosition:
+      type: object
+      required: [batchId, openingDate, lines, totals, arByCustomer, apByVendor, depositsByCustomer, banks, controls]
+      properties:
+        batchId: { type: integer }
+        openingDate: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationOpeningLine" }
+        totals:
+          type: object
+          required: [debit, credit, balanced, openingBalanceEquity, ytdIncome, ytdExpense, ytdResult]
+          properties:
+            debit: { type: number }
+            credit: { type: number }
+            balanced: { type: boolean }
+            openingBalanceEquity: { type: number, description: "credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0." }
+            ytdIncome: { type: number }
+            ytdExpense: { type: number }
+            ytdResult: { type: number, description: "Income − expense of the imported YTD balances (A2)." }
+        arByCustomer:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        apByVendor:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        depositsByCustomer:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        banks:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationBankOpening" }
+        controls:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationControlCheck" }
+
+    MigrationValidation:
+      type: object
+      required: [batchId, ok, status, checks, contentHash, validatedAt]
+      properties:
+        batchId: { type: integer }
+        ok: { type: boolean }
+        status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationControlCheck" }
+        contentHash: { type: ["string", "null"] }
+        validatedAt: { type: ["string", "null"] }
