@@ -141,6 +141,8 @@ export const analyticsRepository = {
       .where(
         and(
           notInArray(invoicesTable.status, ["draft", "submitted"]),
+          // Batch 1C: an opening item is the previous system's sale, not this ledger's.
+          eq(invoicesTable.isOpening, false),
           companyScoped(invoicesTable.companyId),
           gte(invoicesTable.date, from),
           lte(invoicesTable.date, to),
@@ -163,6 +165,7 @@ export const analyticsRepository = {
       .where(
         and(
           notInArray(billsTable.status, ["draft", "submitted"]),
+          eq(billsTable.isOpening, false),
           companyScoped(billsTable.companyId),
           gte(billsTable.date, from),
           lte(billsTable.date, to),

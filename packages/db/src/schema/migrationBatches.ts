@@ -75,6 +75,14 @@ export const migrationBatchesTable = pgTable(
      * Required whenever a chart row with a balance maps to VAT_OUTPUT / VAT_INPUT.
      */
     vatPosition: jsonb("vat_position"),
+    /**
+     * Phase 3 — the EXPLICIT residual declaration. A source position whose
+     * debits and credits differ (an Excel-kept business with no equity detail)
+     * carries the difference on OPENING_BALANCE_EQUITY ONLY when the operator
+     * states here why, for the accountant who will clear it. NULL = the chart
+     * must balance to the halala; an unbalanced chart is refused, never plugged.
+     */
+    obeResidualReason: text("obe_residual_reason"),
     /** The last validation run: { ok, checks: [...], totals: {...}, at } */
     validation: jsonb("validation"),
     /** R1–R10 as computed at commit (and re-computed after posting). */

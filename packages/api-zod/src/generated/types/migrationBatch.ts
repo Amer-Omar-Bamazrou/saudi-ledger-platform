@@ -21,6 +21,16 @@ export interface MigrationBatch {
   notes: string | null;
   vatPosition: MigrationVatPosition | null;
   /**
+     * The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.
+     * @nullable
+     */
+  obeResidualReason: string | null;
+  /**
+     * The lock the commit placed on the opening month; lifted by the reversal.
+     * @nullable
+     */
+  periodLockId: number | null;
+  /**
      * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
      * @nullable
      */

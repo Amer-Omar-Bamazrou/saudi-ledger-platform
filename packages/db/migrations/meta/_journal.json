@@ -554,6 +554,13 @@
       "when": 1789825448561,
       "tag": "0078_batch_1c_migration_staging",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789827643953,
+      "tag": "0079_batch_1c_commit_and_reversal",
+      "breakpoints": true
     }
   ]
 }

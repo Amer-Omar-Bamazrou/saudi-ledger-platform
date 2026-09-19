@@ -8,7 +8,7 @@
  * `ledgerBalance`) and guards the one destructive act: a bank account whose
  * GL account carries ledger history cannot be deleted — deactivate it.
  */
-import { ConflictError, NotFoundError } from "../lib/errors";
+import { BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertSupportedCurrency, NUMERIC_15_2_MAX as MAX } from "../lib/writeGuards";
 
 /** H1 allowlist — user-settable bank-account fields. */
@@ -90,6 +90,16 @@ export const bankAccountsService = {
     assertSupportedCurrency(updates.currency);
     if (updates.balance != null) updates.balance = assertAmount(updates.balance, "balance", { min: -MAX }).toFixed(2);
     if (updates.openingBalance != null) updates.openingBalance = assertAmount(updates.openingBalance, "openingBalance", { min: 0, allowZero: true }).toFixed(2);
+    // Batch 1C (G2): once the migration's opening journal has posted this
+    // bank's opening balance, the typed figure IS the posted figure and is
+    // read-only — the only way to change it is to reverse the migration.
+    if (updates.openingBalance != null && before.openingJournalEntryId != null && updates.openingBalance !== Number(before.openingBalance ?? 0).toFixed(2)) {
+      throw new BusinessRuleError(422, {
+        error: `The opening balance of ${before.name} was posted by the migration's opening journal (entry ${before.openingJournalEntryId}) and is read-only. Reverse the migration to change it.`,
+        code: "opening_balance_posted",
+        field: "openingBalance",
+      });
+    }
     if (updates.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(id);
     const [row] = await bankAccountsRepository.update(id, updates as Partial<typeof bankAccountsTable.$inferInsert>);
     await auditService.updated("bank_account", id, before, row);

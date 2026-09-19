@@ -344,19 +344,24 @@ export const reportsRepository = {
       .limit(500);
   },
 
-  // vat-return (sales/output-VAT side) — approved invoices only.
+  // vat-return (sales/output-VAT side) — approved invoices only, and NEVER an
+  // opening item (Batch 1C, R7): a migrated receivable is the previous
+  // system's document, whose VAT that system reported. It carries no VAT and
+  // no line items, so without this predicate the header fallback above would
+  // read its outstanding amount as a zero-rated sale of the month it was
+  // issued in — a VAT event the migration must never create.
   invoicesInRange(dateFrom: string, dateTo: string) {
     return db
       .select()
       .from(invoicesTable)
-      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly()));
+      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly(), eq(invoicesTable.isOpening, false)));
   },
-  // vat-return (bill/input-VAT side) — approved bills only.
+  // vat-return (bill/input-VAT side) — approved bills only, never an opening item (R7).
   billsInRange(dateFrom: string, dateTo: string) {
     return db
       .select()
       .from(billsTable)
-      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
+      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly(), eq(billsTable.isOpening, false)));
   },
 
   /**

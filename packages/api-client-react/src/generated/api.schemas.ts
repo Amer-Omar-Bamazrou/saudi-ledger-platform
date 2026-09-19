@@ -4131,6 +4131,16 @@ export interface MigrationBatch {
   notes: string | null;
   vatPosition: MigrationVatPosition | null;
   /**
+     * The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.
+     * @nullable
+     */
+  obeResidualReason: string | null;
+  /**
+     * The lock the commit placed on the opening month; lifted by the reversal.
+     * @nullable
+     */
+  periodLockId: number | null;
+  /**
      * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
      * @nullable
      */
@@ -4385,6 +4395,13 @@ export interface UpdateMigrationBatchInput {
      */
   sourceVersion?: string | null;
   vatPosition?: MigrationVatPosition | null;
+  /**
+     * Declare, for the accountant, why the source position does not balance and what the difference is. Without it an unbalanced chart is refused.
+     * @minLength 20
+     * @maxLength 1000
+     * @nullable
+     */
+  obeResidualReason?: string | null;
 }
 
 export type MigrationPartyInputPartyType = typeof MigrationPartyInputPartyType[keyof typeof MigrationPartyInputPartyType];
@@ -4974,6 +4991,98 @@ export interface MigrationValidation {
   /** @nullable */
   validatedAt: string | null;
 }
+
+export interface ClearMigrationObeInput {
+  /** YYYY-MM-DD, on or after the cutover, not in the future — the accountant dates the clearing. */
+  date: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+}
+
+export type MigrationObeCleared = MigrationBatch & {
+  clearedAmount: number;
+  journalEntryId: number;
+};
+
+export interface ReverseMigrationBatchInput {
+  /**
+     * Why the opening position is withdrawn — the audit record of the reversal.
+     * @minLength 10
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type MigrationReversalPreviewWouldReverseInvoicesItem = {
+  id: number;
+  number: string;
+  /** @nullable */
+  customerId: number | null;
+  total: number;
+};
+
+export type MigrationReversalPreviewWouldReverseBillsItem = {
+  id: number;
+  number: string;
+  /** @nullable */
+  vendorId: number | null;
+  total: number;
+};
+
+export type MigrationReversalPreviewWouldReverseDepositsItem = {
+  id: number;
+  /** @nullable */
+  customerId: number | null;
+  amount: number;
+};
+
+export type MigrationReversalPreviewWouldReverseBanksItem = {
+  id: number;
+  name: string;
+  openingBalance: number;
+};
+
+export type MigrationReversalPreviewWouldReversePeriodLock = {
+  id: number;
+  period: string;
+} | null;
+
+export type MigrationReversalPreviewWouldReverseKeeps = {
+  customers: number;
+  vendors: number;
+  accountsCreated: number;
+};
+
+export type MigrationReversalPreviewWouldReverse = {
+  /** @nullable */
+  openingJournalEntryId: number | null;
+  invoices: MigrationReversalPreviewWouldReverseInvoicesItem[];
+  bills: MigrationReversalPreviewWouldReverseBillsItem[];
+  deposits: MigrationReversalPreviewWouldReverseDepositsItem[];
+  banks: MigrationReversalPreviewWouldReverseBanksItem[];
+  periodLock: MigrationReversalPreviewWouldReversePeriodLock;
+  keeps: MigrationReversalPreviewWouldReverseKeeps;
+};
+
+export interface MigrationReversalPreview {
+  batchId: number;
+  blockers: string[];
+  wouldReverse: MigrationReversalPreviewWouldReverse;
+}
+
+export type MigrationReversedRemoved = {
+  invoices: number;
+  bills: number;
+  deposits: number;
+};
+
+export type MigrationReversed = MigrationBatch & {
+  reversalJournalEntryId: number;
+  removed: MigrationReversedRemoved;
+};
 
 export type ListTransactionsParams = {
 /**

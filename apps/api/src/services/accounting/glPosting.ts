@@ -299,7 +299,17 @@ export async function postJournalEntry(opts: {
    */
   source?: "opening" | "opening_clearing" | "opening_reversal";
   migrationBatchId?: number;
+  /**
+   * Batch 1C: the entry this one mirrors. Only the migration's reversal names
+   * it (`source = 'opening_reversal'`), so the reversal of an opening journal
+   * carries the same `reversal_of` marker every other reversal carries and
+   * every reader keys on. Refused without a migration source.
+   */
+  reversalOf?: number;
 }): Promise<typeof journalEntriesTable.$inferSelect> {
+  if (opts.reversalOf != null && opts.source !== "opening_reversal") {
+    throw new BusinessRuleError(422, { error: "reversalOf is only written by the migration's reversal.", code: "reversal_of_refused", field: "reversalOf" });
+  }
   const migrationCall = opts.source != null;
   /**
    * 🔴 N2 (2026-09-03): the balance check runs on the ROUNDED lines — the
@@ -389,6 +399,7 @@ export async function postJournalEntry(opts: {
       postedAt: now,
       source: opts.source ?? null,
       migrationBatchId: opts.migrationBatchId ?? null,
+      reversalOf: opts.reversalOf ?? null,
     })
     .returning();
 
