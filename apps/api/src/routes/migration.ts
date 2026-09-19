@@ -29,4 +29,11 @@ router.put("/batches/:id/advances", migrationController.importAdvances);
 router.get("/batches/:id/opening-position", migrationController.openingPosition);
 router.post("/batches/:id/validate", migrationController.validate);
 
+// Phase 3 — the commit (one transaction, R1–R10 as gates), the accountant's
+// OBE clearing journal, and the reversal. All admin-only writes.
+router.post("/batches/:id/commit", migrationController.commit);
+router.post("/batches/:id/clear-obe", migrationController.clearObe);
+router.get("/batches/:id/reversal-preview", migrationController.reversalPreview);
+router.post("/batches/:id/reverse", migrationController.reverse);
+
 export default router;

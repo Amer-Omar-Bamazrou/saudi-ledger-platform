@@ -12,20 +12,23 @@
  * and stores the result on the batch with a content hash. The checks
  * anticipate the reconciliation gates R1–R10 on the STAGED side; the gates
  * themselves run against the POSTED journal and the ledger read-back at
- * commit (the next phase) — a validated batch is a batch the commit may
- * attempt, not one that has reconciled.
+ * commit (migrationCommit.service.ts) — a validated batch is a batch the
+ * commit may attempt, not one that has reconciled.
  *
  * OPENING_BALANCE_EQUITY: the figure reported is credit − debit over the
  * mapped rows — the line the opening journal would carry on its far side. A
- * chart that balances and is fully mapped gives 0; a chart that does not
- * balance is REFUSED here (never a plug). The line and the accountant's
- * explicit clearing journal exist for the residual case, and R6 warns while
- * the balance is non-zero.
+ * chart that balances and is fully mapped gives 0. A chart that does not
+ * balance is REFUSED unless the operator has DECLARED on the batch why the
+ * source position has no balancing equity (`obeResidualReason` — books kept
+ * with no equity detail); with the declaration the difference is carried on
+ * OPENING_BALANCE_EQUITY, visible, and R6 warns until the accountant's
+ * explicit clearing journal moves it. Never a silent plug.
  */
 import { createHash } from "node:crypto";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import type { MigrationBatch, MigrationChartRow } from "@workspace/db";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../lib/fiscalYear";
 import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
@@ -176,10 +179,22 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
     expected: 0, actual: chart.length === 0 ? "no chart staged" : chartProblems,
     detail: chart.length === 0 ? "Import the old chart of accounts first." : chartProblems === 0 ? `${chart.length} rows mapped.` : `${chartProblems} row(s) block — see the chart's problems.`,
   });
-  controls.push({
-    id: "CHART_BALANCED", title: "The old closing balances balance (Σ Dr = Σ Cr); the opening journal never invents a balancing amount (R5)", status: chart.length > 0 && eq(debit, credit) ? "pass" : "fail",
-    expected: debit, actual: credit, detail: eq(debit, credit) ? `Dr ${debit.toFixed(2)} = Cr ${credit.toFixed(2)}.` : `Dr ${debit.toFixed(2)} ≠ Cr ${credit.toFixed(2)} — the file is missing rows; the difference is never plugged to opening balance equity.`,
-  });
+  // R5 on the file, and R6's declaration. A balanced, fully mapped chart gives
+  // OBE = 0. A source position that does NOT balance is carried on
+  // OPENING_BALANCE_EQUITY only under the operator's explicit declaration of
+  // why (an Excel-kept business with no equity detail is the real case);
+  // without it the file is refused — never plugged.
+  const residual = round2(credit - debit);
+  const declared = (batch.obeResidualReason ?? "").trim().length > 0;
+  if (chart.length === 0) {
+    controls.push({ id: "CHART_BALANCED", title: "The old closing balances balance (Σ Dr = Σ Cr), or the difference is DECLARED as opening balance equity (R5, R6)", status: "fail", expected: 0, actual: "no chart staged", detail: "Import the old chart of accounts first." });
+  } else if (eq(residual, 0)) {
+    controls.push({ id: "CHART_BALANCED", title: "The old closing balances balance (Σ Dr = Σ Cr), or the difference is DECLARED as opening balance equity (R5, R6)", status: "pass", expected: debit, actual: credit, detail: `Dr ${debit.toFixed(2)} = Cr ${credit.toFixed(2)}; opening balance equity 0.00.${declared ? " (A residual declaration is recorded but the position balances — nothing lands on opening balance equity.)" : ""}` });
+  } else if (declared) {
+    controls.push({ id: "CHART_BALANCED", title: "The old closing balances balance (Σ Dr = Σ Cr), or the difference is DECLARED as opening balance equity (R5, R6)", status: "warn", expected: debit, actual: credit, detail: `Dr ${debit.toFixed(2)} ≠ Cr ${credit.toFixed(2)}: ${Math.abs(residual).toFixed(2)} ${residual > 0 ? "Dr" : "Cr"} will be carried on OPENING_BALANCE_EQUITY under the declaration "${batch.obeResidualReason}" — R6 warns until the accountant's clearing journal moves it.` });
+  } else {
+    controls.push({ id: "CHART_BALANCED", title: "The old closing balances balance (Σ Dr = Σ Cr), or the difference is DECLARED as opening balance equity (R5, R6)", status: "fail", expected: debit, actual: credit, detail: `Dr ${debit.toFixed(2)} ≠ Cr ${credit.toFixed(2)} — the file is missing rows, or the source kept no equity detail. The difference is never plugged silently: either complete the file, or declare on the batch why the difference is opening balance equity (obeResidualReason) for the accountant to clear.` });
+  }
   const arControl = lineBalance(lines, `system:${SYSTEM_ACCOUNTS.AR}`);
   controls.push({
     id: "AR_CONTROL", title: "Receivables control balance = Σ historical AR open items (R2)", status: eq(arControl, arTotal) ? "pass" : "fail",
@@ -238,6 +253,20 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
   controls.push({ id: "OPEN_ITEMS", title: "Every open item is well-formed: staged party, dated at or before the opening date, an unused original number, one composition-unknown item per party at most", status: itemIssues === 0 ? "pass" : "fail", expected: 0, actual: itemIssues, detail: itemIssues === 0 ? `${items.length} item(s).` : `${itemIssues} item(s) block — see the items' problems.` });
   const advanceIssues = advances.filter((a) => advanceProblems(a, content).length > 0).length;
   controls.push({ id: "ADVANCES", title: "Every advance names a staged customer and a bank row mapped to a bank, dated at or before the opening date", status: advanceIssues === 0 ? "pass" : "fail", expected: 0, actual: advanceIssues, detail: advanceIssues === 0 ? `${advances.length} advance(s).` : `${advanceIssues} advance(s) block.` });
+  // The ledger before the opening date must be EMPTY: an opening position is
+  // the first thing in these books (R1's read-back is the opening journal
+  // alone), not something posted on top of history.
+  const priorLedger = await migrationRepository.inBooksLinesUpTo(batch.openingDate);
+  controls.push({
+    id: "LEDGER_EMPTY", title: `No journal line is in the books on or before the opening date ${batch.openingDate} (R1 precondition)`, status: priorLedger.lines === 0 ? "pass" : "fail",
+    expected: 0, actual: priorLedger.lines,
+    detail: priorLedger.lines === 0 ? "The opening journal will be the first entry in these books." : `${priorLedger.lines} line(s) (Dr ${priorLedger.debit.toFixed(2)} / Cr ${priorLedger.credit.toFixed(2)}) already sit on or before ${batch.openingDate} — this company has history in Saudi Ledger; an opening position cannot be posted on top of it. Reverse it, or choose a cutover after it.`,
+  });
+  const today = businessToday();
+  controls.push({
+    id: "OPENING_DATE", title: "The opening date has passed (a position is stated as at a day that has ended)", status: batch.openingDate <= today ? "pass" : "fail",
+    expected: `≤ ${today}`, actual: batch.openingDate, detail: batch.openingDate <= today ? `Opening date ${batch.openingDate}; business date ${today}.` : `Opening date ${batch.openingDate} is after the business date ${today}.`,
+  });
   // Fiscal year (A2): the cutover's place in the declared year decides what the P&L rows may say.
   const [company] = await migrationRepository.company(batch.companyId);
   const plRows = chart.filter((r) => (r.sourceType === "income" || r.sourceType === "expense") && r.decision !== "skip" && (num(r.openingDebit) > 0.005 || num(r.openingCredit) > 0.005));
@@ -260,7 +289,7 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
     lines,
     totals: {
       debit, credit, balanced: eq(debit, credit),
-      openingBalanceEquity: round2(credit - debit),
+      openingBalanceEquity: residual,
       ytdIncome, ytdExpense, ytdResult: round2(ytdIncome - ytdExpense),
     },
     arByCustomer, apByVendor, depositsByCustomer,
@@ -275,6 +304,7 @@ export function contentHashOf(c: StagedContent): string {
     cutoverDate: c.batch.cutoverDate,
     openingDate: c.batch.openingDate,
     vatPosition: c.batch.vatPosition ?? null,
+    obeResidualReason: c.batch.obeResidualReason ?? null,
     chart: c.chart.map((r) => [r.sourceCode, r.sourceType, r.sourceIsGroup, r.openingDebit, r.openingCredit, r.decision, r.targetSystemCode, r.targetBankAccountId, r.targetCategoryId]).sort(),
     parties: c.parties.map((p) => [p.partyType, p.sourceId, p.name, p.taxNumber, p.decision, p.existingCustomerId, p.existingVendorId]).sort(),
     items: c.items.map((i) => [i.itemType, i.sourceId, i.partySourceId, i.documentNumber, i.issueDate, i.dueDate, i.originalAmount, i.outstandingAmount, i.compositionUnknown, i.historicalVat]).sort(),

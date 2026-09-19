@@ -115,6 +115,8 @@ function toBatchOut(b: MigrationBatch) {
     openingDate: b.openingDate,
     notes: b.notes ?? null,
     vatPosition: (b.vatPosition ?? null) as VatPositionInput | null,
+    obeResidualReason: b.obeResidualReason ?? null,
+    periodLockId: b.periodLockId ?? null,
     contentHash: b.contentHash ?? null,
     openingJournalEntryId: b.openingJournalEntryId ?? null,
     clearingJournalEntryId: b.clearingJournalEntryId ?? null,
@@ -242,11 +244,18 @@ export const migrationService = {
 
   assertDraft,
 
-  async updateBatch(id: number, body: { notes?: string | null; sourceVersion?: string | null; vatPosition?: VatPositionInput | null }, userId: number | null) {
+  async updateBatch(id: number, body: { notes?: string | null; sourceVersion?: string | null; vatPosition?: VatPositionInput | null; obeResidualReason?: string | null }, userId: number | null) {
     const batch = await this.requireBatch(id);
     assertDraft(batch);
     const values: Partial<MigrationBatch> = {};
     if ("notes" in body) values.notes = body.notes?.trim() || null;
+    // The explicit residual declaration (pack §15.6 R6): why the source
+    // position does not balance and what the accountant will clear.
+    if ("obeResidualReason" in body) {
+      const reason = body.obeResidualReason?.trim() || null;
+      if (reason != null && reason.length < 20) throw new BadRequestError("obeResidualReason must say, in at least 20 characters, why the source position does not balance and what the difference is — it is read by the accountant who clears it.");
+      values.obeResidualReason = reason;
+    }
     if ("sourceVersion" in body) values.sourceVersion = body.sourceVersion?.trim() || null;
     if ("vatPosition" in body) {
       const v = body.vatPosition;
@@ -266,7 +275,7 @@ export const migrationService = {
     }
     const [updated] = await migrationRepository.updateBatch(id, values);
     await this.touch(batch);
-    await auditService.record({ action: "migration_batch_update", entityType: "migration_batch", entityId: id, before: { notes: batch.notes, sourceVersion: batch.sourceVersion, vatPosition: batch.vatPosition }, after: { ...values, by: userId } });
+    await auditService.record({ action: "migration_batch_update", entityType: "migration_batch", entityId: id, before: { notes: batch.notes, sourceVersion: batch.sourceVersion, vatPosition: batch.vatPosition, obeResidualReason: batch.obeResidualReason }, after: { ...values, by: userId } });
     return toBatchOut(updated);
   },
 
@@ -387,6 +396,10 @@ export const migrationService = {
       }
       case "create": {
         if (row.sourceRole && CONTROL_ROLE_TARGET[row.sourceRole]) refuse(`${row.sourceCode} is a ${row.sourceRole} account; it maps to ${CONTROL_ROLE_TARGET[row.sourceRole]}, it is not created.`);
+        // An account this code was created as before (an earlier commit, since
+        // reversed) still exists: the same code IS that account — merge into it.
+        const [existingByCode] = await migrationRepository.categoriesByAccountCodes([row.sourceCode]);
+        if (existingByCode) refuse(`account code ${row.sourceCode} already exists as ${existingByCode.name} (#${existingByCode.id}) — created by an earlier migration; merge_into it.`);
         if (body.targetCategoryId != null) {
           const [parent] = await migrationRepository.findCategory(Number(body.targetCategoryId));
           if (!parent) throw new BusinessRuleError(422, { error: `Parent category ${body.targetCategoryId} does not exist.`, code: "reference_not_found", field: "targetCategoryId" });

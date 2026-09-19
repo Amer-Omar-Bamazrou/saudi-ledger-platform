@@ -77,7 +77,7 @@ export type AdvanceInput = {
   vatAmount?: number | null;
 };
 
-type Candidate = { id: number; name: string; taxNumber: string | null; reason: "tax_number" | "name" };
+type Candidate = { id: number; name: string; taxNumber: string | null; reason: "source_id" | "tax_number" | "name" };
 
 /** The whole staged content of a batch, read once — every problem below is a function of it. */
 export type StagedContent = {
@@ -124,8 +124,12 @@ export function partyProblems(p: MigrationParty, c: StagedContent, candidates: C
   const problems: string[] = [];
   if (p.decision == null) {
     problems.push(candidates.length > 0
-      ? `likely duplicate of ${candidates.map((x) => `#${x.id} ${x.name} (${x.reason === "tax_number" ? "same VAT number" : "same name"})`).join(", ")} — decide create or use_existing`
+      ? `likely duplicate of ${candidates.map((x) => `#${x.id} ${x.name} (${x.reason === "tax_number" ? "same VAT number" : x.reason === "source_id" ? "same source id" : "same name"})`).join(", ")} — decide create or use_existing`
       : "no decision");
+  }
+  if (p.decision === "create" && candidates.some((c) => c.reason === "source_id")) {
+    const same = candidates.find((c) => c.reason === "source_id")!;
+    problems.push(`${p.partyType} #${same.id} ${same.name} already carries source id ${p.sourceId} of ${p.sourceSystem} — it IS this party; use_existing`);
   }
   if (p.decision === "use_existing") {
     const id = p.partyType === "customer" ? p.existingCustomerId : p.existingVendorId;
@@ -248,20 +252,36 @@ function subledgerTotals(items: MigrationOpenItem[]) {
   };
 }
 
-/** The likely duplicates among EXISTING records, per staged party — the operator decides; nothing merges by itself. */
+/**
+ * The look-alikes among EXISTING records, per staged party.
+ *
+ * Two kinds, and they are not the same thing:
+ *  - `source_id`: an existing record carries THIS party's (source_system,
+ *    source_id) — written by an earlier commit of the same source. That IS the
+ *    same party by construction (deterministic identity), so the import
+ *    pre-decides `use_existing` on it — a re-run after a reversal resolves to
+ *    the records it created the first time instead of duplicating them.
+ *  - `tax_number` / `name`: a LIKELY duplicate. The decision is left empty; the
+ *    operator says whether it is the same party. The platform never merges by
+ *    a name or a number.
+ */
 export async function findCandidates(parties: MigrationParty[]): Promise<Map<number, Candidate[]>> {
   const out = new Map<number, Candidate[]>();
   for (const type of ["customer", "vendor"] as const) {
     const group = parties.filter((p) => p.partyType === type);
     if (group.length === 0) continue;
+    const sourceSystem = group[0]!.sourceSystem;
     const taxNumbers = [...new Set(group.map((p) => p.taxNumber?.trim()).filter((t): t is string => !!t))];
     const names = [...new Set(group.map((p) => normName(p.name)))];
-    const found = type === "customer"
-      ? await migrationRepository.customerCandidates(taxNumbers, names)
-      : await migrationRepository.vendorCandidates(taxNumbers, names);
+    const [byIdentity, found] = type === "customer"
+      ? await Promise.all([migrationRepository.customersBySourceIdentity(sourceSystem, group.map((p) => p.sourceId)), migrationRepository.customerCandidates(taxNumbers, names)])
+      : await Promise.all([migrationRepository.vendorsBySourceIdentity(sourceSystem, group.map((p) => p.sourceId)), migrationRepository.vendorCandidates(taxNumbers, names)]);
     for (const p of group) {
       const cands: Candidate[] = [];
+      const same = byIdentity.find((f) => f.sourceId === p.sourceId);
+      if (same) cands.push({ id: same.id, name: same.name, taxNumber: same.taxNumber ?? null, reason: "source_id" });
       for (const f of found) {
+        if (same && f.id === same.id) continue;
         const tax = p.taxNumber?.trim();
         if (tax && f.taxNumber && f.taxNumber.trim() === tax) cands.push({ id: f.id, name: f.name, taxNumber: f.taxNumber, reason: "tax_number" });
         else if (normName(f.name) === normName(p.name)) cands.push({ id: f.id, name: f.name, taxNumber: f.taxNumber ?? null, reason: "name" });
@@ -333,7 +353,13 @@ export const migrationStagingService = {
     // says whether it is the same party; the platform never merges by itself.
     const candidates = await findCandidates(inserted);
     for (const p of inserted) {
-      if ((candidates.get(p.id) ?? []).length === 0) await migrationRepository.updateParty(p.id, { decision: "create" });
+      const cands = candidates.get(p.id) ?? [];
+      const identity = cands.find((c) => c.reason === "source_id");
+      if (identity) {
+        await migrationRepository.updateParty(p.id, { decision: "use_existing", existingCustomerId: p.partyType === "customer" ? identity.id : null, existingVendorId: p.partyType === "vendor" ? identity.id : null });
+      } else if (cands.length === 0) {
+        await migrationRepository.updateParty(p.id, { decision: "create" });
+      }
     }
     await migrationService.touch(batch);
     await auditService.record({ action: "migration_parties_import", entityType: "migration_batch", entityId: batchId, after: { rows: values.length, undecided: inserted.filter((p) => (candidates.get(p.id) ?? []).length > 0).length, by: userId } });

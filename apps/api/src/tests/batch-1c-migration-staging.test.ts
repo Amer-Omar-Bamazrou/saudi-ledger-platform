@@ -408,7 +408,7 @@ describeMaybe("Batch 1C — Phase 2: parties, open items, advances, opening posi
     await pool.query(`UPDATE migration_chart_rows SET opening_credit = 40100 WHERE id = $1`, [sales.id]);
     const r5 = await inTenant(() => migrationValidationService.validate(b.id, userId));
     expect(check(r5, "CHART_BALANCED")).toMatchObject({ status: "fail", expected: 142500, actual: 142600 });
-    expect(check(r5, "CHART_BALANCED").detail).toMatch(/never plugged to opening balance equity/);
+    expect(check(r5, "CHART_BALANCED").detail).toMatch(/never plugged silently/);
     expect((await inTenant(() => migrationValidationService.getOpeningPosition(b.id))).totals.openingBalanceEquity).toBe(100);
     await pool.query(`UPDATE migration_chart_rows SET opening_credit = 40000 WHERE id = $1`, [sales.id]);
 

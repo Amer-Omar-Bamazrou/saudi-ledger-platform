@@ -16,6 +16,7 @@ import {
   CreateMigrationBatchResponse, GetMigrationBatchResponse, UpdateMigrationBatchResponse, ImportMigrationChartResponse,
   ImportMigrationPartiesResponse, DecideMigrationPartyResponse, ImportMigrationOpenItemsResponse, ImportMigrationAdvancesResponse,
   GetMigrationOpeningPositionResponse, ValidateMigrationBatchResponse, GetMigrationPartiesResponse, ListMigrationBatchesResponse,
+  CommitMigrationBatchResponse, GetMigrationReversalPreviewResponse, ReverseMigrationBatchResponse,
 } from "@workspace/api-zod";
 import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
@@ -42,7 +43,7 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
       await client.query("SET LOCAL session_replication_role = replica");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
       const emails = Object.values(USERS).map((e) => `'${e}'`).join(",");
-      for (const t of ["migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows", "migration_batches", "audit_logs", "organization_memberships", "bank_accounts", "customers", "vendors", "categories", "companies"]) {
+      for (const t of ["payments", "invoices", "bills", "journal_entry_lines", "journal_entries", "migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows", "migration_batches", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "customers", "vendors", "categories", "companies"]) {
         await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE email IN (${emails}))`);
@@ -196,5 +197,35 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
     const detail = GetMigrationBatchResponse.parse((await api("GET", `/migration/batches/${id}`)).body);
     expect(detail.status).toBe("validated");
     expect(detail.counts.parties).toBe(1);
+  });
+
+  it("🔴 Phase 3 over HTTP: commit (admin only), the reversal preview (accountant may read), reverse (admin only) — each response parsed against the contract, each refusal a real status", async () => {
+    await loginAs("accountant");
+    const id = ListMigrationBatchesResponse.parse((await api("GET", "/migration/batches")).body)[0].id;
+    expect((await api("POST", `/migration/batches/${id}/commit`)).status).toBe(403);
+    expect((await api("GET", `/migration/batches/${id}/reversal-preview`)).status).toBe(409); // readable, but not committed yet
+    await loginAs("admin");
+    const committed = await api("POST", `/migration/batches/${id}/commit`);
+    expect(committed.status, JSON.stringify(committed.body)).toBe(200);
+    const c = CommitMigrationBatchResponse.parse(committed.body);
+    expect(c.status).toBe("committed");
+    expect(c.openingJournalEntryId).not.toBeNull();
+    expect((c.reconciliation as { checks: { id: string; status: string }[] }).checks.map((x) => `${x.id}:${x.status}`)).toEqual(["R1:pass", "R2:pass", "R3:pass", "R4:pass", "R5:pass", "R6:pass", "R7:pass", "R8:pass", "R9:pass", "R10:pass"]);
+    // Replay over the wire: same batch, same journal.
+    expect(CommitMigrationBatchResponse.parse((await api("POST", `/migration/batches/${id}/commit`)).body).openingJournalEntryId).toBe(c.openingJournalEntryId);
+    expect((await api("POST", `/migration/batches/${id}/clear-obe`, { date: "2026-07-01" })).status).toBe(409); // nothing to clear
+    expect((await api("POST", `/migration/batches/${id}/reverse`, { reason: "too short" })).status).toBe(400);
+    await loginAs("accountant");
+    const preview = await api("GET", `/migration/batches/${id}/reversal-preview`);
+    expect(preview.status).toBe(200);
+    expect(GetMigrationReversalPreviewResponse.parse(preview.body).blockers).toEqual([]);
+    expect((await api("POST", `/migration/batches/${id}/reverse`, { reason: "accountant cannot reverse" })).status).toBe(403);
+    await loginAs("admin");
+    const reversed = await api("POST", `/migration/batches/${id}/reverse`, { reason: "walked over HTTP; withdrawing the opening position" });
+    expect(reversed.status, JSON.stringify(reversed.body)).toBe(200);
+    const r = ReverseMigrationBatchResponse.parse(reversed.body);
+    expect(r.status).toBe("reversed");
+    expect(r.removed).toEqual({ invoices: 1, bills: 0, deposits: 1 });
+    expect((await api("POST", `/migration/batches/${id}/commit`)).status).toBe(409);
   });
 });
