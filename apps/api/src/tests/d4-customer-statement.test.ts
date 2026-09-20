@@ -208,7 +208,9 @@ describeMaybe("D-4 Part 2 Phase E — customer statement, position and AR ageing
     expect(s.lines.filter((l) => l.kind === "allocation").map((l) => [l.documentNumber, l.amount])).toEqual([[a.invoiceNumber, 1150], [b.invoiceNumber, 1000]]);
     const ledger = await inTenant(() => reportsService.customerLedger(String(c)));
     const cust = ledger.customers.find((x) => x.customerId === c)!;
-    expect(cust.invoices.map((i) => [i.invoiceNumber, i.outstanding])).toEqual([[a.invoiceNumber, 0], [b.invoiceNumber, 2450]]);
+    // The ledger orders by customer name, then DATE — two same-day invoices have no defined order between
+    // them (CI on PR #164 returned b before a once the receipt's UPDATE moved a's tuple). Assert the set.
+    expect(cust.invoices.map((i) => [i.invoiceNumber, i.outstanding]).sort()).toEqual([[a.invoiceNumber, 0], [b.invoiceNumber, 2450]]);
     expect(cust.balance).toBe(2450);
     expect(cust.position).toEqual(pos(2450, 0, 0));
   });
