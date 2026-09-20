@@ -1,6 +1,6 @@
 # Batch 1C decision pack — migration and opening balances (2026-09-17)
 
-**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5; the ZATCA-artefact coupling that blocks collecting an opening receivable is surveyed in §16.13.1–§16.13.3 (a product decision awaiting approval, not an accounting one). §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5 and, against the Saudi primary sources retrieved live, in §16.14 (credit notes against previous-system invoices lead that section; the questions to send are §16.14.9); the ZATCA-artefact coupling that blocks collecting an opening receivable is surveyed in §16.13.1–§16.13.3 (a product decision awaiting approval, not an accounting one). §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 🔴 **Reading order for a future session:** §15.1 (the decisions A1–A5), §15.5–§15.6 (the model and the gates, as amended 2026-09-20), §16.12 (the correction policy as decided). Everything in §16.7–§16.9 that §16.12 contradicts is history, kept for the reasoning.
 
@@ -1001,6 +1001,8 @@ An opening receivable collected through D-4 must be collectible, allocatable (pa
 
 ## 16.13.5 The exact question for the accountant — `ACCOUNTANT DECISION REQUIRED`
 
+*Superseded in form by §16.14.9 (2026-09-20, after the primary-source pass): the accountant questions are now Q1/Q3/Q4 there, and the credit-note boundary is folded into the ZATCA enquiry as its third item. The text below is kept as the question first drafted.*
+
 > **Correcting a migrated receivable that has already been partly collected.**
 >
 > A company migrated to Saudi Ledger with an open customer receivable of **SAR 100,000** (an opening item: the previous system's invoice number kept for reference, no new tax invoice, no new VAT — the supply and its VAT were reported in the previous system). After migration the customer paid **SAR 40,000**, recorded and allocated to that item; **SAR 60,000** remains. We then find the migration was wrong: the previous system's invoice was for **SAR 90,000**, so the item should have been migrated at 90,000 (the supply itself is unchanged — this is a transfer error, not a change in what the customer owes for the supply).
@@ -1024,3 +1026,156 @@ Migrated opening AR receives a payment; partial allocation; full settlement (→
 ## 16.13.7 What stays blocked, and the order after approval
 
 Blocked: collecting an opening receivable through the product (Issue 1 — awaiting approval of the boundary above); any item-level correction of a settled opening item (Issue 2 — awaiting the accountant); credit notes against opening items (a ZATCA question folded into §16.13.5). Order once approved: (1) Issue 1's three predicate sites + the two invariants + the renderer refusal + the note refusal, each with a red-first test; (2) the accountant's answer converted into an invariant in this pack, then built with its tests; (3) the UI (Phase 4) last.
+
+
+---
+
+# 16.14 Saudi primary-source research for §16.13.5 — partly-settled opening items and credit notes against previous-system invoices (2026-09-20; research only)
+
+**Status.** Research only; nothing implemented; §16.12's A4/A5 and the two blockers of §16.13.7 stand. Every source below was RETRIEVED LIVE on 2026-09-20 from the publisher and read in the retrieved copy (file, page or line cited); where a source could not be retrieved it says so. The English texts are unofficial translations — every ZATCA document states the Arabic prevails; the Arabic was not read. Odoo/ERPNext are implementation comparisons only (§16.13.4) and establish nothing here.
+
+## 16.14.1 The consequential finding first — a credit note against an invoice the previous system issued (Question 3)
+
+**What the sources establish.**
+
+- The obligation to credit attaches to the **taxable person**, and the trigger is an Art. 40(1) event **"after a Tax Invoice has been issued"** — not "after this solution issued it". VAT IR Art. 54(1)–(2) (retrieved PDF p. 50; footnotes 30–31: amended 09/11/2021G). A "Tax Invoice" is any invoice issued in accordance with Art. 53 (Art. 53(11), p. 50) — nothing restricts it to an electronic one or to the current system.
+- What the note must carry: all Art. 53 information relating to the invoice's nature, a **"reference to the sequential number of the Tax Invoice issued in respect of the initial Supply"** and **"a clear reference –as specified by the Authority– to previously issued Tax Invoice(s)"** (Art. 54(4), pp. 50–51, footnote 33; the printed English of ¶4 is itself garbled mid-sentence — the Arabic prevails).
+- How the Authority specified that reference: Resolution Annex 2 field **13.1 "A reference to the original invoice(s) that the credit/debit note is related to"** (Annex 2, p. 32 standard and the simplified table following); Detailed Guideline v2 §4.3 p. 19: *"The reference fields can be used to indicate the Invoice Reference Number(s) of Original Invoice(s)… taxpayers can provide Invoice Reference Numbers as a range"*; Technical Guideline v2 FAQ p. 72: *"Billing Reference ID is the link to Original Invoices… As per Article 54… This is not a new requirement, it existed since 1 Jan 2018."* The reference is the original's **invoice number, as text** — not its UUID, not its hash, not membership of a chain.
+- The chain is a property of the **issuing unit**, not of the referenced invoice: *"The Hash of the Electronic Invoice is then embedded in the next Electronic Invoice in the sequence"* (Resolution Third/C(5), pp. 3–4); *"must not be able to generate more than one sequence… through each of the units"* (Third/E(2), p. 4); Detailed Guideline p. 27/34: all invoices generated by an E-Invoice Solution Unit are linked by PIH into a single chain; Technical Guideline FAQ pp. 76–77: after a rejection *"Previous Invoice Hash will be based on immediately preceding document"*. A credit note issued by Saudi Ledger therefore enters **Saudi Ledger's** sequence with its own UUID, ICV and PIH (Third/C(3),(5),(7)); the referenced original is named, not linked.
+- The VAT effect of such a note is a **current-period** adjustment: the supplier reduces output tax *"in the Tax Return for the Tax Period in which the event… occurred or… during which the Credit Note was issued… whichever is later"* (Art. 40(5), p. 29); the customer corrects input tax in the period the note is issued (Art. 40(6)).
+
+**What is NOT established by the sources reviewed.** (i) Any ZATCA text that names a *change of e-invoicing solution* or an original issued by a *previous* solution — silence, not a rule. (ii) Whether the FATOORA platform cross-checks field 13.1 against invoices it has previously received; the XML Implementation Standard (the business rules) **could not be retrieved this pass** (the zatca.gov.sa document URLs returned HTML). The Detailed Guideline's explicit allowance of a *range* of IRNs in the text field (p. 19) is hard to reconcile with a per-invoice cross-check, but that is reasoning, not text. (iii) The parenthetical in Detailed Guideline §4.3 — notes are issued "for a Tax Invoice / Simplified Tax Invoice (after an e-invoice has been issued)" — is ambiguous and is not restated as a condition anywhere else reviewed.
+
+**Practical consequence, stated plainly.** On the texts as read, a migrated business credits an invoice its old system issued by issuing the credit note **from Saudi Ledger**: electronic, in Saudi Ledger's own sequence, carrying the old invoice's number (and date) in the reference field, reported to ZATCA as a new document, with the VAT reduction in the current return. The old invoice does **not** need to be in Saudi Ledger's chain, and nothing reviewed requires re-issuing it. What Saudi Ledger would need from the migration is the old invoice's **number and issue date** — which the opening item already preserves — and, for the buyer's input-tax correction, the buyer's identity. The residual uncertainty is (ii) above: whether ZATCA's platform validates the referenced number. That is the same underlying question as the two already open with ZATCA (§15.2 B — the first PIH after a change of solution; §15.2 D — a `PrepaidAmount` referencing an advance invoice issued by another solution, where Detailed Guideline §8(b) pp. 39–40 says the advance invoice's UUID is *"currently optional but it shall be mandated in future"*): **how ZATCA treats documents issued by a previous solution.** Per the owner's instruction this question is **folded into that enquiry as its third item** (§16.14.9), not kept as a separate thread.
+
+## 16.14.2 Migration error vs historical accounting error vs commercial adjustment (Question 1)
+
+| Category | What the sources say | IAS 8? | Restatement? | New accounting event? | Original transaction unchanged? |
+| --- | --- | --- | --- | --- | --- |
+| **A. Error in the previous system's records / prior financial statements** | IAS 8: *"Prior period errors are omissions from, and misstatements in, the entity's financial statements for one or more prior periods arising from a failure to use, or misuse of, available reliable information… an entity corrects material prior period errors retrospectively by restating the comparative amounts"* (IFRS official summary page, retrieved; SOCPA Inquiry 129 quotes the same definition in Arabic and applies it to interim periods — retrieved socpa.org.sa inquiries page) | Yes, at the level of the **financial statements** | Yes, if material | Not by IAS 8 — a restatement is a presentation act; the bookkeeping entry that implements it is not prescribed | The historical *transaction* is what it was; the *statements* are corrected |
+| **B. Error introduced while transferring correct records into the new system** | **Not established by the sources reviewed.** No IFRS/SOCPA/ZATCA text names migration. By IAS 8's own definition an error is a misstatement in *issued financial statements*; a transfer error caught before Saudi Ledger's first statements are authorised for issue misstates no prior statements (IAS 8's "current period errors discovered in that period are corrected before the financial statements are authorised for issue" — ¶41 as recorded in §14.6; the full standard text is behind the IFRS login and was **not independently re-verified** this pass) | Only if statements were issued on the wrong opening balance | Only then | A correcting entry in the current books (Art. 66(3)(c): corroborated; Commercial Books Law Art. 3: recorded day by day) | Yes — nothing about the supply changed |
+| **C. Genuine commercial change after the original transaction** (cancellation, return, altered consideration) | VAT IR Art. 40(1)(a)–(d) (p. 28); Art. 54(1)–(2) → credit/debit note; Art. 40(3)–(6) → output/input tax adjusted in the period of the event/note | No — not an error (IAS 8: changes from new information are not corrections of errors — IFRS summary) | No | **Yes** — a new tax document and a new VAT adjustment in the current period | Yes — the original invoice stands; the note references it |
+| **D. Correction of the *representation* of a historical receivable in the new system** (the amount, the party, the dates on the opening item) | **Not established by the sources reviewed.** Art. 66(3)(c),(e),(f) constrain *how* (corroborated, documented, tamper-controlled); nothing says *what record* | No (see B) | No | An appended correction record or a reversal + replacement — both are constructions, neither named by a source | Yes |
+
+**Not every migration discrepancy is an IAS 8 error**: only one that reached issued financial statements is. The three §16.13.5 cases are re-stated in §16.14.7.
+
+## 16.14.3 The partly-settled opening receivable (Question 2)
+
+**Not established by the sources reviewed** — none of editing the receivable, appending an adjustment, reversing it, replacing it, preserving or re-allocating the settlement, keeping or replacing the number. What the sources *constrain*: every entry corroborated by original documents (Art. 66(3)(c)), data entry and processing documented (66(3)(e)), tamper controls reviewable by the Authority (66(3)(f)), records orderly enough to review the entries and verify profit and loss (Commercial Books Law Art. 6), entries presumed made with the merchant's knowledge and consent (Art. 9), all financial operations recorded in the journal day by day (Art. 3). An append-only correction (A2) and a reversal-with-replacement (B) both satisfy these; an in-place edit of a posted amount (A1) is the one shape 66(3)(f) and Art. 9 are written against, and A4 already excludes it. The Commercial Books Implementing Regulation (Minister of Commerce Decision 699/1410H — the "correction by a new entry dated when discovered" rule quoted in practice) **could not be retrieved from an official source** (as in §16.2) and is not relied on.
+
+## 16.14.4 VAT / the historical tax point (Question 4)
+
+- **Importing an opening receivable creates no tax event.** None of Art. 40(1)(a)–(d) occurs (no cancellation, alteration, consideration change or return); the supply was made and invoiced before migration. Established by the text of Art. 40(1) read against the facts, not by a migration-specific rule (there is none).
+- **Paying a historical receivable after migration creates no tax event**, except where the supplier had claimed bad-debt relief under Art. 40(7) — then Art. 40(9): tax on the amount received becomes payable in the period of receipt *"and a new Tax invoice must be issued to reflect the additional amount received"* (p. 30). Migration must therefore know whether Art. 40(7) relief was ever taken on an open item — **not captured by the staging today** (a gap to record, not fix).
+- **The buyer side**: input tax on a bill unpaid twelve months after the date of supply is reversed (Art. 40(10)) and restored on payment (40(11)) — already recorded (§15.2 A); it runs from the *original* supply date, which the opening bill preserves.
+- **A migration correction (Category B/D) creates no tax event** — same reasoning as the import. **A commercial adjustment (Category C) does**: Art. 40(4)–(5) place the adjustment in the period of the event or of the credit note (the later), i.e. in Saudi Ledger's current return.
+- The general tax-point rule (tax due at the earliest of supply, invoice, receipt) lives in the VAT Law; the Law's PDF **could not be retrieved this pass** (the zatca.gov.sa URLs tried returned HTML). Retrieved and confirmed: IR Art. 20 (specific circumstances, pp. 13–14, amended 03/10/2021G) and Art. 53(7)(b) ("earliest of the date of the supply and the date of" receipt, p. 48).
+
+## 16.14.5 Records, retention, audit trail (Question 7)
+
+| Layer | Source (retrieved) | Establishes | Does NOT establish |
+| --- | --- | --- | --- |
+| Accounting records generally | Commercial Books Law (Royal Decree M/61, 17/12/1409H; BoE status **ساري / in force**), Arts. 1–3, 5, 6, 8 (ten years), 9 | orderly Arabic books; every operation in the journal; documents kept so entries can be reviewed; entries presumed made with consent | any correction mechanics (those are in the unretrieved Implementing Regulation) |
+| VAT records | VAT IR Art. 66(1)–(3) (pp. 60–61; (3) amended 09/11/2021G) | six years; electronic storage conditions (a)–(h): producible, corroborated, processing documented, tamper controls reviewable, Authority may review the systems | "never alter or delete" for ordinary records — it says *controls against tampering*, not immutability |
+| E-invoices and notes | Resolution Third/C(2) and Annex 1 "Prohibited functionalities" (pp. 13–14: *"Allow alteration or deletion of generated e-invoices or their associated notes"*, log modification, counter reset); Art. 66(3)(h) | generated e-documents and logs are immutable in the solution | anything about records the solution did not generate |
+| Saudi Ledger's migration records (staging, batches, provenance links) | none | — | silence; a product construction that serves 66(3)(e) "document computer data entries and processing" |
+
+The e-invoice rule is therefore **not** automatically the rule for an opening receivable; the rule for it is Art. 66(3) plus the Commercial Books Law — corroborated, documented, tamper-controlled, reviewable.
+
+## 16.14.6 Numbering (Question 8)
+
+- Tax invoices: *"a sequential number which uniquely identifies the Tax Invoice"* (Art. 53(5)(b), p. 47); e-invoices/notes additionally carry a UUID, a tamper-resistant counter that *"cannot be reset or reformatted"* (Resolution Third/C(3),(7); Annex 1 prohibits counter reset); the IRN *"is just another name for Invoice Sequence Number"* (Detailed Guideline p. 62); a rejected document is re-submitted *"just like a new invoice having its own Invoice Counter Value and Hash"* (p. 63).
+- **Not established:** whether an IRN may ever be reused; anything about the numbering of non-e-invoice records, migrated records, or replacement records. **These rules apply to ZATCA e-invoices and notes only.** A4's "new number for a replacement" rests on the accountant's decision and the audit-trail principle, not on a Saudi numbering rule — and the `OPEN-<batch>-<seq>` shape is unconstrained by any source.
+
+## 16.14.7 The three cases, compared (Question 6)
+
+| | Case A — old ERP correct at 100,000; imported wrongly | Case B — both correct at 100,000; commercial reduction to 90,000 later | Case C — old ERP itself wrong; the transaction was 90,000 |
+| --- | --- | --- | --- |
+| Migration correction? | **Yes** | No | No (the transfer was faithful) |
+| Accounting error? | In Saudi Ledger's books only | No | **Yes**, in the previous books |
+| Prior-period error (IAS 8)? | Only if statements were issued on it | No | Yes, if the previous statements were issued misstated and material |
+| Commercial adjustment? | No | **Yes** (Art. 40(1)(c)/(d)) | No — but if the *tax invoice* was wrong, Art. 54(3) (information error) or Art. 40 (value) governs the correction of the invoice |
+| Credit/debit note? | No | **Yes** (Art. 54(1)) | Possibly (Art. 54(3) for errors in information; Art. 54(1) if the amount of tax charged exceeded the true value) |
+| VAT correction? | No | Yes (Art. 40(3)–(6)) | If VAT was over-reported: Art. 63 return correction (overstatement may be corrected in any subsequent return; five-year limit) |
+| New e-invoice / ZATCA event? | No | **Yes** — the note, in Saudi Ledger's sequence | Possibly — the note |
+| Accountant decision required? | The **subledger treatment** (§16.14.8) | Whether the note is issued from Saudi Ledger — the ZATCA enquiry (§16.14.9); the accounting is settled by Art. 40/54 | **Yes** — classification and the correction route; not researched further here |
+
+## 16.14.8 Option A and Option B against the sources (Question 5 — no winner)
+
+| Dimension | A2 — appended dated correction on the existing item (A1, edit in place, is excluded by A4) | B — reverse, replace under a new number, unallocate/reallocate the 40,000 |
+| --- | --- | --- |
+| Audit trail | original + one referencing correction; satisfies 66(3)(c),(e),(f) and CBL Arts. 3, 6, 9 | original + mirror + replacement + unallocation + reallocation, each referencing; satisfies the same |
+| Accounting records / preservation | the original row untouched | the original row untouched, marked reversed (built) |
+| Payment history | the 40,000 allocation untouched | the 40,000 allocation reversed by a correction row and re-made against the replacement (both kept) |
+| Customer statement | one extra line (−10,000) | reversal and replacement events (display today excludes reversed rows — a product choice) |
+| Receivable balance | 50,000 from the correction date | 50,000 on the replacement |
+| VAT | none (Category A/D) | none |
+| Revenue | none (the supply was in the previous books) | none |
+| Credit note | none — not a Category C event | none |
+| Financial statements | current-period correction; IAS 8 only if issued statements were wrong | same |
+| Sources | **Not established** — no source names either mechanism; both satisfy the record obligations | **Not established** — same |
+
+**Option C.** No third treatment is *supported* by a source beyond what A2 and B already are; the research identified no legitimate basis for inventing one. The only source-backed alternative is the **statement-level** correction IAS 8 prescribes when issued statements were wrong — which is orthogonal to the subledger mechanics.
+
+## 16.14.9 The questions to send (Question 9 of the brief and the owner's fold-in)
+
+**To the accountant — `ACCOUNTANT DECISION REQUIRED`:**
+
+> **Q1.** A receivable of SAR 100,000 was migrated from the previous system as an opening item (no new tax invoice, no VAT). The customer then paid SAR 40,000, allocated to it. We discover the previous system's invoice was SAR 90,000 — a transfer error, not a change in what the customer owes. Should Saudi Ledger (a) keep the migrated item and record a dated migration correction of −10,000 against it, leaving the 40,000 allocation as recorded, or (b) reverse the migrated item, create a replacement of 90,000 under a new Saudi Ledger number linked to the original, and move the 40,000 allocation to the replacement by a recorded unallocation and reallocation — or (c) another treatment? Please state the accounting basis. (We found none of IAS 8, SOCPA, VAT IR Art. 66 or the Commercial Books Law prescribing the subledger mechanics.)
+>
+> **Q3.** In either treatment, should the settlement history stay attached to the original historical item, or follow the corrected representation?
+>
+> **Q4.** If instead the previous system's own invoice was wrong (the transaction was 90,000 and the old books said 100,000), what correction route do you require — Art. 54(3) note for an information error, Art. 54(1) credit note where tax charged exceeded the true value, a return correction under Art. 63, an IAS 8 restatement of the previous statements — and which of these does Saudi Ledger record?
+
+**To ZATCA — one enquiry, three items, all one question ("documents issued by a previous solution"):**
+
+> 1. The first document issued by a new e-invoicing solution after a change of solution: PIH = the hash of "0" (a fresh sequence for the new unit), or continuation of the previous solution's chain? (§15.2 B.)
+> 2. A subsequent invoice adjusting an advance under Detailed Guideline §8: may `PrepaidAmount` reference an advance-payment invoice issued by a previous solution by IRN, date and time when its UUID is unknown to the new solution? (§15.2 D.)
+> 3. **A credit or debit note under Art. 54 whose original tax invoice was issued by a previous solution:** may the note be issued from the new solution, in the new solution's sequence, carrying the original's invoice reference number (and date) in the Annex 2 field 13.1 reference, and does the FATOORA platform validate that reference against invoices previously received? (§16.14.1.)
+
+**Product decision on hold pending item 3:** Saudi Ledger already lets a credit note be created against an opening item (§16.13.1 #12). Until ZATCA answers, the honest posture is the fail-closed refusal recorded in §16.13.3 — not because the sources forbid the note (they do not), but because the platform-validation question is open.
+
+## 16.14.10 Source-by-source evidence
+
+| Source (retrieved 2026-09-20) | Article / section | Subject | Establishes | Does NOT establish |
+| --- | --- | --- | --- | --- |
+| VAT Implementing Regulations, English **Eighth Edition** (BoD 3839 of 14/12/1438H, amendments to 2-7-21 of 04/04/1443H = 09/11/2021G), zatca.gov.sa PDF, 81 pp.; "unofficial translation… the official Arabic version supersedes" (p. 1) | Art. 40(1)–(12) pp. 28–30 | adjustment to value of a supply | the four Art. 40(1) events; adjustment of output/input tax in the period of the event or of the note (later); bad-debt relief (7)–(9) incl. the new-invoice-on-receipt rule; 12-month input-tax rule (10)–(11) | anything about migration; any treatment of a transfer error |
+| same | Art. 53(5)(b), (6), (7)(b), (11) pp. 47–50 | tax invoice content, e-format, timing, definition | sequential unique number; e-format where the e-invoicing regulations apply *at the date of supply*; simplified invoice at the earliest of supply and receipt; "Tax Invoice" = any invoice under Art. 53 | that a Tax Invoice referenced by a note must be electronic or in the current system |
+| same | Art. 54(1)–(5) pp. 50–51 (fn 30–34: amended 09/11/2021G) | credit and debit notes | obligation on the supplier after an Art. 40(1) event; notes for information errors (3); content and the two references (4) | who must have issued the original; the system; chain membership |
+| same | Art. 63(1)–(5) pp. 56–57 | correction of returns | understatement within 20 days; overstatement in any later return; < 5,000 in the next return; five-year limit | any bookkeeping mechanics |
+| same | Art. 66(1)–(4) pp. 60–61 | records | six years; electronic storage conditions (a)–(h) | immutability of ordinary accounting records; migration |
+| same | Art. 20 pp. 13–14 (amended 03/10/2021G) | date of supply in specific circumstances | continuous supplies, utilities, government contracts, nominal supplies | the general rule (VAT Law — **not retrieved**) |
+| E-Invoicing Implementation Resolution, Governor's Decision 62738 of 23/11/1443H, English (zatca.gov.sa PDF, 35 pp.; "Arabic prevails") | Third/C(2),(3),(5),(6),(7); Third/E(2); Annex 1; Annex 2 field 13.1 | solution functions, one sequence per unit, prohibited functions, note reference field | UUID/hash/counter per generated document; one chain per unit; no alteration/deletion of *generated* e-invoices/notes; the note's reference to original invoice(s) is a required field | that the referenced original be in the same chain or system; anything about solution changes |
+| ZATCA Detailed Guidelines for E-Invoicing, **Version 2** (zatca.gov.sa PDF, 66 pp.) | §4.3 p. 19; §5.2 p. 23; §8 pp. 39–41; FAQ pp. 62–63 | notes, timelines, advances, IRN, cancellation | reference by Invoice Reference Number(s), text, ranges allowed; advance references by IRN/date/time (+UUID "currently optional… mandated in future"); IRN = sequence number; "Invoices cannot be cancelled" | a solution-change rule; platform cross-validation of the reference |
+| ZATCA E-Invoicing Detailed Technical Guideline, **Version 2** (zatca.gov.sa PDF, 81 pp.) | §3.2 (onboarding/revocation of EGS units) pp. 13–20; FAQ p. 72, pp. 76–77 | Billing Reference ID; PIH after rejection | "Billing Reference ID is the link to Original Invoices… existed since 1 Jan 2018"; PIH follows the immediately preceding document | the first PIH after a change of solution |
+| Security Features Implementation Standards **v1.2** (2023-05-19; zatca.gov.sa PDF, 27 pp.) | §3 p. 25 | PIH specification | PIH = SHA-256 over the same transform as the stamp | the first-invoice PIH ("hash of 0") — that rule sits in the XML Implementation Standard, **not retrieved** |
+| SOCPA, Overview of standards (socpa.org.sa, retrieved) | page text | IFRS transition | IFRS applied in one go from 1-1-2017 (listed) / later for others; IFRS for SMEs for non-publicly-accountable entities | bookkeeping mechanics |
+| SOCPA, accounting-standards inquiries (socpa.org.sa, retrieved) | Inquiry 129 (IAS 8, IAS 34) | error correction in interim periods | IAS 8's prior-period-error definition is applied in Saudi practice | migration; subledger |
+| IFRS Foundation, official IAS 8 page (ifrs.org, retrieved) | summary | definitions and correction principle | prior-period errors = misstatements in issued financial statements; corrected retrospectively; changes in estimates are not errors | paragraph-level text (login-gated; ¶41–42 as recorded in §14.6, **not re-verified** this pass) |
+| Commercial Books Law, Royal Decree M/61 (laws.boe.gov.sa, retrieved; status **in force**) | Arts. 1, 2, 3, 5, 6, 8, 9 | books, computerised books, journal, retention, presumption | ten-year retention; orderly documents for review; entries presumed consented | correction-by-new-entry rule (Implementing Regulation 699/1410H — **not retrieved from an official source**) |
+| VAT Law (Royal Decree M/113) | — | **Primary source could not be independently verified** (the zatca.gov.sa URLs tried returned HTML) | — | — |
+| ZATCA XML Implementation Standard / Data Dictionary | — | **Primary source could not be independently verified** (same) | — | — |
+
+## 16.14.11 The authoritative boundary (Question 10)
+
+| Question | Established by a Saudi primary source? | Source | Exact implication |
+| --- | --- | --- | --- |
+| Historical migration correction | **NO** | silence (all sources) | a product/accountant construction bounded by Art. 66(3) and the Commercial Books Law |
+| Partly-settled opening receivable | **NO** | silence | same |
+| IAS 8 applicability | **PARTIALLY** | IFRS summary; SOCPA Inquiry 129 | applies to misstated *issued* financial statements; silent on migration and on subledger mechanics |
+| Credit note against a previous-system invoice | **PARTIALLY** | Art. 54(1)–(4); Resolution Annex 2 13.1; Detailed Guideline §4.3; Technical Guideline p. 72 | the note is the supplier's obligation, references the original by number, enters the issuer's own sequence; platform validation of the reference **not established** |
+| Historical tax point | **PARTIALLY** | Art. 40(1),(4)–(11); Art. 53(7)(b); Art. 20 | import/allocation/correction create no event; a commercial adjustment adjusts in the current period; the general rule is in the unretrieved VAT Law |
+| Payment after migration | **PARTIALLY** | Art. 40(7)–(9) | no event unless bad-debt relief was taken (then Art. 40(9): tax due and a new invoice) |
+| Replacement document | **NO** | silence | unconstrained; A4 is the accountant's decision |
+| Document numbering | **PARTIALLY** | Art. 53(5)(b); Resolution Third/C(7); Annex 1 | rules bind tax invoices/e-notes only; nothing on migrated or replacement records |
+| Record retention | **YES** | Art. 66(1); CBL Art. 8 | six years (VAT) / ten years (commercial books) |
+| Audit trail | **PARTIALLY** | Art. 66(3)(c),(e),(f); CBL Arts. 3, 6, 9 | corroborated, documented, tamper-controlled, reviewable; not "immutable" for ordinary records |
+| ZATCA chain membership | **YES** (for e-documents) | Resolution Third/C(5), E(2); Detailed Guideline pp. 27/34 | one chain per issuing unit; a referenced original is named, not chained |
+
+## 16.14.12 Required tests after approval (unchanged from §16.13.6, plus)
+
+A credit note against an opening item, if ZATCA's answer permits it: the note enters Saudi Ledger's sequence (own UUID/ICV/PIH from the preceding Saudi Ledger document), carries the opening item's source number and date in the billing reference, adjusts output VAT in the current return only, and never touches the opening item's own row beyond its `credited_amount`; the opening item itself still carries no hash/ICV/QR. Whether a bad-debt relief was claimed on a migrated item must be a staged fact before Art. 40(9) can be honoured.
+
+## 16.14.13 Blockers (unchanged)
+
+Collecting an opening receivable (Issue 1, §16.13.3 — awaiting approval); item-level correction of a settled opening item (Q1/Q3/Q4 above — awaiting the accountant); credit notes against opening items (ZATCA enquiry item 3 — refuse until answered).
