@@ -32,6 +32,7 @@
 import { writeFileSync } from "node:fs";
 import { pool } from "@workspace/db";
 import { INVOICE_NOT_REVERSED_TEXT, BILL_NOT_REVERSED_TEXT, PAYMENT_NOT_REVERSED_TEXT } from "../repositories/openingReversal";
+import { INVOICE_ISSUED_OR_OPENING_TEXT } from "../repositories/receivableInBooks";
 
 type Row = Record<string, string | number | null>;
 const q = async (sql: string, params: unknown[] = []): Promise<Row[]> => (await pool.query(sql, params)).rows;
@@ -55,9 +56,10 @@ async function main() {
     SELECT e.organization_id::text AS org, e.entry_number, sum(l.debit_amount)::text AS dr, sum(l.credit_amount)::text AS cr
       FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id
      GROUP BY e.id HAVING sum(l.debit_amount) <> sum(l.credit_amount)`));
-  fail("invoice_outstanding_nonnegative — issued invoices with total − paid − credited < 0", await q(`
-    SELECT organization_id::text AS org, id, invoice_number, (total::numeric - coalesce(paid_amount,0) - credited_amount)::text AS outstanding
-      FROM invoices WHERE document_type = 'invoice' AND invoice_hash IS NOT NULL AND total::numeric - coalesce(paid_amount,0) - credited_amount < -0.001`));
+  // Issue 1: the covered set is every invoice ISSUED here or migrated as an OPENING item — not "has a hash" (an opening receivable never does, and it is collected).
+  fail("invoice_outstanding_nonnegative — issued or opening invoices with total − paid − credited < 0", await q(`
+    SELECT i.organization_id::text AS org, i.id, i.invoice_number, (i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount)::text AS outstanding
+      FROM invoices i WHERE ${INVOICE_ISSUED_OR_OPENING_TEXT("i")} AND i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount < -0.001`));
   fail("payment_not_over_consumed — Σ active allocations + refunds > amount", await q(`
     SELECT p.organization_id::text AS org, p.id FROM payments p
      WHERE p.amount < coalesce((SELECT sum(a.amount) FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id = p.id AND r.id IS NULL), 0)

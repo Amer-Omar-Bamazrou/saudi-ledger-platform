@@ -1,6 +1,6 @@
 # Batch 1C decision pack — migration and opening balances (2026-09-17)
 
-**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5 and, against the Saudi primary sources retrieved live, in §16.14 (credit notes against previous-system invoices lead that section; the questions to send are §16.14.9); the ZATCA-artefact coupling that blocks collecting an opening receivable is surveyed in §16.13.1–§16.13.3 (a product decision awaiting approval, not an accounting one). §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5 and, against the Saudi primary sources retrieved live, in §16.14 (credit notes against previous-system invoices lead that section; the questions to send are §16.14.9); the ZATCA-artefact coupling that blocked collecting an opening receivable is surveyed in §16.13.1–§16.13.3 and 🔴 **CLOSED as built in §16.15 (Issue 1, 2026-09-20)** — an opening receivable now collects through every D-4 path and mints no artefact; Issue 2 and credit notes against opening items stay blocked as §16.14.13 says. §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 🔴 **Reading order for a future session:** §15.1 (the decisions A1–A5), §15.5–§15.6 (the model and the gates, as amended 2026-09-20), §16.12 (the correction policy as decided). Everything in §16.7–§16.9 that §16.12 contradicts is history, kept for the reasoning.
 
@@ -1025,7 +1025,9 @@ Migrated opening AR receives a payment; partial allocation; full settlement (→
 
 ## 16.13.7 What stays blocked, and the order after approval
 
-Blocked: collecting an opening receivable through the product (Issue 1 — awaiting approval of the boundary above); any item-level correction of a settled opening item (Issue 2 — awaiting the accountant); credit notes against opening items (a ZATCA question folded into §16.13.5). Order once approved: (1) Issue 1's three predicate sites + the two invariants + the renderer refusal + the note refusal, each with a red-first test; (2) the accountant's answer converted into an invariant in this pack, then built with its tests; (3) the UI (Phase 4) last.
+*(2026-09-20, later the same day: Issue 1 was approved and built — §16.15. The rest of this section stands.)*
+
+Blocked: ~~collecting an opening receivable through the product (Issue 1 — awaiting approval of the boundary above)~~ *(built, §16.15)*; any item-level correction of a settled opening item (Issue 2 — awaiting the accountant); credit notes against opening items (a ZATCA question folded into §16.13.5). Order once approved: (1) Issue 1's three predicate sites + the two invariants + the renderer refusal + the note refusal, each with a red-first test; (2) the accountant's answer converted into an invariant in this pack, then built with its tests; (3) the UI (Phase 4) last.
 
 
 ---
@@ -1178,4 +1180,48 @@ A credit note against an opening item, if ZATCA's answer permits it: the note en
 
 ## 16.14.13 Blockers (unchanged)
 
-Collecting an opening receivable (Issue 1, §16.13.3 — awaiting approval); item-level correction of a settled opening item (Q1/Q3/Q4 above — awaiting the accountant); credit notes against opening items (ZATCA enquiry item 3 — refuse until answered).
+~~Collecting an opening receivable (Issue 1, §16.13.3 — awaiting approval)~~ *(built 2026-09-20, §16.15)*; item-level correction of a settled opening item (Q1/Q3/Q4 above — awaiting the accountant); credit notes against opening items (ZATCA enquiry item 3 — refuse until answered).
+
+---
+
+# 16.15 Issue 1 as built — an opening receivable is collectible, and collecting it mints nothing (2026-09-20)
+
+**Status (2026-09-20): BUILT on `feat/batch-1c-migration-opening-balances` (the commit after `f8bc71c`; SHA in `git log`), unmerged, no UI. Issue 2 (§16.13.4, §16.14.3) and credit notes against opening items (§16.14.1) are NOT built and their refusals stand. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+## 16.15.1 The predicate — one definition, three sites
+
+`PRODUCT DESIGN DECISION` (§16.13.3, approved 2026-09-20). "Issued", at the allocation boundary, is a business state, not a tax artefact. The one definition is `@workspace/shared` `receivableState.ts`:
+
+    isReceivableInBooks(row) = document_type = 'invoice' AND status ∈ INVOICE_IN_BOOKS_STATUSES ('sent', 'paid') AND reversed_at IS NULL
+
+The outstanding balance stays each caller's own condition. For an invoice this system issued the set is identical to the old `invoice_hash IS NOT NULL` (a hash exists iff the approval engine moved it to `sent`); for an opening item it is what the commit wrote (`sent`, no hash, ever). No column, no migration, no API change for the predicate.
+
+| Site | Before | After |
+| --- | --- | --- |
+| `services/payments.service.ts` — the D-4 allocation validator (every collection path converges here: `invoicesService.pay`, `paymentsService.receive/allocate`, the review queue's settle, bank-matching's allocated receipts) | `status ∈ {draft, submitted, rejected} OR invoiceHash == null` → 409 "not issued" | `!isReceivableInBooks(inv)` → the same 409, reworded ("issued here, or migrated as an opening item"); the reversed-row refusal (`opening_item_reversed`) still runs first, so its code is preserved |
+| `repositories/invoices.repository.ts` `openForSettlement` (the review queue's candidates) | `invoice_hash IS NOT NULL AND document_type='invoice' AND status NOT IN (draft, submitted, paid)` — 🔴 and no reversed-row filter, which the hash gate had been masking | `receivableInBooks()` (`repositories/receivableInBooks.ts`, the Drizzle form, which includes `invoiceNotReversed()`) AND outstanding ≥ 0.01 |
+| `apps/web` `components/payments/shared.tsx` `isOpenInvoice` (the allocation dialog's targets) | `invoiceHash != null AND status ∉ {draft, submitted, cancelled}` | moved to the pure module `lib/openInvoice.ts` = `isReceivableInBooks(inv) && outstandingOf(inv) > 0.005`, re-exported from `shared.tsx`; unit-tested (`lib/openInvoice.test.ts`) |
+| `services/creditNotes.ts` `ISSUED_STATUSES` | a private `["sent","paid"]` | reads `INVOICE_IN_BOOKS_STATUSES` — the second definition removed |
+
+**Untouched, on purpose:** the hash tests on NOTES (`payments.service.ts` credit-note application and refund paths, `creditedTotalsByOriginal` / `notesAgainst`, `CustomerDetail.tsx`'s note badge) — a note is always issued by this system and the hash is its identity; the chain head (`previousInvoiceHash`); R7's own check in the commit; RULE-J (invoices without a `GL-` issue journal — SL-issued by definition; opening rows are RULE-O's).
+
+## 16.15.2 The invariants
+
+`invoice_outstanding_nonnegative` now runs over `INVOICE_ISSUED_OR_OPENING_TEXT("i")` = `document_type = 'invoice' AND (invoice_hash IS NOT NULL OR is_opening)` — reversed opening rows INCLUDED (frozen rows must still satisfy it; a wider set is a stronger check). `paid_cache` was found to have never been hash-gated: it already runs over every invoice row. §16.13.1 row 6 and the known-issues entry said both were gated; the queue entry recorded a belief, and the second half was wrong — verified in the suite (the block's source is asserted free of `invoice_hash`), not restated. The sweep (`src/scripts/ledgerInvariants.ts`) was run on kept fixtures (`KEEP_1C_FIXTURE=1`, both 1C suites) after four opening receivables had been collected through four paths: all invariants hold, including AR GL vs subledger by customer over the RULE-O covered set.
+
+## 16.15.3 The two guards that follow from "not a tax invoice"
+
+- **Renderer** — `buildInvoiceDocModel` refuses an `is_opening` row: 409 `opening_item_not_a_tax_invoice` ("… not a tax invoice issued here; there is no tax-invoice document to render. The customer statement shows the balance."). Chosen over re-titling: the renderer's whole output (the Article 53 layout, the compliance title, the translation banner "the Arabic document is the tax invoice", the seller VAT identity) manufactures a tax-invoice identity, and a document that merely says "opening balance item" in the title still looks designed. What an opening item's printout should be — if anything beyond the statement — is a product question, not decided here.
+- **Credit / debit notes** — `assertNoteIsValid` refuses an original with `is_opening`: 409 `note_original_is_opening_item`, FAIL CLOSED, after the reversed-row check and before the note-on-note check. The ZATCA question (§16.14.1, enquiry item 3) is not decided by this; when it is answered the guard is where the answer lands.
+
+## 16.15.4 Art. 40(9) — the bad-debt-relief flag, captured and not acted on
+
+`historicalVat.badDebtReliefClaimed` (`true` / `false` / `null`; absent = null) on `MigrationOpenItemInput` / `MigrationHistoricalVat` (OpenAPI, codegen run). **No schema change:** the flag lives inside the existing `migration_open_items.historical_vat` jsonb, which the committed-staging trigger freezes at commit; the opening receivable reaches it through its immutable `migration_open_item_id`, and the commit writes it onto the receivable's provenance `notes` as text ("VAT bad-debt relief claimed in the previous system: yes / no"; nothing when null). Validated at import (a non-boolean is a 400), echoed by `getOpenItems`, inside the content hash (a change after validation re-opens the batch like any staged fact). Nothing reads it to compute, warn, block, invoice, submit, or restrict a payment or an allocation — the suite asserts the three values survive staging → validation → commit, that items without it stay valid, and that a flagged item collects with the same absence of artefacts as an unflagged one. The name the brief used (`whether_bad_debt_relief_claimed`) is rendered in the API's camel-case (`badDebtReliefClaimed`); the meaning is the brief's.
+
+## 16.15.5 The red-first suite
+
+`apps/api/src/tests/batch-1c-opening-receivable-collection.test.ts` (9 tests; RED first on the D-4 validator's "has not been issued (status: sent)" at every path, on an empty candidate list, on a null review-queue suggestion, and on the invariant's source). It builds a balanced migration through the product (bank 30,000 / debtors 25,000 / creditors 7,000 / capital 48,000; four AR items carrying the flag as true / false / absent / null-with-VAT; one AP bill), commits it, and then: (1) invoice pay in full; (2) receipt + partial allocation, the D-4 controls (nothing left on a fully applied receipt; over the outstanding; party mismatch), the balance, un-allocate and re-allocate; (3) the review queue's suggestion and "Accept & settle"; (4) bank statement matching against an allocated receipt (DETERMINISTIC, applied). On each path it asserts the row (`status`, `paid_amount`, hash / previous hash / ICV / QR / issued_at all null, VAT 0), AR in the GL by customer, the statement, ageing (presence, absence, movement), the candidate list shrinking, `einvoice_documents` / `einvoice_archive` counts, the VAT return (Q2 and July) before and after, and four spies (`approvalService.approve`, `computeInvoiceHash`, `generateZatcaQr`, `enqueueEInvoice`) unmoved — then an ordinary invoice approval moves all four (the planted positive), pays, a draft still cannot be paid, and the opening bill pays. Then the renderer and note refusals (with the ordinary invoice rendering and taking a note), a reversed opening receivable in a second company (pay and allocation refused with `opening_item_reversed`; not a candidate; no suggestion), and the invariants' covered set with a planted paid-cache lie made visible. `apps/web/src/lib/openInvoice.test.ts` pins the web predicate (an opening receivable IS a target; a reversed one, a draft, a note, a settled one are not).
+
+## 16.15.6 What this did not do
+
+Issue 2 (a partly-settled opening item — §16.13.4, §16.14.3; the accountant's); the historical credit-note behaviour (§16.14.1; ZATCA's); any change to the migration commit/reversal design, OBE removal, Policy C, numbering, provenance; any UI; any second definition of "issued". The known-issues entry is closed with this record.

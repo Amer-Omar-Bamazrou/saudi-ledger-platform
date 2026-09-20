@@ -38,7 +38,7 @@
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
-import { businessToday } from "@workspace/shared";
+import { businessToday, isReceivableInBooks } from "@workspace/shared";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { customerStatementRepository } from "../repositories/customerStatement.repository";
@@ -237,8 +237,14 @@ async function lockAndCheckTargets(
       throw new ConflictError(`${inv.invoiceNumber} is a credit or debit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
     }
     assertNotReversedOpening(inv, `Invoice ${inv.invoiceNumber}`, "settled");
-    if (inv.status === "draft" || inv.status === "submitted" || inv.status === "rejected" || inv.invoiceHash == null) {
-      throw new ConflictError(`Invoice ${inv.invoiceNumber} has not been issued (status: ${inv.status}); only an issued invoice has a receivable to settle.`);
+    // Issue 1 (Batch 1C): "issued" is a BUSINESS state, not a tax artefact. An
+    // opening receivable migrated at cut-off is in the books with no hash, no
+    // ICV and no QR — by design, forever — and a receipt settles it exactly as
+    // it settles an invoice this system issued. The one predicate lives in
+    // @workspace/shared; a hash test here refused the migration's reason to
+    // exist, and it is not what "has a receivable" means.
+    if (!isReceivableInBooks(inv)) {
+      throw new ConflictError(`Invoice ${inv.invoiceNumber} has not been issued (status: ${inv.status}); only an invoice in the books — issued here, or migrated as an opening item — has a receivable to settle.`);
     }
     if ((inv.customerId ?? null) !== party.customerId) {
       throw new BusinessRuleError(422, {

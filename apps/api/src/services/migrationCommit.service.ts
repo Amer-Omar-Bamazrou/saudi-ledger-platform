@@ -250,7 +250,9 @@ export const migrationCommitService = {
       const outstanding = fmt(num(it.outstandingAmount));
       const ledgerNumber = batch.replacesBatchId != null ? openingReplacementNumber(batch.id, seq) : it.documentNumber;
       const prior = replacedByKey.get(`${it.itemType}:${it.sourceId}`);
-      const notes = `Opening item migrated from ${batch.sourceSystem} (${it.sourceId}, source document ${it.documentNumber}); original amount ${fmt(num(it.originalAmount))}${it.compositionUnknown ? "; composition unknown — the previous system tracked only this party's balance" : ""}${it.description ? `; ${it.description}` : ""}${prior ? `; replaces the reversed opening item of migration batch ${batch.replacesBatchId}` : ""}.`;
+      // Art. 40(9): the bad-debt-relief answer travels onto the receivable as provenance TEXT (the structured value stays on the frozen staging row, reachable through migration_open_item_id); nothing reads it back to act.
+      const relief = (it.historicalVat as { badDebtReliefClaimed?: boolean | null } | null)?.badDebtReliefClaimed ?? null;
+      const notes = `Opening item migrated from ${batch.sourceSystem} (${it.sourceId}, source document ${it.documentNumber}); original amount ${fmt(num(it.originalAmount))}${it.compositionUnknown ? "; composition unknown — the previous system tracked only this party's balance" : ""}${relief == null ? "" : `; VAT bad-debt relief claimed in the previous system: ${relief ? "yes" : "no"}`}${it.description ? `; ${it.description}` : ""}${prior ? `; replaces the reversed opening item of migration batch ${batch.replacesBatchId}` : ""}.`;
       if (it.itemType === "ar") {
         const [inv] = await migrationRepository.insertInvoice({
           invoiceNumber: ledgerNumber, date: it.issueDate, dueDate: it.dueDate, customerId: customerIdBySource.get(it.partySourceId)!,

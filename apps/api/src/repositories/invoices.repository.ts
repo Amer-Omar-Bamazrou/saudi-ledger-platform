@@ -10,6 +10,7 @@ import {
 import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { businessToday } from "@workspace/shared";
 import { invoiceNotReversed } from "./openingReversal";
+import { receivableInBooks } from "./receivableInBooks";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -406,9 +407,11 @@ export const invoicesRepository = {
   /**
    * Open invoices a bank credit could settle (M16.3 reconciliation).
    *
-   * "Open" mirrors AR aging's per-document definition: issued (approved —
-   * `invoice_hash IS NOT NULL`, so drafts/submitted are structurally excluded),
-   * not fully paid, with `total - paid_amount >= 0.01`. Restricted to
+   * "Open" mirrors AR aging's per-document definition: a receivable in the
+   * books (`receivableInBooks()` — issued here or migrated as an opening
+   * item, never a reversed one; Issue 1 replaced the `invoice_hash IS NOT
+   * NULL` proxy, which refused every opening receivable), not fully paid,
+   * with `total - paid - credited >= 0.01`. Restricted to
    * `document_type = 'invoice'`: a credit/debit NOTE is a correction document,
    * not a receivable a bank credit settles (v1 scope, design §3).
    */
@@ -419,9 +422,8 @@ export const invoicesRepository = {
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
       .where(
         and(
-          isNotNull(invoicesTable.invoiceHash),
-          eq(invoicesTable.documentType, "invoice"),
-          sql`${invoicesTable.status} NOT IN ('draft','submitted','paid')`,
+          // Issue 1: a receivable in the books (issued here OR an opening item; never a reversed one) — not "has a hash".
+          receivableInBooks(),
           sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) >= 0.01`,
         ),
       )

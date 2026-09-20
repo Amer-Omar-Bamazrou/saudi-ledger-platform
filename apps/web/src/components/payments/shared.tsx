@@ -14,19 +14,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
-import type { Invoice, CustomerPayment } from "@workspace/api-client-react";
+import type { CustomerPayment } from "@workspace/api-client-react";
 
 /** Receipt / refund numbers as the matching engine reads them from a narrative. */
 export const receiptNumber = (id: number) => `RCPT-${id}`;
 export const refundNumber = (id: number) => `REFUND-${id}`;
 
-/** Outstanding as the server defines it — never `total − paid` alone (D-4). */
-export const outstandingOf = (inv: Pick<Invoice, "total" | "paidAmount" | "creditedAmount">) =>
-  Math.round((Number(inv.total ?? 0) - Number(inv.paidAmount ?? 0) - Number(inv.creditedAmount ?? 0)) * 100) / 100;
-
-/** An issued invoice with a receivable still open — the only allocation target. */
-export const isOpenInvoice = (inv: Invoice) =>
-  inv.documentType === "invoice" && inv.invoiceHash != null && !["draft", "submitted", "cancelled"].includes(inv.status) && outstandingOf(inv) > 0.005;
+/** The allocation target predicate and the outstanding figure live in `lib/openInvoice.ts` (pure; unit-tested; Issue 1). */
+export { outstandingOf, isOpenInvoice } from "@/lib/openInvoice";
 
 /**
  * Every query a payment write can move. Invalidated together so no page shows

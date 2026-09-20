@@ -58,7 +58,8 @@ export type OpenItemInput = {
   originalAmount: number;
   outstandingAmount: number;
   compositionUnknown?: boolean;
-  historicalVat?: { category?: string | null; rate?: number | null; taxableAmount?: number | null; amount?: number | null; reportedPeriod?: string | null } | null;
+  /** Art. 40(9) `badDebtReliefClaimed`: true / false / null, INFORMATION ONLY — stored with the historical VAT facts, echoed back, carried onto the opening receivable as provenance text; nothing acts on it. */
+  historicalVat?: { category?: string | null; rate?: number | null; taxableAmount?: number | null; amount?: number | null; reportedPeriod?: string | null; badDebtReliefClaimed?: boolean | null } | null;
   description?: string | null;
 };
 
@@ -453,12 +454,14 @@ export const migrationStagingService = {
           if (v[k] != null && (!Number.isFinite(num(v[k])) || num(v[k]) < 0)) throw new BadRequestError(`${where}.historicalVat.${k} must be a non-negative number.`);
         }
         if (v.rate != null && num(v.rate) > 100) throw new BadRequestError(`${where}.historicalVat.rate must be a percentage.`);
+        if (v.badDebtReliefClaimed != null && typeof v.badDebtReliefClaimed !== "boolean") throw new BadRequestError(`${where}.historicalVat.badDebtReliefClaimed must be true, false or null — whether the previous system claimed VAT bad-debt relief (Art. 40(9)) on this document; it is recorded, never acted on.`);
         historicalVat = {
           category: v.category ?? null,
           rate: v.rate == null ? null : round2(num(v.rate)),
           taxableAmount: v.taxableAmount == null ? null : round2(num(v.taxableAmount)),
           amount: v.amount == null ? null : round2(num(v.amount)),
           reportedPeriod: v.reportedPeriod?.trim() || null,
+          badDebtReliefClaimed: v.badDebtReliefClaimed ?? null,
         };
       }
       return {

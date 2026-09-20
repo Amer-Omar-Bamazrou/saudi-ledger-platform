@@ -9,6 +9,7 @@
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
+import { INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 
 export const NOTE_TYPES = ["credit_note", "debit_note"] as const;
 export type NoteType = (typeof NOTE_TYPES)[number];
@@ -22,10 +23,10 @@ const LABEL: Record<NoteType, string> = {
   debit_note: "debit note",
 };
 
-/** States in which the ORIGINAL is a real, issued document a note can correct. */
-// `overdue` was in this list and is not a status any writer produces; the list
-// now names only values a row can actually hold.
-const ISSUED_STATUSES = ["sent", "paid"];
+/** States in which the ORIGINAL is a real, issued document a note can correct —
+ *  the one definition in @workspace/shared (Issue 1). `overdue` was in this
+ *  list once and is not a status any writer produces. */
+const ISSUED_STATUSES: readonly string[] = INVOICE_IN_BOOKS_STATUSES;
 
 const money = (v: unknown): number => Number(v ?? 0);
 const fmt = (n: number): string => n.toFixed(2);
@@ -82,6 +83,22 @@ export async function assertNoteIsValid(input: {
   }
 
   assertNotReversedOpening(original, `Invoice ${original.invoiceNumber}`, `corrected by a ${label}`);
+
+  // Batch 1C, Issue 1 — FAIL CLOSED. An opening item is in the books but it is
+  // not a tax invoice this system issued: no hash, no ICV, no QR, and the
+  // document it stands for was issued by the previous system. Whether a note
+  // may reference a previous-system invoice at all — and what it must carry
+  // if so — is an OPEN question on the accountant and ZATCA (decision pack
+  // §16.14.9); until it is answered, no note is minted against one.
+  if (original.isOpening) {
+    throw new BusinessRuleError(409, {
+      code: "note_original_is_opening_item",
+      error:
+        `${original.invoiceNumber} is an opening balance item migrated from the previous system, not a tax invoice issued here, ` +
+        `so it cannot be corrected by a ${label} in this system today (an open question — decision pack §16.14.9).`,
+      field: "originalInvoiceId",
+    });
+  }
 
   if (isNoteType(original.documentType)) {
     throw new BusinessRuleError(409, {

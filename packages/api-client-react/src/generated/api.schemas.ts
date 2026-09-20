@@ -4630,6 +4630,11 @@ export interface MigrationHistoricalVat {
      * @nullable
      */
   reportedPeriod?: string | null;
+  /**
+     * VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.
+     * @nullable
+     */
+  badDebtReliefClaimed?: boolean | null;
 }
 
 export type MigrationOpenItemInputItemType = typeof MigrationOpenItemInputItemType[keyof typeof MigrationOpenItemInputItemType];

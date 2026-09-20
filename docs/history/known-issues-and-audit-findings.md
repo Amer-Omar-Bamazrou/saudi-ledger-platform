@@ -2190,7 +2190,7 @@ correction exists. Exact question: pack §16.12.5.
 State: decisions RECORDED and IMPLEMENTED (batch level); item-level correction
 OPEN on the accountant. Current state authority: CLAUDE.md §2.
 
-## AN OPENING RECEIVABLE CANNOT BE COLLECTED THROUGH D-4 — OPEN, 2026-09-20 (found during the Policy C audit; pre-existing; documentation only)
+## AN OPENING RECEIVABLE CANNOT BE COLLECTED THROUGH D-4 — CLOSED 2026-09-20 (Issue 1; found the same day during the Policy C audit; pre-existing)
 
 **The finding.** `paymentsService`'s allocation validator refuses any invoice
 with `invoice_hash == null` ("only an issued invoice has a receivable to
@@ -2221,5 +2221,7 @@ on purpose: it predates A4/A5 and is a scope of its own.
 
 **Surveyed 2026-09-20 (research only; pack §16.13):** the same artefact-as-proxy shape sits in three places (the D-4 allocation validator, `openForSettlement`, and the web `isOpenInvoice`), two ledger invariants skip opening items for the same reason, the PDF renderer would title an opening item a Tax Invoice, and a credit note can be created against an opening item — the minimum change and the required tests are recorded there. Awaiting approval.
 
-State: OPEN. Current state authority: CLAUDE.md §2.
+**CLOSED 2026-09-20 (Issue 1, the commit after `f8bc71c` on `feat/batch-1c-migration-opening-balances`; pack §16.15 is the as-built record).** The proxy was replaced by ONE predicate — `@workspace/shared` `isReceivableInBooks`: `document_type = 'invoice'` AND status ∈ {`sent`, `paid`} AND not a reversed opening item — at the three sites (the D-4 allocation validator, `openForSettlement` through `repositories/receivableInBooks.ts`, the web `lib/openInvoice.ts`), and `creditNotes.ts` now reads its issued-status list from the same definition. The ledger invariant `invoice_outstanding_nonnegative` runs over `invoice_hash IS NOT NULL OR is_opening` (`INVOICE_ISSUED_OR_OPENING_TEXT`); `paid_cache` was found to have had NO hash gate at all (the entry above believed it had — verified, not restated; it stays universal). Two guards follow from the same fact: the PDF renderer refuses an `is_opening` row (`opening_item_not_a_tax_invoice`, 409) rather than titling a migrated balance a Tax Invoice, and a credit/debit note whose original is an opening item is refused fail-closed (`note_original_is_opening_item`, 409) until §16.14.9's ZATCA question is answered. The red-first suite `tests/batch-1c-opening-receivable-collection.test.ts` collects opening receivables through every path (invoice pay, receipt + partial then full allocation with the D-4 controls exercised, the review queue's settle-against-invoice, bank statement matching) and asserts on each that no hash, ICV, QR, issuance time, e-invoice document, archive entry or VAT-return movement appears and that the approval, hash, QR and e-invoice enqueue seams are never invoked — with an ordinary approval as the planted positive on the same spies; the ledger invariant sweep was run on kept fixtures after the collections and holds. Also captured in the same commit (information only, no behaviour): the Art. 40(9) flag `historicalVat.badDebtReliefClaimed` (true / false / null) on the staged open item, inside the existing `historical_vat` jsonb — no schema change — echoed by the staging API, inside the content hash, and written onto the opening receivable's provenance `notes`. **Still open, unchanged:** Issue 2 (a partly-settled opening item — accountant) and historical credit notes (ZATCA).
+
+State: CLOSED 2026-09-20. Current state authority: CLAUDE.md §2.
 

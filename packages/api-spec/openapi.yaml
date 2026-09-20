@@ -8441,6 +8441,7 @@ components:
         taxableAmount: { type: ["number", "null"], minimum: 0 }
         amount: { type: ["number", "null"], minimum: 0 }
         reportedPeriod: { type: ["string", "null"], maxLength: 40, description: "The return period the document's VAT was reported in by the old system." }
+        badDebtReliefClaimed: { type: ["boolean", "null"], description: "VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation." }
 
     MigrationOpenItemInput:
       type: object

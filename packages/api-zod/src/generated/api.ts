@@ -6759,7 +6759,8 @@ export const GetMigrationOpenItemsResponse = zod.object({
   "rate": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
   "taxableAmount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
-  "reportedPeriod": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+  "reportedPeriod": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
   "description": zod.string().nullable(),
   "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
@@ -6836,7 +6837,8 @@ export const ImportMigrationOpenItemsBody = zod.object({
   "rate": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMax).nullish(),
   "taxableAmount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin).nullish(),
-  "reportedPeriod": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]).optional(),
   "description": zod.string().max(importMigrationOpenItemsBodyRowsItemDescriptionMax).nullish()
 })).min(1).max(importMigrationOpenItemsBodyRowsMax)
@@ -6875,7 +6877,8 @@ export const ImportMigrationOpenItemsResponse = zod.object({
   "rate": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
   "taxableAmount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
-  "reportedPeriod": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.')
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
   "description": zod.string().nullable(),
   "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
