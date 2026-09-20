@@ -256,6 +256,9 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
     // The flag is the migration's content: it is inside the validated content hash, so changing it after validation re-opens the batch like any other staged fact.
     const staged2 = await inTenant(() => migrationStagingService.getOpenItems(batchId));
     expect(staged2.rows.find((r) => r.sourceId === "SI-1001")!.historicalVat).toMatchObject({ badDebtReliefClaimed: true });
+    // Walk defect 2026-09-20: after the commit every item read as "document number already exists" — the number was
+    // taken by the row the item itself became. A committed batch's items carry no problem.
+    expect(staged2.rows.map((r) => [r.documentNumber, r.problems])).toEqual(staged2.rows.map((r) => [r.documentNumber, []]));
 
     arBefore = Number((await inTenant(() => reportsService.arAging())).total);
     expect(arBefore).toBe(25000);

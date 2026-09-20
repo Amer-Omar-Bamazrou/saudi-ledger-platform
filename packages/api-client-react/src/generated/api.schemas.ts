@@ -4201,13 +4201,62 @@ export type MigrationBatchDetailCounts = {
   advances: number;
 };
 
-export type MigrationBatchDetail = MigrationBatch & {
+export type MigrationControlCheckStatus = typeof MigrationControlCheckStatus[keyof typeof MigrationControlCheckStatus];
+
+
+export const MigrationControlCheckStatus = {
+  pass: 'pass',
+  fail: 'fail',
+  warn: 'warn',
+  skip: 'skip',
+} as const;
+
+export interface MigrationControlCheck {
+  id: string;
+  title: string;
+  status: MigrationControlCheckStatus;
+  /** @nullable */
+  expected: number | string | null;
+  /** @nullable */
+  actual: number | string | null;
+  detail: string;
+}
+
+/**
+ * The opening-position totals at that run (debit, credit, difference, ytd…).
+ */
+export type MigrationValidationRecordTotals = {[key: string]: number | boolean};
+
+/**
+ * The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).
+ */
+export interface MigrationValidationRecord {
+  ok: boolean;
+  checks: MigrationControlCheck[];
+  /** The opening-position totals at that run (debit, credit, difference, ytd…). */
+  totals?: MigrationValidationRecordTotals;
+  at?: string;
+}
+
+export type MigrationReconciliationRecordFigures = {[key: string]: number};
+
+/**
+ * R1–R10 as the commit computed them on the posted ledger, stored on the batch.
+ */
+export interface MigrationReconciliationRecord {
+  at?: string;
+  journalEntryId?: number;
+  checks: MigrationControlCheck[];
+  figures?: MigrationReconciliationRecordFigures;
+}
+
+export type MigrationBatchDetail = MigrationBatch & ({
   counts: MigrationBatchDetailCounts;
   /** The last validation run, or null. */
-  validation: unknown;
+  validation: MigrationValidationRecord | null;
   /** R1–R10 as computed at commit, or null. */
-  reconciliation: unknown;
-};
+  reconciliation: MigrationReconciliationRecord | null;
+});
 
 /**
  * As the file states it. Nothing is inferred from a name.
@@ -4950,27 +4999,6 @@ export interface MigrationBankOpening {
   evidenceNote: string | null;
   /** Σ staged advances naming this bank — inside the balance, no cash line of their own. */
   advancesInside: number;
-}
-
-export type MigrationControlCheckStatus = typeof MigrationControlCheckStatus[keyof typeof MigrationControlCheckStatus];
-
-
-export const MigrationControlCheckStatus = {
-  pass: 'pass',
-  fail: 'fail',
-  warn: 'warn',
-  skip: 'skip',
-} as const;
-
-export interface MigrationControlCheck {
-  id: string;
-  title: string;
-  status: MigrationControlCheckStatus;
-  /** @nullable */
-  expected: number | string | null;
-  /** @nullable */
-  actual: number | string | null;
-  detail: string;
 }
 
 export type MigrationOpeningPositionTotals = {

@@ -160,7 +160,10 @@ export function openItemProblems(i: MigrationOpenItem, c: StagedContent): string
   // Saudi Ledger replacement number on the provenance record.
   if (isReservedOpeningNumber(i.documentNumber)) problems.push(`document number ${i.documentNumber} has the shape OPEN-<batch>-<n>, which Saudi Ledger reserves for the replacement items of a corrected migration; it cannot be a source number`);
   const taken = i.itemType === "ar" ? c.takenInvoiceNumbers : c.takenBillNumbers;
-  if (c.batch.replacesBatchId == null && taken.has(i.documentNumber)) problems.push(`document number ${i.documentNumber} already exists as a${i.itemType === "ar" ? "n invoice" : " bill"} of this company`);
+  // Walk defect 2026-09-20: after the COMMIT the number is taken by the row this item itself became, so a
+  // committed batch read every item as a collision. A materialised item is not colliding with itself.
+  const materialised = i.itemType === "ar" ? i.resolvedInvoiceId != null : i.resolvedBillId != null;
+  if (c.batch.replacesBatchId == null && !materialised && taken.has(i.documentNumber)) problems.push(`document number ${i.documentNumber} already exists as a${i.itemType === "ar" ? "n invoice" : " bill"} of this company`);
   if (i.compositionUnknown) {
     const others = c.items.filter((o) => o.id !== i.id && o.itemType === i.itemType && o.partySourceId === i.partySourceId && o.compositionUnknown);
     if (others.length > 0) problems.push(`more than one composition-unknown item for ${wantType} ${i.partySourceId} — a party whose old system tracked only a balance gets ONE item`);

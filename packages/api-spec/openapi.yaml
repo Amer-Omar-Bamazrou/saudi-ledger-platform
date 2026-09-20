@@ -8221,8 +8221,36 @@ components:
                 parties: { type: integer }
                 openItems: { type: integer }
                 advances: { type: integer }
-            validation: { description: "The last validation run, or null." }
-            reconciliation: { description: "R1–R10 as computed at commit, or null." }
+            validation:
+              description: "The last validation run, or null."
+              oneOf:
+                - { $ref: "#/components/schemas/MigrationValidationRecord" }
+                - { type: "null" }
+            reconciliation:
+              description: "R1–R10 as computed at commit, or null."
+              oneOf:
+                - { $ref: "#/components/schemas/MigrationReconciliationRecord" }
+                - { type: "null" }
+
+    MigrationValidationRecord:
+      type: object
+      description: "The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape)."
+      required: [ok, checks]
+      properties:
+        ok: { type: boolean }
+        checks: { type: array, items: { $ref: "#/components/schemas/MigrationControlCheck" } }
+        totals: { type: object, description: "The opening-position totals at that run (debit, credit, difference, ytd…).", additionalProperties: { type: ["number", "boolean"] } }
+        at: { type: string, format: date-time }
+
+    MigrationReconciliationRecord:
+      type: object
+      description: "R1–R10 as the commit computed them on the posted ledger, stored on the batch."
+      required: [checks]
+      properties:
+        at: { type: string, format: date-time }
+        journalEntryId: { type: integer }
+        checks: { type: array, items: { $ref: "#/components/schemas/MigrationControlCheck" } }
+        figures: { type: object, additionalProperties: { type: number } }
 
     MigrationChartRowInput:
       type: object

@@ -46,6 +46,23 @@ import { fileURLToPath } from "node:url";
  * create) so every locator in the specs still resolves.
  */
 
+/**
+ * Batch 1C (2026-09-20): the migration workspace spec needs a tenant whose
+ * ledger is EMPTY on and before the opening date (control LEDGER_EMPTY), a
+ * property the smoke tenant deliberately lacks. So: a SECOND tenant, seeded
+ * with identity rows + one bank account only, with an admin (runs the
+ * migration) and an accountant (may only read it), each with its own saved
+ * session. Everything the spec stages is staged through the UI.
+ */
+export const E2E_MIGRATION = {
+  slug: "e2e-migration",
+  adminEmail: "e2e-migration-admin@smoke.local",
+  accountantEmail: "e2e-migration-acct@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "migration-admin.json"),
+  accountantState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "migration-accountant.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -67,6 +84,10 @@ export interface SeededIds {
   /** Phase F: the one bank account, and the receipt held on account (a deposit). */
   bankId: number;
   depositPaymentId: number;
+  /** Batch 1C: a DRAFT migration batch in the smoke tenant (no ledger effect), so `/migration/:id` is crawlable. */
+  migrationBatchId: number;
+  /** Batch 1C: the migration tenant's bank account (the spec maps the old bank row to it). */
+  migrationBankId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
@@ -108,8 +129,8 @@ export default async function globalSetup(): Promise<void> {
    * would otherwise be orphaned.
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
-    `SELECT id FROM organizations WHERE slug = $1`,
-    [E2E.slug],
+    `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
+    [[E2E.slug, E2E_MIGRATION.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -139,13 +160,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
-      await db.query(`DELETE FROM organizations WHERE slug = $1`, [E2E.slug]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -176,6 +197,19 @@ export default async function globalSetup(): Promise<void> {
      VALUES ($1,$2,'admin','active')`,
     [orgId, userId],
   );
+
+  // ── The migration tenant (Batch 1C): identity only; the spec stages the rest through the UI ──
+  const migOrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Migration Org', $1, 'approved') RETURNING id`, [E2E_MIGRATION.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, cr_number, vat_number, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Migration Co','شركة الترحيل','1010202020','300000000000023',1,'gregorian')`, [migOrgId]);
+  for (const [email, role, name] of [[E2E_MIGRATION.adminEmail, "admin", "E2E Migration Admin"], [E2E_MIGRATION.accountantEmail, "accountant", "E2E Migration Accountant"]] as const) {
+    const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
+    await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [migOrgId, uid, role]);
+  }
+  // The suite now logs three users in per run (Batch 1C added a second tenant);
+  // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
+  // start answering 429 for reasons that are not regressions. This is the
+  // suite's own database: clear the auth counters it filled.
+  await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%'`);
   await db.end();
 
   /**
@@ -407,9 +441,25 @@ export default async function globalSetup(): Promise<void> {
   // period no seeded document falls in, so nothing above becomes unpostable.
   await api(ctx, "POST", "/period-locks", { period: "2025-12" });
 
+  // Batch 1C: a draft batch (zero ledger effect) so the crawl can render `/migration/:id`.
+  const migrationBatch = await api(ctx, "POST", "/migration/batches", { sourceSystem: "E2E Previous System", cutoverDate: "2025-01-01" });
+
   mkdirSync(dirname(E2E.storageState), { recursive: true });
   await ctx.storageState({ path: E2E.storageState });
   await ctx.dispose();
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id } satisfies SeededIds, null, 2));
+  // The migration tenant: log both users in, give it one bank account (the old bank row maps to it).
+  const migAdmin = await request.newContext({ baseURL: API });
+  const migLogin = await migAdmin.post("/api/auth/login", { data: { email: E2E_MIGRATION.adminEmail, password: E2E_MIGRATION.password } });
+  if (!migLogin.ok()) throw new Error(`e2e migration admin login failed: ${migLogin.status()}`);
+  const migBank = await api(migAdmin, "POST", "/bank-accounts", { name: "Riyad Main", bankName: "Riyad Bank", currency: "SAR" });
+  await migAdmin.storageState({ path: E2E_MIGRATION.adminState });
+  await migAdmin.dispose();
+  const migAcct = await request.newContext({ baseURL: API });
+  const acctLogin = await migAcct.post("/api/auth/login", { data: { email: E2E_MIGRATION.accountantEmail, password: E2E_MIGRATION.password } });
+  if (!acctLogin.ok()) throw new Error(`e2e migration accountant login failed: ${acctLogin.status()}`);
+  await migAcct.storageState({ path: E2E_MIGRATION.accountantState });
+  await migAcct.dispose();
+
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id } satisfies SeededIds, null, 2));
 }

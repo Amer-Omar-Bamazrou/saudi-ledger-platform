@@ -18,6 +18,7 @@ import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
 import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
+import { OpeningRecordBadge, OpeningRecordNote } from "@/components/migration/OpeningRecord";
 import { PaymentHistory } from "@/components/PaymentHistory";
 
 const PAGE_SIZE = 50;
@@ -517,7 +518,7 @@ export default function Invoices() {
               ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-primary">{inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}</td>
                   <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
@@ -563,7 +564,14 @@ export default function Invoices() {
                           cookie rides the same-origin GET and the server's
                           Content-Disposition does the saving. Issued documents
                           only — a draft has no QR and no legal existence. */}
-                      {inv.status !== "draft" && inv.status !== "submitted" && (
+                      {/* Batch 1C, Issue 1 carry-over: an OPENING receivable is a
+                          historical record from the previous system, not a tax
+                          invoice issued here — there is no tax-invoice document
+                          to download, so the buttons are not offered (the server
+                          refuses the render with 409 opening_item_not_a_tax_invoice
+                          as defence in depth). The note says what the row is. */}
+                      {inv.isOpening && <OpeningRecordNote />}
+                      {!inv.isOpening && inv.status !== "draft" && inv.status !== "submitted" && (
                         <>
                           <a href={`/api/invoices/${inv.id}/document?lang=ar`} download
                             className="inline-flex items-center gap-1 text-xs h-7 px-2 rounded hover:bg-secondary/60 text-primary"
@@ -578,8 +586,10 @@ export default function Invoices() {
                         </>
                       )}
                       {/* A3 (hub decision: automation woven into the page) —
-                          repeat this invoice monthly as DRAFTS for approval. */}
-                      <Button
+                          repeat this invoice monthly as DRAFTS for approval.
+                          Not on an opening item: a historical balance is not a
+                          document to repeat (walk, 2026-09-20). */}
+                      {!inv.isOpening && <Button
                         variant="ghost"
                         size="sm"
                         className="text-xs h-7 text-muted-foreground"
@@ -588,7 +598,7 @@ export default function Invoices() {
                         disabled={makeRecurringMut.isPending}
                       >
                         <Repeat className="h-3.5 w-3.5" />
-                      </Button>
+                      </Button>}
                     </div>
                   </td>
                 </tr>

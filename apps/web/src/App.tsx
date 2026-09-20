@@ -55,6 +55,11 @@ import Budgets from '@/pages/Budgets';
 import UserManagement from '@/pages/UserManagement';
 import CompanySettings from '@/pages/CompanySettings';
 import ClosedMonths from '@/pages/ClosedMonths';
+// Batch 1C (2026-09-20): the migration workspace — staging, validation, the
+// opening trial balance, R1–R10, commit and Policy C reversal, over the
+// existing backend only.
+import Migration from '@/pages/Migration';
+import MigrationWorkspace from '@/pages/MigrationWorkspace';
 import AuditTrail from '@/pages/AuditTrail';
 import ZatcaOnboarding from '@/pages/ZatcaOnboarding';
 import Approvals from '@/pages/Approvals';
@@ -246,6 +251,8 @@ function Router() {
               <Route path="/categories" component={Categories} />
               <Route path="/approvals" component={Approvals} />
               <Route path="/company" component={CompanySettings} />
+              <Route path="/migration" component={Migration} />
+              <Route path="/migration/:id" component={MigrationWorkspace} />
               <Route path="/closed-months" component={ClosedMonths} />
               <Route path="/audit-trail" component={AuditTrail} />
               <Route path="/zatca" component={ZatcaOnboarding} />

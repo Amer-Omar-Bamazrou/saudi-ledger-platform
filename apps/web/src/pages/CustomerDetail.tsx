@@ -11,6 +11,7 @@ import { statusLabel } from "@/lib/statusLabel";
 import { computeAging, toFetched, DETAIL_FETCH_LIMIT, type FetchedDocs } from "@/lib/partyDetail";
 import type { Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
+import { OpeningRecordBadge } from "@/components/migration/OpeningRecord";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { CreditNoteDetail, useCreditNoteApplications } from "@/components/payments/CreditNoteDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
@@ -92,7 +93,7 @@ function InvoiceTable({ rows }: { rows: Invoice[] }) {
             const outstanding = Number(r.total ?? 0) - Number(r.paidAmount ?? 0) - Number(r.creditedAmount ?? 0);
             return (
               <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`invoice-row-${r.invoiceNumber}`}>
-                <td className="py-3 pe-4 font-mono text-xs">{r.invoiceNumber}</td>
+                <td className="py-3 pe-4 font-mono text-xs">{r.invoiceNumber}{r.isOpening && <OpeningRecordBadge />}</td>
                 <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.date} inline /></td>
                 <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
                 <td className="py-3 pe-4"><Badge variant="outline" className="text-xs">{statusLabel(r.status, lang)}</Badge></td>

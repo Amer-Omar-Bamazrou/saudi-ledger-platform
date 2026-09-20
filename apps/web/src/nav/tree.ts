@@ -43,7 +43,7 @@ import {
   UploadCloud, ArrowLeftRight, Landmark, Receipt, TrendingUp, Waves,
   PieChart, SearchCheck, Repeat, ScanLine, Sparkles, Plug, UserCog,
   KeyRound, ScrollText, Wallet, SlidersHorizontal, UserRound, Eye,
-  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag,
+  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag, Database,
 } from "lucide-react";
 import { comingSoonHref } from "@/lib/comingSoon";
 import {
@@ -403,6 +403,9 @@ export const NAV_TREE: readonly NavSection[] = [
       },
       built("/categories", "Chart of Accounts", "دليل الحسابات", Tags),
       soon("coa-settings", "Chart of Accounts Settings", "إعدادات دليل الحسابات"),
+      // Batch 1C (2026-09-20). Read by the accountant, run by the admin — the
+      // server's matrix decides; the page explains the difference.
+      built("/migration", "Migration & Opening Balances", "الترحيل والأرصدة الافتتاحية", Database),
       built("/products", "Products & Services", "المنتجات والخدمات", ShoppingBag),
       built("/recurring", "Automation Rules", "قواعد الأتمتة", Repeat),
       {

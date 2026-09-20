@@ -36,7 +36,12 @@ export default function JournalEntries() {
   const [page, setPage] = useState(0);
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // `?entry=<id>` opens one entry directly (the migration workspace links its opening journal this way).
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = Number(new URLSearchParams(window.location.search).get("entry"));
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+  });
   const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "" });
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();

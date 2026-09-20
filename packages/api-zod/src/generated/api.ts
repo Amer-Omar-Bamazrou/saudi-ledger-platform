@@ -6239,8 +6239,32 @@ export const GetMigrationBatchResponse = zod.object({
   "openItems": zod.number(),
   "advances": zod.number()
 }),
-  "validation": zod.unknown().describe('The last validation run, or null.'),
-  "reconciliation": zod.unknown().describe('R1–R10 as computed at commit, or null.')
+  "validation": zod.union([zod.object({
+  "ok": zod.boolean(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "totals": zod.record(zod.string(), zod.union([zod.number(),zod.boolean()])).optional().describe('The opening-position totals at that run (debit, credit, difference, ytd…).'),
+  "at": zod.coerce.date().optional()
+}).describe('The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).'),zod.null()]).describe('The last validation run, or null.'),
+  "reconciliation": zod.union([zod.object({
+  "at": zod.coerce.date().optional(),
+  "journalEntryId": zod.number().optional(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "figures": zod.record(zod.string(), zod.number()).optional()
+}).describe('R1–R10 as the commit computed them on the posted ledger, stored on the batch.'),zod.null()]).describe('R1–R10 as computed at commit, or null.')
 }))
 
 
@@ -7175,8 +7199,32 @@ export const CommitMigrationBatchResponse = zod.object({
   "openItems": zod.number(),
   "advances": zod.number()
 }),
-  "validation": zod.unknown().describe('The last validation run, or null.'),
-  "reconciliation": zod.unknown().describe('R1–R10 as computed at commit, or null.')
+  "validation": zod.union([zod.object({
+  "ok": zod.boolean(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "totals": zod.record(zod.string(), zod.union([zod.number(),zod.boolean()])).optional().describe('The opening-position totals at that run (debit, credit, difference, ytd…).'),
+  "at": zod.coerce.date().optional()
+}).describe('The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).'),zod.null()]).describe('The last validation run, or null.'),
+  "reconciliation": zod.union([zod.object({
+  "at": zod.coerce.date().optional(),
+  "journalEntryId": zod.number().optional(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "figures": zod.record(zod.string(), zod.number()).optional()
+}).describe('R1–R10 as the commit computed them on the posted ledger, stored on the batch.'),zod.null()]).describe('R1–R10 as computed at commit, or null.')
 }))
 
 

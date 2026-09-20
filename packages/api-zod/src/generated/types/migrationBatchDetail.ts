@@ -7,11 +7,13 @@
  */
 import type { MigrationBatch } from './migrationBatch';
 import type { MigrationBatchDetailCounts } from './migrationBatchDetailCounts';
+import type { MigrationReconciliationRecord } from './migrationReconciliationRecord';
+import type { MigrationValidationRecord } from './migrationValidationRecord';
 
-export type MigrationBatchDetail = MigrationBatch & {
+export type MigrationBatchDetail = MigrationBatch & ({
   counts: MigrationBatchDetailCounts;
   /** The last validation run, or null. */
-  validation: unknown;
+  validation: MigrationValidationRecord | null;
   /** R1–R10 as computed at commit, or null. */
-  reconciliation: unknown;
-};
+  reconciliation: MigrationReconciliationRecord | null;
+});
