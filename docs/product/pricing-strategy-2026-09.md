@@ -5,6 +5,19 @@ or built. R1 (billing) stays undesigned until the owner chooses; the billing
 entity and the commercial model are not final. Current state authority:
 [CLAUDE.md §2](../../CLAUDE.md); the open R1 row is CLAUDE.md §5.**
 
+🔴 **SUPERSEDED IN PART (2026-09-20).** The four-plan packaging (§D, §E–§H,
+§N, §V) is replaced by the **three-plan** model in
+[`pricing-plans-2026-09-20.md`](pricing-plans-2026-09-20.md), which found that
+this document's Advanced tier was priced on **multi-company pooling that is
+not built** (`lib/tenant.ts` resolves the first-created company; there is no
+company-create route) and that §0.8's "straight-line depreciation posting"
+is wrong (`assets.service.ts` has no `postJournalEntry` — the register is
+live, the accounting is not). What remains authoritative here: the
+competitor research (§A–§B), the strategy comparison (§C), the AI packaging
+mechanics (§K.10–K.13), migration/accountant-firm/trial notes (§L, §M, §O),
+the four-question separation (§S), accounting safety (§T) and the
+entitlement architecture (§U).
+
 Companion: [`pricing-unit-economics-2026-09.md`](pricing-unit-economics-2026-09.md)
 holds every number this document cites — the Groq price card, the per-operation
 costs, the usage distributions, the COGS model, the margin scenarios, the

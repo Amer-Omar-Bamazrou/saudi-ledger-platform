@@ -7,6 +7,15 @@ here is a decision. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Companion to [`pricing-strategy-2026-09.md`](pricing-strategy-2026-09.md),
 which holds the packaging and entitlement design and quotes the numbers below.
+**2026-09-20:** the packaging moved to
+[`pricing-plans-2026-09-20.md`](pricing-plans-2026-09-20.md) (three plans,
+Advanced re-priced from SAR 449 to **349**). §5 below still tabulates the
+449 case; the 349 case (ARPU $83.76 at 60 % annual; GM 89.2 % ex-serve,
+71.3 % incl. serve at P50 AI, 64.7 % at P95) and the blended consequences
+(ARPU SAR 154, ARR/1,000 ≈ SAR 1.85M, blended GM incl. serve ≈ 74 % at P75
+AI) are in that document's §G.4. Every other table here is unchanged by the
+re-pricing — the sensitivity conclusions in §6 and the provider-contract
+rules in §7 hold.
 The model that produced every table is a ~150-line script (per-operation cost ×
 usage counts × price card; COGS per org; margin = 1 − COGS/ARPU); re-running it
 with measured `ai_usage` rows is the first thing to do after the AI boundary
