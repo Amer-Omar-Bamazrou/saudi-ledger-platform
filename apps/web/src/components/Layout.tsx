@@ -83,8 +83,8 @@ function NavLink({
         "flex items-center gap-2.5 rounded-md text-sm transition-colors",
         depth === 0 ? "px-3 py-2 font-medium gap-3" : "ps-9 pe-3 py-1.5 text-[13px]",
         isActive
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+          ? "bg-sidebar-primary/15 text-sidebar-primary"
+          : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
       )}
     >
       {Icon && <Icon className="w-4 h-4 shrink-0" />}
@@ -131,7 +131,7 @@ function NavItemNode({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={lang === "ar" ? `توسيع ${entry.labelAr}` : `Expand ${entry.label}`}
-          className="p-1.5 me-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-secondary/60"
+          className="p-1.5 me-1 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
         >
           {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </button>
@@ -192,7 +192,7 @@ function NavGroup({
         // instead of guessing which ones happen to be expanded.
         aria-expanded={open}
         data-nav-section={section.label}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
       >
         {lang === "ar" ? section.labelAr : section.label}
         {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -284,12 +284,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const brand = (
     <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <span className="text-xs font-bold text-background">ك</span>
+      <div className="w-7 h-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+        <span className="text-sm font-bold text-sidebar-primary-foreground">ك</span>
       </div>
       <div>
-        <span className="font-bold text-base text-primary tracking-tight">KSA Ledger</span>
-        <div className="text-xs text-muted-foreground -mt-0.5">
+        <span className="font-bold text-base text-sidebar-primary tracking-tight">KSA Ledger</span>
+        <div className="text-xs text-sidebar-foreground/60 -mt-0.5">
           {t("ERP · Accounting", "نظام ERP · محاسبة")}
         </div>
       </div>
@@ -299,7 +299,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const sidebarInner = (
     <>
       {/* Brand (desktop header; the drawer carries its own with a close control) */}
-      <div className="h-14 hidden md:flex items-center px-4 border-b border-border shrink-0">
+      <div className="h-14 hidden md:flex items-center px-4 border-b border-sidebar-border shrink-0">
         {brand}
       </div>
 
@@ -321,14 +321,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User footer */}
         {user && (
-          <div className="border-t border-border p-3 space-y-2">
+          <div className="border-t border-sidebar-border p-3 space-y-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-primary">{user.name.charAt(0).toUpperCase()}</span>
+              <div className="w-7 h-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-sidebar-primary">{user.name.charAt(0).toUpperCase()}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                <p className="text-xs font-medium text-sidebar-foreground truncate">{user.name}</p>
+                <p className="text-xs text-sidebar-foreground/50 truncate">{user.email}</p>
               </div>
             </div>
             <OrgSwitcher />
@@ -343,8 +343,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors",
                     lang === "ar"
-                      ? "border-primary/50 text-primary bg-primary/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+                      ? "border-sidebar-primary/50 text-sidebar-primary bg-sidebar-primary/10"
+                      : "border-sidebar-border text-sidebar-foreground/50 hover:text-sidebar-foreground hover:border-sidebar-foreground/40"
                   )}
                   title={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
                 >
@@ -353,7 +353,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-negative transition-colors"
+                  className="flex items-center gap-1 text-xs text-sidebar-foreground/50 hover:text-negative transition-colors"
                   title={t("Sign out", "تسجيل الخروج")}
                 >
                   <LogOut className="w-3 h-3" />
@@ -383,15 +383,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           />
           <aside
             data-testid="nav-drawer"
-            className="absolute inset-y-0 start-0 h-full w-72 max-w-[85vw] bg-sidebar border-e border-border flex flex-col shadow-xl"
+            className="absolute inset-y-0 start-0 h-full w-72 max-w-[85vw] bg-sidebar border-e border-sidebar-border flex flex-col shadow-xl"
           >
-            <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
+            <div className="h-14 flex items-center justify-between px-4 border-b border-sidebar-border shrink-0">
               {brand}
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 aria-label={t("Close menu", "إغلاق القائمة")}
-                className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                className="p-2 rounded text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -404,13 +404,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top bar — the only place the hamburger exists. */}
-        <header className="h-12 md:hidden flex items-center gap-2 px-3 border-b border-border bg-sidebar shrink-0">
+        <header className="h-12 md:hidden flex items-center gap-2 px-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label={t("Open menu", "فتح القائمة")}
             data-testid="nav-hamburger"
-            className="p-2 -ms-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+            className="p-2 -ms-1 rounded text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Menu className="w-5 h-5" />
           </button>
