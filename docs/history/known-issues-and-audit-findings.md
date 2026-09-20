@@ -2219,5 +2219,7 @@ opening journal's AR party line, not a `GL-<number>` issue journal, which
 that COLLECTS an opening item end to end. Not folded into the Policy C commit
 on purpose: it predates A4/A5 and is a scope of its own.
 
+**Surveyed 2026-09-20 (research only; pack §16.13):** the same artefact-as-proxy shape sits in three places (the D-4 allocation validator, `openForSettlement`, and the web `isOpenInvoice`), two ledger invariants skip opening items for the same reason, the PDF renderer would title an opening item a Tax Invoice, and a credit note can be created against an opening item — the minimum change and the required tests are recorded there. Awaiting approval.
+
 State: OPEN. Current state authority: CLAUDE.md §2.
 
