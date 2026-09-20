@@ -3,7 +3,8 @@
  * append-only writes. Every query runs inside the tenant transaction (RLS).
  */
 import { db, transactionsTable, paymentsTable, customerRefundsTable, statementMatchesTable, statementMatchReversalsTable, paymentAllocationsTable, paymentAllocationReversalsTable, invoicesTable } from "@workspace/db";
-import { and, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
+import { paymentNotReversed, paymentNotReversedSql } from "./openingReversal";
 import { companyScoped } from "./companyScope";
 
 /** A Postgres text[] literal from already-validated upper-case tokens (letters, digits, hyphens only — `referenceTokens` guarantees it). */
@@ -80,6 +81,10 @@ export const statementMatchesRepository = {
         and(
           companyScoped(paymentsTable.companyId),
           eq(paymentsTable.direction, "in"),
+          // A migrated deposit's cash is INSIDE the bank's opening balance (Batch 1C): it has no
+          // statement row of its own, reversed or not — and a reversed one is history (openingReversal.ts).
+          ne(paymentsTable.source, "opening"),
+          paymentNotReversed(),
           eq(paymentsTable.bankAccountId, filter.bankAccountId),
           eq(paymentsTable.amount, filter.amount.toFixed(2)),
           gte(paymentsTable.paidAt, filter.from),
@@ -122,7 +127,7 @@ export const statementMatchesRepository = {
         FROM payments p
         LEFT JOIN payment_allocations a ON a.payment_id = p.id AND NOT EXISTS (SELECT 1 FROM payment_allocation_reversals r WHERE r.allocation_id = a.id)
         LEFT JOIN invoices i ON i.id = a.invoice_id
-       WHERE p.direction = 'in'
+       WHERE p.direction = 'in' AND p.source <> 'opening' AND ${paymentNotReversedSql("p")}
          AND (upper(coalesce(p.reference,'')) = ANY(${sql.raw(pgTextArray(tokens))}) OR ('RCPT-' || p.id::text) = ANY(${sql.raw(pgTextArray(tokens))}) OR upper(coalesce(i.invoice_number,'')) = ANY(${sql.raw(pgTextArray(tokens))}))`);
     return rows.rows.map((r) => ({ id: r.id, bankAccountId: r.bank_account_id, amount: r.amount, paidAt: r.paid_at, direction: r.direction, reference: r.reference, sourceTransactionId: r.source_transaction_id, via: r.via }));
   },

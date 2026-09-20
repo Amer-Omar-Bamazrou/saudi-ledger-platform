@@ -21,6 +21,7 @@
  */
 import type { MigrationBatch, MigrationParty, MigrationOpenItem, MigrationAdvance, MigrationChartRow } from "@workspace/db";
 import { round2 } from "../lib/money";
+import { isReservedOpeningNumber } from "@workspace/shared";
 import { assertTaxCategoryCode } from "../lib/writeGuards";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
@@ -100,8 +101,9 @@ export async function readStagedContent(batch: MigrationBatch): Promise<StagedCo
     migrationRepository.advances(batch.id),
   ]);
   const [takenInvoiceNumbers, takenBillNumbers, customers, vendors] = await Promise.all([
-    migrationRepository.takenInvoiceNumbers(items.filter((i) => i.itemType === "ar").map((i) => i.documentNumber)),
-    migrationRepository.takenBillNumbers(items.filter((i) => i.itemType === "ap").map((i) => i.documentNumber)),
+    // In a replacement batch the ledger numbers are minted (OPEN-<batch>-<seq>); the source numbers are never looked up.
+    batch.replacesBatchId == null ? migrationRepository.takenInvoiceNumbers(items.filter((i) => i.itemType === "ar").map((i) => i.documentNumber)) : Promise.resolve(new Set<string>()),
+    batch.replacesBatchId == null ? migrationRepository.takenBillNumbers(items.filter((i) => i.itemType === "ap").map((i) => i.documentNumber)) : Promise.resolve(new Set<string>()),
     migrationRepository.customersByIds(parties.filter((p) => p.partyType === "customer" && p.existingCustomerId != null).map((p) => p.existingCustomerId!)),
     migrationRepository.vendorsByIds(parties.filter((p) => p.partyType === "vendor" && p.existingVendorId != null).map((p) => p.existingVendorId!)),
   ]);
@@ -149,8 +151,15 @@ export function openItemProblems(i: MigrationOpenItem, c: StagedContent): string
   if (i.dueDate < i.issueDate) problems.push(`due ${i.dueDate} is before issue ${i.issueDate}`);
   const sameNumber = c.items.filter((o) => o.itemType === i.itemType && o.documentNumber === i.documentNumber);
   if (sameNumber.length > 1) problems.push(`document number ${i.documentNumber} appears ${sameNumber.length} times among the ${i.itemType.toUpperCase()} items — each opening item keeps its own number`);
+  // Policy C: the source number is provenance. In a FIRST migration it is also
+  // the ledger number and must be free; in a REPLACEMENT batch the ledger
+  // number is OPEN-<batch>-<seq> (the reversed row keeps the source number),
+  // so a source number held by that reversed row is not a collision. A source
+  // number that ITSELF has the reserved shape is refused: it would read as a
+  // Saudi Ledger replacement number on the provenance record.
+  if (isReservedOpeningNumber(i.documentNumber)) problems.push(`document number ${i.documentNumber} has the shape OPEN-<batch>-<n>, which Saudi Ledger reserves for the replacement items of a corrected migration; it cannot be a source number`);
   const taken = i.itemType === "ar" ? c.takenInvoiceNumbers : c.takenBillNumbers;
-  if (taken.has(i.documentNumber)) problems.push(`document number ${i.documentNumber} already exists as a${i.itemType === "ar" ? "n invoice" : " bill"} of this company`);
+  if (c.batch.replacesBatchId == null && taken.has(i.documentNumber)) problems.push(`document number ${i.documentNumber} already exists as a${i.itemType === "ar" ? "n invoice" : " bill"} of this company`);
   if (i.compositionUnknown) {
     const others = c.items.filter((o) => o.id !== i.id && o.itemType === i.itemType && o.partySourceId === i.partySourceId && o.compositionUnknown);
     if (others.length > 0) problems.push(`more than one composition-unknown item for ${wantType} ${i.partySourceId} — a party whose old system tracked only a balance gets ONE item`);
@@ -208,6 +217,7 @@ function toOpenItemOut(i: MigrationOpenItem, c: StagedContent) {
     partySourceId: i.partySourceId,
     partyName: party?.name ?? null,
     documentNumber: i.documentNumber,
+    ledgerDocumentNumber: i.ledgerDocumentNumber ?? null,
     issueDate: i.issueDate,
     dueDate: i.dueDate,
     originalAmount: num(i.originalAmount),

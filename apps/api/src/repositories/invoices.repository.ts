@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { businessToday } from "@workspace/shared";
+import { invoiceNotReversed } from "./openingReversal";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -52,7 +53,9 @@ const OVERDUE = sql`(
 
 /** One predicate for the rows AND the totals — so they cannot describe different sets. */
 function invoiceListConditions(filter: InvoiceListFilter) {
-  const conditions = [];
+  // Policy C: a reversed opening item is history, readable by id, never a
+  // row in the live list nor a number in its totals (openingReversal.ts).
+  const conditions: unknown[] = [invoiceNotReversed()];
   // `overdue` is a derived view of the same set, so it replaces a status filter
   // rather than narrowing one — asking for both would describe no rows.
   if (filter.overdue) conditions.push(OVERDUE);
@@ -60,7 +63,7 @@ function invoiceListConditions(filter: InvoiceListFilter) {
   if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
   if (filter.dateFrom) conditions.push(gte(invoicesTable.date, filter.dateFrom));
   if (filter.dateTo) conditions.push(lte(invoicesTable.date, filter.dateTo));
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return and(...(conditions as Parameters<typeof and>));
 }
 
 export const invoicesRepository = {

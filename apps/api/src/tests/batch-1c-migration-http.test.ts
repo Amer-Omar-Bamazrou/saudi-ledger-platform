@@ -17,6 +17,7 @@ import {
   ImportMigrationPartiesResponse, DecideMigrationPartyResponse, ImportMigrationOpenItemsResponse, ImportMigrationAdvancesResponse,
   GetMigrationOpeningPositionResponse, ValidateMigrationBatchResponse, GetMigrationPartiesResponse, ListMigrationBatchesResponse,
   CommitMigrationBatchResponse, GetMigrationReversalPreviewResponse, ReverseMigrationBatchResponse,
+  ListInvoicesResponse,
 } from "@workspace/api-zod";
 import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
@@ -43,7 +44,7 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
       await client.query("SET LOCAL session_replication_role = replica");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
       const emails = Object.values(USERS).map((e) => `'${e}'`).join(",");
-      for (const t of ["payments", "invoices", "bills", "journal_entry_lines", "journal_entries", "migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows", "migration_batches", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "customers", "vendors", "categories", "companies"]) {
+      for (const t of ["migration_deposit_reversals", "payments", "invoices", "bills", "journal_entry_lines", "journal_entries", "migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows", "migration_batches", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "customers", "vendors", "categories", "companies"]) {
         await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE email IN (${emails}))`);
@@ -230,7 +231,11 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
     expect(reversed.status, JSON.stringify(reversed.body)).toBe(200);
     const r = ReverseMigrationBatchResponse.parse(reversed.body);
     expect(r.status).toBe("reversed");
-    expect(r.removed).toEqual({ invoices: 1, bills: 0, deposits: 1 });
+    expect(r.reversed).toEqual({ invoices: 1, bills: 0, deposits: 1 }); // Policy C: marked, not removed
+    expect(r).not.toHaveProperty("removed");
+    // The reversed opening invoice still exists, reads as reversed, and is out of the live list.
+    const listAfter = ListInvoicesResponse.parse((await api("GET", "/invoices")).body);
+    expect(listAfter.items.some((i) => i.isOpening)).toBe(false);
     expect((await api("POST", `/migration/batches/${id}/commit`)).status).toBe(409);
   });
 });

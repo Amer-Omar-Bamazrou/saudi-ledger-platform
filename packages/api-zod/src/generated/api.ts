@@ -909,6 +909,10 @@ export const ConvertQuotationResponse = zod.object({
   "invoice": zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -1603,6 +1607,10 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "bill": zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4150,6 +4158,10 @@ export const SubmitBillParams = zod.object({
 export const SubmitBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4196,6 +4208,10 @@ export const SendBackBillBody = zod.object({
 export const SendBackBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4245,6 +4261,10 @@ export const ApproveBillBody = zod.object({
 export const ApproveBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4931,6 +4951,10 @@ export const ListBillsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5019,6 +5043,10 @@ export const CreateBillBody = zod.object({
 export const CreateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5103,6 +5131,10 @@ export const ListInvoicesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5203,6 +5235,10 @@ export const CreateInvoiceBody = zod.object({
 export const CreateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5252,6 +5288,10 @@ export const GetInvoiceParams = zod.object({
 export const GetInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5341,6 +5381,10 @@ export const UpdateInvoiceBody = zod.object({
 export const UpdateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -6047,6 +6091,7 @@ export const listMigrationBatchesResponseVatPositionOneNoteMax = 500;
 
 export const ListMigrationBatchesResponseItem = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -6110,6 +6155,7 @@ export const createMigrationBatchResponseVatPositionOneNoteMax = 500;
 
 export const CreateMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -6158,6 +6204,7 @@ export const getMigrationBatchResponseOneVatPositionOneNoteMax = 500;
 
 export const GetMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -6243,6 +6290,7 @@ export const updateMigrationBatchResponseVatPositionOneNoteMax = 500;
 
 export const UpdateMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -6291,6 +6339,7 @@ export const discardMigrationBatchResponseVatPositionOneNoteMax = 500;
 
 export const DiscardMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -6698,7 +6747,8 @@ export const GetMigrationOpenItemsResponse = zod.object({
   "sourceId": zod.string(),
   "partySourceId": zod.string(),
   "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
-  "documentNumber": zod.string(),
+  "documentNumber": zod.string().describe('The previous system\'s number, verbatim — provenance (Policy C). It is also the ledger number in a first migration.'),
+  "ledgerDocumentNumber": zod.string().nullable().describe('What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.'),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
   "originalAmount": zod.number(),
@@ -6813,7 +6863,8 @@ export const ImportMigrationOpenItemsResponse = zod.object({
   "sourceId": zod.string(),
   "partySourceId": zod.string(),
   "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
-  "documentNumber": zod.string(),
+  "documentNumber": zod.string().describe('The previous system\'s number, verbatim — provenance (Policy C). It is also the ledger number in a first migration.'),
+  "ledgerDocumentNumber": zod.string().nullable().describe('What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.'),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
   "originalAmount": zod.number(),
@@ -7086,6 +7137,7 @@ export const commitMigrationBatchResponseOneVatPositionOneNoteMax = 500;
 
 export const CommitMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -7173,7 +7225,7 @@ export const GetMigrationReversalPreviewResponse = zod.object({
 
 
 /**
- * @summary REVERSE a committed migration: the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits — never issued documents — are unlinked and removed (listed in the audit record); banks return to display-only; customers, vendors and created accounts STAY with their source identity so a corrected re-run resolves to them. Refused while anything has touched what the commit created.
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
  */
 export const ReverseMigrationBatchParams = zod.object({
   "id": zod.coerce.number()
@@ -7200,6 +7252,7 @@ export const reverseMigrationBatchResponseOneVatPositionOneNoteMax = 500;
 
 export const ReverseMigrationBatchResponse = zod.object({
   "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
   "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
   "sourceSystem": zod.string(),
   "sourceVersion": zod.string().nullable(),
@@ -7228,11 +7281,11 @@ export const ReverseMigrationBatchResponse = zod.object({
   "updatedAt": zod.string()
 }).and(zod.object({
   "reversalJournalEntryId": zod.number(),
-  "removed": zod.object({
+  "reversed": zod.object({
   "invoices": zod.number(),
   "bills": zod.number(),
   "deposits": zod.number()
-})
+}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills) or given a superseding reversal record (deposits). Nothing was deleted.')
 }))
 
 
@@ -7259,6 +7312,10 @@ export const PayInvoiceBody = zod.object({
 export const PayInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -7341,6 +7398,10 @@ export const GetBillParams = zod.object({
 export const GetBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -7405,6 +7466,10 @@ export const UpdateBillBody = zod.object({
 export const UpdateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -7463,6 +7528,10 @@ export const PostBillBody = zod.object({
 export const PostBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -7517,6 +7586,10 @@ export const PayBillBody = zod.object({
 export const PayBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -7576,6 +7649,10 @@ export const SubmitInvoiceParams = zod.object({
 export const SubmitInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -7630,6 +7707,10 @@ export const SendBackInvoiceBody = zod.object({
 export const SendBackInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -7680,6 +7761,10 @@ export const ApproveInvoiceParams = zod.object({
 export const ApproveInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),

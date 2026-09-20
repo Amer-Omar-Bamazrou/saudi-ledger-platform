@@ -30,6 +30,9 @@ import { customerStatementService } from "../services/customerStatement.service"
 import { reportsService } from "../services/reports.service";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { invoicesService } from "../services/invoices.service";
+import { billsService } from "../services/bills.service";
+import { paymentsService } from "../services/payments.service";
+import { findingsRepository } from "../repositories/findings.repository";
 import { postJournalEntry } from "../services/accounting/glPosting";
 
 const url = process.env.DATABASE_URL;
@@ -62,6 +65,9 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
   const inOther = <T,>(fn: () => Promise<T>) => tenant(otherOrgId, otherCompanyId)(fn);
 
   const cleanup = async () => {
+    // KEEP_1C_FIXTURE=1 leaves the suite's organisations in place so the ledger invariant sweep
+    // (src/scripts/ledgerInvariants.ts) can be run against reversed + replacement opening rows.
+    if (process.env.KEEP_1C_FIXTURE === "1") return;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -69,7 +75,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
       for (const slug of [SLUG, SLUG_OTHER]) {
         const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
         for (const t of [
-          "payment_allocations", "payments", "migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows",
+          "payment_allocations", "migration_deposit_reversals", "payments", "migration_advances", "migration_open_items", "migration_parties", "migration_chart_rows",
           "invoice_items", "invoices", "bills", "journal_entry_lines", "journal_entries", "migration_batches", "period_locks", "audit_logs", "organization_memberships",
           "bank_accounts", "customers", "vendors", "categories", "companies",
         ]) {
@@ -336,9 +342,11 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await expectRefusal(inTenant(() => invoicesService.update(invId, { total: 1 })), 409);
     await expectRefusal(inTenant(() => invoicesService.approve(invId, userId)), 409);
     await expectRefusal(inTenant(() => invoicesService.deleteDraft(invId)), 409);
-    // Receipts stay append-only: only a migrated deposit can ever be deleted, and only by the reversal.
+    // Receipts are append-only at the GRANT again (Policy C withdrew the 0079 DELETE grant): nothing deletes a payment — not an ordinary receipt, not a migrated deposit.
     const ordinaryPay = (await pool.query(`INSERT INTO payments (organization_id, company_id, direction, party_type, customer_id, bank_account_id, amount, paid_at, source, journal_entry_id) VALUES ($1,$2,'in','customer',$3,$4,10,'2026-07-05','manual',$5) RETURNING id`, [orgId, companyId, existingAlpha, bank1, openingJeId])).rows[0].id;
-    await expect(inTenant(() => db.execute(sql`DELETE FROM payments WHERE id = ${ordinaryPay}`))).rejects.toMatchObject({ cause: { constraint: "payments_append_only" } });
+    await expect(inTenant(() => db.execute(sql`DELETE FROM payments WHERE id = ${ordinaryPay}`))).rejects.toMatchObject({ cause: { code: "42501" } });
+    const openingPay = (await pool.query(`SELECT id FROM payments WHERE company_id = $1 AND source = 'opening' ORDER BY id LIMIT 1`, [companyId])).rows[0].id;
+    await expect(inTenant(() => db.execute(sql`DELETE FROM payments WHERE id = ${openingPay}`))).rejects.toMatchObject({ cause: { code: "42501" } });
     await pool.query(`DELETE FROM payments WHERE id = $1`, [ordinaryPay]); // the owner (fixtures) may
     // A raw attempt to give an opening item VAT or an ICV is refused by the row itself.
     await expect(pool.query(`UPDATE invoices SET vat_amount = 15 WHERE id = $1`, [invId])).rejects.toThrow(/invoices_opening_no_vat_chk/);
@@ -425,7 +433,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "atomicity fixture teardown" }, userId));
   });
 
-  it("🔴 20 — the reversal walk-through: blocked while anything touched what the commit created; then the mirror through the seam, the items removed, banks display-only, the month reopened, master data kept — and the corrected re-run commits on the same source ids", async () => {
+  it("🔴 20 (Policy C) — the reversal walk-through: blocked while anything touched what the commit created; then the mirror through the seam, the opening rows MARKED (never deleted, numbers still occupied, frozen), banks display-only, the month reopened, master data kept; every reader excludes the reversed rows and the figures MOVE; the corrected re-run is a REPLACEMENT with NEW OPEN-<batch>-<seq> numbers and provenance both ways", async () => {
     // A receipt allocated to an opening invoice blocks the reversal — named.
     const invId = (await pool.query(`SELECT id FROM invoices WHERE company_id = $1 AND invoice_number = 'INV-1001'`, [companyId])).rows[0].id;
     await pool.query(`UPDATE invoices SET paid_amount = 100 WHERE id = $1`, [invId]);
@@ -443,14 +451,45 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     const preview = await inTenant(() => migrationCommitService.reversalPreview(committedId));
     expect(preview.blockers).toEqual([]);
     expect(preview.wouldReverse).toMatchObject({ openingJournalEntryId: openingJeId, periodLock: { id: own, period: "2026-06" }, keeps: { customers: 3, vendors: 2, accountsCreated: 3 } });
-    expect(preview.wouldReverse.invoices.map((i) => i.number)).toEqual(["INV-1001", "INV-1002", "OPEN-C2"]);
-    expect(preview.wouldReverse.deposits.map((d) => d.amount)).toEqual([3000, 2000]);
+    expect(preview.wouldReverse.invoices.map((i) => i.number).sort()).toEqual(["INV-1001", "INV-1002", "OPEN-C2"]);
+    expect(preview.wouldReverse.deposits.map((d) => d.amount).sort()).toEqual([2000, 3000]);
     await expectRefusal(inTenant(() => migrationCommitService.reverse(committedId, { reason: "short" }, userId)), 400);
 
-    const before = await counts();
-    const out = await inTenant(() => migrationCommitService.reverse(committedId, { reason: "opening AR was wrong by 5,000 — Beta's balance was 15,000, not 20,000" }, userId)) as Awaited<ReturnType<typeof migrationCommitService.reverse>> & { removed: { invoices: number; bills: number; deposits: number }; reversalJournalEntryId: number };
+    // ── THE FIGURES BEFORE (presence): every reader sees the opening position. ──
+    const alphaId = existingAlpha;
+    const betaId = (await pool.query(`SELECT id FROM customers WHERE organization_id = $1 AND source_id = 'C2'`, [orgId])).rows[0].id;
+    const gammaId = (await pool.query(`SELECT id FROM customers WHERE organization_id = $1 AND source_id = 'C3'`, [orgId])).rows[0].id;
+    const readers = async () => {
+      const [ar, ap, alpha, beta, gamma, invoices, bills, vendors, overdueAr, overdueAp, payments] = await Promise.all([
+        inTenant(() => reportsService.arAging()), inTenant(() => reportsService.apAging()),
+        inTenant(() => customerStatementService.statement(alphaId, {})), inTenant(() => customerStatementService.statement(betaId, {})), inTenant(() => customerStatementService.statement(gammaId, {})),
+        inTenant(() => invoicesService.list({})), inTenant(() => billsService.list({})), inTenant(() => vendorsService.list({})),
+        inTenant(() => findingsRepository.overdueReceivables()), inTenant(() => findingsRepository.overduePayables()),
+        inTenant(() => paymentsService.list({})),
+      ]);
+      return {
+        arTotal: Number(ar.total), arNumbers: ar.items.map((i: { invoiceNumber: string }) => i.invoiceNumber).sort(),
+        apTotal: Number(ap.total),
+        alphaReceivable: alpha.current.receivable, betaReceivable: beta.current.receivable, gammaDeposit: gamma.current.depositBalance,
+        invoiceNumbers: invoices.items.map((i) => i.invoiceNumber).sort(), invoiceOutstanding: invoices.totals.outstanding, invoiceCount: invoices.page.total,
+        billNumbers: bills.items.map((b) => b.billNumber).sort(), billCount: bills.page.total,
+        vendorBalance: vendors.items.reduce((s, v) => s + v.balance, 0),
+        overdueAr: overdueAr.map((f) => String(f.facts.invoiceNumber)).sort(), overdueAp: overdueAp.map((f) => String(f.facts.billNumber)).sort(),
+        paymentIds: payments.map((p) => p.id).sort((a, b) => a - b),
+      };
+    };
+    const before = await readers();
+    expect(before).toMatchObject({ arTotal: 34500, arNumbers: ["INV-1001", "INV-1002", "OPEN-C2"], apTotal: 11500, alphaReceivable: 14500, betaReceivable: 20000, gammaDeposit: 5000, invoiceNumbers: ["INV-1001", "INV-1002", "OPEN-C2"], invoiceOutstanding: 34500, invoiceCount: 3, billNumbers: ["BILL-77", "BILL-78"], billCount: 2, vendorBalance: 11500 });
+    expect(before.overdueAr).toEqual(["INV-1001", "INV-1002", "OPEN-C2"]);
+    expect(before.overdueAp).toEqual(["BILL-77", "BILL-78"]);
+    expect(before.paymentIds).toHaveLength(2);
+    const countsBefore = await counts();
+
+    // ── THE REVERSAL ──
+    const out = await inTenant(() => migrationCommitService.reverse(committedId, { reason: "opening AR was wrong by 5,000 — Beta's balance was 15,000, not 20,000" }, userId)) as Awaited<ReturnType<typeof migrationCommitService.reverse>> & { reversed: { invoices: number; bills: number; deposits: number }; reversalJournalEntryId: number };
     expect(out.status).toBe("reversed");
-    expect(out.removed).toEqual({ invoices: 3, bills: 2, deposits: 2 });
+    expect(out.reversed).toEqual({ invoices: 3, bills: 2, deposits: 2 });
+    expect(out).not.toHaveProperty("removed");
     // The mirror: through the seam, dated the opening date, source opening_reversal, reversal_of set; the opening entry marked reversed; both in the books, netting to zero.
     const mirror = (await pool.query(`SELECT * FROM journal_entries WHERE id = $1`, [out.reversalJournalEntryId])).rows[0];
     expect(mirror).toMatchObject({ entry_number: `MIG-${committedId}-OPEN-REV`, date: "2026-06-30", status: "posted", source: "opening_reversal", reversal_of: openingJeId, migration_batch_id: committedId });
@@ -460,31 +499,79 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     const ledger = await ledgerAt("2026-06-30");
     expect(ledger.every((l) => Math.abs(l.balance) < 0.005)).toBe(true);
     expect(sysBal(ledger, "AR")).toBe(0);
-    // Items and deposits removed, staging unlinked but kept (immutable), banks display-only, lock lifted, master data kept with identity.
+
+    // ── POLICY C: NOTHING DELETED. Rows stay, numbers stay occupied, rows are MARKED and FROZEN, staging links stay. ──
     const after = await counts();
-    expect(after).toEqual({ ...before, je: before.je + 1, inv: 0, bil: 0, pay: 0, locks: before.locks - 1, banks: 0 });
-    expect((await pool.query(`SELECT count(*)::int n FROM migration_open_items WHERE batch_id = $1 AND resolved_invoice_id IS NULL AND resolved_bill_id IS NULL`, [committedId])).rows[0].n).toBe(5);
-    expect((await pool.query(`SELECT count(*)::int n FROM migration_open_items WHERE batch_id = $1`, [committedId])).rows[0].n).toBe(5);
+    expect(after).toEqual({ ...countsBefore, je: countsBefore.je + 1, locks: countsBefore.locks - 1, banks: 0 }); // inv / bil / pay UNCHANGED
+    const marked = (await pool.query(`SELECT invoice_number, reversed_at IS NOT NULL AS reversed, reversed_by_migration_batch_id AS b, is_opening FROM invoices WHERE company_id = $1 ORDER BY invoice_number`, [companyId])).rows;
+    expect(marked).toEqual([
+      { invoice_number: "INV-1001", reversed: true, b: committedId, is_opening: true },
+      { invoice_number: "INV-1002", reversed: true, b: committedId, is_opening: true },
+      { invoice_number: "OPEN-C2", reversed: true, b: committedId, is_opening: true },
+    ]);
+    expect((await pool.query(`SELECT count(*)::int n FROM bills WHERE company_id = $1 AND reversed_at IS NOT NULL AND reversed_by_migration_batch_id = $2`, [companyId, committedId])).rows[0].n).toBe(2);
+    expect((await pool.query(`SELECT count(*)::int n FROM migration_deposit_reversals WHERE batch_id = $1 AND reversal_journal_entry_id = $2`, [committedId, out.reversalJournalEntryId])).rows[0].n).toBe(2);
+    expect((await pool.query(`SELECT count(*)::int n FROM payments WHERE company_id = $1 AND source = 'opening'`, [companyId])).rows[0].n).toBe(2); // the deposits are still there
+    expect((await pool.query(`SELECT count(*)::int n FROM migration_open_items WHERE batch_id = $1 AND (resolved_invoice_id IS NOT NULL OR resolved_bill_id IS NOT NULL)`, [committedId])).rows[0].n).toBe(5); // links kept
+    expect((await pool.query(`SELECT count(*)::int n FROM migration_advances WHERE batch_id = $1 AND resolved_payment_id IS NOT NULL`, [committedId])).rows[0].n).toBe(2);
+    // The original number is OCCUPIED: a new invoice cannot take INV-1001 (full unique index), and the reversed row is FROZEN.
+    await expect(pool.query(`INSERT INTO invoices (organization_id, company_id, invoice_number, date, customer_id, status, subtotal, vat_amount, total) VALUES ($1,$2,'INV-1001','2026-07-05',$3,'draft',1,0,1)`, [orgId, companyId, alphaId])).rejects.toThrow(/invoices_company_number_unq/);
+    await expect(pool.query(`UPDATE invoices SET notes = 'edited' WHERE id = $1`, [invId])).rejects.toThrow(/frozen/);
+    await expect(pool.query(`UPDATE invoices SET reversed_at = NULL, reversed_by_migration_batch_id = NULL WHERE id = $1`, [invId])).rejects.toThrow(/frozen/);
+    // …and nothing acts on it: pay, allocate, credit-note, all refused with one code.
+    await expectRefusal(inTenant(() => invoicesService.pay(invId, { amount: 10, paidAt: "2026-07-05", bankAccountId: bank1 } as never, userId)), 409, "opening_item_reversed");
+    const billId = (await pool.query(`SELECT id FROM bills WHERE company_id = $1 AND bill_number = 'BILL-77'`, [companyId])).rows[0].id;
+    await expectRefusal(inTenant(() => billsService.pay(billId, { amount: 10, paidAt: "2026-07-05", bankAccountId: bank1 }, userId)), 409, "opening_item_reversed");
+    const depositId = (await pool.query(`SELECT id FROM payments WHERE company_id = $1 AND source = 'opening' ORDER BY id LIMIT 1`, [companyId])).rows[0].id;
+    await expectRefusal(inTenant(() => paymentsService.allocate(depositId, { allocations: [{ invoiceId: invId, amount: 10 }] }, userId)), 409, "opening_item_reversed");
+    // Payments cannot be deleted by the app role — the 0079 grant is gone (0074 posture).
+    {
+      const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+      try { await expect(conn.run(() => db.execute(sql`DELETE FROM payments WHERE id = ${depositId}`))).rejects.toMatchObject({ cause: { code: "42501" } }); } finally { await conn.rollback(); }
+    }
+    // Staging stays immutable after commit; the 0079 unlink exception is gone (a resolved link cannot be cleared).
     await expect(pool.query(`UPDATE migration_open_items SET outstanding_amount = 1 WHERE batch_id = $1`, [committedId])).rejects.toThrow(/staging rows are immutable/);
+    await expect(pool.query(`UPDATE migration_open_items SET resolved_invoice_id = NULL WHERE batch_id = $1 AND resolved_invoice_id IS NOT NULL`, [committedId])).rejects.toThrow(/staging rows are immutable/);
+    // Banks display-only again; master data kept; the batch's own record.
     expect((await pool.query(`SELECT opening_balance::numeric AS ob, opening_journal_entry_id FROM bank_accounts WHERE id = $1`, [bank1])).rows[0]).toEqual({ ob: "50000.00", opening_journal_entry_id: null });
     expect((await inTenant(() => bankAccountsService.update(bank1, { openingBalance: 0 }))).openingBalance).toBe(0);
     expect((await pool.query(`SELECT count(*)::int n FROM customers WHERE organization_id = $1 AND source_system = 'PreviousERP' AND source_id IN ('C1','C2','C3')`, [orgId])).rows[0].n).toBe(3);
     const batchRow = (await pool.query(`SELECT status, reversal_reason, reversed_by, period_lock_id FROM migration_batches WHERE id = $1`, [committedId])).rows[0];
     expect(batchRow).toMatchObject({ status: "reversed", reversed_by: userId, period_lock_id: null });
     expect(batchRow.reversal_reason).toMatch(/Beta's balance was 15,000/);
+    // The audit trail shows the reversal with the rows it MARKED.
+    const auditRev = (await pool.query(`SELECT after_state AS changes FROM audit_logs WHERE entity_type = 'migration_batch' AND entity_id = $1 AND action = 'migration_batch_reverse' ORDER BY id DESC LIMIT 1`, [String(committedId)])).rows[0];
+    expect(JSON.stringify(auditRev?.changes ?? auditRev)).toMatch(/"reversed":\{.*INV-1001/);
+
+    // ── THE FIGURES AFTER (absence + movement): every reader excludes the reversed rows. ──
+    const afterRev = await readers();
+    expect(afterRev).toMatchObject({ arTotal: 0, arNumbers: [], apTotal: 0, alphaReceivable: 0, betaReceivable: 0, gammaDeposit: 0, invoiceNumbers: [], invoiceOutstanding: 0, invoiceCount: 0, billNumbers: [], billCount: 0, vendorBalance: 0, overdueAr: [], overdueAp: [], paymentIds: [] });
+    // …but the reversed rows are still READABLE by id, and say so.
+    const readBack = await inTenant(() => invoicesService.getById(invId));
+    expect(readBack).toMatchObject({ invoiceNumber: "INV-1001", isOpening: true, reversedByMigrationBatchId: committedId, replacesInvoiceId: null });
+    expect(readBack.reversedAt).not.toBeNull();
+
     // Reversing twice is idempotent; committing a reversed batch is refused.
     expect((await inTenant(() => migrationCommitService.reverse(committedId, { reason: "again, idempotent" }, userId))).status).toBe("reversed");
     await expectRefusal(inTenant(() => migrationCommitService.commit(committedId, userId)), 409, "migration_batch_reversed");
 
-    // ── THE CORRECTED RE-RUN: same source ids, corrected figures, resolved to the SAME records. ──
+    // ── THE REPLACEMENT: same source ids, corrected figures, NEW numbers, provenance both ways. ──
     const b2 = await create();
+    expect(b2.replacesBatchId).toBe(committedId); // linked automatically to the reversed predecessor
     const corrected: NonNullable<Chart> = CHART.map((r) => r.sourceCode === "1200" ? { ...r, openingDebit: 29500 } : r.sourceCode === "4100" ? { ...r, openingCredit: 35000 } : r);
     const created = Object.fromEntries((await pool.query(`SELECT account_code, id FROM categories WHERE organization_id = $1 AND account_code IS NOT NULL`, [orgId])).rows.map((r) => [r.account_code, r.id])) as Record<string, number>;
-    // `create` for a code that already exists is refused — the code IS that account.
     await inTenant(() => migrationService.importChart(b2.id, { rows: corrected }, userId));
     const row1400 = (await inTenant(() => migrationService.getChart(b2.id))).rows.find((r) => r.sourceCode === "1400")!;
     await expectRefusal(inTenant(() => migrationService.decideChartRow(b2.id, row1400.id, { decision: "create" }, userId)), 422, "mapping_target_refused", /already exists as Prepaid expenses/);
+    // The SAME source numbers are staged again (provenance) — not a collision in a replacement batch; a reserved-shaped source number is refused.
     await stageAll(b2.id, { chart: corrected, items: ITEMS.map((i) => i.sourceId === "BAL-C2" ? { ...i, originalAmount: 15000, outstandingAmount: 15000 } : i), mergeInto: created, decideParties: false });
+    const itemsOut = await inTenant(() => migrationStagingService.getOpenItems(b2.id));
+    expect(itemsOut.rows.every((i) => i.problems.length === 0), itemsOut.rows.map((i) => `${i.documentNumber}: ${i.problems.join("; ")}`).join(" | ")).toBe(true);
+    expect(itemsOut.rows.map((i) => i.documentNumber).sort()).toEqual(["BILL-77", "BILL-78", "INV-1001", "INV-1002", "OPEN-C2"]);
+    expect(itemsOut.rows.every((i) => i.ledgerDocumentNumber === null)).toBe(true); // written at commit
+    const badShape = await inTenant(() => migrationStagingService.importOpenItems(b2.id, { rows: [...ITEMS.map((i) => i.sourceId === "BAL-C2" ? { ...i, originalAmount: 15000, outstandingAmount: 15000 } : i), { itemType: "ar" as const, sourceId: "SI-X", partySourceId: "C1", documentNumber: "OPEN-9-9", issueDate: "2026-05-01", dueDate: "2026-05-30", originalAmount: 5, outstandingAmount: 5 }] }, userId));
+    expect(badShape.rows.find((r) => r.documentNumber === "OPEN-9-9")!.problems).toEqual([expect.stringMatching(/reserves for the replacement items/)]);
+    await inTenant(() => migrationStagingService.importOpenItems(b2.id, { rows: ITEMS.map((i) => i.sourceId === "BAL-C2" ? { ...i, originalAmount: 15000, outstandingAmount: 15000 } : i) }, userId));
     // Parties resolved by SOURCE ID before anyone decides: use_existing, pre-decided, no likely-duplicate question.
     const parties = await inTenant(() => migrationStagingService.getParties(b2.id));
     expect(parties.rows.map((p) => [p.sourceId, p.decision, p.existingId != null, p.candidates.map((c) => c.reason)])).toEqual([
@@ -500,15 +587,43 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     const rec2 = out2.reconciliation as { checks: { id: string; status: string; detail: string }[]; figures: Record<string, number> };
     for (const c of rec2.checks) expect(c.status, `${c.id}: ${c.detail}`).toBe("pass");
     expect(rec2.figures).toMatchObject({ ar: 29500, ytdIncome: 35000, ytdResult: 1500, journalDebit: 137500 });
-    // No duplicate master data, no duplicate accounts; the original numbers are back; the same Beta record now shows 15,000.
+    // NEW rows beside the reversed ones (nothing reused), no duplicate master data, no duplicate accounts.
     const afterRerun = await counts();
-    expect(afterRerun).toEqual({ ...beforeRerun, je: beforeRerun.je + 1, inv: 3, bil: 2, pay: 2, locks: beforeRerun.locks + 1, banks: 2 });
+    expect(afterRerun).toEqual({ ...beforeRerun, je: beforeRerun.je + 1, inv: beforeRerun.inv + 3, bil: beforeRerun.bil + 2, pay: beforeRerun.pay + 2, locks: beforeRerun.locks + 1, banks: 2 });
     expect(afterRerun.cus).toBe(beforeRerun.cus);
     expect(afterRerun.ven).toBe(beforeRerun.ven);
     expect(afterRerun.cat).toBe(beforeRerun.cat);
-    const betaId = (await pool.query(`SELECT id FROM customers WHERE organization_id = $1 AND source_id = 'C2'`, [orgId])).rows[0].id;
+    // The replacements carry OPEN-<batch>-<seq>, point back at the reversed originals, and the staging row records both numbers.
+    const replacements = (await pool.query(
+      `SELECT i.invoice_number, i.is_opening, i.reversed_at, o.document_number AS source_number, o.ledger_document_number, p.invoice_number AS replaces_number
+         FROM invoices i JOIN migration_open_items o ON o.id = i.migration_open_item_id LEFT JOIN invoices p ON p.id = i.replaces_invoice_id
+        WHERE o.batch_id = $1 ORDER BY i.invoice_number`, [b2.id])).rows;
+    expect(replacements).toEqual([
+      // seq follows the batch's staged order — payables first, then receivables (by party, issue date, row): bills 1–2, invoices 3–5.
+      { invoice_number: `OPEN-${b2.id}-3`, is_opening: true, reversed_at: null, source_number: "INV-1001", ledger_document_number: `OPEN-${b2.id}-3`, replaces_number: "INV-1001" },
+      { invoice_number: `OPEN-${b2.id}-4`, is_opening: true, reversed_at: null, source_number: "INV-1002", ledger_document_number: `OPEN-${b2.id}-4`, replaces_number: "INV-1002" },
+      { invoice_number: `OPEN-${b2.id}-5`, is_opening: true, reversed_at: null, source_number: "OPEN-C2", ledger_document_number: `OPEN-${b2.id}-5`, replaces_number: "OPEN-C2" },
+    ]);
+    const billRepl = (await pool.query(`SELECT b.bill_number, p.bill_number AS replaces_number FROM bills b JOIN migration_open_items o ON o.id = b.migration_open_item_id LEFT JOIN bills p ON p.id = b.replaces_bill_id WHERE o.batch_id = $1 ORDER BY b.bill_number`, [b2.id])).rows;
+    expect(billRepl).toEqual([{ bill_number: `OPEN-${b2.id}-1`, replaces_number: "BILL-77" }, { bill_number: `OPEN-${b2.id}-2`, replaces_number: "BILL-78" }]);
+    const depRepl = (await pool.query(`SELECT count(*)::int n FROM payments p JOIN migration_advances a ON a.id = p.migration_advance_id WHERE a.batch_id = $1 AND p.replaces_payment_id IS NOT NULL AND EXISTS (SELECT 1 FROM migration_deposit_reversals r WHERE r.payment_id = p.replaces_payment_id)`, [b2.id])).rows[0].n;
+    expect(depRepl).toBe(2);
+    // A replacement link cannot point at a LIVE row (the trigger), and a reserved-shaped number is refused to an ordinary invoice at the service AND at the DB.
+    const liveRepl = (await pool.query(`SELECT id FROM invoices WHERE invoice_number = $1`, [`OPEN-${b2.id}-3`])).rows[0].id;
+    await expect(pool.query(`INSERT INTO invoices (organization_id, company_id, invoice_number, date, customer_id, status, subtotal, vat_amount, total, is_opening, replaces_invoice_id) VALUES ($1,$2,'OPEN-999-1','2026-07-05',$3,'sent',1,0,1,true,$4)`, [orgId, companyId, alphaId, liveRepl])).rejects.toThrow(/REVERSED opening invoice/);
+    await expectRefusal(inTenant(() => invoicesService.create({ invoiceNumber: "OPEN-77-1", date: "2026-07-05", customerId: alphaId, items: [{ description: "x", quantity: 1, unitPrice: 1, vatRate: 15 }] }, userId)), 422, "reserved_document_number");
+    await expect(pool.query(`INSERT INTO invoices (organization_id, company_id, invoice_number, date, customer_id, status, subtotal, vat_amount, total) VALUES ($1,$2,'OPEN-77-2','2026-07-05',$3,'draft',1,0,1)`, [orgId, companyId, alphaId])).rejects.toThrow(/invoices_reserved_number_chk/);
+    // The figures now describe the REPLACEMENT only (presence again, and movement from zero).
+    const afterRerunReaders = await readers();
+    expect(afterRerunReaders).toMatchObject({ arTotal: 29500, arNumbers: [`OPEN-${b2.id}-3`, `OPEN-${b2.id}-4`, `OPEN-${b2.id}-5`], apTotal: 11500, alphaReceivable: 14500, betaReceivable: 15000, gammaDeposit: 5000, invoiceOutstanding: 29500, invoiceCount: 3, billCount: 2, vendorBalance: 11500 });
+    expect(afterRerunReaders.invoiceNumbers).toEqual([`OPEN-${b2.id}-3`, `OPEN-${b2.id}-4`, `OPEN-${b2.id}-5`]); // the reversed INV-1001/1002/OPEN-C2 are not in the list
+    expect(afterRerunReaders.paymentIds).toHaveLength(2);
     expect((await inTenant(() => customerStatementService.statement(betaId, {}))).current.receivable).toBe(15000);
     expect((await pool.query(`SELECT count(*)::int n FROM migration_batches WHERE company_id = $1 AND status = 'committed'`, [companyId])).rows[0].n).toBe(1);
+    // The batch record links predecessor and replacement both ways for the audit trail.
+    expect((await inTenant(() => migrationService.getBatch(b2.id))).replacesBatchId).toBe(committedId);
+    const auditCommit = (await pool.query(`SELECT after_state AS changes FROM audit_logs WHERE entity_type = 'migration_batch' AND entity_id = $1 AND action = 'migration_batch_commit' ORDER BY id DESC LIMIT 1`, [String(b2.id)])).rows[0];
+    expect(JSON.stringify(auditCommit?.changes ?? auditCommit)).toContain(`"replacesBatchId":${committedId}`);
     committedId = b2.id;
   });
 

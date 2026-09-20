@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MigrationBatch } from './migrationBatch';
-import type { MigrationReversedRemoved } from './migrationReversedRemoved';
+import type { MigrationReversedReversed } from './migrationReversedReversed';
 
 export type MigrationReversed = MigrationBatch & {
   reversalJournalEntryId: number;
-  removed: MigrationReversedRemoved;
+  /** Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted. */
+  reversed: MigrationReversedReversed;
 };

@@ -18,7 +18,13 @@ export interface MigrationOpenItem {
      * @nullable
      */
   partyName: string | null;
+  /** The previous system's number, verbatim — provenance (Policy C). It is also the ledger number in a first migration. */
   documentNumber: string;
+  /**
+     * What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.
+     * @nullable
+     */
+  ledgerDocumentNumber: string | null;
   issueDate: string;
   dueDate: string;
   originalAmount: number;

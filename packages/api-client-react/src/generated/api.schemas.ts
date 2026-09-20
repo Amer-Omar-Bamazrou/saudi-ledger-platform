@@ -1386,6 +1386,20 @@ export const BillStatus = {
 export interface Bill {
   id: number;
   billNumber: string;
+  /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening bill this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesBillId?: number | null;
   /** @nullable */
   vendorReference?: string | null;
   date: string;
@@ -1637,6 +1651,20 @@ export interface InvoiceItem {
 export interface Invoice {
   id: number;
   invoiceNumber: string;
+  /** Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system's for a first migration, or OPEN-<batch>-<seq> for a replacement. */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening invoice this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesInvoiceId?: number | null;
   date: string;
   /** @nullable */
   dueDate: string | null;
@@ -4120,6 +4148,11 @@ export interface MigrationVatPosition {
 
 export interface MigrationBatch {
   id: number;
+  /**
+     * Policy C: the REVERSED batch this one replaces — set automatically at creation when the company's most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.
+     * @nullable
+     */
+  replacesBatchId: number | null;
   status: MigrationBatchStatus;
   sourceSystem: string;
   /** @nullable */
@@ -4673,7 +4706,13 @@ export interface MigrationOpenItem {
      * @nullable
      */
   partyName: string | null;
+  /** The previous system's number, verbatim — provenance (Policy C). It is also the ledger number in a first migration. */
   documentNumber: string;
+  /**
+     * What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.
+     * @nullable
+     */
+  ledgerDocumentNumber: string | null;
   issueDate: string;
   dueDate: string;
   originalAmount: number;
@@ -5041,7 +5080,10 @@ export interface MigrationReversalPreview {
   wouldReverse: MigrationReversalPreviewWouldReverse;
 }
 
-export type MigrationReversedRemoved = {
+/**
+ * Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted.
+ */
+export type MigrationReversedReversed = {
   invoices: number;
   bills: number;
   deposits: number;
@@ -5049,7 +5091,8 @@ export type MigrationReversedRemoved = {
 
 export type MigrationReversed = MigrationBatch & {
   reversalJournalEntryId: number;
-  removed: MigrationReversedRemoved;
+  /** Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted. */
+  reversed: MigrationReversedReversed;
 };
 
 export type ListTransactionsParams = {

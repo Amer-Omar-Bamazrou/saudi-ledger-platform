@@ -3825,7 +3825,7 @@ paths:
     post:
       operationId: reverseMigrationBatch
       tags: [migration]
-      summary: "REVERSE a committed migration: the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits — never issued documents — are unlinked and removed (listed in the audit record); banks return to display-only; customers, vendors and created accounts STAY with their source identity so a corrected re-run resolves to them. Refused while anything has touched what the commit created."
+      summary: "REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created."
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
@@ -5731,6 +5731,10 @@ components:
           type: integer
         billNumber:
           type: string
+        isOpening: { type: boolean, description: "Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening)." }
+        reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt)." }
+        reversedByMigrationBatchId: { type: ["integer", "null"] }
+        replacesBillId: { type: ["integer", "null"], description: "Policy C: the reversed opening bill this replacement item stands in for (provenance)." }
         vendorReference:
           type: ["string", "null"]
         date:
@@ -6440,6 +6444,10 @@ components:
           type: integer
         invoiceNumber:
           type: string
+        isOpening: { type: boolean, description: "Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system's for a first migration, or OPEN-<batch>-<seq> for a replacement." }
+        reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise." }
+        reversedByMigrationBatchId: { type: ["integer", "null"] }
+        replacesInvoiceId: { type: ["integer", "null"], description: "Policy C: the reversed opening invoice this replacement item stands in for (provenance)." }
         date:
           type: string
         dueDate:
@@ -8171,9 +8179,10 @@ components:
 
     MigrationBatch:
       type: object
-      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, periodLockId, contentHash, openingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
+      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, replacesBatchId, periodLockId, contentHash, openingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
       properties:
         id: { type: integer }
+        replacesBatchId: { type: ["integer", "null"], description: "Policy C: the REVERSED batch this one replaces — set automatically at creation when the company's most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration." }
         status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
         sourceSystem: { type: string }
         sourceVersion: { type: ["string", "null"] }
@@ -8464,14 +8473,15 @@ components:
 
     MigrationOpenItem:
       type: object
-      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems]
+      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, ledgerDocumentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems]
       properties:
         id: { type: integer }
         itemType: { type: string, enum: [ar, ap] }
         sourceId: { type: string }
         partySourceId: { type: string }
         partyName: { type: ["string", "null"], description: "From the staged party, when it exists." }
-        documentNumber: { type: string }
+        documentNumber: { type: string, description: "The previous system's number, verbatim — provenance (Policy C). It is also the ledger number in a first migration." }
+        ledgerDocumentNumber: { type: ["string", "null"], description: "What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit." }
         issueDate: { type: string }
         dueDate: { type: string }
         originalAmount: { type: number }
@@ -8762,11 +8772,12 @@ components:
       allOf:
         - { $ref: "#/components/schemas/MigrationBatch" }
         - type: object
-          required: [reversalJournalEntryId, removed]
+          required: [reversalJournalEntryId, reversed]
           properties:
             reversalJournalEntryId: { type: integer }
-            removed:
+            reversed:
               type: object
+              description: "Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted."
               required: [invoices, bills, deposits]
               properties:
                 invoices: { type: integer }

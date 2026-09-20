@@ -146,6 +146,24 @@ export const invoicesTable = pgTable(
      */
     isOpening: boolean("is_opening").notNull().default(false),
     migrationOpenItemId: integer("migration_open_item_id"),
+    /**
+     * 🔴 Batch 1C Policy C (accountant A4, 2026-09-20; pack §16.12.1). An
+     * opening item is NEVER deleted once it entered the books. The
+     * migration's reversal MARKS it here — both columns together, once, only
+     * on `is_opening` rows, only by the batch that created it (CHECKs +
+     * trigger `refuse_opening_reversal_marker`, migration 0081) — and every
+     * reader that computes a receivable excludes a marked row through the ONE
+     * predicate in apps/api `repositories/openingReversal.ts`. Columns, not a
+     * status string: an unknown status value falls through readers silently;
+     * a column a reader forgot is what the sweep test is for. The
+     * replacement created by the corrected re-run points back here through
+     * `replaces_invoice_id` (opening-only by CHECK) and carries a NEW Saudi
+     * Ledger number (`OPEN-<batch>-<seq>`); the original number stays on this
+     * row and on the staging row as provenance.
+     */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
+    replacesInvoiceId: integer("replaces_invoice_id"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

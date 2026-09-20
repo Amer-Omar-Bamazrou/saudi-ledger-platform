@@ -25,9 +25,12 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { invoiceNotReversedSql, paymentNotReversedSql } from "./openingReversal";
 
-/** Drafts and submitted documents are not in the books (mirrors `INVOICE_NOT_IN_BOOKS`). */
-const IN_BOOKS = sql`i.status NOT IN ('draft','submitted')`;
+/** Drafts and submitted documents are not in the books (mirrors `INVOICE_NOT_IN_BOOKS`); a reversed opening item is history (Policy C, openingReversal.ts). */
+const IN_BOOKS = sql`i.status NOT IN ('draft','submitted') AND ${invoiceNotReversedSql("i")}`;
+/** A receipt that is not a reversed opening deposit (Policy C). */
+const RECEIPT_LIVE = sql`${paymentNotReversedSql("p")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below (same predicate as `companyScoped`). */
 const scopedCo = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
 
@@ -100,7 +103,7 @@ export const customerStatementRepository = {
       receipts AS (
         SELECT p.customer_id, sum(p.amount::numeric) AS received
           FROM payments p
-         WHERE p.direction = 'in' AND p.customer_id IS NOT NULL AND ${scopedCo("p")}
+         WHERE p.direction = 'in' AND p.customer_id IS NOT NULL AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
          GROUP BY p.customer_id),
       receipt_allocs AS (
         SELECT p.customer_id, sum(a.amount::numeric) AS allocated
@@ -185,7 +188,7 @@ export const customerStatementRepository = {
                p.amount::numeric, 0, 0, p.amount::numeric,
                NULL, p.id, NULL, NULL, NULL, p.journal_entry_id
           FROM payments p
-         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${scopedCo("p")}
+         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
         UNION ALL
         -- a receipt allocated to an invoice: receivable and deposit both fall.
         -- Allocated AT receipt (no journal of its own) it carries the receipt's
@@ -199,7 +202,7 @@ export const customerStatementRepository = {
           JOIN payments p ON p.id = a.payment_id
           JOIN invoices i ON i.id = a.invoice_id
           LEFT JOIN journal_entries je ON je.id = a.journal_entry_id
-         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${scopedCo("p")}
+         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
         UNION ALL
         -- a credit note applied to an invoice: receivable and credit balance both fall.
         -- Applied AT issue (the note's own GL entry) it carries the note's

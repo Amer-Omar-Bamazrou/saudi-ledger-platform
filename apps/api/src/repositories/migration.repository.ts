@@ -24,9 +24,10 @@ import {
   journalEntryLinesTable,
   paymentsTable,
   periodLocksTable,
+  migrationDepositReversalsTable,
 } from "@workspace/db";
 import { JE_IN_BOOKS } from "./reports.repository";
-import { and, asc, desc, eq, sql, count, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, sql, count, inArray, isNull } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 
 export const migrationRepository = {
@@ -42,6 +43,10 @@ export const migrationRepository = {
   },
   findBatchByIdempotencyKey(key: string) {
     return db.select().from(migrationBatchesTable).where(and(eq(migrationBatchesTable.idempotencyKey, key), companyScoped(migrationBatchesTable.companyId))).limit(1);
+  },
+  /** Policy C: the company's most recent REVERSED batch — the predecessor a new batch replaces. */
+  findLatestReversedBatch() {
+    return db.select().from(migrationBatchesTable).where(and(eq(migrationBatchesTable.status, "reversed"), companyScoped(migrationBatchesTable.companyId))).orderBy(desc(migrationBatchesTable.reversedAt), desc(migrationBatchesTable.id)).limit(1);
   },
   findLiveBatch() {
     return db.select().from(migrationBatchesTable).where(and(eq(migrationBatchesTable.status, "committed"), companyScoped(migrationBatchesTable.companyId))).limit(1);
@@ -317,17 +322,23 @@ export const migrationRepository = {
     }
     return out;
   },
-  deleteInvoices(ids: number[]) {
+  // ── Policy C (pack §16.12.1): the reversal MARKS; nothing here deletes. ──
+  /** Mark opening invoices reversed by `batchId` — once; the DB trigger refuses any other writer, any other batch, any non-opening row. */
+  markInvoicesReversed(ids: number[], batchId: number, at: Date) {
     if (ids.length === 0) return Promise.resolve([]);
-    return db.delete(invoicesTable).where(inArray(invoicesTable.id, ids)).returning({ id: invoicesTable.id });
+    return db.update(invoicesTable).set({ reversedAt: at, reversedByMigrationBatchId: batchId }).where(and(inArray(invoicesTable.id, ids), isNull(invoicesTable.reversedAt))).returning({ id: invoicesTable.id });
   },
-  deleteBills(ids: number[]) {
+  markBillsReversed(ids: number[], batchId: number, at: Date) {
     if (ids.length === 0) return Promise.resolve([]);
-    return db.delete(billsTable).where(inArray(billsTable.id, ids)).returning({ id: billsTable.id });
+    return db.update(billsTable).set({ reversedAt: at, reversedByMigrationBatchId: batchId }).where(and(inArray(billsTable.id, ids), isNull(billsTable.reversedAt))).returning({ id: billsTable.id });
   },
-  deletePayments(ids: number[]) {
-    if (ids.length === 0) return Promise.resolve([]);
-    return db.delete(paymentsTable).where(inArray(paymentsTable.id, ids)).returning({ id: paymentsTable.id });
+  /** The superseding record that reverses a migrated deposit (payments are append-only). */
+  insertDepositReversals(values: (typeof migrationDepositReversalsTable.$inferInsert)[]) {
+    if (values.length === 0) return Promise.resolve([]);
+    return db.insert(migrationDepositReversalsTable).values(values).returning({ id: migrationDepositReversalsTable.id, paymentId: migrationDepositReversalsTable.paymentId });
+  },
+  depositReversals(batchId: number) {
+    return db.select().from(migrationDepositReversalsTable).where(eq(migrationDepositReversalsTable.batchId, batchId)).orderBy(asc(migrationDepositReversalsTable.id));
   },
   /** R7: the e-invoice / line rows an opening item must NOT have. */
   async einvoiceTraces(invoiceIds: number[]) {

@@ -48,6 +48,7 @@ import { postJournalEntry, type GLLine, type GLParty } from "./accounting/glPost
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME } from "./accounting/customerCreditPolicy";
 import { auditService } from "./audit.service";
+import { assertNotReversedOpening } from "./accounting/openingReversed";
 import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund } from "@workspace/db";
 import { isNoteType } from "./creditNotes";
 
@@ -139,6 +140,18 @@ function toRefundOut(f: CustomerRefund): RefundOut {
 }
 
 /** A receipt's ACTIVE allocated total and what is still available (unapplied and not refunded). */
+/** Policy C: a migrated deposit the migration reversed is history — never allocated, never refunded (its superseding record is in migration_deposit_reversals). */
+async function assertDepositNotReversed(p: Payment): Promise<void> {
+  if (p.source !== "opening") return;
+  const [reversal] = await paymentsRepository.findDepositReversal(p.id);
+  if (!reversal) return;
+  throw new BusinessRuleError(409, {
+    code: "opening_item_reversed",
+    error: `Receipt ${p.id} is a migrated deposit that the migration reversed (batch ${reversal.batchId}); it is history and cannot be allocated or refunded. The corrected migration's replacement deposit is the one to act on.`,
+    field: "paymentId",
+  });
+}
+
 async function paymentAvailability(p: Payment): Promise<{ allocated: number; refunded: number; available: number }> {
   const allocated = round2((await paymentsRepository.allocatedTotals([p.id])).get(p.id) ?? 0);
   const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: p.id }));
@@ -223,6 +236,7 @@ async function lockAndCheckTargets(
     if (isNoteType(inv.documentType)) {
       throw new ConflictError(`${inv.invoiceNumber} is a credit or debit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
     }
+    assertNotReversedOpening(inv, `Invoice ${inv.invoiceNumber}`, "settled");
     if (inv.status === "draft" || inv.status === "submitted" || inv.status === "rejected" || inv.invoiceHash == null) {
       throw new ConflictError(`Invoice ${inv.invoiceNumber} has not been issued (status: ${inv.status}); only an issued invoice has a receivable to settle.`);
     }
@@ -410,6 +424,7 @@ export const paymentsService = {
     const [payment] = await paymentsRepository.lockPayment(paymentId);
     if (!payment) throw new NotFoundError("Payment not found");
     if (payment.direction !== "in") throw new ConflictError("Only a receipt can be allocated to invoices.");
+    await assertDepositNotReversed(payment);
 
     const allocations = parseAllocations(body.allocations);
     if (allocations.length === 0) throw new BadRequestError("At least one allocation is required.");
@@ -698,6 +713,7 @@ export const paymentsService = {
       if (payment.direction !== "in" || (payment.customerId ?? null) !== customerId) {
         throw new BusinessRuleError(422, { error: `Receipt ${paymentId} is not a receipt from this customer.`, code: "refund_source_mismatch", field: "paymentId" });
       }
+      await assertDepositNotReversed(payment);
       available = (await paymentAvailability(payment)).available;
       sourceLabel = `receipt ${paymentId}`;
     } else {

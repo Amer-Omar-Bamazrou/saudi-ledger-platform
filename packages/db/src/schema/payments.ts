@@ -160,6 +160,15 @@ export const paymentsTable = pgTable(
     sourceTransactionId: integer("source_transaction_id").references(() => transactionsTable.id, { onDelete: "set null" }),
     /** Batch 1C: the staged advance this deposit was migrated from (source = 'opening'); its cash is inside the bank's opening balance. */
     migrationAdvanceId: integer("migration_advance_id"),
+    /**
+     * Batch 1C Policy C (accountant A4, 2026-09-20; pack §16.12.1): a migrated
+     * deposit is never deleted. Its reversal is a SUPERSEDING RECORD in
+     * `migration_deposit_reversals` (payments stay append-only — UPDATE and
+     * DELETE revoked; the 0079 DELETE grant is withdrawn by 0081). The
+     * replacement deposit of a corrected re-run points back here; opening-only
+     * by CHECK.
+     */
+    replacesPaymentId: integer("replaces_payment_id"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

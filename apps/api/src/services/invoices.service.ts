@@ -34,6 +34,7 @@ import { paymentsRepository } from "../repositories/payments.repository";
 import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
 import { round2 } from "../lib/money";
+import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -234,6 +235,7 @@ export const invoicesService = {
     if (!String(invData.invoiceNumber ?? "").trim()) {
       invData.invoiceNumber = await invoicesRepository.allocateInvoiceNumber(invData.date);
     }
+    assertNotReservedOpeningNumber(invData.invoiceNumber, "invoiceNumber"); // Policy C: OPEN-<batch>-<n> belongs to migration replacements only
 
     // A draft dated in a closed period is harmless (no ledger effect), but keep
     // the early guard so drafts aren't entered into closed periods.
@@ -459,6 +461,7 @@ export const invoicesService = {
       throw new ConflictError("Invoice must be approved before a payment can be recorded.");
     }
     if (existing.status === "paid") throw new ConflictError("Invoice is already paid.");
+    assertNotReversedOpening(existing, `Invoice ${existing.invoiceNumber}`, "paid");
 
     // Validate up front — a missing/non-numeric amount previously reached the
     // numeric column and surfaced as an unhandled 500.

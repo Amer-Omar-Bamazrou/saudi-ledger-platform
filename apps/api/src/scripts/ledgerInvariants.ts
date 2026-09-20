@@ -17,6 +17,13 @@
  *           and cannot be attributed to a customer or vendor. Its amount is
  *           reported as a party-less residual per org; the by-party
  *           reconciliation covers party-carrying lines only.
+ *   RULE-O  (Batch 1C, Policy C — pack §16.12.1) an OPENING item's party line
+ *           is in the migration's opening journal (`MIG-<batch>-OPEN`), not in
+ *           a `GL-<number>` issue journal, so a LIVE opening item (not
+ *           reversed) is covered through that line; a REVERSED opening item
+ *           is history — out of the subledger, while its GL pair (opening +
+ *           mirror) nets to zero. The condition is the ONE predicate in
+ *           repositories/openingReversal.ts, consumed as text here.
  *
  * Everything else must hold exactly. The "default" dev org's known condition
  * (known-issues file, "THE DEFAULT-ORG AR/AP DIVERGENCE") is RULE-J + RULE-P
@@ -24,6 +31,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { pool } from "@workspace/db";
+import { INVOICE_NOT_REVERSED_TEXT, BILL_NOT_REVERSED_TEXT, PAYMENT_NOT_REVERSED_TEXT } from "../repositories/openingReversal";
 
 type Row = Record<string, string | number | null>;
 const q = async (sql: string, params: unknown[] = []): Promise<Row[]> => (await pool.query(sql, params)).rows;
@@ -69,12 +77,12 @@ async function main() {
       LEFT JOIN (SELECT invoice_id, sum(amount) v FROM invoice_payments GROUP BY 1) l ON l.invoice_id = i.id
       LEFT JOIN (SELECT a.invoice_id, sum(a.amount) v FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id IS NOT NULL AND r.id IS NULL GROUP BY 1) s ON s.invoice_id = i.id
      WHERE coalesce(i.paid_amount,0) <> coalesce(l.v,0) + coalesce(s.v,0)`));
-  fail("deposits_gl_vs_subledger — by customer", await q(`
+  fail("deposits_gl_vs_subledger — by customer (RULE-O: reversed opening deposits out)", await q(`
     WITH gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id WHERE c.system_code = 'CUSTOMER_DEPOSITS' AND e.status IN ('posted','reversed') GROUP BY 1,2),
          sub AS (SELECT p.organization_id AS org, p.customer_id,
                         sum(p.amount) - coalesce((SELECT sum(a.amount) FROM payment_allocations a JOIN payments qq ON qq.id = a.payment_id LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE qq.customer_id = p.customer_id AND qq.organization_id = p.organization_id AND r.id IS NULL), 0)
                                     - coalesce((SELECT sum(f.amount) FROM customer_refunds f WHERE f.customer_id = p.customer_id AND f.organization_id = p.organization_id AND f.origin = 'deposit'), 0) v
-                   FROM payments p WHERE p.direction = 'in' GROUP BY 1,2)
+                   FROM payments p WHERE p.direction = 'in' AND ${PAYMENT_NOT_REVERSED_TEXT("p")} GROUP BY 1,2)
     SELECT coalesce(gl.org, sub.org)::text AS org, coalesce(gl.customer_id, sub.customer_id) AS customer_id, coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.customer_id = gl.customer_id WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
   fail("credits_gl_vs_subledger — by customer", await q(`
@@ -108,13 +116,19 @@ async function main() {
   report["RULE-P party-less control-account lines (pre-N3; excluded from by-party reconciliation)"] = ruleP;
   console.log(`ℹ RULE-P party-less AR/AP lines: ${ruleP.length === 0 ? "none" : JSON.stringify(ruleP)}`);
 
-  // Covered set: invoices WITH an issue journal whose AR issue line carries the customer.
-  fail("ar_gl_vs_subledger_by_customer — over invoices with a party-carrying issue journal (RULE-J, RULE-P excluded)", await q(`
+  // Covered set: invoices WITH an issue journal whose AR issue line carries the customer —
+  // plus (RULE-O) LIVE opening items, covered through the opening journal's AR party line.
+  fail("ar_gl_vs_subledger_by_customer — over invoices with a party-carrying issue journal (RULE-J, RULE-P excluded; RULE-O: live opening items in, reversed out)", await q(`
     WITH covered AS (
       SELECT i.* FROM invoices i
-       WHERE i.document_type = 'invoice' AND i.invoice_hash IS NOT NULL AND i.customer_id IS NOT NULL
-         AND EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
-                      WHERE e.company_id = i.company_id AND e.entry_number = 'GL-' || i.invoice_number AND c.system_code = 'AR' AND l.customer_id = i.customer_id)),
+       WHERE i.document_type = 'invoice' AND i.customer_id IS NOT NULL AND ${INVOICE_NOT_REVERSED_TEXT("i")}
+         AND ( (i.invoice_hash IS NOT NULL
+                AND EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                             WHERE e.company_id = i.company_id AND e.entry_number = 'GL-' || i.invoice_number AND c.system_code = 'AR' AND l.customer_id = i.customer_id))
+            OR (i.is_opening
+                AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
+                             JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                             WHERE o.resolved_invoice_id = i.id AND c.system_code = 'AR' AND l.customer_id = i.customer_id)) )),
     sub AS (SELECT organization_id AS org, customer_id, sum(total::numeric - coalesce(paid_amount,0) - credited_amount) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.debit_amount - l.credit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
@@ -122,12 +136,16 @@ async function main() {
               AND l.customer_id IN (SELECT customer_id FROM covered) GROUP BY 1,2)
     SELECT coalesce(gl.org, sub.org)::text AS org, coalesce(gl.customer_id, sub.customer_id) AS customer_id, coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.customer_id = gl.customer_id WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
-  fail("ap_gl_vs_subledger_by_vendor — over bills with a party-carrying issue journal (RULE-J, RULE-P excluded)", await q(`
+  fail("ap_gl_vs_subledger_by_vendor — over bills with a party-carrying issue journal (RULE-J, RULE-P excluded; RULE-O: live opening items in, reversed out)", await q(`
     WITH covered AS (
       SELECT b.* FROM bills b
-       WHERE b.status NOT IN ('draft','submitted','rejected') AND b.vendor_id IS NOT NULL
-         AND EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
-                      WHERE e.company_id = b.company_id AND e.entry_number = 'BILL-' || b.bill_number AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)),
+       WHERE b.status NOT IN ('draft','submitted','rejected') AND b.vendor_id IS NOT NULL AND ${BILL_NOT_REVERSED_TEXT("b")}
+         AND ( EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                        WHERE e.company_id = b.company_id AND e.entry_number = 'BILL-' || b.bill_number AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)
+            OR (b.is_opening
+                AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
+                             JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                             WHERE o.resolved_bill_id = b.id AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)) )),
     sub AS (SELECT organization_id AS org, vendor_id, sum(total::numeric - coalesce(paid_amount,0)) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.vendor_id, sum(l.credit_amount - l.debit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id

@@ -8,6 +8,7 @@
  */
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { invoicesRepository } from "../repositories/invoices.repository";
+import { assertNotReversedOpening } from "./accounting/openingReversed";
 
 export const NOTE_TYPES = ["credit_note", "debit_note"] as const;
 export type NoteType = (typeof NOTE_TYPES)[number];
@@ -79,6 +80,8 @@ export async function assertNoteIsValid(input: {
         `so it cannot be corrected by a ${label}. Edit the draft instead.`,
     });
   }
+
+  assertNotReversedOpening(original, `Invoice ${original.invoiceNumber}`, `corrected by a ${label}`);
 
   if (isNoteType(original.documentType)) {
     throw new BusinessRuleError(409, {

@@ -309,7 +309,7 @@ export * from './migrationReversalPreviewWouldReverseInvoicesItem';
 export * from './migrationReversalPreviewWouldReverseKeeps';
 export * from './migrationReversalPreviewWouldReversePeriodLock';
 export * from './migrationReversed';
-export * from './migrationReversedRemoved';
+export * from './migrationReversedReversed';
 export * from './migrationSubledgerTotals';
 export * from './migrationValidation';
 export * from './migrationValidationStatus';

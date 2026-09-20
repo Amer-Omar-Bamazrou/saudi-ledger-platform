@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type MigrationReversedRemoved = {
+/**
+ * Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted.
+ */
+export type MigrationReversedReversed = {
   invoices: number;
   bills: number;
   deposits: number;

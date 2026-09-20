@@ -62,6 +62,10 @@ export const billsTable = pgTable(
     /** Batch 1C: an opening payable migrated at cut-off (see invoices.isOpening). */
     isOpening: boolean("is_opening").notNull().default(false),
     migrationOpenItemId: integer("migration_open_item_id"),
+    /** Batch 1C Policy C — the reversed marker and the replacement link; see invoices.reversedAt (pack §16.12.1). */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
+    replacesBillId: integer("replaces_bill_id"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

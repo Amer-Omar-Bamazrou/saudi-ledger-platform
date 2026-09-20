@@ -19,6 +19,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
+import { invoiceNotReversed, billNotReversed } from "./openingReversal";
 
 /**
  * 🔴 Journal-entry statuses that ARE the books (fixed 2026-08-17, found
@@ -61,7 +62,8 @@ function jeConditions(date_from?: string, date_to?: string, statusFilter = true)
 const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved bills OF THE SCOPED COMPANY — company scoping inherited by
 // every bill-reading report through this one helper.
-const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), companyScoped(billsTable.companyId))!;
+// Policy C: a reversed opening bill is out of every money report (openingReversal.ts).
+const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), billNotReversed(), companyScoped(billsTable.companyId))!;
 
 // Draft/approval workflow (M10.4): an invoice affects AR/revenue/VAT only once
 // APPROVED (issued). Draft and submitted invoices are NOT in the books — and are
@@ -70,7 +72,8 @@ const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BO
 // customer-ledger queries stay in lockstep.
 const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
-const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), companyScoped(invoicesTable.companyId))!;
+// Policy C: a reversed opening invoice is out of every money report (openingReversal.ts).
+const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), companyScoped(invoicesTable.companyId))!;
 
 /**
  * The sign a document contributes to receivables, sales and output VAT (M12.1b).

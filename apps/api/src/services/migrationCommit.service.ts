@@ -52,21 +52,32 @@
  *     opening date, source = 'opening_reversal', `reversal_of` = the opening
  *     entry; the opening entry is marked `reversed` (in the books, netted —
  *     the JE_IN_BOOKS rule). The ledger keeps both entries forever.
- *   - The opening invoices, bills and deposit payments are UNLINKED from
- *     their staging rows and REMOVED. They were never issued documents (no
- *     ICV, hash, QR, archive or ZATCA record ever existed for them — R7), so
- *     ZATCA §5.5's no-deletion rule does not reach them; the immutable
- *     staging rows and the audit record (which lists every removed row) are
- *     the permanent account of what was migrated. Removing them is what lets
- *     a corrected re-run reuse the original document numbers.
+ *   - 🔴 POLICY C (accountant A4, 2026-09-20; pack §16.12.1): the opening
+ *     invoices, bills and deposit payments are NEVER deleted. Each invoice
+ *     and bill is MARKED (`reversed_at`, `reversed_by_migration_batch_id` —
+ *     once, only by this batch, only on an opening row; the row is then
+ *     FROZEN by trigger); each deposit gets a SUPERSEDING RECORD in
+ *     `migration_deposit_reversals` (payments stay append-only). Their
+ *     staging rows keep pointing at them. Every reader of a receivable,
+ *     payable or deposit figure excludes a marked row through the one
+ *     predicate (repositories/openingReversal.ts, guarded by the reader
+ *     sweep test); the mirror journal nets their GL effect. The audit record
+ *     lists every row marked. (The pre-A4 build deleted them so the re-run
+ *     could reuse the original numbers — withdrawn by the accountant.)
  *   - Customers, vendors and created accounts STAY, carrying their source
  *     identity / account code: a re-run resolves to them by construction
  *     (`use_existing` pre-decided by source id; `merge_into` by account code).
  *   - Banks: `opening_journal_entry_id` cleared; the typed opening balance is
  *     display-only again.
- *   - The batch becomes `reversed`; a new batch may then be created, import
- *     the same source ids (identity is per batch) and commit (the
- *     one-committed-batch-per-company unique sees no committed batch).
+ *   - The batch becomes `reversed`. The next batch the company creates is
+ *     its REPLACEMENT (`replaces_batch_id`): it imports the same source ids
+ *     (identity is per batch), and at commit its opening items receive NEW
+ *     Saudi Ledger numbers `OPEN-<batch>-<seq>` — never the source number,
+ *     which stays verbatim on the reversed row and in
+ *     `migration_open_items.document_number` (`ledger_document_number` records
+ *     what the ledger row is called) — and each points back at the reversed
+ *     row it replaces (`replaces_invoice_id` / `replaces_bill_id` /
+ *     `replaces_payment_id`, matched by source id).
  *
  * ── NO BALANCING ACCOUNT ────────────────────────────────────────────────────
  * A source position that balances and is fully mapped needs no balancing
@@ -81,6 +92,7 @@
  */
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import type { MigrationBatch, SystemAccountCode } from "@workspace/db";
+import { openingReplacementNumber } from "@workspace/shared";
 import { round2 } from "../lib/money";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
@@ -224,26 +236,37 @@ export const migrationCommitService = {
     }
 
     // 3. Open items → opening invoices / bills. Amount-only; no VAT, no ICV, no hash, no QR, no lines.
+    // Policy C numbering: a FIRST migration keeps the source number as the ledger
+    // number; a REPLACEMENT batch mints OPEN-<batch>-<seq> (seq = the item's
+    // ordinal in the batch's staged order — payables first, then receivables,
+    // by party, issue date, row — so it is deterministic) and links each row to the reversed
+    // row it replaces, matched by (item type, source id) in the reversed batch.
+    const replaced = batch.replacesBatchId != null ? await migrationRepository.openItems(batch.replacesBatchId) : [];
+    const replacedByKey = new Map(replaced.map((r) => [`${r.itemType}:${r.sourceId}`, r]));
     const invoiceIds: number[] = [], billIds: number[] = [];
+    let seq = 0;
     for (const it of items) {
+      seq += 1;
       const outstanding = fmt(num(it.outstandingAmount));
-      const notes = `Opening item migrated from ${batch.sourceSystem} (${it.sourceId}); original amount ${fmt(num(it.originalAmount))}${it.compositionUnknown ? "; composition unknown — the previous system tracked only this party's balance" : ""}${it.description ? `; ${it.description}` : ""}.`;
+      const ledgerNumber = batch.replacesBatchId != null ? openingReplacementNumber(batch.id, seq) : it.documentNumber;
+      const prior = replacedByKey.get(`${it.itemType}:${it.sourceId}`);
+      const notes = `Opening item migrated from ${batch.sourceSystem} (${it.sourceId}, source document ${it.documentNumber}); original amount ${fmt(num(it.originalAmount))}${it.compositionUnknown ? "; composition unknown — the previous system tracked only this party's balance" : ""}${it.description ? `; ${it.description}` : ""}${prior ? `; replaces the reversed opening item of migration batch ${batch.replacesBatchId}` : ""}.`;
       if (it.itemType === "ar") {
         const [inv] = await migrationRepository.insertInvoice({
-          invoiceNumber: it.documentNumber, date: it.issueDate, dueDate: it.dueDate, customerId: customerIdBySource.get(it.partySourceId)!,
+          invoiceNumber: ledgerNumber, date: it.issueDate, dueDate: it.dueDate, customerId: customerIdBySource.get(it.partySourceId)!,
           status: "sent", subtotal: outstanding, vatAmount: "0", discount: "0", total: outstanding, currency: "SAR", paidAmount: "0", notes,
-          isOpening: true, migrationOpenItemId: it.id,
+          isOpening: true, migrationOpenItemId: it.id, replacesInvoiceId: prior?.resolvedInvoiceId ?? null,
         });
         invoiceIds.push(inv.id);
-        await migrationRepository.updateOpenItem(it.id, { resolvedInvoiceId: inv.id });
+        await migrationRepository.updateOpenItem(it.id, { resolvedInvoiceId: inv.id, ledgerDocumentNumber: ledgerNumber });
       } else {
         const [bill] = await migrationRepository.insertBill({
-          billNumber: it.documentNumber, date: it.issueDate, dueDate: it.dueDate, vendorId: vendorIdBySource.get(it.partySourceId)!,
+          billNumber: ledgerNumber, date: it.issueDate, dueDate: it.dueDate, vendorId: vendorIdBySource.get(it.partySourceId)!,
           status: "approved", subtotal: outstanding, vatAmount: "0", total: outstanding, currency: "SAR", paidAmount: "0", notes,
-          isOpening: true, migrationOpenItemId: it.id,
+          isOpening: true, migrationOpenItemId: it.id, replacesBillId: prior?.resolvedBillId ?? null,
         });
         billIds.push(bill.id);
-        await migrationRepository.updateOpenItem(it.id, { resolvedBillId: bill.id });
+        await migrationRepository.updateOpenItem(it.id, { resolvedBillId: bill.id, ledgerDocumentNumber: ledgerNumber });
       }
     }
 
@@ -264,6 +287,7 @@ export const migrationCommitService = {
 
     // 5. Advances → deposits held: payments rows whose deposit line is in the opening journal.
     const bankByCode = new Map(chart.filter((r) => r.decision === "map_to_bank").map((r) => [r.sourceCode, r.targetBankAccountId!]));
+    const replacedAdvances = new Map((batch.replacesBatchId != null ? await migrationRepository.advances(batch.replacesBatchId) : []).map((r) => [r.sourceId, r]));
     const paymentIds: number[] = [];
     for (const a of advances) {
       const [pay] = await migrationRepository.insertPayment({
@@ -271,6 +295,7 @@ export const migrationCommitService = {
         amount: fmt(num(a.amount)), paidAt: a.receivedAt, method: null,
         reference: a.reference ?? (a.vatPosition === "invoiced" ? `advance invoice ${a.advanceInvoiceNumber}` : `advance ${a.sourceId} (VAT position unknown)`),
         source: "opening", journalEntryId: je.id, migrationAdvanceId: a.id, createdBy: userId,
+        replacesPaymentId: replacedAdvances.get(a.sourceId)?.resolvedPaymentId ?? null,
       });
       paymentIds.push(pay.id);
       await migrationRepository.updateAdvance(a.id, { resolvedPaymentId: pay.id });
@@ -298,7 +323,7 @@ export const migrationCommitService = {
     const [updated] = await migrationRepository.updateBatch(batch.id, { status: "committed", committedBy: userId, committedAt: now, openingJournalEntryId: je.id, periodLockId: lock.id, reconciliation });
     await auditService.record({
       action: "migration_batch_commit", entityType: "migration_batch", entityId: batch.id,
-      after: { openingJournalEntryId: je.id, periodLockId: lock.id, customersCreated, vendorsCreated, accountsCreated, invoices: invoiceIds.length, bills: billIds.length, deposits: paymentIds.length, totals: position.totals, reconciliation: reconciliation.checks.map((c) => `${c.id}:${c.status}`), by: userId },
+      after: { openingJournalEntryId: je.id, periodLockId: lock.id, replacesBatchId: batch.replacesBatchId ?? null, customersCreated, vendorsCreated, accountsCreated, invoices: invoiceIds.length, bills: billIds.length, deposits: paymentIds.length, totals: position.totals, reconciliation: reconciliation.checks.map((c) => `${c.id}:${c.status}`), by: userId },
     });
     return { ...toBatchOut(updated), counts: await migrationRepository.counts(batch.id), validation: updated.validation ?? null, reconciliation };
   },
@@ -492,6 +517,7 @@ export const migrationCommitService = {
     }
     const [opening] = await migrationRepository.journalEntry(batch.openingJournalEntryId!);
     const lines = await migrationRepository.journalLines(opening!.id);
+    const now = new Date();
 
     // 1. The migration's own lock comes off.
     if (preview.wouldReverse.periodLock) {
@@ -509,24 +535,26 @@ export const migrationCommitService = {
       })),
     });
     await migrationRepository.markJournalReversed(opening!.id);
-    // 3. Unlink and remove the opening subledger rows (never issued documents).
-    const items = await migrationRepository.openItems(batchId);
-    for (const it of items) if (it.resolvedInvoiceId != null || it.resolvedBillId != null) await migrationRepository.updateOpenItem(it.id, { resolvedInvoiceId: null, resolvedBillId: null });
-    const advances = await migrationRepository.advances(batchId);
-    for (const a of advances) if (a.resolvedPaymentId != null) await migrationRepository.updateAdvance(a.id, { resolvedPaymentId: null });
-    const removedInvoices = await migrationRepository.deleteInvoices(preview.wouldReverse.invoices.map((i) => i.id));
-    const removedBills = await migrationRepository.deleteBills(preview.wouldReverse.bills.map((b) => b.id));
-    const removedDeposits = await migrationRepository.deletePayments(preview.wouldReverse.deposits.map((d) => d.id));
+    // 3. 🔴 Policy C: MARK the opening subledger rows — nothing is deleted, no
+    //    staging link is cleared. Invoices/bills take the marker pair (the DB
+    //    trigger admits it once, from this batch, on opening rows, then
+    //    freezes the row); each deposit gets its superseding reversal record.
+    const reversedInvoices = await migrationRepository.markInvoicesReversed(preview.wouldReverse.invoices.map((i) => i.id), batch.id, now);
+    const reversedBills = await migrationRepository.markBillsReversed(preview.wouldReverse.bills.map((b) => b.id), batch.id, now);
+    const reversedDeposits = await migrationRepository.insertDepositReversals(preview.wouldReverse.deposits.map((d) => ({ paymentId: d.id, batchId: batch.id, reversalJournalEntryId: mirror.id, reason, createdBy: userId })));
+    if (reversedInvoices.length !== preview.wouldReverse.invoices.length || reversedBills.length !== preview.wouldReverse.bills.length || reversedDeposits.length !== preview.wouldReverse.deposits.length) {
+      // A row the preview listed that the mark did not reach: never a partial reversal — the request rolls back.
+      refuse(409, { code: "migration_reversal_incomplete", error: `The reversal marked ${reversedInvoices.length}/${preview.wouldReverse.invoices.length} invoices, ${reversedBills.length}/${preview.wouldReverse.bills.length} bills and ${reversedDeposits.length}/${preview.wouldReverse.deposits.length} deposits. Nothing was reversed.` });
+    }
     // 4. Banks: display-only again.
     for (const b of preview.wouldReverse.banks) await migrationRepository.updateBankAccount(b.id, { openingJournalEntryId: null });
     // 5. Reversed.
-    const now = new Date();
     const [updated] = await migrationRepository.updateBatch(batch.id, { status: "reversed", reversalJournalEntryId: mirror.id, reversedBy: userId, reversedAt: now, reversalReason: reason, periodLockId: null });
     await auditService.record({
       action: "migration_batch_reverse", entityType: "migration_batch", entityId: batch.id,
       before: { status: "committed", openingJournalEntryId: opening!.id, periodLockId: batch.periodLockId },
-      after: { reversalJournalEntryId: mirror.id, reason, removed: { invoices: preview.wouldReverse.invoices, bills: preview.wouldReverse.bills, deposits: preview.wouldReverse.deposits }, banksUnlinked: preview.wouldReverse.banks.map((b) => b.id), kept: preview.wouldReverse.keeps, by: userId },
+      after: { reversalJournalEntryId: mirror.id, reason, reversed: { invoices: preview.wouldReverse.invoices, bills: preview.wouldReverse.bills, deposits: preview.wouldReverse.deposits }, banksUnlinked: preview.wouldReverse.banks.map((b) => b.id), kept: preview.wouldReverse.keeps, by: userId },
     });
-    return { ...toBatchOut(updated), reversalJournalEntryId: mirror.id, removed: { invoices: removedInvoices.length, bills: removedBills.length, deposits: removedDeposits.length } };
+    return { ...toBatchOut(updated), reversalJournalEntryId: mirror.id, reversed: { invoices: reversedInvoices.length, bills: reversedBills.length, deposits: reversedDeposits.length } };
   },
 };

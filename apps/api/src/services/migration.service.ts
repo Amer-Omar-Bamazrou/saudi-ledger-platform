@@ -116,6 +116,7 @@ function toBatchOut(b: MigrationBatch) {
     openingDate: b.openingDate,
     notes: b.notes ?? null,
     vatPosition: (b.vatPosition ?? null) as VatPositionInput | null,
+    replacesBatchId: b.replacesBatchId ?? null,
     periodLockId: b.periodLockId ?? null,
     contentHash: b.contentHash ?? null,
     openingJournalEntryId: b.openingJournalEntryId ?? null,
@@ -211,6 +212,12 @@ export const migrationService = {
     if (live) {
       throw new BusinessRuleError(409, { error: `This company already has a committed migration (batch ${live.id}, cutover ${live.cutoverDate}). Reverse it before starting another.`, code: "migration_already_committed", field: "cutoverDate" });
     }
+    // Policy C (pack §16.12.1): a batch created after a REVERSED migration is
+    // its REPLACEMENT — linked here, automatically, so its opening items are
+    // numbered OPEN-<batch>-<seq> and point back at the rows they replace.
+    // The most recent reversed batch of the company is the predecessor; a
+    // company with none is on its first migration.
+    const [reversed] = await migrationRepository.findLatestReversedBatch();
     const [batch] = await migrationRepository.insertBatch({
       status: "draft",
       sourceSystem,
@@ -219,6 +226,7 @@ export const migrationService = {
       openingDate: dayBefore(body.cutoverDate),
       notes: body.notes?.trim() || null,
       idempotencyKey,
+      replacesBatchId: reversed?.id ?? null,
       createdBy: userId,
     });
     await auditService.record({ action: "migration_batch_create", entityType: "migration_batch", entityId: batch.id, after: toBatchOut(batch) });

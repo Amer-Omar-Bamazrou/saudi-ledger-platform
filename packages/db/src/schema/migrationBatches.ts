@@ -32,9 +32,20 @@ import { periodLocksTable } from "./periodLocks";
  * Identity is deterministic: `(company_id, source_system, source_id)` on every
  * staged row, enforced by unique indexes — a re-import of the same source row
  * is refused or replays idempotently; nothing is ever identified by amount,
- * date or name. A committed batch is immutable (DB trigger, migration 0077);
- * corrections after commit are new accounting events (reversal / dated
- * journals), never edits.
+ * date or name. A committed batch is immutable (DB trigger, migration 0077;
+ * strict again since 0081 — no unlink exception); corrections after commit
+ * are new accounting events (reversal / dated journals), never edits.
+ *
+ * 🔴 POLICY C (accountant A4, 2026-09-20; decision pack §16.12.1). A reversal
+ * mirrors the opening journal and MARKS the opening invoices, bills and
+ * deposits reversed — nothing the commit wrote is ever deleted, and the
+ * staging rows keep pointing at the reversed rows. A corrected re-run is a
+ * REPLACEMENT batch (`replaces_batch_id`, set automatically at creation when
+ * the company's most recent batch is reversed): its opening items receive NEW
+ * Saudi Ledger numbers `OPEN-<batch>-<seq>` (the prefix is reserved), each
+ * pointing back at the reversed row it replaces; the previous system's
+ * number stays verbatim in `document_number` as provenance, and
+ * `ledger_document_number` records what the ledger row was actually called.
  */
 
 const orgCol = () =>
@@ -78,6 +89,13 @@ export const migrationBatchesTable = pgTable(
      * Required whenever a chart row with a balance maps to VAT_OUTPUT / VAT_INPUT.
      */
     vatPosition: jsonb("vat_position"),
+    /**
+     * Policy C: the reversed batch this one replaces (same company; set at
+     * creation when the company's most recent batch is `reversed`). Decides the
+     * numbering of the opening items (`OPEN-<batch>-<seq>`) and the
+     * `replaces_*` provenance written at commit. NULL = a first migration.
+     */
+    replacesBatchId: integer("replaces_batch_id"),
     /** The last validation run: { ok, checks: [...], totals: {...}, at } */
     validation: jsonb("validation"),
     /** R1–R10 as computed at commit (and re-computed after posting). */
@@ -244,6 +262,13 @@ export const migrationOpenItemsTable = pgTable(
     /** { rate, amount, taxableAmount, category, reportedPeriod } — kept for reconciliation and the future Art. 40(10) engine; never posted. */
     historicalVat: jsonb("historical_vat"),
     description: text("description"),
+    /**
+     * Policy C: what the ledger row was actually CALLED — the source number
+     * for a first migration, `OPEN-<batch>-<seq>` for a replacement. Written at
+     * commit. `document_number` above stays the previous system's number,
+     * verbatim, whatever the ledger row is called (provenance, A4).
+     */
+    ledgerDocumentNumber: text("ledger_document_number"),
     resolvedInvoiceId: integer("resolved_invoice_id").references(() => invoicesTable.id, { onDelete: "restrict" }),
     resolvedBillId: integer("resolved_bill_id").references(() => billsTable.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -302,6 +327,35 @@ export const migrationAdvancesTable = pgTable(
   ],
 );
 
+/**
+ * Policy C — the SUPERSEDING RECORD that reverses a migrated deposit. Payments
+ * are append-only (UPDATE and DELETE revoked), so the reversal of a
+ * `source = 'opening'` payment is a row here, never a change to the payment:
+ * one per payment, written by the migration's reversal inside its
+ * transaction, carrying the batch and the mirror journal. Readers that
+ * compute a deposit position exclude a payment with a row here through the
+ * one predicate (apps/api `repositories/openingReversal.ts`).
+ */
+export const migrationDepositReversalsTable = pgTable(
+  "migration_deposit_reversals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    paymentId: integer("payment_id").notNull().references(() => paymentsTable.id, { onDelete: "restrict" }),
+    batchId: integer("batch_id").notNull().references(() => migrationBatchesTable.id, { onDelete: "restrict" }),
+    reversalJournalEntryId: integer("reversal_journal_entry_id").notNull().references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("migration_deposit_reversals_payment_unq").on(t.paymentId),
+    index("migration_deposit_reversals_batch_idx").on(t.batchId),
+  ],
+);
+
+export type MigrationDepositReversal = typeof migrationDepositReversalsTable.$inferSelect;
 export type MigrationBatch = typeof migrationBatchesTable.$inferSelect;
 export type MigrationChartRow = typeof migrationChartRowsTable.$inferSelect;
 export type MigrationParty = typeof migrationPartiesTable.$inferSelect;

@@ -11,8 +11,9 @@
  * aggregates — DSO, collection-speed, instalment analytics — must filter
  * `backfilled = false`.
  */
-import { db, invoicePaymentsTable, billPaymentsTable, paymentsTable, paymentAllocationsTable, paymentAllocationReversalsTable, customerRefundsTable, invoicesTable } from "@workspace/db";
+import { db, invoicePaymentsTable, billPaymentsTable, paymentsTable, paymentAllocationsTable, paymentAllocationReversalsTable, customerRefundsTable, invoicesTable, migrationDepositReversalsTable } from "@workspace/db";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { paymentNotReversed } from "./openingReversal";
 
 export const paymentsRepository = {
   // N3: both return the inserted row — its id is what suffixes the payment's
@@ -99,11 +100,17 @@ export const paymentsRepository = {
     return db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.idempotencyKey, key)).limit(1);
   },
 
+  /** Policy C: the superseding record that reversed a migrated deposit, if any (repositories/openingReversal.ts is the read-side predicate). */
+  findDepositReversal(paymentId: number) {
+    return db.select().from(migrationDepositReversalsTable).where(eq(migrationDepositReversalsTable.paymentId, paymentId)).limit(1);
+  },
+
   listPayments(filter: { customerId?: number; limit: number; offset: number }) {
     return db
       .select()
       .from(paymentsTable)
-      .where(filter.customerId != null ? eq(paymentsTable.customerId, filter.customerId) : undefined)
+      // Policy C: a reversed opening deposit is history, readable by id, never a row in the live list (openingReversal.ts).
+      .where(and(paymentNotReversed(), filter.customerId != null ? eq(paymentsTable.customerId, filter.customerId) : undefined))
       .orderBy(desc(paymentsTable.paidAt), desc(paymentsTable.id))
       .limit(filter.limit)
       .offset(filter.offset);

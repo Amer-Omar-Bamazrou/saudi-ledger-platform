@@ -26,6 +26,7 @@ function vendorListConditions(filter: VendorListFilter) {
  * found by building the two sides in one pass.
  */
 const NOT_IN_BOOKS = ["draft", "submitted"];
+import { billNotReversed } from "./openingReversal";
 
 export const vendorsRepository = {
   list(filter: VendorListFilter) {
@@ -60,7 +61,7 @@ export const vendorsRepository = {
       })
       .from(billsTable)
       .innerJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
-      .where(and(notInArray(billsTable.status, NOT_IN_BOOKS), vendorListConditions(filter)));
+      .where(and(notInArray(billsTable.status, NOT_IN_BOOKS), billNotReversed(), vendorListConditions(filter)));
     const totalBilled = Number(row?.totalBilled ?? 0);
     const totalPaid = Number(row?.totalPaid ?? 0);
     return { totalBilled, totalPaid, balance: totalBilled - totalPaid };
@@ -96,6 +97,7 @@ export const vendorsRepository = {
       .where(
         and(
           notInArray(billsTable.status, NOT_IN_BOOKS),
+          billNotReversed(),
           vendorId !== undefined ? eq(billsTable.vendorId, vendorId) : undefined,
         ),
       )

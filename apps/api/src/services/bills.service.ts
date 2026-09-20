@@ -15,6 +15,7 @@
  */
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
+import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -126,6 +127,7 @@ export const billsService = {
     if (!String(body.billNumber ?? "").trim()) {
       body.billNumber = await documentNumbersRepository.allocate("bill");
     }
+    assertNotReservedOpeningNumber(body.billNumber, "billNumber"); // Policy C: OPEN-<batch>-<n> belongs to migration replacements only
 
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
@@ -260,6 +262,7 @@ export const billsService = {
       throw new ConflictError("Bill must be approved before it can be paid.");
     }
     if (existing.status === "paid") throw new ConflictError("Bill is already paid.");
+    assertNotReversedOpening(existing, `Bill ${existing.billNumber}`, "paid");
 
     // Validate the amount up front — a missing/non-numeric amount previously
     // reached the numeric column and surfaced as an unhandled 500.

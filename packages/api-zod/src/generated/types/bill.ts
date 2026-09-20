@@ -11,6 +11,20 @@ import type { BillStatus } from './billStatus';
 export interface Bill {
   id: number;
   billNumber: string;
+  /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening bill this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesBillId?: number | null;
   /** @nullable */
   vendorReference?: string | null;
   date: string;

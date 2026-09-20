@@ -10,6 +10,11 @@ import type { MigrationVatPosition } from './migrationVatPosition';
 
 export interface MigrationBatch {
   id: number;
+  /**
+     * Policy C: the REVERSED batch this one replaces — set automatically at creation when the company's most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.
+     * @nullable
+     */
+  replacesBatchId: number | null;
   status: MigrationBatchStatus;
   sourceSystem: string;
   /** @nullable */

@@ -2171,8 +2171,13 @@ had even recorded "reuse the original number" as the Policy C consequence —
 **withdrawn by the answer**; the pack keeps the reasoning and says why it lost.
 
 **What corrected it.** Two commits on `feat/batch-1c-migration-opening-balances`
-after the docs commit: the OBE removal (migration 0080) and Policy C at batch
-level (migration 0081) — SHAs in the pack §16.12.6.
+after the docs commit `fdd7593`: the OBE removal (`1bb3f47`, migration 0080)
+and Policy C at batch level (the commit carrying migration 0081) — the
+as-built record is the pack §16.12.6. The reader sweep
+(`tests/opening-reversal-reader-sweep.test.ts`) was written red first; the
+ledger invariant sweep run against KEPT fixtures (`KEEP_1C_FIXTURE=1`) caught
+the one reader the file-level ratchet could not — the deposits check inside a
+file that already imported the predicate — and it was fixed before commit.
 
 **🔴 OPEN — one accountant question, NOT built past.** When an opening AR/AP
 item is already **partly settled** (a receipt allocated, a bill part-paid, a
@@ -2184,4 +2189,35 @@ correction exists. Exact question: pack §16.12.5.
 
 State: decisions RECORDED and IMPLEMENTED (batch level); item-level correction
 OPEN on the accountant. Current state authority: CLAUDE.md §2.
+
+## AN OPENING RECEIVABLE CANNOT BE COLLECTED THROUGH D-4 — OPEN, 2026-09-20 (found during the Policy C audit; pre-existing; documentation only)
+
+**The finding.** `paymentsService`'s allocation validator refuses any invoice
+with `invoice_hash == null` ("only an issued invoice has a receivable to
+settle"), and `invoicesRepository.openForSettlement` (the review queue's
+settle-against-invoice candidates) requires `invoice_hash IS NOT NULL`. An
+opening item (`is_opening`, Batch 1C) never has a hash — by design (R7: no
+ICV, hash, QR, e-invoice). So no receipt can be allocated to an opening
+receivable through the product, from any path: `invoicesService.pay` routes
+through the same validator. The Phase 3 tests never collected an opening item;
+the reversal blocker test set `paid_amount` directly. The same holds for
+opening bills only partly: `billsService.pay` has no hash rule, but the
+review queue's `openForSettlement` for bills does not require one either — so
+bills collect, invoices do not.
+
+**Class.** The narrower-claim family: "issued" was defined as "has a hash" for
+the D-4 validator, which was true for every invoice until the migration
+created one that is issued (in the books, on the customer's statement) without
+ever having been issued as a tax document.
+
+**What would close it.** A decision on what "issued" means for an opening
+item at the allocation boundary — `is_opening OR invoice_hash IS NOT NULL` is
+the obvious predicate, but it touches the D-4 correctness rules (a receipt
+against an opening item settles the migrated balance; the GL side is the
+opening journal's AR party line, not a `GL-<number>` issue journal, which
+`ledgerInvariants.ts` RULE-O already covers) and wants its own red-first test
+that COLLECTS an opening item end to end. Not folded into the Policy C commit
+on purpose: it predates A4/A5 and is a scope of its own.
+
+State: OPEN. Current state authority: CLAUDE.md §2.
 

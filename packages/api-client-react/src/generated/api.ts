@@ -14070,7 +14070,7 @@ export const getReverseMigrationBatchUrl = (id: number,) => {
 }
 
 /**
- * @summary REVERSE a committed migration: the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits — never issued documents — are unlinked and removed (listed in the audit record); banks return to display-only; customers, vendors and created accounts STAY with their source identity so a corrected re-run resolves to them. Refused while anything has touched what the commit created.
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
  */
 export const reverseMigrationBatch = async (id: number,
     reverseMigrationBatchInput: ReverseMigrationBatchInput, options?: RequestInit): Promise<MigrationReversed> => {
@@ -14120,7 +14120,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ReverseMigrationBatchMutationError = ErrorType<void>
 
     /**
- * @summary REVERSE a committed migration: the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits — never issued documents — are unlinked and removed (listed in the audit record); banks return to display-only; customers, vendors and created accounts STAY with their source identity so a corrected re-run resolves to them. Refused while anything has touched what the commit created.
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
  */
 export const useReverseMigrationBatch = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseMigrationBatch>>, TError,{id: number;data: BodyType<ReverseMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
