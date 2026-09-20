@@ -2143,3 +2143,45 @@ A `browser.isConnected()` check that clears `browserPromise` is the fix;
 severance lesson, §3.
 
 State: CLOSED. Current state authority: CLAUDE.md §2.
+
+## BATCH 1C — THE CORRECTION POLICY DECIDED; THE PRE-ANSWER BUILD CORRECTED (2026-09-20)
+
+**What was decided.** The accountant answered the two questions escalated on
+2026-09-19 (decision pack §16.9). **A4:** a committed migration is corrected by
+preserving every accounting record it created — the reversal mirrors the
+opening journal and MARKS the opening invoices, bills and deposits reversed;
+the corrected re-run creates replacements with **NEW** Saudi Ledger numbers
+(`OPEN-<batch>-<seq>`, prefix reserved) and provenance links to the originals;
+the source number is provenance only, never re-minted. **A5:** an opening
+position that does not balance BLOCKS the migration — no landing account, no
+declared residual, no clearing journal, no automatic classification; the
+operator classifies the difference into named accounts before validation.
+Full record and invariants: decision pack §16.12.
+
+**What the Phase 3 build (2026-09-19) had done instead, and where.** The
+reversal DELETED the opening invoices, bills and deposit rows
+(`migrationCommit.service.ts`, `deleteInvoices/deleteBills/deletePayments`),
+backed by a `payments` DELETE grant and row trigger (migration 0079) and an
+"unlink-only" exception to the committed-staging immutability trigger; the
+re-run reused the original numbers. `obeResidualReason` turned the balance
+check into a warning, the commit carried the difference on
+`OPENING_BALANCE_EQUITY`, R6 warned, and `POST …/clear-obe` moved it to
+retained earnings. Every one of these was the pre-answer reading, and §16.8
+had even recorded "reuse the original number" as the Policy C consequence —
+**withdrawn by the answer**; the pack keeps the reasoning and says why it lost.
+
+**What corrected it.** Two commits on `feat/batch-1c-migration-opening-balances`
+after the docs commit: the OBE removal (migration 0080) and Policy C at batch
+level (migration 0081) — SHAs in the pack §16.12.6.
+
+**🔴 OPEN — one accountant question, NOT built past.** When an opening AR/AP
+item is already **partly settled** (a receipt allocated, a bill part-paid, a
+deposit part-applied) and is then found wrong: adjust the outstanding on the
+existing item by a dated correction, or reverse-and-replace with re-allocation?
+The answer received covers only an untouched item. The product keeps REFUSING
+the reversal while any such activity exists (the blockers), and no item-level
+correction exists. Exact question: pack §16.12.5.
+
+State: decisions RECORDED and IMPLEMENTED (batch level); item-level correction
+OPEN on the accountant. Current state authority: CLAUDE.md §2.
+
