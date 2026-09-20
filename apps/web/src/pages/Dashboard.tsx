@@ -47,10 +47,10 @@ function StatCard({
   accent: "income" | "expense" | "net" | "cash";
 }) {
   const accentMap = {
-    income: "text-emerald-400 bg-emerald-500/10",
-    expense: "text-red-400 bg-red-500/10",
-    net: "text-blue-400 bg-blue-500/10",
-    cash: "text-cyan-400 bg-cyan-500/10",
+    income: "text-positive bg-positive-surface/10",
+    expense: "text-negative bg-negative-surface/10",
+    net: "text-info bg-info-surface/10",
+    cash: "text-primary bg-primary/10",
   };
   return (
     <Card>
@@ -60,7 +60,7 @@ function StatCard({
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
             <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
             {trend && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${trend.direction === "up" ? "text-emerald-400" : "text-red-400"}`}>
+              <div className={`flex items-center gap-1 text-xs font-medium ${trend.direction === "up" ? "text-positive" : "text-negative"}`}>
                 {trend.direction === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {trend.label}
               </div>
@@ -234,24 +234,25 @@ export default function Dashboard() {
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="cashIn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      <stop offset="5%" stopColor="hsl(var(--color-income))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--color-income))" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="cashOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                      <stop offset="5%" stopColor="hsl(var(--color-expense))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--color-expense))" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 32% 17%)" vertical={false} />
-                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => Intl.NumberFormat("en", { notation: "compact" }).format(v)} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => Intl.NumberFormat("en", { notation: "compact" }).format(v)} />
                   <Tooltip
-                    contentStyle={{ background: "hsl(222 47% 11%)", border: "1px solid hsl(217 32% 17%)", borderRadius: "0.5rem", fontSize: 12 }}
-                    labelStyle={{ color: "hsl(215 20% 65%)" }}
+                    contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--popover-border))", borderRadius: "0.5rem", fontSize: 12, color: "hsl(var(--popover-foreground))" }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                     formatter={(v: number) => formatCurrency(v)}
                   />
-                  <Area type="monotone" dataKey="inflow" name={t("Inflow", "وارد")} stroke="#10b981" strokeWidth={2} fill="url(#cashIn)" />
-                  <Area type="monotone" dataKey="outflow" name={t("Outflow", "منصرف")} stroke="#ef4444" strokeWidth={2} fill="url(#cashOut)" />
+                  <Area type="monotone" dataKey="inflow" name={t("Inflow", "وارد")} stroke="hsl(var(--color-income))" strokeWidth={2} fill="url(#cashIn)" />
+                  <Area type="monotone" dataKey="outflow" name={t("Outflow", "منصرف")} stroke="hsl(var(--color-expense))" strokeWidth={2} fill="url(#cashOut)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -264,7 +265,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               <Link href="/review" className="flex items-center justify-between rounded-lg p-2.5 hover:bg-secondary/60 transition-colors">
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${unreviewedCount > 0 ? "bg-amber-500/10 text-amber-400" : "bg-muted text-muted-foreground"}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${unreviewedCount > 0 ? "bg-attention-surface/10 text-attention" : "bg-muted text-muted-foreground"}`}>
                     <Clock className="w-4 h-4" />
                   </div>
                   <span className="text-sm text-foreground">{t("Unreviewed", "غير مراجع")}</span>
@@ -273,7 +274,7 @@ export default function Dashboard() {
               </Link>
               <Link href="/review" className="flex items-center justify-between rounded-lg p-2.5 hover:bg-secondary/60 transition-colors">
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${needsAttention > 0 ? "bg-red-500/10 text-red-400" : "bg-muted text-muted-foreground"}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${needsAttention > 0 ? "bg-negative-surface/10 text-negative" : "bg-muted text-muted-foreground"}`}>
                     <AlertTriangle className="w-4 h-4" />
                   </div>
                   <span className="text-sm text-foreground">{t("Needs Attention", "تحتاج انتباه")}</span>
@@ -289,7 +290,7 @@ export default function Dashboard() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{t("Net VAT Due", "صافي الضريبة المستحقة")}</span>
-                <span className={`text-lg font-bold tabular-nums ${netVatDue >= 0 ? "text-foreground" : "text-emerald-400"}`}>
+                <span className={`text-lg font-bold tabular-nums ${netVatDue >= 0 ? "text-foreground" : "text-positive"}`}>
                   {formatCurrency(netVatDue)}
                 </span>
               </div>
@@ -317,7 +318,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("Overdue", "متأخرة")}</p>
-              <p className="text-xl font-bold text-red-400 tabular-nums">{formatCurrency(arOverdue)}</p>
+              <p className="text-xl font-bold text-negative tabular-nums">{formatCurrency(arOverdue)}</p>
             </div>
           </div>
           {invoices.length === 0 ? (
@@ -352,7 +353,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("Overdue Count", "عدد المتأخرة")}</p>
-              <p className="text-xl font-bold text-red-400 tabular-nums">{apOverdueCount}</p>
+              <p className="text-xl font-bold text-negative tabular-nums">{apOverdueCount}</p>
             </div>
           </div>
           {bills.length === 0 ? (
@@ -406,10 +407,10 @@ export default function Dashboard() {
                       {tx.categoryName ? (
                         <Badge variant="secondary" className="text-[10px]">{tx.categoryName}</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-400/30">{t("Uncategorized", "غير مصنف")}</Badge>
+                        <Badge variant="outline" className="text-[10px] text-attention border-attention-surface/30">{t("Uncategorized", "غير مصنف")}</Badge>
                       )}
                     </td>
-                    <td className={`py-2.5 text-right font-medium tabular-nums whitespace-nowrap ${tx.type === "credit" ? "text-emerald-400" : "text-foreground"}`}>
+                    <td className={`py-2.5 text-right font-medium tabular-nums whitespace-nowrap ${tx.type === "credit" ? "text-positive" : "text-foreground"}`}>
                       {tx.type === "credit" ? "+" : "−"}{formatCurrency(tx.amount)}
                     </td>
                   </tr>

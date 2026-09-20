@@ -1,8 +1,5 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-/* The RTL override layer — imported AFTER tailwind so its unlayered rules win
-   over `@layer utilities` without !important. See the file's own header for the
-   exclusion list, which is the design rather than a caveat. */
 @import './rtl-overrides.css';
 @plugin "@tailwindcss/typography";
 
@@ -60,35 +57,24 @@
   --color-sidebar-accent-border: hsl(var(--sidebar-accent-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  /* Account-TYPE colours. Distinct from the state colours below: these say what
-     an account IS, those say what a figure MEANS. */
+  /* Account-TYPE colours */
   --color-income: hsl(var(--color-income));
   --color-expense: hsl(var(--color-expense));
   --color-asset: hsl(var(--color-asset));
   --color-liability: hsl(var(--color-liability));
   --color-equity: hsl(var(--color-equity));
 
-  /* ── SEMANTIC STATE COLOURS ────────────────────────────────────────────────
-     Four meanings the app already expresses 583 times in raw palette classes:
-     money in, money out, wants attention, informational.
-
-     🔴 DEFINED BY REFERENCE, NOT BY VALUE, ON PURPOSE. Each points at the exact
-     palette entry the pages already use, so adopting a token changes the NAME a
-     colour is reached by and nothing about the colour. A design pass can then
-     change a value in one place instead of in 56 files.
-
-     The `-surface` half exists because the codebase consistently uses a lighter
-     shade for text and a darker one behind opacity for fills and borders
-     (`text-emerald-400` beside `bg-emerald-500/20`). One token cannot serve
-     both without changing what renders. */
-  --color-positive: var(--color-emerald-400);
-  --color-positive-surface: var(--color-emerald-500);
-  --color-negative: var(--color-red-400);
-  --color-negative-surface: var(--color-red-500);
-  --color-attention: var(--color-amber-400);
-  --color-attention-surface: var(--color-amber-500);
-  --color-info: var(--color-blue-400);
-  --color-info-surface: var(--color-blue-500);
+  /* ── SEMANTIC STATE COLOURS ────────────────────────────────────────────
+     Four meanings: money in, money out, wants attention, informational.
+     Values are theme-aware — darker shades for light mode, brighter for dark. */
+  --color-positive: hsl(var(--semantic-positive));
+  --color-positive-surface: hsl(var(--semantic-positive-surface));
+  --color-negative: hsl(var(--semantic-negative));
+  --color-negative-surface: hsl(var(--semantic-negative-surface));
+  --color-attention: hsl(var(--semantic-attention));
+  --color-attention-surface: hsl(var(--semantic-attention-surface));
+  --color-info: hsl(var(--semantic-info));
+  --color-info-surface: hsl(var(--semantic-info-surface));
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
@@ -100,71 +86,154 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   LIGHT THEME (default)
+   Professional accounting palette: clean white surfaces, indigo primary,
+   light gray sidebar with dark text. Inspired by Xero / QuickBooks.
+   ════════════════════════════════════════════════════════════════════════ */
 :root {
-  --background: 222 47% 8%;
-  --foreground: 210 40% 98%;
-  --border: 217 32% 17%;
-  --input: 217 32% 17%;
-  --ring: 43 96% 56%;
+  --background: 220 20% 98%;
+  --foreground: 222 47% 11%;
+  --border: 220 13% 90%;
+  --input: 220 13% 90%;
+  --ring: 221 83% 53%;
 
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 32% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 220 13% 90%;
 
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 32% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 220 13% 90%;
 
-  --primary: 43 96% 56%;
-  --primary-foreground: 222 47% 11%;
-  --primary-border: 43 96% 46%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 221 83% 47%;
 
-  --secondary: 217 32% 17%;
-  --secondary-foreground: 210 40% 98%;
-  --secondary-border: 217 32% 27%;
+  --secondary: 220 14% 95%;
+  --secondary-foreground: 222 47% 11%;
+  --secondary-border: 220 13% 88%;
 
-  --muted: 217 32% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --muted-border: 217 32% 27%;
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 9% 46%;
+  --muted-border: 220 13% 88%;
 
-  --accent: 217 32% 17%;
-  --accent-foreground: 210 40% 98%;
-  --accent-border: 217 32% 27%;
+  --accent: 220 14% 95%;
+  --accent-foreground: 222 47% 11%;
+  --accent-border: 220 13% 88%;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --destructive-border: 0 62.8% 20.6%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 0 72% 45%;
 
-  --chart-1: 43 96% 56%;
-  --chart-2: 215 20.2% 65.1%;
-  --chart-3: 142 71% 45%;
-  --chart-4: 0 72% 51%;
-  --chart-5: 221 83% 53%;
+  --chart-1: 221 83% 53%;
+  --chart-2: 142 71% 45%;
+  --chart-3: 24 95% 53%;
+  --chart-4: 271 91% 65%;
+  --chart-5: 0 72% 51%;
 
-  --sidebar: 195 35% 8%;
-  --sidebar-foreground: 190 12% 88%;
-  --sidebar-border: 190 22% 16%;
-  --sidebar-primary: 186 85% 42%;
-  --sidebar-primary-foreground: 195 35% 8%;
-  --sidebar-primary-border: 186 75% 38%;
-  --sidebar-accent: 190 25% 14%;
-  --sidebar-accent-foreground: 190 12% 88%;
-  --sidebar-accent-border: 190 20% 20%;
-  --sidebar-ring: 186 85% 42%;
+  /* Sidebar — light gray with dark text for a clean enterprise look */
+  --sidebar: 220 16% 97%;
+  --sidebar-foreground: 220 20% 22%;
+  --sidebar-border: 220 13% 88%;
+  --sidebar-primary: 221 83% 53%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 221 83% 47%;
+  --sidebar-accent: 221 83% 95%;
+  --sidebar-accent-foreground: 221 83% 40%;
+  --sidebar-accent-border: 221 83% 88%;
+  --sidebar-ring: 221 83% 53%;
 
-  --color-income: 142 71% 45%;
-  --color-expense: 0 72% 51%;
+  --color-income: 142 71% 38%;
+  --color-expense: 0 72% 48%;
   --color-asset: 221 83% 53%;
-  --color-liability: 24 95% 53%;
-  --color-equity: 271 91% 65%;
+  --color-liability: 24 95% 50%;
+  --color-equity: 271 91% 60%;
+
+  --semantic-positive: 142 71% 35%;
+  --semantic-positive-surface: 142 71% 42%;
+  --semantic-negative: 0 72% 45%;
+  --semantic-negative-surface: 0 72% 52%;
+  --semantic-attention: 35 92% 45%;
+  --semantic-attention-surface: 35 92% 52%;
+  --semantic-info: 221 83% 50%;
+  --semantic-info-surface: 221 83% 57%;
 
   --app-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --app-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --radius: 0.25rem;
+  --radius: 0.375rem;
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   DARK THEME
+   Deep slate surfaces, brighter indigo accents, dark navy sidebar.
+   ════════════════════════════════════════════════════════════════════════ */
 .dark {
-  /* Already dark by default */
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+  --border: 217 32% 16%;
+  --input: 217 32% 16%;
+  --ring: 217 91% 60%;
+
+  --card: 222 47% 10%;
+  --card-foreground: 210 40% 98%;
+  --card-border: 217 32% 16%;
+
+  --popover: 222 47% 10%;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 217 32% 16%;
+
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 7%;
+  --primary-border: 217 91% 55%;
+
+  --secondary: 217 32% 14%;
+  --secondary-foreground: 210 40% 98%;
+  --secondary-border: 217 32% 22%;
+
+  --muted: 217 32% 14%;
+  --muted-foreground: 215 20% 62%;
+  --muted-border: 217 32% 22%;
+
+  --accent: 217 32% 14%;
+  --accent-foreground: 210 40% 98%;
+  --accent-border: 217 32% 22%;
+
+  --destructive: 0 62.8% 48%;
+  --destructive-foreground: 210 40% 98%;
+  --destructive-border: 0 62.8% 42%;
+
+  --chart-1: 217 91% 60%;
+  --chart-2: 142 71% 50%;
+  --chart-3: 24 95% 55%;
+  --chart-4: 271 91% 65%;
+  --chart-5: 0 72% 55%;
+
+  --sidebar: 222 47% 7%;
+  --sidebar-foreground: 210 25% 86%;
+  --sidebar-border: 217 32% 13%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 217 91% 55%;
+  --sidebar-accent: 217 32% 13%;
+  --sidebar-accent-foreground: 210 40% 92%;
+  --sidebar-accent-border: 217 32% 20%;
+  --sidebar-ring: 217 91% 60%;
+
+  --color-income: 142 71% 50%;
+  --color-expense: 0 72% 55%;
+  --color-asset: 221 83% 58%;
+  --color-liability: 24 95% 55%;
+  --color-equity: 271 91% 70%;
+
+  --semantic-positive: 142 71% 50%;
+  --semantic-positive-surface: 142 71% 55%;
+  --semantic-negative: 0 72% 55%;
+  --semantic-negative-surface: 0 72% 60%;
+  --semantic-attention: 38 92% 55%;
+  --semantic-attention-surface: 38 92% 60%;
+  --semantic-info: 217 91% 60%;
+  --semantic-info-surface: 217 91% 65%;
 }
 
 @layer base {

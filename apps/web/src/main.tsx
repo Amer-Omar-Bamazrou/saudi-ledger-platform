@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { setApiErrorHandler } from '@workspace/api-client-react';
 
 import App from './App';
+import { ThemeProvider } from './components/ThemeProvider';
 import { handleApiErrorResponse } from './lib/api';
 
 import './index.css';
@@ -13,4 +14,8 @@ import './index.css';
 // being routed to /verification.
 setApiErrorHandler((error) => handleApiErrorResponse(error.status, error.data));
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>,
+);

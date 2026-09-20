@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { NAV_TREE, type NavEntry, type NavSection } from "@/nav/tree";
 import { ChevronDown, ChevronRight, LogOut, Languages, Clock, Menu, X } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /**
  * 🔴 THE NAVIGATION IS NO LONGER DEFINED HERE. It lives in `@/nav/tree`, as
@@ -351,6 +352,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Languages className="w-3 h-3" />
                   {lang === "en" ? "ع" : "EN"}
                 </button>
+                <ThemeToggle />
                 <button
                   onClick={logout}
                   className="flex items-center gap-1 text-xs text-sidebar-foreground/50 hover:text-negative transition-colors"
