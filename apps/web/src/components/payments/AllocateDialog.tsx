@@ -48,7 +48,11 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
   // source already settles is listed as such, not offered twice (the 409 it
   // would earn is explained here instead of after the click).
   const already = new Set(source.allocatedInvoiceIds);
-  const targets = useMemo(() => (data?.items ?? []).filter(isOpenInvoice).filter((i) => i.id !== source.id), [data, source.id]);
+  // 🔴 Two id spaces (found by CI on PR #164, 2026-09-20): `source.id` is a PAYMENT id when the source is a
+  // receipt and an INVOICE id only when it is a credit note. Excluding `i.id !== source.id` for a receipt hid
+  // whichever open invoice happened to share the receipt's number — on a fresh database, RCPT-3 hid invoice #3.
+  // A note never applies to itself; a receipt excludes nothing.
+  const targets = useMemo(() => (data?.items ?? []).filter(isOpenInvoice).filter((i) => source.kind !== "credit_note" || i.id !== source.id), [data, source.kind, source.id]);
 
   const offered = targets.filter((i) => !already.has(i.id));
   const requested = offered.reduce((s, i) => s + (Number(amounts[i.id]) > 0 ? Number(amounts[i.id]) : 0), 0);
