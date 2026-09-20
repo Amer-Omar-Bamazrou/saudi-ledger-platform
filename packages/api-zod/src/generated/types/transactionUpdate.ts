@@ -12,6 +12,8 @@ import type { TransactionUpdateVatBasis } from './transactionUpdateVatBasis';
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
+  /** D-3: record WHICH bank account the row belongs to. Settable only while the row has none (a bank is a fact about the movement, not a classification to revise); a posted row whose history still sits on the "Cash and Bank" header is left for the cut-over to remap, a row already posted to a bank's GL account is reversed and re-posted to the named bank. */
+  bankAccountId?: number;
   /**
      * @minimum 0
      * @nullable

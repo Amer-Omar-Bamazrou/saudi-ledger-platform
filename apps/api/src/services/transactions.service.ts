@@ -14,8 +14,9 @@ import {
   UploadTransactionsResponse,
   AcceptPendingTransactionsResponse,
 } from "@workspace/api-zod";
-import { AppError, BadRequestError, BusinessRuleError, ConflictError, NotFoundError, PeriodLockedError } from "../lib/errors";
+import { AppError, BadRequestError, BankAccountRequiredError, BusinessRuleError, ConflictError, NotFoundError, PeriodLockedError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
+import { assertBankAccount } from "./accounting/bankIdentity";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
@@ -64,6 +65,20 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
   // belongs HERE, at the write boundary every writer of `category_id` passes
   // (create, update, upload), as a 422 that names the workflow: a customer
   // or supplier movement is an invoice or bill payment, settled from Review.
+  /**
+   * 🔴 D-3 (2026-09-17): a bank's OWN cash account is not a category. A bank
+   * row categorised to a bank leaf would post cash against cash — a transfer
+   * expressed as a classification, bypassing the declared-direction rule
+   * transfers post by (kind = transfer). Refused with the same shape as the
+   * control-account rule; the picker hides leaves too.
+   */
+  if (cat.bankAccountId != null) {
+    throw new BusinessRuleError(422, {
+      error: `${cat.name} is a bank account's own cash account and cannot be a bank transaction's category. Money moving between your accounts is a transfer — mark the row's kind as transfer and declare where it went.`,
+      code: "category_is_bank_account",
+      field: "categoryId",
+    });
+  }
   if (cat.systemCode && (PARTY_REQUIRED_SYSTEM_CODES as readonly string[]).includes(cat.systemCode)) {
     throw new BusinessRuleError(422, {
       error:
@@ -79,12 +94,15 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
 
-/** A row acceptance refused by the period lock — back in review, named to the caller. */
+/**
+ * A row acceptance refused — by the period lock, or (D-3) because the row
+ * names no bank account — back in review, named to the caller.
+ */
 export interface AcceptPendingRejection {
   id: number;
   date: string | null;
   reason: string;
-  code: "period_closed";
+  code: "period_closed" | "bank_account_required";
   period: string | null;
   lockedAt: string | null;
 }
@@ -164,19 +182,11 @@ export const transactionsService = {
     // M16.2 — which bank account is this statement from? RLS scopes the lookup,
     // so another tenant's id simply does not resolve. Fail closed on an unknown
     // id rather than silently importing unattributed rows.
-    const bankAccountId = data.bankAccountId ?? null;
-    if (bankAccountId != null) {
-      const [account] = await bankAccountsRepository.findById(bankAccountId);
-      if (!account) {
-        // 422 (was 400): same reference-not-found class as customer/vendor/
-        // category — one status per invariant class (policy 2026-08-23).
-        throw new BusinessRuleError(422, {
-          error: "Unknown bank account for this organization",
-          code: "reference_not_found",
-          field: "bankAccountId",
-        });
-      }
-    }
+    // 🔴 D-3 (2026-09-16): REQUIRED. An accepted row's cash leg posts to this
+    // bank's own GL account, so a statement that names no bank would import
+    // rows nothing can ever accept. 422 `bank_account_required` /
+    // `reference_not_found` — one shared check (accounting/bankIdentity.ts).
+    const bankAccountId: number = await assertBankAccount(data.bankAccountId, { what: "this statement belongs to" });
 
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
     const resolvedCodes = autoCategrize
@@ -501,7 +511,13 @@ export const transactionsService = {
         if (await transactionPostingService.post(id)) posted++;
         acceptedIds.push(id);
       } catch (err) {
-        if (!(err instanceof PeriodLockedError)) throw err;
+        // 🔴 D-3 (2026-09-16): a row with NO BANK is refused the same way a
+        // closed month is — put back to pending, reported with its code,
+        // never accepted-but-unposted. Both are thrown by the seam's callers
+        // BEFORE any write, so the tenant transaction stays usable.
+        const isLock = err instanceof PeriodLockedError;
+        const isBank = err instanceof BankAccountRequiredError;
+        if (!isLock && !isBank) throw err;
         await transactionsRepository.revertAcceptance(id);
         const [row] = await transactionsRepository.findWithCategory(id);
         const detail = (err.payload ?? {}) as { period?: string; lockedAt?: string };
@@ -509,15 +525,18 @@ export const transactionsService = {
           id,
           date: row?.tx.date ?? null,
           reason: err.message,
-          code: "period_closed",
-          period: detail.period ?? null,
-          lockedAt: detail.lockedAt ?? null,
+          code: isLock ? "period_closed" : "bank_account_required",
+          period: isLock ? (detail.period ?? null) : null,
+          lockedAt: isLock ? (detail.lockedAt ?? null) : null,
         });
       }
     }
 
     if (acceptedIds.length === 0 && rejected.length > 0) {
       const first = rejected[0];
+      if (first.code === "bank_account_required") {
+        throw new BankAccountRequiredError(first.reason, "bankAccountId", { rejected });
+      }
       throw new PeriodLockedError(first.reason, {
         period: first.period ?? "",
         lockedAt: first.lockedAt ?? "",
@@ -555,6 +574,10 @@ export const transactionsService = {
 
   async create(d: CreateTransactionInput) {
     await assertCategoryExists(d.categoryId);
+    // 🔴 D-3: a manual row is accepted AND POSTED on creation, so it must name
+    // the bank its cash leg posts to — refused here (422) before the insert,
+    // the same rule the seam and the DB trigger enforce beneath.
+    const bankAccountId = await assertBankAccount(d.bankAccountId, { what: "this movement belongs to" });
     const [tx] = await transactionsRepository.insert({
       // M15: manual single entry is ACCEPTED on creation — a human typing one
       // row is looking at that row (the M10.4 self-approve analogue). Only
@@ -574,6 +597,7 @@ export const transactionsService = {
       isManuallyOverridden: false,
       source: d.source ?? "manual",
       notes: d.notes ?? null,
+      bankAccountId,
     });
     await auditService.created("transaction", tx.id, tx);
 
@@ -807,6 +831,36 @@ export const transactionsService = {
     if (data.notes !== undefined) updates.notes = data.notes ?? null;
     if (data.descriptionAr !== undefined) updates.descriptionAr = data.descriptionAr ?? null;
 
+    /**
+     * 🔴 D-3 (2026-09-16): recording WHICH bank a row belongs to.
+     *
+     * A bank is a fact about the movement, not a classification to revise,
+     * so it is settable only while the row has none — the remediation path
+     * for history imported or typed before a bank was required, and the one
+     * the cash cut-over's dry-run names for an AMBIGUOUS transaction line.
+     * Changing an already-named bank is refused (409): that is a different
+     * movement, entered as one.
+     *
+     * Whether the ledger moves depends on WHERE the row's cash sits:
+     *   - never posted → nothing to move; `acceptPending` posts it later;
+     *   - posted to the "Cash and Bank" HEADER (pre-cut-over history) →
+     *     nothing moves now; the cut-over remaps the line to this bank's
+     *     leaf, because the transaction now carries the deterministic link;
+     *   - posted to a bank LEAF cannot happen here (a leaf posting requires a
+     *     bank, and a bank cannot be changed) — recorded for completeness.
+     */
+    if (data.bankAccountId !== undefined) {
+      if (existing.tx.bankAccountId != null) {
+        if (data.bankAccountId !== existing.tx.bankAccountId) {
+          throw new ConflictError(
+            "This transaction already names its bank account. A movement through a different account is a different transaction — enter it as one.",
+          );
+        }
+      } else {
+        updates.bankAccountId = await assertBankAccount(data.bankAccountId, { what: "this movement belongs to" });
+      }
+    }
+
     // A notes-less, fact-less PATCH has nothing to write (pre-fix the override
     // stamp made every update non-empty; see F8 above).
     if (Object.keys(updates).length > 0) await transactionsRepository.update(id, updates);
@@ -827,6 +881,11 @@ export const transactionsService = {
     // reverses only when an entry exists and then re-checks `shouldPost`, so
     // it both moves a posted balance (suspense → clearing on declaration)
     // and posts a row that had never posted.
+    // D-3: naming the bank is NOT a posting change — a never-posted row is
+    // posted by `acceptPending`, and a header-era posting is remapped by the
+    // cut-over. (A category/direction change on a row with no bank now fails
+    // closed at the re-post, rolling the whole edit back: set the bank in the
+    // same request.)
     const postingChanged = data.categoryId !== undefined || data.transferDirection !== undefined;
     if (postingChanged) {
       await transactionPostingService.repost(id);

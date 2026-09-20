@@ -252,9 +252,14 @@ figure written down at the time.
    four KPI figures and the trial balance total (`/trial-balance`, from
    1 Jan) — these are the baseline.
 3. Quotation → convert → invoice → Approvals (Submit, Approve) → PDF both
-   languages → Mark Paid in full. Record: the `GL-…` entry on
-   `/journal-entries`, the ICV on the invoice, the PDF showing the bank
-   details.
+   languages → Mark Paid in full. 🔴 **Since D-3 (2026-09-16) the Record
+   Payment dialog asks WHICH bank account the money arrived in** — choose
+   it; nothing is pre-selected unless an account was marked the default
+   (the pilot's is not, step 2 above), and "only one exists" pre-selects
+   nothing by design. The cash line posts to
+   that bank's own ledger account, never to "Cash and Bank". Record: the
+   `GL-…` entry on `/journal-entries` with the bank's account name on its
+   cash line, the ICV on the invoice, the PDF showing the bank details.
 4. New invoice to Najd, 3,000 + 15%; approve; **pay 1,000**. Record:
    status stays `sent`; `/ar-aging` shows the residual.
 5. Switch the invoice bank account on `/bank-accounts`; reopen a PDF.
@@ -304,7 +309,9 @@ figure written down at the time.
     Accounts Payable — a customer or supplier movement is settled against
     its document from Review, never categorised (a refusal names this if
     tried by API).
-17. Upload the 6-row CSV (§3.3) on `/upload`. Record: 6 rows pending;
+17. Upload the 6-row CSV (§3.3) on `/upload` — 🔴 **choose the bank
+    account the statement belongs to first (required since D-3; the
+    import is refused without it)**. Record: 6 rows pending;
     the trial balance unchanged; on `/review`, rows 1–3 show a
     suggestion line ("settles INV-… — matched by number", row 2 marked
     *partial*); rows 4–5 sit under "Ready to accept", row 6 under
@@ -423,7 +430,10 @@ Plain language, no internals. Give them these nine, in this form:
    does not apply here). Keep pilot invoices at 15% unless a scenario
    calls for 0%.
 5. **The bank account card shows the opening balance you typed**, not a
-   live balance. Cash lives on the balance sheet.
+   live balance — and, beneath it since D-3, the **ledger balance** of
+   that bank's own GL account (what the books say was posted to it). The
+   two differ by design until opening balances are migrated (G2). Cash
+   lives on the balance sheet, one line per bank account.
 6. **Reverse only the journal entries you created yourself in this
    pilot.** Do not reverse an entry the system created from an invoice, a
    bill, a payment or a bank row (their numbers start `GL-`, `BILL-` or

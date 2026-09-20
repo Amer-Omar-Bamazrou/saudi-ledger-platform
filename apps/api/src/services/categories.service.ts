@@ -24,6 +24,11 @@ export const categoriesService = {
         type: r.type,
         vatApplicable: r.vatApplicable,
         liquidityClass: r.liquidityClass ?? null,
+        // D-3: the bank → GL relationship and the header flag, so the JE
+        // picker can hide "Cash and Bank" and show each bank's own account.
+        parentId: r.parentId ?? null,
+        bankAccountId: r.bankAccountId ?? null,
+        isPosting: r.isPosting,
         description: r.description ?? null,
       })),
     );
@@ -60,6 +65,9 @@ export const categoriesService = {
       type: inserted.type,
       vatApplicable: inserted.vatApplicable,
       liquidityClass: inserted.liquidityClass ?? null,
+      parentId: inserted.parentId ?? null,
+      bankAccountId: inserted.bankAccountId ?? null,
+      isPosting: inserted.isPosting,
       description: inserted.description ?? null,
     });
   },

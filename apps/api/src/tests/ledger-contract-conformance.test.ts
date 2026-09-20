@@ -64,6 +64,7 @@ function issues(r: ParseResult): string {
 describeMaybe("ledger contract conformance — journal entries, payroll, employees, assets on real rows", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let cash = { id: 0, name: "" };
   let equity = { id: 0, name: "" };
@@ -92,6 +93,7 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -100,9 +102,12 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Ledger Org','${SLUG}') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number) VALUES ($1,'Ledger Co','1010101059') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','LC',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    const c = await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'CASH'`, [orgId]);
+    // D-3: the postable cash account is the bank's own leaf; the CASH header takes no line.
+    const c = await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bankId]);
     const e = await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND type = 'equity' ORDER BY id LIMIT 1`, [orgId]);
     cash = { id: Number(c.rows[0].id), name: c.rows[0].name };
     equity = { id: Number(e.rows[0].id), name: e.rows[0].name };

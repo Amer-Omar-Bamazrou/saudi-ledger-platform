@@ -23,6 +23,10 @@ tags:
     description: Vendor bills (AP) and the draft/approval workflow
   - name: invoices
     description: Customer invoices (AR, ZATCA) and the draft/approval workflow
+  - name: payments
+    description: "D-4 — customer payments, allocations and credit application. A payment names its bank (D-3) and its customer; allocations say which invoices it settles; the unapplied remainder is a customer deposit (a liability, never a credit inside AR)."
+  - name: migration
+    description: "Batch 1C — migrating an existing business: staged chart mapping, parties, open AR/AP items and advances, validated as a set and committed as ONE opening journal dated cutover − 1. Historical items never enter the e-invoice chain or a VAT return. Admin-only."
   - name: payroll
     description: Payroll runs and the draft/approval workflow
   - name: period_locks
@@ -186,6 +190,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AcceptPendingResult"
+        "422":
+          description: >
+            Nothing was accepted because no row names a bank account (D-3):
+            the body is the `bank_account_required` refusal, carrying the
+            `rejected` rows; every row stays in review with no entry. Set the
+            bank on each row (PATCH bankAccountId) and accept again.
         "423":
           description: >
             Nothing was accepted because every row's month is closed (a single
@@ -1475,6 +1485,15 @@ paths:
       parameters:
         - { name: from, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
         - { name: to, in: query, required: true, schema: { type: string }, description: "YYYY-MM" }
+        - name: bankAccountId
+          in: query
+          required: false
+          schema: { type: integer }
+          description: >
+            D-3: reconcile ONE bank — its accepted rows against its own GL
+            cash account. Omitted = every bank and every cash account, as
+            before. Pre-cut-over history still on the "Cash and Bank" header
+            belongs to no bank and is excluded from a per-bank view.
       responses:
         "200":
           description: Both series per month, plus the itemised reconciliation
@@ -2011,7 +2030,7 @@ paths:
     get:
       operationId: getArAgingReport
       tags: [reports]
-      summary: Accounts receivable aging (credit notes netted into their originals)
+      summary: Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
       responses:
         "200":
           description: AR aging
@@ -2656,7 +2675,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/CustomerWithBalance" }
                   page: { $ref: "#/components/schemas/PageInfo" }
-                  totals: { $ref: "#/components/schemas/PartyTotals" }
+                  totals: { $ref: "#/components/schemas/CustomerTotals" }
     post:
       operationId: createCustomer
       tags: [customers]
@@ -2716,6 +2735,42 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /customers/{id}/credits:
+    get:
+      operationId: getCustomerCredits
+      tags: [customers]
+      summary: "D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The two balances, from the subledger (Σ unapplied receipts; Σ unconsumed credit notes)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerCredits" }
+        "404":
+          description: Customer not found
+
+  /customers/{id}/statement:
+    get:
+      operationId: getCustomerStatement
+      tags: [customers]
+      summary: "Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string }, description: "YYYY-MM-DD; events before it are folded into `opening`" }
+        - { in: query, name: date_to, required: false, schema: { type: string }, description: "YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`" }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerStatement" }
+        "400":
+          description: Malformed date, or date_from after date_to
+        "404":
+          description: Customer not found
 
   /vendors:
     get:
@@ -3035,6 +3090,759 @@ paths:
           description: Deleted
         "409":
           description: Not a draft
+
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: "D-4 — customer payments, newest first"
+      parameters:
+        - { in: query, name: customer_id, required: false, schema: { type: integer } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Payments with their allocations and unapplied remainders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomerPayment" }
+    post:
+      operationId: receivePayment
+      tags: [payments]
+      summary: "D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest"
+      description: >
+        One payment, one journal entry, zero or more allocations. Allocations are
+        never inferred: none ⇒ the whole amount is a deposit for the customer;
+        some ⇒ the rest is. An allocation beyond an invoice's outstanding
+        (total − paid − credited) is refused; the receipt itself is never refused
+        for being larger than the invoices — the excess is the customer's
+        deposit by the caller's explicit allocation. `idempotencyKey` (unique
+        per company) makes a repeated request return the first payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReceivePaymentInput" }
+      responses:
+        "201":
+          description: The payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "400":
+          description: Not a positive amount, or a malformed allocation
+        "409":
+          description: Allocation beyond an invoice's outstanding; a note or unissued invoice as target; an idempotency key reused for a different payment
+        "422":
+          description: "`bank_account_required`, `bank_account_inactive`, `reference_not_found`, `allocation_exceeds_payment`, `allocation_party_mismatch`, `customer_required_for_unapplied`"
+
+  /payments/refunds:
+    get:
+      operationId: listRefunds
+      tags: [payments]
+      summary: "Phase C — customer refunds, newest first"
+      parameters:
+        - { in: query, name: customer_id, required: false, schema: { type: integer } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Refunds
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomerRefund" }
+    post:
+      operationId: refundCustomer
+      tags: [payments]
+      summary: "Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank"
+      description: >
+        Settles an existing credit; never reverses the receipt or the note. The
+        origin is explicit and the source is a specific record. Refused when the
+        amount exceeds the source's refundable balance, when the note is not
+        issued (no tax effect exists yet), when the source is another
+        customer's, or when the bank is missing/inactive/another tenant's. No
+        VAT is posted or altered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefundCustomerInput" }
+      responses:
+        "201":
+          description: The refund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerRefund" }
+        "400":
+          description: Missing reason, non-positive amount, or malformed origin/source
+        "409":
+          description: "`credit_note_not_issued`; an idempotency key reused for a different refund"
+        "422":
+          description: "`refund_exceeds_balance`, `refund_source_mismatch`, `reference_not_found`, `bank_account_required`, `bank_account_inactive`"
+
+  /payments/refunds/{id}:
+    get:
+      operationId: getRefund
+      tags: [payments]
+      summary: One refund
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The refund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerRefund" }
+        "404":
+          description: Not found
+
+  /payments/allocations/{id}:
+    get:
+      operationId: getAllocation
+      tags: [payments]
+      summary: "Phase A — one allocation with its correction, if any"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The allocation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentAllocationDetail" }
+        "404":
+          description: Not found
+
+  /payments/allocations/{id}/unallocate:
+    post:
+      operationId: unallocate
+      tags: [payments]
+      summary: "Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnallocateInput" }
+      responses:
+        "200":
+          description: The allocation, now reversed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentAllocationDetail" }
+        "400":
+          description: Missing reason
+        "404":
+          description: Not found
+        "409":
+          description: "`allocation_already_corrected` (one correction per allocation — concurrent attempts get this); `credit_note_original_application_immutable`"
+        "422":
+          description: "`customer_required_for_unapplied`"
+        "423":
+          description: "`period_closed` — corrections are dated today; a closed current month refuses"
+
+  /payments/matching:
+    get:
+      operationId: classifyStatementRows
+      tags: [payments]
+      summary: "Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read."
+      parameters:
+        - { in: query, name: bank_account_id, required: false, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string } }
+        - { in: query, name: date_to, required: false, schema: { type: string } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+      responses:
+        "200":
+          description: One classification per statement row
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StatementRowClassification" }
+
+  /payments/matching/apply:
+    post:
+      operationId: applyDeterministicMatches
+      tags: [payments]
+      summary: "Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted."
+      parameters:
+        - { in: query, name: bank_account_id, required: false, schema: { type: integer } }
+        - { in: query, name: date_from, required: false, schema: { type: string } }
+        - { in: query, name: date_to, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: What was recorded and what remains for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchingApplyResult" }
+        "409":
+          description: A row or counterpart was matched concurrently — re-run
+
+  /payments/matching/override:
+    post:
+      operationId: overrideMatch
+      tags: [payments]
+      summary: "Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MatchOverrideInput" }
+      responses:
+        "201":
+          description: The match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "400":
+          description: Missing reason, or not exactly one counterpart
+        "409":
+          description: The row or the counterpart already has an active match; the row was settled; the receipt was created from another row
+        "422":
+          description: "`match_bank_mismatch`, `match_direction_mismatch`, `reference_not_found`, `bank_account_required`"
+
+  /payments/matching/{id}:
+    get:
+      operationId: getMatch
+      tags: [payments]
+      summary: One match with its reversal, if any
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "404":
+          description: Not found
+
+  /payments/matching/{id}/unmatch:
+    post:
+      operationId: unmatch
+      tags: [payments]
+      summary: "Phase D — supersede a match with a reversal record; the match row stays visible"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnmatchInput" }
+      responses:
+        "200":
+          description: The match, now reversed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementMatch" }
+        "404":
+          description: Not found
+        "409":
+          description: "`match_already_reversed`"
+
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      summary: One payment with its allocations
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "404":
+          description: Not found
+
+  /payments/{id}/allocate:
+    post:
+      operationId: allocatePayment
+      tags: [payments]
+      summary: "D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AllocatePaymentInput" }
+      responses:
+        "200":
+          description: The payment after the allocation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "404":
+          description: Not found
+        "409":
+          description: Beyond an invoice's outstanding, already allocated to one of these invoices, or not a receipt
+        "422":
+          description: "`allocation_exceeds_payment`, `allocation_party_mismatch`, `reference_not_found`"
+
+  /payments/credit-notes/{id}/apply:
+    post:
+      operationId: applyCreditNote
+      tags: [payments]
+      summary: "D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The credit note" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplyCreditNoteInput" }
+      responses:
+        "200":
+          description: The note's applications after this one
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditNoteApplications" }
+        "409":
+          description: Not a credit note, not issued, already applied to one of these invoices, or an allocation beyond an invoice's outstanding
+        "422":
+          description: "`allocation_exceeds_credit`, `allocation_party_mismatch`, `credit_note_no_customer`, `reference_not_found`"
+
+  /payments/credit-notes/{id}/applications:
+    get:
+      operationId: listCreditNoteApplications
+      tags: [payments]
+      summary: "D-4 — a credit note's applications and remaining balance"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Applications, oldest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditNoteApplications" }
+        "404":
+          description: Not a credit note
+
+  # ── Batch 1C — migration of an existing business (2026-09-18) ──────────────
+  # Decision record: docs/product/batch-1c-migration-opening-balances-decision-pack.md §15.
+  # Admin-only throughout (pack §D-1 §11). A batch is staged, validated,
+  # committed in ONE transaction, and immutable afterwards.
+  /migration/batches:
+    get:
+      operationId: listMigrationBatches
+      tags: [migration]
+      summary: "Batch 1C — this company's migration batches, newest first"
+      responses:
+        "200":
+          description: Batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MigrationBatch" }
+    post:
+      operationId: createMigrationBatch
+      tags: [migration]
+      summary: "Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMigrationBatchInput" }
+      responses:
+        "201":
+          description: The draft batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "400":
+          description: Malformed date or missing source system
+        "409":
+          description: "`migration_already_committed` — this company already has a live migration; reverse it first"
+
+  /migration/batches/{id}:
+    get:
+      operationId: getMigrationBatch
+      tags: [migration]
+      summary: One batch with its staging counts, validation and reconciliation
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatchDetail" }
+        "404":
+          description: Not found
+    patch:
+      operationId: updateMigrationBatch
+      tags: [migration]
+      summary: "Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMigrationBatchInput" }
+      responses:
+        "200":
+          description: The batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "400":
+          description: Malformed VAT position
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/discard:
+    post:
+      operationId: discardMigrationBatch
+      tags: [migration]
+      summary: "Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The batch, now discarded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatch" }
+        "409":
+          description: "`migration_batch_immutable` — a committed batch cannot be discarded; reverse it"
+
+  /migration/batches/{id}/chart:
+    get:
+      operationId: getMigrationChart
+      tags: [migration]
+      summary: "The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Chart rows and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChart" }
+    put:
+      operationId: importMigrationChart
+      tags: [migration]
+      summary: "Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed."
+      description: >
+        Every row keeps the old code, name, type, parent and Dr/Cr balance verbatim.
+        A row's TYPE must be one of asset / liability / equity / income / expense as
+        the file states it — nothing is guessed from a name. Duplicate codes in one
+        file are refused. Replacing the chart resets every mapping decision.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationChartInput" }
+      responses:
+        "200":
+          description: The imported rows and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChart" }
+        "400":
+          description: Malformed rows (duplicate code, unknown type, negative balance, non-SAR)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/chart/{rowId}:
+    patch:
+      operationId: decideMigrationChartRow
+      tags: [migration]
+      summary: "Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)"
+      description: >
+        Refused: mapping to the non-posting CASH header;
+        map_to_bank to a bank that is not this company's or is inactive; merge_into a
+        system account or a header; skip with a non-zero balance; a receivable/payable
+        role hint mapped anywhere but AR/AP; a group row with its own balance.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: rowId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MigrationChartDecisionInput" }
+      responses:
+        "200":
+          description: The row with its decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationChartRow" }
+        "404":
+          description: Row not in this batch
+        "409":
+          description: "`migration_batch_immutable`"
+        "422":
+          description: "`mapping_target_refused`, `skip_requires_zero_balance`, `reference_not_found`"
+
+  # ── Batch 1C Phase 2 — parties, open items, advances, the opening position, validation ──
+  /migration/batches/{id}/parties:
+    get:
+      operationId: getMigrationParties
+      tags: [migration]
+      summary: "The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Parties and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParties" }
+    put:
+      operationId: importMigrationParties
+      tags: [migration]
+      summary: "Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed."
+      description: >
+        Every party keeps its source id — the identity every open item and
+        advance refers to. Import sets `create` where no existing record looks
+        like the party; where one does (same VAT number, or the same name) the
+        decision is left EMPTY and blocks validation until the operator chooses
+        create or use_existing. Replacing the parties resets every decision;
+        open items and advances that name a party no longer staged are reported
+        as problems, not deleted.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationPartiesInput" }
+      responses:
+        "200":
+          description: The imported parties and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParties" }
+        "400":
+          description: Malformed rows (duplicate source id, unknown party type, blank name)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/parties/{rowId}:
+    patch:
+      operationId: decideMigrationParty
+      tags: [migration]
+      summary: "Decide one staged party: create a new record, or use an existing customer / supplier of this organisation"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: rowId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MigrationPartyDecisionInput" }
+      responses:
+        "200":
+          description: The party with its decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationParty" }
+        "404":
+          description: Row not in this batch
+        "409":
+          description: "`migration_batch_immutable`"
+        "422":
+          description: "`reference_not_found` (the existing record is not this organisation's, or is of the other party type), `party_already_used` (another staged party already uses it)"
+
+  /migration/batches/{id}/open-items:
+    get:
+      operationId: getMigrationOpenItems
+      tags: [migration]
+      summary: "The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Open items and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpenItems" }
+    put:
+      operationId: importMigrationOpenItems
+      tags: [migration]
+      summary: "Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1)."
+      description: >
+        One row per open document of the previous system: its original number,
+        issue date, due date, original amount, the amount still outstanding at
+        cut-off, and the party's source id. Where the old system tracked only
+        a balance for a party, ONE row with `compositionUnknown: true` carries
+        that balance — invoice-level history is never fabricated. Historical VAT
+        facts (rate, amount, the return period they were reported in) are kept
+        as data for reconciliation and for the future Art. 40(10)–(11) engine;
+        nothing here posts VAT.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationOpenItemsInput" }
+      responses:
+        "200":
+          description: The imported items and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpenItems" }
+        "400":
+          description: Malformed rows (duplicate source id, unknown item type, bad dates, outstanding > original, non-positive amounts, non-SAR)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/advances:
+    get:
+      operationId: getMigrationAdvances
+      tags: [migration]
+      summary: "The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Advances and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAdvances" }
+    put:
+      operationId: importMigrationAdvances
+      tags: [migration]
+      summary: "Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D)."
+      description: >
+        `vatPosition: invoiced` requires the old advance tax invoice's number and
+        date and the VAT category and rate it was taxed at — a later invoice
+        adjusts through PrepaidAmount by reference to them. `unknown` records the
+        cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever
+        computed for it until an accountant classifies it). The bank the money
+        arrived in is named by the old chart's code: the advance's cash is
+        INSIDE that bank's opening balance and posts no cash line of its own.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationAdvancesInput" }
+      responses:
+        "200":
+          description: The imported advances and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAdvances" }
+        "400":
+          description: Malformed rows (duplicate source id, non-positive amount, invoiced without its reference, VAT amount above the advance)
+        "409":
+          description: "`migration_batch_immutable`"
+
+  /migration/batches/{id}/opening-position:
+    get:
+      operationId: getMigrationOpeningPosition
+      tags: [migration]
+      summary: "The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The opening position
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationOpeningPosition" }
+
+  /migration/batches/{id}/validate:
+    post:
+      operationId: validateMigrationBatch
+      tags: [migration]
+      summary: "Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded."
+      description: >
+        The checks anticipate the reconciliation gates of pack §15.6 on the
+        STAGED content (the gates themselves run against the posted journal at
+        commit): the chart is fully mapped and balances; AR and AP control
+        balances equal the open-item subledgers, per party and in total (R2,
+        R3); every bank row lands on a D-3 leaf with statement evidence and
+        agrees with the bank's typed opening balance where one was typed (R4);
+        the VAT balances equal the last filed return's closing position as
+        supplied (R9); customer deposits equal the staged advances and each
+        carries its VAT position (R10); every party is decided; no opening item
+        collides with an existing document number; the fiscal year is declared
+        and the P&L rows are consistent with the cutover's place in it (A2).
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The validation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationValidation" }
+        "409":
+          description: "`migration_batch_immutable`, `migration_batch_discarded`"
+
+  # ── Batch 1C Phase 3 — commit, reversal. (No OBE clearing exists: an unbalanced position is refused — accountant A5, 2026-09-20.) ──
+  /migration/batches/{id}/commit:
+    post:
+      operationId: commitMigrationBatch
+      tags: [migration]
+      summary: "COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The committed batch with its reconciliation (R1–R10)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationBatchDetail" }
+        "409":
+          description: "`migration_not_validated`, `migration_content_changed` (validate again), `migration_validation_failed`, `migration_unbalanced` (the position does not balance on named accounts — classify the difference), `migration_already_committed`, `migration_reconciliation_failed` (nothing committed), `migration_batch_reversed`, `migration_batch_discarded`"
+        "422":
+          description: "`source_identity_conflict` — an existing record chosen for use_existing already represents another source party"
+        "423":
+          description: "`period_locked` — the opening month is closed"
+
+  /migration/batches/{id}/reversal-preview:
+    get:
+      operationId: getMigrationReversalPreview
+      tags: [migration]
+      summary: "What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationReversalPreview" }
+        "409":
+          description: "`migration_not_committed`"
+
+  /migration/batches/{id}/reverse:
+    post:
+      operationId: reverseMigrationBatch
+      tags: [migration]
+      summary: "REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseMigrationBatchInput" }
+      responses:
+        "200":
+          description: The reversed batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationReversed" }
+        "409":
+          description: "`migration_not_committed`"
+        "422":
+          description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
 
   /invoices/{id}/pay:
     post:
@@ -4160,6 +4968,23 @@ components:
             or liability means UNCLASSIFIED and is surfaced as such, never
             silently treated as current. Always NULL on income/expense/equity
             accounts, where the distinction is meaningless.
+        parentId:
+          type: ["integer", "null"]
+          description: >
+            D-3: the header this account sits under. Only bank GL leaves carry
+            one today (their parent is "Cash and Bank"); every other account
+            is null. Not a general chart hierarchy.
+        bankAccountId:
+          type: ["integer", "null"]
+          description: >
+            D-3: set on a bank's own GL cash account — the explicit,
+            rename-proof relationship to the application bank account.
+        isPosting:
+          type: boolean
+          description: >
+            D-3: false on a HEADER account ("Cash and Bank"), which accepts no
+            postings — a cash line names a bank account and posts to that
+            bank's leaf. Pickers exclude non-posting accounts.
         description:
           type: ["string", "null"]
 
@@ -4403,7 +5228,7 @@ components:
         id: { type: integer }
         date: { type: ["string", "null"] }
         reason: { type: string }
-        code: { type: string, enum: [period_closed] }
+        code: { type: string, enum: [period_closed, bank_account_required] }
         period: { type: ["string", "null"], description: "YYYY-MM — the closed month" }
         lockedAt: { type: ["string", "null"], description: "YYYY-MM-DD — when it was closed" }
 
@@ -4468,12 +5293,29 @@ components:
           maxLength: 1000
         source:
           type: ["string", "null"]
+        bankAccountId:
+          description: >
+            D-3: the bank account this movement belongs to. REQUIRED on
+            `POST /transactions` (a single manual row is accepted and posted on
+            creation, and its cash leg posts to this bank's GL account — a row
+            without one is refused with 422 `bank_account_required`). Ignored
+            on upload rows, where the statement's `bankAccountId` applies.
+          type: ["integer", "null"]
 
     TransactionUpdate:
       type: object
       properties:
         categoryId:
           type: ["integer", "null"]
+        bankAccountId:
+          description: >
+            D-3: record WHICH bank account the row belongs to. Settable only
+            while the row has none (a bank is a fact about the movement, not a
+            classification to revise); a posted row whose history still sits
+            on the "Cash and Bank" header is left for the cut-over to remap,
+            a row already posted to a bank's GL account is reversed and
+            re-posted to the named bank.
+          type: integer
         # Same bounds as TransactionCreate — the two paths must not disagree
         # about the invariant (audit 2026-08-20, MED). The invariant itself
         # lives in a DB CHECK (migration 0056); these bounds are the contract
@@ -4524,7 +5366,7 @@ components:
 
     TransactionUpload:
       type: object
-      required: [rows]
+      required: [rows, bankAccountId]
       properties:
         rows:
           type: array
@@ -4537,7 +5379,10 @@ components:
             M16.2 — which bank account this statement belongs to. Scopes
             duplicate detection to the account and is the foundation for
             transfer-leg pairing. Validated against the tenant's own accounts.
-          type: ["integer", "null"]
+            🔴 REQUIRED since D-3 (2026-09-16): an accepted row's cash leg
+            posts to this bank's own GL account, and a row with no bank cannot
+            be accepted. A missing id is a 422 `bank_account_required`.
+          type: integer
 
     UploadResult:
       type: object
@@ -4886,6 +5731,10 @@ components:
           type: integer
         billNumber:
           type: string
+        isOpening: { type: boolean, description: "Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening)." }
+        reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt)." }
+        reversedByMigrationBatchId: { type: ["integer", "null"] }
+        replacesBillId: { type: ["integer", "null"], description: "Policy C: the reversed opening bill this replacement item stands in for (provenance)." }
         vendorReference:
           type: ["string", "null"]
         date:
@@ -5589,12 +6438,16 @@ components:
 
     Invoice:
       type: object
-      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
       properties:
         id:
           type: integer
         invoiceNumber:
           type: string
+        isOpening: { type: boolean, description: "Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system's for a first migration, or OPEN-<batch>-<seq> for a replacement." }
+        reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise." }
+        reversedByMigrationBatchId: { type: ["integer", "null"] }
+        replacesInvoiceId: { type: ["integer", "null"], description: "Policy C: the reversed opening invoice this replacement item stands in for (provenance)." }
         date:
           type: string
         dueDate:
@@ -5618,6 +6471,9 @@ components:
           type: ["string", "null"]
         paidAmount:
           type: number
+        creditedAmount:
+          type: number
+          description: "D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount."
         paidAt:
           type: ["string", "null"]
         reviewNote:
@@ -5952,9 +6808,12 @@ components:
         count: { type: integer }
 
     CustomerLedgerInvoice:
-      description: A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+      description: >-
+        A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it.
+        `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit
+        note (its unapplied remainder is a liability in the customer's `position.creditBalance`, never a negative receivable).
       type: object
-      required: [id, invoiceNumber, date, dueDate, documentType, status, total, paidAmount, outstanding, vatAmount, subtotal]
+      required: [id, invoiceNumber, date, dueDate, documentType, status, total, paidAmount, creditedAmount, outstanding, vatAmount, subtotal]
       properties:
         id: { type: integer }
         invoiceNumber: { type: string }
@@ -5964,13 +6823,14 @@ components:
         status: { type: string }
         total: { type: number }
         paidAmount: { type: number }
-        outstanding: { type: number }
+        creditedAmount: { type: number }
+        outstanding: { type: number, minimum: 0 }
         vatAmount: { type: number }
         subtotal: { type: number }
 
     CustomerLedgerCustomer:
       type: object
-      required: [customerName, invoices, totalInvoiced, totalPaid, balance]
+      required: [customerName, invoices, totalInvoiced, totalPaid, balance, position]
       properties:
         customerId: { type: ["integer", "null"] }
         customerName: { type: string }
@@ -5980,16 +6840,24 @@ components:
           items: { $ref: "#/components/schemas/CustomerLedgerInvoice" }
         totalInvoiced: { type: number }
         totalPaid: { type: number }
-        balance: { type: number }
+        balance: { type: number, minimum: 0, description: Σ outstanding over the LISTED documents — the receivable within the window. }
+        position:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The customer's CURRENT position (whole history, not the window).
 
     CustomerLedgerReport:
       type: object
-      required: [customers, totalBalance]
+      required: [customers, totalBalance, totalReceivable, totalCreditBalance, totalDepositBalance, totalNetPosition]
       properties:
         customers:
           type: array
           items: { $ref: "#/components/schemas/CustomerLedgerCustomer" }
-        totalBalance: { type: number }
+        totalBalance: { type: number, description: Σ balance over the listed customers (window receivable). }
+        totalReceivable: { type: number, description: Σ current receivable over the listed customers. }
+        totalCreditBalance: { type: number }
+        totalDepositBalance: { type: number }
+        totalNetPosition: { type: number }
 
     OwnerEquityReport:
       type: object
@@ -6042,11 +6910,21 @@ components:
         daysPastDue: { type: integer }
 
     ArAgingReport:
+      description: >-
+        Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is
+        shown beside them, never folded into a bucket, and the net is derived.
       type: object
-      required: [buckets, total, items]
+      required: [buckets, total, liabilities, netCustomerPosition, items]
       properties:
         buckets: { $ref: "#/components/schemas/AgingBuckets" }
-        total: { type: number }
+        total: { type: number, minimum: 0 }
+        liabilities:
+          type: object
+          required: [customerCredits, customerDeposits]
+          properties:
+            customerCredits: { type: number, minimum: 0, description: Σ unapplied credit-note balances (GL Customer credit balances). }
+            customerDeposits: { type: number, minimum: 0, description: Σ unapplied receipts (GL Customer deposits). }
+        netCustomerPosition: { type: number, description: total − customerCredits − customerDeposits. }
         items:
           type: array
           items: { $ref: "#/components/schemas/ArAgingItem" }
@@ -6187,10 +7065,88 @@ components:
         isActive: { type: boolean }
         createdAt: { type: string }
 
+    CustomerPosition:
+      description: >-
+        Phase E — a customer's position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net.
+        `receivable` (Accounts Receivable) is Σ over issued invoices/debit notes of total − paid − credited; `creditBalance` (Customer Credits)
+        is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active
+        allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative:
+        we owe the customer). A liability is never expressed as a negative receivable.
+      type: object
+      required: [receivable, creditBalance, depositBalance, netPosition]
+      properties:
+        receivable: { type: number, minimum: 0 }
+        creditBalance: { type: number, minimum: 0 }
+        depositBalance: { type: number, minimum: 0 }
+        netPosition: { type: number }
+
+    CustomerTotals:
+      description: "`balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it."
+      allOf:
+        - { $ref: "#/components/schemas/PartyTotals" }
+        - { $ref: "#/components/schemas/CustomerPosition" }
+
     CustomerWithBalance:
+      description: "`balance` IS `netPosition` (see CustomerPosition)."
       allOf:
         - { $ref: "#/components/schemas/Customer" }
         - { $ref: "#/components/schemas/PartyTotals" }
+        - { $ref: "#/components/schemas/CustomerPosition" }
+
+    CustomerStatementLine:
+      type: object
+      required: [seq, date, kind, documentNumber, reference, description, amount, receivableDelta, creditDelta, depositDelta,
+                 receivable, creditBalance, depositBalance, netPosition, invoiceId, paymentId, creditNoteId, allocationId, refundId, journalEntryId]
+      properties:
+        seq: { type: integer }
+        date: { type: string }
+        kind: { type: string, enum: [invoice, debit_note, credit_note, receipt, allocation, credit_application, unallocation, refund] }
+        documentNumber: { type: string }
+        reference: { type: ["string", "null"] }
+        description: { type: string }
+        amount: { type: number }
+        receivableDelta: { type: number }
+        creditDelta: { type: number }
+        depositDelta: { type: number }
+        receivable: { type: number, description: Running Accounts Receivable after this line }
+        creditBalance: { type: number, description: Running Customer Credits after this line }
+        depositBalance: { type: number, description: Running Customer Deposits after this line }
+        netPosition: { type: number, description: Derived — receivable − creditBalance − depositBalance }
+        invoiceId: { type: ["integer", "null"] }
+        paymentId: { type: ["integer", "null"] }
+        creditNoteId: { type: ["integer", "null"] }
+        allocationId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        journalEntryId: { type: ["integer", "null"] }
+
+    CustomerStatement:
+      type: object
+      required: [customerId, customerName, customerNameAr, period, opening, lines, closing, current, subledger, reconciled, eventCount]
+      properties:
+        customerId: { type: integer }
+        customerName: { type: string }
+        customerNameAr: { type: ["string", "null"] }
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: ["string", "null"] }
+            to: { type: ["string", "null"] }
+        opening: { $ref: "#/components/schemas/CustomerPosition" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerStatementLine" }
+        closing: { $ref: "#/components/schemas/CustomerPosition" }
+        current:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The position after EVERY event, ignoring the window — what the events say the customer's position is today.
+        subledger:
+          allOf:
+            - { $ref: "#/components/schemas/CustomerPosition" }
+          description: The same position read from the subledger caches and active-allocation sets.
+        reconciled: { type: boolean, description: "`current` equals `subledger` on all three components (to the halala)." }
+        eventCount: { type: integer }
 
     CustomerDetail:
       allOf:
@@ -6375,25 +7331,303 @@ components:
 
     Payment:
       type: object
-      required: [id, amount, paidAt, backfilled]
+      required: [id, amount, paidAt, backfilled, paymentId]
       properties:
-        id: { type: integer }
+        id: { type: integer, description: "The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`." }
         amount: { type: number }
         paidAt: { type: string }
         backfilled:
           type: boolean
           description: An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.
+        paymentId:
+          type: ["integer", "null"]
+          description: "D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row."
+
+    PaymentAllocationInput:
+      type: object
+      required: [invoiceId, amount]
+      properties:
+        invoiceId: { type: integer }
+        amount: { type: number, exclusiveMinimum: 0 }
+
+    ReceivePaymentInput:
+      type: object
+      required: [amount, bankAccountId]
+      properties:
+        customerId:
+          type: ["integer", "null"]
+          description: The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
+        amount: { type: number, exclusiveMinimum: 0 }
+        paidAt: { type: string, description: "YYYY-MM-DD; defaults to today (business date)." }
+        bankAccountId: { type: integer, description: "D-3 — which bank account the money arrived in; the cash line posts to its own GL account." }
+        method: { type: ["string", "null"], maxLength: 40 }
+        reference: { type: ["string", "null"], maxLength: 200 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120, description: Unique per company. The same key twice returns the first payment. }
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+          description: Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account.
+
+    AllocatePaymentInput:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    ApplyCreditNoteInput:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PaymentAllocationInput" }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    AllocationReversal:
+      type: object
+      required: [id, journalEntryId, reason, createdAt]
+      properties:
+        id: { type: integer }
+        journalEntryId: { type: integer, description: "The correcting entry (UNALLOC-<id>): Dr AR / Cr the origin's liability." }
+        reason: { type: string }
+        createdAt: { type: string }
+
+    PaymentAllocation:
+      type: object
+      required: [id, invoiceId, amount, journalEntryId, createdAt, reversedBy]
+      properties:
+        id: { type: integer }
+        invoiceId: { type: integer }
+        amount: { type: number }
+        journalEntryId: { type: ["integer", "null"], description: "Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt's entry." }
+        createdAt: { type: string }
+        reversedBy:
+          oneOf:
+            - { $ref: "#/components/schemas/AllocationReversal" }
+            - { type: "null" }
+          description: "Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited."
+
+    PaymentAllocationDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PaymentAllocation" }
+        - type: object
+          required: [paymentId, creditNoteId]
+          properties:
+            paymentId: { type: ["integer", "null"] }
+            creditNoteId: { type: ["integer", "null"] }
+
+    UnallocateInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    RefundCustomerInput:
+      type: object
+      required: [customerId, origin, amount, bankAccountId, reason]
+      properties:
+        customerId: { type: integer }
+        origin: { type: string, enum: [deposit, credit_note] }
+        paymentId: { type: ["integer", "null"], description: "Required when origin is deposit: the receipt whose unapplied remainder is returned." }
+        creditNoteId: { type: ["integer", "null"], description: "Required when origin is credit_note: the issued note whose unconsumed balance is returned." }
+        amount: { type: number, exclusiveMinimum: 0 }
+        bankAccountId: { type: integer, description: "D-3 — the bank the refund is paid from." }
+        refundedAt: { type: string, description: "YYYY-MM-DD; defaults to today (business date). Period-controlled." }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        reference: { type: ["string", "null"], maxLength: 200 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    CustomerRefund:
+      type: object
+      required: [id, customerId, bankAccountId, origin, paymentId, creditNoteId, amount, refundedAt, reason, reference, journalEntryId, idempotencyKey, createdAt]
+      properties:
+        id: { type: integer }
+        customerId: { type: integer }
+        bankAccountId: { type: integer }
+        origin: { type: string, enum: [deposit, credit_note] }
+        paymentId: { type: ["integer", "null"] }
+        creditNoteId: { type: ["integer", "null"] }
+        amount: { type: number }
+        refundedAt: { type: string }
+        reason: { type: string }
+        reference: { type: ["string", "null"] }
+        journalEntryId: { type: integer }
+        idempotencyKey: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    CustomerPayment:
+      type: object
+      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, createdAt]
+      properties:
+        id: { type: integer }
+        direction: { type: string, enum: [in, out] }
+        customerId: { type: ["integer", "null"] }
+        bankAccountId: { type: integer }
+        amount: { type: number }
+        paidAt: { type: string }
+        method: { type: ["string", "null"] }
+        reference: { type: ["string", "null"] }
+        source: { type: string, enum: [manual, invoice_pay, settlement] }
+        idempotencyKey: { type: ["string", "null"] }
+        journalEntryId: { type: integer }
+        sourceTransactionId: { type: ["integer", "null"] }
+        allocatedAmount: { type: number, description: "Σ ACTIVE allocations (a corrected allocation no longer counts)." }
+        refundedAmount: { type: number, description: "Phase C — Σ deposit refunds paid out of this receipt." }
+        unappliedAmount: { type: number, description: "The customer's deposit still held from this receipt (amount − allocated − refunded)." }
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocation" }
+        createdAt: { type: string }
+
+    CreditNoteApplications:
+      type: object
+      required: [creditNoteId, invoiceNumber, total, appliedAmount, refundedAmount, remainingAmount, applications]
+      properties:
+        creditNoteId: { type: integer }
+        invoiceNumber: { type: string }
+        total: { type: number }
+        appliedAmount: { type: number, description: "Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected." }
+        refundedAmount: { type: number, description: "Phase C — Σ refunds paid out of this note's balance." }
+        remainingAmount: { type: number, description: "The customer's credit-note balance from this note (a liability, not AR): total − applied − refunded." }
+        applications:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAllocation" }
+
+    MatchCandidate:
+      type: object
+      required: [kind, id, amount, date, reference, identifiedBy]
+      properties:
+        kind: { type: string, enum: [payment, refund] }
+        id: { type: integer }
+        amount: { type: number }
+        date: { type: string }
+        reference: { type: ["string", "null"] }
+        identifiedBy: { type: ["string", "null"], description: "The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null." }
+
+    StatementMatch:
+      type: object
+      required: [id, transactionId, paymentId, refundId, method, evidence, reason, createdBy, createdAt, reversedBy]
+      properties:
+        id: { type: integer }
+        transactionId: { type: integer }
+        paymentId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        method: { type: string, enum: [deterministic, manual, settlement] }
+        evidence: { description: What was seen when the match was made. }
+        reason: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        reversedBy:
+          oneOf:
+            - type: object
+              required: [id, reason, createdAt]
+              properties:
+                id: { type: integer }
+                reason: { type: string }
+                createdAt: { type: string }
+            - { type: "null" }
+
+    StatementRowClassification:
+      type: object
+      required: [transactionId, bankAccountId, direction, amount, date, description, classification, reason, target, candidates, match, window]
+      properties:
+        transactionId: { type: integer }
+        bankAccountId: { type: integer }
+        direction: { type: string, enum: [in, out] }
+        amount: { type: number }
+        date: { type: string }
+        description: { type: string }
+        classification: { type: string, enum: [MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT] }
+        reason: { type: string }
+        target:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchCandidate" }
+            - { type: "null" }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/MatchCandidate" }
+        match:
+          oneOf:
+            - { $ref: "#/components/schemas/StatementMatch" }
+            - { type: "null" }
+        window:
+          type: object
+          required: [from, to, days]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            days: { type: integer }
+
+    MatchingApplyResult:
+      type: object
+      required: [recorded, summary]
+      properties:
+        recorded:
+          type: array
+          items: { $ref: "#/components/schemas/StatementMatch" }
+        summary:
+          type: object
+          required: [deterministic, ambiguous, unmatched, inconsistent, matched]
+          properties:
+            deterministic: { type: integer }
+            ambiguous: { type: integer }
+            unmatched: { type: integer }
+            inconsistent: { type: integer }
+            matched: { type: integer }
+
+    MatchOverrideInput:
+      type: object
+      required: [transactionId, reason]
+      properties:
+        transactionId: { type: integer }
+        paymentId: { type: ["integer", "null"] }
+        refundId: { type: ["integer", "null"] }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    UnmatchInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500 }
+
+    CustomerCredits:
+      type: object
+      required: [customerId, deposits, creditNotes]
+      properties:
+        customerId: { type: integer }
+        deposits: { type: number, description: "Σ unapplied over the customer's receipts — Customer deposits and advances." }
+        creditNotes: { type: number, description: "Σ unconsumed over the customer's issued credit notes — Customer credit balances." }
 
     PaymentInput:
       type: object
-      required: [amount]
+      required: [amount, bankAccountId]
       properties:
         amount:
           type: number
           exclusiveMinimum: 0
+        idempotencyKey:
+          type: ["string", "null"]
+          maxLength: 120
+          description: D-4 — unique per company; the same key twice records one payment.
         paidAt:
           type: string
           description: YYYY-MM-DD; defaults to today.
+        bankAccountId:
+          type: integer
+          description: >
+            D-3 (2026-09-16): WHICH bank account the money moved through. The
+            payment posts to that bank's own GL cash account — there is no
+            shared cash account and no default. Validated against the
+            tenant's own accounts; a missing or unknown id is a 422
+            (`bank_account_required` / `reference_not_found`). Recorded on
+            the payment row as its bank evidence.
 
     InvoiceLineInput:
       type: object
@@ -6931,3 +8165,650 @@ components:
         categoryId: { type: ["integer", "null"] }
         budgetedAmount: { type: number, minimum: 0 }
         notes: { type: ["string", "null"] }
+
+    # ── Batch 1C — migration ─────────────────────────────────────────────────
+    CreateMigrationBatchInput:
+      type: object
+      required: [sourceSystem, cutoverDate]
+      properties:
+        sourceSystem: { type: string, minLength: 1, maxLength: 80, description: "The previous system, as named by the operator (\"PreviousERP\", \"Excel\", \"Qoyod export\")." }
+        sourceVersion: { type: ["string", "null"], maxLength: 80 }
+        cutoverDate: { type: string, description: "YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen." }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    MigrationBatch:
+      type: object
+      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, replacesBatchId, periodLockId, contentHash, openingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        replacesBatchId: { type: ["integer", "null"], description: "Policy C: the REVERSED batch this one replaces — set automatically at creation when the company's most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration." }
+        status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
+        sourceSystem: { type: string }
+        sourceVersion: { type: ["string", "null"] }
+        cutoverDate: { type: string }
+        openingDate: { type: string, description: "cutover − 1 by definition." }
+        notes: { type: ["string", "null"] }
+        vatPosition:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationVatPosition" }
+            - { type: "null" }
+        periodLockId: { type: ["integer", "null"], description: "The lock the commit placed on the opening month; lifted by the reversal." }
+        contentHash: { type: ["string", "null"], description: "SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved." }
+        openingJournalEntryId: { type: ["integer", "null"] }
+        reversalJournalEntryId: { type: ["integer", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        validatedAt: { type: ["string", "null"] }
+        committedBy: { type: ["integer", "null"] }
+        committedAt: { type: ["string", "null"] }
+        reversedAt: { type: ["string", "null"] }
+        reversalReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    MigrationBatchDetail:
+      allOf:
+        - { $ref: "#/components/schemas/MigrationBatch" }
+        - type: object
+          required: [counts, validation, reconciliation]
+          properties:
+            counts:
+              type: object
+              required: [chartRows, chartRowsUnmapped, parties, openItems, advances]
+              properties:
+                chartRows: { type: integer }
+                chartRowsUnmapped: { type: integer }
+                parties: { type: integer }
+                openItems: { type: integer }
+                advances: { type: integer }
+            validation:
+              description: "The last validation run, or null."
+              oneOf:
+                - { $ref: "#/components/schemas/MigrationValidationRecord" }
+                - { type: "null" }
+            reconciliation:
+              description: "R1–R10 as computed at commit, or null."
+              oneOf:
+                - { $ref: "#/components/schemas/MigrationReconciliationRecord" }
+                - { type: "null" }
+
+    MigrationValidationRecord:
+      type: object
+      description: "The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape)."
+      required: [ok, checks]
+      properties:
+        ok: { type: boolean }
+        checks: { type: array, items: { $ref: "#/components/schemas/MigrationControlCheck" } }
+        totals: { type: object, description: "The opening-position totals at that run (debit, credit, difference, ytd…).", additionalProperties: { type: ["number", "boolean"] } }
+        at: { type: string, format: date-time }
+
+    MigrationReconciliationRecord:
+      type: object
+      description: "R1–R10 as the commit computed them on the posted ledger, stored on the batch."
+      required: [checks]
+      properties:
+        at: { type: string, format: date-time }
+        journalEntryId: { type: integer }
+        checks: { type: array, items: { $ref: "#/components/schemas/MigrationControlCheck" } }
+        figures: { type: object, additionalProperties: { type: number } }
+
+    MigrationChartRowInput:
+      type: object
+      required: [sourceCode, sourceName, sourceType]
+      properties:
+        sourceCode: { type: string, minLength: 1, maxLength: 64 }
+        sourceName: { type: string, minLength: 1, maxLength: 200 }
+        sourceNameAr: { type: ["string", "null"], maxLength: 200 }
+        sourceParentCode: { type: ["string", "null"], maxLength: 64 }
+        sourceType: { type: string, enum: [asset, liability, equity, income, expense], description: "As the file states it. Nothing is inferred from a name." }
+        sourceIsGroup: { type: boolean, default: false }
+        openingDebit: { type: number, minimum: 0, default: 0 }
+        openingCredit: { type: number, minimum: 0, default: 0 }
+        sourceRole:
+          type: ["string", "null"]
+          enum: [receivable, payable, bank, cash, vat_output, vat_input, retained_earnings, customer_deposits, null]
+          description: "A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match."
+        evidenceNote: { type: ["string", "null"], maxLength: 500 }
+
+    ImportMigrationChartInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items: { $ref: "#/components/schemas/MigrationChartRowInput" }
+
+    MigrationChartRow:
+      type: object
+      required: [id, sourceCode, sourceName, sourceNameAr, sourceParentCode, sourceType, sourceIsGroup, openingDebit, openingCredit, sourceRole, evidenceNote, decision, targetSystemCode, targetBankAccountId, targetCategoryId, skipReason, resolvedCategoryId, suggestion, problems]
+      properties:
+        id: { type: integer }
+        sourceCode: { type: string }
+        sourceName: { type: string }
+        sourceNameAr: { type: ["string", "null"] }
+        sourceParentCode: { type: ["string", "null"] }
+        sourceType: { type: string }
+        sourceIsGroup: { type: boolean }
+        openingDebit: { type: number }
+        openingCredit: { type: number }
+        sourceRole: { type: ["string", "null"] }
+        evidenceNote: { type: ["string", "null"] }
+        decision: { type: ["string", "null"], enum: [map_to_system, map_to_bank, create, merge_into, skip, null] }
+        targetSystemCode: { type: ["string", "null"] }
+        targetBankAccountId: { type: ["integer", "null"] }
+        targetCategoryId: { type: ["integer", "null"] }
+        skipReason: { type: ["string", "null"] }
+        resolvedCategoryId: { type: ["integer", "null"], description: "After commit: the category the balance was posted to." }
+        suggestion:
+          description: "The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides."
+          oneOf:
+            - type: object
+              required: [decision, targetSystemCode]
+              properties:
+                decision: { type: string }
+                targetSystemCode: { type: ["string", "null"] }
+            - { type: "null" }
+        problems:
+          type: array
+          items: { type: string }
+          description: "What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…)."
+
+    MigrationChartDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [map_to_system, map_to_bank, create, merge_into, skip] }
+        targetSystemCode: { type: ["string", "null"], description: "map_to_system: a system account code. CASH (a header) is refused." }
+        targetBankAccountId: { type: ["integer", "null"], description: "map_to_bank: this company's bank account; the balance lands on its D-3 leaf." }
+        targetCategoryId: { type: ["integer", "null"], description: "merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional)." }
+        skipReason: { type: ["string", "null"], maxLength: 500, description: "skip: required; only a zero-balance row may be skipped." }
+
+    MigrationChart:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationChartRow" }
+        summary:
+          type: object
+          required: [rows, mapped, unmapped, blocked, totalDebit, totalCredit, balanced, byDecision]
+          properties:
+            rows: { type: integer }
+            mapped: { type: integer }
+            unmapped: { type: integer }
+            blocked: { type: integer, description: "Rows with at least one problem." }
+            totalDebit: { type: number }
+            totalCredit: { type: number }
+            balanced: { type: boolean, description: "Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented." }
+            byDecision:
+              type: object
+              additionalProperties: { type: integer }
+
+    # ── Batch 1C Phase 2 — parties, open items, advances, opening position, validation ──
+    MigrationVatPosition:
+      type: object
+      description: "The last VAT return filed from the previous system — its closing position, as supplied, with the return's reference (pack §15.6 R9)."
+      required: [returnReference, periodStart, periodEnd, outputVatPayable, inputVatReceivable]
+      properties:
+        returnReference: { type: string, minLength: 1, maxLength: 120, description: "The ZATCA return reference / acknowledgement number." }
+        periodStart: { type: string, description: "YYYY-MM-DD" }
+        periodEnd: { type: string, description: "YYYY-MM-DD — must not be after the opening date." }
+        outputVatPayable: { type: number, minimum: 0, description: "Output VAT still payable at cut-off (the VAT_OUTPUT balance)." }
+        inputVatReceivable: { type: number, minimum: 0, description: "Input VAT still recoverable at cut-off (the VAT_INPUT balance)." }
+        note: { type: ["string", "null"], maxLength: 500 }
+
+    UpdateMigrationBatchInput:
+      type: object
+      properties:
+        notes: { type: ["string", "null"], maxLength: 2000 }
+        sourceVersion: { type: ["string", "null"], maxLength: 80 }
+        vatPosition:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationVatPosition" }
+            - { type: "null" }
+
+    MigrationPartyInput:
+      type: object
+      required: [partyType, sourceId, name]
+      properties:
+        partyType: { type: string, enum: [customer, vendor] }
+        sourceId: { type: string, minLength: 1, maxLength: 120, description: "The old system's id for this party — the identity open items and advances refer to." }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        nameAr: { type: ["string", "null"], maxLength: 200 }
+        taxNumber: { type: ["string", "null"], maxLength: 40 }
+        crNumber: { type: ["string", "null"], maxLength: 40 }
+        phone: { type: ["string", "null"], maxLength: 40 }
+        email: { type: ["string", "null"], maxLength: 200 }
+        address: { type: ["string", "null"], maxLength: 500 }
+        city: { type: ["string", "null"], maxLength: 100 }
+
+    ImportMigrationPartiesInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 20000
+          items: { $ref: "#/components/schemas/MigrationPartyInput" }
+
+    MigrationPartyCandidate:
+      type: object
+      required: [id, name, taxNumber, reason]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        reason: { type: string, enum: [tax_number, name], description: "What matched — the operator decides; the platform never merges by itself." }
+
+    MigrationParty:
+      type: object
+      required: [id, partyType, sourceId, name, nameAr, taxNumber, crNumber, phone, email, address, city, decision, existingId, resolvedId, candidates, openItems, openTotal, advances, advanceTotal, problems]
+      properties:
+        id: { type: integer }
+        partyType: { type: string, enum: [customer, vendor] }
+        sourceId: { type: string }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        taxNumber: { type: ["string", "null"] }
+        crNumber: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        decision: { type: ["string", "null"], enum: [create, use_existing, null] }
+        existingId: { type: ["integer", "null"], description: "use_existing: the existing customer / vendor id." }
+        resolvedId: { type: ["integer", "null"], description: "After commit: the customer / vendor the party became." }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyCandidate" }
+        openItems: { type: integer, description: "Staged open items naming this party." }
+        openTotal: { type: number, description: "Σ outstanding of those items." }
+        advances: { type: integer }
+        advanceTotal: { type: number }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationPartyDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [create, use_existing] }
+        existingId: { type: ["integer", "null"], description: "use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation." }
+
+    MigrationParties:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationParty" }
+        summary:
+          type: object
+          required: [rows, customers, vendors, undecided, useExisting, blocked]
+          properties:
+            rows: { type: integer }
+            customers: { type: integer }
+            vendors: { type: integer }
+            undecided: { type: integer }
+            useExisting: { type: integer }
+            blocked: { type: integer }
+
+    MigrationHistoricalVat:
+      type: object
+      description: "The VAT facts of the historical document, as data. Never posted; never a VAT event here."
+      properties:
+        category: { type: ["string", "null"], maxLength: 8, description: "S / Z / E / O as the old system recorded it." }
+        rate: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        taxableAmount: { type: ["number", "null"], minimum: 0 }
+        amount: { type: ["number", "null"], minimum: 0 }
+        reportedPeriod: { type: ["string", "null"], maxLength: 40, description: "The return period the document's VAT was reported in by the old system." }
+        badDebtReliefClaimed: { type: ["boolean", "null"], description: "VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation." }
+
+    MigrationOpenItemInput:
+      type: object
+      required: [itemType, sourceId, partySourceId, documentNumber, issueDate, dueDate, originalAmount, outstandingAmount]
+      properties:
+        itemType: { type: string, enum: [ar, ap] }
+        sourceId: { type: string, minLength: 1, maxLength: 120 }
+        partySourceId: { type: string, minLength: 1, maxLength: 120, description: "A staged customer (ar) or vendor (ap) of this batch." }
+        documentNumber: { type: string, minLength: 1, maxLength: 80, description: "The original document number — kept verbatim; it becomes the opening item's number." }
+        issueDate: { type: string, description: "YYYY-MM-DD, on or before the opening date." }
+        dueDate: { type: string, description: "YYYY-MM-DD — drives ageing exactly as it did in the old system." }
+        originalAmount: { type: number, exclusiveMinimum: 0 }
+        outstandingAmount: { type: number, exclusiveMinimum: 0, description: "Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party." }
+        compositionUnknown: { type: boolean, default: false, description: "The one-row representation of a party whose old system tracked only a balance. At most one per party." }
+        historicalVat:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationHistoricalVat" }
+            - { type: "null" }
+        description: { type: ["string", "null"], maxLength: 500 }
+
+    ImportMigrationOpenItemsInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 50000
+          items: { $ref: "#/components/schemas/MigrationOpenItemInput" }
+
+    MigrationOpenItem:
+      type: object
+      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, ledgerDocumentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems]
+      properties:
+        id: { type: integer }
+        itemType: { type: string, enum: [ar, ap] }
+        sourceId: { type: string }
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"], description: "From the staged party, when it exists." }
+        documentNumber: { type: string, description: "The previous system's number, verbatim — provenance (Policy C). It is also the ledger number in a first migration." }
+        ledgerDocumentNumber: { type: ["string", "null"], description: "What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit." }
+        issueDate: { type: string }
+        dueDate: { type: string }
+        originalAmount: { type: number }
+        outstandingAmount: { type: number }
+        compositionUnknown: { type: boolean }
+        historicalVat:
+          oneOf:
+            - { $ref: "#/components/schemas/MigrationHistoricalVat" }
+            - { type: "null" }
+        description: { type: ["string", "null"] }
+        resolvedId: { type: ["integer", "null"], description: "After commit: the opening invoice (ar) or bill (ap) row." }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationSubledgerTotals:
+      type: object
+      required: [items, parties, total, compositionUnknown]
+      properties:
+        items: { type: integer }
+        parties: { type: integer }
+        total: { type: number }
+        compositionUnknown: { type: integer }
+
+    MigrationOpenItems:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationOpenItem" }
+        summary:
+          type: object
+          required: [rows, blocked, ar, ap]
+          properties:
+            rows: { type: integer }
+            blocked: { type: integer }
+            ar: { $ref: "#/components/schemas/MigrationSubledgerTotals" }
+            ap: { $ref: "#/components/schemas/MigrationSubledgerTotals" }
+
+    MigrationAdvanceInput:
+      type: object
+      required: [sourceId, partySourceId, bankSourceCode, amount, receivedAt, vatPosition]
+      properties:
+        sourceId: { type: string, minLength: 1, maxLength: 120 }
+        partySourceId: { type: string, minLength: 1, maxLength: 120, description: "A staged CUSTOMER of this batch." }
+        bankSourceCode: { type: string, minLength: 1, maxLength: 64, description: "The old chart's code of the bank the money arrived in — a chart row mapped to a bank." }
+        amount: { type: number, exclusiveMinimum: 0 }
+        receivedAt: { type: string, description: "YYYY-MM-DD, on or before the opening date." }
+        reference: { type: ["string", "null"], maxLength: 120 }
+        vatPosition: { type: string, enum: [invoiced, unknown] }
+        advanceInvoiceNumber: { type: ["string", "null"], maxLength: 80 }
+        advanceInvoiceDate: { type: ["string", "null"] }
+        advanceInvoiceTime: { type: ["string", "null"], maxLength: 16, description: "HH:MM:SS as the old invoice states it (KSA-25), when known." }
+        vatCategory: { type: ["string", "null"], maxLength: 8 }
+        vatRate: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        vatAmount: { type: ["number", "null"], minimum: 0 }
+
+    ImportMigrationAdvancesInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 20000
+          items: { $ref: "#/components/schemas/MigrationAdvanceInput" }
+
+    MigrationAdvance:
+      type: object
+      required: [id, sourceId, partySourceId, partyName, bankSourceCode, amount, receivedAt, reference, vatPosition, advanceInvoiceNumber, advanceInvoiceDate, advanceInvoiceTime, vatCategory, vatRate, vatAmount, resolvedPaymentId, problems]
+      properties:
+        id: { type: integer }
+        sourceId: { type: string }
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"] }
+        bankSourceCode: { type: string }
+        amount: { type: number }
+        receivedAt: { type: string }
+        reference: { type: ["string", "null"] }
+        vatPosition: { type: string, enum: [invoiced, unknown] }
+        advanceInvoiceNumber: { type: ["string", "null"] }
+        advanceInvoiceDate: { type: ["string", "null"] }
+        advanceInvoiceTime: { type: ["string", "null"] }
+        vatCategory: { type: ["string", "null"] }
+        vatRate: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        resolvedPaymentId: { type: ["integer", "null"] }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationAdvances:
+      type: object
+      required: [batchId, rows, summary]
+      properties:
+        batchId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationAdvance" }
+        summary:
+          type: object
+          required: [rows, blocked, total, customers, invoiced, unknown]
+          properties:
+            rows: { type: integer }
+            blocked: { type: integer }
+            total: { type: number }
+            customers: { type: integer }
+            invoiced: { type: integer }
+            unknown: { type: integer, description: "Advances whose VAT position is unknown — recorded at cash, fail closed downstream." }
+
+    MigrationOpeningLine:
+      type: object
+      description: "One target account of the opening position, with the source rows that land on it."
+      required: [target, targetKind, systemCode, categoryId, bankAccountId, accountName, type, debit, credit, balance, sourceCodes]
+      properties:
+        target: { type: string, description: "A stable key: system:AR, bank:12, category:345, create:<sourceCode>." }
+        targetKind: { type: string, enum: [system, bank, category, create] }
+        systemCode: { type: ["string", "null"] }
+        categoryId: { type: ["integer", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        accountName: { type: string }
+        type: { type: string, enum: [asset, liability, equity, income, expense] }
+        debit: { type: number }
+        credit: { type: number }
+        balance: { type: number, description: "debit − credit." }
+        sourceCodes:
+          type: array
+          items: { type: string }
+
+    MigrationPartyBalance:
+      type: object
+      required: [partySourceId, partyName, items, total]
+      properties:
+        partySourceId: { type: string }
+        partyName: { type: ["string", "null"] }
+        items: { type: integer }
+        total: { type: number }
+
+    MigrationBankOpening:
+      type: object
+      required: [bankAccountId, bankName, sourceCode, balance, typedOpeningBalance, leafCategoryId, evidenceNote, advancesInside]
+      properties:
+        bankAccountId: { type: integer }
+        bankName: { type: string }
+        sourceCode: { type: string }
+        balance: { type: number, description: "The old chart's closing balance for this bank (Dr − Cr)." }
+        typedOpeningBalance: { type: ["number", "null"], description: "bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2)." }
+        leafCategoryId: { type: ["integer", "null"] }
+        evidenceNote: { type: ["string", "null"] }
+        advancesInside: { type: number, description: "Σ staged advances naming this bank — inside the balance, no cash line of their own." }
+
+    MigrationControlCheck:
+      type: object
+      required: [id, title, status, expected, actual, detail]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [pass, fail, warn, skip] }
+        expected: { type: ["number", "string", "null"] }
+        actual: { type: ["number", "string", "null"] }
+        detail: { type: string }
+
+    MigrationOpeningPosition:
+      type: object
+      required: [batchId, openingDate, lines, totals, arByCustomer, apByVendor, depositsByCustomer, banks, controls]
+      properties:
+        batchId: { type: integer }
+        openingDate: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationOpeningLine" }
+        totals:
+          type: object
+          required: [debit, credit, balanced, difference, ytdIncome, ytdExpense, ytdResult]
+          properties:
+            debit: { type: number }
+            credit: { type: number }
+            balanced: { type: boolean }
+            difference: { type: number, description: "credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0." }
+            ytdIncome: { type: number }
+            ytdExpense: { type: number }
+            ytdResult: { type: number, description: "Income − expense of the imported YTD balances (A2)." }
+        arByCustomer:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        apByVendor:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        depositsByCustomer:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationPartyBalance" }
+        banks:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationBankOpening" }
+        controls:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationControlCheck" }
+
+    MigrationValidation:
+      type: object
+      required: [batchId, ok, status, checks, contentHash, validatedAt]
+      properties:
+        batchId: { type: integer }
+        ok: { type: boolean }
+        status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationControlCheck" }
+        contentHash: { type: ["string", "null"] }
+        validatedAt: { type: ["string", "null"] }
+
+    ReverseMigrationBatchInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 1000, description: "Why the opening position is withdrawn — the audit record of the reversal." }
+
+    MigrationReversalPreview:
+      type: object
+      required: [batchId, blockers, wouldReverse]
+      properties:
+        batchId: { type: integer }
+        blockers:
+          type: array
+          items: { type: string }
+        wouldReverse:
+          type: object
+          required: [openingJournalEntryId, invoices, bills, deposits, banks, periodLock, keeps]
+          properties:
+            openingJournalEntryId: { type: ["integer", "null"] }
+            invoices:
+              type: array
+              items:
+                type: object
+                required: [id, number, customerId, total]
+                properties:
+                  id: { type: integer }
+                  number: { type: string }
+                  customerId: { type: ["integer", "null"] }
+                  total: { type: number }
+            bills:
+              type: array
+              items:
+                type: object
+                required: [id, number, vendorId, total]
+                properties:
+                  id: { type: integer }
+                  number: { type: string }
+                  vendorId: { type: ["integer", "null"] }
+                  total: { type: number }
+            deposits:
+              type: array
+              items:
+                type: object
+                required: [id, customerId, amount]
+                properties:
+                  id: { type: integer }
+                  customerId: { type: ["integer", "null"] }
+                  amount: { type: number }
+            banks:
+              type: array
+              items:
+                type: object
+                required: [id, name, openingBalance]
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  openingBalance: { type: number }
+            periodLock:
+              oneOf:
+                - type: object
+                  required: [id, period]
+                  properties:
+                    id: { type: integer }
+                    period: { type: string }
+                - { type: "null" }
+            keeps:
+              type: object
+              required: [customers, vendors, accountsCreated]
+              properties:
+                customers: { type: integer }
+                vendors: { type: integer }
+                accountsCreated: { type: integer }
+
+    MigrationReversed:
+      allOf:
+        - { $ref: "#/components/schemas/MigrationBatch" }
+        - type: object
+          required: [reversalJournalEntryId, reversed]
+          properties:
+            reversalJournalEntryId: { type: integer }
+            reversed:
+              type: object
+              description: "Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted."
+              required: [invoices, bills, deposits]
+              properties:
+                invoices: { type: integer }
+                bills: { type: integer }
+                deposits: { type: integer }

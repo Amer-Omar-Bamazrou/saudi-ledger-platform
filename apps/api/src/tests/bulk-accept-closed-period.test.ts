@@ -46,6 +46,7 @@ describeMaybe("bulk accept into a closed month is refused truthfully", () => {
   let otherCompanyId = "";
   let userId = 0;
   let rentId = 0;
+  const bankByOrg: Record<string, number> = {};
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
     const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
@@ -63,7 +64,7 @@ describeMaybe("bulk accept into a closed month is refused truthfully", () => {
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
-      for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "categories", "companies"]) {
+      for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
@@ -82,6 +83,10 @@ describeMaybe("bulk accept into a closed month is refused truthfully", () => {
       await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, o]);
     }
     rentId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'RENT_UTILITIES'`, [orgId])).rows[0].id;
+    // D-3: an imported statement names its bank; one account per org.
+    for (const [o, c] of [[orgId, companyId], [otherOrgId, otherCompanyId]]) {
+      bankByOrg[o] = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'BA Bank','ANB') RETURNING id`, [o, c])).rows[0].id;
+    }
     await inTenant(() => periodLocksService.lock({ period: CLOSED, notes: "closed for the test", userId }));
   });
   afterAll(cleanup);
@@ -100,6 +105,7 @@ describeMaybe("bulk accept into a closed month is refused truthfully", () => {
       transactionsService.upload({
         rows: rows.map((r) => ({ ...r, currency: "SAR", type: "debit" })),
         autoCategrize: false,
+        bankAccountId: bankByOrg[org.orgId],
       } as never),
     );
     const ids: number[] = [];

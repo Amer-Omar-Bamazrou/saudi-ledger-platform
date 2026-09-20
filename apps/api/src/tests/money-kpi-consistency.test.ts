@@ -50,6 +50,7 @@ const DATE = "2026-07-12";
 describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agree with aging", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
 
@@ -83,6 +84,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -96,6 +98,8 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','N2 Approver',' ','admin',true) RETURNING id`,
@@ -167,7 +171,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
         items: [{ description: "Widgets", quantity: 10, unitPrice: 100, vatRate: 15 }],
       }, userId),
     );
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: DATE }, userId));
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: DATE, bankAccountId: bankId }, userId));
     await inTenant(() =>
       createApproved(invoicesService, {
         invoiceNumber: "N2-CN-1",
@@ -213,7 +217,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
           date: DATE,
           description: "raw-under-tolerance, rounded-imbalanced",
           lines: [
-            { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 10.006, creditAmount: 0 },
+            { bankAccountId: bankId, debitAmount: 10.006, creditAmount: 0 },
             { systemCode: "SALES", accountName: "Sales Revenue", debitAmount: 0, creditAmount: 10.004 },
           ],
         }),

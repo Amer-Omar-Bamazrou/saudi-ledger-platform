@@ -596,6 +596,18 @@ export interface Category {
      * @nullable
      */
   liquidityClass?: CategoryLiquidityClass;
+  /**
+     * D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is "Cash and Bank"); every other account is null. Not a general chart hierarchy.
+     * @nullable
+     */
+  parentId?: number | null;
+  /**
+     * D-3: set on a bank's own GL cash account — the explicit, rename-proof relationship to the application bank account.
+     * @nullable
+     */
+  bankAccountId?: number | null;
+  /** D-3: false on a HEADER account ("Cash and Bank"), which accepts no postings — a cash line names a bank account and posts to that bank's leaf. Pickers exclude non-posting accounts. */
+  isPosting?: boolean;
   /** @nullable */
   description?: string | null;
 }
@@ -955,6 +967,7 @@ export type AcceptPendingRejectionCode = typeof AcceptPendingRejectionCode[keyof
 
 export const AcceptPendingRejectionCode = {
   period_closed: 'period_closed',
+  bank_account_required: 'bank_account_required',
 } as const;
 
 export interface AcceptPendingRejection {
@@ -1040,6 +1053,11 @@ export interface TransactionInput {
   notes?: string | null;
   /** @nullable */
   source?: string | null;
+  /**
+     * D-3: the bank account this movement belongs to. REQUIRED on `POST /transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank's GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement's `bankAccountId` applies.
+     * @nullable
+     */
+  bankAccountId?: number | null;
 }
 
 /**
@@ -1094,6 +1112,8 @@ export const TransactionUpdateTransferDirection = {
 export interface TransactionUpdate {
   /** @nullable */
   categoryId?: number | null;
+  /** D-3: record WHICH bank account the row belongs to. Settable only while the row has none (a bank is a fact about the movement, not a classification to revise); a posted row whose history still sits on the "Cash and Bank" header is left for the cut-over to remap, a row already posted to a bank's GL account is reversed and re-posted to the named bank. */
+  bankAccountId?: number;
   /**
      * @minimum 0
      * @nullable
@@ -1152,9 +1172,11 @@ export interface TransactionUpload {
      * M16.2 — which bank account this statement belongs to. Scopes
      * duplicate detection to the account and is the foundation for
      * transfer-leg pairing. Validated against the tenant's own accounts.
-     * @nullable
+     * 🔴 REQUIRED since D-3 (2026-09-16): an accepted row's cash leg
+     * posts to this bank's own GL account, and a row with no bank cannot
+     * be accepted. A missing id is a 422 `bank_account_required`.
      */
-  bankAccountId?: number | null;
+  bankAccountId: number;
 }
 
 export type UploadResultDuplicatesItem = {
@@ -1364,6 +1386,20 @@ export const BillStatus = {
 export interface Bill {
   id: number;
   billNumber: string;
+  /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening bill this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesBillId?: number | null;
   /** @nullable */
   vendorReference?: string | null;
   date: string;
@@ -1615,6 +1651,20 @@ export interface InvoiceItem {
 export interface Invoice {
   id: number;
   invoiceNumber: string;
+  /** Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system's for a first migration, or OPEN-<batch>-<seq> for a replacement. */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening invoice this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesInvoiceId?: number | null;
   date: string;
   /** @nullable */
   dueDate: string | null;
@@ -1630,6 +1680,8 @@ export interface Invoice {
   /** @nullable */
   currency: string | null;
   paidAmount: number;
+  /** D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount. */
+  creditedAmount: number;
   /** @nullable */
   paidAt: string | null;
   /** @nullable */
@@ -2464,7 +2516,7 @@ export interface AccountSummaryReport {
 }
 
 /**
- * A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+ * A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it. `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit note (its unapplied remainder is a liability in the customer's `position.creditBalance`, never a negative receivable).
  */
 export interface CustomerLedgerInvoice {
   id: number;
@@ -2476,9 +2528,24 @@ export interface CustomerLedgerInvoice {
   status: string;
   total: number;
   paidAmount: number;
+  creditedAmount: number;
+  /** @minimum 0 */
   outstanding: number;
   vatAmount: number;
   subtotal: number;
+}
+
+/**
+ * Phase E — a customer's position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.
+ */
+export interface CustomerPosition {
+  /** @minimum 0 */
+  receivable: number;
+  /** @minimum 0 */
+  creditBalance: number;
+  /** @minimum 0 */
+  depositBalance: number;
+  netPosition: number;
 }
 
 export interface CustomerLedgerCustomer {
@@ -2490,12 +2557,24 @@ export interface CustomerLedgerCustomer {
   invoices: CustomerLedgerInvoice[];
   totalInvoiced: number;
   totalPaid: number;
+  /**
+     * Σ outstanding over the LISTED documents — the receivable within the window.
+     * @minimum 0
+     */
   balance: number;
+  /** The customer's CURRENT position (whole history, not the window). */
+  position: CustomerPosition;
 }
 
 export interface CustomerLedgerReport {
   customers: CustomerLedgerCustomer[];
+  /** Σ balance over the listed customers (window receivable). */
   totalBalance: number;
+  /** Σ current receivable over the listed customers. */
+  totalReceivable: number;
+  totalCreditBalance: number;
+  totalDepositBalance: number;
+  totalNetPosition: number;
 }
 
 export type OwnerEquityReportPeriod = {
@@ -2553,9 +2632,29 @@ export interface ArAgingItem {
   daysPastDue: number;
 }
 
+export type ArAgingReportLiabilities = {
+  /**
+     * Σ unapplied credit-note balances (GL Customer credit balances).
+     * @minimum 0
+     */
+  customerCredits: number;
+  /**
+     * Σ unapplied receipts (GL Customer deposits).
+     * @minimum 0
+     */
+  customerDeposits: number;
+};
+
+/**
+ * Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.
+ */
 export interface ArAgingReport {
   buckets: AgingBuckets;
+  /** @minimum 0 */
   total: number;
+  liabilities: ArAgingReportLiabilities;
+  /** total − customerCredits − customerDeposits. */
+  netCustomerPosition: number;
   items: ArAgingItem[];
 }
 
@@ -2684,7 +2783,88 @@ export interface Customer {
   createdAt: string;
 }
 
-export type CustomerWithBalance = Customer & PartyTotals;
+/**
+ * `balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it.
+ */
+export type CustomerTotals = PartyTotals & CustomerPosition;
+
+/**
+ * `balance` IS `netPosition` (see CustomerPosition).
+ */
+export type CustomerWithBalance = Customer & PartyTotals & CustomerPosition;
+
+export type CustomerStatementLineKind = typeof CustomerStatementLineKind[keyof typeof CustomerStatementLineKind];
+
+
+export const CustomerStatementLineKind = {
+  invoice: 'invoice',
+  debit_note: 'debit_note',
+  credit_note: 'credit_note',
+  receipt: 'receipt',
+  allocation: 'allocation',
+  credit_application: 'credit_application',
+  unallocation: 'unallocation',
+  refund: 'refund',
+} as const;
+
+export interface CustomerStatementLine {
+  seq: number;
+  date: string;
+  kind: CustomerStatementLineKind;
+  documentNumber: string;
+  /** @nullable */
+  reference: string | null;
+  description: string;
+  amount: number;
+  receivableDelta: number;
+  creditDelta: number;
+  depositDelta: number;
+  /** Running Accounts Receivable after this line */
+  receivable: number;
+  /** Running Customer Credits after this line */
+  creditBalance: number;
+  /** Running Customer Deposits after this line */
+  depositBalance: number;
+  /** Derived — receivable − creditBalance − depositBalance */
+  netPosition: number;
+  /** @nullable */
+  invoiceId: number | null;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+  /** @nullable */
+  allocationId: number | null;
+  /** @nullable */
+  refundId: number | null;
+  /** @nullable */
+  journalEntryId: number | null;
+}
+
+export type CustomerStatementPeriod = {
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+};
+
+export interface CustomerStatement {
+  customerId: number;
+  customerName: string;
+  /** @nullable */
+  customerNameAr: string | null;
+  period: CustomerStatementPeriod;
+  opening: CustomerPosition;
+  lines: CustomerStatementLine[];
+  closing: CustomerPosition;
+  /** The position after EVERY event, ignoring the window — what the events say the customer's position is today. */
+  current: CustomerPosition;
+  /** The same position read from the subledger caches and active-allocation sets. */
+  subledger: CustomerPosition;
+  /** `current` equals `subledger` on all three components (to the halala). */
+  reconciled: boolean;
+  eventCount: number;
+}
 
 export type CustomerDetail = CustomerWithBalance & {
   /** ISSUED invoices only — drafts and submitted documents do not count. */
@@ -2918,18 +3098,404 @@ export interface VendorMatchResult {
 }
 
 export interface Payment {
+  /** The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`. */
   id: number;
   amount: number;
   paidAt: string;
   /** An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment. */
   backfilled: boolean;
+  /**
+     * D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.
+     * @nullable
+     */
+  paymentId: number | null;
+}
+
+export interface PaymentAllocationInput {
+  invoiceId: number;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+}
+
+export interface ReceivePaymentInput {
+  /**
+     * The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
+     * @nullable
+     */
+  customerId?: number | null;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** YYYY-MM-DD; defaults to today (business date). */
+  paidAt?: string;
+  /** D-3 — which bank account the money arrived in; the cash line posts to its own GL account. */
+  bankAccountId: number;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  method?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * Unique per company. The same key twice returns the first payment.
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+  /** Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account. */
+  allocations?: PaymentAllocationInput[];
+}
+
+export interface AllocatePaymentInput {
+  /** @minItems 1 */
+  allocations: PaymentAllocationInput[];
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface ApplyCreditNoteInput {
+  /** @minItems 1 */
+  allocations: PaymentAllocationInput[];
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface AllocationReversal {
+  id: number;
+  /** The correcting entry (UNALLOC-<id>): Dr AR / Cr the origin's liability. */
+  journalEntryId: number;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PaymentAllocation {
+  id: number;
+  invoiceId: number;
+  amount: number;
+  /**
+     * Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt's entry.
+     * @nullable
+     */
+  journalEntryId: number | null;
+  createdAt: string;
+  /** Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited. */
+  reversedBy: AllocationReversal | null;
+}
+
+export type PaymentAllocationDetail = PaymentAllocation & ({
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+});
+
+export interface UnallocateInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type RefundCustomerInputOrigin = typeof RefundCustomerInputOrigin[keyof typeof RefundCustomerInputOrigin];
+
+
+export const RefundCustomerInputOrigin = {
+  deposit: 'deposit',
+  credit_note: 'credit_note',
+} as const;
+
+export interface RefundCustomerInput {
+  customerId: number;
+  origin: RefundCustomerInputOrigin;
+  /**
+     * Required when origin is deposit: the receipt whose unapplied remainder is returned.
+     * @nullable
+     */
+  paymentId?: number | null;
+  /**
+     * Required when origin is credit_note: the issued note whose unconsumed balance is returned.
+     * @nullable
+     */
+  creditNoteId?: number | null;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** D-3 — the bank the refund is paid from. */
+  bankAccountId: number;
+  /** YYYY-MM-DD; defaults to today (business date). Period-controlled. */
+  refundedAt?: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type CustomerRefundOrigin = typeof CustomerRefundOrigin[keyof typeof CustomerRefundOrigin];
+
+
+export const CustomerRefundOrigin = {
+  deposit: 'deposit',
+  credit_note: 'credit_note',
+} as const;
+
+export interface CustomerRefund {
+  id: number;
+  customerId: number;
+  bankAccountId: number;
+  origin: CustomerRefundOrigin;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  creditNoteId: number | null;
+  amount: number;
+  refundedAt: string;
+  reason: string;
+  /** @nullable */
+  reference: string | null;
+  journalEntryId: number;
+  /** @nullable */
+  idempotencyKey: string | null;
+  createdAt: string;
+}
+
+export type CustomerPaymentDirection = typeof CustomerPaymentDirection[keyof typeof CustomerPaymentDirection];
+
+
+export const CustomerPaymentDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
+
+
+export const CustomerPaymentSource = {
+  manual: 'manual',
+  invoice_pay: 'invoice_pay',
+  settlement: 'settlement',
+} as const;
+
+export interface CustomerPayment {
+  id: number;
+  direction: CustomerPaymentDirection;
+  /** @nullable */
+  customerId: number | null;
+  bankAccountId: number;
+  amount: number;
+  paidAt: string;
+  /** @nullable */
+  method: string | null;
+  /** @nullable */
+  reference: string | null;
+  source: CustomerPaymentSource;
+  /** @nullable */
+  idempotencyKey: string | null;
+  journalEntryId: number;
+  /** @nullable */
+  sourceTransactionId: number | null;
+  /** Σ ACTIVE allocations (a corrected allocation no longer counts). */
+  allocatedAmount: number;
+  /** Phase C — Σ deposit refunds paid out of this receipt. */
+  refundedAmount: number;
+  /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
+  unappliedAmount: number;
+  allocations: PaymentAllocation[];
+  createdAt: string;
+}
+
+export interface CreditNoteApplications {
+  creditNoteId: number;
+  invoiceNumber: string;
+  total: number;
+  /** Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected. */
+  appliedAmount: number;
+  /** Phase C — Σ refunds paid out of this note's balance. */
+  refundedAmount: number;
+  /** The customer's credit-note balance from this note (a liability, not AR): total − applied − refunded. */
+  remainingAmount: number;
+  applications: PaymentAllocation[];
+}
+
+export type MatchCandidateKind = typeof MatchCandidateKind[keyof typeof MatchCandidateKind];
+
+
+export const MatchCandidateKind = {
+  payment: 'payment',
+  refund: 'refund',
+} as const;
+
+export interface MatchCandidate {
+  kind: MatchCandidateKind;
+  id: number;
+  amount: number;
+  date: string;
+  /** @nullable */
+  reference: string | null;
+  /**
+     * The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.
+     * @nullable
+     */
+  identifiedBy: string | null;
+}
+
+export type StatementMatchMethod = typeof StatementMatchMethod[keyof typeof StatementMatchMethod];
+
+
+export const StatementMatchMethod = {
+  deterministic: 'deterministic',
+  manual: 'manual',
+  settlement: 'settlement',
+} as const;
+
+export type StatementMatchReversedBy = {
+  id: number;
+  reason: string;
+  createdAt: string;
+} | null;
+
+export interface StatementMatch {
+  id: number;
+  transactionId: number;
+  /** @nullable */
+  paymentId: number | null;
+  /** @nullable */
+  refundId: number | null;
+  method: StatementMatchMethod;
+  /** What was seen when the match was made. */
+  evidence: unknown;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  reversedBy: StatementMatchReversedBy;
+}
+
+export type StatementRowClassificationDirection = typeof StatementRowClassificationDirection[keyof typeof StatementRowClassificationDirection];
+
+
+export const StatementRowClassificationDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type StatementRowClassificationClassification = typeof StatementRowClassificationClassification[keyof typeof StatementRowClassificationClassification];
+
+
+export const StatementRowClassificationClassification = {
+  MATCHED: 'MATCHED',
+  DETERMINISTIC: 'DETERMINISTIC',
+  AMBIGUOUS: 'AMBIGUOUS',
+  UNMATCHED: 'UNMATCHED',
+  INCONSISTENT: 'INCONSISTENT',
+} as const;
+
+export type StatementRowClassificationWindow = {
+  from: string;
+  to: string;
+  days: number;
+};
+
+export interface StatementRowClassification {
+  transactionId: number;
+  bankAccountId: number;
+  direction: StatementRowClassificationDirection;
+  amount: number;
+  date: string;
+  description: string;
+  classification: StatementRowClassificationClassification;
+  reason: string;
+  target: MatchCandidate | null;
+  candidates: MatchCandidate[];
+  match: StatementMatch | null;
+  window: StatementRowClassificationWindow;
+}
+
+export type MatchingApplyResultSummary = {
+  deterministic: number;
+  ambiguous: number;
+  unmatched: number;
+  inconsistent: number;
+  matched: number;
+};
+
+export interface MatchingApplyResult {
+  recorded: StatementMatch[];
+  summary: MatchingApplyResultSummary;
+}
+
+export interface MatchOverrideInput {
+  transactionId: number;
+  /** @nullable */
+  paymentId?: number | null;
+  /** @nullable */
+  refundId?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface UnmatchInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface CustomerCredits {
+  customerId: number;
+  /** Σ unapplied over the customer's receipts — Customer deposits and advances. */
+  deposits: number;
+  /** Σ unconsumed over the customer's issued credit notes — Customer credit balances. */
+  creditNotes: number;
 }
 
 export interface PaymentInput {
   /** @exclusiveMinimum 0 */
   amount: number;
+  /**
+     * D-4 — unique per company; the same key twice records one payment.
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
   /** YYYY-MM-DD; defaults to today. */
   paidAt?: string;
+  /** D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank's own GL cash account — there is no shared cash account and no default. Validated against the tenant's own accounts; a missing or unknown id is a 422 (`bank_account_required` / `reference_not_found`). Recorded on the payment row as its bank evidence. */
+  bankAccountId: number;
 }
 
 export interface InvoiceLineInput {
@@ -3512,6 +4078,1056 @@ export interface UpdateBudgetInput {
   notes?: string | null;
 }
 
+export interface CreateMigrationBatchInput {
+  /**
+     * The previous system, as named by the operator ("PreviousERP", "Excel", "Qoyod export").
+     * @minLength 1
+     * @maxLength 80
+     */
+  sourceSystem: string;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  sourceVersion?: string | null;
+  /** YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen. */
+  cutoverDate: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type MigrationBatchStatus = typeof MigrationBatchStatus[keyof typeof MigrationBatchStatus];
+
+
+export const MigrationBatchStatus = {
+  draft: 'draft',
+  validated: 'validated',
+  committed: 'committed',
+  reversed: 'reversed',
+  discarded: 'discarded',
+} as const;
+
+/**
+ * The last VAT return filed from the previous system — its closing position, as supplied, with the return's reference (pack §15.6 R9).
+ */
+export interface MigrationVatPosition {
+  /**
+     * The ZATCA return reference / acknowledgement number.
+     * @minLength 1
+     * @maxLength 120
+     */
+  returnReference: string;
+  /** YYYY-MM-DD */
+  periodStart: string;
+  /** YYYY-MM-DD — must not be after the opening date. */
+  periodEnd: string;
+  /**
+     * Output VAT still payable at cut-off (the VAT_OUTPUT balance).
+     * @minimum 0
+     */
+  outputVatPayable: number;
+  /**
+     * Input VAT still recoverable at cut-off (the VAT_INPUT balance).
+     * @minimum 0
+     */
+  inputVatReceivable: number;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+}
+
+export interface MigrationBatch {
+  id: number;
+  /**
+     * Policy C: the REVERSED batch this one replaces — set automatically at creation when the company's most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.
+     * @nullable
+     */
+  replacesBatchId: number | null;
+  status: MigrationBatchStatus;
+  sourceSystem: string;
+  /** @nullable */
+  sourceVersion: string | null;
+  cutoverDate: string;
+  /** cutover − 1 by definition. */
+  openingDate: string;
+  /** @nullable */
+  notes: string | null;
+  vatPosition: MigrationVatPosition | null;
+  /**
+     * The lock the commit placed on the opening month; lifted by the reversal.
+     * @nullable
+     */
+  periodLockId: number | null;
+  /**
+     * SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.
+     * @nullable
+     */
+  contentHash: string | null;
+  /** @nullable */
+  openingJournalEntryId: number | null;
+  /** @nullable */
+  reversalJournalEntryId: number | null;
+  /** @nullable */
+  createdBy: number | null;
+  /** @nullable */
+  validatedAt: string | null;
+  /** @nullable */
+  committedBy: number | null;
+  /** @nullable */
+  committedAt: string | null;
+  /** @nullable */
+  reversedAt: string | null;
+  /** @nullable */
+  reversalReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MigrationBatchDetailCounts = {
+  chartRows: number;
+  chartRowsUnmapped: number;
+  parties: number;
+  openItems: number;
+  advances: number;
+};
+
+export type MigrationControlCheckStatus = typeof MigrationControlCheckStatus[keyof typeof MigrationControlCheckStatus];
+
+
+export const MigrationControlCheckStatus = {
+  pass: 'pass',
+  fail: 'fail',
+  warn: 'warn',
+  skip: 'skip',
+} as const;
+
+export interface MigrationControlCheck {
+  id: string;
+  title: string;
+  status: MigrationControlCheckStatus;
+  /** @nullable */
+  expected: number | string | null;
+  /** @nullable */
+  actual: number | string | null;
+  detail: string;
+}
+
+/**
+ * The opening-position totals at that run (debit, credit, difference, ytd…).
+ */
+export type MigrationValidationRecordTotals = {[key: string]: number | boolean};
+
+/**
+ * The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).
+ */
+export interface MigrationValidationRecord {
+  ok: boolean;
+  checks: MigrationControlCheck[];
+  /** The opening-position totals at that run (debit, credit, difference, ytd…). */
+  totals?: MigrationValidationRecordTotals;
+  at?: string;
+}
+
+export type MigrationReconciliationRecordFigures = {[key: string]: number};
+
+/**
+ * R1–R10 as the commit computed them on the posted ledger, stored on the batch.
+ */
+export interface MigrationReconciliationRecord {
+  at?: string;
+  journalEntryId?: number;
+  checks: MigrationControlCheck[];
+  figures?: MigrationReconciliationRecordFigures;
+}
+
+export type MigrationBatchDetail = MigrationBatch & ({
+  counts: MigrationBatchDetailCounts;
+  /** The last validation run, or null. */
+  validation: MigrationValidationRecord | null;
+  /** R1–R10 as computed at commit, or null. */
+  reconciliation: MigrationReconciliationRecord | null;
+});
+
+/**
+ * As the file states it. Nothing is inferred from a name.
+ */
+export type MigrationChartRowInputSourceType = typeof MigrationChartRowInputSourceType[keyof typeof MigrationChartRowInputSourceType];
+
+
+export const MigrationChartRowInputSourceType = {
+  asset: 'asset',
+  liability: 'liability',
+  equity: 'equity',
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+/**
+ * A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match.
+ * @nullable
+ */
+export type MigrationChartRowInputSourceRole = typeof MigrationChartRowInputSourceRole[keyof typeof MigrationChartRowInputSourceRole] | null;
+
+
+export const MigrationChartRowInputSourceRole = {
+  receivable: 'receivable',
+  payable: 'payable',
+  bank: 'bank',
+  cash: 'cash',
+  vat_output: 'vat_output',
+  vat_input: 'vat_input',
+  retained_earnings: 'retained_earnings',
+  customer_deposits: 'customer_deposits',
+} as const;
+
+export interface MigrationChartRowInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  sourceCode: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  sourceName: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceNameAr?: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  sourceParentCode?: string | null;
+  /** As the file states it. Nothing is inferred from a name. */
+  sourceType: MigrationChartRowInputSourceType;
+  sourceIsGroup?: boolean;
+  /** @minimum 0 */
+  openingDebit?: number;
+  /** @minimum 0 */
+  openingCredit?: number;
+  /**
+     * A ROLE HINT the file carries (the old system's account type). Drives the deterministic suggestion; never a name match.
+     * @nullable
+     */
+  sourceRole?: MigrationChartRowInputSourceRole;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  evidenceNote?: string | null;
+}
+
+export interface ImportMigrationChartInput {
+  /**
+     * @minItems 1
+     * @maxItems 5000
+     */
+  rows: MigrationChartRowInput[];
+}
+
+/**
+ * @nullable
+ */
+export type MigrationChartRowDecision = typeof MigrationChartRowDecision[keyof typeof MigrationChartRowDecision] | null;
+
+
+export const MigrationChartRowDecision = {
+  map_to_system: 'map_to_system',
+  map_to_bank: 'map_to_bank',
+  create: 'create',
+  merge_into: 'merge_into',
+  skip: 'skip',
+} as const;
+
+/**
+ * The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.
+ */
+export type MigrationChartRowSuggestion = {
+  decision: string;
+  /** @nullable */
+  targetSystemCode: string | null;
+} | null;
+
+export interface MigrationChartRow {
+  id: number;
+  sourceCode: string;
+  sourceName: string;
+  /** @nullable */
+  sourceNameAr: string | null;
+  /** @nullable */
+  sourceParentCode: string | null;
+  sourceType: string;
+  sourceIsGroup: boolean;
+  openingDebit: number;
+  openingCredit: number;
+  /** @nullable */
+  sourceRole: string | null;
+  /** @nullable */
+  evidenceNote: string | null;
+  /** @nullable */
+  decision: MigrationChartRowDecision;
+  /** @nullable */
+  targetSystemCode: string | null;
+  /** @nullable */
+  targetBankAccountId: number | null;
+  /** @nullable */
+  targetCategoryId: number | null;
+  /** @nullable */
+  skipReason: string | null;
+  /**
+     * After commit: the category the balance was posted to.
+     * @nullable
+     */
+  resolvedCategoryId: number | null;
+  /** The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides. */
+  suggestion: MigrationChartRowSuggestion;
+  /** What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…). */
+  problems: string[];
+}
+
+export type MigrationChartDecisionInputDecision = typeof MigrationChartDecisionInputDecision[keyof typeof MigrationChartDecisionInputDecision];
+
+
+export const MigrationChartDecisionInputDecision = {
+  map_to_system: 'map_to_system',
+  map_to_bank: 'map_to_bank',
+  create: 'create',
+  merge_into: 'merge_into',
+  skip: 'skip',
+} as const;
+
+export interface MigrationChartDecisionInput {
+  decision: MigrationChartDecisionInputDecision;
+  /**
+     * map_to_system: a system account code. CASH (a header) is refused.
+     * @nullable
+     */
+  targetSystemCode?: string | null;
+  /**
+     * map_to_bank: this company's bank account; the balance lands on its D-3 leaf.
+     * @nullable
+     */
+  targetBankAccountId?: number | null;
+  /**
+     * merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional).
+     * @nullable
+     */
+  targetCategoryId?: number | null;
+  /**
+     * skip: required; only a zero-balance row may be skipped.
+     * @maxLength 500
+     * @nullable
+     */
+  skipReason?: string | null;
+}
+
+export type MigrationChartSummaryByDecision = {[key: string]: number};
+
+export type MigrationChartSummary = {
+  rows: number;
+  mapped: number;
+  unmapped: number;
+  /** Rows with at least one problem. */
+  blocked: number;
+  totalDebit: number;
+  totalCredit: number;
+  /** Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented. */
+  balanced: boolean;
+  byDecision: MigrationChartSummaryByDecision;
+};
+
+export interface MigrationChart {
+  batchId: number;
+  rows: MigrationChartRow[];
+  summary: MigrationChartSummary;
+}
+
+export interface UpdateMigrationBatchInput {
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  sourceVersion?: string | null;
+  vatPosition?: MigrationVatPosition | null;
+}
+
+export type MigrationPartyInputPartyType = typeof MigrationPartyInputPartyType[keyof typeof MigrationPartyInputPartyType];
+
+
+export const MigrationPartyInputPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+export interface MigrationPartyInput {
+  partyType: MigrationPartyInputPartyType;
+  /**
+     * The old system's id for this party — the identity open items and advances refer to.
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  taxNumber?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  crNumber?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  address?: string | null;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  city?: string | null;
+}
+
+export interface ImportMigrationPartiesInput {
+  /**
+     * @minItems 1
+     * @maxItems 20000
+     */
+  rows: MigrationPartyInput[];
+}
+
+/**
+ * What matched — the operator decides; the platform never merges by itself.
+ */
+export type MigrationPartyCandidateReason = typeof MigrationPartyCandidateReason[keyof typeof MigrationPartyCandidateReason];
+
+
+export const MigrationPartyCandidateReason = {
+  tax_number: 'tax_number',
+  name: 'name',
+} as const;
+
+export interface MigrationPartyCandidate {
+  id: number;
+  name: string;
+  /** @nullable */
+  taxNumber: string | null;
+  /** What matched — the operator decides; the platform never merges by itself. */
+  reason: MigrationPartyCandidateReason;
+}
+
+export type MigrationPartyPartyType = typeof MigrationPartyPartyType[keyof typeof MigrationPartyPartyType];
+
+
+export const MigrationPartyPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MigrationPartyDecision = typeof MigrationPartyDecision[keyof typeof MigrationPartyDecision] | null;
+
+
+export const MigrationPartyDecision = {
+  create: 'create',
+  use_existing: 'use_existing',
+} as const;
+
+export interface MigrationParty {
+  id: number;
+  partyType: MigrationPartyPartyType;
+  sourceId: string;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  decision: MigrationPartyDecision;
+  /**
+     * use_existing: the existing customer / vendor id.
+     * @nullable
+     */
+  existingId: number | null;
+  /**
+     * After commit: the customer / vendor the party became.
+     * @nullable
+     */
+  resolvedId: number | null;
+  candidates: MigrationPartyCandidate[];
+  /** Staged open items naming this party. */
+  openItems: number;
+  /** Σ outstanding of those items. */
+  openTotal: number;
+  advances: number;
+  advanceTotal: number;
+  problems: string[];
+}
+
+export type MigrationPartyDecisionInputDecision = typeof MigrationPartyDecisionInputDecision[keyof typeof MigrationPartyDecisionInputDecision];
+
+
+export const MigrationPartyDecisionInputDecision = {
+  create: 'create',
+  use_existing: 'use_existing',
+} as const;
+
+export interface MigrationPartyDecisionInput {
+  decision: MigrationPartyDecisionInputDecision;
+  /**
+     * use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation.
+     * @nullable
+     */
+  existingId?: number | null;
+}
+
+export type MigrationPartiesSummary = {
+  rows: number;
+  customers: number;
+  vendors: number;
+  undecided: number;
+  useExisting: number;
+  blocked: number;
+};
+
+export interface MigrationParties {
+  batchId: number;
+  rows: MigrationParty[];
+  summary: MigrationPartiesSummary;
+}
+
+/**
+ * The VAT facts of the historical document, as data. Never posted; never a VAT event here.
+ */
+export interface MigrationHistoricalVat {
+  /**
+     * S / Z / E / O as the old system recorded it.
+     * @maxLength 8
+     * @nullable
+     */
+  category?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  rate?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  taxableAmount?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount?: number | null;
+  /**
+     * The return period the document's VAT was reported in by the old system.
+     * @maxLength 40
+     * @nullable
+     */
+  reportedPeriod?: string | null;
+  /**
+     * VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.
+     * @nullable
+     */
+  badDebtReliefClaimed?: boolean | null;
+}
+
+export type MigrationOpenItemInputItemType = typeof MigrationOpenItemInputItemType[keyof typeof MigrationOpenItemInputItemType];
+
+
+export const MigrationOpenItemInputItemType = {
+  ar: 'ar',
+  ap: 'ap',
+} as const;
+
+export interface MigrationOpenItemInput {
+  itemType: MigrationOpenItemInputItemType;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * A staged customer (ar) or vendor (ap) of this batch.
+     * @minLength 1
+     * @maxLength 120
+     */
+  partySourceId: string;
+  /**
+     * The original document number — kept verbatim; it becomes the opening item's number.
+     * @minLength 1
+     * @maxLength 80
+     */
+  documentNumber: string;
+  /** YYYY-MM-DD, on or before the opening date. */
+  issueDate: string;
+  /** YYYY-MM-DD — drives ageing exactly as it did in the old system. */
+  dueDate: string;
+  /** @exclusiveMinimum 0 */
+  originalAmount: number;
+  /**
+     * Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party.
+     * @exclusiveMinimum 0
+     */
+  outstandingAmount: number;
+  /** The one-row representation of a party whose old system tracked only a balance. At most one per party. */
+  compositionUnknown?: boolean;
+  historicalVat?: MigrationHistoricalVat | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+}
+
+export interface ImportMigrationOpenItemsInput {
+  /**
+     * @minItems 1
+     * @maxItems 50000
+     */
+  rows: MigrationOpenItemInput[];
+}
+
+export type MigrationOpenItemItemType = typeof MigrationOpenItemItemType[keyof typeof MigrationOpenItemItemType];
+
+
+export const MigrationOpenItemItemType = {
+  ar: 'ar',
+  ap: 'ap',
+} as const;
+
+export interface MigrationOpenItem {
+  id: number;
+  itemType: MigrationOpenItemItemType;
+  sourceId: string;
+  partySourceId: string;
+  /**
+     * From the staged party, when it exists.
+     * @nullable
+     */
+  partyName: string | null;
+  /** The previous system's number, verbatim — provenance (Policy C). It is also the ledger number in a first migration. */
+  documentNumber: string;
+  /**
+     * What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.
+     * @nullable
+     */
+  ledgerDocumentNumber: string | null;
+  issueDate: string;
+  dueDate: string;
+  originalAmount: number;
+  outstandingAmount: number;
+  compositionUnknown: boolean;
+  historicalVat: MigrationHistoricalVat | null;
+  /** @nullable */
+  description: string | null;
+  /**
+     * After commit: the opening invoice (ar) or bill (ap) row.
+     * @nullable
+     */
+  resolvedId: number | null;
+  problems: string[];
+}
+
+export interface MigrationSubledgerTotals {
+  items: number;
+  parties: number;
+  total: number;
+  compositionUnknown: number;
+}
+
+export type MigrationOpenItemsSummary = {
+  rows: number;
+  blocked: number;
+  ar: MigrationSubledgerTotals;
+  ap: MigrationSubledgerTotals;
+};
+
+export interface MigrationOpenItems {
+  batchId: number;
+  rows: MigrationOpenItem[];
+  summary: MigrationOpenItemsSummary;
+}
+
+export type MigrationAdvanceInputVatPosition = typeof MigrationAdvanceInputVatPosition[keyof typeof MigrationAdvanceInputVatPosition];
+
+
+export const MigrationAdvanceInputVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+export interface MigrationAdvanceInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  sourceId: string;
+  /**
+     * A staged CUSTOMER of this batch.
+     * @minLength 1
+     * @maxLength 120
+     */
+  partySourceId: string;
+  /**
+     * The old chart's code of the bank the money arrived in — a chart row mapped to a bank.
+     * @minLength 1
+     * @maxLength 64
+     */
+  bankSourceCode: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** YYYY-MM-DD, on or before the opening date. */
+  receivedAt: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  reference?: string | null;
+  vatPosition: MigrationAdvanceInputVatPosition;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  advanceInvoiceNumber?: string | null;
+  /** @nullable */
+  advanceInvoiceDate?: string | null;
+  /**
+     * HH:MM:SS as the old invoice states it (KSA-25), when known.
+     * @maxLength 16
+     * @nullable
+     */
+  advanceInvoiceTime?: string | null;
+  /**
+     * @maxLength 8
+     * @nullable
+     */
+  vatCategory?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  vatRate?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  vatAmount?: number | null;
+}
+
+export interface ImportMigrationAdvancesInput {
+  /**
+     * @minItems 1
+     * @maxItems 20000
+     */
+  rows: MigrationAdvanceInput[];
+}
+
+export type MigrationAdvanceVatPosition = typeof MigrationAdvanceVatPosition[keyof typeof MigrationAdvanceVatPosition];
+
+
+export const MigrationAdvanceVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+export interface MigrationAdvance {
+  id: number;
+  sourceId: string;
+  partySourceId: string;
+  /** @nullable */
+  partyName: string | null;
+  bankSourceCode: string;
+  amount: number;
+  receivedAt: string;
+  /** @nullable */
+  reference: string | null;
+  vatPosition: MigrationAdvanceVatPosition;
+  /** @nullable */
+  advanceInvoiceNumber: string | null;
+  /** @nullable */
+  advanceInvoiceDate: string | null;
+  /** @nullable */
+  advanceInvoiceTime: string | null;
+  /** @nullable */
+  vatCategory: string | null;
+  /** @nullable */
+  vatRate: number | null;
+  /** @nullable */
+  vatAmount: number | null;
+  /** @nullable */
+  resolvedPaymentId: number | null;
+  problems: string[];
+}
+
+export type MigrationAdvancesSummary = {
+  rows: number;
+  blocked: number;
+  total: number;
+  customers: number;
+  invoiced: number;
+  /** Advances whose VAT position is unknown — recorded at cash, fail closed downstream. */
+  unknown: number;
+};
+
+export interface MigrationAdvances {
+  batchId: number;
+  rows: MigrationAdvance[];
+  summary: MigrationAdvancesSummary;
+}
+
+export type MigrationOpeningLineTargetKind = typeof MigrationOpeningLineTargetKind[keyof typeof MigrationOpeningLineTargetKind];
+
+
+export const MigrationOpeningLineTargetKind = {
+  system: 'system',
+  bank: 'bank',
+  category: 'category',
+  create: 'create',
+} as const;
+
+export type MigrationOpeningLineType = typeof MigrationOpeningLineType[keyof typeof MigrationOpeningLineType];
+
+
+export const MigrationOpeningLineType = {
+  asset: 'asset',
+  liability: 'liability',
+  equity: 'equity',
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+/**
+ * One target account of the opening position, with the source rows that land on it.
+ */
+export interface MigrationOpeningLine {
+  /** A stable key: system:AR, bank:12, category:345, create:<sourceCode>. */
+  target: string;
+  targetKind: MigrationOpeningLineTargetKind;
+  /** @nullable */
+  systemCode: string | null;
+  /** @nullable */
+  categoryId: number | null;
+  /** @nullable */
+  bankAccountId: number | null;
+  accountName: string;
+  type: MigrationOpeningLineType;
+  debit: number;
+  credit: number;
+  /** debit − credit. */
+  balance: number;
+  sourceCodes: string[];
+}
+
+export interface MigrationPartyBalance {
+  partySourceId: string;
+  /** @nullable */
+  partyName: string | null;
+  items: number;
+  total: number;
+}
+
+export interface MigrationBankOpening {
+  bankAccountId: number;
+  bankName: string;
+  sourceCode: string;
+  /** The old chart's closing balance for this bank (Dr − Cr). */
+  balance: number;
+  /**
+     * bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2).
+     * @nullable
+     */
+  typedOpeningBalance: number | null;
+  /** @nullable */
+  leafCategoryId: number | null;
+  /** @nullable */
+  evidenceNote: string | null;
+  /** Σ staged advances naming this bank — inside the balance, no cash line of their own. */
+  advancesInside: number;
+}
+
+export type MigrationOpeningPositionTotals = {
+  debit: number;
+  credit: number;
+  balanced: boolean;
+  /** credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0. */
+  difference: number;
+  ytdIncome: number;
+  ytdExpense: number;
+  /** Income − expense of the imported YTD balances (A2). */
+  ytdResult: number;
+};
+
+export interface MigrationOpeningPosition {
+  batchId: number;
+  openingDate: string;
+  lines: MigrationOpeningLine[];
+  totals: MigrationOpeningPositionTotals;
+  arByCustomer: MigrationPartyBalance[];
+  apByVendor: MigrationPartyBalance[];
+  depositsByCustomer: MigrationPartyBalance[];
+  banks: MigrationBankOpening[];
+  controls: MigrationControlCheck[];
+}
+
+export type MigrationValidationStatus = typeof MigrationValidationStatus[keyof typeof MigrationValidationStatus];
+
+
+export const MigrationValidationStatus = {
+  draft: 'draft',
+  validated: 'validated',
+  committed: 'committed',
+  reversed: 'reversed',
+  discarded: 'discarded',
+} as const;
+
+export interface MigrationValidation {
+  batchId: number;
+  ok: boolean;
+  status: MigrationValidationStatus;
+  checks: MigrationControlCheck[];
+  /** @nullable */
+  contentHash: string | null;
+  /** @nullable */
+  validatedAt: string | null;
+}
+
+export interface ReverseMigrationBatchInput {
+  /**
+     * Why the opening position is withdrawn — the audit record of the reversal.
+     * @minLength 10
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type MigrationReversalPreviewWouldReverseInvoicesItem = {
+  id: number;
+  number: string;
+  /** @nullable */
+  customerId: number | null;
+  total: number;
+};
+
+export type MigrationReversalPreviewWouldReverseBillsItem = {
+  id: number;
+  number: string;
+  /** @nullable */
+  vendorId: number | null;
+  total: number;
+};
+
+export type MigrationReversalPreviewWouldReverseDepositsItem = {
+  id: number;
+  /** @nullable */
+  customerId: number | null;
+  amount: number;
+};
+
+export type MigrationReversalPreviewWouldReverseBanksItem = {
+  id: number;
+  name: string;
+  openingBalance: number;
+};
+
+export type MigrationReversalPreviewWouldReversePeriodLock = {
+  id: number;
+  period: string;
+} | null;
+
+export type MigrationReversalPreviewWouldReverseKeeps = {
+  customers: number;
+  vendors: number;
+  accountsCreated: number;
+};
+
+export type MigrationReversalPreviewWouldReverse = {
+  /** @nullable */
+  openingJournalEntryId: number | null;
+  invoices: MigrationReversalPreviewWouldReverseInvoicesItem[];
+  bills: MigrationReversalPreviewWouldReverseBillsItem[];
+  deposits: MigrationReversalPreviewWouldReverseDepositsItem[];
+  banks: MigrationReversalPreviewWouldReverseBanksItem[];
+  periodLock: MigrationReversalPreviewWouldReversePeriodLock;
+  keeps: MigrationReversalPreviewWouldReverseKeeps;
+};
+
+export interface MigrationReversalPreview {
+  batchId: number;
+  blockers: string[];
+  wouldReverse: MigrationReversalPreviewWouldReverse;
+}
+
+/**
+ * Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted.
+ */
+export type MigrationReversedReversed = {
+  invoices: number;
+  bills: number;
+  deposits: number;
+};
+
+export type MigrationReversed = MigrationBatch & {
+  reversalJournalEntryId: number;
+  /** Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted. */
+  reversed: MigrationReversedReversed;
+};
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -3697,6 +5313,10 @@ from: string;
  * YYYY-MM
  */
 to: string;
+/**
+ * D-3: reconcile ONE bank — its accepted rows against its own GL cash account. Omitted = every bank and every cash account, as before. Pre-cut-over history still on the "Cash and Bank" header belongs to no bank and is excluded from a per-bank view.
+ */
+bankAccountId?: number;
 };
 
 export type GetDecompositionParams = {
@@ -3907,7 +5527,18 @@ offset?: number;
 export type ListCustomers200 = {
   items: CustomerWithBalance[];
   page: PageInfo;
-  totals: PartyTotals;
+  totals: CustomerTotals;
+};
+
+export type GetCustomerStatementParams = {
+/**
+ * YYYY-MM-DD; events before it are folded into `opening`
+ */
+date_from?: string;
+/**
+ * YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`
+ */
+date_to?: string;
 };
 
 export type ListVendorsParams = {
@@ -3996,6 +5627,49 @@ export type ListInvoices200 = {
   items: Invoice[];
   page: ListInvoices200Page;
   totals: ListInvoices200Totals;
+};
+
+export type ListPaymentsParams = {
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListRefundsParams = {
+customer_id?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ClassifyStatementRowsParams = {
+bank_account_id?: number;
+date_from?: string;
+date_to?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+};
+
+export type ApplyDeterministicMatchesParams = {
+bank_account_id?: number;
+date_from?: string;
+date_to?: string;
 };
 
 export type GetInvoiceDocumentParams = {

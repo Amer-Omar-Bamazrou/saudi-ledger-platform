@@ -13,6 +13,7 @@
  */
 import { db, findingsTable, findingRunsTable, findingSchedulesTable, type Finding, type FindingRun } from "@workspace/db";
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { invoiceNotReversedSql, billNotReversedSql } from "./openingReversal";
 
 export interface DetectedFinding {
   kind: string;
@@ -127,6 +128,7 @@ export const findingsRepository = {
         ) cn ON cn.original_invoice_id = i.id
        WHERE i.document_type = 'invoice'
          AND i.status NOT IN ('draft','submitted','paid')
+         AND ${invoiceNotReversedSql("i")}
          AND i.due_date IS NOT NULL AND i.due_date::date < current_date
          AND i.total - COALESCE(i.paid_amount, 0) - COALESCE(cn.credited, 0) > 0.005
     `);
@@ -179,6 +181,7 @@ export const findingsRepository = {
              (current_date - due_date::date)::int AS days_overdue
         FROM bills
        WHERE status NOT IN ('draft','submitted','paid')
+         AND ${billNotReversedSql("bills")}
          AND due_date IS NOT NULL AND due_date::date < current_date
          AND total - COALESCE(paid_amount, 0) > 0.005
     `);

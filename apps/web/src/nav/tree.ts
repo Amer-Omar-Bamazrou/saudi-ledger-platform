@@ -43,7 +43,7 @@ import {
   UploadCloud, ArrowLeftRight, Landmark, Receipt, TrendingUp, Waves,
   PieChart, SearchCheck, Repeat, ScanLine, Sparkles, Plug, UserCog,
   KeyRound, ScrollText, Wallet, SlidersHorizontal, UserRound, Eye,
-  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag,
+  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag, Database,
 } from "lucide-react";
 import { comingSoonHref } from "@/lib/comingSoon";
 import {
@@ -176,6 +176,7 @@ export const NAV_TREE: readonly NavSection[] = [
         ...built("/customers", "Customers", "العملاء", Users),
         children: [
           built("/customers", "All Customers", "كل العملاء"),
+          built("/payments", "Payments & Allocations", "المدفوعات والتخصيصات"),
           built("/reports/customer-ledger", "Customer Statements", "كشوف حساب العملاء"),
           built("/ar-aging", "Customer Aging", "أعمار ذمم العملاء"),
           soon("customer-groups", "Customer Groups", "مجموعات العملاء"),
@@ -266,6 +267,8 @@ export const NAV_TREE: readonly NavSection[] = [
       built("/transactions", "Transactions", "المعاملات", ListOrdered),
       soon("transfers", "Transfers", "التحويلات", ArrowLeftRight),
       built("/review", "Reconciliation", "التسوية البنكية", ListChecks),
+      // Phase D/F: statement rows ↔ receipts/refunds, classified with evidence.
+      built("/bank-matching", "Bank Matching", "مطابقة كشوف البنك", SearchCheck),
       soon("live-bank-feeds", "Live Bank Feeds", "الربط المباشر مع البنوك", Plug),
       {
         label: "Banking Reports", labelAr: "التقارير البنكية", marker: "built",
@@ -400,6 +403,9 @@ export const NAV_TREE: readonly NavSection[] = [
       },
       built("/categories", "Chart of Accounts", "دليل الحسابات", Tags),
       soon("coa-settings", "Chart of Accounts Settings", "إعدادات دليل الحسابات"),
+      // Batch 1C (2026-09-20). Read by the accountant, run by the admin — the
+      // server's matrix decides; the page explains the difference.
+      built("/migration", "Migration & Opening Balances", "الترحيل والأرصدة الافتتاحية", Database),
       built("/products", "Products & Services", "المنتجات والخدمات", ShoppingBag),
       built("/recurring", "Automation Rules", "قواعد الأتمتة", Repeat),
       {

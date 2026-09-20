@@ -166,15 +166,28 @@ export const journalEntriesService = {
       ...new Set(parsedLines.map((l) => l.accountId).filter((id): id is number => id != null)),
     ]);
     const systemCodeOf = new Map(accountRows.map((a) => [a.id, a.systemCode]));
+    const accountById = new Map(accountRows.map((a) => [a.id, a]));
     for (const [i, l] of parsedLines.entries()) {
+      // 🔴 D-3 (2026-09-16): a HEADER ("Cash and Bank") accepts no line. The
+      // picker hides it; this is the boundary for a client that does not.
+      // The same fact is enforced again by the DB trigger beneath every writer.
+      const acct = l.accountId != null ? accountById.get(l.accountId) : undefined;
+      if (acct && acct.isPosting === false) {
+        throw new BusinessRuleError(422, {
+          error: `Line ${i + 1} posts to ${acct.name}, which is a header account and accepts no postings. Pick the bank account's own cash account instead.`,
+          code: "account_not_posting",
+          field: `lines[${i}].accountId`,
+        });
+      }
       const code = l.accountId != null ? systemCodeOf.get(l.accountId) : null;
       const refuse = (error: string, field: string) => {
         throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
       };
-      if (code === "AR") {
+      // D-4: the customer-credit liabilities carry a customer exactly like AR.
+      if (code === "AR" || code === "CUSTOMER_DEPOSITS" || code === "CUSTOMER_CREDITS") {
         if (l.customerId == null)
           refuse(
-            `Line ${i + 1} posts to Accounts Receivable — pick the customer the receivable is from.`,
+            `Line ${i + 1} posts to ${acct?.name ?? "a customer control account"} — pick the customer the balance belongs to.`,
             `lines[${i}].customerId`,
           );
         if (l.vendorId != null)
@@ -290,7 +303,7 @@ export const journalEntriesService = {
       postedAt: now,
       reversalOf: id,
     });
-    await journalEntriesRepository.insertLines(
+    const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({
         journalEntryId: reversal.id,
         accountId: l.accountId,
@@ -299,7 +312,28 @@ export const journalEntriesService = {
         // swap debit ↔ credit
         debitAmount: l.creditAmount,
         creditAmount: l.debitAmount,
+        // 🔴 Phase B (2026-09-17): the PARTY travels with the line. A receivable
+        // is a receivable from someone; its mirror is from the same someone.
+        // Without these three, every reversal netted total AR/AP while the
+        // customer's or vendor's own balance stayed moved (found by the Part 1
+        // review; every invoice/bill reversal since N3 had it).
+        partyType: l.partyType,
+        customerId: l.customerId,
+        vendorId: l.vendorId,
       })),
+    );
+    /**
+     * 🔴 D-3 (2026-09-17): a mirror of a line that carries a BANK ATTRIBUTION
+     * (pre-per-bank history on the "Cash and Bank" header, attributed by the
+     * cut-over) inherits it here, in the same transaction — so a reversal
+     * after a company's cut-over never leaves a header line without a bank,
+     * and per-bank readers see the mirror where they see its original. Same
+     * bank, rule A3, no run (the reversal is the act), and the line's posted
+     * account untouched. A mirror of a LEAF line needs nothing: its bank IS
+     * the leaf.
+     */
+    await journalEntriesRepository.copyBankAttributions(
+      lines.map((l, i) => ({ originalLineId: l.id, mirrorLineId: mirrorLines[i]!.id, journalEntryId: reversal.id })),
     );
     await journalEntriesRepository.updateEntry(id, { status: "reversed" });
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);

@@ -15,7 +15,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
-import type { CreateCustomerInput, CustomerWithBalance, PartyTotals } from "@workspace/api-client-react";
+import type { CreateCustomerInput, CustomerTotals, CustomerWithBalance } from "@workspace/api-client-react";
 
 
 const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", paymentTermsDays: "30", creditLimit: "" };
@@ -40,7 +40,7 @@ export default function Customers() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const { data: paged, isLoading } = useQuery<Paged<CustomerWithBalance, PartyTotals>>({
+  const { data: paged, isLoading } = useQuery<Paged<CustomerWithBalance, CustomerTotals>>({
     queryKey: ["customers", search, page],
     queryFn: () =>
       apiFetch(
@@ -63,7 +63,12 @@ export default function Customers() {
    * making them set-wide is one change, because a page-scoped AR total would
    * have been the next wrong number.
    */
-  const totalAR = paged?.totals.balance ?? 0;
+  // Phase F (2026-09-17): the position has THREE components (D-4). The tile
+  // that used to show the NET as "Outstanding AR" now shows the receivable
+  // itself, and what we owe customers (credit-note balances + deposits) stands
+  // beside it — a liability is never folded into AR as a negative.
+  const totalAR = paged?.totals.receivable ?? 0;
+  const owedToCustomers = (paged?.totals.creditBalance ?? 0) + (paged?.totals.depositBalance ?? 0);
   const totalBilled = paged?.totals.totalBilled ?? 0;
 
   return (
@@ -94,10 +99,11 @@ export default function Customers() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Customers", "إجمالي العملاء")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AR", "الحسابات المدينة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${totalAR > 0 ? "text-attention" : "text-positive"}`}>{fmtNum(totalAR)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts receivable", "الذمم المدينة")}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${totalAR > 0 ? "text-attention" : "text-positive"}`} data-testid="customers-total-receivable">{fmtNum(totalAR)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Owed to customers (credits + deposits)", "مستحق للعملاء (أرصدة دائنة + عرابين)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-info" data-testid="customers-owed">{fmtNum(owedToCustomers)}</div></CardContent></Card>
       </div>
 
       <Card className="border-border bg-card">
@@ -114,7 +120,7 @@ export default function Customers() {
             <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")}</p></div>
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Receivable","الذمم المدينة"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{customers.map(c=>(
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pe-4">
@@ -129,7 +135,12 @@ export default function Customers() {
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
                   <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays ?? "—"}d</Badge></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
-                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(c.balance??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.balance??0)}</span></td>
+                  <td className="py-3 pe-4">
+                    <span className={`font-mono font-medium ${(c.receivable??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.receivable??0)}</span>
+                    {((c.creditBalance ?? 0) + (c.depositBalance ?? 0)) > 0.005 && (
+                      <span className="block text-xs text-info font-mono">{t("owed to them", "مستحق لهم")} {fmtNum((c.creditBalance ?? 0) + (c.depositBalance ?? 0))}</span>
+                    )}
+                  </td>
                   <td className="py-3"><Link href={`/customers/${c.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>

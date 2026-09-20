@@ -46,6 +46,23 @@ import { fileURLToPath } from "node:url";
  * create) so every locator in the specs still resolves.
  */
 
+/**
+ * Batch 1C (2026-09-20): the migration workspace spec needs a tenant whose
+ * ledger is EMPTY on and before the opening date (control LEDGER_EMPTY), a
+ * property the smoke tenant deliberately lacks. So: a SECOND tenant, seeded
+ * with identity rows + one bank account only, with an admin (runs the
+ * migration) and an accountant (may only read it), each with its own saved
+ * session. Everything the spec stages is staged through the UI.
+ */
+export const E2E_MIGRATION = {
+  slug: "e2e-migration",
+  adminEmail: "e2e-migration-admin@smoke.local",
+  accountantEmail: "e2e-migration-acct@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "migration-admin.json"),
+  accountantState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "migration-accountant.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -64,6 +81,13 @@ const API = "http://localhost:3000";
 export interface SeededIds {
   customerId: number;
   vendorId: number;
+  /** Phase F: the one bank account, and the receipt held on account (a deposit). */
+  bankId: number;
+  depositPaymentId: number;
+  /** Batch 1C: a DRAFT migration batch in the smoke tenant (no ledger effect), so `/migration/:id` is crawlable. */
+  migrationBatchId: number;
+  /** Batch 1C: the migration tenant's bank account (the spec maps the old bank row to it). */
+  migrationBankId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
@@ -105,15 +129,18 @@ export default async function globalSetup(): Promise<void> {
    * would otherwise be orphaned.
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
-    `SELECT id FROM organizations WHERE slug = $1`,
-    [E2E.slug],
+    `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
+    [[E2E.slug, E2E_MIGRATION.slug]],
   );
 
   if (orgRows.length > 0) {
     const ids = orgRows.map((r) => r.id);
+    // BASE TABLES only: `journal_line_bank_identity` (D-3, migration 0073) is
+    // a VIEW carrying organization_id, and a DELETE against it fails.
     const { rows: scoped } = await db.query<{ table_name: string }>(
-      `SELECT table_name FROM information_schema.columns
-        WHERE table_schema = 'public' AND column_name = 'organization_id'`,
+      `SELECT c.table_name FROM information_schema.columns c
+        JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+        WHERE c.table_schema = 'public' AND c.column_name = 'organization_id' AND t.table_type = 'BASE TABLE'`,
     );
 
     await db.query(`SET session_replication_role = replica`);
@@ -133,13 +160,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
-      await db.query(`DELETE FROM organizations WHERE slug = $1`, [E2E.slug]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = $1`, [E2E.email]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -170,6 +197,19 @@ export default async function globalSetup(): Promise<void> {
      VALUES ($1,$2,'admin','active')`,
     [orgId, userId],
   );
+
+  // ── The migration tenant (Batch 1C): identity only; the spec stages the rest through the UI ──
+  const migOrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Migration Org', $1, 'approved') RETURNING id`, [E2E_MIGRATION.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, cr_number, vat_number, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Migration Co','شركة الترحيل','1010202020','300000000000023',1,'gregorian')`, [migOrgId]);
+  for (const [email, role, name] of [[E2E_MIGRATION.adminEmail, "admin", "E2E Migration Admin"], [E2E_MIGRATION.accountantEmail, "accountant", "E2E Migration Accountant"]] as const) {
+    const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
+    await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [migOrgId, uid, role]);
+  }
+  // The suite now logs three users in per run (Batch 1C added a second tenant);
+  // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
+  // start answering 429 for reasons that are not regressions. This is the
+  // suite's own database: clear the auth counters it filled.
+  await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%'`);
   await db.end();
 
   /**
@@ -218,9 +258,19 @@ export default async function globalSetup(): Promise<void> {
   // The chart: the seeded system accounts plus one equity account for the
   // opening entry (the seeded chart's only equity account is the transfers
   // one, which is not where owner capital goes).
-  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string }> = await api(ctx, "GET", "/categories");
-  const cash = categories.find((c) => c.systemCode === "CASH");
-  if (!cash) throw new Error("e2e seed: the seeded chart has no CASH account");
+  // D-3: cash lives on a bank's OWN GL account, so the bank account comes
+  // first; the opening entry's cash line names that account, never the
+  // "Cash and Bank" header (which accepts no postings).
+  const bank = await api(ctx, "POST", "/bank-accounts", {
+    name: "E2E Current Account",
+    bankName: "Al Rajhi Bank",
+    currency: "SAR",
+    balance: 25000,
+    openingBalance: 20000,
+  });
+  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string; bankAccountId: number | null }> = await api(ctx, "GET", "/categories");
+  const cash = categories.find((c) => c.bankAccountId === bank.id);
+  if (!cash) throw new Error("e2e seed: the bank account has no GL cash account");
   const equity = await api(ctx, "POST", "/categories", {
     name: "Owner Equity",
     nameAr: "حقوق الملكية",
@@ -253,11 +303,11 @@ export default async function globalSetup(): Promise<void> {
 
   const inv1 = await invoice("E2E-INV-001", "2026-06-01", "2026-06-30", 1000);
   await issue(inv1.id);
-  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28" });
+  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28", bankAccountId: bank.id });
 
   const inv2 = await invoice("E2E-INV-002", "2026-07-01", "2026-07-31", 2000);
   await issue(inv2.id);
-  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20" });
+  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20", bankAccountId: bank.id });
 
   const inv3 = await invoice("E2E-INV-003", "2026-08-01", "2026-08-31", 3000);
   await issue(inv3.id);
@@ -291,25 +341,43 @@ export default async function globalSetup(): Promise<void> {
     });
   const bill1 = await bill("E2E-BILL-001", "2026-06-05", "2026-07-05", 400);
   await api(ctx, "POST", `/bills/${bill1.id}/post`, {});
-  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06" });
+  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06", bankAccountId: bank.id });
   const bill2 = await bill("E2E-BILL-002", "2026-07-10", "2026-08-10", 800);
   await api(ctx, "POST", `/bills/${bill2.id}/post`, {});
 
-  // A bank account and three imported movements — the upload path is what
-  // lands rows in review, which is the state the review page exists for.
-  const bank = await api(ctx, "POST", "/bank-accounts", {
-    name: "E2E Current Account",
-    bankName: "Al Rajhi Bank",
-    currency: "SAR",
-    balance: 25000,
-    openingBalance: 20000,
-  });
+  // Three imported movements on the bank account created above — the upload
+  // path is what lands rows in review, which is the state the review page
+  // exists for.
   await api(ctx, "POST", "/transactions/upload", {
     bankAccountId: bank.id,
     rows: [
       { date: "2026-07-02", description: "Customer payment received", amount: 1150, type: "credit", currency: "SAR" },
       { date: "2026-07-06", description: "Supplier payment", amount: 460, type: "debit", currency: "SAR" },
       { date: "2026-08-03", description: "Office rent", amount: 3000, type: "debit", currency: "SAR" },
+    ],
+  });
+
+  // Batch 1B Phase F (2026-09-17): a receipt ON ACCOUNT — a customer deposit
+  // with no allocation — and statement rows that classify one way each:
+  // DETERMINISTIC (the narrative names the receipt's reference; same bank,
+  // exact amount, next day) and AMBIGUOUS (agrees with the 1,000 partial
+  // payment of INV-002 on bank, amount and date, but nothing in the narrative
+  // identifies it — amount and date alone never match). The 1,150 row above
+  // is UNMATCHED: its receipt is dated 2026-06-28, outside the ±3-day window.
+  const deposit = await api(ctx, "POST", "/payments", {
+    customerId,
+    amount: 800,
+    bankAccountId: bank.id,
+    paidAt: "2026-08-25",
+    method: "transfer",
+    reference: "E2E-DEP-800",
+    allocations: [],
+  });
+  await api(ctx, "POST", "/transactions/upload", {
+    bankAccountId: bank.id,
+    rows: [
+      { date: "2026-08-26", description: "Incoming transfer E2E-DEP-800", amount: 800, type: "credit", currency: "SAR" },
+      { date: "2026-07-21", description: "Incoming transfer", amount: 1000, type: "credit", currency: "SAR" },
     ],
   });
 
@@ -373,9 +441,25 @@ export default async function globalSetup(): Promise<void> {
   // period no seeded document falls in, so nothing above becomes unpostable.
   await api(ctx, "POST", "/period-locks", { period: "2025-12" });
 
+  // Batch 1C: a draft batch (zero ledger effect) so the crawl can render `/migration/:id`.
+  const migrationBatch = await api(ctx, "POST", "/migration/batches", { sourceSystem: "E2E Previous System", cutoverDate: "2025-01-01" });
+
   mkdirSync(dirname(E2E.storageState), { recursive: true });
   await ctx.storageState({ path: E2E.storageState });
   await ctx.dispose();
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId } satisfies SeededIds, null, 2));
+  // The migration tenant: log both users in, give it one bank account (the old bank row maps to it).
+  const migAdmin = await request.newContext({ baseURL: API });
+  const migLogin = await migAdmin.post("/api/auth/login", { data: { email: E2E_MIGRATION.adminEmail, password: E2E_MIGRATION.password } });
+  if (!migLogin.ok()) throw new Error(`e2e migration admin login failed: ${migLogin.status()}`);
+  const migBank = await api(migAdmin, "POST", "/bank-accounts", { name: "Riyad Main", bankName: "Riyad Bank", currency: "SAR" });
+  await migAdmin.storageState({ path: E2E_MIGRATION.adminState });
+  await migAdmin.dispose();
+  const migAcct = await request.newContext({ baseURL: API });
+  const acctLogin = await migAcct.post("/api/auth/login", { data: { email: E2E_MIGRATION.accountantEmail, password: E2E_MIGRATION.password } });
+  if (!acctLogin.ok()) throw new Error(`e2e migration accountant login failed: ${acctLogin.status()}`);
+  await migAcct.storageState({ path: E2E_MIGRATION.accountantState });
+  await migAcct.dispose();
+
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id } satisfies SeededIds, null, 2));
 }

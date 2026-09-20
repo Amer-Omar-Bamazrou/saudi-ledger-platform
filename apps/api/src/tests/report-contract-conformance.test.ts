@@ -72,6 +72,7 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
   let userId = 0;
   let customerId = 0;
   let cashId = 0;
+  let bankId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
@@ -137,7 +138,16 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','RC',' ','viewer',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
 
-    const cash = await acct("CASH");
+    // D-3: cash lines sit on the bank's own GL account, so the bank comes first.
+    bankId = (
+      await pool.query(
+        `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, currency, balance, opening_balance)
+         VALUES ($1,$2,'Contract Current','Al Rajhi Bank','SAR',1000,0) RETURNING id`,
+        [orgId, companyId],
+      )
+    ).rows[0].id;
+    const cashLeaf = await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bankId]);
+    const cash: Acct = { id: Number(cashLeaf.rows[0].id), name: cashLeaf.rows[0].name };
     const ar = await acct("AR");
     const ap = await acct("AP");
     const equity = await byType("equity");
@@ -177,12 +187,8 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
       [orgId, companyId, vendorId],
     );
 
-    const bankId = (
-      await pool.query(
-        `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, currency, balance, opening_balance)
-         VALUES ($1,$2,'Contract Current','Al Rajhi Bank','SAR',1000,0) RETURNING id`,
-        [orgId, companyId],
-      )
+    const bankIdForRows = (
+      await pool.query(`SELECT id FROM bank_accounts WHERE id = $1`, [bankId])
     ).rows[0].id;
     await pool.query(
       `INSERT INTO transactions (organization_id, company_id, bank_account_id, date, description, amount, type, currency, review_status, kind, category_id)

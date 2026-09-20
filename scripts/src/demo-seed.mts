@@ -172,7 +172,14 @@ async function main() {
     const r = await q(`SELECT id, name FROM categories WHERE organization_id=$1 AND type=$2 ORDER BY id LIMIT 1`, [orgId, type]);
     return { id: Number(r.rows[0].id), name: r.rows[0].name as string };
   };
-  const cash = (await acct("CASH")) ?? (await anyOf("asset"));
+  // D-3: cash lines sit on a bank's own GL account, so the bank comes first.
+  const bank = await q(
+    `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, currency, balance, opening_balance)
+     VALUES ($1,$2,$3,'Al Rajhi Bank','SAR',186500,150000) RETURNING id`,
+    [orgId, companyId, `${P}Main Current Account`],
+  );
+  const cashLeaf = await q(`SELECT id, name FROM categories WHERE organization_id=$1 AND bank_account_id=$2`, [orgId, bank.rows[0].id]);
+  const cash = { id: Number(cashLeaf.rows[0].id), name: cashLeaf.rows[0].name as string };
   const equity = await anyOf("equity");
   const sales = (await acct("SALES")) ?? (await anyOf("income"));
   const expense = (await acct("PURCHASES")) ?? (await anyOf("expense"));
@@ -199,12 +206,7 @@ async function main() {
     }
   }
 
-  // ── bank account + transactions (cash flow, transaction review) ────────────
-  const bank = await q(
-    `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, currency, balance, opening_balance)
-     VALUES ($1,$2,$3,'Al Rajhi Bank','SAR',186500,150000) RETURNING id`,
-    [orgId, companyId, `${P}Main Current Account`],
-  );
+  // ── transactions (cash flow, transaction review) on the bank account above ─
   for (const [date, desc, amount, type] of [
     [d(3, 6), `${P}Customer payment — Al-Faisal`, 13800, "credit"],
     [d(4, 13), `${P}Customer payment — Riyadh Tech`, 9200, "credit"],

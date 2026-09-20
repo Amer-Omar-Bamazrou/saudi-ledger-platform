@@ -26,6 +26,7 @@ const EMAIL = "h1-guards@test.local";
 describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage amounts", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let vendorId = 0;
@@ -55,6 +56,7 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -68,6 +70,8 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','H1',' ','viewer',true) RETURNING id`,
@@ -131,8 +135,8 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
 
   it("🔴 THE ATTACK: a journal entry POSTed as already-posted is created as a draft", async () => {
     const { rows: [cat] } = await pool.query(
-      `SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'CASH'`,
-      [orgId],
+      `SELECT id FROM categories WHERE organization_id = $1 AND bank_account_id = $2`,
+      [orgId, bankId],
     );
     const je = await inTenant(() =>
       journalEntriesService.create(

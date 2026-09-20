@@ -512,6 +512,69 @@
       "when": 1789492675366,
       "tag": "0072_bills_expense_account",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789595294326,
+      "tag": "0073_d3_per_bank_cash_gl",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789648969254,
+      "tag": "0074_d4_payment_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789652906317,
+      "tag": "0075_d4_corrections_and_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789654758708,
+      "tag": "0076_d4_matching_and_active_pair_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789745474444,
+      "tag": "0077_batch_1c_migration_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789825448561,
+      "tag": "0078_batch_1c_migration_staging",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789827643953,
+      "tag": "0079_batch_1c_commit_and_reversal",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789865126787,
+      "tag": "0080_batch_1c_remove_obe",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1789866394251,
+      "tag": "0081_batch_1c_policy_c",
+      "breakpoints": true
     }
   ]
 }

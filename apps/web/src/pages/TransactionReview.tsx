@@ -131,6 +131,22 @@ export default function TransactionReview() {
               : "Those rows stayed in review and nothing was posted for them. Date them in an open month, or an admin can reopen the month from Closed months.",
         });
       }
+      // D-3 (2026-09-16): a row with NO bank account is put back into review
+      // the same way — keyed on its code — and the toast names the fix.
+      const noBank = r.rejected.filter((x) => x.code === "bank_account_required");
+      if (noBank.length > 0) {
+        toast({
+          variant: "destructive",
+          title:
+            lang === "ar"
+              ? `${noBank.length} لم تُقبل — لا يوجد حساب بنكي`
+              : `${noBank.length} not accepted — no bank account on the row`,
+          description:
+            lang === "ar"
+              ? "تُرحَّل الحركة النقدية إلى حساب الأستاذ الخاص بالبنك، ولا يوجد حساب افتراضي. حدِّد الحساب البنكي للصف من صفحة المعاملات ثم اقبله مجددًا."
+              : "Cash posts to the bank's own ledger account and there is no default. Set the row's bank account from Transactions, then accept it again.",
+        });
+      }
       refresh();
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),

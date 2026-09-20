@@ -23,6 +23,7 @@ import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
+import { assertBankAccount } from "./accounting/bankIdentity";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
@@ -30,8 +31,10 @@ import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
+import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
 import { round2 } from "../lib/money";
+import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -232,6 +235,7 @@ export const invoicesService = {
     if (!String(invData.invoiceNumber ?? "").trim()) {
       invData.invoiceNumber = await invoicesRepository.allocateInvoiceNumber(invData.date);
     }
+    assertNotReservedOpeningNumber(invData.invoiceNumber, "invoiceNumber"); // Policy C: OPEN-<batch>-<n> belongs to migration replacements only
 
     // A draft dated in a closed period is harmless (no ledger effect), but keep
     // the early guard so drafts aren't entered into closed periods.
@@ -418,7 +422,21 @@ export const invoicesService = {
     return buildInvoiceOut(inv, null, prepared ? await invoicesRepository.itemsByInvoice(id) : undefined);
   },
 
-  async pay(id: number, body: { amount: unknown; paidAt?: string }, userId: number | null) {
+  /**
+   * D-4 (2026-09-17): `pay` is now the single-invoice CONVENIENCE over
+   * `paymentsService.receive` — one payment, one allocation, the same
+   * posting seam. Its guards are unchanged (a note is not payable; only an
+   * issued invoice; not already paid; a positive amount; a bank; never more
+   * than the outstanding). An over-payment is recorded through
+   * `POST /payments` with an explicit allocation, so the excess lands on
+   * the customer's deposit by the caller's decision, never by this path's.
+   */
+  async pay(
+    id: number,
+    body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: string | null },
+    userId: number | null,
+    opts: { source?: "invoice_pay" | "settlement"; sourceTransactionId?: number | null } = {},
+  ) {
     const { amount, paidAt } = body;
 
     const [existing] = await invoicesRepository.findById(id);
@@ -443,6 +461,7 @@ export const invoicesService = {
       throw new ConflictError("Invoice must be approved before a payment can be recorded.");
     }
     if (existing.status === "paid") throw new ConflictError("Invoice is already paid.");
+    assertNotReversedOpening(existing, `Invoice ${existing.invoiceNumber}`, "paid");
 
     // Validate up front — a missing/non-numeric amount previously reached the
     // numeric column and surfaced as an unhandled 500.
@@ -450,6 +469,10 @@ export const invoicesService = {
     if (!Number.isFinite(paid) || paid <= 0) {
       throw new BadRequestError("A positive payment amount is required.");
     }
+    // 🔴 D-3 (2026-09-16): WHICH bank did the money move through? Checked at
+    // the same boundary as the amount — before any balance arithmetic and
+    // before any write — with the one shared rule (accounting/bankIdentity).
+    const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the payment arrived in" });
 
     // ── M16.3: real partial-payment semantics ─────────────────────────────
     // Payments ACCUMULATE against the outstanding balance (total - paid so
@@ -460,67 +483,66 @@ export const invoicesService = {
     // warns about. Now a partial keeps the invoice open; "paid" means paid.
     // Overpaying the outstanding balance is refused — same posture as the
     // over-crediting guard on credit notes.
+    // Audit Tier 3 (finding 6): the outstanding balance is CREDIT-AWARE —
+    // `total − paid − credited`. D-4: `credited` is the cache of credit-note
+    // allocations to THIS invoice (a note applied to its original at issue,
+    // or to any invoice later), no longer re-derived from note rows.
     const alreadyPaid = Number(existing.paidAmount ?? 0);
-    // Audit Tier 3 (finding 6): the outstanding balance is CREDIT-AWARE. An
-    // invoice with an approved credit note is settled by `total − credited`;
-    // computing outstanding as `total − paid` meant such an invoice could
-    // never reach `paid` (the correct payment registered as a partial forever)
-    // and the overpay guard demanded money the customer does not owe.
-    const credited = (await invoicesRepository.notesAgainst(id, "credit_note")).reduce(
-      (s, n) => s + Number(n.total),
-      0,
-    );
-    const outstanding = Math.round((Number(existing.total) - credited - alreadyPaid) * 100) / 100;
+    const outstanding = round2(Number(existing.total) - Number(existing.creditedAmount ?? 0) - alreadyPaid);
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this invoice.`,
       );
     }
-    const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
-    const fullySettled = outstanding - paid < 0.01;
 
     const payDate = paidAt ?? businessToday();
-    const [inv] = await invoicesRepository.update(id, {
-      paidAmount: String(newPaid),
-      paidAt: payDate,
-      status: fullySettled ? "paid" : existing.status,
-    });
-
-    // B4 — the dated record of THIS payment. `paid_amount` is a running total
-    // and `paid_at` only ever holds the last date, so without this row a
-    // second instalment permanently destroys the first one's date.
-    // 🔴 N3: recorded BEFORE the GL entry so the payment row's id can make the
-    // entry number unique — `GL-x-PAY` alone collided on the second partial
-    // payment, two journal entries claiming to be the same document, and the
-    // new unique(company_id, entry_number) index would refuse instalment #2.
-    const payment = await paymentsRepository.recordInvoicePayment(id, paid, payDate);
-
-    // ── GL: Dr Cash and Bank / Cr Accounts Receivable ──
-    await postJournalEntry({
-      entryNumber: `GL-${inv.invoiceNumber}-PAY-${payment.id}`,
-      date: payDate,
-      description: `Payment received for invoice ${inv.invoiceNumber}`,
-      reference: inv.invoiceNumber,
-      lines: [
-        { systemCode: "CASH", accountName: "Cash and Bank", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: paid, creditAmount: 0 },
-        { systemCode: "AR", accountName: "Accounts Receivable", description: `Receipt for ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: paid, party: inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" } },
-      ],
-    });
+    // One payment, one allocation, one entry — through the D-4 writer. The
+    // invoice's caches (paid_amount, paid_at, status) move inside it.
+    await paymentsService.receive(
+      {
+        customerId: existing.customerId ?? null,
+        amount: paid,
+        paidAt: payDate,
+        bankAccountId,
+        idempotencyKey: body.idempotencyKey ?? null,
+        allocations: [{ invoiceId: id, amount: paid }],
+        source: opts.source ?? "invoice_pay",
+        sourceTransactionId: opts.sourceTransactionId ?? null,
+      },
+      userId,
+    );
+    const [inv] = await invoicesRepository.findById(id);
 
     await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: existing, after: inv });
-    return buildInvoiceOut(inv, null);
+    return buildInvoiceOut(inv!, null);
   },
 
-  /** B4 — the payment history, newest first. Backfilled rows are aggregates. */
+  /**
+   * The payment history, newest first. Two sources, one list, each fact in
+   * exactly one place: a payment recorded since D-4 is an allocation of a
+   * `payments` row (`paymentId` set); anything older is a B4 `invoice_payments`
+   * row (`paymentId` null; `backfilled` marks a pre-B4 aggregate).
+   */
   async payments(id: number) {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
-    return (await paymentsRepository.listForInvoice(id)).map((p) => ({
+    const legacy = (await paymentsRepository.listForInvoice(id)).map((p) => ({
       id: p.id,
       amount: Number(p.amount),
       paidAt: p.paidAt,
       backfilled: p.backfilled,
+      paymentId: null as number | null,
     }));
+    const current = (await paymentsRepository.allocationsForInvoice(id))
+      .filter((r) => r.payment != null)
+      .map((r) => ({
+        id: r.alloc.id,
+        amount: Number(r.alloc.amount),
+        paidAt: r.payment!.paidAt,
+        backfilled: false,
+        paymentId: r.payment!.id,
+      }));
+    return [...legacy, ...current].sort((a, b) => (a.paidAt === b.paidAt ? b.id - a.id : a.paidAt < b.paidAt ? 1 : -1));
   },
 
   /**

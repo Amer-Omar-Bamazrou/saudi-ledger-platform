@@ -1,6 +1,7 @@
 /** Bills repository — tenant-scoped via RLS. */
 import { db, billsTable, billItemsTable, vendorsTable } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { billNotReversed } from "./openingReversal";
 
 export interface BillListFilter {
   status?: string;
@@ -34,11 +35,12 @@ const OVERDUE = sql`(
 
 /** One predicate for the rows AND the totals — so they cannot describe different sets. */
 function billListConditions(filter: BillListFilter) {
-  const conditions = [];
+  // Policy C: a reversed opening bill is excluded from the live list and its totals (openingReversal.ts).
+  const conditions: unknown[] = [billNotReversed()];
   if (filter.overdue) conditions.push(OVERDUE);
   else if (filter.status) conditions.push(eq(billsTable.status, filter.status));
   if (filter.vendorId) conditions.push(eq(billsTable.vendorId, filter.vendorId));
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return and(...(conditions as Parameters<typeof and>));
 }
 
 export const billsRepository = {
@@ -104,6 +106,7 @@ export const billsRepository = {
       .where(
         and(
           sql`${billsTable.status} NOT IN ('draft','submitted','paid')`,
+          billNotReversed(), // Policy C: a reversed opening bill is never offered for settlement
           sql`(${billsTable.total}::numeric - COALESCE(${billsTable.paidAmount}::numeric, 0)) >= 0.01`,
         ),
       )

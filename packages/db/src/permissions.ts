@@ -103,6 +103,13 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
 
   // journal_entries: no PATCH route; post/reverse need approve; delete admin-only.
   journal_entries: { read: READ_ALL, create: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+  // D-4 (2026-09-17): a payment is a posting (Dr bank / Cr AR or deposits), so
+  // CREATE is approver-level, the same authority as `pay` and `settle`;
+  // `allocate` / `apply` resolve to `approve` (rbac.ts).
+  payments: { read: READ_ALL, create: APPROVE, approve: APPROVE },
+  // Batch 1C (2026-09-18): a migration is run by an ADMIN only (pack §D-1 §11);
+  // an accountant may read its record and reconciliation.
+  migration: { read: APPROVE, create: ADMIN_ONLY, update: ADMIN_ONLY, approve: ADMIN_ONLY, delete: ADMIN_ONLY },
 
   // Read + create only (no update/delete routes today).
   categories: { read: READ_ALL, create: WRITE },

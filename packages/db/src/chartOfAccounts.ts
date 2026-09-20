@@ -47,6 +47,33 @@ export const SYSTEM_ACCOUNTS = {
   SALARIES_PAYABLE: "SALARIES_PAYABLE",
   GOSI_EXPENSE: "GOSI_EXPENSE",
   GOSI_PAYABLE: "GOSI_PAYABLE",
+  /**
+   * D-4 (2026-09-17): the two customer-credit LIABILITIES, both party-carrying.
+   * `CUSTOMER_DEPOSITS` — cash received from a customer that no invoice yet
+   * explains (an unapplied receipt, an advance, an over-payment's excess): a
+   * contract liability, never a credit inside AR (accountant-confirmed).
+   * `CUSTOMER_CREDITS` — the part of a credit note that exceeded its
+   * original invoice's open balance: a refund liability. Two accounts
+   * because the two have different natures, VAT states and exits; the
+   * mapping origin → account lives in customerCreditPolicy.ts so the policy
+   * can change without touching the payment engine.
+   */
+  CUSTOMER_DEPOSITS: "CUSTOMER_DEPOSITS",
+  CUSTOMER_CREDITS: "CUSTOMER_CREDITS",
+  /**
+   * Batch 1C (2026-09-18). RETAINED_EARNINGS: the STORED brought-forward
+   * equity a migrated company arrives with — a MAPPING TARGET for the source
+   * position's own retained-earnings row; the balance sheet presents it
+   * beside the computed current-period result.
+   *
+   * 🔴 There is NO opening-balance-equity account (accountant A5, 2026-09-20;
+   * decision pack §16.12.2). A source position that does not balance is
+   * REFUSED; nothing lands a difference anywhere. The former
+   * OPENING_BALANCE_EQUITY was removed by migration 0080 — not tombstoned:
+   * an account that exists but can never be posted to is a shape waiting
+   * for someone to find a use for it.
+   */
+  RETAINED_EARNINGS: "RETAINED_EARNINGS",
 } as const;
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
@@ -85,6 +112,15 @@ export interface SystemAccountDef {
    */
   liquidityClass?: LiquidityClass;
   /**
+   * D-3 (2026-09-16): `false` marks a HEADER — an account no new line may
+   * name. Only `CASH` today: "Cash and Bank" is the parent of one
+   * system-generated leaf per bank account, and every cash line resolves to
+   * a leaf through `categories.bank_account_id`. Kept here AND on
+   * `system_account_templates.is_posting` so the code seed and the DB
+   * trigger cannot disagree (the org-seed guard test compares the two).
+   */
+  isPosting?: false;
+  /**
    * The `journal_entry_lines.account_name` literals our own code has posted
    * since before M13. Used ONLY by the backfill, which is deterministic because
    * these strings came from our source, not from user input.
@@ -94,7 +130,11 @@ export interface SystemAccountDef {
 
 export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "AR", name: "Accounts Receivable", nameAr: "الذمم المدينة", type: "asset", liquidityClass: "quick", legacyNames: ["Accounts Receivable"] },
-  { code: "CASH", name: "Cash and Bank", nameAr: "النقد والبنك", type: "asset", liquidityClass: "cash", legacyNames: ["Cash and Bank", "Cash"] },
+  // 🔴 D-3: a NON-POSTING HEADER since 0073. Cash lines name a bank account
+  // and resolve to that bank's leaf (`categories.bank_account_id`); this row
+  // only ever holds pre-cut-over history until the per-company cut-over
+  // remaps it (services/accounting/cashCutover.service.ts).
+  { code: "CASH", name: "Cash and Bank", nameAr: "النقد والبنك", type: "asset", liquidityClass: "cash", isPosting: false, legacyNames: ["Cash and Bank", "Cash"] },
   // 🔴 Flaw #1 (Option A): where an ACCEPTED but UNCATEGORISED bank line
   // posts. Double entry needs two accounts, and the alternative — refusing to
   // accept an uncategorised row — would strand the review queue. Posting it to
@@ -121,6 +161,9 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["VAT Payable"] },
   { code: "SALARIES_PAYABLE", name: "Salaries Payable", nameAr: "الرواتب المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["Salaries Payable"] },
   { code: "GOSI_PAYABLE", name: "GOSI Payable", nameAr: "التأمينات الاجتماعية المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["GOSI Payable"] },
+  // D-4 (2026-09-17): customer money the books owe back or must earn — see SYSTEM_ACCOUNTS.
+  { code: "CUSTOMER_DEPOSITS", name: "Customer deposits and advances", nameAr: "ودائع ودفعات مقدمة من العملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
+  { code: "CUSTOMER_CREDITS", name: "Customer credit balances", nameAr: "أرصدة دائنة للعملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
 
   // 🔴 WHY THIS IS EQUITY (owner-approved 2026-08-17, recorded so nobody
   // re-litigates it as "why is this in equity"): the tenant DECLARED the
@@ -133,6 +176,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // contribution (credit here). Reclassifiable per-row later by changing the
   // declaration, which reverses and re-posts.
   { code: "EXTERNAL_TRANSFERS", name: "External transfers (money leaving the business)", nameAr: "تحويلات خارجية (أموال خرجت من المنشأة)", type: "equity", legacyNames: [] },
+  // Batch 1C (2026-09-18) — see SYSTEM_ACCOUNTS. (OPENING_BALANCE_EQUITY removed 2026-09-20, A5.)
+  { code: "RETAINED_EARNINGS", name: "Retained earnings", nameAr: "الأرباح المبقاة", type: "equity", legacyNames: [] },
 
   { code: "SALES", name: "Sales Revenue", nameAr: "إيرادات المبيعات", type: "income", vatApplicable: true, legacyNames: ["Sales Revenue"] },
 
@@ -184,6 +229,8 @@ export async function seedChartOfAccounts(
     // not the other is how a tenant ends up with an unclassifiable balance
     // sheet depending on which door they came in through.
     liquidityClass: a.liquidityClass ?? null,
+    // D-3: the header flag travels with the row for the same reason.
+    isPosting: a.isPosting ?? true,
   }));
 
   const inserted = await client

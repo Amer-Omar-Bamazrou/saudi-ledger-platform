@@ -69,6 +69,10 @@ const NON_UI_SURFACES: Record<string, string> = {
  * standing check's caller-grep passes.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // "/payments" — CLOSED by Batch 1B Phase F (2026-09-17). `/payments`
+  // (receipts, allocations, refunds), the customer detail's payment and
+  // credit-note sections, and `/bank-matching` are its first readers. Deleted,
+  // not reworded, per the pattern.
   // "/period-locks" — CLOSED by M18.4. The Finance Hub (`/finance-hub`) is its
   // first UI: a tenant can now close and reopen a month from the product. Left
   // as a comment rather than deleted so the entry's history is visible: it sat
@@ -76,6 +80,11 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // "/audit-logs" — CLOSED by M23 (2026-08-21). The Audit Trail page
   // (/audit-trail, admin-gated nav) is its first reader, ~15 months of rows
   // after M7 wrote the first one. Deleted, not reworded, per the pattern.
+  // "/migration" — CLOSED by the Batch 1C workspace (2026-09-20): `/migration`
+  // and `/migration/:id` in apps/web consume every batch endpoint (list, create,
+  // chart + decisions, parties + decisions, open items, advances, opening
+  // position, validate, commit, reversal preview, reverse, discard). The entry
+  // sat here from 2026-09-18 until the wizard shipped, as its text promised.
   "/llm":
     "The LLM proposal surface (status/categorize/compare/demo) has no UI. It writes nothing to the ledger by design, so this is inert rather than risky — but the AI layer is parked (hub decision §4), and this route should either gain a consumer when it unparks or be deleted.",
 };

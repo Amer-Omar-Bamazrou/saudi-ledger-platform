@@ -9,6 +9,8 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { businessToday } from "@workspace/shared";
+import { invoiceNotReversed } from "./openingReversal";
+import { receivableInBooks } from "./receivableInBooks";
 
 export interface InvoiceListFilter {
   status?: string;
@@ -47,12 +49,14 @@ export const DEFAULT_PAGE = 50;
 const OVERDUE = sql`(
   COALESCE(NULLIF(${invoicesTable.dueDate}, ''), ${invoicesTable.date})::date < CURRENT_DATE
   AND ${invoicesTable.status} NOT IN ('draft','submitted','rejected','paid')
-  AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0)) > 0
+  AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) > 0
 )`;
 
 /** One predicate for the rows AND the totals — so they cannot describe different sets. */
 function invoiceListConditions(filter: InvoiceListFilter) {
-  const conditions = [];
+  // Policy C: a reversed opening item is history, readable by id, never a
+  // row in the live list nor a number in its totals (openingReversal.ts).
+  const conditions: unknown[] = [invoiceNotReversed()];
   // `overdue` is a derived view of the same set, so it replaces a status filter
   // rather than narrowing one — asking for both would describe no rows.
   if (filter.overdue) conditions.push(OVERDUE);
@@ -60,7 +64,7 @@ function invoiceListConditions(filter: InvoiceListFilter) {
   if (filter.customerId) conditions.push(eq(invoicesTable.customerId, filter.customerId));
   if (filter.dateFrom) conditions.push(gte(invoicesTable.date, filter.dateFrom));
   if (filter.dateTo) conditions.push(lte(invoicesTable.date, filter.dateTo));
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return and(...(conditions as Parameters<typeof and>));
 }
 
 export const invoicesRepository = {
@@ -117,10 +121,17 @@ export const invoicesRepository = {
          * note totals equals subtracting per-invoice credited amounts.
          * `money-kpi-consistency.test.ts` pins KPI == Σ aging.
          */
+        // D-4 (2026-09-17): outstanding is the GROSS receivable — Σ per issued
+        // invoice of total − paid − credited, where `credited` is the cache of
+        // credit-note allocations to THAT invoice. A note contributes nothing
+        // of its own: its applied part already sits in a target's
+        // credited_amount, and its unapplied remainder is a LIABILITY
+        // (Customer credit balances), not a negative receivable. Equals GL AR
+        // and Σ aging by construction (money-kpi-consistency pins it).
         outstanding: sql<number>`COALESCE(SUM(
           CASE WHEN ${invoicesTable.status} IN ('draft','submitted') THEN 0
-               WHEN ${invoicesTable.documentType} = 'credit_note' THEN -(${invoicesTable.total}::numeric)
-               ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) END), 0)::float8`,
+               WHEN ${invoicesTable.documentType} = 'credit_note' THEN 0
+               ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric END), 0)::float8`,
         // N2: collected is money actually RECEIVED — Σ paid_amount over
         // in-books documents — not "total of fully-paid invoices", which
         // ignored every partial payment and counted unpaid halves as
@@ -396,9 +407,11 @@ export const invoicesRepository = {
   /**
    * Open invoices a bank credit could settle (M16.3 reconciliation).
    *
-   * "Open" mirrors AR aging's per-document definition: issued (approved —
-   * `invoice_hash IS NOT NULL`, so drafts/submitted are structurally excluded),
-   * not fully paid, with `total - paid_amount >= 0.01`. Restricted to
+   * "Open" mirrors AR aging's per-document definition: a receivable in the
+   * books (`receivableInBooks()` — issued here or migrated as an opening
+   * item, never a reversed one; Issue 1 replaced the `invoice_hash IS NOT
+   * NULL` proxy, which refused every opening receivable), not fully paid,
+   * with `total - paid - credited >= 0.01`. Restricted to
    * `document_type = 'invoice'`: a credit/debit NOTE is a correction document,
    * not a receivable a bank credit settles (v1 scope, design §3).
    */
@@ -409,10 +422,9 @@ export const invoicesRepository = {
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
       .where(
         and(
-          isNotNull(invoicesTable.invoiceHash),
-          eq(invoicesTable.documentType, "invoice"),
-          sql`${invoicesTable.status} NOT IN ('draft','submitted','paid')`,
-          sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0)) >= 0.01`,
+          // Issue 1: a receivable in the books (issued here OR an opening item; never a reversed one) — not "has a hash".
+          receivableInBooks(),
+          sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) >= 0.01`,
         ),
       )
       .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));

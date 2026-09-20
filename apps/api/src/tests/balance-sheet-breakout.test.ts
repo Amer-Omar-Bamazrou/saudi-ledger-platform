@@ -37,6 +37,7 @@ const AS_OF = "2026-12-31";
 describeMaybe("M18.2 — the balance sheet splits current from non-current", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let entryNo = 0;
 
@@ -55,6 +56,12 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
   }
 
   /** Account id for a system code in this org. */
+  /** D-3: the postable cash account is the fixture bank's own GL leaf. */
+  async function cashLeaf(): Promise<number> {
+    const { rows } = await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bankId]);
+    return Number(rows[0].id);
+  }
+
   async function acct(code: string): Promise<number> {
     const { rows } = await pool.query(
       `SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2`,
@@ -94,6 +101,7 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -107,6 +115,8 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','BR',' ','viewer',true) RETURNING id`,
@@ -121,7 +131,7 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
     //   Dr CASH 10,000        / Cr LOANS 10,000          current asset / current liability
     //   Dr FIXED_ASSETS 6,000 / Cr AP 6,000              non-current asset / current liability
     //   Dr <unclassified> 900 / Cr AP 900                🔴 the bucket under test
-    await post(await acct("CASH"), await acct("LOANS"), 10000);
+    await post(await cashLeaf(), await acct("LOANS"), 10000);
     await post(await acct("FIXED_ASSETS"), await acct("AP"), 6000);
 
     // An asset account the tenant never classified. Created directly so it is
@@ -178,7 +188,8 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
 
   it("classifies the seeded accounts into the buckets the owner chose", async () => {
     const { assets, liabilities } = await inTenant(() => reportsService.balanceSheet(AS_OF));
-    expect(assets.current.items.map((i) => i.name)).toContain("Cash and Bank");
+    // D-3: cash sits on the bank's own GL leaf (cash-classified), under the non-posting "Cash and Bank" header.
+    expect(assets.current.items.map((i) => i.name)).toContain("D3 Fixture Bank");
     expect(assets.nonCurrent.items.map((i) => i.name)).toContain("Fixed Assets");
     // LOANS → current, deliberately conservative (design §3.2): it OVERSTATES
     // current liabilities and so understates the ratio.

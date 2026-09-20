@@ -1944,3 +1944,284 @@ and a walked leg proving the `/zatca` checklist goes green from the UI.
 Not done now on the owner's instruction (documentation only).
 
 State: OPEN (docs corrected; the field is not added).
+
+## THE CASH CUT-OVER IS BLOCKED BY HISTORY THAT NAMES NO BANK — OPEN, 2026-09-16 (D-3 / G3, Batch 1A)
+
+**What was built.** One GL cash account per bank account, "Cash and Bank" a
+non-posting header, every cash-posting path naming a bank and failing closed
+without one, and a per-company cut-over that classifies every historical cash
+line and ATTRIBUTES (annotates — never rewrites a posted line) only what
+source evidence ties to a bank — as-built record
+`docs/product/design-per-bank-cash.md`; decision record the decision pack
+§D-3. (The first build remapped `account_id` in place; the 2026-09-16
+architectural review withdrew that, and the 2026-09-17 remediation replaced
+it with `cash_line_bank_attributions` + the one resolver view.)
+
+**The finding.** The dry-run on every local company (2026-09-16, unchanged
+under the strict one-to-one settlement pairing of 2026-09-17): `default`
+51 lines — 39 DETERMINISTIC, 12 AMBIGUOUS_REQUIRES_REVIEW;
+`pilot-trading-est` 8 — 0 / 8; `rehearsal-trading-est` 20 — 5 / 15;
+0 UNMAPPABLE, 0 INCONSISTENT (`e2e-smoke` is re-seeded per run and has no
+header lines since 0073). Every company is blocked. Three shapes block:
+(1) **Mark-Paid payments** — `invoice_payments`/`bill_payments` rows recorded
+with no bank and no settlement row; (2) **manual journal entries** whose cash
+line names no bank; (3) **transactions with `bank_account_id` NULL** — rows
+typed through `POST /transactions` before it required a bank (the pilot's
+own five seeded rows are this shape: the seeder passed `bankAccountId` and the
+create path silently dropped it).
+
+**Why it is not forced.** The accountant confirmed that having exactly one
+bank account is NOT evidence of which account an old payment went through;
+the pack's remediation for (1) and (2) is an admin OVERRIDE, and what an
+override must cite is an open accountant decision (pack §D-3 §13). Guessing
+would be the shared-cash-account defect in a new shape.
+
+**What remediates today.** Shape (3) only: `PATCH /transactions/{id}
+{ bankAccountId }` (settable once, while the row has none) — the
+Transactions edit dialog shows the picker for such rows — then re-run the
+dry-run. The pilot's five rows can be remediated by the pilot admin this
+way; its three Mark-Paid rows wait on the override decision.
+
+**What would close it.** The override policy (what it must cite; who may
+record it) → an override table and a dry-run rule A4 → the pilot's dry-run
+clean → `scripts/cashCutover.ts --commit --company <pilot>`.
+
+State: OPEN. Consequence while open: pre-D-3 cash sits on the header, new
+cash on the banks' own accounts; total cash is conserved and both are
+visible on the balance sheet — an honest split, not a hidden one.
+
+
+## THE DEFAULT-ORG AR/AP DIVERGENCE — KNOWN DATA CONDITION, NOT A DEFECT (recorded 2026-09-17, Batch 1B Part 2)
+
+**What it is.** On the local development database the `default` organization's
+GL AR (76,982.50) does not equal its invoice subledger (126,792.50), and its GL
+AP by vendor does not equal its bills. Found by the Part 1 review's whole-database
+sweep; it predates D-4 and D-4 did not touch it.
+
+**Cause, by rule (never by org name).** Two shapes of pre-D-4 dev data:
+
+- **RULE-J — invoices without an issue journal.** Six `DEMO-INV-100x` invoices
+  (49,910.00 outstanding) written by the demo seed around the posting path have
+  no `GL-<number>` entry at all: they exist in the subledger and nowhere in the
+  GL. (A seventh, `INV-2026-000049`, is a 0.00 invoice.)
+- **RULE-P — party-less control-account lines.** Twelve AR lines (net 75,430.00)
+  and four AP lines (net −13,064.00) in `default`, and eight AR lines (920.00) in
+  `dbg-fork`, were posted before N3 (2026-09-03) put the party on every control
+  line. They cannot be attributed to a customer or vendor, so the by-party
+  reconciliation cannot cover them. `QA-CLICK-001` (a manual AR line of 100.00)
+  is one of them.
+
+**How the sweep treats it.** `apps/api/src/scripts/ledgerInvariants.ts`
+(`pnpm --filter @workspace/api-server run invariants:ledger`) reconciles AR/AP by
+party over the COVERED set — documents whose issue journal exists and carries
+the party — and lists RULE-J and RULE-P residuals per org as information. Every
+other invariant (journal balance, outstanding ≥ 0, source consumption, caches,
+deposit and credit reconciliation, one-to-one matching) holds with no
+exceptions. A new divergence in a D-4-era org therefore fails the sweep; it
+cannot hide behind this record.
+
+**Not fixed now, by decision.** Re-posting demo invoices or back-filling parties
+onto pre-N3 lines would be a rewrite of history for dev data nobody depends on.
+State: KNOWN. Consequence: none for any tenant created since N3; the pilot,
+rehearsal and e2e organizations reconcile exactly.
+
+## THE CUSTOMER BALANCE READERS — AUDITED AND CORRECTED (2026-09-17, Batch 1B Part 2 Phase E)
+
+**The question.** Under D-4 a customer's position has three parts with their own
+GL accounts — Accounts Receivable, Customer credit balances, Customer deposits —
+so any reader that still computed ONE number from `total − paid` reads a
+liability as a NEGATIVE receivable (or, worse, does not see it at all).
+
+**The frame.** Every reader of `invoices.paid_amount` / `credited_amount` in
+`apps/api/src/{services,repositories,controllers}` that produces a customer- or
+document-level balance (grep `paidAmount|paid_amount`; bills/AP, e-invoice and
+capture readers excluded — they are not customer balances).
+
+| Reader | Pre-E | Phase E |
+| --- | --- | --- |
+| `customers.repository.customerBalances` / `listTotals` | Σ sign·total − Σ sign·paid — an unapplied credit note or an unallocated receipt read as negative AR; `credited_amount` ignored, so a credited invoice still read as owed | Delegates to `customerStatement.repository.positions`: `receivable ≥ 0`, `creditBalance ≥ 0`, `depositBalance ≥ 0`, `netPosition` DERIVED; `balance` IS `netPosition` (net exposure kept under its old name) |
+| `customers.service.list` / `getById` | as above | carries the three components + net on every row and in the set-wide totals |
+| `payments.service.customerCredits` | its own SQL in `payments.repository.customerCreditPosition` (a second definition) | reads `positions` — one definition |
+| `reports.service.customerLedger` | note rows carried `outstanding = −total`; invoice rows ignored `credited_amount` | invoice/debit-note `outstanding = total − paid − credited ≥ 0`, note rows 0 with `creditedAmount` surfaced; per-customer `position` (current) beside the window `balance`; report totals for receivable / credit / deposit / net |
+| `reports.service.arAging` | items already ≥ 0 since D-4 | `liabilities.customerCredits`, `liabilities.customerDeposits` and `netCustomerPosition` beside the buckets; never folded in |
+| `invoiceDocument` "Balance due" | `total − paid` — a credited invoice printed the credited part as still due | `total − paid − credited`, with a "Credited" row when > 0 |
+| `invoices.repository.listMeta.outstanding`, `OVERDUE`, `findings.repository` overdue-invoice queries, `reconciliation.service` outstanding | already `total − paid − credited`, notes excluded (D-4) | unchanged — verified in the frame |
+| `apps/web` `CustomerDetail`, `Customers`, `CustomerLedger`, `partyDetail.ts` | render `balance` | unchanged (they now render the NET, labelled "Outstanding"/"Total AR") — **the labels and the three-component display are Phase F** |
+
+**New surface.** `GET /customers/{id}/statement?date_from&date_to`: every event
+that moved the position (invoice, debit note, credit note, receipt, allocation,
+credit application, unallocation, refund) in chronology — business date, then
+recorded timestamp, then a kind rank — with three running balances and the
+derived net; `opening` / `closing` for the window, `current` for all events,
+`subledger` from the caches, and `reconciled` saying whether the two agree.
+Rebuilt from the events, so it is the independent check of the caches.
+Guard: `tests/d4-customer-statement.test.ts` (17).
+
+**Not done, by scope.** `customerCreditPosition`'s `invoice_hash IS NOT NULL`
+issuance test was replaced by `status NOT IN ('draft','submitted')` (the
+`INVOICE_NOT_IN_BOOKS` predicate every other reader uses); the two coincide on
+every local row (measured 2026-09-17: 41 issued documents, all hashed). Web
+rendering of the three components: Phase F.
+
+## BATCH 1B — CLOSED 2026-09-17 (D-4 payments: Parts 1–2, Phases A–F)
+
+**What closed, in order.** Part 1 — the payment core (`payments`,
+`payment_allocations`; `POST /payments`, `/payments/{id}/allocate`,
+`/payments/credit-notes/{id}/apply`; the unallocated remainder of a receipt
+is a *Customer deposits* liability, a credit note's excess a *Customer credit
+balances* liability — decision pack §1, Model C). Phase A — corrections:
+`/payments/allocations/{id}/unallocate` writes a superseding reversal record
+(Dr AR / Cr the origin's liability, dated today, period-controlled); the
+allocation row is never edited; a credit note's settlement of its own original
+is immutable (a further note corrects it). Phase B — party-correct reversal:
+every control-account line a reversal writes carries the party of the line it
+cancels (`tests/reversal-party.test.ts`). Phase C — refunds:
+`POST /payments/refunds` settles a deposit (from a named receipt) or a credit-
+note balance (from a named issued note), Dr the origin's liability / Cr the
+bank leaf, reason required, no VAT touched; the receipt and the note stay as
+they were. Phase D — deterministic bank matching:
+`GET /payments/matching` classifies every statement row MATCHED /
+DETERMINISTIC / AMBIGUOUS / UNMATCHED / INCONSISTENT with its evidence
+(`services/statementMatching.service.ts`; identity clauses, ±3-day window as
+the one product value in `matchingPolicy.ts`); `apply` records the
+deterministic set as an explicit act; `override` records the human's match
+with actor, reason and evidence; `unmatch` supersedes with a reversal row; the
+database refuses a second active match per row or counterpart. Phase E — the
+customer statement and the three-component position (the record above).
+
+**Phase F — the UI (2026-09-17).** `/payments` (receipts newest first, a
+refunds tab, a customer filter, "Record receipt" on account); the customer
+page's position tiles (AR · Customer credits · Customer deposits · Net,
+derived), its Payments section (a receipt opens into its ALLOCATIONS — active
+and corrected, allocate / unallocate / refund deposit), its Credit Notes
+section (remaining credit per note; apply / unallocate / refund credit; the
+original application shown as the tax document's effect, no control) and a
+Refunds section; `/customers/:id/statement` (the Phase E statement: three
+running balances, derived net, opening/closing/current, the server's
+`reconciled` verdict shown either way; cards on a phone); `/bank-matching`
+(bank and date filters, counts per class, per-row evidence — candidates,
+identifying reference, window, reason — Accept naming its scope before the
+act, Match manually with a required reason, Unmatch); `/ar-aging` now shows
+the two liabilities and the derived net beside the buckets. Shared dialogs in
+`apps/web/src/components/payments/`. Approver-level acts render DISABLED with
+the reason for other roles (the server judges). Every string through `t()`;
+the Arabic sweep on the new files reports 0 user-facing English.
+
+**Browser validation (`e2e/batch-1b-payment-flows.spec.ts`, 10 tests, by
+clicking; effects read back from the API).** English desktop: the payment flow
+(view → allocate 300 of 800 to INV-002 → outstanding falls → unallocate with a
+reason → 800 available again, the corrected row still visible → reallocate 200
++ 100 across two invoices); the credit flow (CN-001's 115 is a credit, AR ≥ 0;
+apply 50 → correct → 115 restored); the refund flow (deposit 100 with the
+two-step confirmation naming customer, origin, amount, bank, reason and the
+balance after; credit 115 in full; both sources still listed); bank matching
+(DETERMINISTIC accepted → MATCHED with method deterministic; AMBIGUOUS shown
+with its reason and candidate, matched by hand with a reason → method manual,
+actor and narrative in the evidence; unmatch → the row returns to AMBIGUOUS
+and the historical match still reads with its reversal); the statement (all
+seven kinds present, running balances are the server's, last line = closing,
+current = the customer page's position, reconciled); AR ageing (Σ buckets =
+total, no negative item, the credit note absent, net = total − credits −
+deposits). English phone, Arabic desktop RTL and Arabic phone RTL: a receipt
+recorded through the dialog, allocated and corrected; dialogs within the
+viewport; no page scrolls sideways on the four new surfaces.
+
+**Not done, by scope (genuine limitations).** (1) Allocation from the
+Invoices page's "Mark Paid" stays the one-invoice path; a receipt across
+several invoices is recorded on account and allocated from the customer page.
+(2) `/payments` filters by customer only (the API's own filter); no date or
+bank filter yet. (3) A refund is not routed through the approval engine (the
+pack's second-person approval is a FUTURE PHASE per-company setting).
+(4) The Payments page names a credit note by id in the Refunds tab when the
+customer's invoice list is not loaded. (5) The dev org's RULE-J / RULE-P
+condition (the record above) is unchanged and still listed by the sweep as
+information. (6) Found while validating, NOT fixed (API, outside the UI
+scope): `invoiceDocument.service` caches ONE Chromium for the life of the
+process; when that child dies (a killed test run orphaned the API and took
+its browser with it) every PDF download answers 500 until the API restarts.
+A `browser.isConnected()` check that clears `browserPromise` is the fix;
+severance lesson, §3.
+
+State: CLOSED. Current state authority: CLAUDE.md §2.
+
+## BATCH 1C — THE CORRECTION POLICY DECIDED; THE PRE-ANSWER BUILD CORRECTED (2026-09-20)
+
+**What was decided.** The accountant answered the two questions escalated on
+2026-09-19 (decision pack §16.9). **A4:** a committed migration is corrected by
+preserving every accounting record it created — the reversal mirrors the
+opening journal and MARKS the opening invoices, bills and deposits reversed;
+the corrected re-run creates replacements with **NEW** Saudi Ledger numbers
+(`OPEN-<batch>-<seq>`, prefix reserved) and provenance links to the originals;
+the source number is provenance only, never re-minted. **A5:** an opening
+position that does not balance BLOCKS the migration — no landing account, no
+declared residual, no clearing journal, no automatic classification; the
+operator classifies the difference into named accounts before validation.
+Full record and invariants: decision pack §16.12.
+
+**What the Phase 3 build (2026-09-19) had done instead, and where.** The
+reversal DELETED the opening invoices, bills and deposit rows
+(`migrationCommit.service.ts`, `deleteInvoices/deleteBills/deletePayments`),
+backed by a `payments` DELETE grant and row trigger (migration 0079) and an
+"unlink-only" exception to the committed-staging immutability trigger; the
+re-run reused the original numbers. `obeResidualReason` turned the balance
+check into a warning, the commit carried the difference on
+`OPENING_BALANCE_EQUITY`, R6 warned, and `POST …/clear-obe` moved it to
+retained earnings. Every one of these was the pre-answer reading, and §16.8
+had even recorded "reuse the original number" as the Policy C consequence —
+**withdrawn by the answer**; the pack keeps the reasoning and says why it lost.
+
+**What corrected it.** Two commits on `feat/batch-1c-migration-opening-balances`
+after the docs commit `fdd7593`: the OBE removal (`1bb3f47`, migration 0080)
+and Policy C at batch level (the commit carrying migration 0081) — the
+as-built record is the pack §16.12.6. The reader sweep
+(`tests/opening-reversal-reader-sweep.test.ts`) was written red first; the
+ledger invariant sweep run against KEPT fixtures (`KEEP_1C_FIXTURE=1`) caught
+the one reader the file-level ratchet could not — the deposits check inside a
+file that already imported the predicate — and it was fixed before commit.
+
+**🔴 OPEN — one accountant question, NOT built past.** When an opening AR/AP
+item is already **partly settled** (a receipt allocated, a bill part-paid, a
+deposit part-applied) and is then found wrong: adjust the outstanding on the
+existing item by a dated correction, or reverse-and-replace with re-allocation?
+The answer received covers only an untouched item. The product keeps REFUSING
+the reversal while any such activity exists (the blockers), and no item-level
+correction exists. Exact question: pack §16.12.5.
+
+State: decisions RECORDED and IMPLEMENTED (batch level); item-level correction
+OPEN on the accountant. Current state authority: CLAUDE.md §2.
+
+## AN OPENING RECEIVABLE CANNOT BE COLLECTED THROUGH D-4 — CLOSED 2026-09-20 (Issue 1; found the same day during the Policy C audit; pre-existing)
+
+**The finding.** `paymentsService`'s allocation validator refuses any invoice
+with `invoice_hash == null` ("only an issued invoice has a receivable to
+settle"), and `invoicesRepository.openForSettlement` (the review queue's
+settle-against-invoice candidates) requires `invoice_hash IS NOT NULL`. An
+opening item (`is_opening`, Batch 1C) never has a hash — by design (R7: no
+ICV, hash, QR, e-invoice). So no receipt can be allocated to an opening
+receivable through the product, from any path: `invoicesService.pay` routes
+through the same validator. The Phase 3 tests never collected an opening item;
+the reversal blocker test set `paid_amount` directly. The same holds for
+opening bills only partly: `billsService.pay` has no hash rule, but the
+review queue's `openForSettlement` for bills does not require one either — so
+bills collect, invoices do not.
+
+**Class.** The narrower-claim family: "issued" was defined as "has a hash" for
+the D-4 validator, which was true for every invoice until the migration
+created one that is issued (in the books, on the customer's statement) without
+ever having been issued as a tax document.
+
+**What would close it.** A decision on what "issued" means for an opening
+item at the allocation boundary — `is_opening OR invoice_hash IS NOT NULL` is
+the obvious predicate, but it touches the D-4 correctness rules (a receipt
+against an opening item settles the migrated balance; the GL side is the
+opening journal's AR party line, not a `GL-<number>` issue journal, which
+`ledgerInvariants.ts` RULE-O already covers) and wants its own red-first test
+that COLLECTS an opening item end to end. Not folded into the Policy C commit
+on purpose: it predates A4/A5 and is a scope of its own.
+
+**Surveyed 2026-09-20 (research only; pack §16.13):** the same artefact-as-proxy shape sits in three places (the D-4 allocation validator, `openForSettlement`, and the web `isOpenInvoice`), two ledger invariants skip opening items for the same reason, the PDF renderer would title an opening item a Tax Invoice, and a credit note can be created against an opening item — the minimum change and the required tests are recorded there. Awaiting approval.
+
+**CLOSED 2026-09-20 (Issue 1, the commit after `f8bc71c` on `feat/batch-1c-migration-opening-balances`; pack §16.15 is the as-built record).** The proxy was replaced by ONE predicate — `@workspace/shared` `isReceivableInBooks`: `document_type = 'invoice'` AND status ∈ {`sent`, `paid`} AND not a reversed opening item — at the three sites (the D-4 allocation validator, `openForSettlement` through `repositories/receivableInBooks.ts`, the web `lib/openInvoice.ts`), and `creditNotes.ts` now reads its issued-status list from the same definition. The ledger invariant `invoice_outstanding_nonnegative` runs over `invoice_hash IS NOT NULL OR is_opening` (`INVOICE_ISSUED_OR_OPENING_TEXT`); `paid_cache` was found to have had NO hash gate at all (the entry above believed it had — verified, not restated; it stays universal). Two guards follow from the same fact: the PDF renderer refuses an `is_opening` row (`opening_item_not_a_tax_invoice`, 409) rather than titling a migrated balance a Tax Invoice, and a credit/debit note whose original is an opening item is refused fail-closed (`note_original_is_opening_item`, 409) until §16.14.9's ZATCA question is answered. The red-first suite `tests/batch-1c-opening-receivable-collection.test.ts` collects opening receivables through every path (invoice pay, receipt + partial then full allocation with the D-4 controls exercised, the review queue's settle-against-invoice, bank statement matching) and asserts on each that no hash, ICV, QR, issuance time, e-invoice document, archive entry or VAT-return movement appears and that the approval, hash, QR and e-invoice enqueue seams are never invoked — with an ordinary approval as the planted positive on the same spies; the ledger invariant sweep was run on kept fixtures after the collections and holds. Also captured in the same commit (information only, no behaviour): the Art. 40(9) flag `historicalVat.badDebtReliefClaimed` (true / false / null) on the staged open item, inside the existing `historical_vat` jsonb — no schema change — echoed by the staging API, inside the content hash, and written onto the opening receivable's provenance `notes`. **Still open, unchanged:** Issue 2 (a partly-settled opening item — accountant) and historical credit notes (ZATCA).
+
+State: CLOSED 2026-09-20. Current state authority: CLAUDE.md §2.
+

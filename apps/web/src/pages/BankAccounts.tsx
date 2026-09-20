@@ -11,7 +11,7 @@ import { Plus, Landmark, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-interface BankAccount { id: number; name: string; bankName: string; accountNumber?: string; iban?: string; currency: string; balance: number; openingBalance: number; isDefault: boolean; isActive: boolean; notes?: string; }
+interface BankAccount { id: number; name: string; bankName: string; accountNumber?: string; iban?: string; currency: string; balance: number; openingBalance: number; isDefault: boolean; isActive: boolean; notes?: string; glAccountId: number | null; glAccountName: string | null; ledgerBalance: number | null; ledgerBalanceOnLeaf: number | null; attributedHistory: number | null; }
 
 const SAUDI_BANKS = ["Al-Rajhi Bank الراجحي","Saudi National Bank SNB","Riyad Bank بنك الرياض","Banque Saudi Fransi","Arab National Bank ANB","Saudi British Bank SABB","Alinma Bank بنك الإنماء","Al-Jazira Bank بنك الجزيرة","SAMBA Financial Group","Albilad Bank بنك البلاد"];
 
@@ -113,6 +113,19 @@ export default function BankAccounts() {
               </CardHeader>
               <CardContent>
                 <div className={`text-2xl sm:text-3xl font-bold font-mono ${acc.balance >= 0 ? "text-positive" : "text-negative"}`}>{fmtNum(acc.balance)}</div>
+                {/* D-3: what the BOOKS say for this account — its own GL cash account
+                    (created with the bank account, renamed with it). The figure above is
+                    the typed balance; this one is Σ of the ledger lines posted to it. */}
+                <div className="text-xs text-muted-foreground mt-1" data-testid="ledger-balance">
+                  <div>{t("Ledger balance", "الرصيد الدفتري")}: <span className="font-mono whitespace-nowrap">{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</span></div>
+                  {acc.glAccountName ? <div className="truncate">{t("GL account", "حساب الأستاذ")}: {acc.glAccountName}</div> : null}
+                  {/* Annotation model: history posted before per-bank accounts stays on
+                      "Cash and Bank" and is attributed to this bank — shown, not folded away,
+                      so the balance sheet's two lines and this figure can be reconciled. */}
+                  {acc.attributedHistory != null && acc.attributedHistory !== 0 ? (
+                    <div>{t("of which on Cash and Bank (pre-per-bank history)", "منها على «النقد والبنك» (سجل ما قبل الحسابات المستقلة)")}: <span className="font-mono whitespace-nowrap">{fmtNum(acc.attributedHistory)}</span></div>
+                  ) : null}
+                </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <div className="text-xs text-muted-foreground">IBAN: <span className="font-mono">{acc.iban ? acc.iban.slice(0, 16) + "..." : "—"}</span></div>
                   <div className="text-xs text-muted-foreground">{t("A/C", "حساب")}: <span className="font-mono">{acc.accountNumber || "—"}</span></div>

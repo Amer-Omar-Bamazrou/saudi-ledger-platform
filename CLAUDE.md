@@ -57,13 +57,9 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-09-15.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-09-02** — the contract milestone CLOSED at a deliberate stop (rules and
-the pinned inventory: §5). **2026-09-03/04** — the ERPNext comparison; N1–N4 +
-T1 closed; L1's core and L2 SHIPPED. **2026-09-14** — #141/#142 merged ten days after going green (lesson: §3);
-🔴 **THE DECISION-FREE POOL CLOSED** (record: known-issues file, "the decision-free pool").
-**2026-09-15** — #154 merged; 🔴 **THE SECOND CORE-PATH WALK** ran clean end
-to end; its seven findings, the asset close-off and the six-label correction all CLOSED the same day (records: [`feature-inventory-2026-09-15.md`](docs/product/feature-inventory-2026-09-15.md); findings file, "THE SECOND CORE-PATH WALK" and the entries after it). 🔴 **THE SEVEN-WORKFLOW AUDIT** followed (findings file, "THE SEVEN-WORKFLOW AUDIT"); its five pilot blockers CLOSED in #160 (known-issues file, "THE FIVE PILOT BLOCKERS — CLOSED 2026-09-15"); its V1 gaps stay in that record, unqueued.
-**2026-09-16** — the pre-pilot batch: bulk accept into a closed month now REFUSES truthfully (known-issues file, "BULK ACCEPT INTO A CLOSED MONTH — CLOSED 2026-09-16"); the runbook's three pilot-safety corrections (same file, "THE RUNBOOK'S PILOT-SAFETY CORRECTIONS"). **THE PRE-PILOT SANITY WALK** CLOSED (same file; findings file, "THE NIGHT WINDOW" — the business-date seam).
+**2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
+**2026-09-17** — 🔴 **BATCH 1B CLOSED** (D-4 payments, UI included; known-issues file, "BATCH 1B — CLOSED 2026-09-17").
+**2026-09-20** — 🔴 **BATCH 1C PHASES 1–4 BUILT (UI WALKED IN FOUR MODES), UNMERGED** (`feat/batch-1c-migration-opening-balances`, on top of the unmerged Batch 1B branch): the accountant's correction-policy answers A4/A5 are invariants (§4) and the pre-answer build is corrected to them; one accountant question open (a partly-settled opening item); PIH question with ZATCA. Record: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12. 🔴 **ISSUE 1 CLOSED the same day** — an opening receivable collects through every D-4 path and mints no ZATCA artefact (the hash-as-issued proxy replaced by `@workspace/shared` `isReceivableInBooks`); the Art. 40(9) relief flag is captured, not acted on; Issue 2 and historical credit notes stay refused (pack §16.15). UI record: pack §16.16.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -90,11 +86,6 @@ services ✅ → **the write paths** (next).
 
 **Live owner actions** (entity → advisor → Groq → receipts):
 [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the single writer for their state; do not restate it here.
-
-🔴 **Three DEPLOYMENT-time items cannot be closed from code:** the real proxy
-count for `TRUST_PROXY_HOPS`, a clamd sidecar for `MALWARE_SCANNER`, and B1/B2's
-provider wiring (a mail provider, and a webhook pointed somewhere real). An
-unwired alarm is the thing B2 exists to prevent.
 
 ### 🔴 What is verified LIVE vs only LOCALLY (ZATCA)
 
@@ -129,12 +120,11 @@ it except the owner registering the entity. It gates **two workstreams**:
 
 ### THERE ARE NO CUSTOMERS YET (owner-confirmed 2026-08-12)
 
-Schema changes, breaking API changes, renames and reversals are **cheap right
+Schema changes, breaking API changes, renames and reversals are **cheap
 now** — no migration burden, no one to notify. That does **not** excuse
 correctness in what is hard to retrofit (tenant isolation, the ZATCA chain,
-audit trails, append-only guarantees, fail-closed posture) — those are cheap
-now precisely because nobody depends on them, which is the argument for getting
-them right now. **Revisit when the first tenant onboards.**
+audit trails, append-only guarantees, fail-closed posture): cheap now is the
+argument for getting them right now. **Revisit when the first tenant onboards.**
 
 
 ## 3. Standing rules, the standing check, and the named lessons
@@ -237,7 +227,7 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 ASSUME ANY COMPLETED BACKEND IS UNREACHABLE UNTIL SOMEONE HAS CLICKED IT** — a correct backend with no working surface is outside what any service test can see; six read-only audits missed what one browser pass found in seconds. P5 (`apps/web/e2e`) is the countermeasure. *(4 instances.)*
 - **🔴 A TEST THAT EXERCISES THE CODE BUT NOT THE ARTIFACT IS TESTING A DIFFERENT PROGRAM** (owner-named 2026-09-04) — tests import source; dev and prod run the BUNDLE, whose `import.meta.dirname`, assets and externals differ. Anything read at runtime by path is proven through the built artifact — which only P5 runs. *(2 instances.)*
 - **A hand-written `apiFetch<T>` interface is a claim nobody checks** — TypeScript checks it against the COMPONENT, never the response. Prefer the generated client, and treat a page as working only once it has been RENDERED.
-- **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; §5's contract entry burns the pinned ones down.
+- **GENERATED TYPES CANNOT CATCH WHAT WAS NEVER GENERATED** — `tests/hand-written-interface-ratchet.test.ts` stops new pairings; its 20 pinned files are a deliberate STOP, not a backlog; a `type` alias satisfying the detector is the ratchet GAMED (findings file, "THE STOP").
 - **🔴 A SERVER TEST CANNOT SEE THE CLIENT'S REQUEST CONSTRUCTION** — every test builds its request the way the SERVER expects, so a malformed body the client actually sends is invisible by construction, and generated input types do not close it (the values are wrong, not the types). A form change ships with a client-path test (`e2e/form-optional-blank.spec.ts` is the pattern) or a walked leg. *(3 instances.)*
 
 #### The check that does not check
@@ -251,12 +241,12 @@ doing the thing it governs rather than only once you know its name.
 - **A verdict line must carry its evidence count** — "all inputs failed" is a case an instrument must NAME, not score; an unmeasured row reads NOT MEASURED, never zero.
 - **A claim inside a measuring instrument is still a claim** — a benchmark's "hard" flags and its headline verdict were both authored, and both were wrong until measured.
 - **🔴 A UI-AUTOMATION SET THAT SKIPS THE FRAMEWORK'S EVENT TESTS A STATE THE APP NEVER HAS** — a DOM-only value reverts on re-render and reads as a bug; reproduce by real keystrokes before filing. *(2 instances.)*
-- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where cheap, **build that case INTO the probe** so the comparison cannot be skipped (*make the wrong thing inexpressible*, pointed at investigation). The tell: the instrument disagreed with something already known true. *(8 instances; 2 caught by their own planted positives.)*
+- **🔴 A NEGATIVE RESULT FROM AN UNVALIDATED PROBE IS NOT EVIDENCE — IT IS AN UNREAD INSTRUMENT.** When a probe reports an ABSENCE, first prove it can see a known-present case; where cheap, **build that case INTO the probe** so the comparison cannot be skipped (*make the wrong thing inexpressible*, pointed at investigation). *(8 instances; 2 caught by their own planted positives.)*
 - **🔴 AN INSTRUMENT VALIDATED ON THE SET USED TO TUNE IT REPORTS ITS FIT, NOT ITS ERROR** — a validation set is spent the moment the instrument is changed until it passes; the error rate is measured on files the instrument was never tuned on, hand-read in full, and each such set can be used ONCE. *(2 instances — the same instrument on consecutive days; findings file, "THE HELD-OUT VALIDATION".)*
 - **🔴 AN ISOLATION TEST ASSERTS PRESENCE, ABSENCE, AND MOVEMENT** (owner-named 2026-09-03) — the scoped figure present exactly, the other scope's figure absent everywhere, and the other scope SHOWING its own figure so the absence cannot be vacuous. The movement half is the one most tests skip — and without it, absence passes on empty data. The pattern for every future isolation test.
 - **🔴 SMALL FIXTURES DO NOT TEST LESS — THEY TEST DIFFERENTLY.** Invisible at fixture scale: VOLUME (a count off a capped list), COLLISION (an identity of date+amount+description), BREADTH (a branch no seeded row reaches). Breadth is SEEDED and asserted, never hoped for; a suspiciously ROUND count is a diagnosis.
 - **🔴 VERIFIED BELOW THE LAYER THAT HAD THE BUG** — ask which layer the defect lives in, and whether anything tests THAT one. A well-formed request passes a valid schema attached to the wrong thing, and every test builds its request the way the server expects.
-- **🔴 A TOLERANCE APPLIED TO THE VALUES YOU COMPUTE, NOT THE VALUES YOU STORE, CHECKS A DIFFERENT THING THAN IT APPEARS TO** (owner-named 2026-09-03) — it admits what will persist imbalanced and rejects what would persist balanced, and the two only converge when ONE SEAM owns both the checking and the storing. *(2 instances — the second was the manual journal entry, checked raw and stored rounded; findings file, "THE SECOND-OPINION AUDIT".)*
+- **🔴 A TOLERANCE APPLIED TO THE VALUES YOU COMPUTE, NOT THE VALUES YOU STORE, CHECKS A DIFFERENT THING THAN IT APPEARS TO** (owner-named 2026-09-03) — it admits what will persist imbalanced and rejects what would persist balanced, and the two only converge when ONE SEAM owns both the checking and the storing. *(2 instances; findings file, "THE SECOND-OPINION AUDIT".)*
 - **A value that satisfies every check while meaning nothing** — `Number("")` is 0, so `creditLimit: ""` passed the guard, stored, and read back as a limit of 0.00. Check the MEANING, not only the type.
 - **A SPEC CONSTRAINT THAT EXISTS AND IS NOT ENFORCED IS WORSE THAN NO CONSTRAINT** — spec and tests then both read as coverage; a declared `minItems` is decorative unless the controller parses the body.
 - **🔴 A SPEC ENTRY NOBODY HAS PARSED A RESPONSE AGAINST IS A CLAIM, NOT A CONTRACT — CONFORMANCE CONVERTS IT.** *(2 batches: the first found the PAGES wrong, the second the SPEC — both inside endpoints already counted as covered.)*
@@ -281,8 +271,8 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 AN INVARIANT ENFORCED ONLY WHEN THE CALLER DECLINES TO OVERRIDE IT IS A CONVENTION WEARING AN INVARIANT'S CLOTHES** — when the rule is "we always call the allocator", the CALLERS are the enforcement. Ask what can reach the same effect without going through it, and prefer a boundary with no override.
 - **A guard that tests a fact its own caller can create is not a boundary** — for each fact a guard consults, ask who can WRITE it, and prefer a property an actor cannot cause at all (confinement) over one they can cause with a single INSERT (overlap).
 - **🔴 MAKE THE WRONG THING INEXPRESSIBLE, NOT FORBIDDEN** — find the representation in which violating the rule cannot be SAID. Construction outlives review, and only construction binds code not yet written. Aimed at our own habits: the probe rule above, `scripts/anchored-edit.mjs`, this file's budget test.
-- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift; shared constants are SWEPT periodically and mechanically (`@workspace/shared` is the one definition), never noticed one at a time. *(7 instances; findings file, "The first sweep, run 2026-09-03" and "THE ENGLISH-CONTENT DEPENDENCY COUNT".)*
-- **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary; generalises to any two-layer guard with a legitimate wide arm.
+- **Two id spaces — or two DEFINITIONS of one fact: a constant, a threshold, a formula — with no forcing function diverge invisibly** until something joins them. Remove the second, or add a test that fails when they drift; shared constants are SWEPT mechanically (`@workspace/shared` is the one definition). *(7 instances; findings file, "THE ENGLISH-CONTENT DEPENDENCY COUNT".)*
+- **🔴 WHEN ONE ARM OF A GUARD MUST STAY OPEN FOR A NAMED ORG-WIDE CALLER, MAKE THE LAYERS DISAGREE ON IT** (owner-named 2026-09-03) — the DB layer reads wide for the named caller; the query layer's own predicate reads NOTHING, so a misconfigured caller gets an EMPTY answer someone complains about, never a merged one that reads as an answer. Withholding, applied to a security boundary.
 - **🔴 FK checks run OUTSIDE RLS** — every plain FK between tenant-scoped tables is a cross-tenant edge no policy guards, and 23503-vs-success is an existence oracle. Auditing isolation means enumerating the FKs, not only the queries.
 - **A verification is a claim about a moment, not a property of the text** — a validated artifact must STORE the identity of what it was checked against and gate on the match, or it ages into a false credential.
 - **🔴 ASK OF EVERY SEVERANCE WHAT AN UNHANDLED EVENT ON THE SEVERED THING TAKES WITH IT** — and standard advice applied without checking which case you have is its own trap: `pool.on("error")` covers IDLE clients only. Guard: `tests/severance-amplifier.test.ts`. *(1 instance — it killed the API process.)*
@@ -366,6 +356,11 @@ doing the thing it governs rather than only once you know its name.
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
 - **🔴 PASSWORDS GO THROUGH `lib/password.ts` — ONE SEAM.** `crypto.scrypt` (N=2^17, off the event loop) for new hashes; bcrypt kept ONLY to verify pre-2026-09-02 hashes, with transparent rehash on the next correct login. Never call a KDF directly, and never store a hash another way: the seam is where the length bound, the parameters and the migration live.
+- **🔴 ACCOUNTING QUESTIONS ARE NEVER GUESSED** (owner, 2026-09-18) — follow
+  [`docs/accounting-escalation-protocol.md`](docs/accounting-escalation-protocol.md):
+  our code, then Odoo and ERPNext SOURCE (cited), then authoritative sources;
+  no Saudi/VAT/ZATCA/policy consequence → product decision; else the
+  accountant, one short list, and STOP.
 - **AI proposes; it never posts.** The GL is only written through the
   established posting path; AI/automation output is drafts and suggestions a
   human approves.
@@ -424,6 +419,21 @@ doing the thing it governs rather than only once you know its name.
 - **Accepting the match IS the review** (M16 principle): one user act both
   accepts a held row and records its effect. A second nested confirmation of
   the same fact is a design defect, not extra safety.
+- **🔴 A CASH LINE NAMES A BANK ACCOUNT (D-3).** One GL cash account per
+  bank (`categories.bank_account_id`, trigger-created, protected); `CASH` is
+  a NON-POSTING header. Every cash path FAILS CLOSED without a bank (422
+  `bank_account_required`) — never a default, never one-bank-only inference
+  (server OR UI). Pre-D-3 history is ANNOTATED, never rewritten; "which
+  bank" is answered ONLY by the view `journal_line_bank_identity`. Record:
+  [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md).
+- **🔴 A COMMITTED MIGRATION'S ACCOUNTING ROWS ARE NEVER DELETED (Batch 1C,
+  accountant A4/A5, 2026-09-20).** A reversal mirrors the opening journal and
+  MARKS the opening invoices/bills/deposits reversed (columns + trigger, never
+  a status string); a replacement carries a NEW `OPEN-<batch>-<seq>` number
+  (prefix reserved) with provenance to the original; the source number is
+  provenance only. An unbalanced opening position is REFUSED — there is no
+  opening-balance-equity account, no declaration, no clearing journal. Staging
+  before commit may be rebuilt freely. Record: the 1C decision pack §16.12.
 
 ### ZATCA operating rules
 
@@ -490,24 +500,21 @@ P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04; the pool closed 2026-09-14)
 
 **Every remaining path runs through a door the OWNER holds**: entity ·
-advisor · mail provider · R1 design · deployment + Groq. Owner sequence
-accepted 2026-09-04: advisor + entity started now, provider this week, then R1.
-(The decision-free pool — eight items — CLOSED 2026-09-14; record: known-issues
-file, "the decision-free pool".)
-🔴 **Four ERPNext findings await the OWNER'S RANKING** — withholding tax and
-advance payments (LEGAL exposures), fixed-assets GL (wrong statements today),
-migration onboarding (blocks any customer with history) — costed in
+advisor · mail provider · R1 design · deployment + Groq.
+🔴 **Two ERPNext findings still await the OWNER'S RANKING** — withholding tax
+(LEGAL exposure) and fixed-assets GL (wrong statements today) — costed in
 [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)'s
-triage addendum; invisible to planning until placed.
+triage addendum. (Advance payments closed in Batch 1B; migration onboarding
+is Batch 1C, §2.)
 
 ### Blocking, by their own nature
 
 | # | Item | What would close it |
 | --- | --- | --- |
-| **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, no billing, no plan gating exists anywhere; AI usage is metered (`ai_usage`) but nothing turns a tenant into a PAYING tenant. **No billing means no revenue, whatever else works** — the last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, what gating a plan implies. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
+| **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, billing or plan gating exists; `ai_usage` meters but nothing makes a tenant a PAYING tenant. The last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, gating. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
 | **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT", "L1 LOGO UPLOAD"; [`design-invoice-document.md`](docs/product/design-invoice-document.md) is the single writer). | **Remaining**: "send", once B1's mail provider is wired — a PROVIDER wait. |
+| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -561,27 +568,24 @@ needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**, and coverage is MEASURED, never noticed —
-by `scripts/arabic-sweep.mjs`, whose count is believed only after a HELD-OUT
-round (files it was never tuned on, hand-read in full — §3: an instrument
-validated on its tuning set reports its fit, not its error). Measured
-2026-09-15 (frame: 105 files): **30 sites
-of untranslated user-facing English remain, UNFIXED** (fix proposed, not
-done); the final instrument's held-out evidence is one round, one true
-positive — thin. Every widening needs a fresh hold-out; re-run before launch.
-Record: findings file, "THE HELD-OUT VALIDATION".
+Arabic is a **launch requirement**; coverage is MEASURED by
+`scripts/arabic-sweep.mjs` and believed only after a HELD-OUT round (§3).
+Measured 2026-09-15 (frame: 105 files): **30 sites of untranslated
+user-facing English remain, UNFIXED**; one held-out round only. Re-run with a
+fresh hold-out before launch. Record: findings file,
+"THE HELD-OUT VALIDATION".
 
 ### Traps and known-dead surfaces
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
-- 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. A GCC tenant outside KSA gets Riyadh's day. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
+- 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
+- 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
 - Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
-- Settlement links are readable from the transaction side only (the design said "either side").
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.
-- The Categories UI cannot mark system accounts (`isSystem` not in the API; no edit routes exist).
+- The Categories UI cannot mark system accounts (no edit routes exist).
 - **Deferred:** action-level permissions (post-to-GL / pay / approve gateable separately).
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local Supabase CLI stack where the grants were measured.
 
@@ -590,21 +594,13 @@ Record: findings file, "THE HELD-OUT VALIDATION".
 Closed, each under a standing guard: RLS policy coverage, permission-matrix
 seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAPS, AUDITED").
 
-🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1, 2026-09-03;
-known-issues file, "N1 — SAME-ORG CROSS-COMPANY").** What stays operating: the company-blind
-repository list in `tests/cross-company-isolation.test.ts` (12, on the
-row-level backstop) is pinned and can only SHRINK.
+🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
+file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind
+repository list in `tests/cross-company-isolation.test.ts` (11) is pinned
+and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).
 
-🔴 **CONTRACT COVERAGE — CLOSED 2026-09-02 AT A DELIBERATE STOP (55 → 20;
-`tests/hand-written-interface-ratchet.test.ts` keeps the generator closed).**
-Standing rules: 🔴 **a leave and a join in one milestone is the
-generator running — stop, do not net**; **a `type` alias satisfying the
-detector is the ratchet GAMED** (a file leaves by consuming the generated type,
-never by rephrasing); 🔴 **the 20 pinned files are a STOP, not a backlog**
-(owner, 2026-09-02 — no tenant money; burning them down would make the COUNT
-the goal). Inventory: findings file, "THE STOP". TanStack is unblocked.
 
 ## 6. Tech Stack
 

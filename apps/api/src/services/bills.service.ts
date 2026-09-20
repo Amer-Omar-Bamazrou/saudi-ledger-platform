@@ -15,6 +15,7 @@
  */
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
+import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -52,6 +53,7 @@ async function assertVendorExists(vendorId: unknown): Promise<void> {
 }
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
+import { assertBankAccount } from "./accounting/bankIdentity";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
@@ -125,6 +127,7 @@ export const billsService = {
     if (!String(body.billNumber ?? "").trim()) {
       body.billNumber = await documentNumbersRepository.allocate("bill");
     }
+    assertNotReservedOpeningNumber(body.billNumber, "billNumber"); // Policy C: OPEN-<batch>-<n> belongs to migration replacements only
 
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
@@ -247,7 +250,7 @@ export const billsService = {
     return buildBillOut(bill, null);
   },
 
-  async pay(id: number, body: { amount: unknown; paidAt?: string }, userId: number | null) {
+  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown }, userId: number | null) {
     const { amount, paidAt } = body;
 
     const [existing] = await billsRepository.findById(id);
@@ -259,6 +262,7 @@ export const billsService = {
       throw new ConflictError("Bill must be approved before it can be paid.");
     }
     if (existing.status === "paid") throw new ConflictError("Bill is already paid.");
+    assertNotReversedOpening(existing, `Bill ${existing.billNumber}`, "paid");
 
     // Validate the amount up front — a missing/non-numeric amount previously
     // reached the numeric column and surfaced as an unhandled 500.
@@ -266,6 +270,10 @@ export const billsService = {
     if (!Number.isFinite(paid) || paid <= 0) {
       throw new BadRequestError("A positive payment amount is required.");
     }
+    // 🔴 D-3 (2026-09-16): WHICH bank did the money move through? Checked at
+    // the same boundary as the amount — before any balance arithmetic and
+    // before any write — with the one shared rule (accounting/bankIdentity).
+    const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the payment left from" });
 
     // M16.3: payments accumulate; a partial keeps the bill open (it must stay
     // in AP aging); overpay is refused. Mirrors invoices.service.pay — see the
@@ -290,9 +298,9 @@ export const billsService = {
     // B4 — the dated record of THIS payment (see invoices.service.pay).
     // 🔴 N3: recorded BEFORE the GL entry so its id makes the entry number
     // unique — `BILL-x-PAY` alone collided on the second partial payment.
-    const payment = await paymentsRepository.recordBillPayment(id, paid, payDate);
+    const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
 
-    // ── GL: Dr Accounts Payable / Cr Cash and Bank ──
+    // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> ──
     await postJournalEntry({
       entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
@@ -300,7 +308,7 @@ export const billsService = {
       reference: bill.billNumber ?? undefined,
       lines: [
         { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
-        { systemCode: "CASH", accountName: "Cash and Bank", description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
+        { bankAccountId, description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
       ],
     });
 
@@ -317,6 +325,8 @@ export const billsService = {
       amount: Number(p.amount),
       paidAt: p.paidAt,
       backfilled: p.backfilled,
+      // D-4 covers customer payments only in Batch 1B Part 1; a bill payment is still the B4 row.
+      paymentId: null as number | null,
     }));
   },
 

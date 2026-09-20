@@ -38,7 +38,7 @@ import { customersRepository } from "../../repositories/customers.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
 import { bankAccountsRepository } from "../../repositories/bankAccounts.repository";
 import { einvoiceDocumentsRepository } from "../../repositories/einvoiceDocuments.repository";
-import { NotFoundError, ConflictError } from "../../lib/errors";
+import { NotFoundError, ConflictError, BusinessRuleError } from "../../lib/errors";
 import { storage, isStorageConfigured } from "../../lib/storage";
 import { logger } from "../../lib/logger";
 import { dayNumberFromIso, toHijri } from "../../lib/hijriCalendar";
@@ -108,6 +108,22 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
       "Only an issued document can be rendered — a draft has no QR and no legal existence yet. Approve the invoice first.",
     );
   }
+  // Batch 1C, Issue 1: an opening item is a migrated BALANCE, not a tax
+  // invoice — no hash, ICV or QR, and the tax document it stands for was
+  // issued by the previous system. This renderer produces tax invoices (the
+  // Article 53 layout, the compliance title, the translation banner), so
+  // rendering an opening row through it would manufacture a tax-invoice
+  // identity the row does not have. Refused, named; the customer statement
+  // is the surface that carries an opening balance.
+  if (inv.isOpening) {
+    throw new BusinessRuleError(409, {
+      code: "opening_item_not_a_tax_invoice",
+      error:
+        `${inv.invoiceNumber} is an opening balance item migrated from the previous system, not a tax invoice issued here; ` +
+        "there is no tax-invoice document to render. The customer statement shows the balance.",
+      field: "id",
+    });
+  }
 
   const items = await invoicesRepository.itemsByInvoice(invoiceId);
   const company = await companiesRepository.findCurrent();
@@ -163,6 +179,7 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     vatAmount: String(inv.vatAmount),
     total: String(inv.total),
     paidAmount: String(inv.paidAmount ?? "0"),
+    creditedAmount: String(inv.creditedAmount ?? "0"),
     qrDataUrl,
     logoDataUrl: await loadLogoDataUrl(company?.logoPath),
     termsAndConditions: inv.termsAndConditions ?? null,

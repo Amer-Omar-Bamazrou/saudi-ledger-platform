@@ -30,7 +30,15 @@ export const analyticsController = {
       throw new BadRequestError("from and to must be YYYY-MM");
     }
     if (from > to) throw new BadRequestError("from must not be after to");
-    const { points, summary } = await cashService.reconciliation(from, to, monthsBetween(from, to));
+    // D-3: optional per-bank view. Validated as a positive integer here; an
+    // id of another tenant simply matches nothing (RLS), which is the honest
+    // empty answer rather than a leak.
+    let bankAccountId: number | undefined;
+    if (req.query.bankAccountId != null && req.query.bankAccountId !== "") {
+      bankAccountId = Number(req.query.bankAccountId);
+      if (!Number.isInteger(bankAccountId) || bankAccountId <= 0) throw new BadRequestError("bankAccountId must be a positive integer");
+    }
+    const { points, summary } = await cashService.reconciliation(from, to, monthsBetween(from, to), bankAccountId);
     res.json({ ...summary, points });
   },
 

@@ -41,6 +41,7 @@ const DATE = "2026-07-14";
 describeMaybe("N3 — party on the line, and a number means one document", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let vendorId = 0;
@@ -78,6 +79,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -91,6 +93,8 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','N3 Approver',' ','admin',true) RETURNING id`,
@@ -136,12 +140,12 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
     // Pre-N3, instalment #2 minted a second `GL-N3-INV-1-PAY` — two financial
     // records claiming to be the same document. Under the unique index it
     // would have been a raw 23505. Now each carries its payment row's id.
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: DATE }, userId));
-    await inTenant(() => invoicesService.pay(inv.id, { amount: 300, paidAt: DATE }, userId));
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 400, paidAt: DATE, bankAccountId: bankId }, userId));
+    await inTenant(() => invoicesService.pay(inv.id, { amount: 300, paidAt: DATE, bankAccountId: bankId }, userId));
 
     const { rows } = await pool.query(
       `SELECT entry_number FROM journal_entries
-        WHERE organization_id = $1 AND entry_number LIKE 'GL-N3-INV-1-PAY-%' ORDER BY id`,
+        WHERE organization_id = $1 AND entry_number LIKE 'GL-N3-INV-1-RCPT-%' ORDER BY id`,
       [orgId],
     );
     expect(rows).toHaveLength(2);
@@ -175,7 +179,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
         items: [{ description: "Supplies", quantity: 2, unitPrice: 500, vatRate: 15 }],
       }, userId),
     );
-    await inTenant(() => billsService.pay(bill.id, { amount: 200, paidAt: DATE }, userId));
+    await inTenant(() => billsService.pay(bill.id, { amount: 200, paidAt: DATE, bankAccountId: bankId }, userId));
     const { rows } = await pool.query(
       `SELECT l.party_type, l.vendor_id FROM journal_entry_lines l
          JOIN journal_entries e ON e.id = l.journal_entry_id
@@ -197,7 +201,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
           date: DATE,
           description: "AR line with an undeclared party",
           lines: [
-            { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 100, creditAmount: 0 },
+            { bankAccountId: bankId, debitAmount: 100, creditAmount: 0 },
             { systemCode: "AR", accountName: "Accounts Receivable", debitAmount: 0, creditAmount: 100 },
           ],
         }),
@@ -216,7 +220,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
         date: DATE,
         description: "declared no-party AR line",
         lines: [
-          { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 100, creditAmount: 0 },
+          { bankAccountId: bankId, debitAmount: 100, creditAmount: 0 },
           { systemCode: "AR", accountName: "Accounts Receivable", debitAmount: 0, creditAmount: 100, party: { type: "none", reason: "test: B2C" } },
         ],
       }),
@@ -260,14 +264,15 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
     };
     // Build two minimal balanced manual entries via the service. Lines need a
     // real account: use the seeded chart's ids.
+    // D-3: the cash side is the bank's own GL account (the header takes no line).
     const { rows: cats } = await pool.query(
-      `SELECT id FROM categories WHERE organization_id = $1 AND system_code IN ('CASH','SALES') ORDER BY system_code`,
-      [orgId],
+      `SELECT id FROM categories WHERE organization_id = $1 AND (bank_account_id = $2 OR system_code = 'SALES') ORDER BY system_code NULLS FIRST`,
+      [orgId, bankId],
     );
     expect(cats.length).toBe(2);
     const [cashCat, salesCat] = [cats[0].id, cats[1].id];
     const lines = [
-      { accountId: cashCat, accountName: "Cash and Bank", debitAmount: 50, creditAmount: 0 },
+      { accountId: cashCat, accountName: "D3 Fixture Bank", debitAmount: 50, creditAmount: 0 },
       { accountId: salesCat, accountName: "Sales Revenue", debitAmount: 0, creditAmount: 50 },
     ];
     await inTenant(() => journalEntriesService.create({ ...body, lines }, userId));

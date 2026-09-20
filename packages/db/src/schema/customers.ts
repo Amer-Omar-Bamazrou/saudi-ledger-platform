@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -69,9 +69,23 @@ export const customersTable = pgTable(
     paymentTermsDays: text("payment_terms_days").default("30"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * Batch 1C (2026-09-19) — the PROVENANCE of a migrated record: which
+     * source-system party this row represents, as (source_system, source_id).
+     * NULL for a record the platform created itself. Unique per organisation
+     * as a pair (master data is organisation-scoped), so a re-import of the
+     * same source id resolves to THIS row instead of creating a second one —
+     * deterministic identity, never a name match. Written at migration commit;
+     * never edited afterwards.
+     */
+    sourceSystem: text("source_system"),
+    sourceId: text("source_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("customers_org_idx").on(t.organizationId)],
+  (t) => [
+    index("customers_org_idx").on(t.organizationId),
+    uniqueIndex("customers_source_identity_unq").on(t.organizationId, t.sourceSystem, t.sourceId).where(sql`source_system IS NOT NULL`),
+  ],
 );
 
 export const insertCustomerSchema = createInsertSchema(customersTable).omit({ id: true, createdAt: true });

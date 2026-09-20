@@ -39,6 +39,7 @@ const EMAIL = "m15-review@test.local";
 describeMaybe("M15 — the holding area: pending rows move nothing", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
@@ -66,6 +67,7 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -79,6 +81,8 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','RV',' ','viewer',true) RETURNING id`,
@@ -112,6 +116,7 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
       transactionsService.upload({
         rows: rows as never,
         autoCategrize: true,
+        bankAccountId: bankId,
       } as never),
     );
 
@@ -180,6 +185,7 @@ describeMaybe("M15 — the holding area: pending rows move nothing", () => {
         amount: 100,
         currency: "SAR",
         type: "debit",
+        bankAccountId: bankId,
       } as never),
     )) as { id: number };
     const { rows } = await pool.query(`SELECT review_status FROM transactions WHERE id = $1`, [tx.id]);

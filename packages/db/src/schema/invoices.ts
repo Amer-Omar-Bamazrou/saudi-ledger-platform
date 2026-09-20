@@ -48,6 +48,17 @@ export const invoicesTable = pgTable(
     currency: text("currency").default("SAR"),
     paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
     paidAt: text("paid_at"),
+    /**
+     * D-4 (2026-09-17): the part of this invoice settled by CREDIT NOTES —
+     * Σ credit-note allocations targeting it (`payment_allocations`). The
+     * cache beside `paid_amount` (cash), so every reader computes
+     * `outstanding = total − paid − credited` from two columns instead of
+     * re-deriving the credited part from note rows by original id — the
+     * old derivation could not see a note applied to a DIFFERENT invoice
+     * and went negative when a note exceeded its original's open balance.
+     * Asserted equal to Σ allocations by the D-4 invariants test.
+     */
+    creditedAmount: numeric("credited_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     // Correction note an approver leaves when sending a submitted invoice back to
     // the enterer; shown while editing, cleared on resubmit/approve (M10.4).
     reviewNote: text("review_note"),
@@ -123,6 +134,36 @@ export const invoicesTable = pgTable(
      * one); the index only constrains rows that carry a key.
      */
     idempotencyKey: text("idempotency_key"),
+    /**
+     * 🔴 Batch 1C (2026-09-18): an OPENING item — a historical receivable
+     * migrated at cut-off, NOT a tax invoice this platform issued. It reaches
+     * the books through the migration's opening journal (its AR line carries
+     * the party there), never through issuance: no ICV, hash, QR, e-invoice,
+     * archive, VAT amount or VAT-return effect — every one of those readers
+     * refuses the marker (pack §4, §14.1.8). `total` is the OUTSTANDING amount
+     * at cut-off; the original amount, dates and VAT history live on the
+     * staging row `migration_open_items` this points at.
+     */
+    isOpening: boolean("is_opening").notNull().default(false),
+    migrationOpenItemId: integer("migration_open_item_id"),
+    /**
+     * 🔴 Batch 1C Policy C (accountant A4, 2026-09-20; pack §16.12.1). An
+     * opening item is NEVER deleted once it entered the books. The
+     * migration's reversal MARKS it here — both columns together, once, only
+     * on `is_opening` rows, only by the batch that created it (CHECKs +
+     * trigger `refuse_opening_reversal_marker`, migration 0081) — and every
+     * reader that computes a receivable excludes a marked row through the ONE
+     * predicate in apps/api `repositories/openingReversal.ts`. Columns, not a
+     * status string: an unknown status value falls through readers silently;
+     * a column a reader forgot is what the sweep test is for. The
+     * replacement created by the corrected re-run points back here through
+     * `replaces_invoice_id` (opening-only by CHECK) and carries a NEW Saudi
+     * Ledger number (`OPEN-<batch>-<seq>`); the original number stays on this
+     * row and on the staging row as provenance.
+     */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
+    replacesInvoiceId: integer("replaces_invoice_id"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

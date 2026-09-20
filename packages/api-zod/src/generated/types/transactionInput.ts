@@ -51,4 +51,9 @@ export interface TransactionInput {
   notes?: string | null;
   /** @nullable */
   source?: string | null;
+  /**
+     * D-3: the bank account this movement belongs to. REQUIRED on `POST /transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank's GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement's `bankAccountId` applies.
+     * @nullable
+     */
+  bankAccountId?: number | null;
 }

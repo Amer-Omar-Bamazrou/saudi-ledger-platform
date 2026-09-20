@@ -31,6 +31,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   let orgId = "";
   let companyId = "";
   let userId = 0;
+  let bankId = 0;
   let vendorId = 0;
 
   const DATE = "2026-05-15";
@@ -60,6 +61,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM bills WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await pool.query(`DELETE FROM bank_accounts WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM vendors WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
@@ -72,6 +74,8 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
     await pool.query(`DELETE FROM organizations WHERE slug = 'bill-appr'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('BILL-APPR Org','bill-appr') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'BILL-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: every payment names the bank it moved through.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'BILL-APPR Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('bill-approval@test.local','Bill Approver',' ','admin',true) RETURNING id`,
@@ -135,7 +139,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   });
 
   it("a draft bill is NOT payable (must be approved first)", async () => {
-    await expect(inTenant(() => billsService.pay(billId, { amount: TOTAL }, userId))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(inTenant(() => billsService.pay(billId, { amount: TOTAL, bankAccountId: bankId }, userId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("RESUBMIT then APPROVE posts the bill to the GL (AP/expense/input VAT)", async () => {
@@ -164,7 +168,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   });
 
   it("pay with a valid amount settles the bill", async () => {
-    const paid = await inTenant(() => billsService.pay(billId, { amount: TOTAL }, userId));
+    const paid = await inTenant(() => billsService.pay(billId, { amount: TOTAL, bankAccountId: bankId }, userId));
     expect(paid.status).toBe("paid");
     expect(paid.paidAmount).toBe(TOTAL);
   });

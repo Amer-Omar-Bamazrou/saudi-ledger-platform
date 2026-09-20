@@ -27,6 +27,7 @@ const RANGE = { dateFrom: "2026-06-01", dateTo: "2026-06-30" };
 describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
@@ -44,7 +45,7 @@ describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
-    for (const t of ["transactions", "journal_entry_lines", "journal_entries", "categories"]) {
+    for (const t of ["transactions", "journal_entry_lines", "journal_entries", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
@@ -63,6 +64,8 @@ describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','C9',' ','viewer',true) RETURNING id`,
@@ -121,6 +124,7 @@ describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
           { date: "2026-06-12", description: "SADAD PAYMENT - STC 0100", amount: 230, currency: "SAR", type: "debit" },
         ],
         autoCategrize: true,
+        bankAccountId: bankId,
       } as never),
     );
     const ids = (

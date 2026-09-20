@@ -79,7 +79,7 @@ export const cashService = {
    *
    * `from`/`to` are `YYYY-MM`.
    */
-  async reconciliation(from: string, to: string, periods: string[]): Promise<{
+  async reconciliation(from: string, to: string, periods: string[], bankAccountId?: number): Promise<{
     points: CashPoint[];
     summary: CashReconciliation;
   }> {
@@ -87,9 +87,11 @@ export const cashService = {
     const [ty, tm] = to.split("-").map(Number);
     const toDate = new Date(Date.UTC(ty!, tm!, 0)).toISOString().slice(0, 10);
 
+    // D-3: with a bank, both sides narrow to that bank — its accepted rows
+    // against its own GL cash account — so the reconciliation is per bank.
     const [txRows, glRows] = await Promise.all([
-      analyticsRepository.monthlyTransactionCash(fromDate, toDate),
-      analyticsRepository.monthlyLedgerCash(fromDate, toDate),
+      analyticsRepository.monthlyTransactionCash(fromDate, toDate, bankAccountId),
+      analyticsRepository.monthlyLedgerCash(fromDate, toDate, bankAccountId),
     ]);
 
     const bankByMonth = new Map<string, number>();

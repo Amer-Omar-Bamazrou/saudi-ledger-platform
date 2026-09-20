@@ -5,12 +5,12 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomerTotals } from './customerTotals';
 import type { CustomerWithBalance } from './customerWithBalance';
 import type { PageInfo } from './pageInfo';
-import type { PartyTotals } from './partyTotals';
 
 export type ListCustomers200 = {
   items: CustomerWithBalance[];
   page: PageInfo;
-  totals: PartyTotals;
+  totals: CustomerTotals;
 };

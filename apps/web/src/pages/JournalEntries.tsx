@@ -36,7 +36,12 @@ export default function JournalEntries() {
   const [page, setPage] = useState(0);
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // `?entry=<id>` opens one entry directly (the migration workspace links its opening journal this way).
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = Number(new URLSearchParams(window.location.search).get("entry"));
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+  });
   const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "" });
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
@@ -162,7 +167,10 @@ export default function JournalEntries() {
                       <td className="pe-2 py-1">
                         <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null}:ln));}}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
-                          <SelectContent>{categories.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                          {/* D-3: a header account ("Cash and Bank") accepts no line — each bank's own
+                              cash account is offered instead. The server refuses a header too
+                              (422 account_not_posting); this keeps the dead end off the screen. */}
+                          <SelectContent>{categories.filter((c) => c.isPosting !== false).map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
                         {/* N3 — a control-account line names its party; the picker appears exactly when the rule applies. */}
                         {systemCodeOf(l.accountId) === "AR" && (

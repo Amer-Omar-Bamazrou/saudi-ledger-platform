@@ -33,6 +33,7 @@ const EMAIL = "m13-coa@test.local";
 describeMaybe("M13 — chart of accounts + GL classification", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
 
@@ -65,6 +66,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
     await pool.query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -78,6 +80,8 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','CoA',' ','viewer',true) RETURNING id`,
@@ -119,7 +123,8 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       // post at all once resolution became mandatory. This org was created with
       // a plain INSERT in beforeAll, exactly like the seed and the test fixtures.
       const { rows } = await pool.query(
-        `SELECT system_code, type FROM categories WHERE organization_id = $1 AND is_system ORDER BY system_code`,
+        // D-3: a bank's GL leaf is ALSO a system row (is_system, no code); the claim here is the CODED chart.
+        `SELECT system_code, type FROM categories WHERE organization_id = $1 AND is_system AND system_code IS NOT NULL ORDER BY system_code`,
         [orgId],
       );
       expect(rows).toHaveLength(SYSTEM_CHART_OF_ACCOUNTS.length);
@@ -292,7 +297,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
 
     it("agrees after a partial payment", async () => {
       const id = await issueInvoice(3, 200); // 230 gross
-      await inTenant(() => invoicesService.pay(id, { amount: 100 }, userId));
+      await inTenant(() => invoicesService.pay(id, { amount: 100, bankAccountId: bankId }, userId));
       const bs = await inTenant(() => reportsService.balanceSheet("2026-12-31"));
       expect(bs.assets.accountsReceivable).toBe(await arFromInvoices());
     });
@@ -402,7 +407,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
             lines: [
               // Not a system code this platform knows.
               { systemCode: "NOT_A_REAL_ACCOUNT" as never, accountName: "Nope", debitAmount: 10, creditAmount: 0 },
-              { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 0, creditAmount: 10 },
+              { bankAccountId: bankId, debitAmount: 0, creditAmount: 10 },
             ],
           }),
         ),
@@ -449,6 +454,8 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
           [orgId],
         )
       ).rows[0].id;
+      // D-3: company B posts cash to ITS OWN bank — a bank belongs to one company.
+      const bankB = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'CoA B Bank','ANB') RETURNING id`, [orgId, companyB])).rows[0].id;
 
       // Company A locks June.
       await pool.query(
@@ -468,7 +475,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
               date: "2026-06-20",
               description: "company B posts into a period company A closed",
               lines: [
-                { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 50, creditAmount: 0 },
+                { bankAccountId: bankB, debitAmount: 50, creditAmount: 0 },
                 { systemCode: "SALES", accountName: "Sales Revenue", debitAmount: 0, creditAmount: 50 },
               ],
             }),
@@ -490,7 +497,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
               date: "2026-06-20",
               description: "company A is locked",
               lines: [
-                { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 50, creditAmount: 0 },
+                { bankAccountId: bankId, debitAmount: 50, creditAmount: 0 },
                 { systemCode: "SALES", accountName: "Sales Revenue", debitAmount: 0, creditAmount: 50 },
               ],
             }),

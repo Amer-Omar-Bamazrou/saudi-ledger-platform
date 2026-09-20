@@ -245,9 +245,11 @@ describeMaybe("same-org cross-company isolation", () => {
   // The rest rely on the 0065 row-level backstop, asserted above; they remain
   // listed because a repository-level predicate is still the better place for
   // the filter to be VISIBLE, and each departure should be a deliberate edit.
+  // Phase E (2026-09-17): `customers` left — its invoice reads moved to
+  // `customerStatement.repository`, which filters by company explicitly.
   const NO_COMPANY_FILTER = [
     "assets", "bankAccounts", "bills", "budgets", "categorize",
-    "customers", "employees", "journalEntries", "payments", "payroll",
+    "employees", "journalEntries", "payments", "payroll",
     "transactions", "vendors",
   ];
 

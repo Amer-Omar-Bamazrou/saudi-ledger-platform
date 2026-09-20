@@ -30,6 +30,10 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     reviewNote: bill.reviewNote,
     expenseAccountId: bill.expenseAccountId ?? null,
     notes: bill.notes,
+    isOpening: bill.isOpening,
+    reversedAt: bill.reversedAt ? bill.reversedAt.toISOString() : null,
+    reversedByMigrationBatchId: bill.reversedByMigrationBatchId ?? null,
+    replacesBillId: bill.replacesBillId ?? null,
     createdAt: bill.createdAt.toISOString(),
     items:
       items?.map((it) => ({

@@ -25,7 +25,10 @@ import type {
   AccountStatementReport,
   AccountSummaryReport,
   ActivityReport,
+  AllocatePaymentInput,
   ApAgingReport,
+  ApplyCreditNoteInput,
+  ApplyDeterministicMatchesParams,
   ApprovalPendingRow,
   ArAgingReport,
   AskInput,
@@ -52,6 +55,7 @@ import type {
   Category,
   CategoryBreakdown,
   CategoryInput,
+  ClassifyStatementRowsParams,
   Company,
   CompanyLogoState,
   ConvertPurchaseOrderInput,
@@ -62,15 +66,21 @@ import type {
   CreateEmployeeInput,
   CreateInvoiceInput,
   CreateJournalEntryInput,
+  CreateMigrationBatchInput,
   CreatePayrollRunInput,
   CreatePurchaseOrderInput,
   CreateQuotationInput,
   CreateRecurringRuleInput,
   CreateVendorInput,
+  CreditNoteApplications,
   Customer,
+  CustomerCredits,
   CustomerDetail,
   CustomerInputFields,
   CustomerLedgerReport,
+  CustomerPayment,
+  CustomerRefund,
+  CustomerStatement,
   Decomposition,
   DeploymentBanner,
   DepreciateInput,
@@ -95,6 +105,7 @@ import type {
   GetCashFlowParams,
   GetCashReconciliationParams,
   GetCustomerLedgerParams,
+  GetCustomerStatementParams,
   GetDecompositionParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
@@ -112,6 +123,10 @@ import type {
   GetVatSummaryParams,
   GroundedAnswersPage,
   HealthStatus,
+  ImportMigrationAdvancesInput,
+  ImportMigrationChartInput,
+  ImportMigrationOpenItemsInput,
+  ImportMigrationPartiesInput,
   IncomeStatementReport,
   Invoice,
   JournalEntry,
@@ -133,15 +148,34 @@ import type {
   ListInvoicesParams,
   ListJournalEntries200,
   ListJournalEntriesParams,
+  ListPaymentsParams,
   ListPurchaseOrders200,
   ListPurchaseOrdersParams,
   ListQuotations200,
   ListQuotationsParams,
+  ListRefundsParams,
   ListTransactionsParams,
   ListVendors200,
   ListVendorsParams,
+  MatchOverrideInput,
+  MatchingApplyResult,
+  MigrationAdvances,
+  MigrationBatch,
+  MigrationBatchDetail,
+  MigrationChart,
+  MigrationChartDecisionInput,
+  MigrationChartRow,
+  MigrationOpenItems,
+  MigrationOpeningPosition,
+  MigrationParties,
+  MigrationParty,
+  MigrationPartyDecisionInput,
+  MigrationReversalPreview,
+  MigrationReversed,
+  MigrationValidation,
   OwnerEquityReport,
   Payment,
+  PaymentAllocationDetail,
   PaymentInput,
   PayrollRun,
   PayrollRunDetail,
@@ -156,11 +190,16 @@ import type {
   Quotation,
   QuotationConversion,
   QuotationConversionResult,
+  ReceivePaymentInput,
   RecurringRule,
   RecurringRuleWithHealth,
   RecurringRun,
+  RefundCustomerInput,
+  ReverseMigrationBatchInput,
   SendBackInput,
   SettleTransactionInput,
+  StatementMatch,
+  StatementRowClassification,
   TaxCompliance,
   TaxJournalEntriesReport,
   Transaction,
@@ -170,9 +209,12 @@ import type {
   TransactionUpload,
   TrendPoint,
   TrialBalanceReport,
+  UnallocateInput,
+  UnmatchInput,
   UpdateBudgetInput,
   UpdateCompanyInput,
   UpdateInvoiceInput,
+  UpdateMigrationBatchInput,
   UpdateQuotationInput,
   UploadResult,
   VatReturn,
@@ -7700,7 +7742,7 @@ export const getGetArAgingReportUrl = () => {
 }
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
 export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingReport> => {
 
@@ -7747,7 +7789,7 @@ export type GetArAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
 
 export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(
@@ -10146,6 +10188,172 @@ export const useDeleteCustomer = <TError = ErrorType<unknown>,
       return useMutation(getDeleteCustomerMutationOptions(options));
     }
 
+export const getGetCustomerCreditsUrl = (id: number,) => {
+
+
+
+
+  return `/api/customers/${id}/credits`
+}
+
+/**
+ * @summary D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart
+ */
+export const getCustomerCredits = async (id: number, options?: RequestInit): Promise<CustomerCredits> => {
+
+  return customFetch<CustomerCredits>(getGetCustomerCreditsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerCreditsQueryKey = (id: number,) => {
+    return [
+    `/api/customers/${id}/credits`
+    ] as const;
+    }
+
+
+export const getGetCustomerCreditsQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerCredits>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerCredits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerCreditsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerCredits>>> = ({ signal }) => getCustomerCredits(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerCredits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerCreditsQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerCredits>>>
+export type GetCustomerCreditsQueryError = ErrorType<void>
+
+
+/**
+ * @summary D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart
+ */
+
+export function useGetCustomerCredits<TData = Awaited<ReturnType<typeof getCustomerCredits>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerCredits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerCreditsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomerStatementUrl = (id: number,
+    params?: GetCustomerStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/${id}/statement?${stringifiedParams}` : `/api/customers/${id}/statement`
+}
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+export const getCustomerStatement = async (id: number,
+    params?: GetCustomerStatementParams, options?: RequestInit): Promise<CustomerStatement> => {
+
+  return customFetch<CustomerStatement>(getGetCustomerStatementUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerStatementQueryKey = (id: number,
+    params?: GetCustomerStatementParams,) => {
+    return [
+    `/api/customers/${id}/statement`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCustomerStatementQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<void>>(id: number,
+    params?: GetCustomerStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerStatementQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerStatement>>> = ({ signal }) => getCustomerStatement(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerStatementQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerStatement>>>
+export type GetCustomerStatementQueryError = ErrorType<void>
+
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+
+export function useGetCustomerStatement<TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetCustomerStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerStatementQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListVendorsUrl = (params?: ListVendorsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11219,6 +11427,2710 @@ export const useDeleteInvoice = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteInvoiceMutationOptions(options));
+    }
+
+export const getListPaymentsUrl = (params?: ListPaymentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments?${stringifiedParams}` : `/api/payments`
+}
+
+/**
+ * @summary D-4 — customer payments, newest first
+ */
+export const listPayments = async (params?: ListPaymentsParams, options?: RequestInit): Promise<CustomerPayment[]> => {
+
+  return customFetch<CustomerPayment[]>(getListPaymentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPaymentsQueryKey = (params?: ListPaymentsParams,) => {
+    return [
+    `/api/payments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPaymentsQueryOptions = <TData = Awaited<ReturnType<typeof listPayments>>, TError = ErrorType<unknown>>(params?: ListPaymentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPaymentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayments>>> = ({ signal }) => listPayments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPaymentsQueryResult = NonNullable<Awaited<ReturnType<typeof listPayments>>>
+export type ListPaymentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary D-4 — customer payments, newest first
+ */
+
+export function useListPayments<TData = Awaited<ReturnType<typeof listPayments>>, TError = ErrorType<unknown>>(
+ params?: ListPaymentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPaymentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReceivePaymentUrl = () => {
+
+
+
+
+  return `/api/payments`
+}
+
+/**
+ * One payment, one journal entry, zero or more allocations. Allocations are never inferred: none ⇒ the whole amount is a deposit for the customer; some ⇒ the rest is. An allocation beyond an invoice's outstanding (total − paid − credited) is refused; the receipt itself is never refused for being larger than the invoices — the excess is the customer's deposit by the caller's explicit allocation. `idempotencyKey` (unique per company) makes a repeated request return the first payment.
+ * @summary D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest
+ */
+export const receivePayment = async (receivePaymentInput: ReceivePaymentInput, options?: RequestInit): Promise<CustomerPayment> => {
+
+  return customFetch<CustomerPayment>(getReceivePaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(receivePaymentInput)
+  }
+);}
+
+
+
+
+
+export const getReceivePaymentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receivePayment>>, TError,{data: BodyType<ReceivePaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receivePayment>>, TError,{data: BodyType<ReceivePaymentInput>}, TContext> => {
+
+const mutationKey = ['receivePayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receivePayment>>, {data: BodyType<ReceivePaymentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  receivePayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceivePaymentMutationResult = NonNullable<Awaited<ReturnType<typeof receivePayment>>>
+    export type ReceivePaymentMutationBody = BodyType<ReceivePaymentInput>
+    export type ReceivePaymentMutationError = ErrorType<void>
+
+    /**
+ * @summary D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest
+ */
+export const useReceivePayment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receivePayment>>, TError,{data: BodyType<ReceivePaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receivePayment>>,
+        TError,
+        {data: BodyType<ReceivePaymentInput>},
+        TContext
+      > => {
+      return useMutation(getReceivePaymentMutationOptions(options));
+    }
+
+export const getListRefundsUrl = (params?: ListRefundsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/refunds?${stringifiedParams}` : `/api/payments/refunds`
+}
+
+/**
+ * @summary Phase C — customer refunds, newest first
+ */
+export const listRefunds = async (params?: ListRefundsParams, options?: RequestInit): Promise<CustomerRefund[]> => {
+
+  return customFetch<CustomerRefund[]>(getListRefundsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRefundsQueryKey = (params?: ListRefundsParams,) => {
+    return [
+    `/api/payments/refunds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRefundsQueryOptions = <TData = Awaited<ReturnType<typeof listRefunds>>, TError = ErrorType<unknown>>(params?: ListRefundsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRefundsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRefunds>>> = ({ signal }) => listRefunds(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRefunds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRefundsQueryResult = NonNullable<Awaited<ReturnType<typeof listRefunds>>>
+export type ListRefundsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase C — customer refunds, newest first
+ */
+
+export function useListRefunds<TData = Awaited<ReturnType<typeof listRefunds>>, TError = ErrorType<unknown>>(
+ params?: ListRefundsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRefundsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRefundCustomerUrl = () => {
+
+
+
+
+  return `/api/payments/refunds`
+}
+
+/**
+ * Settles an existing credit; never reverses the receipt or the note. The origin is explicit and the source is a specific record. Refused when the amount exceeds the source's refundable balance, when the note is not issued (no tax effect exists yet), when the source is another customer's, or when the bank is missing/inactive/another tenant's. No VAT is posted or altered.
+ * @summary Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank
+ */
+export const refundCustomer = async (refundCustomerInput: RefundCustomerInput, options?: RequestInit): Promise<CustomerRefund> => {
+
+  return customFetch<CustomerRefund>(getRefundCustomerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(refundCustomerInput)
+  }
+);}
+
+
+
+
+
+export const getRefundCustomerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundCustomer>>, TError,{data: BodyType<RefundCustomerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refundCustomer>>, TError,{data: BodyType<RefundCustomerInput>}, TContext> => {
+
+const mutationKey = ['refundCustomer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refundCustomer>>, {data: BodyType<RefundCustomerInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  refundCustomer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefundCustomerMutationResult = NonNullable<Awaited<ReturnType<typeof refundCustomer>>>
+    export type RefundCustomerMutationBody = BodyType<RefundCustomerInput>
+    export type RefundCustomerMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank
+ */
+export const useRefundCustomer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundCustomer>>, TError,{data: BodyType<RefundCustomerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refundCustomer>>,
+        TError,
+        {data: BodyType<RefundCustomerInput>},
+        TContext
+      > => {
+      return useMutation(getRefundCustomerMutationOptions(options));
+    }
+
+export const getGetRefundUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/refunds/${id}`
+}
+
+/**
+ * @summary One refund
+ */
+export const getRefund = async (id: number, options?: RequestInit): Promise<CustomerRefund> => {
+
+  return customFetch<CustomerRefund>(getGetRefundUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRefundQueryKey = (id: number,) => {
+    return [
+    `/api/payments/refunds/${id}`
+    ] as const;
+    }
+
+
+export const getGetRefundQueryOptions = <TData = Awaited<ReturnType<typeof getRefund>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRefund>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRefundQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRefund>>> = ({ signal }) => getRefund(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRefund>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRefundQueryResult = NonNullable<Awaited<ReturnType<typeof getRefund>>>
+export type GetRefundQueryError = ErrorType<void>
+
+
+/**
+ * @summary One refund
+ */
+
+export function useGetRefund<TData = Awaited<ReturnType<typeof getRefund>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRefund>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRefundQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAllocationUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/allocations/${id}`
+}
+
+/**
+ * @summary Phase A — one allocation with its correction, if any
+ */
+export const getAllocation = async (id: number, options?: RequestInit): Promise<PaymentAllocationDetail> => {
+
+  return customFetch<PaymentAllocationDetail>(getGetAllocationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAllocationQueryKey = (id: number,) => {
+    return [
+    `/api/payments/allocations/${id}`
+    ] as const;
+    }
+
+
+export const getGetAllocationQueryOptions = <TData = Awaited<ReturnType<typeof getAllocation>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAllocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAllocationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllocation>>> = ({ signal }) => getAllocation(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAllocation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAllocationQueryResult = NonNullable<Awaited<ReturnType<typeof getAllocation>>>
+export type GetAllocationQueryError = ErrorType<void>
+
+
+/**
+ * @summary Phase A — one allocation with its correction, if any
+ */
+
+export function useGetAllocation<TData = Awaited<ReturnType<typeof getAllocation>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAllocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAllocationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUnallocateUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/allocations/${id}/unallocate`
+}
+
+/**
+ * @summary Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched
+ */
+export const unallocate = async (id: number,
+    unallocateInput: UnallocateInput, options?: RequestInit): Promise<PaymentAllocationDetail> => {
+
+  return customFetch<PaymentAllocationDetail>(getUnallocateUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(unallocateInput)
+  }
+);}
+
+
+
+
+
+export const getUnallocateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unallocate>>, TError,{id: number;data: BodyType<UnallocateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unallocate>>, TError,{id: number;data: BodyType<UnallocateInput>}, TContext> => {
+
+const mutationKey = ['unallocate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unallocate>>, {id: number;data: BodyType<UnallocateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  unallocate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnallocateMutationResult = NonNullable<Awaited<ReturnType<typeof unallocate>>>
+    export type UnallocateMutationBody = BodyType<UnallocateInput>
+    export type UnallocateMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched
+ */
+export const useUnallocate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unallocate>>, TError,{id: number;data: BodyType<UnallocateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unallocate>>,
+        TError,
+        {id: number;data: BodyType<UnallocateInput>},
+        TContext
+      > => {
+      return useMutation(getUnallocateMutationOptions(options));
+    }
+
+export const getClassifyStatementRowsUrl = (params?: ClassifyStatementRowsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/matching?${stringifiedParams}` : `/api/payments/matching`
+}
+
+/**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+export const classifyStatementRows = async (params?: ClassifyStatementRowsParams, options?: RequestInit): Promise<StatementRowClassification[]> => {
+
+  return customFetch<StatementRowClassification[]>(getClassifyStatementRowsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getClassifyStatementRowsQueryKey = (params?: ClassifyStatementRowsParams,) => {
+    return [
+    `/api/payments/matching`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getClassifyStatementRowsQueryOptions = <TData = Awaited<ReturnType<typeof classifyStatementRows>>, TError = ErrorType<unknown>>(params?: ClassifyStatementRowsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifyStatementRowsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifyStatementRows>>> = ({ signal }) => classifyStatementRows(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ClassifyStatementRowsQueryResult = NonNullable<Awaited<ReturnType<typeof classifyStatementRows>>>
+export type ClassifyStatementRowsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+
+export function useClassifyStatementRows<TData = Awaited<ReturnType<typeof classifyStatementRows>>, TError = ErrorType<unknown>>(
+ params?: ClassifyStatementRowsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof classifyStatementRows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getClassifyStatementRowsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplyDeterministicMatchesUrl = (params?: ApplyDeterministicMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/matching/apply?${stringifiedParams}` : `/api/payments/matching/apply`
+}
+
+/**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const applyDeterministicMatches = async (params?: ApplyDeterministicMatchesParams, options?: RequestInit): Promise<MatchingApplyResult> => {
+
+  return customFetch<MatchingApplyResult>(getApplyDeterministicMatchesUrl(params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApplyDeterministicMatchesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext> => {
+
+const mutationKey = ['applyDeterministicMatches'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyDeterministicMatches>>, {params?: ApplyDeterministicMatchesParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  applyDeterministicMatches(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyDeterministicMatchesMutationResult = NonNullable<Awaited<ReturnType<typeof applyDeterministicMatches>>>
+
+    export type ApplyDeterministicMatchesMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const useApplyDeterministicMatches = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyDeterministicMatches>>, TError,{params?: ApplyDeterministicMatchesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyDeterministicMatches>>,
+        TError,
+        {params?: ApplyDeterministicMatchesParams},
+        TContext
+      > => {
+      return useMutation(getApplyDeterministicMatchesMutationOptions(options));
+    }
+
+export const getOverrideMatchUrl = () => {
+
+
+
+
+  return `/api/payments/matching/override`
+}
+
+/**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const overrideMatch = async (matchOverrideInput: MatchOverrideInput, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getOverrideMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchOverrideInput)
+  }
+);}
+
+
+
+
+
+export const getOverrideMatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext> => {
+
+const mutationKey = ['overrideMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideMatch>>, {data: BodyType<MatchOverrideInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  overrideMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverrideMatchMutationResult = NonNullable<Awaited<ReturnType<typeof overrideMatch>>>
+    export type OverrideMatchMutationBody = BodyType<MatchOverrideInput>
+    export type OverrideMatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const useOverrideMatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideMatch>>, TError,{data: BodyType<MatchOverrideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overrideMatch>>,
+        TError,
+        {data: BodyType<MatchOverrideInput>},
+        TContext
+      > => {
+      return useMutation(getOverrideMatchMutationOptions(options));
+    }
+
+export const getGetMatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/matching/${id}`
+}
+
+/**
+ * @summary One match with its reversal, if any
+ */
+export const getMatch = async (id: number, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getGetMatchUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMatchQueryKey = (id: number,) => {
+    return [
+    `/api/payments/matching/${id}`
+    ] as const;
+    }
+
+
+export const getGetMatchQueryOptions = <TData = Awaited<ReturnType<typeof getMatch>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMatchQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatch>>> = ({ signal }) => getMatch(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getMatch>>>
+export type GetMatchQueryError = ErrorType<void>
+
+
+/**
+ * @summary One match with its reversal, if any
+ */
+
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMatchQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUnmatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/matching/${id}/unmatch`
+}
+
+/**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const unmatch = async (id: number,
+    unmatchInput: UnmatchInput, options?: RequestInit): Promise<StatementMatch> => {
+
+  return customFetch<StatementMatch>(getUnmatchUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(unmatchInput)
+  }
+);}
+
+
+
+
+
+export const getUnmatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext> => {
+
+const mutationKey = ['unmatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unmatch>>, {id: number;data: BodyType<UnmatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  unmatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnmatchMutationResult = NonNullable<Awaited<ReturnType<typeof unmatch>>>
+    export type UnmatchMutationBody = BodyType<UnmatchInput>
+    export type UnmatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const useUnmatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unmatch>>, TError,{id: number;data: BodyType<UnmatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unmatch>>,
+        TError,
+        {id: number;data: BodyType<UnmatchInput>},
+        TContext
+      > => {
+      return useMutation(getUnmatchMutationOptions(options));
+    }
+
+export const getGetPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}`
+}
+
+/**
+ * @summary One payment with its allocations
+ */
+export const getPayment = async (id: number, options?: RequestInit): Promise<CustomerPayment> => {
+
+  return customFetch<CustomerPayment>(getGetPaymentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentQueryKey = (id: number,) => {
+    return [
+    `/api/payments/${id}`
+    ] as const;
+    }
+
+
+export const getGetPaymentQueryOptions = <TData = Awaited<ReturnType<typeof getPayment>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayment>>> = ({ signal }) => getPayment(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentQueryResult = NonNullable<Awaited<ReturnType<typeof getPayment>>>
+export type GetPaymentQueryError = ErrorType<void>
+
+
+/**
+ * @summary One payment with its allocations
+ */
+
+export function useGetPayment<TData = Awaited<ReturnType<typeof getPayment>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAllocatePaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}/allocate`
+}
+
+/**
+ * @summary D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)
+ */
+export const allocatePayment = async (id: number,
+    allocatePaymentInput: AllocatePaymentInput, options?: RequestInit): Promise<CustomerPayment> => {
+
+  return customFetch<CustomerPayment>(getAllocatePaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(allocatePaymentInput)
+  }
+);}
+
+
+
+
+
+export const getAllocatePaymentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocatePayment>>, TError,{id: number;data: BodyType<AllocatePaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof allocatePayment>>, TError,{id: number;data: BodyType<AllocatePaymentInput>}, TContext> => {
+
+const mutationKey = ['allocatePayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allocatePayment>>, {id: number;data: BodyType<AllocatePaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  allocatePayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllocatePaymentMutationResult = NonNullable<Awaited<ReturnType<typeof allocatePayment>>>
+    export type AllocatePaymentMutationBody = BodyType<AllocatePaymentInput>
+    export type AllocatePaymentMutationError = ErrorType<void>
+
+    /**
+ * @summary D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)
+ */
+export const useAllocatePayment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocatePayment>>, TError,{id: number;data: BodyType<AllocatePaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof allocatePayment>>,
+        TError,
+        {id: number;data: BodyType<AllocatePaymentInput>},
+        TContext
+      > => {
+      return useMutation(getAllocatePaymentMutationOptions(options));
+    }
+
+export const getApplyCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/credit-notes/${id}/apply`
+}
+
+/**
+ * @summary D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)
+ */
+export const applyCreditNote = async (id: number,
+    applyCreditNoteInput: ApplyCreditNoteInput, options?: RequestInit): Promise<CreditNoteApplications> => {
+
+  return customFetch<CreditNoteApplications>(getApplyCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(applyCreditNoteInput)
+  }
+);}
+
+
+
+
+
+export const getApplyCreditNoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyCreditNote>>, TError,{id: number;data: BodyType<ApplyCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyCreditNote>>, TError,{id: number;data: BodyType<ApplyCreditNoteInput>}, TContext> => {
+
+const mutationKey = ['applyCreditNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyCreditNote>>, {id: number;data: BodyType<ApplyCreditNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  applyCreditNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyCreditNoteMutationResult = NonNullable<Awaited<ReturnType<typeof applyCreditNote>>>
+    export type ApplyCreditNoteMutationBody = BodyType<ApplyCreditNoteInput>
+    export type ApplyCreditNoteMutationError = ErrorType<void>
+
+    /**
+ * @summary D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)
+ */
+export const useApplyCreditNote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyCreditNote>>, TError,{id: number;data: BodyType<ApplyCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyCreditNote>>,
+        TError,
+        {id: number;data: BodyType<ApplyCreditNoteInput>},
+        TContext
+      > => {
+      return useMutation(getApplyCreditNoteMutationOptions(options));
+    }
+
+export const getListCreditNoteApplicationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/credit-notes/${id}/applications`
+}
+
+/**
+ * @summary D-4 — a credit note's applications and remaining balance
+ */
+export const listCreditNoteApplications = async (id: number, options?: RequestInit): Promise<CreditNoteApplications> => {
+
+  return customFetch<CreditNoteApplications>(getListCreditNoteApplicationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCreditNoteApplicationsQueryKey = (id: number,) => {
+    return [
+    `/api/payments/credit-notes/${id}/applications`
+    ] as const;
+    }
+
+
+export const getListCreditNoteApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listCreditNoteApplications>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreditNoteApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCreditNoteApplicationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCreditNoteApplications>>> = ({ signal }) => listCreditNoteApplications(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCreditNoteApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCreditNoteApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listCreditNoteApplications>>>
+export type ListCreditNoteApplicationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary D-4 — a credit note's applications and remaining balance
+ */
+
+export function useListCreditNoteApplications<TData = Awaited<ReturnType<typeof listCreditNoteApplications>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreditNoteApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCreditNoteApplicationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMigrationBatchesUrl = () => {
+
+
+
+
+  return `/api/migration/batches`
+}
+
+/**
+ * @summary Batch 1C — this company's migration batches, newest first
+ */
+export const listMigrationBatches = async ( options?: RequestInit): Promise<MigrationBatch[]> => {
+
+  return customFetch<MigrationBatch[]>(getListMigrationBatchesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMigrationBatchesQueryKey = () => {
+    return [
+    `/api/migration/batches`
+    ] as const;
+    }
+
+
+export const getListMigrationBatchesQueryOptions = <TData = Awaited<ReturnType<typeof listMigrationBatches>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrationBatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMigrationBatchesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMigrationBatches>>> = ({ signal }) => listMigrationBatches({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMigrationBatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMigrationBatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listMigrationBatches>>>
+export type ListMigrationBatchesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Batch 1C — this company's migration batches, newest first
+ */
+
+export function useListMigrationBatches<TData = Awaited<ReturnType<typeof listMigrationBatches>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrationBatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMigrationBatchesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMigrationBatchUrl = () => {
+
+
+
+
+  return `/api/migration/batches`
+}
+
+/**
+ * @summary Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1
+ */
+export const createMigrationBatch = async (createMigrationBatchInput: CreateMigrationBatchInput, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getCreateMigrationBatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createMigrationBatchInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMigrationBatch>>, TError,{data: BodyType<CreateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMigrationBatch>>, TError,{data: BodyType<CreateMigrationBatchInput>}, TContext> => {
+
+const mutationKey = ['createMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMigrationBatch>>, {data: BodyType<CreateMigrationBatchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMigrationBatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof createMigrationBatch>>>
+    export type CreateMigrationBatchMutationBody = BodyType<CreateMigrationBatchInput>
+    export type CreateMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1
+ */
+export const useCreateMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMigrationBatch>>, TError,{data: BodyType<CreateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMigrationBatch>>,
+        TError,
+        {data: BodyType<CreateMigrationBatchInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMigrationBatchMutationOptions(options));
+    }
+
+export const getGetMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}`
+}
+
+/**
+ * @summary One batch with its staging counts, validation and reconciliation
+ */
+export const getMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationBatchDetail> => {
+
+  return customFetch<MigrationBatchDetail>(getGetMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationBatchQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}`
+    ] as const;
+    }
+
+
+export const getGetMigrationBatchQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationBatch>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationBatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationBatchQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationBatch>>> = ({ signal }) => getMigrationBatch(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationBatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationBatchQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationBatch>>>
+export type GetMigrationBatchQueryError = ErrorType<void>
+
+
+/**
+ * @summary One batch with its staging counts, validation and reconciliation
+ */
+
+export function useGetMigrationBatch<TData = Awaited<ReturnType<typeof getMigrationBatch>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationBatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationBatchQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}`
+}
+
+/**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const updateMigrationBatch = async (id: number,
+    updateMigrationBatchInput: UpdateMigrationBatchInput, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getUpdateMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateMigrationBatchInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext> => {
+
+const mutationKey = ['updateMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMigrationBatch>>, {id: number;data: BodyType<UpdateMigrationBatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMigrationBatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateMigrationBatch>>>
+    export type UpdateMigrationBatchMutationBody = BodyType<UpdateMigrationBatchInput>
+    export type UpdateMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const useUpdateMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMigrationBatch>>, TError,{id: number;data: BodyType<UpdateMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMigrationBatch>>,
+        TError,
+        {id: number;data: BodyType<UpdateMigrationBatchInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMigrationBatchMutationOptions(options));
+    }
+
+export const getDiscardMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/discard`
+}
+
+/**
+ * @summary Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)
+ */
+export const discardMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getDiscardMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscardMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discardMigrationBatch>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['discardMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discardMigrationBatch>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  discardMigrationBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscardMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof discardMigrationBatch>>>
+
+    export type DiscardMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)
+ */
+export const useDiscardMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof discardMigrationBatch>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDiscardMigrationBatchMutationOptions(options));
+    }
+
+export const getGetMigrationChartUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/chart`
+}
+
+/**
+ * @summary The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary
+ */
+export const getMigrationChart = async (id: number, options?: RequestInit): Promise<MigrationChart> => {
+
+  return customFetch<MigrationChart>(getGetMigrationChartUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationChartQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/chart`
+    ] as const;
+    }
+
+
+export const getGetMigrationChartQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationChart>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationChartQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationChart>>> = ({ signal }) => getMigrationChart(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationChart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationChartQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationChart>>>
+export type GetMigrationChartQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary
+ */
+
+export function useGetMigrationChart<TData = Awaited<ReturnType<typeof getMigrationChart>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationChartQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationChartUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/chart`
+}
+
+/**
+ * Every row keeps the old code, name, type, parent and Dr/Cr balance verbatim. A row's TYPE must be one of asset / liability / equity / income / expense as the file states it — nothing is guessed from a name. Duplicate codes in one file are refused. Replacing the chart resets every mapping decision.
+ * @summary Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed.
+ */
+export const importMigrationChart = async (id: number,
+    importMigrationChartInput: ImportMigrationChartInput, options?: RequestInit): Promise<MigrationChart> => {
+
+  return customFetch<MigrationChart>(getImportMigrationChartUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationChartInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationChartMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationChart>>, TError,{id: number;data: BodyType<ImportMigrationChartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationChart>>, TError,{id: number;data: BodyType<ImportMigrationChartInput>}, TContext> => {
+
+const mutationKey = ['importMigrationChart'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationChart>>, {id: number;data: BodyType<ImportMigrationChartInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationChart(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationChartMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationChart>>>
+    export type ImportMigrationChartMutationBody = BodyType<ImportMigrationChartInput>
+    export type ImportMigrationChartMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed.
+ */
+export const useImportMigrationChart = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationChart>>, TError,{id: number;data: BodyType<ImportMigrationChartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationChart>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationChartInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationChartMutationOptions(options));
+    }
+
+export const getDecideMigrationChartRowUrl = (id: number,
+    rowId: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/chart/${rowId}`
+}
+
+/**
+ * Refused: mapping to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
+ * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
+ */
+export const decideMigrationChartRow = async (id: number,
+    rowId: number,
+    migrationChartDecisionInput: MigrationChartDecisionInput, options?: RequestInit): Promise<MigrationChartRow> => {
+
+  return customFetch<MigrationChartRow>(getDecideMigrationChartRowUrl(id,rowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(migrationChartDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideMigrationChartRowMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationChartRow>>, TError,{id: number;rowId: number;data: BodyType<MigrationChartDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideMigrationChartRow>>, TError,{id: number;rowId: number;data: BodyType<MigrationChartDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideMigrationChartRow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideMigrationChartRow>>, {id: number;rowId: number;data: BodyType<MigrationChartDecisionInput>}> = (props) => {
+          const {id,rowId,data} = props ?? {};
+
+          return  decideMigrationChartRow(id,rowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideMigrationChartRowMutationResult = NonNullable<Awaited<ReturnType<typeof decideMigrationChartRow>>>
+    export type DecideMigrationChartRowMutationBody = BodyType<MigrationChartDecisionInput>
+    export type DecideMigrationChartRowMutationError = ErrorType<void>
+
+    /**
+ * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
+ */
+export const useDecideMigrationChartRow = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationChartRow>>, TError,{id: number;rowId: number;data: BodyType<MigrationChartDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideMigrationChartRow>>,
+        TError,
+        {id: number;rowId: number;data: BodyType<MigrationChartDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideMigrationChartRowMutationOptions(options));
+    }
+
+export const getGetMigrationPartiesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties`
+}
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+export const getMigrationParties = async (id: number, options?: RequestInit): Promise<MigrationParties> => {
+
+  return customFetch<MigrationParties>(getGetMigrationPartiesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationPartiesQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/parties`
+    ] as const;
+    }
+
+
+export const getGetMigrationPartiesQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationParties>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationPartiesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationParties>>> = ({ signal }) => getMigrationParties(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationPartiesQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationParties>>>
+export type GetMigrationPartiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+
+export function useGetMigrationParties<TData = Awaited<ReturnType<typeof getMigrationParties>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationParties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationPartiesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationPartiesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties`
+}
+
+/**
+ * Every party keeps its source id — the identity every open item and advance refers to. Import sets `create` where no existing record looks like the party; where one does (same VAT number, or the same name) the decision is left EMPTY and blocks validation until the operator chooses create or use_existing. Replacing the parties resets every decision; open items and advances that name a party no longer staged are reported as problems, not deleted.
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const importMigrationParties = async (id: number,
+    importMigrationPartiesInput: ImportMigrationPartiesInput, options?: RequestInit): Promise<MigrationParties> => {
+
+  return customFetch<MigrationParties>(getImportMigrationPartiesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationPartiesInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationPartiesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext> => {
+
+const mutationKey = ['importMigrationParties'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationParties>>, {id: number;data: BodyType<ImportMigrationPartiesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationParties(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationPartiesMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationParties>>>
+    export type ImportMigrationPartiesMutationBody = BodyType<ImportMigrationPartiesInput>
+    export type ImportMigrationPartiesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const useImportMigrationParties = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationParties>>, TError,{id: number;data: BodyType<ImportMigrationPartiesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationParties>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationPartiesInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationPartiesMutationOptions(options));
+    }
+
+export const getDecideMigrationPartyUrl = (id: number,
+    rowId: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/parties/${rowId}`
+}
+
+/**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const decideMigrationParty = async (id: number,
+    rowId: number,
+    migrationPartyDecisionInput: MigrationPartyDecisionInput, options?: RequestInit): Promise<MigrationParty> => {
+
+  return customFetch<MigrationParty>(getDecideMigrationPartyUrl(id,rowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(migrationPartyDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideMigrationPartyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideMigrationParty'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideMigrationParty>>, {id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}> = (props) => {
+          const {id,rowId,data} = props ?? {};
+
+          return  decideMigrationParty(id,rowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideMigrationPartyMutationResult = NonNullable<Awaited<ReturnType<typeof decideMigrationParty>>>
+    export type DecideMigrationPartyMutationBody = BodyType<MigrationPartyDecisionInput>
+    export type DecideMigrationPartyMutationError = ErrorType<void>
+
+    /**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const useDecideMigrationParty = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideMigrationParty>>, TError,{id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideMigrationParty>>,
+        TError,
+        {id: number;rowId: number;data: BodyType<MigrationPartyDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideMigrationPartyMutationOptions(options));
+    }
+
+export const getGetMigrationOpenItemsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/open-items`
+}
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+export const getMigrationOpenItems = async (id: number, options?: RequestInit): Promise<MigrationOpenItems> => {
+
+  return customFetch<MigrationOpenItems>(getGetMigrationOpenItemsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationOpenItemsQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/open-items`
+    ] as const;
+    }
+
+
+export const getGetMigrationOpenItemsQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationOpenItems>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationOpenItemsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationOpenItems>>> = ({ signal }) => getMigrationOpenItems(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationOpenItemsQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationOpenItems>>>
+export type GetMigrationOpenItemsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+
+export function useGetMigrationOpenItems<TData = Awaited<ReturnType<typeof getMigrationOpenItems>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpenItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationOpenItemsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationOpenItemsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/open-items`
+}
+
+/**
+ * One row per open document of the previous system: its original number, issue date, due date, original amount, the amount still outstanding at cut-off, and the party's source id. Where the old system tracked only a balance for a party, ONE row with `compositionUnknown: true` carries that balance — invoice-level history is never fabricated. Historical VAT facts (rate, amount, the return period they were reported in) are kept as data for reconciliation and for the future Art. 40(10)–(11) engine; nothing here posts VAT.
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const importMigrationOpenItems = async (id: number,
+    importMigrationOpenItemsInput: ImportMigrationOpenItemsInput, options?: RequestInit): Promise<MigrationOpenItems> => {
+
+  return customFetch<MigrationOpenItems>(getImportMigrationOpenItemsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationOpenItemsInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationOpenItemsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext> => {
+
+const mutationKey = ['importMigrationOpenItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationOpenItems>>, {id: number;data: BodyType<ImportMigrationOpenItemsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationOpenItems(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationOpenItemsMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationOpenItems>>>
+    export type ImportMigrationOpenItemsMutationBody = BodyType<ImportMigrationOpenItemsInput>
+    export type ImportMigrationOpenItemsMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const useImportMigrationOpenItems = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationOpenItems>>, TError,{id: number;data: BodyType<ImportMigrationOpenItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationOpenItems>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationOpenItemsInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationOpenItemsMutationOptions(options));
+    }
+
+export const getGetMigrationAdvancesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/advances`
+}
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+export const getMigrationAdvances = async (id: number, options?: RequestInit): Promise<MigrationAdvances> => {
+
+  return customFetch<MigrationAdvances>(getGetMigrationAdvancesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationAdvancesQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/advances`
+    ] as const;
+    }
+
+
+export const getGetMigrationAdvancesQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationAdvances>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationAdvancesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationAdvances>>> = ({ signal }) => getMigrationAdvances(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationAdvancesQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationAdvances>>>
+export type GetMigrationAdvancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+
+export function useGetMigrationAdvances<TData = Awaited<ReturnType<typeof getMigrationAdvances>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAdvances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationAdvancesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationAdvancesUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/advances`
+}
+
+/**
+ * `vatPosition: invoiced` requires the old advance tax invoice's number and date and the VAT category and rate it was taxed at — a later invoice adjusts through PrepaidAmount by reference to them. `unknown` records the cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever computed for it until an accountant classifies it). The bank the money arrived in is named by the old chart's code: the advance's cash is INSIDE that bank's opening balance and posts no cash line of its own.
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const importMigrationAdvances = async (id: number,
+    importMigrationAdvancesInput: ImportMigrationAdvancesInput, options?: RequestInit): Promise<MigrationAdvances> => {
+
+  return customFetch<MigrationAdvances>(getImportMigrationAdvancesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationAdvancesInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationAdvancesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext> => {
+
+const mutationKey = ['importMigrationAdvances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationAdvances>>, {id: number;data: BodyType<ImportMigrationAdvancesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationAdvances(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationAdvancesMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationAdvances>>>
+    export type ImportMigrationAdvancesMutationBody = BodyType<ImportMigrationAdvancesInput>
+    export type ImportMigrationAdvancesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const useImportMigrationAdvances = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAdvances>>, TError,{id: number;data: BodyType<ImportMigrationAdvancesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationAdvances>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationAdvancesInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationAdvancesMutationOptions(options));
+    }
+
+export const getGetMigrationOpeningPositionUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/opening-position`
+}
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+export const getMigrationOpeningPosition = async (id: number, options?: RequestInit): Promise<MigrationOpeningPosition> => {
+
+  return customFetch<MigrationOpeningPosition>(getGetMigrationOpeningPositionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationOpeningPositionQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/opening-position`
+    ] as const;
+    }
+
+
+export const getGetMigrationOpeningPositionQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationOpeningPositionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationOpeningPosition>>> = ({ signal }) => getMigrationOpeningPosition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationOpeningPositionQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationOpeningPosition>>>
+export type GetMigrationOpeningPositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+
+export function useGetMigrationOpeningPosition<TData = Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationOpeningPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationOpeningPositionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getValidateMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/validate`
+}
+
+/**
+ * The checks anticipate the reconciliation gates of pack §15.6 on the STAGED content (the gates themselves run against the posted journal at commit): the chart is fully mapped and balances; AR and AP control balances equal the open-item subledgers, per party and in total (R2, R3); every bank row lands on a D-3 leaf with statement evidence and agrees with the bank's typed opening balance where one was typed (R4); the VAT balances equal the last filed return's closing position as supplied (R9); customer deposits equal the staged advances and each carries its VAT position (R10); every party is decided; no opening item collides with an existing document number; the fiscal year is declared and the P&L rows are consistent with the cutover's place in it (A2).
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const validateMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationValidation> => {
+
+  return customFetch<MigrationValidation>(getValidateMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['validateMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateMigrationBatch>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  validateMigrationBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof validateMigrationBatch>>>
+
+    export type ValidateMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const useValidateMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateMigrationBatch>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getValidateMigrationBatchMutationOptions(options));
+    }
+
+export const getCommitMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/commit`
+}
+
+/**
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
+ */
+export const commitMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationBatchDetail> => {
+
+  return customFetch<MigrationBatchDetail>(getCommitMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCommitMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof commitMigrationBatch>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['commitMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof commitMigrationBatch>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  commitMigrationBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CommitMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof commitMigrationBatch>>>
+
+    export type CommitMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
+ */
+export const useCommitMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof commitMigrationBatch>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCommitMigrationBatchMutationOptions(options));
+    }
+
+export const getGetMigrationReversalPreviewUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/reversal-preview`
+}
+
+/**
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
+ */
+export const getMigrationReversalPreview = async (id: number, options?: RequestInit): Promise<MigrationReversalPreview> => {
+
+  return customFetch<MigrationReversalPreview>(getGetMigrationReversalPreviewUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationReversalPreviewQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/reversal-preview`
+    ] as const;
+    }
+
+
+export const getGetMigrationReversalPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationReversalPreviewQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationReversalPreview>>> = ({ signal }) => getMigrationReversalPreview(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationReversalPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationReversalPreview>>>
+export type GetMigrationReversalPreviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
+ */
+
+export function useGetMigrationReversalPreview<TData = Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationReversalPreviewQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReverseMigrationBatchUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/reverse`
+}
+
+/**
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
+ */
+export const reverseMigrationBatch = async (id: number,
+    reverseMigrationBatchInput: ReverseMigrationBatchInput, options?: RequestInit): Promise<MigrationReversed> => {
+
+  return customFetch<MigrationReversed>(getReverseMigrationBatchUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reverseMigrationBatchInput)
+  }
+);}
+
+
+
+
+
+export const getReverseMigrationBatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseMigrationBatch>>, TError,{id: number;data: BodyType<ReverseMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseMigrationBatch>>, TError,{id: number;data: BodyType<ReverseMigrationBatchInput>}, TContext> => {
+
+const mutationKey = ['reverseMigrationBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseMigrationBatch>>, {id: number;data: BodyType<ReverseMigrationBatchInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reverseMigrationBatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseMigrationBatchMutationResult = NonNullable<Awaited<ReturnType<typeof reverseMigrationBatch>>>
+    export type ReverseMigrationBatchMutationBody = BodyType<ReverseMigrationBatchInput>
+    export type ReverseMigrationBatchMutationError = ErrorType<void>
+
+    /**
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
+ */
+export const useReverseMigrationBatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseMigrationBatch>>, TError,{id: number;data: BodyType<ReverseMigrationBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseMigrationBatch>>,
+        TError,
+        {id: number;data: BodyType<ReverseMigrationBatchInput>},
+        TContext
+      > => {
+      return useMutation(getReverseMigrationBatchMutationOptions(options));
     }
 
 export const getPayInvoiceUrl = (id: number,) => {

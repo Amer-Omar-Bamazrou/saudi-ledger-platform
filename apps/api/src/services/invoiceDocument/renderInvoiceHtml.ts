@@ -74,6 +74,7 @@ export interface InvoiceDocModel {
   vatAmount: string;
   total: string;
   paidAmount: string; // payment settlement inside the totals block (§3)
+  creditedAmount?: string; // D-4: credit notes applied to this document — part of what is no longer due
   qrDataUrl: string | null; // rendered TLV QR — bottom of the page
   logoDataUrl: string | null;
   termsAndConditions: string | null;
@@ -225,9 +226,10 @@ ${
   <tr><td>${esc(t("VAT 15%", "ضريبة القيمة المضافة ١٥٪"))}</td><td class="num">${fmt(m.vatAmount)} ${esc(currency)}</td></tr>
   <tr class="grand"><td>${esc(t("Total (incl. VAT)", "الإجمالي شامل الضريبة"))}</td><td class="num">${fmt(m.total)} ${esc(currency)}</td></tr>
   ${
-    Number(m.paidAmount) > 0
-      ? `<tr><td>${esc(t("Paid", "المدفوع"))}</td><td class="num">${fmt(m.paidAmount)} ${esc(currency)}</td></tr>
-  <tr><td>${esc(t("Balance due", "المتبقي"))}</td><td class="num">${fmt(String(Number(m.total) - Number(m.paidAmount)))} ${esc(currency)}</td></tr>`
+    Number(m.paidAmount) > 0 || Number(m.creditedAmount ?? "0") > 0
+      ? `${Number(m.paidAmount) > 0 ? `<tr><td>${esc(t("Paid", "المدفوع"))}</td><td class="num">${fmt(m.paidAmount)} ${esc(currency)}</td></tr>` : ""}
+  ${Number(m.creditedAmount ?? "0") > 0 ? `<tr><td>${esc(t("Credited", "المقيد لصالحكم"))}</td><td class="num">${fmt(m.creditedAmount!)} ${esc(currency)}</td></tr>` : ""}
+  <tr><td>${esc(t("Balance due", "المتبقي"))}</td><td class="num">${fmt(String(Number(m.total) - Number(m.paidAmount) - Number(m.creditedAmount ?? "0")))} ${esc(currency)}</td></tr>`
       : ""
   }
 </table>

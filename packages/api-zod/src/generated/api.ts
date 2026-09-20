@@ -111,7 +111,8 @@ export const CreateTransactionBody = zod.object({
   "vatAmount": zod.number().min(createTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(createTransactionBodyVatRateMin).max(createTransactionBodyVatRateMax).nullish(),
   "notes": zod.string().max(createTransactionBodyNotesMax).nullish(),
-  "source": zod.string().nullish()
+  "source": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish().describe('D-3: the bank account this movement belongs to. REQUIRED on `POST \/transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank\'s GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement\'s `bankAccountId` applies.\n')
 })
 
 export const CreateTransactionResponse = zod.object({
@@ -211,7 +212,7 @@ export const AcceptPendingTransactionsResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().nullable(),
   "reason": zod.string(),
-  "code": zod.enum(['period_closed']),
+  "code": zod.enum(['period_closed', 'bank_account_required']),
   "period": zod.string().nullable().describe('YYYY-MM — the closed month'),
   "lockedAt": zod.string().nullable().describe('YYYY-MM-DD — when it was closed')
 }))
@@ -908,6 +909,10 @@ export const ConvertQuotationResponse = zod.object({
   "invoice": zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -919,6 +924,7 @@ export const ConvertQuotationResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -1601,6 +1607,10 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "bill": zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -2039,10 +2049,11 @@ export const UploadTransactionsBody = zod.object({
   "vatAmount": zod.number().min(uploadTransactionsBodyRowsItemVatAmountMin).nullish(),
   "vatRate": zod.number().min(uploadTransactionsBodyRowsItemVatRateMin).max(uploadTransactionsBodyRowsItemVatRateMax).nullish(),
   "notes": zod.string().max(uploadTransactionsBodyRowsItemNotesMax).nullish(),
-  "source": zod.string().nullish()
+  "source": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish().describe('D-3: the bank account this movement belongs to. REQUIRED on `POST \/transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank\'s GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement\'s `bankAccountId` applies.\n')
 })),
   "autoCategrize": zod.boolean().nullish(),
-  "bankAccountId": zod.number().nullish().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n')
+  "bankAccountId": zod.number().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n🔴 REQUIRED since D-3 (2026-09-16): an accepted row\'s cash leg\nposts to this bank\'s own GL account, and a row with no bank cannot\nbe accepted. A missing id is a 422 `bank_account_required`.\n')
 })
 
 export const UploadTransactionsResponse = zod.object({
@@ -2111,6 +2122,7 @@ export const updateTransactionBodyVatRateMax = 100;
 
 export const UpdateTransactionBody = zod.object({
   "categoryId": zod.number().nullish(),
+  "bankAccountId": zod.number().optional().describe('D-3: record WHICH bank account the row belongs to. Settable only while the row has none (a bank is a fact about the movement, not a classification to revise); a posted row whose history still sits on the \"Cash and Bank\" header is left for the cut-over to remap, a row already posted to a bank\'s GL account is reversed and re-posted to the named bank.\n'),
   "vatAmount": zod.number().min(updateTransactionBodyVatAmountMin).nullish(),
   "vatRate": zod.number().min(updateTransactionBodyVatRateMin).max(updateTransactionBodyVatRateMax).nullish(),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('M16.3.1 — per-row VAT-treatment override (the export-sale case, or\ncorrecting an assumed default). Setting a non-\'S\' value clears the\nrow\'s VAT (Z\/E\/O rows carry zero VAT and say why); setting \'S\' on a\nrow with no VAT extracts it from the gross amount at 15%. null\nreturns the row to honest-unknown.\n'),
@@ -2172,6 +2184,9 @@ export const ListCategoriesResponseItem = zod.object({
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
   "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
+  "parentId": zod.number().nullish().describe('D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is \"Cash and Bank\"); every other account is null. Not a general chart hierarchy.\n'),
+  "bankAccountId": zod.number().nullish().describe('D-3: set on a bank\'s own GL cash account — the explicit, rename-proof relationship to the application bank account.\n'),
+  "isPosting": zod.boolean().optional().describe('D-3: false on a HEADER account (\"Cash and Bank\"), which accepts no postings — a cash line names a bank account and posts to that bank\'s leaf. Pickers exclude non-posting accounts.\n'),
   "description": zod.string().nullish()
 })
 export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
@@ -2197,6 +2212,9 @@ export const CreateCategoryResponse = zod.object({
   "type": zod.enum(['income', 'expense', 'asset', 'liability', 'equity']),
   "vatApplicable": zod.boolean(),
   "liquidityClass": zod.union([zod.literal('cash'),zod.literal('quick'),zod.literal('current'),zod.literal('non_current'),zod.literal(null)]).nullish().describe('M18.1 — where a BALANCE-SHEET account sits on the liquidity scale, for the Finance Hub. Current assets are everything but `non_current`; quick assets are `cash` + `quick`. NULL on an asset or liability means UNCLASSIFIED and is surfaced as such, never silently treated as current. Always NULL on income\/expense\/equity accounts, where the distinction is meaningless.\n'),
+  "parentId": zod.number().nullish().describe('D-3: the header this account sits under. Only bank GL leaves carry one today (their parent is \"Cash and Bank\"); every other account is null. Not a general chart hierarchy.\n'),
+  "bankAccountId": zod.number().nullish().describe('D-3: set on a bank\'s own GL cash account — the explicit, rename-proof relationship to the application bank account.\n'),
+  "isPosting": zod.boolean().optional().describe('D-3: false on a HEADER account (\"Cash and Bank\"), which accepts no postings — a cash line names a bank account and posts to that bank\'s leaf. Pickers exclude non-posting accounts.\n'),
   "description": zod.string().nullish()
 })
 
@@ -2374,7 +2392,8 @@ export const GetReceivablesBridgeResponse = zod.array(GetReceivablesBridgeRespon
  */
 export const GetCashReconciliationQueryParams = zod.object({
   "from": zod.coerce.string().describe('YYYY-MM'),
-  "to": zod.coerce.string().describe('YYYY-MM')
+  "to": zod.coerce.string().describe('YYYY-MM'),
+  "bankAccountId": zod.coerce.number().optional().describe('D-3: reconcile ONE bank — its accepted rows against its own GL cash account. Omitted = every bank and every cash account, as before. Pre-cut-over history still on the \"Cash and Bank\" header belongs to no bank and is excluded from a per-bank view.\n')
 })
 
 export const GetCashReconciliationResponse = zod.object({
@@ -3167,6 +3186,18 @@ export const GetCustomerLedgerQueryParams = zod.object({
   "date_to": zod.coerce.string().optional()
 })
 
+export const getCustomerLedgerResponseCustomersItemInvoicesItemOutstandingMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemBalanceMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneReceivableMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneCreditBalanceMin = 0;
+
+export const getCustomerLedgerResponseCustomersItemPositionOneDepositBalanceMin = 0;
+
+
+
 export const GetCustomerLedgerResponse = zod.object({
   "customers": zod.array(zod.object({
   "customerId": zod.number().nullish(),
@@ -3181,15 +3212,26 @@ export const GetCustomerLedgerResponse = zod.object({
   "status": zod.string(),
   "total": zod.number(),
   "paidAmount": zod.number(),
-  "outstanding": zod.number(),
+  "creditedAmount": zod.number(),
+  "outstanding": zod.number().min(getCustomerLedgerResponseCustomersItemInvoicesItemOutstandingMin),
   "vatAmount": zod.number(),
   "subtotal": zod.number()
-}).describe('A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.')),
+}).describe('A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it. `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit note (its unapplied remainder is a liability in the customer\'s `position.creditBalance`, never a negative receivable).')),
   "totalInvoiced": zod.number(),
   "totalPaid": zod.number(),
-  "balance": zod.number()
+  "balance": zod.number().min(getCustomerLedgerResponseCustomersItemBalanceMin).describe('Σ outstanding over the LISTED documents — the receivable within the window.'),
+  "position": zod.object({
+  "receivable": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerLedgerResponseCustomersItemPositionOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The customer\'s CURRENT position (whole history, not the window).')
 })),
-  "totalBalance": zod.number()
+  "totalBalance": zod.number().describe('Σ balance over the listed customers (window receivable).'),
+  "totalReceivable": zod.number().describe('Σ current receivable over the listed customers.'),
+  "totalCreditBalance": zod.number(),
+  "totalDepositBalance": zod.number(),
+  "totalNetPosition": zod.number()
 })
 
 
@@ -3220,8 +3262,16 @@ export const GetOwnerEquityResponse = zod.object({
 
 
 /**
- * @summary Accounts receivable aging (credit notes netted into their originals)
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
  */
+export const getArAgingReportResponseTotalMin = 0;
+
+export const getArAgingReportResponseLiabilitiesCustomerCreditsMin = 0;
+
+export const getArAgingReportResponseLiabilitiesCustomerDepositsMin = 0;
+
+
+
 export const GetArAgingReportResponse = zod.object({
   "buckets": zod.object({
   "current": zod.number(),
@@ -3230,7 +3280,12 @@ export const GetArAgingReportResponse = zod.object({
   "days_61_90": zod.number(),
   "over_90": zod.number()
 }),
-  "total": zod.number(),
+  "total": zod.number().min(getArAgingReportResponseTotalMin),
+  "liabilities": zod.object({
+  "customerCredits": zod.number().min(getArAgingReportResponseLiabilitiesCustomerCreditsMin).describe('Σ unapplied credit-note balances (GL Customer credit balances).'),
+  "customerDeposits": zod.number().min(getArAgingReportResponseLiabilitiesCustomerDepositsMin).describe('Σ unapplied receipts (GL Customer deposits).')
+}),
+  "netCustomerPosition": zod.number().describe('total − customerCredits − customerDeposits.'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
@@ -3240,7 +3295,7 @@ export const GetArAgingReportResponse = zod.object({
   "outstanding": zod.number(),
   "daysPastDue": zod.number()
 }))
-})
+}).describe('Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.')
 
 
 /**
@@ -4103,6 +4158,10 @@ export const SubmitBillParams = zod.object({
 export const SubmitBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4149,6 +4208,10 @@ export const SendBackBillBody = zod.object({
 export const SendBackBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4198,6 +4261,10 @@ export const ApproveBillBody = zod.object({
 export const ApproveBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4258,6 +4325,20 @@ export const ListCustomersQueryParams = zod.object({
   "offset": zod.coerce.number().min(listCustomersQueryOffsetMin).default(listCustomersQueryOffsetDefault)
 })
 
+export const listCustomersResponseItemsItemThreeReceivableMin = 0;
+
+export const listCustomersResponseItemsItemThreeCreditBalanceMin = 0;
+
+export const listCustomersResponseItemsItemThreeDepositBalanceMin = 0;
+
+export const listCustomersResponseTotalsTwoReceivableMin = 0;
+
+export const listCustomersResponseTotalsTwoCreditBalanceMin = 0;
+
+export const listCustomersResponseTotalsTwoDepositBalanceMin = 0;
+
+
+
 export const ListCustomersResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -4287,7 +4368,12 @@ export const ListCustomersResponse = zod.object({
   "totalBilled": zod.number(),
   "totalPaid": zod.number(),
   "balance": zod.number()
-}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.'))),
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "receivable": zod.number().min(listCustomersResponseItemsItemThreeReceivableMin),
+  "creditBalance": zod.number().min(listCustomersResponseItemsItemThreeCreditBalanceMin),
+  "depositBalance": zod.number().min(listCustomersResponseItemsItemThreeDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` (see CustomerPosition).')),
   "page": zod.object({
   "limit": zod.number(),
   "offset": zod.number(),
@@ -4297,7 +4383,12 @@ export const ListCustomersResponse = zod.object({
   "totalBilled": zod.number(),
   "totalPaid": zod.number(),
   "balance": zod.number()
-}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')
+}).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.').and(zod.object({
+  "receivable": zod.number().min(listCustomersResponseTotalsTwoReceivableMin),
+  "creditBalance": zod.number().min(listCustomersResponseTotalsTwoCreditBalanceMin),
+  "depositBalance": zod.number().min(listCustomersResponseTotalsTwoDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` — kept under its historical name for net-exposure readers; the components are beside it.')
 })
 
 
@@ -4367,6 +4458,14 @@ export const GetCustomerParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getCustomerResponseOneThreeReceivableMin = 0;
+
+export const getCustomerResponseOneThreeCreditBalanceMin = 0;
+
+export const getCustomerResponseOneThreeDepositBalanceMin = 0;
+
+
+
 export const GetCustomerResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -4396,6 +4495,11 @@ export const GetCustomerResponse = zod.object({
   "totalPaid": zod.number(),
   "balance": zod.number()
 }).describe('Billed, paid and outstanding — over the whole filtered set for a list, or over one party for a detail.')).and(zod.object({
+  "receivable": zod.number().min(getCustomerResponseOneThreeReceivableMin),
+  "creditBalance": zod.number().min(getCustomerResponseOneThreeCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerResponseOneThreeDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.')).describe('`balance` IS `netPosition` (see CustomerPosition).').and(zod.object({
   "invoiceCount": zod.number().describe('ISSUED invoices only — drafts and submitted documents do not count.')
 }))
 
@@ -4471,6 +4575,117 @@ export const DeleteCustomerParams = zod.object({
 })
 
 export const DeleteCustomerResponse = zod.void()
+
+
+/**
+ * @summary D-4 — the customer's credit position: deposits (unapplied receipts) and credit-note balances, shown apart
+ */
+export const GetCustomerCreditsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerCreditsResponse = zod.object({
+  "customerId": zod.number(),
+  "deposits": zod.number().describe('Σ unapplied over the customer\'s receipts — Customer deposits and advances.'),
+  "creditNotes": zod.number().describe('Σ unconsumed over the customer\'s issued credit notes — Customer credit balances.')
+})
+
+
+/**
+ * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
+ */
+export const GetCustomerStatementParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerStatementQueryParams = zod.object({
+  "date_from": zod.coerce.string().optional().describe('YYYY-MM-DD; events before it are folded into `opening`'),
+  "date_to": zod.coerce.string().optional().describe('YYYY-MM-DD; events after it are excluded from `lines` and `closing` but still counted in `current`')
+})
+
+export const getCustomerStatementResponseOpeningReceivableMin = 0;
+
+export const getCustomerStatementResponseOpeningCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseOpeningDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseClosingReceivableMin = 0;
+
+export const getCustomerStatementResponseClosingCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseClosingDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseCurrentOneReceivableMin = 0;
+
+export const getCustomerStatementResponseCurrentOneCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseCurrentOneDepositBalanceMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneReceivableMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneCreditBalanceMin = 0;
+
+export const getCustomerStatementResponseSubledgerOneDepositBalanceMin = 0;
+
+
+
+export const GetCustomerStatementResponse = zod.object({
+  "customerId": zod.number(),
+  "customerName": zod.string(),
+  "customerNameAr": zod.string().nullable(),
+  "period": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}),
+  "opening": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseOpeningReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseOpeningCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseOpeningDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.'),
+  "lines": zod.array(zod.object({
+  "seq": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['invoice', 'debit_note', 'credit_note', 'receipt', 'allocation', 'credit_application', 'unallocation', 'refund']),
+  "documentNumber": zod.string(),
+  "reference": zod.string().nullable(),
+  "description": zod.string(),
+  "amount": zod.number(),
+  "receivableDelta": zod.number(),
+  "creditDelta": zod.number(),
+  "depositDelta": zod.number(),
+  "receivable": zod.number().describe('Running Accounts Receivable after this line'),
+  "creditBalance": zod.number().describe('Running Customer Credits after this line'),
+  "depositBalance": zod.number().describe('Running Customer Deposits after this line'),
+  "netPosition": zod.number().describe('Derived — receivable − creditBalance − depositBalance'),
+  "invoiceId": zod.number().nullable(),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "allocationId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "journalEntryId": zod.number().nullable()
+})),
+  "closing": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseClosingReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseClosingCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseClosingDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.'),
+  "current": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseCurrentOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseCurrentOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseCurrentOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The position after EVERY event, ignoring the window — what the events say the customer\'s position is today.'),
+  "subledger": zod.object({
+  "receivable": zod.number().min(getCustomerStatementResponseSubledgerOneReceivableMin),
+  "creditBalance": zod.number().min(getCustomerStatementResponseSubledgerOneCreditBalanceMin),
+  "depositBalance": zod.number().min(getCustomerStatementResponseSubledgerOneDepositBalanceMin),
+  "netPosition": zod.number()
+}).describe('Phase E — a customer\'s position as three NON-NEGATIVE components, each from its own subledger and GL account, and a derived net. `receivable` (Accounts Receivable) is Σ over issued invoices\/debit notes of total − paid − credited; `creditBalance` (Customer Credits) is Σ issued credit notes − active applications − credit-note refunds; `depositBalance` (Customer Deposits) is Σ receipts − active allocations − deposit refunds. `netPosition` = receivable − creditBalance − depositBalance (positive: the customer owes us; negative: we owe the customer). A liability is never expressed as a negative receivable.').describe('The same position read from the subledger caches and active-allocation sets.'),
+  "reconciled": zod.boolean().describe('`current` equals `subledger` on all three components (to the halala).'),
+  "eventCount": zod.number()
+})
 
 
 /**
@@ -4736,6 +4951,10 @@ export const ListBillsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4824,6 +5043,10 @@ export const CreateBillBody = zod.object({
 export const CreateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -4908,6 +5131,10 @@ export const ListInvoicesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -4919,6 +5146,7 @@ export const ListInvoicesResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5007,6 +5235,10 @@ export const CreateInvoiceBody = zod.object({
 export const CreateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5018,6 +5250,7 @@ export const CreateInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5055,6 +5288,10 @@ export const GetInvoiceParams = zod.object({
 export const GetInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5066,6 +5303,7 @@ export const GetInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5143,6 +5381,10 @@ export const UpdateInvoiceBody = zod.object({
 export const UpdateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5154,6 +5396,7 @@ export const UpdateInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5192,6 +5435,1912 @@ export const DeleteInvoiceResponse = zod.void()
 
 
 /**
+ * @summary D-4 — customer payments, newest first
+ */
+export const listPaymentsQueryLimitDefault = 50;
+export const listPaymentsQueryLimitMax = 200;
+
+export const listPaymentsQueryOffsetDefault = 0;
+export const listPaymentsQueryOffsetMin = 0;
+
+
+
+export const ListPaymentsQueryParams = zod.object({
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listPaymentsQueryLimitMax).default(listPaymentsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listPaymentsQueryOffsetMin).default(listPaymentsQueryOffsetDefault)
+})
+
+export const ListPaymentsResponseItem = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem)
+
+
+/**
+ * One payment, one journal entry, zero or more allocations. Allocations are never inferred: none ⇒ the whole amount is a deposit for the customer; some ⇒ the rest is. An allocation beyond an invoice's outstanding (total − paid − credited) is refused; the receipt itself is never refused for being larger than the invoices — the excess is the customer's deposit by the caller's explicit allocation. `idempotencyKey` (unique per company) makes a repeated request return the first payment.
+ * @summary D-4 — record a customer receipt: Dr bank / Cr AR for the allocated part, Cr Customer deposits for the rest
+ */
+export const receivePaymentBodyAmountExclusiveMin = 0;
+
+export const receivePaymentBodyMethodMax = 40;
+
+export const receivePaymentBodyReferenceMax = 200;
+
+export const receivePaymentBodyIdempotencyKeyMax = 120;
+
+export const receivePaymentBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+
+export const ReceivePaymentBody = zod.object({
+  "customerId": zod.number().nullish().describe('The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.'),
+  "amount": zod.number().gt(receivePaymentBodyAmountExclusiveMin),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today (business date).'),
+  "bankAccountId": zod.number().describe('D-3 — which bank account the money arrived in; the cash line posts to its own GL account.'),
+  "method": zod.string().max(receivePaymentBodyMethodMax).nullish(),
+  "reference": zod.string().max(receivePaymentBodyReferenceMax).nullish(),
+  "idempotencyKey": zod.string().max(receivePaymentBodyIdempotencyKeyMax).nullish().describe('Unique per company. The same key twice returns the first payment.'),
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(receivePaymentBodyAllocationsItemAmountExclusiveMin)
+})).optional().describe('Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice\'s outstanding. Omit for a receipt on account.')
+})
+
+export const ReceivePaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Phase C — customer refunds, newest first
+ */
+export const listRefundsQueryLimitDefault = 50;
+export const listRefundsQueryLimitMax = 200;
+
+export const listRefundsQueryOffsetDefault = 0;
+export const listRefundsQueryOffsetMin = 0;
+
+
+
+export const ListRefundsQueryParams = zod.object({
+  "customer_id": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listRefundsQueryLimitMax).default(listRefundsQueryLimitDefault),
+  "offset": zod.coerce.number().min(listRefundsQueryOffsetMin).default(listRefundsQueryOffsetDefault)
+})
+
+export const ListRefundsResponseItem = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const ListRefundsResponse = zod.array(ListRefundsResponseItem)
+
+
+/**
+ * Settles an existing credit; never reverses the receipt or the note. The origin is explicit and the source is a specific record. Refused when the amount exceeds the source's refundable balance, when the note is not issued (no tax effect exists yet), when the source is another customer's, or when the bank is missing/inactive/another tenant's. No VAT is posted or altered.
+ * @summary Phase C — refund a customer's deposit (from a named receipt) or credit-note balance (from a named issued note): Dr the origin's liability / Cr bank
+ */
+export const refundCustomerBodyAmountExclusiveMin = 0;
+
+export const refundCustomerBodyReasonMax = 500;
+
+export const refundCustomerBodyReferenceMax = 200;
+
+export const refundCustomerBodyIdempotencyKeyMax = 120;
+
+
+
+export const RefundCustomerBody = zod.object({
+  "customerId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullish().describe('Required when origin is deposit: the receipt whose unapplied remainder is returned.'),
+  "creditNoteId": zod.number().nullish().describe('Required when origin is credit_note: the issued note whose unconsumed balance is returned.'),
+  "amount": zod.number().gt(refundCustomerBodyAmountExclusiveMin),
+  "bankAccountId": zod.number().describe('D-3 — the bank the refund is paid from.'),
+  "refundedAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today (business date). Period-controlled.'),
+  "reason": zod.string().min(1).max(refundCustomerBodyReasonMax),
+  "reference": zod.string().max(refundCustomerBodyReferenceMax).nullish(),
+  "idempotencyKey": zod.string().max(refundCustomerBodyIdempotencyKeyMax).nullish()
+})
+
+export const RefundCustomerResponse = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary One refund
+ */
+export const GetRefundParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetRefundResponse = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "bankAccountId": zod.number(),
+  "origin": zod.enum(['deposit', 'credit_note']),
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable(),
+  "amount": zod.number(),
+  "refundedAt": zod.string(),
+  "reason": zod.string(),
+  "reference": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "idempotencyKey": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Phase A — one allocation with its correction, if any
+ */
+export const GetAllocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAllocationResponse = zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}).and(zod.object({
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable()
+}))
+
+
+/**
+ * @summary Phase A — correct an allocation with a superseding record: Dr AR / Cr Customer deposits (or credit balances); the original allocation stays visible and untouched
+ */
+export const UnallocateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const unallocateBodyReasonMax = 500;
+
+export const unallocateBodyIdempotencyKeyMax = 120;
+
+
+
+export const UnallocateBody = zod.object({
+  "reason": zod.string().min(1).max(unallocateBodyReasonMax),
+  "idempotencyKey": zod.string().max(unallocateBodyIdempotencyKeyMax).nullish()
+})
+
+export const UnallocateResponse = zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}).and(zod.object({
+  "paymentId": zod.number().nullable(),
+  "creditNoteId": zod.number().nullable()
+}))
+
+
+/**
+ * @summary Phase D — classify statement rows against receipts/refunds: MATCHED, DETERMINISTIC, AMBIGUOUS, UNMATCHED, INCONSISTENT. Pure read.
+ */
+export const classifyStatementRowsQueryLimitDefault = 200;
+export const classifyStatementRowsQueryLimitMax = 500;
+
+
+
+export const ClassifyStatementRowsQueryParams = zod.object({
+  "bank_account_id": zod.coerce.number().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(classifyStatementRowsQueryLimitMax).default(classifyStatementRowsQueryLimitDefault)
+})
+
+export const ClassifyStatementRowsResponseItem = zod.object({
+  "transactionId": zod.number(),
+  "bankAccountId": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "classification": zod.enum(['MATCHED', 'DETERMINISTIC', 'AMBIGUOUS', 'UNMATCHED', 'INCONSISTENT']),
+  "reason": zod.string(),
+  "target": zod.union([zod.object({
+  "kind": zod.enum(['payment', 'refund']),
+  "id": zod.number(),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "reference": zod.string().nullable(),
+  "identifiedBy": zod.string().nullable().describe('The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.')
+}),zod.null()]),
+  "candidates": zod.array(zod.object({
+  "kind": zod.enum(['payment', 'refund']),
+  "id": zod.number(),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "reference": zod.string().nullable(),
+  "identifiedBy": zod.string().nullable().describe('The identifying reference found in the narrative (a receipt reference, receipt number, allocated invoice number, refund reference or refund number), or null.')
+})),
+  "match": zod.union([zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+}),zod.null()]),
+  "window": zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "days": zod.number()
+})
+})
+export const ClassifyStatementRowsResponse = zod.array(ClassifyStatementRowsResponseItem)
+
+
+/**
+ * @summary Phase D — record the DETERMINISTIC matches (same bank, direction, exact amount, identifying reference resolving uniquely, date in window, one candidate, one-to-one). Nothing is posted.
+ */
+export const ApplyDeterministicMatchesQueryParams = zod.object({
+  "bank_account_id": zod.coerce.number().optional(),
+  "date_from": zod.coerce.string().optional(),
+  "date_to": zod.coerce.string().optional()
+})
+
+export const ApplyDeterministicMatchesResponse = zod.object({
+  "recorded": zod.array(zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})),
+  "summary": zod.object({
+  "deterministic": zod.number(),
+  "ambiguous": zod.number(),
+  "unmatched": zod.number(),
+  "inconsistent": zod.number(),
+  "matched": zod.number()
+})
+})
+
+
+/**
+ * @summary Phase D — the human's match: records actor, reason, the statement row, the counterpart and the evidence (including any amount difference). Bank and direction are identity and cannot be overridden.
+ */
+export const overrideMatchBodyReasonMax = 500;
+
+export const overrideMatchBodyIdempotencyKeyMax = 120;
+
+
+
+export const OverrideMatchBody = zod.object({
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullish(),
+  "refundId": zod.number().nullish(),
+  "reason": zod.string().min(1).max(overrideMatchBodyReasonMax),
+  "idempotencyKey": zod.string().max(overrideMatchBodyIdempotencyKeyMax).nullish()
+})
+
+export const OverrideMatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary One match with its reversal, if any
+ */
+export const GetMatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Phase D — supersede a match with a reversal record; the match row stays visible
+ */
+export const UnmatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const unmatchBodyReasonMax = 500;
+
+
+
+export const UnmatchBody = zod.object({
+  "reason": zod.string().min(1).max(unmatchBodyReasonMax)
+})
+
+export const UnmatchResponse = zod.object({
+  "id": zod.number(),
+  "transactionId": zod.number(),
+  "paymentId": zod.number().nullable(),
+  "refundId": zod.number().nullable(),
+  "method": zod.enum(['deterministic', 'manual', 'settlement']),
+  "evidence": zod.unknown().describe('What was seen when the match was made.'),
+  "reason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary One payment with its allocations
+ */
+export const GetPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary D-4 — allocate a payment's unapplied remainder to invoices (posts Dr Customer deposits / Cr AR)
+ */
+export const AllocatePaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const allocatePaymentBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+export const allocatePaymentBodyIdempotencyKeyMax = 120;
+
+
+
+export const AllocatePaymentBody = zod.object({
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(allocatePaymentBodyAllocationsItemAmountExclusiveMin)
+})).min(1),
+  "idempotencyKey": zod.string().max(allocatePaymentBodyIdempotencyKeyMax).nullish()
+})
+
+export const AllocatePaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary D-4 — apply an issued credit note's unconsumed balance to invoices of the same customer (posts Dr Customer credit balances / Cr AR; the note itself is untouched)
+ */
+export const ApplyCreditNoteParams = zod.object({
+  "id": zod.coerce.number().describe('The credit note')
+})
+
+export const applyCreditNoteBodyAllocationsItemAmountExclusiveMin = 0;
+
+
+export const applyCreditNoteBodyIdempotencyKeyMax = 120;
+
+
+
+export const ApplyCreditNoteBody = zod.object({
+  "allocations": zod.array(zod.object({
+  "invoiceId": zod.number(),
+  "amount": zod.number().gt(applyCreditNoteBodyAllocationsItemAmountExclusiveMin)
+})).min(1),
+  "idempotencyKey": zod.string().max(applyCreditNoteBodyIdempotencyKeyMax).nullish()
+})
+
+export const ApplyCreditNoteResponse = zod.object({
+  "creditNoteId": zod.number(),
+  "invoiceNumber": zod.string(),
+  "total": zod.number(),
+  "appliedAmount": zod.number().describe('Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected.'),
+  "refundedAmount": zod.number().describe('Phase C — Σ refunds paid out of this note\'s balance.'),
+  "remainingAmount": zod.number().describe('The customer\'s credit-note balance from this note (a liability, not AR): total − applied − refunded.'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}))
+})
+
+
+/**
+ * @summary D-4 — a credit note's applications and remaining balance
+ */
+export const ListCreditNoteApplicationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCreditNoteApplicationsResponse = zod.object({
+  "creditNoteId": zod.number(),
+  "invoiceNumber": zod.string(),
+  "total": zod.number(),
+  "appliedAmount": zod.number().describe('Σ ACTIVE applications — to its original at issue, plus any later applications not since corrected.'),
+  "refundedAmount": zod.number().describe('Phase C — Σ refunds paid out of this note\'s balance.'),
+  "remainingAmount": zod.number().describe('The customer\'s credit-note balance from this note (a liability, not AR): total − applied − refunded.'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+}))
+})
+
+
+/**
+ * @summary Batch 1C — this company's migration batches, newest first
+ */
+export const listMigrationBatchesResponseVatPositionOneReturnReferenceMax = 120;
+
+export const listMigrationBatchesResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const listMigrationBatchesResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const listMigrationBatchesResponseVatPositionOneNoteMax = 500;
+
+
+
+export const ListMigrationBatchesResponseItem = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(listMigrationBatchesResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(listMigrationBatchesResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(listMigrationBatchesResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(listMigrationBatchesResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMigrationBatchesResponse = zod.array(ListMigrationBatchesResponseItem)
+
+
+/**
+ * @summary Batch 1C — start a migration: name the source system and the cutover date; the opening date is DEFINED as cutover − 1
+ */
+export const createMigrationBatchBodySourceSystemMax = 80;
+
+export const createMigrationBatchBodySourceVersionMax = 80;
+
+export const createMigrationBatchBodyNotesMax = 2000;
+
+export const createMigrationBatchBodyIdempotencyKeyMax = 120;
+
+
+
+export const CreateMigrationBatchBody = zod.object({
+  "sourceSystem": zod.string().min(1).max(createMigrationBatchBodySourceSystemMax).describe('The previous system, as named by the operator (\"PreviousERP\", \"Excel\", \"Qoyod export\").'),
+  "sourceVersion": zod.string().max(createMigrationBatchBodySourceVersionMax).nullish(),
+  "cutoverDate": zod.string().describe('YYYY-MM-DD — the first business day in Saudi Ledger. The opening date is cutover − 1 and is not chosen.'),
+  "notes": zod.string().max(createMigrationBatchBodyNotesMax).nullish(),
+  "idempotencyKey": zod.string().max(createMigrationBatchBodyIdempotencyKeyMax).nullish()
+})
+
+export const createMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const createMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const createMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const createMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
+
+export const CreateMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(createMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(createMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(createMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(createMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary One batch with its staging counts, validation and reconciliation
+ */
+export const GetMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
+
+export const getMigrationBatchResponseOneVatPositionOneOutputVatPayableMin = 0;
+
+export const getMigrationBatchResponseOneVatPositionOneInputVatReceivableMin = 0;
+
+export const getMigrationBatchResponseOneVatPositionOneNoteMax = 500;
+
+
+
+export const GetMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(getMigrationBatchResponseOneVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(getMigrationBatchResponseOneVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(getMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(getMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "counts": zod.object({
+  "chartRows": zod.number(),
+  "chartRowsUnmapped": zod.number(),
+  "parties": zod.number(),
+  "openItems": zod.number(),
+  "advances": zod.number()
+}),
+  "validation": zod.union([zod.object({
+  "ok": zod.boolean(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "totals": zod.record(zod.string(), zod.union([zod.number(),zod.boolean()])).optional().describe('The opening-position totals at that run (debit, credit, difference, ytd…).'),
+  "at": zod.coerce.date().optional()
+}).describe('The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).'),zod.null()]).describe('The last validation run, or null.'),
+  "reconciliation": zod.union([zod.object({
+  "at": zod.coerce.date().optional(),
+  "journalEntryId": zod.number().optional(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "figures": zod.record(zod.string(), zod.number()).optional()
+}).describe('R1–R10 as the commit computed them on the posted ledger, stored on the batch.'),zod.null()]).describe('R1–R10 as computed at commit, or null.')
+}))
+
+
+/**
+ * @summary Update a draft batch's notes, source version, or the last filed VAT return's closing position (R9). Refused once committed.
+ */
+export const UpdateMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateMigrationBatchBodyNotesMax = 2000;
+
+export const updateMigrationBatchBodySourceVersionMax = 80;
+
+export const updateMigrationBatchBodyVatPositionOneReturnReferenceMax = 120;
+
+export const updateMigrationBatchBodyVatPositionOneOutputVatPayableMin = 0;
+
+export const updateMigrationBatchBodyVatPositionOneInputVatReceivableMin = 0;
+
+export const updateMigrationBatchBodyVatPositionOneNoteMax = 500;
+
+
+
+export const UpdateMigrationBatchBody = zod.object({
+  "notes": zod.string().max(updateMigrationBatchBodyNotesMax).nullish(),
+  "sourceVersion": zod.string().max(updateMigrationBatchBodySourceVersionMax).nullish(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(updateMigrationBatchBodyVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(updateMigrationBatchBodyVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(updateMigrationBatchBodyVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(updateMigrationBatchBodyVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]).optional()
+})
+
+export const updateMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const updateMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const updateMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const updateMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
+
+export const UpdateMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(updateMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(updateMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(updateMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(updateMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Discard a batch that has not been committed (staging rows are kept for the audit trail; nothing was ever posted)
+ */
+export const DiscardMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const discardMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
+
+export const discardMigrationBatchResponseVatPositionOneOutputVatPayableMin = 0;
+
+export const discardMigrationBatchResponseVatPositionOneInputVatReceivableMin = 0;
+
+export const discardMigrationBatchResponseVatPositionOneNoteMax = 500;
+
+
+
+export const DiscardMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(discardMigrationBatchResponseVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(discardMigrationBatchResponseVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(discardMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(discardMigrationBatchResponseVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary The staged chart rows with their mapping decisions, the deterministic suggestion per row (from the file's role hint only — never a name guess), and the mapping summary
+ */
+export const GetMigrationChartParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationChartResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "mapped": zod.number(),
+  "unmapped": zod.number(),
+  "blocked": zod.number().describe('Rows with at least one problem.'),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean().describe('Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented.'),
+  "byDecision": zod.record(zod.string(), zod.number())
+})
+})
+
+
+/**
+ * Every row keeps the old code, name, type, parent and Dr/Cr balance verbatim. A row's TYPE must be one of asset / liability / equity / income / expense as the file states it — nothing is guessed from a name. Duplicate codes in one file are refused. Replacing the chart resets every mapping decision.
+ * @summary Replace the batch's staged chart with the source system's chart of accounts and closing balances (one row per old account). Refused once the batch is committed.
+ */
+export const ImportMigrationChartParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationChartBodyRowsItemSourceCodeMax = 64;
+
+export const importMigrationChartBodyRowsItemSourceNameMax = 200;
+
+export const importMigrationChartBodyRowsItemSourceNameArMax = 200;
+
+export const importMigrationChartBodyRowsItemSourceParentCodeMax = 64;
+
+export const importMigrationChartBodyRowsItemSourceIsGroupDefault = false;
+export const importMigrationChartBodyRowsItemOpeningDebitDefault = 0;
+export const importMigrationChartBodyRowsItemOpeningDebitMin = 0;
+
+export const importMigrationChartBodyRowsItemOpeningCreditDefault = 0;
+export const importMigrationChartBodyRowsItemOpeningCreditMin = 0;
+
+export const importMigrationChartBodyRowsItemEvidenceNoteMax = 500;
+
+export const importMigrationChartBodyRowsMax = 5000;
+
+
+
+export const ImportMigrationChartBody = zod.object({
+  "rows": zod.array(zod.object({
+  "sourceCode": zod.string().min(1).max(importMigrationChartBodyRowsItemSourceCodeMax),
+  "sourceName": zod.string().min(1).max(importMigrationChartBodyRowsItemSourceNameMax),
+  "sourceNameAr": zod.string().max(importMigrationChartBodyRowsItemSourceNameArMax).nullish(),
+  "sourceParentCode": zod.string().max(importMigrationChartBodyRowsItemSourceParentCodeMax).nullish(),
+  "sourceType": zod.enum(['asset', 'liability', 'equity', 'income', 'expense']).describe('As the file states it. Nothing is inferred from a name.'),
+  "sourceIsGroup": zod.boolean().default(importMigrationChartBodyRowsItemSourceIsGroupDefault),
+  "openingDebit": zod.number().min(importMigrationChartBodyRowsItemOpeningDebitMin).default(importMigrationChartBodyRowsItemOpeningDebitDefault),
+  "openingCredit": zod.number().min(importMigrationChartBodyRowsItemOpeningCreditMin).default(importMigrationChartBodyRowsItemOpeningCreditDefault),
+  "sourceRole": zod.union([zod.literal('receivable'),zod.literal('payable'),zod.literal('bank'),zod.literal('cash'),zod.literal('vat_output'),zod.literal('vat_input'),zod.literal('retained_earnings'),zod.literal('customer_deposits'),zod.literal(null)]).nullish().describe('A ROLE HINT the file carries (the old system\'s account type). Drives the deterministic suggestion; never a name match.'),
+  "evidenceNote": zod.string().max(importMigrationChartBodyRowsItemEvidenceNoteMax).nullish()
+})).min(1).max(importMigrationChartBodyRowsMax)
+})
+
+export const ImportMigrationChartResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "mapped": zod.number(),
+  "unmapped": zod.number(),
+  "blocked": zod.number().describe('Rows with at least one problem.'),
+  "totalDebit": zod.number(),
+  "totalCredit": zod.number(),
+  "balanced": zod.boolean().describe('Σ debits = Σ credits over the staged rows (to the halala). The commit refuses otherwise — no balancing amount is ever invented.'),
+  "byDecision": zod.record(zod.string(), zod.number())
+})
+})
+
+
+/**
+ * Refused: mapping to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
+ * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
+ */
+export const DecideMigrationChartRowParams = zod.object({
+  "id": zod.coerce.number(),
+  "rowId": zod.coerce.number()
+})
+
+export const decideMigrationChartRowBodySkipReasonMax = 500;
+
+
+
+export const DecideMigrationChartRowBody = zod.object({
+  "decision": zod.enum(['map_to_system', 'map_to_bank', 'create', 'merge_into', 'skip']),
+  "targetSystemCode": zod.string().nullish().describe('map_to_system: a system account code. CASH (a header) is refused.'),
+  "targetBankAccountId": zod.number().nullish().describe('map_to_bank: this company\'s bank account; the balance lands on its D-3 leaf.'),
+  "targetCategoryId": zod.number().nullish().describe('merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional).'),
+  "skipReason": zod.string().max(decideMigrationChartRowBodySkipReasonMax).nullish().describe('skip: required; only a zero-balance row may be skipped.')
+})
+
+export const DecideMigrationChartRowResponse = zod.object({
+  "id": zod.number(),
+  "sourceCode": zod.string(),
+  "sourceName": zod.string(),
+  "sourceNameAr": zod.string().nullable(),
+  "sourceParentCode": zod.string().nullable(),
+  "sourceType": zod.string(),
+  "sourceIsGroup": zod.boolean(),
+  "openingDebit": zod.number(),
+  "openingCredit": zod.number(),
+  "sourceRole": zod.string().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "decision": zod.union([zod.literal('map_to_system'),zod.literal('map_to_bank'),zod.literal('create'),zod.literal('merge_into'),zod.literal('skip'),zod.literal(null)]).nullable(),
+  "targetSystemCode": zod.string().nullable(),
+  "targetBankAccountId": zod.number().nullable(),
+  "targetCategoryId": zod.number().nullable(),
+  "skipReason": zod.string().nullable(),
+  "resolvedCategoryId": zod.number().nullable().describe('After commit: the category the balance was posted to.'),
+  "suggestion": zod.union([zod.object({
+  "decision": zod.string(),
+  "targetSystemCode": zod.string().nullable()
+}),zod.null()]).describe('The deterministic suggestion from the role hint (e.g. receivable → map_to_system AR), or null when the file gave none. The operator still decides.'),
+  "problems": zod.array(zod.string()).describe('What blocks this row today (unmapped, group with a balance, control role mapped elsewhere…).')
+})
+
+
+/**
+ * @summary The staged customers and suppliers with their create / use_existing decisions and the likely duplicates found among existing records
+ */
+export const GetMigrationPartiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationPartiesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "undecided": zod.number(),
+  "useExisting": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
+ * Every party keeps its source id — the identity every open item and advance refers to. Import sets `create` where no existing record looks like the party; where one does (same VAT number, or the same name) the decision is left EMPTY and blocks validation until the operator chooses create or use_existing. Replacing the parties resets every decision; open items and advances that name a party no longer staged are reported as problems, not deleted.
+ * @summary Replace the batch's staged parties (one row per old customer / supplier, keyed by the old system's id). Refused once committed.
+ */
+export const ImportMigrationPartiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationPartiesBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationPartiesBodyRowsItemNameMax = 200;
+
+export const importMigrationPartiesBodyRowsItemNameArMax = 200;
+
+export const importMigrationPartiesBodyRowsItemTaxNumberMax = 40;
+
+export const importMigrationPartiesBodyRowsItemCrNumberMax = 40;
+
+export const importMigrationPartiesBodyRowsItemPhoneMax = 40;
+
+export const importMigrationPartiesBodyRowsItemEmailMax = 200;
+
+export const importMigrationPartiesBodyRowsItemAddressMax = 500;
+
+export const importMigrationPartiesBodyRowsItemCityMax = 100;
+
+export const importMigrationPartiesBodyRowsMax = 20000;
+
+
+
+export const ImportMigrationPartiesBody = zod.object({
+  "rows": zod.array(zod.object({
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string().min(1).max(importMigrationPartiesBodyRowsItemSourceIdMax).describe('The old system\'s id for this party — the identity open items and advances refer to.'),
+  "name": zod.string().min(1).max(importMigrationPartiesBodyRowsItemNameMax),
+  "nameAr": zod.string().max(importMigrationPartiesBodyRowsItemNameArMax).nullish(),
+  "taxNumber": zod.string().max(importMigrationPartiesBodyRowsItemTaxNumberMax).nullish(),
+  "crNumber": zod.string().max(importMigrationPartiesBodyRowsItemCrNumberMax).nullish(),
+  "phone": zod.string().max(importMigrationPartiesBodyRowsItemPhoneMax).nullish(),
+  "email": zod.string().max(importMigrationPartiesBodyRowsItemEmailMax).nullish(),
+  "address": zod.string().max(importMigrationPartiesBodyRowsItemAddressMax).nullish(),
+  "city": zod.string().max(importMigrationPartiesBodyRowsItemCityMax).nullish()
+})).min(1).max(importMigrationPartiesBodyRowsMax)
+})
+
+export const ImportMigrationPartiesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "undecided": zod.number(),
+  "useExisting": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
+ * @summary Decide one staged party: create a new record, or use an existing customer / supplier of this organisation
+ */
+export const DecideMigrationPartyParams = zod.object({
+  "id": zod.coerce.number(),
+  "rowId": zod.coerce.number()
+})
+
+export const DecideMigrationPartyBody = zod.object({
+  "decision": zod.enum(['create', 'use_existing']),
+  "existingId": zod.number().nullish().describe('use_existing: an existing customer (for a customer party) or vendor (for a vendor party) of this organisation.')
+})
+
+export const DecideMigrationPartyResponse = zod.object({
+  "id": zod.number(),
+  "partyType": zod.enum(['customer', 'vendor']),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable(),
+  "crNumber": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "decision": zod.union([zod.literal('create'),zod.literal('use_existing'),zod.literal(null)]).nullable(),
+  "existingId": zod.number().nullable().describe('use_existing: the existing customer \/ vendor id.'),
+  "resolvedId": zod.number().nullable().describe('After commit: the customer \/ vendor the party became.'),
+  "candidates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "taxNumber": zod.string().nullable(),
+  "reason": zod.enum(['tax_number', 'name']).describe('What matched — the operator decides; the platform never merges by itself.')
+})),
+  "openItems": zod.number().describe('Staged open items naming this party.'),
+  "openTotal": zod.number().describe('Σ outstanding of those items.'),
+  "advances": zod.number(),
+  "advanceTotal": zod.number(),
+  "problems": zod.array(zod.string())
+})
+
+
+/**
+ * @summary The staged historical AR / AP open items — the old system's OPEN documents at cut-off, verbatim — with per-party totals
+ */
+export const GetMigrationOpenItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin = 0;
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax = 100;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin = 0;
+
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+
+
+export const GetMigrationOpenItemsResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
+  "documentNumber": zod.string().describe('The previous system\'s number, verbatim — provenance (Policy C). It is also the ledger number in a first migration.'),
+  "ledgerDocumentNumber": zod.string().nullable().describe('What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.'),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "originalAmount": zod.number(),
+  "outstandingAmount": zod.number(),
+  "compositionUnknown": zod.boolean(),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
+  "description": zod.string().nullable(),
+  "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "ar": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+}),
+  "ap": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+})
+})
+})
+
+
+/**
+ * One row per open document of the previous system: its original number, issue date, due date, original amount, the amount still outstanding at cut-off, and the party's source id. Where the old system tracked only a balance for a party, ONE row with `compositionUnknown: true` carries that balance — invoice-level history is never fabricated. Historical VAT facts (rate, amount, the return period they were reported in) are kept as data for reconciliation and for the future Art. 40(10)–(11) engine; nothing here posts VAT.
+ * @summary Replace the batch's staged open items. These are OPENING ITEMS, never tax invoices: no VAT event, no ICV, no hash, no QR, no ZATCA document (accountant decision A1).
+ */
+export const ImportMigrationOpenItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationOpenItemsBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationOpenItemsBodyRowsItemPartySourceIdMax = 120;
+
+export const importMigrationOpenItemsBodyRowsItemDocumentNumberMax = 80;
+
+export const importMigrationOpenItemsBodyRowsItemOriginalAmountExclusiveMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemOutstandingAmountExclusiveMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemCompositionUnknownDefault = false;
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMin = 0;
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMax = 100;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+export const importMigrationOpenItemsBodyRowsItemDescriptionMax = 500;
+
+export const importMigrationOpenItemsBodyRowsMax = 50000;
+
+
+
+export const ImportMigrationOpenItemsBody = zod.object({
+  "rows": zod.array(zod.object({
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemSourceIdMax),
+  "partySourceId": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemPartySourceIdMax).describe('A staged customer (ar) or vendor (ap) of this batch.'),
+  "documentNumber": zod.string().min(1).max(importMigrationOpenItemsBodyRowsItemDocumentNumberMax).describe('The original document number — kept verbatim; it becomes the opening item\'s number.'),
+  "issueDate": zod.string().describe('YYYY-MM-DD, on or before the opening date.'),
+  "dueDate": zod.string().describe('YYYY-MM-DD — drives ageing exactly as it did in the old system.'),
+  "originalAmount": zod.number().gt(importMigrationOpenItemsBodyRowsItemOriginalAmountExclusiveMin),
+  "outstandingAmount": zod.number().gt(importMigrationOpenItemsBodyRowsItemOutstandingAmountExclusiveMin).describe('Still open at cut-off; ≤ originalAmount. This is what the opening journal posts, with the party.'),
+  "compositionUnknown": zod.boolean().default(importMigrationOpenItemsBodyRowsItemCompositionUnknownDefault).describe('The one-row representation of a party whose old system tracked only a balance. At most one per party.'),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]).optional(),
+  "description": zod.string().max(importMigrationOpenItemsBodyRowsItemDescriptionMax).nullish()
+})).min(1).max(importMigrationOpenItemsBodyRowsMax)
+})
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax = 8;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin = 0;
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax = 100;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin = 0;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin = 0;
+
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
+
+
+
+export const ImportMigrationOpenItemsResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "itemType": zod.enum(['ar', 'ap']),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
+  "documentNumber": zod.string().describe('The previous system\'s number, verbatim — provenance (Policy C). It is also the ledger number in a first migration.'),
+  "ledgerDocumentNumber": zod.string().nullable().describe('What the ledger row was actually called, written at commit: the source number for a first migration, OPEN-<batch>-<seq> for a replacement. NULL before commit.'),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "originalAmount": zod.number(),
+  "outstandingAmount": zod.number(),
+  "compositionUnknown": zod.boolean(),
+  "historicalVat": zod.union([zod.object({
+  "category": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneCategoryMax).nullish().describe('S \/ Z \/ E \/ O as the old system recorded it.'),
+  "rate": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMin).max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneRateMax).nullish(),
+  "taxableAmount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
+  "amount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
+  "reportedPeriod": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+}).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
+  "description": zod.string().nullable(),
+  "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "ar": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+}),
+  "ap": zod.object({
+  "items": zod.number(),
+  "parties": zod.number(),
+  "total": zod.number(),
+  "compositionUnknown": zod.number()
+})
+})
+})
+
+
+/**
+ * @summary The staged customer advances held at cut-off — each becomes a CUSTOMER_DEPOSITS balance carrying its old advance-invoice reference and VAT position
+ */
+export const GetMigrationAdvancesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationAdvancesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "bankSourceCode": zod.string(),
+  "amount": zod.number(),
+  "receivedAt": zod.string(),
+  "reference": zod.string().nullable(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().nullable(),
+  "advanceInvoiceDate": zod.string().nullable(),
+  "advanceInvoiceTime": zod.string().nullable(),
+  "vatCategory": zod.string().nullable(),
+  "vatRate": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "resolvedPaymentId": zod.number().nullable(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "total": zod.number(),
+  "customers": zod.number(),
+  "invoiced": zod.number(),
+  "unknown": zod.number().describe('Advances whose VAT position is unknown — recorded at cash, fail closed downstream.')
+})
+})
+
+
+/**
+ * `vatPosition: invoiced` requires the old advance tax invoice's number and date and the VAT category and rate it was taxed at — a later invoice adjusts through PrepaidAmount by reference to them. `unknown` records the cash amount only and FAILS CLOSED downstream (no PrepaidAmount is ever computed for it until an accountant classifies it). The bank the money arrived in is named by the old chart's code: the advance's cash is INSIDE that bank's opening balance and posts no cash line of its own.
+ * @summary Replace the batch's staged customer advances. Migration triggers no VAT: the advance's VAT was accounted for at receipt by the old system (pack §15.2 D).
+ */
+export const ImportMigrationAdvancesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationAdvancesBodyRowsItemSourceIdMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemPartySourceIdMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemBankSourceCodeMax = 64;
+
+export const importMigrationAdvancesBodyRowsItemAmountExclusiveMin = 0;
+
+export const importMigrationAdvancesBodyRowsItemReferenceMax = 120;
+
+export const importMigrationAdvancesBodyRowsItemAdvanceInvoiceNumberMax = 80;
+
+export const importMigrationAdvancesBodyRowsItemAdvanceInvoiceTimeMax = 16;
+
+export const importMigrationAdvancesBodyRowsItemVatCategoryMax = 8;
+
+export const importMigrationAdvancesBodyRowsItemVatRateMin = 0;
+export const importMigrationAdvancesBodyRowsItemVatRateMax = 100;
+
+export const importMigrationAdvancesBodyRowsItemVatAmountMin = 0;
+
+export const importMigrationAdvancesBodyRowsMax = 20000;
+
+
+
+export const ImportMigrationAdvancesBody = zod.object({
+  "rows": zod.array(zod.object({
+  "sourceId": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemSourceIdMax),
+  "partySourceId": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemPartySourceIdMax).describe('A staged CUSTOMER of this batch.'),
+  "bankSourceCode": zod.string().min(1).max(importMigrationAdvancesBodyRowsItemBankSourceCodeMax).describe('The old chart\'s code of the bank the money arrived in — a chart row mapped to a bank.'),
+  "amount": zod.number().gt(importMigrationAdvancesBodyRowsItemAmountExclusiveMin),
+  "receivedAt": zod.string().describe('YYYY-MM-DD, on or before the opening date.'),
+  "reference": zod.string().max(importMigrationAdvancesBodyRowsItemReferenceMax).nullish(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().max(importMigrationAdvancesBodyRowsItemAdvanceInvoiceNumberMax).nullish(),
+  "advanceInvoiceDate": zod.string().nullish(),
+  "advanceInvoiceTime": zod.string().max(importMigrationAdvancesBodyRowsItemAdvanceInvoiceTimeMax).nullish().describe('HH:MM:SS as the old invoice states it (KSA-25), when known.'),
+  "vatCategory": zod.string().max(importMigrationAdvancesBodyRowsItemVatCategoryMax).nullish(),
+  "vatRate": zod.number().min(importMigrationAdvancesBodyRowsItemVatRateMin).max(importMigrationAdvancesBodyRowsItemVatRateMax).nullish(),
+  "vatAmount": zod.number().min(importMigrationAdvancesBodyRowsItemVatAmountMin).nullish()
+})).min(1).max(importMigrationAdvancesBodyRowsMax)
+})
+
+export const ImportMigrationAdvancesResponse = zod.object({
+  "batchId": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "bankSourceCode": zod.string(),
+  "amount": zod.number(),
+  "receivedAt": zod.string(),
+  "reference": zod.string().nullable(),
+  "vatPosition": zod.enum(['invoiced', 'unknown']),
+  "advanceInvoiceNumber": zod.string().nullable(),
+  "advanceInvoiceDate": zod.string().nullable(),
+  "advanceInvoiceTime": zod.string().nullable(),
+  "vatCategory": zod.string().nullable(),
+  "vatRate": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "resolvedPaymentId": zod.number().nullable(),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "rows": zod.number(),
+  "blocked": zod.number(),
+  "total": zod.number(),
+  "customers": zod.number(),
+  "invoiced": zod.number(),
+  "unknown": zod.number().describe('Advances whose VAT position is unknown — recorded at cash, fail closed downstream.')
+})
+})
+
+
+/**
+ * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
+ */
+export const GetMigrationOpeningPositionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationOpeningPositionResponse = zod.object({
+  "batchId": zod.number(),
+  "openingDate": zod.string(),
+  "lines": zod.array(zod.object({
+  "target": zod.string().describe('A stable key: system:AR, bank:12, category:345, create:<sourceCode>.'),
+  "targetKind": zod.enum(['system', 'bank', 'category', 'create']),
+  "systemCode": zod.string().nullable(),
+  "categoryId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "accountName": zod.string(),
+  "type": zod.enum(['asset', 'liability', 'equity', 'income', 'expense']),
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balance": zod.number().describe('debit − credit.'),
+  "sourceCodes": zod.array(zod.string())
+}).describe('One target account of the opening position, with the source rows that land on it.')),
+  "totals": zod.object({
+  "debit": zod.number(),
+  "credit": zod.number(),
+  "balanced": zod.boolean(),
+  "difference": zod.number().describe('credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0.'),
+  "ytdIncome": zod.number(),
+  "ytdExpense": zod.number(),
+  "ytdResult": zod.number().describe('Income − expense of the imported YTD balances (A2).')
+}),
+  "arByCustomer": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "apByVendor": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "depositsByCustomer": zod.array(zod.object({
+  "partySourceId": zod.string(),
+  "partyName": zod.string().nullable(),
+  "items": zod.number(),
+  "total": zod.number()
+})),
+  "banks": zod.array(zod.object({
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "sourceCode": zod.string(),
+  "balance": zod.number().describe('The old chart\'s closing balance for this bank (Dr − Cr).'),
+  "typedOpeningBalance": zod.number().nullable().describe('bank_accounts.opening_balance as typed on the bank record — display-only; it never posts. Must agree when non-zero (G2).'),
+  "leafCategoryId": zod.number().nullable(),
+  "evidenceNote": zod.string().nullable(),
+  "advancesInside": zod.number().describe('Σ staged advances naming this bank — inside the balance, no cash line of their own.')
+})),
+  "controls": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+}))
+})
+
+
+/**
+ * The checks anticipate the reconciliation gates of pack §15.6 on the STAGED content (the gates themselves run against the posted journal at commit): the chart is fully mapped and balances; AR and AP control balances equal the open-item subledgers, per party and in total (R2, R3); every bank row lands on a D-3 leaf with statement evidence and agrees with the bank's typed opening balance where one was typed (R4); the VAT balances equal the last filed return's closing position as supplied (R9); customer deposits equal the staged advances and each carries its VAT position (R10); every party is decided; no opening item collides with an existing document number; the fiscal year is declared and the P&L rows are consistent with the cutover's place in it (A2).
+ * @summary Run every pre-commit check on the staged content with ZERO ledger writes; store the result and the content hash. All pass → status validated; any failure → the batch stays draft with the failures recorded.
+ */
+export const ValidateMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ValidateMigrationBatchResponse = zod.object({
+  "batchId": zod.number(),
+  "ok": zod.boolean(),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "contentHash": zod.string().nullable(),
+  "validatedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
+ */
+export const CommitMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const commitMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
+
+export const commitMigrationBatchResponseOneVatPositionOneOutputVatPayableMin = 0;
+
+export const commitMigrationBatchResponseOneVatPositionOneInputVatReceivableMin = 0;
+
+export const commitMigrationBatchResponseOneVatPositionOneNoteMax = 500;
+
+
+
+export const CommitMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(commitMigrationBatchResponseOneVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(commitMigrationBatchResponseOneVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(commitMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(commitMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "counts": zod.object({
+  "chartRows": zod.number(),
+  "chartRowsUnmapped": zod.number(),
+  "parties": zod.number(),
+  "openItems": zod.number(),
+  "advances": zod.number()
+}),
+  "validation": zod.union([zod.object({
+  "ok": zod.boolean(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "totals": zod.record(zod.string(), zod.union([zod.number(),zod.boolean()])).optional().describe('The opening-position totals at that run (debit, credit, difference, ytd…).'),
+  "at": zod.coerce.date().optional()
+}).describe('The last validation run, as the batch stores it (Batch 1C UI, 2026-09-20: typed so the workspace consumes the generated shape).'),zod.null()]).describe('The last validation run, or null.'),
+  "reconciliation": zod.union([zod.object({
+  "at": zod.coerce.date().optional(),
+  "journalEntryId": zod.number().optional(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail', 'warn', 'skip']),
+  "expected": zod.union([zod.number(),zod.string()]).nullable(),
+  "actual": zod.union([zod.number(),zod.string()]).nullable(),
+  "detail": zod.string()
+})),
+  "figures": zod.record(zod.string(), zod.number()).optional()
+}).describe('R1–R10 as the commit computed them on the posted ledger, stored on the batch.'),zod.null()]).describe('R1–R10 as computed at commit, or null.')
+}))
+
+
+/**
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
+ */
+export const GetMigrationReversalPreviewParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationReversalPreviewResponse = zod.object({
+  "batchId": zod.number(),
+  "blockers": zod.array(zod.string()),
+  "wouldReverse": zod.object({
+  "openingJournalEntryId": zod.number().nullable(),
+  "invoices": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "customerId": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "bills": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "vendorId": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "deposits": zod.array(zod.object({
+  "id": zod.number(),
+  "customerId": zod.number().nullable(),
+  "amount": zod.number()
+})),
+  "banks": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "openingBalance": zod.number()
+})),
+  "periodLock": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string()
+}),zod.null()]),
+  "keeps": zod.object({
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "accountsCreated": zod.number()
+})
+})
+})
+
+
+/**
+ * @summary REVERSE a committed migration (Policy C, accountant A4): the migration's own lock on the opening month is lifted; the opening journal is mirrored through the posting seam (dated the opening date, source = opening_reversal, reversal_of set) and marked reversed; the opening invoices, bills and deposits are MARKED reversed — never deleted — and every receivable/payable/deposit reader excludes them; banks return to display-only; customers, vendors and created accounts STAY with their source identity. The next batch the company creates is the REPLACEMENT: its items get NEW numbers OPEN-<batch>-<seq> with provenance to the reversed rows. Refused while anything has touched what the commit created.
+ */
+export const ReverseMigrationBatchParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const reverseMigrationBatchBodyReasonMin = 10;
+export const reverseMigrationBatchBodyReasonMax = 1000;
+
+
+
+export const ReverseMigrationBatchBody = zod.object({
+  "reason": zod.string().min(reverseMigrationBatchBodyReasonMin).max(reverseMigrationBatchBodyReasonMax).describe('Why the opening position is withdrawn — the audit record of the reversal.')
+})
+
+export const reverseMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
+
+export const reverseMigrationBatchResponseOneVatPositionOneOutputVatPayableMin = 0;
+
+export const reverseMigrationBatchResponseOneVatPositionOneInputVatReceivableMin = 0;
+
+export const reverseMigrationBatchResponseOneVatPositionOneNoteMax = 500;
+
+
+
+export const ReverseMigrationBatchResponse = zod.object({
+  "id": zod.number(),
+  "replacesBatchId": zod.number().nullable().describe('Policy C: the REVERSED batch this one replaces — set automatically at creation when the company\'s most recent batch is reversed. Its opening items are numbered OPEN-<batch>-<seq> and point back at the rows they replace. NULL on a first migration.'),
+  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
+  "sourceSystem": zod.string(),
+  "sourceVersion": zod.string().nullable(),
+  "cutoverDate": zod.string(),
+  "openingDate": zod.string().describe('cutover − 1 by definition.'),
+  "notes": zod.string().nullable(),
+  "vatPosition": zod.union([zod.object({
+  "returnReference": zod.string().min(1).max(reverseMigrationBatchResponseOneVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
+  "periodStart": zod.string().describe('YYYY-MM-DD'),
+  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
+  "outputVatPayable": zod.number().min(reverseMigrationBatchResponseOneVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
+  "inputVatReceivable": zod.number().min(reverseMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
+  "note": zod.string().max(reverseMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
+  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
+  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
+  "openingJournalEntryId": zod.number().nullable(),
+  "reversalJournalEntryId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "validatedAt": zod.string().nullable(),
+  "committedBy": zod.number().nullable(),
+  "committedAt": zod.string().nullable(),
+  "reversedAt": zod.string().nullable(),
+  "reversalReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "reversalJournalEntryId": zod.number(),
+  "reversed": zod.object({
+  "invoices": zod.number(),
+  "bills": zod.number(),
+  "deposits": zod.number()
+}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills) or given a superseding reversal record (deposits). Nothing was deleted.')
+}))
+
+
+/**
  * @summary Record a payment against an issued invoice
  */
 export const PayInvoiceParams = zod.object({
@@ -5200,16 +7349,24 @@ export const PayInvoiceParams = zod.object({
 
 export const payInvoiceBodyAmountExclusiveMin = 0;
 
+export const payInvoiceBodyIdempotencyKeyMax = 120;
+
 
 
 export const PayInvoiceBody = zod.object({
   "amount": zod.number().gt(payInvoiceBodyAmountExclusiveMin),
-  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+  "idempotencyKey": zod.string().max(payInvoiceBodyIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.'),
+  "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
 })
 
 export const PayInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5221,6 +7378,7 @@ export const PayInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5256,10 +7414,11 @@ export const ListInvoicePaymentsParams = zod.object({
 })
 
 export const ListInvoicePaymentsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.number().describe('The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? \'legacy\'}-${id}`.'),
   "amount": zod.number(),
   "paidAt": zod.string(),
-  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
 })
 export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponseItem)
 
@@ -5290,6 +7449,10 @@ export const GetBillParams = zod.object({
 export const GetBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5354,6 +7517,10 @@ export const UpdateBillBody = zod.object({
 export const UpdateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5412,6 +7579,10 @@ export const PostBillBody = zod.object({
 export const PostBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5452,16 +7623,24 @@ export const PayBillParams = zod.object({
 
 export const payBillBodyAmountExclusiveMin = 0;
 
+export const payBillBodyIdempotencyKeyMax = 120;
+
 
 
 export const PayBillBody = zod.object({
   "amount": zod.number().gt(payBillBodyAmountExclusiveMin),
-  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.')
+  "idempotencyKey": zod.string().max(payBillBodyIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
+  "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.'),
+  "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
 })
 
 export const PayBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
   "dueDate": zod.string().nullish(),
@@ -5501,10 +7680,11 @@ export const ListBillPaymentsParams = zod.object({
 })
 
 export const ListBillPaymentsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.number().describe('The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? \'legacy\'}-${id}`.'),
   "amount": zod.number(),
   "paidAt": zod.string(),
-  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.')
+  "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
 })
 export const ListBillPaymentsResponse = zod.array(ListBillPaymentsResponseItem)
 
@@ -5520,6 +7700,10 @@ export const SubmitInvoiceParams = zod.object({
 export const SubmitInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5531,6 +7715,7 @@ export const SubmitInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5573,6 +7758,10 @@ export const SendBackInvoiceBody = zod.object({
 export const SendBackInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5584,6 +7773,7 @@ export const SendBackInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5622,6 +7812,10 @@ export const ApproveInvoiceParams = zod.object({
 export const ApproveInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
   "date": zod.string(),
   "dueDate": zod.string().nullable(),
   "customerId": zod.number().nullable(),
@@ -5633,6 +7827,7 @@ export const ApproveInvoiceResponse = zod.object({
   "total": zod.number(),
   "currency": zod.string().nullable(),
   "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
   "paidAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),

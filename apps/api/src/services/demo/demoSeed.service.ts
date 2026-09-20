@@ -235,7 +235,9 @@ export async function seedDemoTenant(opts: {
   }
 
   return inTenant(async () => {
-    await bankAccountsService.create({
+    // D-3: every payment names the bank it moved through — the demo's one
+    // account. The seed is a tenant doing what a tenant now must.
+    const bank = await bankAccountsService.create({
       name: "Main Operating Account",
       bankName: "Al Rajhi Bank",
       iban: "SA0380000000608010167519",
@@ -309,7 +311,7 @@ export async function seedDemoTenant(opts: {
       if (i >= 2) {
         await invoicesService.pay(
           invoice.id,
-          { amount: Number(invoice.total), paidAt: dateIn(now, i, 25) },
+          { amount: Number(invoice.total), paidAt: dateIn(now, i, 25), bankAccountId: bank.id },
           userId,
         );
       }
@@ -334,7 +336,7 @@ export async function seedDemoTenant(opts: {
       if (i >= 1) {
         await billsService.pay(
           bill.id,
-          { amount: spend + Math.round(spend * 15) / 100, paidAt: dateIn(now, i, 27) },
+          { amount: spend + Math.round(spend * 15) / 100, paidAt: dateIn(now, i, 27), bankAccountId: bank.id },
           userId,
         );
       }

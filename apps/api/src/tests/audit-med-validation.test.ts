@@ -123,6 +123,7 @@ const EMAIL = "med-validation@test.local";
 describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let vendorId = 0;
@@ -159,6 +160,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
       await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+      await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     }
@@ -176,6 +178,8 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','MED',' ','viewer',true) RETURNING id`,
@@ -258,7 +262,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
 
   it("transaction PATCH assigning a nonexistent categoryId → 422", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-07-10", description: "MED patch target", amount: 50, type: "debit" } as never),
+      transactionsService.create({ date: "2026-07-10", description: "MED patch target", amount: 50, type: "debit", bankAccountId: bankId } as never),
     );
     await expect(
       inTenant(() => transactionsService.update(tx.id, { categoryId: NONEXISTENT } as never)),
@@ -310,7 +314,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
 
   it("🔴 DB CHECK 0056 refuses a negative vat_amount and an out-of-range vat_rate on transactions", async () => {
     const tx = await inTenant(() =>
-      transactionsService.create({ date: "2026-07-10", description: "MED vat bounds", amount: 100, type: "debit" } as never),
+      transactionsService.create({ date: "2026-07-10", description: "MED vat bounds", amount: 100, type: "debit", bankAccountId: bankId } as never),
     );
     await expect(pool.query(`UPDATE transactions SET vat_amount = -5 WHERE id = $1`, [tx.id])).rejects.toMatchObject({ code: "23514" });
     await expect(pool.query(`UPDATE transactions SET vat_rate = 150 WHERE id = $1`, [tx.id])).rejects.toMatchObject({ code: "23514" });

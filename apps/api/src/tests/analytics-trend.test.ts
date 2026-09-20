@@ -32,6 +32,7 @@ const EMAIL = "m19-trend@test.local";
 describeMaybe("M19.1 — the liquidity/solvency trend", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let entryNo = 0;
 
@@ -47,6 +48,12 @@ describeMaybe("M19.1 — the liquidity/solvency trend", () => {
       await conn.rollback();
       throw err;
     }
+  }
+
+  /** D-3: the postable cash account is the fixture bank's own GL leaf. */
+  async function cashLeaf(): Promise<number> {
+    const { rows } = await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bankId]);
+    return Number(rows[0].id);
   }
 
   async function acct(code: string): Promise<number> {
@@ -87,6 +94,7 @@ describeMaybe("M19.1 — the liquidity/solvency trend", () => {
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -100,6 +108,8 @@ describeMaybe("M19.1 — the liquidity/solvency trend", () => {
         [orgId],
       )
     ).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (
       await pool.query(
         `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','TR',' ','viewer',true) RETURNING id`,
@@ -114,10 +124,10 @@ describeMaybe("M19.1 — the liquidity/solvency trend", () => {
     // Mar: inventory bought on credit.            → clean
     // May: NOTHING happens.                       → balance must persist
     // Jun: a SUSPENSE posting appears.            → Jun onward unclaimable
-    await post("2026-02-10", await acct("CASH"), await acct("AP"), 30000);
+    await post("2026-02-10", await cashLeaf(), await acct("AP"), 30000);
     await post("2026-03-12", await acct("INVENTORY"), await acct("AP"), 8000);
     await post("2026-04-20", await acct("FIXED_ASSETS"), await acct("LOANS"), 50000);
-    await post("2026-06-05", await acct("SUSPENSE"), await acct("CASH"), 1200);
+    await post("2026-06-05", await acct("SUSPENSE"), await cashLeaf(), 1200);
   });
 
   afterAll(cleanup);

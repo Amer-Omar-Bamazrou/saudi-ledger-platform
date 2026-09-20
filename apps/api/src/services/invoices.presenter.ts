@@ -27,9 +27,16 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     total: toNum(inv.total),
     currency: inv.currency,
     paidAmount: toNum(inv.paidAmount),
+    // D-4: the part settled by credit notes (cache of credit allocations); outstanding = total − paid − credited.
+    creditedAmount: toNum(inv.creditedAmount),
     paidAt: inv.paidAt,
     reviewNote: inv.reviewNote,
     notes: inv.notes,
+    // Batch 1C / Policy C: an opening item, and whether the migration reversed it (frozen, excluded from figures) or it replaces a reversed one.
+    isOpening: inv.isOpening,
+    reversedAt: inv.reversedAt ? inv.reversedAt.toISOString() : null,
+    reversedByMigrationBatchId: inv.reversedByMigrationBatchId ?? null,
+    replacesInvoiceId: inv.replacesInvoiceId ?? null,
     // ZATCA e-invoicing fields — null on a draft/submitted invoice; populated
     // only at approval (the hash chain is built then, so drafts consume no
     // sequence number).

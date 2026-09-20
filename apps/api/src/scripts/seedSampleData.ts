@@ -226,8 +226,9 @@ async function seedAll(inTenant: InTenant, userId: number) {
   // One invoice PAID in full and one PARTIALLY paid, so AR aging, the
   // receivables bridge and the dated payment history (B4) all have something
   // to show rather than a single undifferentiated balance.
-  await inTenant(() => invoicesService.pay(invoices[0].id, { amount: invoices[0].total, paidAt: `${M1}-30` }, userId));
-  await inTenant(() => invoicesService.pay(invoices[2].id, { amount: 10000, paidAt: `${M2}-20` }, userId));
+  // D-3: each payment names the bank it arrived in (the seeded account).
+  await inTenant(() => invoicesService.pay(invoices[0].id, { amount: invoices[0].total, paidAt: `${M1}-30`, bankAccountId: bank.id }, userId));
+  await inTenant(() => invoicesService.pay(invoices[2].id, { amount: 10000, paidAt: `${M2}-20`, bankAccountId: bank.id }, userId));
 
   // ── Bills: approved, so AP and input VAT appear ──────────────────────────
   const billSpecs = [
@@ -240,7 +241,7 @@ async function seedAll(inTenant: InTenant, userId: number) {
     const bill = await inTenant(() => billsService.create(spec as never, userId));
     bills.push(await inTenant(() => billsService.approve(bill.id, {}, userId)));
   }
-  await inTenant(() => billsService.pay(bills[0].id, { amount: 2760, paidAt: `${M1}-28` }, userId));
+  await inTenant(() => billsService.pay(bills[0].id, { amount: 2760, paidAt: `${M1}-28`, bankAccountId: bank.id }, userId));
 
   // ── Bank transactions ────────────────────────────────────────────────────
   // Left UNCATEGORISED on purpose. An accepted uncategorised row posts to

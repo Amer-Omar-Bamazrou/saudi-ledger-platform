@@ -30,6 +30,11 @@ vi.mock("../repositories/bankAccounts.repository", () => ({
     findById: (...a: unknown[]) => findByIdMock(...(a as [])),
     list: vi.fn(async () => []),
     remove: vi.fn(async () => {}),
+    // D-3: the service reads the GL side of every account it returns; the
+    // mocked repository answers with a leaf for id 1 so `create` does not
+    // (correctly) refuse a bank account that has no GL account.
+    glSummary: vi.fn(async (ids: number[]) => new Map(ids.map((id) => [id, { glAccountId: 100 + id, glAccountName: "Mock Bank", ledgerBalance: "0" }]))),
+    ledgerLineCount: vi.fn(async () => 0),
   },
 }));
 vi.mock("../services/audit.service", () => ({

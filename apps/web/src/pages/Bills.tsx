@@ -140,6 +140,17 @@ export default function Bills() {
   const effectivePostAccountId = postDebitAccountId ?? defaultExpenseId;
   const [form, setForm] = useState(makeEmpty());
   const [payAmount, setPayAmount] = useState("");
+  // D-3: a payment names the bank it LEFT from — see Invoices.tsx.
+  const [payBank, setPayBank] = useState<string>("");
+  const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({
+    queryKey: ["bank-accounts"],
+    queryFn: () => apiFetch("/bank-accounts"),
+  });
+  const activeBanks = bankAccounts.filter((b) => b.isActive);
+  // Pre-selection is the bank the user MARKED default — an explicit setting.
+  // "There is only one" is not a setting anyone chose, so it pre-selects
+  // nothing: the user names the bank (D-3: no single-bank inference).
+  const defaultBankId = activeBanks.find((b) => b.isDefault)?.id;
   // The pay double-fire gate — a PARTIAL payment sent twice is two accepted
   // payments (see Invoices.tsx). A ref, not a render snapshot.
   const payingRef = useRef(false);
@@ -286,13 +297,14 @@ export default function Bills() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number }) =>
+    mutationFn: ({ id, amount, bankAccountId }: { id: number; amount: number; bankAccountId: number }) =>
       apiFetch(`/bills/${id}/pay`, {
         method: "POST",
-        body: json.pay({ amount, paidAt: businessToday() }),
+        body: json.pay({ amount, paidAt: businessToday(), bankAccountId }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] });
       setPayOpen(null);
       setPayAmount("");
       toast({ title: t("Payment recorded", "تم تسجيل الدفعة") });
@@ -721,12 +733,18 @@ export default function Bills() {
             <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
             <Input type="number" value={payAmount}
               onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" />
+            <Label className="text-xs text-muted-foreground mt-3 block">{t("Paid from bank account *", "دُفع من الحساب البنكي *")}</Label>
+            <Select value={payBank || (defaultBankId != null ? String(defaultBankId) : "")} onValueChange={setPayBank}>
+              <SelectTrigger className="mt-1 h-8 text-sm" data-testid="pay-bank-account"><SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} /></SelectTrigger>
+              <SelectContent>{activeBanks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}</SelectContent>
+            </Select>
+            {activeBanks.length === 0 && <p className="text-xs text-destructive mt-1">{t("Add a bank account first — a payment is recorded against the account it left from.", "أضف حسابًا بنكيًا أولًا — تُسجَّل الدفعة على الحساب الذي خرجت منه.")}</p>}
             <PaymentHistory entity="bills" id={payOpen} />
           </div>
           <Button
             className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => { if (payingRef.current || !payOpen) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount) }); }}
-            disabled={!payAmount || payMut.isPending}
+            onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), bankAccountId: bank }); }}
+            disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId)}
           >
             {payMut.isPending ? t("Recording…", "جارٍ التسجيل…") : t("Record Payment", "تسجيل الدفعة")}
           </Button>

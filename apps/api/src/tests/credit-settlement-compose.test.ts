@@ -6,8 +6,10 @@
  *    with an approved credit note is settled by `total − credited`; matching
  *    quotes that amount, paying it marks the invoice PAID, and AR aging nets
  *    notes into their originals — so aging always agrees with GL-based
- *    balance-sheet AR, including the refund case (paid then credited shows a
- *    NEGATIVE aged balance rather than vanishing).
+ *    balance-sheet AR, including the refund case — since D-4 (2026-09-17) a
+ *    note beyond its original's open balance is a LIABILITY (Customer credit
+ *    balances), so the original ages at 0 and the credit owed is visible on
+ *    the customer's credit position, never as a negative receivable.
  *  - Finding 8: cash flow buckets transfers/settlements as INTERNAL movements,
  *    not operating "Uncategorized".
  *  - Scope-drift fix: `ZATCA_WORKER_ENABLED` gates only the two transport
@@ -155,27 +157,38 @@ describeMaybe("Audit Tier 3 — credit/settlement composition, cash-flow buckets
     expect(aging.items.find((i) => i.invoiceNumber === "CC-CN1")).toBeUndefined();
   });
 
-  it("🔴 the refund case: paid in full THEN credited shows a NEGATIVE aged balance — and still agrees with GL", async () => {
+  it("🔴 the refund case: paid in full THEN credited — the credit owed is a LIABILITY, the original ages at 0, aging still equals GL AR", async () => {
     const invId = await issue("CC-2", 200); // 230 gross
-    await inTenant(() => invoicesService.pay(invId, { amount: 230 }, userId));
-    await issue("CC-CN2", 200, { documentType: "credit_note", originalInvoiceId: invId, noteReason: "full refund" }); // credits 230
+    await inTenant(() => invoicesService.pay(invId, { amount: 230, bankAccountId: accountId }, userId));
+    const noteId = await issue("CC-CN2", 200, { documentType: "credit_note", originalInvoiceId: invId, noteReason: "full refund" }); // credits 230
 
-    const { aging } = await agingAgreesWithBalanceSheet();
-    const row = aging.items.find((i) => i.invoiceNumber === "CC-2");
-    expect(row?.outstanding).toBe(-230); // refund owed to the customer — visible, not vanished
-    // 🔴 2026-09-15 (walk item 7): a credit owed is NOT past due. Pre-fix this
-    // row carried the original's age (76 days) and sat in days_61_90 as −230.
-    expect(row?.daysPastDue).toBe(0);
-    expect(aging.buckets.current).toBe(-230);
-    expect(aging.buckets.days_61_90).toBe(0);
+    // D-4 (2026-09-17): the accountant excluded credits inside AR. The note
+    // settles nothing on CC-2 (it was paid), so its whole 230 is owed BACK to
+    // the customer on Customer credit balances — AR(customer) stays 0, the
+    // aging shows no negative row, and the credit is visible on the
+    // customer's credit position. The "−230 aged balance" this replaced was
+    // the AR-credit model.
+    const { aging, bsAr } = await agingAgreesWithBalanceSheet();
+    expect(aging.items.find((i) => i.invoiceNumber === "CC-2")).toBeUndefined();
+    expect(aging.items.every((i) => i.outstanding >= 0)).toBe(true);
+    expect(bsAr).toBe(0);
+    const { rows: [cr] } = await pool.query(
+      `SELECT coalesce(sum(l.credit_amount - l.debit_amount), 0)::text AS bal
+         FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
+        WHERE c.system_code = 'CUSTOMER_CREDITS' AND l.customer_id = $1`,
+      [customerId],
+    );
+    expect(cr.bal).toBe("230.00");
+    const { rows: [alloc] } = await pool.query(`SELECT count(*)::int AS n FROM payment_allocations WHERE credit_note_id = $1`, [noteId]);
+    expect(alloc.n).toBe(0); // nothing to settle on the original ⇒ no allocation
   });
 
   it("overpaying the CREDIT-AWARE outstanding is refused", async () => {
     const invId = await issue("CC-3", 1000); // 1150
     await issue("CC-CN3", 500, { documentType: "credit_note", originalInvoiceId: invId, noteReason: "return" }); // credits 575
     // 1150 would have passed the old total−paid guard; the true outstanding is 575.
-    await expect(inTenant(() => invoicesService.pay(invId, { amount: 1150 }, userId))).rejects.toMatchObject({ statusCode: 409 });
-    await inTenant(() => invoicesService.pay(invId, { amount: 575 }, userId));
+    await expect(inTenant(() => invoicesService.pay(invId, { amount: 1150, bankAccountId: accountId }, userId))).rejects.toMatchObject({ statusCode: 409 });
+    await inTenant(() => invoicesService.pay(invId, { amount: 575, bankAccountId: accountId }, userId));
     const { rows: [inv] } = await pool.query(`SELECT status FROM invoices WHERE id = $1`, [invId]);
     expect(inv.status).toBe("paid");
   });

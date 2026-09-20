@@ -199,11 +199,19 @@ export default function Upload() {
   const submitRows = (rows: TxRow[]) => {
     const valid = rows.filter(r => !r._error);
     if (!valid.length) { toast({ title: t("No valid rows to import", "لا توجد صفوف صالحة للاستيراد"), variant: "destructive" }); return; }
+    // D-3 (2026-09-16): a statement belongs to ONE bank account, and an
+    // accepted row's cash leg posts to that bank's own GL account. The
+    // server refuses an import with no bank (422 bank_account_required);
+    // saying so here saves the round trip, it does not replace the rule.
+    if (!bankAccountId) {
+      toast({ title: t("Choose the bank account this statement belongs to", "اختر الحساب البنكي الذي يخص هذا الكشف"), variant: "destructive" });
+      return;
+    }
     uploadMut.mutate({
       data: {
         rows: valid.map(({ _error, ...r }) => r),
         autoCategrize: autoCategorize,
-        bankAccountId: bankAccountId ? Number(bankAccountId) : null,
+        bankAccountId: Number(bankAccountId),
       },
     });
   };
@@ -263,10 +271,10 @@ export default function Upload() {
         </div>
         <div className="flex items-center gap-6">
           <div className="w-56">
-            <Label className="text-xs text-muted-foreground">{t("Bank account (which account is this statement for?)", "الحساب البنكي (لأي حساب هذا الكشف؟)")}</Label>
+            <Label className="text-xs text-muted-foreground">{t("Bank account * (which account is this statement for?)", "الحساب البنكي * (لأي حساب هذا الكشف؟)")}</Label>
             <Select value={bankAccountId} onValueChange={setBankAccountId}>
-              <SelectTrigger className="h-9 mt-1">
-                <SelectValue placeholder={t("Not specified", "غير محدد")} />
+              <SelectTrigger className="h-9 mt-1" data-testid="upload-bank-account">
+                <SelectValue placeholder={t("Choose an account", "اختر حسابًا")} />
               </SelectTrigger>
               <SelectContent>
                 {(bankAccounts ?? []).map((a) => (

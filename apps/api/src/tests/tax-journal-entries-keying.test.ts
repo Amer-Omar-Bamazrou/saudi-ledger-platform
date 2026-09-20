@@ -28,6 +28,7 @@ const SLUG = "tax-je-keying";
 describeMaybe("tax-journal-entries — keyed on system_code, never on the account's name", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let cashId = 0;
   let vatOutputId = 0;
   let salesId = 0;
@@ -47,7 +48,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
-    for (const t of ["journal_entry_lines", "journal_entries", "audit_logs", "categories", "companies"]) {
+    for (const t of ["journal_entry_lines", "journal_entries", "audit_logs", "bank_accounts", "categories", "companies"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;
       });
@@ -59,9 +60,11 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Tax JE Org','${SLUG}') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'TJ Co') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     const byCode = async (code: string) =>
       (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgId, code])).rows[0].id as number;
-    cashId = await byCode("CASH");
+    cashId = (await pool.query(`SELECT id FROM categories WHERE bank_account_id = $1`, [bankId])).rows[0].id as number;
     vatOutputId = await byCode("VAT_OUTPUT");
     salesId = await byCode("SALES");
     // The tenant's own account whose NAME contains "tax" — the regex's false positive.

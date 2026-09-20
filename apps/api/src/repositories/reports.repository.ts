@@ -19,6 +19,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
+import { invoiceNotReversed, billNotReversed } from "./openingReversal";
 
 /**
  * 🔴 Journal-entry statuses that ARE the books (fixed 2026-08-17, found
@@ -61,7 +62,8 @@ function jeConditions(date_from?: string, date_to?: string, statusFilter = true)
 const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved bills OF THE SCOPED COMPANY — company scoping inherited by
 // every bill-reading report through this one helper.
-const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), companyScoped(billsTable.companyId))!;
+// Policy C: a reversed opening bill is out of every money report (openingReversal.ts).
+const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), billNotReversed(), companyScoped(billsTable.companyId))!;
 
 // Draft/approval workflow (M10.4): an invoice affects AR/revenue/VAT only once
 // APPROVED (issued). Draft and submitted invoices are NOT in the books — and are
@@ -70,7 +72,8 @@ const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BO
 // customer-ledger queries stay in lockstep.
 const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
-const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), companyScoped(invoicesTable.companyId))!;
+// Policy C: a reversed opening invoice is out of every money report (openingReversal.ts).
+const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), companyScoped(invoicesTable.companyId))!;
 
 /**
  * The sign a document contributes to receivables, sales and output VAT (M12.1b).
@@ -344,19 +347,24 @@ export const reportsRepository = {
       .limit(500);
   },
 
-  // vat-return (sales/output-VAT side) — approved invoices only.
+  // vat-return (sales/output-VAT side) — approved invoices only, and NEVER an
+  // opening item (Batch 1C, R7): a migrated receivable is the previous
+  // system's document, whose VAT that system reported. It carries no VAT and
+  // no line items, so without this predicate the header fallback above would
+  // read its outstanding amount as a zero-rated sale of the month it was
+  // issued in — a VAT event the migration must never create.
   invoicesInRange(dateFrom: string, dateTo: string) {
     return db
       .select()
       .from(invoicesTable)
-      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly()));
+      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly(), eq(invoicesTable.isOpening, false)));
   },
-  // vat-return (bill/input-VAT side) — approved bills only.
+  // vat-return (bill/input-VAT side) — approved bills only, never an opening item (R7).
   billsInRange(dateFrom: string, dateTo: string) {
     return db
       .select()
       .from(billsTable)
-      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
+      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly(), eq(billsTable.isOpening, false)));
   },
 
   /**

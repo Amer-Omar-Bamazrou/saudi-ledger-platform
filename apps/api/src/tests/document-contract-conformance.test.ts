@@ -69,6 +69,7 @@ function issues(r: ParseResult): string {
 describeMaybe("document contract conformance — invoices & bills, detail and write paths, on real rows", () => {
   let orgId = "";
   let companyId = "";
+  let bankId = 0;
   let userId = 0;
   let customerId = 0;
   let vendorId = 0;
@@ -99,6 +100,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);
+    await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
@@ -107,6 +109,8 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Document Org','${SLUG}') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'Document Co','1010101042','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
+    bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','DC',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Doc Customer','عميل','310000000000003') RETURNING id`, [orgId])).rows[0].id;
@@ -188,7 +192,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
 
   it("POST /invoices/{id}/pay and GET /invoices/{id}/payments", async () => {
     expect(PayInvoiceBody.safeParse({ amount: 0 }).success).toBe(false);
-    const paid = await inTenant(() => invoicesService.pay(draftId, PayInvoiceBody.parse({ amount: 690, paidAt: "2026-06-20" }), userId));
+    const paid = await inTenant(() => invoicesService.pay(draftId, PayInvoiceBody.parse({ amount: 690, paidAt: "2026-06-20", bankAccountId: bankId }), userId));
     expect(paid.status).toBe("paid");
     conforms(PayInvoiceResponse, paid, "payInvoice");
     const history = await inTenant(() => invoicesService.payments(draftId));
@@ -243,7 +247,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
 
   it("POST /bills/{id}/pay and GET /bills/{id}/payments", async () => {
     expect(PayBillBody.safeParse({ amount: -1 }).success).toBe(false);
-    const paid = await inTenant(() => billsService.pay(billId, PayBillBody.parse({ amount: 460, paidAt: "2026-06-25" }), userId));
+    const paid = await inTenant(() => billsService.pay(billId, PayBillBody.parse({ amount: 460, paidAt: "2026-06-25", bankAccountId: bankId }), userId));
     expect(paid.status).toBe("paid");
     conforms(PayBillResponse, paid, "payBill");
     const history = await inTenant(() => billsService.payments(billId));

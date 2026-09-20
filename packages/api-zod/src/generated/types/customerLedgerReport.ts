@@ -9,5 +9,11 @@ import type { CustomerLedgerCustomer } from './customerLedgerCustomer';
 
 export interface CustomerLedgerReport {
   customers: CustomerLedgerCustomer[];
+  /** Σ balance over the listed customers (window receivable). */
   totalBalance: number;
+  /** Σ current receivable over the listed customers. */
+  totalReceivable: number;
+  totalCreditBalance: number;
+  totalDepositBalance: number;
+  totalNetPosition: number;
 }

@@ -11,6 +11,20 @@ import type { InvoiceStatus } from './invoiceStatus';
 export interface Invoice {
   id: number;
   invoiceNumber: string;
+  /** Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system's for a first migration, or OPEN-<batch>-<seq> for a replacement. */
+  isOpening?: boolean;
+  /**
+     * Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.
+     * @nullable
+     */
+  reversedAt?: string | null;
+  /** @nullable */
+  reversedByMigrationBatchId?: number | null;
+  /**
+     * Policy C: the reversed opening invoice this replacement item stands in for (provenance).
+     * @nullable
+     */
+  replacesInvoiceId?: number | null;
   date: string;
   /** @nullable */
   dueDate: string | null;
@@ -26,6 +40,8 @@ export interface Invoice {
   /** @nullable */
   currency: string | null;
   paidAmount: number;
+  /** D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount. */
+  creditedAmount: number;
   /** @nullable */
   paidAt: string | null;
   /** @nullable */

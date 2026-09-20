@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Customer } from './customer';
+import type { CustomerPosition } from './customerPosition';
 import type { PartyTotals } from './partyTotals';
 
-export type CustomerWithBalance = Customer & PartyTotals;
+/**
+ * `balance` IS `netPosition` (see CustomerPosition).
+ */
+export type CustomerWithBalance = Customer & PartyTotals & CustomerPosition;

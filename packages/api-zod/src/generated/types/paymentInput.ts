@@ -9,6 +9,14 @@
 export interface PaymentInput {
   /** @exclusiveMinimum 0 */
   amount: number;
+  /**
+     * D-4 — unique per company; the same key twice records one payment.
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
   /** YYYY-MM-DD; defaults to today. */
   paidAt?: string;
+  /** D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank's own GL cash account — there is no shared cash account and no default. Validated against the tenant's own accounts; a missing or unknown id is a 422 (`bank_account_required` / `reference_not_found`). Recorded on the payment row as its bank evidence. */
+  bankAccountId: number;
 }

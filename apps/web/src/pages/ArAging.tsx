@@ -33,7 +33,7 @@ function agingBucket(days: number): string {
 }
 
 export default function ArAging() {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const { data, isLoading } = useQuery<ArAgingReport>({
     queryKey: ["ar-aging"],
     queryFn: () => apiFetch("/reports/ar-aging"),
@@ -76,9 +76,42 @@ export default function ArAging() {
               </div>
               <div className="flex justify-between mt-2 text-xs text-muted-foreground">
                 <span>{t("Least overdue", "الأقل تأخرًا")} ←</span>
-                <span className="font-bold text-foreground">Total Outstanding: {fmtNum(data.total)}</span>
+                <span className="font-bold text-foreground" data-testid="aging-total">{t("Total receivable", "إجمالي الذمم المدينة")}: {fmtNum(data.total)}</span>
                 <span>→ {t("Most overdue", "الأكثر تأخرًا")}</span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/*
+            Phase E/F (2026-09-17): the buckets carry ONLY real receivable
+            exposure (every item ≥ 0). What we owe customers is shown BESIDE
+            the ageing — as the two liabilities it is — never folded into a
+            bucket as a negative amount. The net is derived and labelled so.
+          */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Receivable vs what we owe customers", "الذمم المدينة مقابل ما ندين به للعملاء")}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-xs text-muted-foreground">{t("Total AR (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")}</p>
+                  <p className="font-mono font-semibold text-lg" data-testid="recon-total">{fmtNum(data.total)}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-xs text-muted-foreground">{t("− Customer credits (credit-note balances)", "− أرصدة دائنة (أرصدة إشعارات الدائن)")}</p>
+                  <p className="font-mono font-semibold text-lg text-info" data-testid="recon-credits">{fmtNum(data.liabilities.customerCredits)}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-xs text-muted-foreground">{t("− Customer deposits (unapplied receipts)", "− عرابين العملاء (إيصالات غير مخصصة)")}</p>
+                  <p className="font-mono font-semibold text-lg text-info" data-testid="recon-deposits">{fmtNum(data.liabilities.customerDeposits)}</p>
+                </div>
+                <div className="rounded-md border border-primary/40 p-3">
+                  <p className="text-xs text-muted-foreground">{t("= Net customer position (derived)", "= صافي مركز العملاء (مشتق)")}</p>
+                  <p className="font-mono font-semibold text-lg" data-testid="recon-net">{fmtNum(data.netCustomerPosition)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {t("Credits and deposits are liabilities we owe, not negative receivables; they never appear inside an ageing bucket.", "الأرصدة الدائنة والعرابين التزامات ندين بها، وليست ذممًا سالبة؛ ولا تظهر أبدًا داخل فئة أعمار.")}
+              </p>
             </CardContent>
           </Card>
         </>
@@ -107,11 +140,11 @@ export default function ArAging() {
                   return (
                     <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                       <td className="py-3 pe-4 font-mono text-xs text-primary">{item.invoiceNumber}</td>
-                      <td className="py-3 pe-4 font-medium">{item.customerName}</td>
+                      <td className="py-3 pe-4 font-medium">{n(item.customerName, item.customerNameAr)}</td>
                       <td className="py-3 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
                       <td className="py-3 pe-4">
                         <span className={`font-mono font-bold ${BUCKET_COLORS[bucket]}`}>
-                          {item.daysPastDue <= 0 ? "Current" : `${item.daysPastDue}d`}
+                          {item.daysPastDue <= 0 ? t("Current", "جارٍ") : `${item.daysPastDue}${t("d", " يوم")}`}
                         </span>
                       </td>
                       <td className="py-3 pe-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>

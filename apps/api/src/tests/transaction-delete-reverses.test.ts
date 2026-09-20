@@ -85,7 +85,7 @@ describeMaybe("deleting a posted transaction reverses its entry; settlements sti
   const ledgerCash = async (org = orgId) =>
     Number((await pool.query(
       `SELECT coalesce(sum(l.debit_amount - l.credit_amount),0)::text AS bal FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id JOIN journal_entries je ON je.id = l.journal_entry_id
-        WHERE l.organization_id = $1 AND c.system_code = 'CASH' AND je.status IN ('posted','reversed')`, [org])).rows[0].bal);
+        WHERE l.organization_id = $1 AND c.liquidity_class = 'cash' AND je.status IN ('posted','reversed')`, [org])).rows[0].bal);
   const entries = async (txnRef: string) =>
     (await pool.query(`SELECT entry_number, status FROM journal_entries WHERE organization_id = $1 AND (entry_number = $2 OR entry_number LIKE $3) ORDER BY id`, [orgId, txnRef, `${txnRef}-%`])).rows;
 

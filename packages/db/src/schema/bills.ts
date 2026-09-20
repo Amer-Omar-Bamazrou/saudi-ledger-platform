@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -59,6 +59,13 @@ export const billsTable = pgTable(
      */
     expenseAccountId: integer("expense_account_id").references(() => categoriesTable.id, { onDelete: "set null" }),
     notes: text("notes"),
+    /** Batch 1C: an opening payable migrated at cut-off (see invoices.isOpening). */
+    isOpening: boolean("is_opening").notNull().default(false),
+    migrationOpenItemId: integer("migration_open_item_id"),
+    /** Batch 1C Policy C — the reversed marker and the replacement link; see invoices.reversedAt (pack §16.12.1). */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
+    replacesBillId: integer("replaces_bill_id"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

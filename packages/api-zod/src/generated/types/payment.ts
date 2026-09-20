@@ -7,9 +7,15 @@
  */
 
 export interface Payment {
+  /** The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`. */
   id: number;
   amount: number;
   paidAt: string;
   /** An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment. */
   backfilled: boolean;
+  /**
+     * D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.
+     * @nullable
+     */
+  paymentId: number | null;
 }

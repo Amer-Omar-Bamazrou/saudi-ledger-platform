@@ -7,7 +7,7 @@
  */
 
 /**
- * A credit note appears with NEGATIVE amounts so the running balance is what the customer owes.
+ * A credit note appears with NEGATIVE total, VAT and subtotal so the document list reads as the customer saw it. `outstanding` is what THIS document still has receivable — total − paid − credited for an invoice or debit note, 0 for a credit note (its unapplied remainder is a liability in the customer's `position.creditBalance`, never a negative receivable).
  */
 export interface CustomerLedgerInvoice {
   id: number;
@@ -19,6 +19,8 @@ export interface CustomerLedgerInvoice {
   status: string;
   total: number;
   paidAmount: number;
+  creditedAmount: number;
+  /** @minimum 0 */
   outstanding: number;
   vatAmount: number;
   subtotal: number;

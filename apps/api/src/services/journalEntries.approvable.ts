@@ -53,6 +53,22 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
     // exact 2-dp strings, so the sum is compared under the GL tolerance only
     // to absorb float addition, never to admit a real halala.
     const storedLines = await journalEntriesRepository.linesByEntry(je.id);
+    /**
+     * 🔴 D-3 (2026-09-17): approval only flips `status` — it inserts no line,
+     * so the DB trigger that refuses a header line never fires here. A draft
+     * created BEFORE 0073 with a line on "Cash and Bank" would post into the
+     * header through this door. Refused on the STORED lines, like the balance.
+     */
+    const headerLines = await journalEntriesRepository.nonPostingAccountsOf(storedLines.map((l) => l.accountId).filter((id): id is number => id != null));
+    if (headerLines.length > 0) {
+      throw new BusinessRuleError(422, {
+        error:
+          `Journal entry cannot be posted: it has a line on ${headerLines.map((h) => h.name).join(", ")}, which is a header account and accepts no postings. ` +
+          "Edit the draft to use the bank account's own cash account.",
+        code: "account_not_posting",
+        field: "lines",
+      });
+    }
     const totalDebit = storedLines.reduce((s, l) => s + Number(l.debitAmount), 0);
     const totalCredit = storedLines.reduce((s, l) => s + Number(l.creditAmount), 0);
     if (Math.abs(totalDebit - totalCredit) > GL_BALANCE_TOLERANCE) {

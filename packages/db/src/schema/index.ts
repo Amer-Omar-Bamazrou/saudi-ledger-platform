@@ -22,6 +22,7 @@ export * from "./capturedDocuments";
 export * from "./recurring";
 export * from "./findings";
 export * from "./payments";
+export * from "./cashCutover";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)
 export * from "./organizations";
@@ -39,3 +40,5 @@ export * from "./zatcaCredentials";
 export * from "./zatcaCredentialReminders";
 export * from "./permissions";
 export * from "./featureFlags";
+export * from "./statementMatches";
+export * from "./migrationBatches";

@@ -93,8 +93,13 @@ export default function CreditNotes() {
 
   const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
   // Only ISSUED invoices can be corrected — a draft has nothing in the books.
+  // Batch 1C, Issue 1 carry-over: an OPENING item (a historical record from the
+  // previous system) is never offered as an original. Whether a note may ever
+  // reference a previous-system invoice is an open ZATCA / accountant question;
+  // the server refuses it fail-closed (409 note_original_is_opening_item) and
+  // the picker does not lead the user to that refusal.
   const correctable = all.filter(
-    (i) => i.documentType === "invoice" && ["sent", "paid"].includes(i.status),
+    (i) => i.documentType === "invoice" && ["sent", "paid"].includes(i.status) && !i.isOpening,
   );
 
   const create = useMutation({
