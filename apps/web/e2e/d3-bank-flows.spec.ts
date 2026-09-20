@@ -162,10 +162,14 @@ test.describe("D-3 bank flows — Arabic / RTL", () => {
     await expect(dialog.getByText("استُلم في الحساب البنكي *")).toBeVisible();
     const picker = page.getByTestId("pay-bank-account");
     await expect(picker).toBeVisible();
-    // The control sits inside the dialog's box in RTL — not clipped or pushed out.
-    const dbox = await dialog.boundingBox();
-    const pbox = await picker.boundingBox();
-    expect(dbox && pbox && pbox.x >= dbox.x - 1 && pbox.x + pbox.width <= dbox.x + dbox.width + 1, "picker within the dialog under RTL").toBe(true);
+    // The control sits inside the dialog's box in RTL — not clipped or pushed out. Polled: the dialog is
+    // still animating open when it first reads as visible, and two boxes read from different frames
+    // disagree (failed once in CI on PR #164, green on the runs before and after with the same web tree).
+    await expect.poll(async () => {
+      const dbox = await dialog.boundingBox();
+      const pbox = await picker.boundingBox();
+      return Boolean(dbox && pbox && pbox.x >= dbox.x - 1 && pbox.x + pbox.width <= dbox.x + dbox.width + 1);
+    }, { message: "picker within the dialog under RTL" }).toBe(true);
     const submit = dialog.getByRole("button", { name: "تسجيل الدفعة" });
     await expect(picker).toContainText("اختر الحساب البنكي");
     await expect(submit).toBeDisabled();
