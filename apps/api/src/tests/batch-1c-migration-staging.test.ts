@@ -209,8 +209,15 @@ describeMaybe("Batch 1C — Phase 2: parties, open items, advances, opening posi
     // The other organisation's look-alike customer is NOT a candidate (RLS), and cannot be chosen.
     expect(p("C1").candidates.some((c) => c.id === otherOrgCustomer)).toBe(false);
     await expectRefusal(inTenant(() => migrationStagingService.decideParty(b.id, p("C1").id, { decision: "use_existing", existingId: otherOrgCustomer }, userId)), 422, "reference_not_found");
-    // A vendor id is not a customer.
-    await expectRefusal(inTenant(() => migrationStagingService.decideParty(b.id, p("C1").id, { decision: "use_existing", existingId: existingVendor }, userId)), 422, "reference_not_found");
+    // A vendor id is not a customer. 🔴 Two id spaces (CI, PR #164): customers and vendors have separate
+    // sequences, so a vendor's number can COINCIDE with one of this org's customer ids when the suites run in
+    // parallel on a fresh database — then the "vendor" id IS a customer here and the refusal never comes.
+    // The probe must be a vendor id that is provably not a customer of this org; make one when it collides.
+    let vendorAsCustomer = existingVendor;
+    for (let tries = 0; [existingAlpha, existingBetaByName].includes(vendorAsCustomer) && tries < 5; tries++) {
+      vendorAsCustomer = (await inTenant(() => vendorsService.create({ name: `Probe Vendor ${tries}` }))).id;
+    }
+    await expectRefusal(inTenant(() => migrationStagingService.decideParty(b.id, p("C1").id, { decision: "use_existing", existingId: vendorAsCustomer }, userId)), 422, "reference_not_found");
     // The decision, taken.
     const decided = await inTenant(() => migrationStagingService.decideParty(b.id, p("C1").id, { decision: "use_existing", existingId: existingAlpha }, userId));
     expect(decided).toMatchObject({ decision: "use_existing", existingId: existingAlpha, problems: [] });
