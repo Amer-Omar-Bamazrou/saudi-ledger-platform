@@ -1230,7 +1230,7 @@ Issue 2 (a partly-settled opening item — §16.13.4, §16.14.3; the accountant'
 
 # 16.16 The migration workspace UI — as built and walked (2026-09-20)
 
-**Status (2026-09-20): BUILT on `feat/batch-1c-migration-opening-balances` (the commit after `d15c6ae`; SHA in `git log`), unmerged. Issue 2, historical credit notes and Art. 40(9) collection behaviour remain NOT built; their refusals stand. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-20): BUILT on `feat/batch-1c-migration-opening-balances` — commit `59144c1` (pre-merge review: the docs commit after it), unmerged; the branch sits on the unmerged Batch 1B branch (`feat/batch-1b-d4-payments`), so merging it merges both. Issue 2, historical credit notes and Art. 40(9) collection behaviour remain NOT built; their refusals stand. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 ## 16.16.1 What exists
 
@@ -1246,7 +1246,16 @@ Issue 1 carry-overs: an opening receivable in `/invoices` and on the customer pa
 
 ## 16.16.3 The clicked walk (four modes) — record
 
-Run on the worktree's own servers against an isolated database, with two tenants seeded identity-only (`scratchpad/tools/walk-seed.mjs`; everything else by clicking). Phone modes were driven in a 390-px-wide same-origin frame because the automation window refused to resize — a viewport, not a device. Findings and fixes are in the final report of the session and summarised here:
+Run on the worktree's own servers against an isolated database, with two tenants seeded identity-only (the identity layer is outside the product's write path by design; everything else by clicking). Phone modes were driven in a 390-px-wide same-origin frame because the automation window refused to resize — a viewport, not a device.
+
+| Mode | Workflow completed | Defects found → fixed |
+| --- | --- | --- |
+| English / desktop (tenant "Walk Trading Co", batch #287) | bank account → batch → chart (8 rows incl. VAT and deposits) → mapping (suggestions, bank, create) → parties (5) → open items (3 AR / 2 AP) → advances (2) → banks R4 pass → VAT position (R9 pass) → validation BLOCKED (OPEN_ITEMS) → *Go to affected records* → INV-1002 corrected → validated 13/13 → TB 86,000 = 86,000, difference 0.00 → R1–R10 pending → commit → post-commit (MIG-287-OPEN, lock, hash) → R1–R10 10/10 → `/invoices`: badge + note, no PDF, Mark Paid → INV-1002 collected 4,500 (receipt journal, AR ageing 34,500 → 30,000, VAT boxes 0, no hash/ICV/QR) → credit notes offer nothing → reversal blocked by INV-1002 | 7 → 7 (bank suggestion 400; "SAR" on counts; empty problems-only table; tab overflow; committed items read as collisions — backend; recurring action on an opening row; commit-dialog number format) |
+| English / phone (tenant "Phone Walk Co", batch #288) | bank account → batch → chart import dialog → mapping → parties → items → row editor → validation 12/12 → TB → commit | 2 → 2 (mapping editor clipped inside the scrolling table → dialog; TB credit column clipped → old-codes column hidden below `sm`) |
+| Arabic / RTL / desktop | list; "start" dialog with the 409 refusal surfaced; overview; AR items (نعم / لا / غير معروف); TB; commit/history; invoices | 1 → 1 (*Open →* arrow direction) |
+| Arabic / RTL / phone | overview; AR items (no sideways page scroll); invoices; Mark Paid dialog → INV-B1 collected 10,000 (receipt journal, no artefacts, VAT 0) | 0 |
+
+Summary of the fixes and what remains:
 
 - **Fixed during the walk:** *Apply suggestion* on a bank-role row sent a target-less `map_to_bank` (400) → it now opens the mapping editor pre-set; a control's expected/actual counts rendered as "SAR 1.00" → numbers render as numbers; "problems only" left an empty table with a 0.00 total once the last problem was corrected → the filter clears itself; the twelve tabs overflowed a 1280-px window into a scrolling strip → they wrap; the mapping editor was a row inside the horizontally scrolling table and clipped on a phone → a dialog; the trial-balance table clipped its credit column on a phone → the old-codes column hides below `sm` and the type shrinks; the *Open →* arrow pointed the wrong way in RTL; the commit dialog's amount had no thousands separators; the opening-balance badge wrapped and the historical-record note was six lines tall; the recurring action was offered on an opening row.
 - **Backend read-side defect found by the walk (§16.16.4).**
