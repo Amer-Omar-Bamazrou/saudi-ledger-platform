@@ -317,7 +317,7 @@ describeMaybe("Batch 1C — Phase 2: parties, open items, advances, opening posi
     await stageAll(b.id);
     const pos = await inTenant(() => migrationValidationService.getOpeningPosition(b.id));
     expect(pos.openingDate).toBe("2026-06-30");
-    expect(pos.totals).toEqual({ debit: 142500, credit: 142500, balanced: true, openingBalanceEquity: 0, ytdIncome: 40000, ytdExpense: 33500, ytdResult: 6500 });
+    expect(pos.totals).toEqual({ debit: 142500, credit: 142500, balanced: true, difference: 0, ytdIncome: 40000, ytdExpense: 33500, ytdResult: 6500 });
     const line = (t: string) => pos.lines.find((l) => l.target === t)!;
     expect(line("system:AR")).toMatchObject({ targetKind: "system", debit: 34500, credit: 0, balance: 34500, sourceCodes: ["1200"], type: "asset" });
     expect(line("system:AP")).toMatchObject({ balance: -11500, type: "liability" });
@@ -403,13 +403,15 @@ describeMaybe("Batch 1C — Phase 2: parties, open items, advances, opening posi
     await expectRefusal(inTenant(() => migrationService.updateBatch(b.id, { vatPosition: { ...VAT_POSITION, periodEnd: "2026-07-31" } }, userId)), 400);
     await inTenant(() => migrationService.updateBatch(b.id, { vatPosition: VAT_POSITION }, userId));
 
-    // R5: a file that does not balance is refused — never plugged to opening balance equity.
+    // R5 (A5): a file that does not balance is REFUSED — there is no balancing
+    // account, so the difference is reported for classification and blocks.
     const sales = chart.rows.find((r) => r.sourceCode === "4100")!;
     await pool.query(`UPDATE migration_chart_rows SET opening_credit = 40100 WHERE id = $1`, [sales.id]);
     const r5 = await inTenant(() => migrationValidationService.validate(b.id, userId));
+    expect(r5.ok).toBe(false);
     expect(check(r5, "CHART_BALANCED")).toMatchObject({ status: "fail", expected: 142500, actual: 142600 });
-    expect(check(r5, "CHART_BALANCED").detail).toMatch(/never plugged silently/);
-    expect((await inTenant(() => migrationValidationService.getOpeningPosition(b.id))).totals.openingBalanceEquity).toBe(100);
+    expect(check(r5, "CHART_BALANCED").detail).toMatch(/100\.00 on the credit side is unexplained.*blocked until the difference is classified.*nothing is classified for you/i);
+    expect((await inTenant(() => migrationValidationService.getOpeningPosition(b.id))).totals.difference).toBe(100);
     await pool.query(`UPDATE migration_chart_rows SET opening_credit = 40000 WHERE id = $1`, [sales.id]);
 
     // A party undecided again blocks.

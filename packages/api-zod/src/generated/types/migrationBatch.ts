@@ -21,11 +21,6 @@ export interface MigrationBatch {
   notes: string | null;
   vatPosition: MigrationVatPosition | null;
   /**
-     * The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.
-     * @nullable
-     */
-  obeResidualReason: string | null;
-  /**
      * The lock the commit placed on the opening month; lifted by the reversal.
      * @nullable
      */
@@ -37,11 +32,6 @@ export interface MigrationBatch {
   contentHash: string | null;
   /** @nullable */
   openingJournalEntryId: number | null;
-  /**
-     * The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic.
-     * @nullable
-     */
-  clearingJournalEntryId: number | null;
   /** @nullable */
   reversalJournalEntryId: number | null;
   /** @nullable */

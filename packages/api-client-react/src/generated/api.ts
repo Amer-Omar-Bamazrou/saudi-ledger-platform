@@ -56,7 +56,6 @@ import type {
   CategoryBreakdown,
   CategoryInput,
   ClassifyStatementRowsParams,
-  ClearMigrationObeInput,
   Company,
   CompanyLogoState,
   ConvertPurchaseOrderInput,
@@ -166,7 +165,6 @@ import type {
   MigrationChart,
   MigrationChartDecisionInput,
   MigrationChartRow,
-  MigrationObeCleared,
   MigrationOpenItems,
   MigrationOpeningPosition,
   MigrationParties,
@@ -13177,7 +13175,7 @@ export const getDecideMigrationChartRowUrl = (id: number,
 }
 
 /**
- * Refused: mapping to OPENING_BALANCE_EQUITY or to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
+ * Refused: mapping to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
  * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
  */
 export const decideMigrationChartRow = async (id: number,
@@ -13924,7 +13922,7 @@ export const getCommitMigrationBatchUrl = (id: number,) => {
 }
 
 /**
- * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger — any blocking failure rolls everything back. Idempotent: a committed batch returns as it is.
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
  */
 export const commitMigrationBatch = async (id: number, options?: RequestInit): Promise<MigrationBatchDetail> => {
 
@@ -13973,7 +13971,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CommitMigrationBatchMutationError = ErrorType<void>
 
     /**
- * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger — any blocking failure rolls everything back. Idempotent: a committed batch returns as it is.
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
  */
 export const useCommitMigrationBatch = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitMigrationBatch>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -13986,78 +13984,6 @@ export const useCommitMigrationBatch = <TError = ErrorType<void>,
       return useMutation(getCommitMigrationBatchMutationOptions(options));
     }
 
-export const getClearMigrationOpeningBalanceEquityUrl = (id: number,) => {
-
-
-
-
-  return `/api/migration/batches/${id}/clear-obe`
-}
-
-/**
- * @summary The accountant's EXPLICIT clearing journal: move the balance OPENING_BALANCE_EQUITY carries to RETAINED_EARNINGS, dated as the accountant says. Never automatic; refused when the balance is zero.
- */
-export const clearMigrationOpeningBalanceEquity = async (id: number,
-    clearMigrationObeInput: ClearMigrationObeInput, options?: RequestInit): Promise<MigrationObeCleared> => {
-
-  return customFetch<MigrationObeCleared>(getClearMigrationOpeningBalanceEquityUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(clearMigrationObeInput)
-  }
-);}
-
-
-
-
-
-export const getClearMigrationOpeningBalanceEquityMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>, TError,{id: number;data: BodyType<ClearMigrationObeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>, TError,{id: number;data: BodyType<ClearMigrationObeInput>}, TContext> => {
-
-const mutationKey = ['clearMigrationOpeningBalanceEquity'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>, {id: number;data: BodyType<ClearMigrationObeInput>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  clearMigrationOpeningBalanceEquity(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ClearMigrationOpeningBalanceEquityMutationResult = NonNullable<Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>>
-    export type ClearMigrationOpeningBalanceEquityMutationBody = BodyType<ClearMigrationObeInput>
-    export type ClearMigrationOpeningBalanceEquityMutationError = ErrorType<void>
-
-    /**
- * @summary The accountant's EXPLICIT clearing journal: move the balance OPENING_BALANCE_EQUITY carries to RETAINED_EARNINGS, dated as the accountant says. Never automatic; refused when the balance is zero.
- */
-export const useClearMigrationOpeningBalanceEquity = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>, TError,{id: number;data: BodyType<ClearMigrationObeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof clearMigrationOpeningBalanceEquity>>,
-        TError,
-        {id: number;data: BodyType<ClearMigrationObeInput>},
-        TContext
-      > => {
-      return useMutation(getClearMigrationOpeningBalanceEquityMutationOptions(options));
-    }
-
 export const getGetMigrationReversalPreviewUrl = (id: number,) => {
 
 
@@ -14067,7 +13993,7 @@ export const getGetMigrationReversalPreviewUrl = (id: number,) => {
 }
 
 /**
- * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a standing OBE clearing journal, a month closed by someone else). Computed; nothing is written.
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
  */
 export const getMigrationReversalPreview = async (id: number, options?: RequestInit): Promise<MigrationReversalPreview> => {
 
@@ -14114,7 +14040,7 @@ export type GetMigrationReversalPreviewQueryError = ErrorType<void>
 
 
 /**
- * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a standing OBE clearing journal, a month closed by someone else). Computed; nothing is written.
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
  */
 
 export function useGetMigrationReversalPreview<TData = Awaited<ReturnType<typeof getMigrationReversalPreview>>, TError = ErrorType<void>>(

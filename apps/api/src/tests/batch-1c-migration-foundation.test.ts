@@ -5,24 +5,26 @@
  * What is pinned here, and why each is a rule rather than a preference:
  *  - the opening date is DEFINED as cutover − 1 (a DB CHECK, not a default);
  *  - a chart row's type comes from the FILE — a name is never a classification;
- *  - the mapping refusals of pack §15.4: no row lands on OPENING_BALANCE_EQUITY
- *    or on the CASH header; an old receivable/payable maps to AR/AP and nothing
- *    else; a balance never changes nature by mapping; a bank is mapped once;
- *    a balance is never skipped; a merge never targets a system account;
- *  - the seam refuses OPENING_BALANCE_EQUITY to every ordinary writer;
+ *  - the mapping refusals of pack §15.4: no row lands on the CASH header; an
+ *    old receivable/payable maps to AR/AP and nothing else; a balance never
+ *    changes nature by mapping; a bank is mapped once; a balance is never
+ *    skipped; a merge never targets a system account;
+ *  - 🔴 there is NO opening-balance-equity account (accountant A5,
+ *    2026-09-20; pack §16.12.2): no template, no category row in any
+ *    organisation, no mapping target, no journal source `opening_clearing` —
+ *    the former seam test became a test of the account's absence;
  *  - a committed batch is immutable at the DATABASE (trigger), so no service
  *    path — and no raw UPDATE — can edit a migration after it posted;
  *  - isolation: presence in the owning company, ABSENCE in another company
  *    of the same org and in another org (both directions of §3's rule).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { beginTenantConnection, pool } from "@workspace/db";
+import { beginTenantConnection, pool, SYSTEM_ACCOUNTS } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { migrationService, dayBefore } from "../services/migration.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { categoriesService } from "../services/categories.service";
-import { postJournalEntry, MigrationOnlyAccountError } from "../services/accounting/glPosting";
-import { journalEntriesService } from "../services/journalEntries.service";
+import { postJournalEntry } from "../services/accounting/glPosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -36,7 +38,7 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
   let orgId = "", companyId = "", company2Id = "", otherOrgId = "", otherCompanyId = "";
   let userId = 0;
   let bank1 = 0, bank2 = 0, bankC2 = 0, bankOther = 0;
-  let obeId = 0, arId = 0;
+  let arId = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
     const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
@@ -94,7 +96,6 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     bank2 = (await inTenant(() => bankAccountsService.create({ name: "ANB Payroll", bankName: "ANB", currency: "SAR" }))).id;
     bankC2 = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Co2 Main','ANB') RETURNING id`, [orgId, company2Id])).rows[0].id;
     bankOther = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Other Main','ANB') RETURNING id`, [otherOrgId, otherCompanyId])).rows[0].id;
-    obeId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'OPENING_BALANCE_EQUITY'`, [orgId])).rows[0].id;
     arId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'AR'`, [orgId])).rows[0].id;
   });
   afterAll(cleanup);
@@ -116,12 +117,13 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
   const create = (cutoverDate = "2026-10-01") => inTenant(() => migrationService.createBatch({ sourceSystem: "PreviousERP", cutoverDate }, userId));
   const rowOf = async (batchId: number, code: string) => (await inTenant(() => migrationService.getChart(batchId))).rows.find((r) => r.sourceCode === code)!;
   const decide = (batchId: number, rowId: number, body: Parameters<typeof migrationService.decideChartRow>[2]) => inTenant(() => migrationService.decideChartRow(batchId, rowId, body, userId));
-  const expectRefusal = async (p: Promise<unknown>, status: number, code?: string) => {
+  const expectRefusal = async (p: Promise<unknown>, status: number, code?: string, message?: RegExp) => {
     let err: any;
     try { await p; } catch (e) { err = e; }
     expect(err, "expected a refusal").toBeTruthy();
     expect(err.statusCode ?? err.status).toBe(status);
     if (code) expect(err.body?.code ?? err.payload?.code ?? err.code).toBe(code);
+    if (message) expect(String(err.body?.error ?? err.payload?.error ?? err.message)).toMatch(message);
   };
 
   it("the opening date is DEFINED as cutover − 1: by the service, and by a DB CHECK no path can bypass", async () => {
@@ -170,8 +172,8 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     await inTenant(() => migrationService.importChart(b.id, { rows: CHART }, userId));
     const row = (code: string) => rowOf(b.id, code);
 
-    // OPENING_BALANCE_EQUITY is the balancing side, never a target; CASH is a header.
-    await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "map_to_system", targetSystemCode: "OPENING_BALANCE_EQUITY" }), 422, "mapping_target_refused");
+    // There is no balancing account to name (A5) — the former code is simply not a system account; CASH is a header.
+    await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "map_to_system", targetSystemCode: "OPENING_BALANCE_EQUITY" }), 422, "mapping_target_refused", /not a system account/);
     await expectRefusal(decide(b.id, (await row("1100")).id, { decision: "map_to_system", targetSystemCode: "CASH" }), 422, "mapping_target_refused");
     await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "map_to_system", targetSystemCode: "NOT_A_CODE" }), 422, "mapping_target_refused");
     // An old receivable maps to AR and nowhere else — not to SALES, not to a bank, not created.
@@ -189,7 +191,7 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "skip", skipReason: "unused" }), 422, "skip_requires_zero_balance");
     await expectRefusal(decide(b.id, (await row("1300")).id, { decision: "skip" }), 400);
     // merge_into never targets a system account or a header; create never takes a posting parent.
-    await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "merge_into", targetCategoryId: obeId }), 422, "mapping_target_refused");
+    await expectRefusal(decide(b.id, (await row("3100")).id, { decision: "merge_into", targetCategoryId: arId }), 422, "mapping_target_refused");
     const cashHeader = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'CASH'`, [orgId])).rows[0].id;
     await expectRefusal(decide(b.id, (await row("1300")).id, { decision: "merge_into", targetCategoryId: cashHeader }), 422, "mapping_target_refused");
     await expectRefusal(decide(b.id, (await row("5200")).id, { decision: "create", targetCategoryId: arId }), 422, "mapping_target_refused");
@@ -225,54 +227,34 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     await expectRefusal(decide(b.id, chart.rows[0].id, { decision: "create" }), 422, "mapping_target_refused");
   });
 
-  it("🔴 the seam: OPENING_BALANCE_EQUITY is refused to every ordinary writer and accepted only with a migration source", async () => {
+  it("🔴 A5 — there is NO opening-balance-equity account: no template, no category in ANY organisation, no seam code, no mapping target; `source` admits opening / opening_reversal only and the DATABASE refuses opening_clearing", async () => {
+    // Absence, proven where the account would have to live — and a planted
+    // positive beside each absence so the probe is known to see.
+    expect((await pool.query(`SELECT count(*)::int n FROM system_account_templates WHERE code = 'OPENING_BALANCE_EQUITY'`)).rows[0].n).toBe(0);
+    expect((await pool.query(`SELECT count(*)::int n FROM system_account_templates WHERE code = 'RETAINED_EARNINGS'`)).rows[0].n).toBe(1); // the sibling that STAYS (a mapping target)
+    expect((await pool.query(`SELECT count(*)::int n FROM categories WHERE system_code = 'OPENING_BALANCE_EQUITY'`)).rows[0].n).toBe(0); // every org, owner connection
+    expect((await pool.query(`SELECT count(*)::int n FROM categories WHERE organization_id = $1 AND system_code = 'RETAINED_EARNINGS'`, [orgId])).rows[0].n).toBe(1);
+    expect(Object.values(SYSTEM_ACCOUNTS)).not.toContain("OPENING_BALANCE_EQUITY");
+    expect(Object.values(SYSTEM_ACCOUNTS)).toContain("RETAINED_EARNINGS");
+    // The seam: naming the former code is "unknown system account", not a special case.
+    await expect(inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-1", date: "2026-06-15", description: "ordinary", lines: [
+      { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
+      { systemCode: "OPENING_BALANCE_EQUITY" as never, accountName: "OBE", debitAmount: 0, creditAmount: 10 },
+    ] }))).rejects.toThrow();
+    // A migration-sourced entry still posts and carries its provenance; the CHECK admits exactly two sources.
     const lines = [
       { systemCode: "SUSPENSE" as const, accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
-      { systemCode: "OPENING_BALANCE_EQUITY" as const, accountName: "OBE", debitAmount: 0, creditAmount: 10 },
+      { systemCode: "RETAINED_EARNINGS" as const, accountName: "Retained earnings", debitAmount: 0, creditAmount: 10 },
     ];
-    await expect(inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-1", date: "2026-06-15", description: "ordinary", lines }))).rejects.toBeInstanceOf(MigrationOnlyAccountError);
-    // The accountId arm too — the manual-JE form cannot name it by id.
-    await expect(inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-2", date: "2026-06-15", description: "by id", lines: [
-      { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
-      { accountId: obeId, accountName: "OBE", debitAmount: 0, creditAmount: 10 },
-    ] }))).rejects.toBeInstanceOf(MigrationOnlyAccountError);
-    // And the manual journal-entry service (the user's own path) is refused the same way.
-    let refused: any;
-    const suspenseId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'SUSPENSE'`, [orgId])).rows[0].id;
-    try {
-      await inTenant(async () => {
-        const e = await journalEntriesService.create({ entryNumber: "B1C-MAN-1", date: "2026-06-15", description: "manual to OBE", lines: [
-          { accountId: suspenseId, accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
-          { accountId: obeId, accountName: "OBE", debitAmount: 0, creditAmount: 10 },
-        ] } as never, userId);
-        return journalEntriesService.approve((e as { id: number }).id, userId);
-      });
-    } catch (e) { refused = e; }
-    expect(refused, `manual JE to OBE was not refused`).toBeTruthy();
-    expect(refused?.payload?.code ?? refused?.code ?? refused?.message).toBe("migration_only_account");
-    // With the migration source it posts, and the entry carries its provenance.
     const je = await inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-3", date: "2026-06-15", description: "opening", lines, source: "opening" }));
     expect(je.source).toBe("opening");
-    const stored = await pool.query(`SELECT source FROM journal_entries WHERE id = $1`, [je.id]);
-    expect(stored.rows[0].source).toBe("opening");
+    await expect(pool.query(`UPDATE journal_entries SET source = 'opening_clearing' WHERE id = $1`, [je.id])).rejects.toThrow(/journal_entries_source_chk/);
     await expect(pool.query(`UPDATE journal_entries SET source = 'whatever' WHERE id = $1`, [je.id])).rejects.toThrow(/journal_entries_source_chk/);
-    // Beneath every writer: a raw line to OBE on an entry with no migration
-    // source is refused by the DATABASE, so a posting path written tomorrow
-    // starts guarded. The same line on the opening entry is accepted.
-    const ordinary = (await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'B1C-RAW-1','2026-06-15','raw','draft') RETURNING id`,
-      [orgId, companyId],
-    )).rows[0].id;
-    await expect(pool.query(
-      `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$4,$2,$3,'OBE',0,10)`,
-      [orgId, ordinary, obeId, companyId],
-    )).rejects.toThrow(/migration-only account/);
-    const onOpening = await pool.query(
-      `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$4,$2,$3,'OBE',0,0) RETURNING id`,
-      [orgId, je.id, obeId, companyId],
-    );
-    expect(onOpening.rows).toHaveLength(1);
-    await pool.query(`DELETE FROM journal_entry_lines WHERE id = $1`, [onOpening.rows[0].id]);
+    await pool.query(`UPDATE journal_entries SET source = 'opening_reversal' WHERE id = $1`, [je.id]); // the other admitted value — the CHECK is not refusing everything
+    expect((await pool.query(`SELECT source FROM journal_entries WHERE id = $1`, [je.id])).rows[0].source).toBe("opening_reversal");
+    // The line trigger that once admitted the account to migration sources is gone with it.
+    expect((await pool.query(`SELECT count(*)::int n FROM pg_trigger WHERE tgname = 'refuse_migration_only_account_line_trg'`)).rows[0].n).toBe(0);
+    expect((await pool.query(`SELECT count(*)::int n FROM pg_trigger WHERE tgname = 'migration_batches_immutable'`)).rows[0].n).toBe(1); // a trigger that STAYS — the probe sees triggers
   });
 
   it("🔴 isolation — presence in the owning company, absence in a sibling company and in another org; a decision by an outsider is not found", async () => {

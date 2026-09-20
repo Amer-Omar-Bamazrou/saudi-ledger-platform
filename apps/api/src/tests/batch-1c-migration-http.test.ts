@@ -159,7 +159,7 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
     const position = await api("GET", `/migration/batches/${id}/opening-position`);
     expect(position.status).toBe(200);
     const pos = GetMigrationOpeningPositionResponse.parse(position.body);
-    expect(pos.totals).toMatchObject({ debit: 2150, credit: 2150, balanced: true, openingBalanceEquity: 0 });
+    expect(pos.totals).toMatchObject({ debit: 2150, credit: 2150, balanced: true, difference: 0 });
     expect(pos.arByCustomer).toEqual([{ partySourceId: "C1", partyName: "Alpha", items: 1, total: 1000 }]);
 
     const validated = await api("POST", `/migration/batches/${id}/validate`);
@@ -213,7 +213,12 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
     expect((c.reconciliation as { checks: { id: string; status: string }[] }).checks.map((x) => `${x.id}:${x.status}`)).toEqual(["R1:pass", "R2:pass", "R3:pass", "R4:pass", "R5:pass", "R6:pass", "R7:pass", "R8:pass", "R9:pass", "R10:pass"]);
     // Replay over the wire: same batch, same journal.
     expect(CommitMigrationBatchResponse.parse((await api("POST", `/migration/batches/${id}/commit`)).body).openingJournalEntryId).toBe(c.openingJournalEntryId);
-    expect((await api("POST", `/migration/batches/${id}/clear-obe`, { date: "2026-07-01" })).status).toBe(409); // nothing to clear
+    // A5: there is no clearing endpoint any more — the route is gone, not refused.
+    expect((await api("POST", `/migration/batches/${id}/clear-obe`, { date: "2026-07-01" })).status).toBe(404);
+    // …and the former declaration is not a field: the contract strips it, and a batch response never carries it.
+    const patched = await api("PATCH", `/migration/batches/${id}`, { obeResidualReason: "a declaration nobody accepts any more, long enough to pass the old rule" });
+    expect(patched.status).toBe(409); // committed — immutable; the point is the 409 is about immutability, not about the field
+    expect(JSON.stringify(c)).not.toMatch(/obeResidualReason|clearingJournalEntryId/);
     expect((await api("POST", `/migration/batches/${id}/reverse`, { reason: "too short" })).status).toBe(400);
     await loginAs("accountant");
     const preview = await api("GET", `/migration/batches/${id}/reversal-preview`);

@@ -6061,11 +6061,9 @@ export const ListMigrationBatchesResponseItem = zod.object({
   "inputVatReceivable": zod.number().min(listMigrationBatchesResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(listMigrationBatchesResponseVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -6126,11 +6124,9 @@ export const CreateMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(createMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(createMigrationBatchResponseVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -6176,11 +6172,9 @@ export const GetMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(getMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(getMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -6222,9 +6216,6 @@ export const updateMigrationBatchBodyVatPositionOneInputVatReceivableMin = 0;
 
 export const updateMigrationBatchBodyVatPositionOneNoteMax = 500;
 
-export const updateMigrationBatchBodyObeResidualReasonMin = 20;
-export const updateMigrationBatchBodyObeResidualReasonMax = 1000;
-
 
 
 export const UpdateMigrationBatchBody = zod.object({
@@ -6237,8 +6228,7 @@ export const UpdateMigrationBatchBody = zod.object({
   "outputVatPayable": zod.number().min(updateMigrationBatchBodyVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
   "inputVatReceivable": zod.number().min(updateMigrationBatchBodyVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(updateMigrationBatchBodyVatPositionOneNoteMax).nullish()
-}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]).optional(),
-  "obeResidualReason": zod.string().min(updateMigrationBatchBodyObeResidualReasonMin).max(updateMigrationBatchBodyObeResidualReasonMax).nullish().describe('Declare, for the accountant, why the source position does not balance and what the difference is. Without it an unbalanced chart is refused.')
+}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]).optional()
 })
 
 export const updateMigrationBatchResponseVatPositionOneReturnReferenceMax = 120;
@@ -6267,11 +6257,9 @@ export const UpdateMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(updateMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(updateMigrationBatchResponseVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -6317,11 +6305,9 @@ export const DiscardMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(discardMigrationBatchResponseVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(discardMigrationBatchResponseVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -6464,7 +6450,7 @@ export const ImportMigrationChartResponse = zod.object({
 
 
 /**
- * Refused: mapping to OPENING_BALANCE_EQUITY or to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
+ * Refused: mapping to the non-posting CASH header; map_to_bank to a bank that is not this company's or is inactive; merge_into a system account or a header; skip with a non-zero balance; a receivable/payable role hint mapped anywhere but AR/AP; a group row with its own balance.
  * @summary Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)
  */
 export const DecideMigrationChartRowParams = zod.object({
@@ -6478,7 +6464,7 @@ export const decideMigrationChartRowBodySkipReasonMax = 500;
 
 export const DecideMigrationChartRowBody = zod.object({
   "decision": zod.enum(['map_to_system', 'map_to_bank', 'create', 'merge_into', 'skip']),
-  "targetSystemCode": zod.string().nullish().describe('map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused.'),
+  "targetSystemCode": zod.string().nullish().describe('map_to_system: a system account code. CASH (a header) is refused.'),
   "targetBankAccountId": zod.number().nullish().describe('map_to_bank: this company\'s bank account; the balance lands on its D-3 leaf.'),
   "targetCategoryId": zod.number().nullish().describe('merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional).'),
   "skipReason": zod.string().max(decideMigrationChartRowBodySkipReasonMax).nullish().describe('skip: required; only a zero-balance row may be skipped.')
@@ -7012,7 +6998,7 @@ export const GetMigrationOpeningPositionResponse = zod.object({
   "debit": zod.number(),
   "credit": zod.number(),
   "balanced": zod.boolean(),
-  "openingBalanceEquity": zod.number().describe('credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0.'),
+  "difference": zod.number().describe('credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0.'),
   "ytdIncome": zod.number(),
   "ytdExpense": zod.number(),
   "ytdResult": zod.number().describe('Income − expense of the imported YTD balances (A2).')
@@ -7082,7 +7068,7 @@ export const ValidateMigrationBatchResponse = zod.object({
 
 
 /**
- * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger — any blocking failure rolls everything back. Idempotent: a committed batch returns as it is.
+ * @summary COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is.
  */
 export const CommitMigrationBatchParams = zod.object({
   "id": zod.coerce.number()
@@ -7114,11 +7100,9 @@ export const CommitMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(commitMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(commitMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),
@@ -7142,69 +7126,7 @@ export const CommitMigrationBatchResponse = zod.object({
 
 
 /**
- * @summary The accountant's EXPLICIT clearing journal: move the balance OPENING_BALANCE_EQUITY carries to RETAINED_EARNINGS, dated as the accountant says. Never automatic; refused when the balance is zero.
- */
-export const ClearMigrationOpeningBalanceEquityParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const clearMigrationOpeningBalanceEquityBodyDescriptionMax = 500;
-
-
-
-export const ClearMigrationOpeningBalanceEquityBody = zod.object({
-  "date": zod.string().describe('YYYY-MM-DD, on or after the cutover, not in the future — the accountant dates the clearing.'),
-  "description": zod.string().max(clearMigrationOpeningBalanceEquityBodyDescriptionMax).nullish()
-})
-
-export const clearMigrationOpeningBalanceEquityResponseOneVatPositionOneReturnReferenceMax = 120;
-
-export const clearMigrationOpeningBalanceEquityResponseOneVatPositionOneOutputVatPayableMin = 0;
-
-export const clearMigrationOpeningBalanceEquityResponseOneVatPositionOneInputVatReceivableMin = 0;
-
-export const clearMigrationOpeningBalanceEquityResponseOneVatPositionOneNoteMax = 500;
-
-
-
-export const ClearMigrationOpeningBalanceEquityResponse = zod.object({
-  "id": zod.number(),
-  "status": zod.enum(['draft', 'validated', 'committed', 'reversed', 'discarded']),
-  "sourceSystem": zod.string(),
-  "sourceVersion": zod.string().nullable(),
-  "cutoverDate": zod.string(),
-  "openingDate": zod.string().describe('cutover − 1 by definition.'),
-  "notes": zod.string().nullable(),
-  "vatPosition": zod.union([zod.object({
-  "returnReference": zod.string().min(1).max(clearMigrationOpeningBalanceEquityResponseOneVatPositionOneReturnReferenceMax).describe('The ZATCA return reference \/ acknowledgement number.'),
-  "periodStart": zod.string().describe('YYYY-MM-DD'),
-  "periodEnd": zod.string().describe('YYYY-MM-DD — must not be after the opening date.'),
-  "outputVatPayable": zod.number().min(clearMigrationOpeningBalanceEquityResponseOneVatPositionOneOutputVatPayableMin).describe('Output VAT still payable at cut-off (the VAT_OUTPUT balance).'),
-  "inputVatReceivable": zod.number().min(clearMigrationOpeningBalanceEquityResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
-  "note": zod.string().max(clearMigrationOpeningBalanceEquityResponseOneVatPositionOneNoteMax).nullish()
-}).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
-  "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
-  "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
-  "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
-  "reversalJournalEntryId": zod.number().nullable(),
-  "createdBy": zod.number().nullable(),
-  "validatedAt": zod.string().nullable(),
-  "committedBy": zod.number().nullable(),
-  "committedAt": zod.string().nullable(),
-  "reversedAt": zod.string().nullable(),
-  "reversalReason": zod.string().nullable(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-}).and(zod.object({
-  "clearedAmount": zod.number(),
-  "journalEntryId": zod.number()
-}))
-
-
-/**
- * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a standing OBE clearing journal, a month closed by someone else). Computed; nothing is written.
+ * @summary What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written.
  */
 export const GetMigrationReversalPreviewParams = zod.object({
   "id": zod.coerce.number()
@@ -7292,11 +7214,9 @@ export const ReverseMigrationBatchResponse = zod.object({
   "inputVatReceivable": zod.number().min(reverseMigrationBatchResponseOneVatPositionOneInputVatReceivableMin).describe('Input VAT still recoverable at cut-off (the VAT_INPUT balance).'),
   "note": zod.string().max(reverseMigrationBatchResponseOneVatPositionOneNoteMax).nullish()
 }).describe('The last VAT return filed from the previous system — its closing position, as supplied, with the return\'s reference (pack §15.6 R9).'),zod.null()]),
-  "obeResidualReason": zod.string().nullable().describe('The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.'),
   "periodLockId": zod.number().nullable().describe('The lock the commit placed on the opening month; lifted by the reversal.'),
   "contentHash": zod.string().nullable().describe('SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved.'),
   "openingJournalEntryId": zod.number().nullable(),
-  "clearingJournalEntryId": zod.number().nullable().describe('The accountant\'s explicit OBE → retained-earnings journal, when posted. Never automatic.'),
   "reversalJournalEntryId": zod.number().nullable(),
   "createdBy": zod.number().nullable(),
   "validatedAt": zod.string().nullable(),

@@ -10,7 +10,7 @@ import type { MigrationChartDecisionInputDecision } from './migrationChartDecisi
 export interface MigrationChartDecisionInput {
   decision: MigrationChartDecisionInputDecision;
   /**
-     * map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused.
+     * map_to_system: a system account code. CASH (a header) is refused.
      * @nullable
      */
   targetSystemCode?: string | null;

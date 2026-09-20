@@ -1,6 +1,6 @@
 /**
- * BATCH 1C — PHASE 3: the COMMIT, the reconciliation gates R1–R10, the
- * accountant's OBE clearing journal, and the REVERSAL.
+ * BATCH 1C — PHASE 3: the COMMIT, the reconciliation gates R1–R10, and the
+ * REVERSAL.
  *
  * Decision record: docs/product/batch-1c-migration-opening-balances-decision-pack.md
  * §15.5 steps 3–11, §15.6 (R1–R10 and the invariants), §15.6 "Safety".
@@ -24,8 +24,8 @@
  *      dated cutover − 1, source = 'opening': AR per customer and AP per
  *      vendor from the items (with the party on the line), CUSTOMER_DEPOSITS
  *      per customer from the advances, each bank on its D-3 leaf, every
- *      other mapped balance on its account, and OPENING_BALANCE_EQUITY on
- *      the far side ONLY for a declared residual.
+ *      other mapped balance on its account — and nothing else: a position
+ *      that does not balance on those named accounts is REFUSED here (A5).
  *   5. advances → `payments` rows (direction in, source = 'opening') whose
  *      deposit line is inside the opening journal; their cash is inside the
  *      bank's opening balance, so they post no cash line of their own.
@@ -41,9 +41,10 @@
  * by 5,000 a week later). Designed against the schema, not as a status flip:
  *   - REFUSED while anything has touched what the commit created: a receipt
  *     allocated to an opening invoice, a credit note against one, a bill
- *     payment, a deposit allocated or refunded, an OBE clearing journal still
- *     standing. Each is named; the operator unwinds it first (or posts dated
- *     correction journals instead — the pack's other route).
+ *     payment, a deposit allocated or refunded. Each is named; the operator
+ *     unwinds it first (or posts dated correction journals instead — the
+ *     pack's other route; a partly-settled item is the OPEN accountant
+ *     question of pack §16.12.5 and nothing is built past this refusal).
  *   - The migration's own period lock on the opening month is lifted (only
  *     if it is still the migration's lock; a month closed by someone else
  *     since stays closed and blocks).
@@ -67,19 +68,19 @@
  *     the same source ids (identity is per batch) and commit (the
  *     one-committed-batch-per-company unique sees no committed batch).
  *
- * ── OPENING_BALANCE_EQUITY ──────────────────────────────────────────────────
- * Normally ZERO: a source position that balances and is fully mapped needs
- * no balancing side, because every balance — including the old equity and
- * retained earnings — lands on a named account. The account exists for the
- * one legitimate residual: a source with no equity detail (books kept in a
- * spreadsheet), whose difference the operator DECLARES on the batch and the
- * accountant later moves to RETAINED_EARNINGS by the explicit clearing
- * journal below. Never cleared automatically. The explanation is written on
- * the account itself at the first commit, where an accountant reads it.
+ * ── NO BALANCING ACCOUNT ────────────────────────────────────────────────────
+ * A source position that balances and is fully mapped needs no balancing
+ * side: every balance — the old equity and retained earnings included —
+ * lands on a named account. A source that does NOT balance (books kept
+ * without equity detail, an incomplete export) is a migration FAILURE: the
+ * operator classifies the difference into named rows before validation, or
+ * the migration does not happen. There is no opening-balance-equity account,
+ * no declared residual and no clearing journal (accountant A5, 2026-09-20;
+ * decision pack §16.12.2). R6 below is the gate that proves it on the
+ * posted ledger.
  */
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import type { MigrationBatch, SystemAccountCode } from "@workspace/db";
-import { businessToday } from "@workspace/shared";
 import { round2 } from "../lib/money";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
@@ -97,15 +98,6 @@ import { computeOpeningPosition, contentHashOf, type ControlCheck } from "./migr
 const num = (v: unknown) => Number(v ?? 0);
 const fmt = (n: number) => n.toFixed(2);
 const eq = (a: number, b: number) => Math.abs(a - b) < 0.005;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Written on the OPENING_BALANCE_EQUITY account at the first commit — the reasoning where an accountant reads it. */
-export const OBE_ACCOUNT_DESCRIPTION =
-  "Temporary balancing account of a migration from a previous system. Normally ZERO: a source position that balances lands every balance — " +
-  "including old equity and retained earnings — on a named account, so nothing is carried here. It carries a balance only when the migration " +
-  "declared that the source kept no equity detail (the difference between its debits and credits), and that balance is moved to Retained earnings " +
-  "by an explicit, dated clearing journal posted by the accountant — never automatically. Written only by the migration's opening journal, its " +
-  "reversal, and that clearing journal; every ordinary entry is refused this account.";
 
 type Refusal = { code: string; error: string; field?: string };
 const refuse = (status: number, r: Refusal): never => { throw new BusinessRuleError(status, { error: r.error, code: r.code, field: r.field ?? "id" }); };
@@ -147,6 +139,14 @@ export const migrationCommitService = {
     const hash = contentHashOf(content);
     if (hash !== batch.contentHash) refuse(409, { code: "migration_content_changed", error: "The staged content changed since validation; validate again before committing." });
     const position = await computeOpeningPosition(batch, content);
+    // 🔴 A5: the position balances on named accounts or nothing posts — the
+    // FIRST refusal, before any write, with its own code and the guidance.
+    // Validation already refused this; it is re-asserted at the commit
+    // boundary because a boundary that trusts an earlier check is a
+    // convention wearing an invariant's clothes.
+    if (!eq(position.totals.difference, 0)) {
+      refuse(409, { code: "migration_unbalanced", error: `The opening position does not balance: ${fmt(Math.abs(position.totals.difference))} ${position.totals.difference < 0 ? "on the debit side" : "on the credit side"} is unexplained. Classify the difference into named accounts and validate again; nothing is carried on a balancing account.` });
+    }
     const failing = position.controls.filter((c) => c.status === "fail");
     if (failing.length > 0) refuse(409, { code: "migration_validation_failed", error: `Validation no longer passes: ${failing.map((c) => c.id).join(", ")}. Validate again.` });
     const [live] = await migrationRepository.findLiveBatch();
@@ -260,14 +260,7 @@ export const migrationCommitService = {
     for (const c of position.arByCustomer) lines.push({ systemCode: SYSTEM_ACCOUNTS.AR, accountName: "Accounts Receivable", debitAmount: c.total, creditAmount: 0, party: { type: "customer", customerId: customerIdBySource.get(c.partySourceId)! }, description: `${desc} — ${c.items} open item(s) of ${c.partyName ?? c.partySourceId}` });
     for (const v of position.apByVendor) lines.push({ systemCode: SYSTEM_ACCOUNTS.AP, accountName: "Accounts Payable", debitAmount: 0, creditAmount: v.total, party: { type: "vendor", vendorId: vendorIdBySource.get(v.partySourceId)! }, description: `${desc} — ${v.items} open item(s) of ${v.partyName ?? v.partySourceId}` });
     for (const d of position.depositsByCustomer) lines.push({ systemCode: SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS, accountName: "Customer deposits and advances", debitAmount: 0, creditAmount: d.total, party: { type: "customer", customerId: customerIdBySource.get(d.partySourceId)! }, description: `${desc} — ${d.items} advance(s) held for ${d.partyName ?? d.partySourceId}` });
-    const residual = position.totals.openingBalanceEquity; // credit − debit over the mapped rows
-    if (!eq(residual, 0)) {
-      if (!(batch.obeResidualReason ?? "").trim()) refuse(409, { code: "migration_validation_failed", error: "The position does not balance and no residual declaration exists." });
-      lines.push({ systemCode: SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY, accountName: "Opening balance equity (migration)", debitAmount: residual > 0 ? residual : 0, creditAmount: residual < 0 ? -residual : 0, description: `Declared residual of the source position: ${batch.obeResidualReason}` });
-    }
     const je = await postJournalEntry({ entryNumber: `MIG-${batch.id}-OPEN`, date: batch.openingDate, description: desc, reference: `migration:${batch.id}`, lines, source: "opening", migrationBatchId: batch.id });
-    const [obeCat] = await migrationRepository.systemCategories([SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY]);
-    if (obeCat && !obeCat.description) await migrationRepository.updateCategory(obeCat.id, { description: OBE_ACCOUNT_DESCRIPTION });
 
     // 5. Advances → deposits held: payments rows whose deposit line is in the opening journal.
     const bankByCode = new Map(chart.filter((r) => r.decision === "map_to_bank").map((r) => [r.sourceCode, r.targetBankAccountId!]));
@@ -394,16 +387,19 @@ export const migrationCommitService = {
     const r5ok = eq(assets, round2(liabilities + equity + income - expense));
     push("R5", "Assets = Liabilities + Equity (+ YTD result) at cutover − 1; total debits = total credits", r5ok && eq(jeDebit, jeCredit), assets, round2(liabilities + equity + income - expense), `assets ${fmt(assets)}; liabilities ${fmt(liabilities)}; equity ${fmt(equity)}; YTD income ${fmt(income)} − expense ${fmt(expense)} = ${fmt(round2(income - expense))}.`);
 
-    // R6: OBE explicit and explainable — warns while non-zero. Signed as the
-    // ledger holds it (Dr − Cr): the residual `credit − debit` of the mapped
-    // rows is exactly the DEBIT the OBE line had to carry.
-    const obe = round2(ledger.filter((l) => l.systemCode === SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY).reduce((s, l) => s + l.balance, 0));
-    const obeExpected = position.totals.openingBalanceEquity;
-    checks.push({
-      id: "R6", title: "OPENING_BALANCE_EQUITY = the declared residual of the source position; 0 after the accountant's clearing journal",
-      status: !eq(obe, obeExpected) ? "fail" : eq(obe, 0) ? "pass" : "warn", expected: obeExpected, actual: obe,
-      detail: !eq(obe, obeExpected) ? `expected ${fmt(obeExpected)}, ledger ${fmt(obe)}` : eq(obe, 0) ? "Opening balance equity is 0.00 — the source position balanced on named accounts; nothing to clear." : `Opening balance equity carries ${fmt(Math.abs(obe))} ${obe < 0 ? "credit" : "debit"} under the declaration "${batch.obeResidualReason}" — the accountant moves it to Retained earnings by an explicit, dated clearing journal; it is never cleared automatically.`,
-    });
+    // R6 (A5, BLOCKING): every line of the posted opening journal lands on an
+    // account the staged content NAMED — a mapped/created/merged chart target,
+    // a bank leaf, or the AR / AP / CUSTOMER_DEPOSITS control the items and
+    // advances derive — and the journal balances on those lines alone. A line
+    // on any other account is a balancing line by definition, and there is
+    // no account for one. R1 covers the AMOUNTS per named target; this
+    // covers the SET of accounts written.
+    const namedAccountIds = new Set<number>([...resolvedByTarget.values()]);
+    for (const c of await migrationRepository.systemCategories([SYSTEM_ACCOUNTS.AR, SYSTEM_ACCOUNTS.AP, SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS])) namedAccountIds.add(c.id);
+    const unnamedLines = jeLines.filter((l) => l.accountId == null || !namedAccountIds.has(l.accountId));
+    const r6Problems = unnamedLines.map((l) => `line ${l.id} on account ${l.accountId ?? "NULL"} (${l.accountName ?? "?"}) Dr ${fmt(num(l.debitAmount))} / Cr ${fmt(num(l.creditAmount))} — not an account the staged content named`);
+    if (!eq(jeDebit, jeCredit)) r6Problems.push(`journal Dr ${fmt(jeDebit)} ≠ Cr ${fmt(jeCredit)}`);
+    push("R6", "Every opening-journal line lands on a NAMED account (mapped chart target, bank leaf, or the AR/AP/deposit control the items derive); no balancing-account line exists; Dr = Cr on those lines alone", r6Problems.length === 0, 0, unnamedLines.length, r6Problems.length === 0 ? `${jeLines.length} line(s), all on named accounts; Dr ${fmt(jeDebit)} = Cr ${fmt(jeCredit)}.` : r6Problems.join("; "));
 
     // R7: no opening item carries VAT, an ICV, a hash, a QR, a line item, an e-invoice document; none was created by the issuance path.
     const r7Problems: string[] = [];
@@ -451,45 +447,7 @@ export const migrationCommitService = {
     if (journals !== 1) r10Problems.push("opening journal not found");
     push("R10", "Source totals = committed totals (items, deposits per customer with VAT position, parties); the opening journal is one entry", r10Problems.length === 0, `${content.items.length} items, ${content.advances.length} advances, ${parties.length} parties`, `${invoices.length + bills.length} items, ${payments.length} deposits, ${parties.length - unresolvedParties} parties`, r10Problems.length === 0 ? `Deposits ${fmt(round2(position.depositsByCustomer.reduce((s, d) => s + d.total, 0)))} over ${position.depositsByCustomer.length} customer(s); ${created.customersCreated} customer(s), ${created.vendorsCreated} vendor(s), ${created.accountsCreated} account(s) created.` : r10Problems.join("; "));
 
-    return { at: new Date().toISOString(), journalEntryId, checks, figures: { assets, liabilities, equity, ytdIncome: income, ytdExpense: expense, ytdResult: nz(round2(income - expense)), ar: nz(arControl), ap: nz(apControl), deposits: nz(round2(-ledger.filter((l) => l.systemCode === SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS).reduce((s, l) => s + l.balance, 0))), vatOutput: nz(vatOut), vatInput: nz(vatIn), openingBalanceEquity: nz(obe), journalDebit: jeDebit, journalCredit: jeCredit } };
-  },
-
-  /**
-   * The accountant's explicit clearing journal: OPENING_BALANCE_EQUITY →
-   * RETAINED_EARNINGS for the balance it carries, dated as the accountant
-   * says. Never automatic; refused when there is nothing to clear.
-   */
-  async clearObe(batchId: number, body: { date?: string; description?: string | null }, userId: number | null) {
-    const [batch] = await migrationRepository.findBatchForUpdate(batchId);
-    if (!batch) throw new NotFoundError("Migration batch not found");
-    if (batch.status !== "committed") refuse(409, { code: "migration_not_committed", error: `Migration batch ${batchId} is ${batch.status}; only a committed migration's opening balance equity is cleared.` });
-    if (batch.clearingJournalEntryId != null) refuse(409, { code: "obe_already_cleared", error: `Opening balance equity of batch ${batchId} was already cleared by journal ${batch.clearingJournalEntryId}.` });
-    const date = body.date?.trim();
-    if (!date || !ISO_DATE.test(date) || Number.isNaN(Date.parse(date))) throw new BadRequestError("date must be YYYY-MM-DD — the accountant dates the clearing.");
-    if (date < batch.cutoverDate) throw new BadRequestError(`date must be on or after the cutover ${batch.cutoverDate}; the opening month holds the opening position only.`);
-    if (date > businessToday()) throw new BadRequestError("date cannot be in the future.");
-    const ledger = await migrationRepository.ledgerBalancesUpTo(businessToday());
-    // Dr − Cr as the ledger holds it: a credit balance (the usual case — the
-    // source had assets above its liabilities and no equity rows) is negative.
-    const obe = round2(ledger.filter((l) => l.systemCode === SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY).reduce((s, l) => s + l.balance, 0));
-    if (eq(obe, 0)) refuse(409, { code: "obe_nothing_to_clear", error: "Opening balance equity is 0.00 — there is nothing to clear." });
-    const description = body.description?.trim() || `Clearing of opening balance equity to retained earnings (migration batch ${batch.id})`;
-    const amount = Math.abs(obe);
-    const je = await postJournalEntry({
-      entryNumber: `MIG-${batch.id}-CLEAR`, date, description, reference: `migration:${batch.id}`, source: "opening_clearing", migrationBatchId: batch.id,
-      lines: obe < 0
-        ? [ // credit balance on OBE → debit it, credit retained earnings
-            { systemCode: SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY, accountName: "Opening balance equity (migration)", debitAmount: amount, creditAmount: 0, description },
-            { systemCode: SYSTEM_ACCOUNTS.RETAINED_EARNINGS, accountName: "Retained earnings", debitAmount: 0, creditAmount: amount, description },
-          ]
-        : [
-            { systemCode: SYSTEM_ACCOUNTS.OPENING_BALANCE_EQUITY, accountName: "Opening balance equity (migration)", debitAmount: 0, creditAmount: amount, description },
-            { systemCode: SYSTEM_ACCOUNTS.RETAINED_EARNINGS, accountName: "Retained earnings", debitAmount: amount, creditAmount: 0, description },
-          ],
-    });
-    const [updated] = await migrationRepository.updateBatch(batch.id, { clearingJournalEntryId: je.id });
-    await auditService.record({ action: "migration_obe_clear", entityType: "migration_batch", entityId: batch.id, after: { clearingJournalEntryId: je.id, amount: obe, date, by: userId } });
-    return { ...toBatchOut(updated), clearedAmount: amount, journalEntryId: je.id };
+    return { at: new Date().toISOString(), journalEntryId, checks, figures: { assets, liabilities, equity, ytdIncome: income, ytdExpense: expense, ytdResult: nz(round2(income - expense)), ar: nz(arControl), ap: nz(apControl), deposits: nz(round2(-ledger.filter((l) => l.systemCode === SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS).reduce((s, l) => s + l.balance, 0))), vatOutput: nz(vatOut), vatInput: nz(vatIn), journalDebit: jeDebit, journalCredit: jeCredit } };
   },
 
   /** Everything the reversal would have to undo, and what blocks it — computed, nothing written. */
@@ -498,10 +456,6 @@ export const migrationCommitService = {
     if (batch.status !== "committed") refuse(409, { code: "migration_not_committed", error: `Migration batch ${batchId} is ${batch.status}; only a committed migration is reversed.` });
     const [invoices, bills, payments] = await Promise.all([migrationRepository.openingInvoices(batchId), migrationRepository.openingBills(batchId), migrationRepository.openingPayments(batchId)]);
     const blockers = await migrationRepository.touchesSinceCommit(invoices.map((i) => i.inv.id), bills.map((b) => b.bill.id), payments.map((p) => p.pay.id));
-    if (batch.clearingJournalEntryId != null) {
-      const [clearing] = await migrationRepository.journalEntry(batch.clearingJournalEntryId);
-      if (clearing && clearing.status === "posted") blockers.push(`the OBE clearing journal ${clearing.entryNumber} still stands — reverse it first`);
-    }
     const [opening] = batch.openingJournalEntryId != null ? await migrationRepository.journalEntry(batch.openingJournalEntryId) : [];
     if (!opening) blockers.push("the opening journal is missing");
     else if (opening.status !== "posted") blockers.push(`the opening journal is ${opening.status}`);

@@ -267,21 +267,24 @@ export const migrationRepository = {
       .select({ inv: invoicesTable, itemId: migrationOpenItemsTable.id })
       .from(invoicesTable)
       .innerJoin(migrationOpenItemsTable, eq(migrationOpenItemsTable.id, invoicesTable.migrationOpenItemId))
-      .where(and(eq(migrationOpenItemsTable.batchId, batchId), companyScoped(invoicesTable.companyId)));
+      .where(and(eq(migrationOpenItemsTable.batchId, batchId), companyScoped(invoicesTable.companyId)))
+      .orderBy(asc(invoicesTable.id));
   },
   openingBills(batchId: number) {
     return db
       .select({ bill: billsTable, itemId: migrationOpenItemsTable.id })
       .from(billsTable)
       .innerJoin(migrationOpenItemsTable, eq(migrationOpenItemsTable.id, billsTable.migrationOpenItemId))
-      .where(and(eq(migrationOpenItemsTable.batchId, batchId), companyScoped(billsTable.companyId)));
+      .where(and(eq(migrationOpenItemsTable.batchId, batchId), companyScoped(billsTable.companyId)))
+      .orderBy(asc(billsTable.id));
   },
   openingPayments(batchId: number) {
     return db
       .select({ pay: paymentsTable, advanceId: migrationAdvancesTable.id })
       .from(paymentsTable)
       .innerJoin(migrationAdvancesTable, eq(migrationAdvancesTable.id, paymentsTable.migrationAdvanceId))
-      .where(and(eq(migrationAdvancesTable.batchId, batchId), companyScoped(paymentsTable.companyId)));
+      .where(and(eq(migrationAdvancesTable.batchId, batchId), companyScoped(paymentsTable.companyId)))
+      .orderBy(asc(paymentsTable.id));
   },
   /** What has touched the opening subledger rows since commit: the reversal refuses while any of it exists. */
   async touchesSinceCommit(invoiceIds: number[], billIds: number[], paymentIds: number[]) {

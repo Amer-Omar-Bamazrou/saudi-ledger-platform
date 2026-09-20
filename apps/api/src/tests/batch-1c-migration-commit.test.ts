@@ -1,7 +1,8 @@
 /**
  * BATCH 1C — PHASE 3: the COMMIT (one transaction), the gates R1–R10 against
- * the posted ledger, the OBE residual and its explicit clearing, the
- * REVERSAL and the corrected re-run, atomicity under injected failures,
+ * the posted ledger, the refusal of an unbalanced position (A5 — there is no
+ * balancing account and no clearing; R6 is a blocking gate with a planted
+ * positive), the REVERSAL and the corrected re-run, atomicity under injected failures,
  * post-commit immutability, isolation, and R7 (no VAT / e-invoice / ZATCA
  * event from a migration record).
  *
@@ -17,7 +18,9 @@ import { auditContext } from "../lib/auditContext";
 import { migrationService } from "../services/migration.service";
 import { migrationStagingService } from "../services/migrationStaging.service";
 import { migrationValidationService } from "../services/migrationValidation.service";
-import { migrationCommitService, OBE_ACCOUNT_DESCRIPTION } from "../services/migrationCommit.service";
+import { migrationCommitService } from "../services/migrationCommit.service";
+import { readStagedContent } from "../services/migrationStaging.service";
+import { contentHashOf, computeOpeningPosition } from "../services/migrationValidation.service";
 import { migrationRepository } from "../repositories/migration.repository";
 import { periodLocksRepository } from "../repositories/periodLocks.repository";
 import { bankAccountsService } from "../services/bankAccounts.service";
@@ -208,10 +211,10 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     expect(out.openingJournalEntryId).not.toBeNull();
     openingJeId = out.openingJournalEntryId!;
     expect(out.periodLockId).not.toBeNull();
-    const rec = out.reconciliation as { checks: { id: string; status: string; detail: string }[]; figures: Record<string, number> };
+    const rec = out.reconciliation as { checks: { id: string; status: string; detail: string; expected: unknown; actual: unknown }[]; figures: Record<string, number> };
     for (const c of rec.checks) expect(c.status, `${c.id}: ${c.detail}`).toBe("pass");
     expect(rec.checks.map((c) => c.id)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"]);
-    expect(rec.figures).toEqual({ assets: 109000, liabilities: 22500, equity: 80000, ytdIncome: 40000, ytdExpense: 33500, ytdResult: 6500, ar: 34500, ap: 11500, deposits: 5000, vatOutput: 6000, vatInput: 1500, openingBalanceEquity: 0, journalDebit: 142500, journalCredit: 142500 });
+    expect(rec.figures).toEqual({ assets: 109000, liabilities: 22500, equity: 80000, ytdIncome: 40000, ytdExpense: 33500, ytdResult: 6500, ar: 34500, ap: 11500, deposits: 5000, vatOutput: 6000, vatInput: 1500, journalDebit: 142500, journalCredit: 142500 });
     // What the commit created, counted.
     const after = await counts();
     expect(after).toEqual({ ...before, je: before.je + 1, inv: before.inv + 3, bil: before.bil + 2, pay: before.pay + 2, cus: before.cus + 2, ven: before.ven + 1, cat: before.cat + 3, locks: before.locks + 1, banks: 2 });
@@ -225,7 +228,9 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     expect(byCode("AR").map((l) => [l.party_type, Number(l.dr), Number(l.cr)])).toEqual([["customer", 14500, 0], ["customer", 20000, 0]]);
     expect(byCode("AP").map((l) => [l.party_type, Number(l.dr), Number(l.cr)])).toEqual([["vendor", 0, 7000], ["vendor", 0, 4500]]);
     expect(byCode("CUSTOMER_DEPOSITS").map((l) => [l.party_type, Number(l.cr)])).toEqual([["customer", 5000]]);
-    expect(byCode("OPENING_BALANCE_EQUITY")).toEqual([]);
+    // A5: every line lands on a NAMED account — a system code, a created/merged account code, or a bank leaf. No balancing line exists (R6, blocking).
+    expect(lines.every((l) => l.system_code != null || l.account_code != null || l.bank_account_id != null)).toBe(true);
+    expect(check(rec, "R6")).toMatchObject({ status: "pass", actual: 0 });
     expect(lines.filter((l) => l.bank_account_id != null).map((l) => [l.bank_account_id, Number(l.dr)])).toEqual([[bank1, 50000], [bank2, 20000]]);
     expect(lines.filter((l) => l.account_code != null).map((l) => [l.account_code, Number(l.dr), Number(l.cr)]).sort()).toEqual([["1400", 3000, 0], ["3100", 0, 60000], ["5200", 8500, 0]]);
     expect(byCode("RETAINED_EARNINGS").map((l) => Number(l.cr))).toEqual([20000]);
@@ -261,8 +266,6 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     // Created accounts keep the old code.
     const cats = (await pool.query(`SELECT name, account_code, type, is_posting, description FROM categories WHERE organization_id = $1 AND account_code IS NOT NULL ORDER BY account_code`, [orgId])).rows;
     expect(cats.map((c) => [c.account_code, c.name, c.type, c.is_posting])).toEqual([["1400", "Prepaid expenses", "asset", true], ["3100", "Share capital", "equity", true], ["5200", "Rent", "expense", true]]);
-    // The OBE account now explains itself where an accountant reads it.
-    expect((await pool.query(`SELECT description FROM categories WHERE organization_id = $1 AND system_code = 'OPENING_BALANCE_EQUITY'`, [orgId])).rows[0].description).toBe(OBE_ACCOUNT_DESCRIPTION);
 
     // 18/19 — the opening items are subledger records, not documents: original number and dates, outstanding as the total, no VAT, no ICV, no hash, no QR, no lines, no e-invoice document.
     const inv = (await pool.query(`SELECT invoice_number, date, due_date, status, total::numeric AS total, subtotal::numeric AS subtotal, vat_amount::numeric AS vat, icv, invoice_hash, qr_code, issued_at, is_opening, migration_open_item_id, customer_id FROM invoices WHERE company_id = $1 ORDER BY invoice_number`, [companyId])).rows;
@@ -509,61 +512,96 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     committedId = b2.id;
   });
 
-  it("🔴 12/13 — the genuine OBE residual: a source with NO equity detail is refused until declared, then carries the difference on OPENING_BALANCE_EQUITY (R6 warns), and the accountant's explicit clearing journal moves it to retained earnings — never automatically", async () => {
-    // Company 1 holds the corrected migration; the residual case runs in company 2 (its earlier batches are reversed).
+  it("🔴 12/13 (A5) — an opening position that does not balance is REFUSED, by validation AND by the commit boundary; a former declaration is not a path; classified into named accounts it commits with every line on a named account; R6 is BLOCKING and sees a planted unnamed line; clear-obe and opening_clearing do not exist", async () => {
+    // Company 1 holds the corrected migration; this case runs in company 2 (its earlier batches are reversed).
     const b = await create("2026-07-01", inCompany2);
-    const existing3100 = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND account_code = '3100'`, [orgId])).rows[0].id;
     // Spreadsheet books: bank 900, debtors 100, and NOTHING on the equity side — Dr 1,000, Cr 0.
-    await mapChart(b.id, [
-      { sourceCode: "1100", sourceName: "Co2 bank", sourceType: "asset", openingDebit: 900, sourceRole: "bank", evidenceNote: "stmt" },
-      { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset", openingDebit: 100, sourceRole: "receivable" },
-    ], { banks: [bankC2, bankC2], run: inCompany2, mergeInto: { "3100": existing3100 } });
+    const spreadsheet = [
+      { sourceCode: "1100", sourceName: "Co2 bank", sourceType: "asset" as const, openingDebit: 900, sourceRole: "bank", evidenceNote: "stmt" },
+      { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset" as const, openingDebit: 100, sourceRole: "receivable" },
+    ];
+    await mapChart(b.id, spreadsheet, { banks: [bankC2, bankC2], run: inCompany2 });
     await inCompany2(() => migrationStagingService.importParties(b.id, { rows: [{ partyType: "customer", sourceId: "C9", name: "Residual customer" }] }, userId));
     await inCompany2(() => migrationStagingService.importOpenItems(b.id, { rows: [{ itemType: "ar", sourceId: "S9", partySourceId: "C9", documentNumber: "INV-R1", issueDate: "2026-06-01", dueDate: "2026-06-30", originalAmount: 100, outstandingAmount: 100 }] }, userId));
-    // Undeclared: refused, and it says what to do.
-    const undeclared = await inCompany2(() => migrationValidationService.validate(b.id, userId));
-    expect(undeclared.ok).toBe(false);
-    expect(check(undeclared, "CHART_BALANCED")).toMatchObject({ status: "fail", expected: 1000, actual: 0 });
-    expect(check(undeclared, "CHART_BALANCED").detail).toMatch(/never plugged silently.*declare on the batch/);
-    await expectRefusal(inCompany2(() => migrationService.updateBatch(b.id, { obeResidualReason: "no equity" }, userId)), 400);
-    // Declared: validated with a WARNING, the position shows the residual, the commit carries it on OBE.
-    await inCompany2(() => migrationService.updateBatch(b.id, { obeResidualReason: "The books were kept in a spreadsheet with no capital or retained-earnings figure; the 1,000.00 net assets are the owner's equity, to be classified by the accountant." }, userId));
-    const declared = await inCompany2(() => migrationValidationService.validate(b.id, userId));
-    expect(declared.ok).toBe(true);
-    expect(check(declared, "CHART_BALANCED")).toMatchObject({ status: "warn" });
-    expect(check(declared, "CHART_BALANCED").detail).toMatch(/1000\.00 Cr will be carried on OPENING_BALANCE_EQUITY under the declaration/);
-    expect((await inCompany2(() => migrationValidationService.getOpeningPosition(b.id))).totals.openingBalanceEquity).toBe(-1000);
+
+    // 1. Unbalanced → validation FAILS, names the amount and side, tells the operator to classify — and never offers a declaration.
+    const unbalanced = await inCompany2(() => migrationValidationService.validate(b.id, userId));
+    expect(unbalanced.ok).toBe(false);
+    expect(unbalanced.status).toBe("draft");
+    expect(check(unbalanced, "CHART_BALANCED")).toMatchObject({ status: "fail", expected: 1000, actual: 0 });
+    expect(check(unbalanced, "CHART_BALANCED").detail).toMatch(/1000\.00 on the debit side is unexplained.*blocked until the difference is classified.*nothing is classified for you/i);
+    expect(check(unbalanced, "CHART_BALANCED").detail).not.toMatch(/declar|opening balance equity|OBE/i);
+    expect((await inCompany2(() => migrationValidationService.getOpeningPosition(b.id))).totals.difference).toBe(-1000);
+    await expectRefusal(inCompany2(() => migrationCommitService.commit(b.id, userId)), 409, "migration_not_validated");
+
+    // 2. The former declaration is NOT a path: a caller that still sends it changes nothing — the batch stays unbalanced and refused.
+    await inCompany2(() => migrationService.updateBatch(b.id, { obeResidualReason: "The books were kept in a spreadsheet with no capital figure; the 1,000.00 net assets are the owner's equity." } as never, userId));
+    expect((await pool.query(`SELECT to_jsonb(m) ? 'obe_residual_reason' AS has FROM migration_batches m WHERE id = $1`, [b.id])).rows[0].has).toBe(false); // the column is gone
+    expect((await inCompany2(() => migrationValidationService.validate(b.id, userId))).ok).toBe(false);
+
+    // 3. The COMMIT boundary refuses on its own, even when validation is bypassed by a raw write (a planted "validated" state with the true hash).
+    const content = await inCompany2(() => readStagedContent(b as never));
+    const batchRow = (await inCompany2(() => migrationService.requireBatch(b.id)));
+    const hash = contentHashOf(await inCompany2(() => readStagedContent(batchRow)));
+    await pool.query(`UPDATE migration_batches SET status = 'validated', content_hash = $2, validated_at = now() WHERE id = $1`, [b.id, hash]);
+    const openingJournals = async () => (await pool.query(`SELECT count(*)::int n FROM journal_entries WHERE company_id = $1 AND source = 'opening'`, [company2Id])).rows[0].n as number;
+    const journalsBefore = await openingJournals();
+    await expectRefusal(inCompany2(() => migrationCommitService.commit(b.id, userId)), 409, "migration_unbalanced", /1000\.00 on the debit side is unexplained.*Classify the difference into named accounts/);
+    expect(await openingJournals()).toBe(journalsBefore); // nothing posted
+    expect((await pool.query(`SELECT status FROM migration_batches WHERE id = $1`, [b.id])).rows[0].status).toBe("validated"); // the planted state is still there — the refusal was the commit's own
+    void content;
+
+    // 4. Classified: the operator adds the row that carries the difference — the owner's capital, a CREATED equity account — and it commits on named accounts only.
+    const classified = [...spreadsheet, { sourceCode: "3000", sourceName: "Owner's capital", sourceType: "equity" as const, openingCredit: 1000, evidenceNote: "owner's statement of capital contributed" }];
+    await mapChart(b.id, classified, { banks: [bankC2, bankC2], run: inCompany2 });
+    const cap = (await inCompany2(() => migrationService.getChart(b.id))).rows.find((r) => r.sourceCode === "3000")!;
+    await inCompany2(() => migrationService.decideChartRow(b.id, cap.id, { decision: "create" }, userId));
+    await inCompany2(() => migrationStagingService.importParties(b.id, { rows: [{ partyType: "customer", sourceId: "C9", name: "Residual customer" }] }, userId));
+    await inCompany2(() => migrationStagingService.importOpenItems(b.id, { rows: [{ itemType: "ar", sourceId: "S9", partySourceId: "C9", documentNumber: "INV-R1", issueDate: "2026-06-01", dueDate: "2026-06-30", originalAmount: 100, outstandingAmount: 100 }] }, userId));
+    const balanced = await inCompany2(() => migrationValidationService.validate(b.id, userId));
+    expect(balanced.ok, balanced.checks.filter((c) => c.status === "fail").map((c) => `${c.id}: ${c.detail}`).join(" | ")).toBe(true);
+    expect(check(balanced, "CHART_BALANCED")).toMatchObject({ status: "pass", expected: 1000, actual: 1000 });
+    expect((await inCompany2(() => migrationValidationService.getOpeningPosition(b.id))).totals.difference).toBe(0);
     const out = await inCompany2(() => migrationCommitService.commit(b.id, userId));
     expect(out.status).toBe("committed");
     const rec = out.reconciliation as { checks: { id: string; status: string; detail: string; expected: unknown; actual: unknown }[]; figures: Record<string, number> };
-    expect(check(rec, "R6")).toMatchObject({ status: "warn", actual: -1000 });
-    expect(check(rec, "R6").detail).toMatch(/carries 1000\.00 credit under the declaration.*never cleared automatically/);
-    expect(check(rec, "R5").status).toBe("pass");
-    expect(rec.figures).toMatchObject({ assets: 1000, liabilities: 0, equity: 1000, openingBalanceEquity: -1000 });
-    const obeLine = (await pool.query(`SELECT l.credit_amount::numeric AS cr, l.description FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = $1 AND c.system_code = 'OPENING_BALANCE_EQUITY'`, [out.openingJournalEntryId])).rows;
-    expect(obeLine).toHaveLength(1);
-    expect(Number(obeLine[0].cr)).toBe(1000);
-    expect(obeLine[0].description).toMatch(/Declared residual of the source position: The books were kept in a spreadsheet/);
+    for (const c of rec.checks) expect(c.status, `${c.id}: ${c.detail}`).toBe("pass");
+    expect(check(rec, "R6")).toMatchObject({ status: "pass", expected: 0, actual: 0 });
+    expect(check(rec, "R6").detail).toMatch(/3 line\(s\), all on named accounts; Dr 1000\.00 = Cr 1000\.00/);
+    expect(rec.figures).toMatchObject({ assets: 1000, liabilities: 0, equity: 1000 });
+    expect(rec.figures).not.toHaveProperty("openingBalanceEquity");
+    const capLine = (await pool.query(`SELECT c.account_code, c.type, l.credit_amount::numeric AS cr FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = $1 AND c.account_code = '3000'`, [out.openingJournalEntryId])).rows;
+    expect(capLine).toEqual([{ account_code: "3000", type: "equity", cr: "1000.00" }]);
+    expect(sysBal(await ledgerAt("2026-06-30", inCompany2), "RETAINED_EARNINGS")).toBe(0); // NOT forced into retained earnings — the operator named capital
 
-    // 13 — the clearing journal: explicit, dated by the accountant, through the seam, source opening_clearing.
-    await expectRefusal(inCompany2(() => migrationCommitService.clearObe(b.id, { date: "2026-06-30" }, userId)), 400); // not in the opening month
-    await expectRefusal(inCompany2(() => migrationCommitService.clearObe(b.id, { date: "2099-01-01" }, userId)), 400);
-    const cleared = await inCompany2(() => migrationCommitService.clearObe(b.id, { date: "2026-07-01", description: "Owner's equity per the accountant's classification" }, userId));
-    expect(cleared.clearedAmount).toBe(1000);
-    const clr = (await pool.query(`SELECT entry_number, date, source, status FROM journal_entries WHERE id = $1`, [cleared.journalEntryId])).rows[0];
-    expect(clr).toEqual({ entry_number: `MIG-${b.id}-CLEAR`, date: "2026-07-01", source: "opening_clearing", status: "posted" });
-    const afterClear = await ledgerAt("2026-07-01", inCompany2);
-    expect(sysBal(afterClear, "OPENING_BALANCE_EQUITY")).toBe(0);
-    expect(sysBal(afterClear, "RETAINED_EARNINGS")).toBe(-1000);
-    expect(sysBal(await ledgerAt("2026-06-30", inCompany2), "OPENING_BALANCE_EQUITY")).toBe(-1000); // the opening date still shows the declared residual; the clearing is a dated act
-    await expectRefusal(inCompany2(() => migrationCommitService.clearObe(b.id, { date: "2026-07-02" }, userId)), 409, "obe_already_cleared");
-    // A standing clearing journal blocks the reversal; once it is reversed (the ordinary JE reversal), the migration can be reversed.
-    expect((await inCompany2(() => migrationCommitService.reversalPreview(b.id))).blockers).toEqual([expect.stringMatching(/OBE clearing journal MIG-\d+-CLEAR still stands/)]);
-    await inCompany2(() => journalEntriesService.reverse(cleared.journalEntryId));
+    // 5. R6 is BLOCKING and sees an unnamed line: plant a balanced pair on SUSPENSE (an account the staged content never named) and re-run the gates.
+    const suspense = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'SUSPENSE'`, [orgId])).rows[0].id;
+    const planted = await pool.query(
+      `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'planted',5,0), ($1,$2,$3,$4,'planted',0,5) RETURNING id`,
+      [orgId, company2Id, out.openingJournalEntryId, suspense],
+    );
+    const b2row = await inCompany2(() => migrationService.requireBatch(b.id));
+    const content2 = await inCompany2(() => readStagedContent(b2row));
+    const position2 = await inCompany2(() => computeOpeningPosition(b2row, content2));
+    const replay = await inCompany2(() => migrationCommitService.reconcile(b2row, content2, position2, out.openingJournalEntryId!, { invoiceIds: [], billIds: [], paymentIds: [], customersCreated: 0, vendorsCreated: 0, accountsCreated: 0 }));
+    expect(check(replay, "R6")).toMatchObject({ status: "fail", actual: 2 });
+    expect(check(replay, "R6").detail).toMatch(/planted.*not an account the staged content named/);
+    expect(check(replay, "R5").status).toBe("pass"); // the pair balances — only R6 sees that it is on the wrong account, which is the point of R6
+    await pool.query(`DELETE FROM journal_entry_lines WHERE id = ANY($1::int[])`, [planted.rows.map((r) => r.id)]);
+    expect(check(await inCompany2(async () => migrationCommitService.reconcile(b2row, content2, position2, out.openingJournalEntryId!, { invoiceIds: [], billIds: [], paymentIds: [], customersCreated: 0, vendorsCreated: 0, accountsCreated: 0 })), "R6").status).toBe("pass");
+
+    // 6/7. No clearing exists — not as a method, not as a journal source, not as a row anywhere.
+    expect((migrationCommitService as Record<string, unknown>).clearObe).toBeUndefined();
+    await expect(inCompany2(() => postJournalEntry({ entryNumber: "B1C-CLR-X", date: "2026-07-01", description: "no such thing", source: "opening_clearing" as never, lines: [
+      { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 },
+      { systemCode: "RETAINED_EARNINGS", accountName: "Retained earnings", debitAmount: 0, creditAmount: 1 },
+    ] }))).rejects.toSatisfy((e: unknown) => /journal_entries_source_chk/.test(String((e as { cause?: { message?: string } }).cause?.message ?? (e as Error).message)));
+    expect((await pool.query(`SELECT count(*)::int n FROM journal_entries WHERE source = 'opening_clearing'`)).rows[0].n).toBe(0);
+    expect((await pool.query(`SELECT count(*)::int n FROM categories WHERE system_code = 'OPENING_BALANCE_EQUITY'`)).rows[0].n).toBe(0);
     expect((await inCompany2(() => migrationCommitService.reversalPreview(b.id))).blockers).toEqual([]);
-    const rev = await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "residual fixture teardown" }, userId));
+    const rev = await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "classified-position fixture teardown" }, userId));
     expect(rev.status).toBe("reversed");
-    expect(sysBal(await ledgerAt("2026-06-30", inCompany2), "OPENING_BALANCE_EQUITY")).toBe(0);
+    expect(sysBal(await ledgerAt("2026-06-30", inCompany2), "RETAINED_EARNINGS")).toBe(0);
   });
 
   it("the ledger must be EMPTY before the opening date: a company with history cannot receive an opening position on top of it — a reversed migration's own netted pair is not history", async () => {

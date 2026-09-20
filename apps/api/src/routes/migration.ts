@@ -29,10 +29,10 @@ router.put("/batches/:id/advances", migrationController.importAdvances);
 router.get("/batches/:id/opening-position", migrationController.openingPosition);
 router.post("/batches/:id/validate", migrationController.validate);
 
-// Phase 3 — the commit (one transaction, R1–R10 as gates), the accountant's
-// OBE clearing journal, and the reversal. All admin-only writes.
+// Phase 3 — the commit (one transaction, R1–R10 as gates) and the reversal.
+// All admin-only writes. (There is no clear-obe: an unbalanced position is
+// refused before commit — accountant A5, 2026-09-20.)
 router.post("/batches/:id/commit", migrationController.commit);
-router.post("/batches/:id/clear-obe", migrationController.clearObe);
 router.get("/batches/:id/reversal-preview", migrationController.reversalPreview);
 router.post("/batches/:id/reverse", migrationController.reverse);
 

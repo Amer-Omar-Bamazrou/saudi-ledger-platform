@@ -14,11 +14,12 @@
  * lands; nothing is guessed from a name; unmapped rows block the migration.
  *
  * What this service NEVER does: post anything before commit; invent a
- * balancing amount; let an old receivable/payable account become a second
- * control account; land a balance on the CASH header or on
- * OPENING_BALANCE_EQUITY by mapping; skip a row that carries a balance.
+ * balancing amount (there is no opening-balance-equity account — accountant
+ * A5, 2026-09-20; an unbalanced position is refused); let an old
+ * receivable/payable account become a second control account; land a
+ * balance on the CASH header by mapping; skip a row that carries a balance.
  */
-import { SYSTEM_ACCOUNTS, MIGRATION_ONLY_SYSTEM_CODES } from "@workspace/db";
+import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import type { MigrationBatch, MigrationChartRow } from "@workspace/db";
 import { round2 } from "../lib/money";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
@@ -82,16 +83,16 @@ const ROLE_KIND: Record<string, "map_to_bank"> = { bank: "map_to_bank", cash: "m
 /** The system codes an old CONTROL account may map to — and nothing else. */
 const CONTROL_ROLE_TARGET: Record<string, string> = { receivable: SYSTEM_ACCOUNTS.AR, payable: SYSTEM_ACCOUNTS.AP };
 
-/** System accounts a mapping may name. CASH is a header; OPENING_BALANCE_EQUITY is the balancing side, never a target. */
+/** System accounts a mapping may name. CASH is a header and is never a target. */
 function mappableSystemCodes(): Set<string> {
-  return new Set(Object.values(SYSTEM_ACCOUNTS).filter((c) => c !== SYSTEM_ACCOUNTS.CASH && !MIGRATION_ONLY_SYSTEM_CODES.includes(c)));
+  return new Set(Object.values(SYSTEM_ACCOUNTS).filter((c) => c !== SYSTEM_ACCOUNTS.CASH));
 }
 
 /** The type a system code has — a mapping across types is refused (an old expense cannot become AR). */
 const SYSTEM_TYPE: Record<string, string> = {
   AR: "asset", CASH: "asset", SUSPENSE: "asset", TRANSFER_CLEARING: "asset", TRANSFER_SUSPENSE: "asset", VAT_INPUT: "asset",
   AP: "liability", VAT_OUTPUT: "liability", SALARIES_PAYABLE: "liability", GOSI_PAYABLE: "liability", CUSTOMER_DEPOSITS: "liability", CUSTOMER_CREDITS: "liability",
-  EXTERNAL_TRANSFERS: "equity", OPENING_BALANCE_EQUITY: "equity", RETAINED_EARNINGS: "equity",
+  EXTERNAL_TRANSFERS: "equity", RETAINED_EARNINGS: "equity",
   SALES: "income",
   PURCHASES: "expense", SALARIES: "expense", GOSI_EXPENSE: "expense",
 };
@@ -115,11 +116,9 @@ function toBatchOut(b: MigrationBatch) {
     openingDate: b.openingDate,
     notes: b.notes ?? null,
     vatPosition: (b.vatPosition ?? null) as VatPositionInput | null,
-    obeResidualReason: b.obeResidualReason ?? null,
     periodLockId: b.periodLockId ?? null,
     contentHash: b.contentHash ?? null,
     openingJournalEntryId: b.openingJournalEntryId ?? null,
-    clearingJournalEntryId: b.clearingJournalEntryId ?? null,
     reversalJournalEntryId: b.reversalJournalEntryId ?? null,
     createdBy: b.createdBy ?? null,
     validatedAt: b.validatedAt ? b.validatedAt.toISOString() : null,
@@ -244,18 +243,11 @@ export const migrationService = {
 
   assertDraft,
 
-  async updateBatch(id: number, body: { notes?: string | null; sourceVersion?: string | null; vatPosition?: VatPositionInput | null; obeResidualReason?: string | null }, userId: number | null) {
+  async updateBatch(id: number, body: { notes?: string | null; sourceVersion?: string | null; vatPosition?: VatPositionInput | null }, userId: number | null) {
     const batch = await this.requireBatch(id);
     assertDraft(batch);
     const values: Partial<MigrationBatch> = {};
     if ("notes" in body) values.notes = body.notes?.trim() || null;
-    // The explicit residual declaration (pack §15.6 R6): why the source
-    // position does not balance and what the accountant will clear.
-    if ("obeResidualReason" in body) {
-      const reason = body.obeResidualReason?.trim() || null;
-      if (reason != null && reason.length < 20) throw new BadRequestError("obeResidualReason must say, in at least 20 characters, why the source position does not balance and what the difference is — it is read by the accountant who clears it.");
-      values.obeResidualReason = reason;
-    }
     if ("sourceVersion" in body) values.sourceVersion = body.sourceVersion?.trim() || null;
     if ("vatPosition" in body) {
       const v = body.vatPosition;
@@ -275,7 +267,7 @@ export const migrationService = {
     }
     const [updated] = await migrationRepository.updateBatch(id, values);
     await this.touch(batch);
-    await auditService.record({ action: "migration_batch_update", entityType: "migration_batch", entityId: id, before: { notes: batch.notes, sourceVersion: batch.sourceVersion, vatPosition: batch.vatPosition, obeResidualReason: batch.obeResidualReason }, after: { ...values, by: userId } });
+    await auditService.record({ action: "migration_batch_update", entityType: "migration_batch", entityId: id, before: { notes: batch.notes, sourceVersion: batch.sourceVersion, vatPosition: batch.vatPosition }, after: { ...values, by: userId } });
     return toBatchOut(updated);
   },
 
@@ -361,7 +353,6 @@ export const migrationService = {
         const code = body.targetSystemCode?.trim();
         if (!code) throw new BadRequestError("map_to_system needs targetSystemCode.");
         if (!mappableSystemCodes().has(code)) {
-          if (MIGRATION_ONLY_SYSTEM_CODES.includes(code)) refuse(`${code} is the migration's balancing account and is never a mapping target — the opening journal derives it.`);
           if (code === SYSTEM_ACCOUNTS.CASH) refuse(`CASH is a non-posting header; map a bank or cash account to its own bank (map_to_bank).`);
           refuse(`${code} is not a system account of this platform.`);
         }

@@ -19,11 +19,4 @@ export interface UpdateMigrationBatchInput {
      */
   sourceVersion?: string | null;
   vatPosition?: MigrationVatPosition | null;
-  /**
-     * Declare, for the accountant, why the source position does not balance and what the difference is. Without it an unbalanced chart is refused.
-     * @minLength 20
-     * @maxLength 1000
-     * @nullable
-     */
-  obeResidualReason?: string | null;
 }

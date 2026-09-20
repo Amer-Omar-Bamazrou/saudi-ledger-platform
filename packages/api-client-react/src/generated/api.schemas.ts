@@ -4131,11 +4131,6 @@ export interface MigrationBatch {
   notes: string | null;
   vatPosition: MigrationVatPosition | null;
   /**
-     * The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala.
-     * @nullable
-     */
-  obeResidualReason: string | null;
-  /**
      * The lock the commit placed on the opening month; lifted by the reversal.
      * @nullable
      */
@@ -4147,11 +4142,6 @@ export interface MigrationBatch {
   contentHash: string | null;
   /** @nullable */
   openingJournalEntryId: number | null;
-  /**
-     * The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic.
-     * @nullable
-     */
-  clearingJournalEntryId: number | null;
   /** @nullable */
   reversalJournalEntryId: number | null;
   /** @nullable */
@@ -4340,7 +4330,7 @@ export const MigrationChartDecisionInputDecision = {
 export interface MigrationChartDecisionInput {
   decision: MigrationChartDecisionInputDecision;
   /**
-     * map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused.
+     * map_to_system: a system account code. CASH (a header) is refused.
      * @nullable
      */
   targetSystemCode?: string | null;
@@ -4395,13 +4385,6 @@ export interface UpdateMigrationBatchInput {
      */
   sourceVersion?: string | null;
   vatPosition?: MigrationVatPosition | null;
-  /**
-     * Declare, for the accountant, why the source position does not balance and what the difference is. Without it an unbalanced chart is refused.
-     * @minLength 20
-     * @maxLength 1000
-     * @nullable
-     */
-  obeResidualReason?: string | null;
 }
 
 export type MigrationPartyInputPartyType = typeof MigrationPartyInputPartyType[keyof typeof MigrationPartyInputPartyType];
@@ -4950,8 +4933,8 @@ export type MigrationOpeningPositionTotals = {
   debit: number;
   credit: number;
   balanced: boolean;
-  /** credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0. */
-  openingBalanceEquity: number;
+  /** credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0. */
+  difference: number;
   ytdIncome: number;
   ytdExpense: number;
   /** Income − expense of the imported YTD balances (A2). */
@@ -4991,21 +4974,6 @@ export interface MigrationValidation {
   /** @nullable */
   validatedAt: string | null;
 }
-
-export interface ClearMigrationObeInput {
-  /** YYYY-MM-DD, on or after the cutover, not in the future — the accountant dates the clearing. */
-  date: string;
-  /**
-     * @maxLength 500
-     * @nullable
-     */
-  description?: string | null;
-}
-
-export type MigrationObeCleared = MigrationBatch & {
-  clearedAmount: number;
-  journalEntryId: number;
-};
 
 export interface ReverseMigrationBatchInput {
   /**

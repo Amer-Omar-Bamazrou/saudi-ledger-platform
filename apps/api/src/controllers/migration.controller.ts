@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import {
   CreateMigrationBatchBody, UpdateMigrationBatchBody, ImportMigrationChartBody, DecideMigrationChartRowBody,
   ImportMigrationPartiesBody, DecideMigrationPartyBody, ImportMigrationOpenItemsBody, ImportMigrationAdvancesBody,
-  ClearMigrationOpeningBalanceEquityBody, ReverseMigrationBatchBody,
+  ReverseMigrationBatchBody,
 } from "@workspace/api-zod";
 import { migrationCommitService } from "../services/migrationCommit.service";
 import { migrationService } from "../services/migration.service";
@@ -89,10 +89,6 @@ export const migrationController = {
   // ── Phase 3 ──
   async commit(req: Request, res: Response) {
     res.json(await migrationCommitService.commit(requireIdParam(req), req.session?.userId ?? null));
-  },
-  async clearObe(req: Request, res: Response) {
-    const body = parseOr400(ClearMigrationOpeningBalanceEquityBody.safeParse(req.body));
-    res.json(await migrationCommitService.clearObe(requireIdParam(req), body, req.session?.userId ?? null));
   },
   async reversalPreview(req: Request, res: Response) {
     res.json(await migrationCommitService.reversalPreview(requireIdParam(req)));

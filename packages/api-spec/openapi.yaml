@@ -3560,7 +3560,7 @@ paths:
       tags: [migration]
       summary: "Record the mapping decision for one old account: map_to_system, map_to_bank, create, merge_into, or skip (zero balance only, reason required)"
       description: >
-        Refused: mapping to OPENING_BALANCE_EQUITY or to the non-posting CASH header;
+        Refused: mapping to the non-posting CASH header;
         map_to_bank to a bank that is not this company's or is inactive; merge_into a
         system account or a header; skip with a non-zero balance; a receivable/payable
         role hint mapped anywhere but AR/AP; a group row with its own balance.
@@ -3784,12 +3784,12 @@ paths:
         "409":
           description: "`migration_batch_immutable`, `migration_batch_discarded`"
 
-  # ── Batch 1C Phase 3 — commit, the accountant's OBE clearing, reversal ──
+  # ── Batch 1C Phase 3 — commit, reversal. (No OBE clearing exists: an unbalanced position is refused — accountant A5, 2026-09-20.) ──
   /migration/batches/{id}/commit:
     post:
       operationId: commitMigrationBatch
       tags: [migration]
-      summary: "COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger — any blocking failure rolls everything back. Idempotent: a committed batch returns as it is."
+      summary: "COMMIT a validated batch in ONE transaction: parties → master data with source identity; created accounts; opening invoices / bills (amount-only, never issued); THE OPENING JOURNAL through the posting seam (dated cutover − 1, source = opening); deposits; bank opening state; the opening month locked; R1–R10 against the posted ledger (all blocking — R6 proves every line lands on a NAMED account; an unbalanced position is refused with `migration_unbalanced`) — any failure rolls everything back. Idempotent: a committed batch returns as it is."
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       responses:
@@ -3799,40 +3799,17 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MigrationBatchDetail" }
         "409":
-          description: "`migration_not_validated`, `migration_content_changed` (validate again), `migration_validation_failed`, `migration_already_committed`, `migration_reconciliation_failed` (nothing committed), `migration_batch_reversed`, `migration_batch_discarded`"
+          description: "`migration_not_validated`, `migration_content_changed` (validate again), `migration_validation_failed`, `migration_unbalanced` (the position does not balance on named accounts — classify the difference), `migration_already_committed`, `migration_reconciliation_failed` (nothing committed), `migration_batch_reversed`, `migration_batch_discarded`"
         "422":
           description: "`source_identity_conflict` — an existing record chosen for use_existing already represents another source party"
         "423":
           description: "`period_locked` — the opening month is closed"
 
-  /migration/batches/{id}/clear-obe:
-    post:
-      operationId: clearMigrationOpeningBalanceEquity
-      tags: [migration]
-      summary: "The accountant's EXPLICIT clearing journal: move the balance OPENING_BALANCE_EQUITY carries to RETAINED_EARNINGS, dated as the accountant says. Never automatic; refused when the balance is zero."
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: integer } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ClearMigrationObeInput" }
-      responses:
-        "200":
-          description: The batch with its clearing journal
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/MigrationObeCleared" }
-        "409":
-          description: "`migration_not_committed`, `obe_already_cleared`, `obe_nothing_to_clear`"
-        "423":
-          description: "`period_locked`"
-
   /migration/batches/{id}/reversal-preview:
     get:
       operationId: getMigrationReversalPreview
       tags: [migration]
-      summary: "What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a standing OBE clearing journal, a month closed by someone else). Computed; nothing is written."
+      summary: "What a reversal would undo, and what BLOCKS it today (a receipt allocated to an opening invoice, a credit note against one, a paid opening bill, a deposit allocated or refunded, a month closed by someone else). Computed; nothing is written."
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       responses:
@@ -8194,7 +8171,7 @@ components:
 
     MigrationBatch:
       type: object
-      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, obeResidualReason, periodLockId, contentHash, openingJournalEntryId, clearingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
+      required: [id, status, sourceSystem, sourceVersion, cutoverDate, openingDate, notes, vatPosition, periodLockId, contentHash, openingJournalEntryId, reversalJournalEntryId, createdBy, validatedAt, committedBy, committedAt, reversedAt, reversalReason, createdAt, updatedAt]
       properties:
         id: { type: integer }
         status: { type: string, enum: [draft, validated, committed, reversed, discarded] }
@@ -8207,11 +8184,9 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/MigrationVatPosition" }
             - { type: "null" }
-        obeResidualReason: { type: ["string", "null"], description: "The explicit residual declaration: why the source position does not balance and what the difference is (e.g. no equity detail was kept). NULL = the chart must balance to the halala." }
         periodLockId: { type: ["integer", "null"], description: "The lock the commit placed on the opening month; lifted by the reversal." }
         contentHash: { type: ["string", "null"], description: "SHA-256 over the canonical staged content at the last validation; commit refuses if the content moved." }
         openingJournalEntryId: { type: ["integer", "null"] }
-        clearingJournalEntryId: { type: ["integer", "null"], description: "The accountant's explicit OBE → retained-earnings journal, when posted. Never automatic." }
         reversalJournalEntryId: { type: ["integer", "null"] }
         createdBy: { type: ["integer", "null"] }
         validatedAt: { type: ["string", "null"] }
@@ -8308,7 +8283,7 @@ components:
       required: [decision]
       properties:
         decision: { type: string, enum: [map_to_system, map_to_bank, create, merge_into, skip] }
-        targetSystemCode: { type: ["string", "null"], description: "map_to_system: a system account code. OPENING_BALANCE_EQUITY and CASH are refused." }
+        targetSystemCode: { type: ["string", "null"], description: "map_to_system: a system account code. CASH (a header) is refused." }
         targetBankAccountId: { type: ["integer", "null"], description: "map_to_bank: this company's bank account; the balance lands on its D-3 leaf." }
         targetCategoryId: { type: ["integer", "null"], description: "merge_into: an existing non-system posting category of the right type; create: the PARENT header to create under (optional)." }
         skipReason: { type: ["string", "null"], maxLength: 500, description: "skip: required; only a zero-balance row may be skipped." }
@@ -8358,7 +8333,6 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/MigrationVatPosition" }
             - { type: "null" }
-        obeResidualReason: { type: ["string", "null"], minLength: 20, maxLength: 1000, description: "Declare, for the accountant, why the source position does not balance and what the difference is. Without it an unbalanced chart is refused." }
 
     MigrationPartyInput:
       type: object
@@ -8673,12 +8647,12 @@ components:
           items: { $ref: "#/components/schemas/MigrationOpeningLine" }
         totals:
           type: object
-          required: [debit, credit, balanced, openingBalanceEquity, ytdIncome, ytdExpense, ytdResult]
+          required: [debit, credit, balanced, difference, ytdIncome, ytdExpense, ytdResult]
           properties:
             debit: { type: number }
             credit: { type: number }
             balanced: { type: boolean }
-            openingBalanceEquity: { type: number, description: "credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0." }
+            difference: { type: number, description: "credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0." }
             ytdIncome: { type: number }
             ytdExpense: { type: number }
             ytdResult: { type: number, description: "Income − expense of the imported YTD balances (A2)." }
@@ -8710,22 +8684,6 @@ components:
           items: { $ref: "#/components/schemas/MigrationControlCheck" }
         contentHash: { type: ["string", "null"] }
         validatedAt: { type: ["string", "null"] }
-
-    ClearMigrationObeInput:
-      type: object
-      required: [date]
-      properties:
-        date: { type: string, description: "YYYY-MM-DD, on or after the cutover, not in the future — the accountant dates the clearing." }
-        description: { type: ["string", "null"], maxLength: 500 }
-
-    MigrationObeCleared:
-      allOf:
-        - { $ref: "#/components/schemas/MigrationBatch" }
-        - type: object
-          required: [clearedAmount, journalEntryId]
-          properties:
-            clearedAmount: { type: number }
-            journalEntryId: { type: integer }
 
     ReverseMigrationBatchInput:
       type: object

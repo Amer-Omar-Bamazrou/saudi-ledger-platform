@@ -10,8 +10,8 @@ export type MigrationOpeningPositionTotals = {
   debit: number;
   credit: number;
   balanced: boolean;
-  /** credit − debit over the mapped rows: the OBE line the opening journal would carry. A balanced, fully mapped chart gives 0. */
-  openingBalanceEquity: number;
+  /** credit − debit over the mapped rows — what remains UNCLASSIFIED. Non-zero blocks the migration (CHART_BALANCED fails); it is never posted anywhere. A balanced, fully mapped chart gives 0. */
+  difference: number;
   ytdIncome: number;
   ytdExpense: number;
   /** Income − expense of the imported YTD balances (A2). */

@@ -25,6 +25,9 @@ import { periodLocksTable } from "./periodLocks";
  * categories created, `opening` invoices/bills and deposit payments inserted,
  * ONE opening journal posted through `postJournalEntry` (source = 'opening',
  * dated cutover − 1), the reconciliation stored, the opening month locked.
+ * 🔴 The opening journal balances on NAMED accounts or the commit is refused:
+ * there is no opening-balance-equity account and no declared residual
+ * (accountant A5, 2026-09-20; decision pack §16.12.2).
  *
  * Identity is deterministic: `(company_id, source_system, source_id)` on every
  * staged row, enforced by unique indexes — a re-import of the same source row
@@ -75,20 +78,11 @@ export const migrationBatchesTable = pgTable(
      * Required whenever a chart row with a balance maps to VAT_OUTPUT / VAT_INPUT.
      */
     vatPosition: jsonb("vat_position"),
-    /**
-     * Phase 3 — the EXPLICIT residual declaration. A source position whose
-     * debits and credits differ (an Excel-kept business with no equity detail)
-     * carries the difference on OPENING_BALANCE_EQUITY ONLY when the operator
-     * states here why, for the accountant who will clear it. NULL = the chart
-     * must balance to the halala; an unbalanced chart is refused, never plugged.
-     */
-    obeResidualReason: text("obe_residual_reason"),
     /** The last validation run: { ok, checks: [...], totals: {...}, at } */
     validation: jsonb("validation"),
     /** R1–R10 as computed at commit (and re-computed after posting). */
     reconciliation: jsonb("reconciliation"),
     openingJournalEntryId: integer("opening_journal_entry_id").references(() => journalEntriesTable.id),
-    clearingJournalEntryId: integer("clearing_journal_entry_id").references(() => journalEntriesTable.id),
     reversalJournalEntryId: integer("reversal_journal_entry_id").references(() => journalEntriesTable.id),
     periodLockId: integer("period_lock_id").references(() => periodLocksTable.id, { onDelete: "set null" }),
     createdBy: integer("created_by"),
@@ -147,7 +141,7 @@ export const migrationChartRowsTable = pgTable(
     /** Evidence reference for the balance (statement page, TB export line…). */
     evidenceNote: text("evidence_note"),
     decision: text("decision"),
-    /** map_to_system → a SYSTEM_ACCOUNTS code (never OPENING_BALANCE_EQUITY, never CASH). */
+    /** map_to_system → a SYSTEM_ACCOUNTS code (never CASH, a header). */
     targetSystemCode: text("target_system_code"),
     /** map_to_bank → the bank whose D-3 leaf takes the balance. */
     targetBankAccountId: integer("target_bank_account_id").references(() => bankAccountsTable.id, { onDelete: "restrict" }),
