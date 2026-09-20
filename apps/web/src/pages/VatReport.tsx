@@ -10,14 +10,24 @@
  * The transaction figure is deliberately NOT hidden: it renders beside the
  * filing figure as a reconciliation. A gap between them is undocumented cash
  * activity — exactly what an SME should see before filing.
+ *
+ * AP-1 (2026-09-20): the deposits held at the end of the window are listed
+ * beside the return. A taxable advance is a VAT tax point at RECEIPT (GCC VAT
+ * Agreement Art. 23(1)) and needs an advance tax invoice by the 15th of the
+ * next month (IR Art. 53(1)); the boxes read documents only, so an
+ * un-invoiced advance is absent from them — this panel is where it becomes
+ * visible. The server decides every state; the page renders its list.
  */
 import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
-import { useGetVatReturn, useGetVatSummary } from "@workspace/api-client-react";
+import { Link } from "wouter";
+import { useGetVatReturn, useGetVatSummary, useGetDepositReview } from "@workspace/api-client-react";
+import { useClassificationLabels } from "@/components/payments/shared";
+import { fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { Receipt, Scale } from "lucide-react";
+import { Receipt, Scale, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,7 +35,7 @@ import { Label } from "@/components/ui/label";
 import { DualDate } from "@/components/DualDate";
 
 export default function VatReport() {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
 
@@ -39,6 +49,11 @@ export default function VatReport() {
     date_from: periodFrom ? `${periodFrom}-01` : undefined,
     date_to: periodTo ? `${periodTo}-31` : undefined,
   });
+
+  // AP-1: the deposit review list for the same window end (the return carries the summary; this is the list).
+  const { data: review, isLoading: reviewLoading } = useGetDepositReview({ period_to: periodTo || undefined });
+  const { label: classLabel, state: stateLabel } = useClassificationLabels();
+  const reviewSummary = vatReturn?.depositReview;
 
   const sales = vatReturn?.salesSection;
   const purchases = vatReturn?.purchasesSection;
@@ -191,6 +206,83 @@ export default function VatReport() {
                 </tbody>
               </table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="deposit-review-card" className={reviewSummary && reviewSummary.needsReviewCount > 0 ? "border-attention-surface/40" : ""}>
+        <CardHeader>
+          <div className="flex justify-between items-start gap-3 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className={`w-5 h-5 ${reviewSummary && reviewSummary.needsReviewCount > 0 ? "text-attention" : "text-muted-foreground"}`} />
+                {t("Customer deposits held — may carry VAT the boxes do not show", "عرابين العملاء المحتفظ بها — قد تحمل ضريبة لا تظهرها الخانات")}
+              </CardTitle>
+              <CardDescription>
+                {t(
+                  "Money received before a supply is a VAT tax point at receipt, and an advance tax invoice is due by the 15th of the following month. The return above reads documents only, so an advance that has not been invoiced is missing from it. Classify each deposit; the platform cannot issue the advance tax invoice yet.",
+                  "المبلغ المستلم قبل التوريد نقطة استحقاق ضريبية عند الاستلام، وتستحق فاتورة ضريبية عن الدفعة المقدمة بحلول اليوم الخامس عشر من الشهر التالي. يقرأ الإقرار أعلاه المستندات فقط، فالدفعة المقدمة التي لم تصدر فاتورتها غائبة عنه. صنّف كل عربون؛ ولا تستطيع المنصة إصدار الفاتورة الضريبية للدفعة المقدمة بعد.",
+                )}
+              </CardDescription>
+            </div>
+            {reviewSummary && (
+              <Badge variant="outline" className={`text-sm py-1 px-3 ${reviewSummary.needsReviewCount > 0 ? "border-attention/40 text-attention" : "text-positive"}`} data-testid="deposit-review-summary">
+                {t("Needs review", "تحتاج إلى مراجعة")}: {reviewSummary.needsReviewCount} · {formatCurrency(reviewSummary.needsReviewAmount)}
+                {reviewSummary.overdueCount > 0 ? ` · ${t("overdue", "متأخرة")}: ${reviewSummary.overdueCount}` : ""}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {reviewLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : !review || review.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4" data-testid="deposit-review-empty">
+              {t(`No customer deposits held as of ${review?.asOf ?? ""}.`, `لا توجد عرابين عملاء محتفظ بها حتى ${review?.asOf ?? ""}.`)}
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                {t(`Receipts up to ${review.asOf} whose money is still on account today. ${review.needsReviewCount} of ${review.items.length} need a decision or an advance tax invoice.`,
+                   `الإيصالات حتى ${review.asOf} التي لا يزال مبلغها على الحساب اليوم. ${review.needsReviewCount} من ${review.items.length} تحتاج إلى قرار أو فاتورة ضريبية عن دفعة مقدمة.`)}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-start" data-testid="deposit-review-table">
+                  <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
+                    <tr>
+                      <th className="px-2 sm:px-3 py-2 font-semibold hidden sm:table-cell">{t("Receipt", "الإيصال")}</th>
+                      <th className="px-2 sm:px-3 py-2 font-semibold">{t("Customer", "العميل")}</th>
+                      <th className="px-2 sm:px-3 py-2 font-semibold hidden sm:table-cell">{t("Received", "الاستلام")}</th>
+                      <th className="px-2 sm:px-3 py-2 font-semibold text-end">{t("On account", "على الحساب")}</th>
+                      <th className="px-2 sm:px-3 py-2 font-semibold hidden md:table-cell">{t("Classified as", "مصنف كـ")}</th>
+                      <th className="px-2 sm:px-3 py-2 font-semibold">{t("Status", "الحالة")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {review.items.map((i) => (
+                      <tr key={i.paymentId} className={i.needsReview ? "bg-attention-surface/5" : ""} data-testid={`deposit-review-${i.paymentId}`} data-review-state={i.reviewState} data-needs-review={i.needsReview ? "1" : "0"}>
+                        <td className="px-2 sm:px-3 py-2 font-mono text-xs whitespace-nowrap hidden sm:table-cell">RCPT-{i.paymentId}</td>
+                        <td className="px-2 sm:px-3 py-2">
+                          <Link href={`/customers/${i.customerId}`} className="text-primary hover:underline">{n(i.customerName, i.customerNameAr)}</Link>
+                          <span className="block font-mono text-xs text-muted-foreground sm:hidden">RCPT-{i.paymentId}</span>
+                        </td>
+                        <td className="px-2 sm:px-3 py-2 text-muted-foreground hidden sm:table-cell whitespace-nowrap"><DualDate date={i.paidAt} inline /></td>
+                        <td className="px-2 sm:px-3 py-2 text-end font-mono">{fmtNum(i.unappliedAmount)}</td>
+                        <td className="px-2 sm:px-3 py-2 hidden md:table-cell text-xs">{i.source === "opening" ? t("Migrated deposit", "عربون مُرحَّل") : classLabel[i.classification]}{i.vatCategory ? ` · ${i.vatCategory}` : ""}</td>
+                        <td className="px-2 sm:px-3 py-2 min-w-[6.5rem]">
+                          <span className={`text-xs ${i.needsReview ? "text-attention font-medium" : "text-muted-foreground"}`}>{stateLabel[i.reviewState]}</span>
+                          {i.deadline && (
+                            <p className={`text-xs ${i.overdue ? "text-destructive" : "text-muted-foreground"}`} data-testid={`deposit-review-deadline-${i.paymentId}`}>
+                              {i.overdue ? t("Advance tax invoice was due by", "كانت الفاتورة الضريبية للدفعة المقدمة مستحقة بحلول") : t("Advance tax invoice due by", "الفاتورة الضريبية للدفعة المقدمة مستحقة بحلول")} <span dir="ltr" className="font-mono">{i.deadline}</span>
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

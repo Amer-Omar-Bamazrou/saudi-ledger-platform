@@ -247,9 +247,14 @@ describeMaybe("same-org cross-company isolation", () => {
   // the filter to be VISIBLE, and each departure should be a deliberate edit.
   // Phase E (2026-09-17): `customers` left — its invoice reads moved to
   // `customerStatement.repository`, which filters by company explicitly.
+  // AP-1 (2026-09-20): `payments` left — its deposit-review reader
+  // (`depositsHeld`) filters by company in the query layer (N1). 🔴 Its
+  // OLDER readers (list, allocations, refunds) still rely on the row-level
+  // backstop alone; the departure is the detector's (one explicit filter in
+  // the file), not a claim that every query in it is company-scoped.
   const NO_COMPANY_FILTER = [
     "assets", "bankAccounts", "bills", "budgets", "categorize",
-    "employees", "journalEntries", "payments", "payroll",
+    "employees", "journalEntries", "payroll",
     "transactions", "vendors",
   ];
 

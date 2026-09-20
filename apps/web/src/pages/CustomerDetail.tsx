@@ -15,7 +15,7 @@ import { OpeningRecordBadge } from "@/components/migration/OpeningRecord";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { CreditNoteDetail, useCreditNoteApplications } from "@/components/payments/CreditNoteDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
-import { BankName, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
+import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
 
 /**
  * One customer, everything about them.
@@ -123,7 +123,7 @@ function PaymentRow({ p, customerName, invoiceNumbers }: { p: CustomerPayment; c
         <td className="py-3 pe-4 font-mono text-positive">{money(p.amount)}</td>
         <td className="py-3 pe-4 font-mono hidden sm:table-cell">{money(p.allocatedAmount)}</td>
         <td className="py-3 pe-4 font-mono" data-testid={`payment-row-unapplied-${p.id}`}>{money(p.unappliedAmount)}</td>
-        <td className="py-3 pe-4 hidden sm:table-cell"><PaymentStateBadge p={p} /></td>
+        <td className="py-3 pe-4 hidden sm:table-cell"><div className="flex flex-wrap gap-1"><PaymentStateBadge p={p} />{(p.unappliedAmount > 0.005 || p.classification) && <ClassificationBadge p={p} />}</div></td>
         <td className="py-3 text-end">
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen((o) => !o)} data-testid={`payment-toggle-${p.id}`} aria-expanded={open}>
             {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

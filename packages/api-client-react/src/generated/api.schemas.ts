@@ -1232,6 +1232,16 @@ export type VatReturnPeriod = {
   to: string;
 };
 
+/**
+ * AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box.
+ */
+export type VatReturnDepositReview = {
+  asOf: string;
+  needsReviewCount: number;
+  needsReviewAmount: number;
+  overdueCount: number;
+};
+
 export interface VatReturnSalesSection {
   box1_standardRatedDomesticSales: number;
   box2_zeroRatedDomesticSales: number;
@@ -1255,6 +1265,8 @@ export interface VatReturnPurchasesSection {
 
 export interface VatReturn {
   period: VatReturnPeriod;
+  /** AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box. */
+  depositReview: VatReturnDepositReview;
   salesSection: VatReturnSalesSection;
   purchasesSection: VatReturnPurchasesSection;
   netVatDue: number;
@@ -3117,6 +3129,32 @@ export interface PaymentAllocationInput {
   amount: number;
 }
 
+/**
+ * Only with `advance`.
+ * @nullable
+ */
+export type ReceivePaymentInputVatCategory = typeof ReceivePaymentInputVatCategory[keyof typeof ReceivePaymentInputVatCategory] | null;
+
+
+export const ReceivePaymentInputVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.
+ */
+export type DepositClassification = typeof DepositClassification[keyof typeof DepositClassification];
+
+
+export const DepositClassification = {
+  advance: 'advance',
+  erroneous: 'erroneous',
+  security_deposit: 'security_deposit',
+  unknown: 'unknown',
+} as const;
+
 export interface ReceivePaymentInput {
   /**
      * The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
@@ -3147,6 +3185,18 @@ export interface ReceivePaymentInput {
   idempotencyKey?: string | null;
   /** Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account. */
   allocations?: PaymentAllocationInput[];
+  /** AP-1 — what the unapplied part is, stated at receipt (refused when nothing is unapplied). */
+  classification?: DepositClassification | null;
+  /**
+     * Only with `advance`.
+     * @nullable
+     */
+  vatCategory?: ReceivePaymentInputVatCategory;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  classificationNote?: string | null;
 }
 
 export interface AllocatePaymentInput {
@@ -3291,6 +3341,9 @@ export const CustomerPaymentDirection = {
   out: 'out',
 } as const;
 
+/**
+ * `opening` — a migrated deposit (Batch 1C).
+ */
 export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
 
 
@@ -3298,7 +3351,39 @@ export const CustomerPaymentSource = {
   manual: 'manual',
   invoice_pay: 'invoice_pay',
   settlement: 'settlement',
+  opening: 'opening',
 } as const;
+
+/**
+ * The advance's VAT category where known; only with `advance`.
+ * @nullable
+ */
+export type PaymentClassificationVatCategory = typeof PaymentClassificationVatCategory[keyof typeof PaymentClassificationVatCategory] | null;
+
+
+export const PaymentClassificationVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.
+ */
+export interface PaymentClassification {
+  id: number;
+  classification: DepositClassification;
+  /**
+     * The advance's VAT category where known; only with `advance`.
+     * @nullable
+     */
+  vatCategory: PaymentClassificationVatCategory;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  classifiedBy: number | null;
+  classifiedAt: string;
+}
 
 export interface CustomerPayment {
   id: number;
@@ -3312,6 +3397,7 @@ export interface CustomerPayment {
   method: string | null;
   /** @nullable */
   reference: string | null;
+  /** `opening` — a migrated deposit (Batch 1C). */
   source: CustomerPaymentSource;
   /** @nullable */
   idempotencyKey: string | null;
@@ -3325,7 +3411,144 @@ export interface CustomerPayment {
   /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
   unappliedAmount: number;
   allocations: PaymentAllocation[];
+  /** AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is. */
+  classification: PaymentClassification | null;
   createdAt: string;
+}
+
+/**
+ * Only with `advance`.
+ * @nullable
+ */
+export type ClassifyPaymentInputVatCategory = typeof ClassifyPaymentInputVatCategory[keyof typeof ClassifyPaymentInputVatCategory] | null;
+
+
+export const ClassifyPaymentInputVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+export interface ClassifyPaymentInput {
+  classification: DepositClassification;
+  /**
+     * Only with `advance`.
+     * @nullable
+     */
+  vatCategory?: ClassifyPaymentInputVatCategory;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type DepositReviewItemSource = typeof DepositReviewItemSource[keyof typeof DepositReviewItemSource];
+
+
+export const DepositReviewItemSource = {
+  manual: 'manual',
+  invoice_pay: 'invoice_pay',
+  settlement: 'settlement',
+  opening: 'opening',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DepositReviewItemVatCategory = typeof DepositReviewItemVatCategory[keyof typeof DepositReviewItemVatCategory] | null;
+
+
+export const DepositReviewItemVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * For a migrated deposit: the VAT position the migration recorded.
+ * @nullable
+ */
+export type DepositReviewItemMigrationVatPosition = typeof DepositReviewItemMigrationVatPosition[keyof typeof DepositReviewItemMigrationVatPosition] | null;
+
+
+export const DepositReviewItemMigrationVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+export type DepositReviewState = typeof DepositReviewState[keyof typeof DepositReviewState];
+
+
+export const DepositReviewState = {
+  unclassified: 'unclassified',
+  advance_not_invoiced: 'advance_not_invoiced',
+  vat_silent: 'vat_silent',
+  migrated_invoiced: 'migrated_invoiced',
+  migrated_unknown: 'migrated_unknown',
+} as const;
+
+export interface DepositReviewItem {
+  paymentId: number;
+  customerId: number;
+  customerName: string;
+  /** @nullable */
+  customerNameAr: string | null;
+  paidAt: string;
+  amount: number;
+  /** The deposit still held from this receipt, as of now. */
+  unappliedAmount: number;
+  /** @nullable */
+  reference: string | null;
+  source: DepositReviewItemSource;
+  classification: DepositClassification;
+  /** @nullable */
+  vatCategory: DepositReviewItemVatCategory;
+  /** @nullable */
+  classifiedAt: string | null;
+  /**
+     * For a migrated deposit: the VAT position the migration recorded.
+     * @nullable
+     */
+  migrationVatPosition: DepositReviewItemMigrationVatPosition;
+  reviewState: DepositReviewState;
+  /** Server-decided: a human still has something to decide or do for this deposit. */
+  needsReview: boolean;
+  /**
+     * For an advance: the 15th of the month after receipt (IR Art. 53(1)(b)).
+     * @nullable
+     */
+  deadline: string | null;
+  overdue: boolean;
+}
+
+export interface DepositReviewBucket {
+  count: number;
+  amount: number;
+}
+
+export type DepositReviewByState = {
+  unclassified: DepositReviewBucket;
+  advance_not_invoiced: DepositReviewBucket;
+  vat_silent: DepositReviewBucket;
+  migrated_invoiced: DepositReviewBucket;
+  migrated_unknown: DepositReviewBucket;
+};
+
+export interface DepositReview {
+  /** Receipts received on or before this date are in the frame. */
+  asOf: string;
+  today: string;
+  items: DepositReviewItem[];
+  needsReviewCount: number;
+  needsReviewAmount: number;
+  overdueCount: number;
+  byState: DepositReviewByState;
 }
 
 export interface CreditNoteApplications {
@@ -5670,6 +5893,20 @@ export type ApplyDeterministicMatchesParams = {
 bank_account_id?: number;
 date_from?: string;
 date_to?: string;
+};
+
+export type GetDepositReviewParams = {
+/**
+ * YYYY-MM — receipts up to the end of that month
+ * @pattern ^\d{4}-\d{2}$
+ */
+period_to?: string;
+/**
+ * YYYY-MM-DD — wins over period_to
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+as_of?: string;
+customer_id?: number;
 };
 
 export type GetInvoiceDocumentParams = {

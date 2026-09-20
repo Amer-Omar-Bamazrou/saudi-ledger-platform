@@ -31,6 +31,8 @@ export function invalidatePaymentQueries(qc: QueryClient) {
   for (const key of ["payments", "refunds", "customer", "customer-invoices", "customer-credits", "customer-statement", "credit-note-applications", "invoices", "bank-accounts", "ar-aging", "matching", "customers"]) {
     qc.invalidateQueries({ queryKey: [key] });
   }
+  // AP-1: the deposit review list and the return's summary move with every receipt, allocation, refund and classification (generated-client keys).
+  for (const key of ["/api/payments/deposit-review", "/api/reports/vat-return"]) qc.invalidateQueries({ queryKey: [key] });
 }
 
 /**
@@ -119,3 +121,51 @@ export function PaymentStateBadge({ p }: { p: CustomerPayment }) {
 /** A fresh idempotency key per dialog open — a double-click resolves to ONE record. */
 export const newIdempotencyKey = (prefix: string) =>
   `${prefix}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+
+// ── AP-1 (2026-09-20): what a deposit IS ─────────────────────────────────
+// The server decides every state below; these are its labels. A deposit's
+// classification is a dated statement (advance / erroneous / security
+// deposit / unknown) that nothing posts from yet; the review state says
+// whether a human still has something to decide or do for it.
+
+export const DEPOSIT_CLASSIFICATIONS = ["advance", "erroneous", "security_deposit", "unknown"] as const;
+export type DepositClassificationValue = (typeof DEPOSIT_CLASSIFICATIONS)[number];
+
+export function useClassificationLabels() {
+  const { t } = useLanguage();
+  const label: Record<DepositClassificationValue, string> = {
+    advance: t("Advance for a supply", "دفعة مقدمة لتوريد"),
+    erroneous: t("Erroneous / duplicate payment", "دفعة خاطئة / مكررة"),
+    security_deposit: t("Refundable security deposit", "تأمين قابل للاسترداد"),
+    unknown: t("Not yet classified", "غير مصنف بعد"),
+  };
+  const hint: Record<DepositClassificationValue, string> = {
+    advance: t("Money received before a taxable supply — a VAT tax point at receipt; an advance tax invoice is due by the 15th of the next month.", "مبلغ مستلم قبل توريد خاضع للضريبة — نقطة استحقاق ضريبية عند الاستلام؛ تستحق فاتورة ضريبية عن الدفعة المقدمة بحلول اليوم الخامس عشر من الشهر التالي."),
+    erroneous: t("Paid by mistake or twice — not consideration for a supply; refund it or allocate it.", "دُفع خطأً أو مرتين — ليس مقابلًا لتوريد؛ يُردّ أو يُخصَّص."),
+    security_deposit: t("Held as security and refundable — not consideration for a supply (the accountant's confirmation is pending).", "محتفظ به كتأمين قابل للاسترداد — ليس مقابلًا لتوريد (بانتظار تأكيد المحاسب)."),
+    unknown: t("Nobody has said what this money is yet. It stays on the VAT review list until classified.", "لم يُحدَّد بعد ما هذا المبلغ. يبقى في قائمة مراجعة الضريبة حتى يُصنَّف."),
+  };
+  const state: Record<string, string> = {
+    unclassified: t("Needs classification", "يحتاج إلى تصنيف"),
+    advance_not_invoiced: t("Advance — tax invoice not yet issued", "دفعة مقدمة — لم تصدر فاتورتها الضريبية بعد"),
+    vat_silent: t("No VAT expected", "لا ضريبة متوقعة"),
+    migrated_invoiced: t("Migrated — invoiced in the previous system", "مُرحَّل — صدرت فاتورته في النظام السابق"),
+    migrated_unknown: t("Migrated — VAT position unknown", "مُرحَّل — الوضع الضريبي غير معروف"),
+  };
+  return { label, hint, state };
+}
+
+/** The current classification, or the migration's VAT position for an opening deposit. */
+export function ClassificationBadge({ p }: { p: CustomerPayment }) {
+  const { t } = useLanguage();
+  const { label } = useClassificationLabels();
+  if (p.direction !== "in" || p.customerId == null) return null;
+  if (p.source === "opening") return <Badge variant="outline" className="text-xs" data-testid={`classification-${p.id}`} data-classification="opening">{t("Migrated deposit", "عربون مُرحَّل")}</Badge>;
+  const c = p.classification?.classification ?? "unknown";
+  const cls = c === "advance" ? "bg-attention-surface/20 text-attention" : c === "unknown" ? "bg-secondary text-muted-foreground" : "bg-info-surface/20 text-info";
+  return (
+    <Badge className={`text-xs ${cls}`} data-testid={`classification-${p.id}`} data-classification={c}>
+      {label[c as DepositClassificationValue]}{c === "advance" && p.classification?.vatCategory ? ` · ${p.classification.vatCategory}` : ""}
+    </Badge>
+  );
+}

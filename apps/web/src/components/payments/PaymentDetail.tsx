@@ -16,7 +16,8 @@ import { DualDate } from "@/components/DualDate";
 import { AllocateDialog } from "./AllocateDialog";
 import { UnallocateDialog } from "./UnallocateDialog";
 import { RefundDialog } from "./RefundDialog";
-import { BankName, PaymentStateBadge, PermissionHint, receiptNumber, useCanPostPayments } from "./shared";
+import { ClassifyDialog } from "./ClassifyDialog";
+import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, useCanPostPayments, useClassificationLabels } from "./shared";
 
 import type { CustomerPayment, PaymentAllocation } from "@workspace/api-client-react";
 
@@ -112,7 +113,11 @@ export function PaymentDetail({ payment, customerName, invoiceNumbers }: { payme
   const canPost = useCanPostPayments();
   const [allocating, setAllocating] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const { hint } = useClassificationLabels();
   const number = receiptNumber(payment.id);
+  // AP-1: a deposit — money on account now, or classified before — can be classified; a migrated one carries the migration's VAT position instead.
+  const classifiable = payment.direction === "in" && payment.customerId != null && payment.source !== "opening" && (payment.unappliedAmount > 0.005 || payment.classification != null);
 
   return (
     <div className="space-y-4" data-testid={`payment-detail-${payment.id}`}>
@@ -136,6 +141,25 @@ export function PaymentDetail({ payment, customerName, invoiceNumbers }: { payme
             {payment.method && <span>{t("Method", "الطريقة")}: {payment.method} · </span>}
             {payment.reference && <span>{t("Reference", "المرجع")}: <span className="font-mono">{payment.reference}</span></span>}
           </p>
+        )}
+        {(classifiable || payment.source === "opening") && (
+          <div className="flex items-start justify-between gap-2 flex-wrap border-t border-border/50 pt-2" data-testid={`deposit-classification-${payment.id}`}>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">{t("What this deposit is", "ما هذا العربون")}</p>
+              <ClassificationBadge p={payment} />
+              <p className="text-xs text-muted-foreground max-w-[min(65ch,calc(100vw-5rem))] break-words">
+                {payment.source === "opening"
+                  ? t("A migrated deposit: its VAT position (invoiced in the previous system, or unknown) is the migration's record.", "عربون مُرحَّل: وضعه الضريبي (صدرت فاتورته في النظام السابق، أو غير معروف) هو سجل الترحيل.")
+                  : hint[(payment.classification?.classification ?? "unknown") as keyof typeof hint]}
+                {payment.classification?.note && payment.source !== "opening" ? ` — ${payment.classification.note}` : ""}
+              </p>
+            </div>
+            {classifiable && (
+              <Button size="sm" variant="outline" className="h-8" disabled={!canPost} onClick={() => setClassifying(true)} data-testid={`classify-${payment.id}`}>
+                {payment.classification ? t("Reclassify", "إعادة التصنيف") : t("Classify", "تصنيف")}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -167,6 +191,7 @@ export function PaymentDetail({ payment, customerName, invoiceNumbers }: { payme
         <RefundDialog open onClose={() => setRefunding(false)} customer={{ id: payment.customerId, name: customerName }}
           source={{ origin: "deposit", paymentId: payment.id, label: number, available: payment.unappliedAmount }} />
       )}
+      {classifying && <ClassifyDialog open onClose={() => setClassifying(false)} payment={payment} customerName={customerName} />}
     </div>
   );
 }

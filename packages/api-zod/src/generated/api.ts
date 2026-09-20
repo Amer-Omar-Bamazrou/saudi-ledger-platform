@@ -2822,6 +2822,12 @@ export const GetVatReturnResponse = zod.object({
   "from": zod.string(),
   "to": zod.string()
 }),
+  "depositReview": zod.object({
+  "asOf": zod.string(),
+  "needsReviewCount": zod.number(),
+  "needsReviewAmount": zod.number(),
+  "overdueCount": zod.number()
+}).describe('AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET \/payments\/deposit-review). A who-finds-out figure beside the return, never a box.'),
   "salesSection": zod.object({
   "box1_standardRatedDomesticSales": zod.number(),
   "box2_zeroRatedDomesticSales": zod.number(),
@@ -5460,7 +5466,7 @@ export const ListPaymentsResponseItem = zod.object({
   "paidAt": zod.string(),
   "method": zod.string().nullable(),
   "reference": zod.string().nullable(),
-  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']).describe('`opening` — a migrated deposit (Batch 1C).'),
   "idempotencyKey": zod.string().nullable(),
   "journalEntryId": zod.number(),
   "sourceTransactionId": zod.number().nullable(),
@@ -5480,6 +5486,14 @@ export const ListPaymentsResponseItem = zod.object({
   "createdAt": zod.string()
 }),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
 })),
+  "classification": zod.union([zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
   "createdAt": zod.string()
 })
 export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem)
@@ -5499,6 +5513,8 @@ export const receivePaymentBodyIdempotencyKeyMax = 120;
 
 export const receivePaymentBodyAllocationsItemAmountExclusiveMin = 0;
 
+export const receivePaymentBodyClassificationNoteMax = 500;
+
 
 
 export const ReceivePaymentBody = zod.object({
@@ -5512,7 +5528,10 @@ export const ReceivePaymentBody = zod.object({
   "allocations": zod.array(zod.object({
   "invoiceId": zod.number(),
   "amount": zod.number().gt(receivePaymentBodyAllocationsItemAmountExclusiveMin)
-})).optional().describe('Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice\'s outstanding. Omit for a receipt on account.')
+})).optional().describe('Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice\'s outstanding. Omit for a receipt on account.'),
+  "classification": zod.union([zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),zod.null()]).optional().describe('AP-1 — what the unapplied part is, stated at receipt (refused when nothing is unapplied).'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullish().describe('Only with `advance`.'),
+  "classificationNote": zod.string().max(receivePaymentBodyClassificationNoteMax).nullish()
 })
 
 export const ReceivePaymentResponse = zod.object({
@@ -5524,7 +5543,7 @@ export const ReceivePaymentResponse = zod.object({
   "paidAt": zod.string(),
   "method": zod.string().nullable(),
   "reference": zod.string().nullable(),
-  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']).describe('`opening` — a migrated deposit (Batch 1C).'),
   "idempotencyKey": zod.string().nullable(),
   "journalEntryId": zod.number(),
   "sourceTransactionId": zod.number().nullable(),
@@ -5544,6 +5563,14 @@ export const ReceivePaymentResponse = zod.object({
   "createdAt": zod.string()
 }),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
 })),
+  "classification": zod.union([zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
   "createdAt": zod.string()
 })
 
@@ -5907,13 +5934,91 @@ export const UnmatchResponse = zod.object({
 
 
 /**
- * @summary One payment with its allocations
+ * Every live receipt received on or before the frame date whose unapplied remainder is still positive NOW, with its current classification and a server-decided review state. A taxable advance is a VAT tax point at receipt (GCC VAT Agreement Art. 23(1)) that requires an advance tax invoice by the 15th of the following month (IR Art. 53(1)); the return's boxes read documents only, so this list is where an un-invoiced advance becomes visible. `needsReview` is a who-finds-out figure, never a box. The frame is stated on the response (`asOf`): the remainder is as of now, the receipt date is the filter.
+ * @summary AP-1 — the deposits held, and which of them may owe VAT (a reader; nothing posts)
  */
-export const GetPaymentParams = zod.object({
+export const getDepositReviewQueryPeriodToRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const getDepositReviewQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetDepositReviewQueryParams = zod.object({
+  "period_to": zod.coerce.string().regex(getDepositReviewQueryPeriodToRegExp).optional().describe('YYYY-MM — receipts up to the end of that month'),
+  "as_of": zod.coerce.string().regex(getDepositReviewQueryAsOfRegExp).optional().describe('YYYY-MM-DD — wins over period_to'),
+  "customer_id": zod.coerce.number().optional()
+})
+
+export const GetDepositReviewResponse = zod.object({
+  "asOf": zod.string().describe('Receipts received on or before this date are in the frame.'),
+  "today": zod.string(),
+  "items": zod.array(zod.object({
+  "paymentId": zod.number(),
+  "customerId": zod.number(),
+  "customerName": zod.string(),
+  "customerNameAr": zod.string().nullable(),
+  "paidAt": zod.string(),
+  "amount": zod.number(),
+  "unappliedAmount": zod.number().describe('The deposit still held from this receipt, as of now.'),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable(),
+  "classifiedAt": zod.string().nullable(),
+  "migrationVatPosition": zod.union([zod.literal('invoiced'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('For a migrated deposit: the VAT position the migration recorded.'),
+  "reviewState": zod.enum(['unclassified', 'advance_not_invoiced', 'vat_silent', 'migrated_invoiced', 'migrated_unknown']),
+  "needsReview": zod.boolean().describe('Server-decided: a human still has something to decide or do for this deposit.'),
+  "deadline": zod.string().nullable().describe('For an advance: the 15th of the month after receipt (IR Art. 53(1)(b)).'),
+  "overdue": zod.boolean()
+})),
+  "needsReviewCount": zod.number(),
+  "needsReviewAmount": zod.number(),
+  "overdueCount": zod.number(),
+  "byState": zod.object({
+  "unclassified": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+}),
+  "advance_not_invoiced": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+}),
+  "vat_silent": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+}),
+  "migrated_invoiced": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+}),
+  "migrated_unknown": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+})
+})
+})
+
+
+/**
+ * A NEW classification record each time (the receipt is append-only and the history stays readable); the newest is current. Informational in AP-1: no VAT is posted, altered or decided from it. Refused for a receipt with no customer, a migrated opening deposit (its VAT position is the migration's record), a reversed opening deposit, or a receipt that was fully allocated when recorded (never a deposit).
+ * @summary AP-1 — say what a deposit is: advance / erroneous / security_deposit / unknown (a dated record; nothing posts)
+ */
+export const ClassifyPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const GetPaymentResponse = zod.object({
+export const classifyPaymentBodyNoteMax = 500;
+
+export const classifyPaymentBodyIdempotencyKeyMax = 120;
+
+
+
+export const ClassifyPaymentBody = zod.object({
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullish().describe('Only with `advance`.'),
+  "note": zod.string().max(classifyPaymentBodyNoteMax).nullish(),
+  "idempotencyKey": zod.string().max(classifyPaymentBodyIdempotencyKeyMax).nullish()
+})
+
+export const ClassifyPaymentResponse = zod.object({
   "id": zod.number(),
   "direction": zod.enum(['in', 'out']),
   "customerId": zod.number().nullable(),
@@ -5922,7 +6027,7 @@ export const GetPaymentResponse = zod.object({
   "paidAt": zod.string(),
   "method": zod.string().nullable(),
   "reference": zod.string().nullable(),
-  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']).describe('`opening` — a migrated deposit (Batch 1C).'),
   "idempotencyKey": zod.string().nullable(),
   "journalEntryId": zod.number(),
   "sourceTransactionId": zod.number().nullable(),
@@ -5942,6 +6047,80 @@ export const GetPaymentResponse = zod.object({
   "createdAt": zod.string()
 }),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
 })),
+  "classification": zod.union([zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary AP-1 — every classification a receipt has carried, oldest first
+ */
+export const ListPaymentClassificationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListPaymentClassificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.')
+export const ListPaymentClassificationsResponse = zod.array(ListPaymentClassificationsResponseItem)
+
+
+/**
+ * @summary One payment with its allocations
+ */
+export const GetPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPaymentResponse = zod.object({
+  "id": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "customerId": zod.number().nullable(),
+  "bankAccountId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "method": zod.string().nullable(),
+  "reference": zod.string().nullable(),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']).describe('`opening` — a migrated deposit (Batch 1C).'),
+  "idempotencyKey": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "sourceTransactionId": zod.number().nullable(),
+  "allocatedAmount": zod.number().describe('Σ ACTIVE allocations (a corrected allocation no longer counts).'),
+  "refundedAmount": zod.number().describe('Phase C — Σ deposit refunds paid out of this receipt.'),
+  "unappliedAmount": zod.number().describe('The customer\'s deposit still held from this receipt (amount − allocated − refunded).'),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('Set when this allocation posted its own entry (a later allocation of a deposit); null when folded into the receipt\'s entry.'),
+  "createdAt": zod.string(),
+  "reversedBy": zod.union([zod.object({
+  "id": zod.number(),
+  "journalEntryId": zod.number().describe('The correcting entry (UNALLOC-<id>): Dr AR \/ Cr the origin\'s liability.'),
+  "reason": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
+})),
+  "classification": zod.union([zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
   "createdAt": zod.string()
 })
 
@@ -5977,7 +6156,7 @@ export const AllocatePaymentResponse = zod.object({
   "paidAt": zod.string(),
   "method": zod.string().nullable(),
   "reference": zod.string().nullable(),
-  "source": zod.enum(['manual', 'invoice_pay', 'settlement']),
+  "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']).describe('`opening` — a migrated deposit (Batch 1C).'),
   "idempotencyKey": zod.string().nullable(),
   "journalEntryId": zod.number(),
   "sourceTransactionId": zod.number().nullable(),
@@ -5997,6 +6176,14 @@ export const AllocatePaymentResponse = zod.object({
   "createdAt": zod.string()
 }),zod.null()]).describe('Phase A — the correction that superseded this allocation, or null while it is active. The allocation row itself is never edited.')
 })),
+  "classification": zod.union([zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
+  "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable().describe('The advance\'s VAT category where known; only with `advance`.'),
+  "note": zod.string().nullable(),
+  "classifiedBy": zod.number().nullable(),
+  "classifiedAt": zod.string()
+}).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
   "createdAt": zod.string()
 })
 

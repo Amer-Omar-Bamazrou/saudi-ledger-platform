@@ -10,6 +10,7 @@ import { customersRepository } from "../repositories/customers.repository";
 // write-side constant was the two-constants disease glPosting diagnoses for itself.
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { businessToday } from "@workspace/shared";
+import { depositReviewService, endOfMonth } from "./depositReview.service";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -726,6 +727,10 @@ export const reportsService = {
   async vatReturn(period_from?: string, period_to?: string) {
     const dateFrom = period_from ? `${period_from}-01` : "1900-01-01";
     const dateTo = period_to ? `${period_to}-31` : "2099-12-31";
+    // AP-1: the deposits held at the end of the window that may carry VAT the
+    // boxes do not show — a WHO-FINDS-OUT figure beside the return, never a
+    // box (advance-payments decision pack §4; the boxes read documents only).
+    const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
 
     const [invoiceRows, invoiceLines, billRows, billLines] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
@@ -807,6 +812,7 @@ export const reportsService = {
     const netVatDue = outputVat - inputVat;
     return {
       period: { from: dateFrom, to: dateTo },
+      depositReview: { asOf: review.asOf, needsReviewCount: review.needsReviewCount, needsReviewAmount: fmt2(review.needsReviewAmount), overdueCount: review.overdueCount },
       salesSection: {
         box1_standardRatedDomesticSales: fmt2(standardRatedSales),
         box2_zeroRatedDomesticSales: fmt2(zeroRatedSales),

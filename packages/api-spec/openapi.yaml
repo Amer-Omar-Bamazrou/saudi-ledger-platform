@@ -3344,6 +3344,84 @@ paths:
         "409":
           description: "`match_already_reversed`"
 
+  /payments/deposit-review:
+    get:
+      operationId: getDepositReview
+      tags: [payments]
+      summary: "AP-1 — the deposits held, and which of them may owe VAT (a reader; nothing posts)"
+      description: >
+        Every live receipt received on or before the frame date whose unapplied
+        remainder is still positive NOW, with its current classification and a
+        server-decided review state. A taxable advance is a VAT tax point at
+        receipt (GCC VAT Agreement Art. 23(1)) that requires an advance tax
+        invoice by the 15th of the following month (IR Art. 53(1)); the return's
+        boxes read documents only, so this list is where an un-invoiced advance
+        becomes visible. `needsReview` is a who-finds-out figure, never a box.
+        The frame is stated on the response (`asOf`): the remainder is as of
+        now, the receipt date is the filter.
+      parameters:
+        - { in: query, name: period_to, required: false, description: "YYYY-MM — receipts up to the end of that month", schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }
+        - { in: query, name: as_of, required: false, description: "YYYY-MM-DD — wins over period_to", schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" } }
+        - { in: query, name: customer_id, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The review list and its totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DepositReview" }
+
+  /payments/{id}/classify:
+    post:
+      operationId: classifyPayment
+      tags: [payments]
+      summary: "AP-1 — say what a deposit is: advance / erroneous / security_deposit / unknown (a dated record; nothing posts)"
+      description: >
+        A NEW classification record each time (the receipt is append-only and
+        the history stays readable); the newest is current. Informational in
+        AP-1: no VAT is posted, altered or decided from it. Refused for a
+        receipt with no customer, a migrated opening deposit (its VAT position
+        is the migration's record), a reversed opening deposit, or a receipt
+        that was fully allocated when recorded (never a deposit).
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassifyPaymentInput" }
+      responses:
+        "200":
+          description: The payment with its current classification
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPayment" }
+        "400":
+          description: Not one of the four classifications, or a VAT category outside S / Z / E
+        "404":
+          description: Not found
+        "409":
+          description: "`opening_deposit_classified_by_migration`, `opening_item_reversed`, `no_deposit_to_classify`"
+        "422":
+          description: "`classification_requires_customer`, `vat_category_requires_advance`"
+
+  /payments/{id}/classifications:
+    get:
+      operationId: listPaymentClassifications
+      tags: [payments]
+      summary: "AP-1 — every classification a receipt has carried, oldest first"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentClassification" }
+        "404":
+          description: Not found
+
   /payments/{id}:
     get:
       operationId: getPayment
@@ -5488,7 +5566,7 @@ components:
     VatReturn:
       type: object
       required:
-        [period, salesSection, purchasesSection, netVatDue, vatPayable, vatRefund, invoiceCount, billCount]
+        [period, depositReview, salesSection, purchasesSection, netVatDue, vatPayable, vatRefund, invoiceCount, billCount]
       properties:
         period:
           type: object
@@ -5496,6 +5574,15 @@ components:
           properties:
             from: { type: string }
             to: { type: string }
+        depositReview:
+          type: object
+          description: "AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box."
+          required: [asOf, needsReviewCount, needsReviewAmount, overdueCount]
+          properties:
+            asOf: { type: string }
+            needsReviewCount: { type: integer }
+            needsReviewAmount: { type: number }
+            overdueCount: { type: integer }
         salesSection:
           $ref: "#/components/schemas/VatReturnSalesSection"
         purchasesSection:
@@ -7367,6 +7454,13 @@ components:
           type: array
           items: { $ref: "#/components/schemas/PaymentAllocationInput" }
           description: Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account.
+        classification:
+          description: "AP-1 — what the unapplied part is, stated at receipt (refused when nothing is unapplied)."
+          oneOf:
+            - { $ref: "#/components/schemas/DepositClassification" }
+            - { type: "null" }
+        vatCategory: { type: ["string", "null"], enum: [S, Z, E, null], description: "Only with `advance`." }
+        classificationNote: { type: ["string", "null"], maxLength: 500 }
 
     AllocatePaymentInput:
       type: object
@@ -7463,7 +7557,7 @@ components:
 
     CustomerPayment:
       type: object
-      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, createdAt]
+      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, classification, createdAt]
       properties:
         id: { type: integer }
         direction: { type: string, enum: [in, out] }
@@ -7473,7 +7567,7 @@ components:
         paidAt: { type: string }
         method: { type: ["string", "null"] }
         reference: { type: ["string", "null"] }
-        source: { type: string, enum: [manual, invoice_pay, settlement] }
+        source: { type: string, enum: [manual, invoice_pay, settlement, opening], description: "`opening` — a migrated deposit (Batch 1C)." }
         idempotencyKey: { type: ["string", "null"] }
         journalEntryId: { type: integer }
         sourceTransactionId: { type: ["integer", "null"] }
@@ -7483,7 +7577,97 @@ components:
         allocations:
           type: array
           items: { $ref: "#/components/schemas/PaymentAllocation" }
+        classification:
+          description: "AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is."
+          oneOf:
+            - { $ref: "#/components/schemas/PaymentClassification" }
+            - { type: "null" }
         createdAt: { type: string }
+
+    PaymentClassification:
+      type: object
+      description: "AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it."
+      required: [id, classification, vatCategory, note, classifiedBy, classifiedAt]
+      properties:
+        id: { type: integer }
+        classification: { $ref: "#/components/schemas/DepositClassification" }
+        vatCategory: { type: ["string", "null"], enum: [S, Z, E, null], description: "The advance's VAT category where known; only with `advance`." }
+        note: { type: ["string", "null"] }
+        classifiedBy: { type: ["integer", "null"] }
+        classifiedAt: { type: string }
+
+    DepositClassification:
+      type: string
+      enum: [advance, erroneous, security_deposit, unknown]
+      description: >
+        advance — consideration received before a taxable supply (a VAT tax
+        point at receipt; an advance tax invoice is due); erroneous — a
+        duplicate or mistaken payment; security_deposit — refundable, not
+        consideration; unknown — not yet said.
+
+    ClassifyPaymentInput:
+      type: object
+      required: [classification]
+      properties:
+        classification: { $ref: "#/components/schemas/DepositClassification" }
+        vatCategory: { type: ["string", "null"], enum: [S, Z, E, null], description: "Only with `advance`." }
+        note: { type: ["string", "null"], maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    DepositReviewItem:
+      type: object
+      required: [paymentId, customerId, customerName, customerNameAr, paidAt, amount, unappliedAmount, reference, source, classification, vatCategory, classifiedAt, migrationVatPosition, reviewState, needsReview, deadline, overdue]
+      properties:
+        paymentId: { type: integer }
+        customerId: { type: integer }
+        customerName: { type: string }
+        customerNameAr: { type: ["string", "null"] }
+        paidAt: { type: string }
+        amount: { type: number }
+        unappliedAmount: { type: number, description: "The deposit still held from this receipt, as of now." }
+        reference: { type: ["string", "null"] }
+        source: { type: string, enum: [manual, invoice_pay, settlement, opening] }
+        classification: { $ref: "#/components/schemas/DepositClassification" }
+        vatCategory: { type: ["string", "null"], enum: [S, Z, E, null] }
+        classifiedAt: { type: ["string", "null"] }
+        migrationVatPosition: { type: ["string", "null"], enum: [invoiced, unknown, null], description: "For a migrated deposit: the VAT position the migration recorded." }
+        reviewState: { $ref: "#/components/schemas/DepositReviewState" }
+        needsReview: { type: boolean, description: "Server-decided: a human still has something to decide or do for this deposit." }
+        deadline: { type: ["string", "null"], description: "For an advance: the 15th of the month after receipt (IR Art. 53(1)(b))." }
+        overdue: { type: boolean }
+
+    DepositReviewState:
+      type: string
+      enum: [unclassified, advance_not_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
+
+    DepositReviewBucket:
+      type: object
+      required: [count, amount]
+      properties:
+        count: { type: integer }
+        amount: { type: number }
+
+    DepositReview:
+      type: object
+      required: [asOf, today, items, needsReviewCount, needsReviewAmount, overdueCount, byState]
+      properties:
+        asOf: { type: string, description: "Receipts received on or before this date are in the frame." }
+        today: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DepositReviewItem" }
+        needsReviewCount: { type: integer }
+        needsReviewAmount: { type: number }
+        overdueCount: { type: integer }
+        byState:
+          type: object
+          required: [unclassified, advance_not_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
+          properties:
+            unclassified: { $ref: "#/components/schemas/DepositReviewBucket" }
+            advance_not_invoiced: { $ref: "#/components/schemas/DepositReviewBucket" }
+            vat_silent: { $ref: "#/components/schemas/DepositReviewBucket" }
+            migrated_invoiced: { $ref: "#/components/schemas/DepositReviewBucket" }
+            migrated_unknown: { $ref: "#/components/schemas/DepositReviewBucket" }
 
     CreditNoteApplications:
       type: object

@@ -8,6 +8,7 @@
 import type { CustomerPaymentDirection } from './customerPaymentDirection';
 import type { CustomerPaymentSource } from './customerPaymentSource';
 import type { PaymentAllocation } from './paymentAllocation';
+import type { PaymentClassification } from './paymentClassification';
 
 export interface CustomerPayment {
   id: number;
@@ -21,6 +22,7 @@ export interface CustomerPayment {
   method: string | null;
   /** @nullable */
   reference: string | null;
+  /** `opening` — a migrated deposit (Batch 1C). */
   source: CustomerPaymentSource;
   /** @nullable */
   idempotencyKey: string | null;
@@ -34,5 +36,7 @@ export interface CustomerPayment {
   /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
   unappliedAmount: number;
   allocations: PaymentAllocation[];
+  /** AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is. */
+  classification: PaymentClassification | null;
   createdAt: string;
 }

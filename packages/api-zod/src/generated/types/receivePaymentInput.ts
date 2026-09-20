@@ -5,7 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { DepositClassification } from './depositClassification';
 import type { PaymentAllocationInput } from './paymentAllocationInput';
+import type { ReceivePaymentInputVatCategory } from './receivePaymentInputVatCategory';
 
 export interface ReceivePaymentInput {
   /**
@@ -37,4 +39,16 @@ export interface ReceivePaymentInput {
   idempotencyKey?: string | null;
   /** Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account. */
   allocations?: PaymentAllocationInput[];
+  /** AP-1 — what the unapplied part is, stated at receipt (refused when nothing is unapplied). */
+  classification?: DepositClassification | null;
+  /**
+     * Only with `advance`.
+     * @nullable
+     */
+  vatCategory?: ReceivePaymentInputVatCategory;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  classificationNote?: string | null;
 }

@@ -203,7 +203,11 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
   const arByCustomerInGl = async (customerId: number) => Number((await pool.query(
     `SELECT coalesce(sum(l.debit_amount - l.credit_amount),0)::numeric AS v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
       WHERE e.company_id = $1 AND c.system_code = 'AR' AND e.status IN ('posted','reversed') AND l.customer_id = $2`, [companyId, customerId])).rows[0].v);
-  const vatReturns = async () => ({ q2: await inTenant(() => reportsService.vatReturn("2026-04", "2026-06")), jul: await inTenant(() => reportsService.vatReturn("2026-07", "2026-07")) });
+  // The BOXES of the return (documents file). AP-1 (2026-09-20) added a `depositReview` summary beside them that
+  // legitimately MOVES when a receipt leaves money on deposit (the 500 excess below is one) — that is the point of it;
+  // the claim under test here is that collecting an opening receivable files nothing, so the boxes are what is compared.
+  const boxes = ({ depositReview: _review, ...rest }: Awaited<ReturnType<typeof reportsService.vatReturn>>) => rest;
+  const vatReturns = async () => ({ q2: boxes(await inTenant(() => reportsService.vatReturn("2026-04", "2026-06"))), jul: boxes(await inTenant(() => reportsService.vatReturn("2026-07", "2026-07"))) });
   const statementRow = async (bankAccountId: number, row: { date: string; description: string; amount: number; type: "credit" | "debit" }, run = inTenant) => {
     await run(() => transactionsService.upload({ rows: [{ ...row, currency: "SAR" }], autoCategrize: false, bankAccountId } as never));
     const { rows } = await pool.query(`SELECT id FROM transactions WHERE description = $1 AND bank_account_id = $2 ORDER BY id DESC LIMIT 1`, [row.description, bankAccountId]);

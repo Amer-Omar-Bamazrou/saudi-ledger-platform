@@ -2225,3 +2225,51 @@ on purpose: it predates A4/A5 and is a scope of its own.
 
 State: CLOSED 2026-09-20. Current state authority: CLAUDE.md §2.
 
+## ADVANCE VAT UNDER-DECLARATION — OPEN (recorded 2026-09-20; live exposure in shipped code; AP-1 makes it VISIBLE, AP-2/AP-3 close it)
+
+**The defect, plainly.** A customer's payment received BEFORE the supply it
+pays for is a VAT tax point on the day it arrives, to the extent received —
+GCC Common VAT Agreement Art. 23(1) ("Tax becomes due on the date of the
+supply of Goods or Services, the date of issuance of the tax invoice or upon
+partial or full receipt of the Consideration, whichever comes first, and to
+the extent of the received amount"; ZATCA-hosted text, read 2026-09-20) —
+and requires a tax invoice for the advance (VAT IR Art. 53(1)(a)(2); for a
+B2C customer a simplified one at receipt, Art. 53(7)(a)(2)+(b)), with Invoice
+Type Code 386 under ZATCA's Detailed Guideline v2 §8. Saudi Ledger records
+the cash correctly as a customer-deposit liability (Batch 1B, D-4) and
+**files nothing for it**: the VAT return (`reportsService.vatReturn`) reads
+invoices and bills only, no advance tax invoice document exists, and no VAT
+is posted on a deposit. **Consequence:** a taxable advance received in period
+P is absent from P's return — box 1 and box 6 understated by the advance's
+net and VAT — and the platform has no document with which to declare it. When
+the final invoice is later issued at full value the tax is declared in THAT
+period, so the exposure is a TIMING under-declaration on every taxable
+advance, permanent where the supply never happens. This is the LEGAL
+exposure the ERPNext comparison ranked (findings file, "Advance payments — a
+VAT tax point we cannot represent"), now stated where a future session will
+look for it.
+
+**What AP-1 did (2026-09-20, this branch): made it visible, changed no
+accounting.** Every deposit carries a dated classification record (`advance`
+/ `erroneous` / `security_deposit` / `unknown`; `payment_classifications`,
+append-only, the newest current), and the VAT return page lists every deposit
+held at the period end with a server-decided review state
+(`GET /payments/deposit-review`; the return itself carries the summary in
+`depositReview`): an unclassified deposit and an advance without its tax
+invoice are flagged as needing review, the advance with the Art. 53(1)(b)
+deadline (the 15th of the month after receipt). No VAT is posted, no document
+is created, no box moves — the figure beside the return is a WHO-FINDS-OUT
+figure, never a box. Frame stated on the response: the unapplied remainder is
+as of now, the receipt date is the filter; a deposit allocated to a full-VAT
+invoice in a later period is a timing difference this list does not show.
+
+**What closes it:** AP-2 (the advance tax invoice, type 386, VAT posted at
+issue) and AP-3 (the final invoice's prepayment adjustment — BT-113,
+KSA-30…34 — the return reading 386s in their period and 388s net, the
+credit-note precondition on refunding an invoiced advance). Both wait on the
+accountant's A1/A2 and on reading the XML Implementation Standard ¶9.5;
+record and the exact questions:
+[`docs/product/advance-payments-decision-pack.md`](../product/advance-payments-decision-pack.md)
+§8, §13.
+
+State: OPEN. Current state authority: CLAUDE.md §2.

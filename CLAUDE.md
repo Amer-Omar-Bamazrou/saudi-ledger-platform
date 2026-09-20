@@ -59,7 +59,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
 **2026-09-17** — 🔴 **BATCH 1B CLOSED** (D-4 payments, UI included; known-issues file, "BATCH 1B — CLOSED 2026-09-17").
-**2026-09-20** — 🔴 **BATCH 1C PHASES 1–4 BUILT (UI WALKED IN FOUR MODES), UNMERGED** (`feat/batch-1c-migration-opening-balances`, on top of the unmerged Batch 1B branch): the accountant's correction-policy answers A4/A5 are invariants (§4) and the pre-answer build is corrected to them; one accountant question open (a partly-settled opening item); PIH question with ZATCA. Record: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12. 🔴 **ISSUE 1 CLOSED the same day** — an opening receivable collects through every D-4 path and mints no ZATCA artefact (the hash-as-issued proxy replaced by `@workspace/shared` `isReceivableInBooks`); the Art. 40(9) relief flag is captured, not acted on; Issue 2 and historical credit notes stay refused (pack §16.15). UI record: pack §16.16.
+**2026-09-20** — 🔴 **BATCH 1B + BATCH 1C MERGED** (PR #164, merge `a290d079`): the correction policy A4/A5 as invariants (§4), Issue 1 closed; open — Issue 2 (accountant), historical credit notes and the PIH question (ZATCA). Records: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12, §16.15, §16.16. **AP-1 BUILT** — deposit classification + the VAT-review list (advance-payments pack §13); 🔴 the advance-VAT under-declaration stays OPEN until AP-2/AP-3 (known-issues file, "ADVANCE VAT UNDER-DECLARATION"), and AP-2 is BLOCKED on accountant A1/A2 and the XML Implementation Standard ¶9.5.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -596,7 +596,7 @@ seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAP
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
 file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind
-repository list in `tests/cross-company-isolation.test.ts` (11) is pinned
+repository list in `tests/cross-company-isolation.test.ts` (10) is pinned
 and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).

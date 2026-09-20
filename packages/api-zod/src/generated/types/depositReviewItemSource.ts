@@ -6,13 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * `opening` — a migrated deposit (Batch 1C).
- */
-export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
+export type DepositReviewItemSource = typeof DepositReviewItemSource[keyof typeof DepositReviewItemSource];
 
 
-export const CustomerPaymentSource = {
+export const DepositReviewItemSource = {
   manual: 'manual',
   invoice_pay: 'invoice_pay',
   settlement: 'settlement',

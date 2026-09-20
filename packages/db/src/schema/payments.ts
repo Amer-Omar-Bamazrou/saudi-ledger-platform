@@ -336,3 +336,55 @@ export const customerRefundsTable = pgTable(
 
 export type PaymentAllocationReversal = typeof paymentAllocationReversalsTable.$inferSelect;
 export type CustomerRefund = typeof customerRefundsTable.$inferSelect;
+
+/**
+ * AP-1 (2026-09-20) — WHAT A DEPOSIT IS, as the user has said so far. A
+ * receipt's unapplied remainder is a customer deposit (a liability, above);
+ * whether that money is `advance` consideration for a taxable supply (a VAT
+ * tax point at receipt — GCC VAT Agreement Art. 23(1), IR Art. 53(1)(a)(2)),
+ * an `erroneous` or duplicate payment, a refundable `security_deposit`, or
+ * still `unknown` is a FACT ABOUT THE RECEIPT that only the business knows,
+ * and it is what every later VAT step keys on (advance-payments decision
+ * pack §5, AP-1).
+ *
+ * 🔴 INFORMATIONAL in AP-1: nothing reads the classification to post, and no
+ * VAT is posted or altered anywhere because of it (the pack's A1/A2 are with
+ * the accountant). It is a dated, attributed statement — a NEW row per
+ * change, the latest row current (`payments` has no UPDATE grant, and a
+ * classification changed silently would be exactly the kind of record an
+ * auditor wants to see move). `vat_category` is the advance's VAT category
+ * where known (S / Z / E; the ZATCA line categories), only with `advance`.
+ * Append-only for the app role; one row per (payment, key) by the index.
+ */
+export const paymentClassificationsTable = pgTable(
+  "payment_classifications",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`)
+      .references(() => companiesTable.id),
+    paymentId: integer("payment_id")
+      .notNull()
+      .references(() => paymentsTable.id, { onDelete: "cascade" }),
+    classification: text("classification").notNull(),
+    vatCategory: text("vat_category"),
+    note: text("note"),
+    idempotencyKey: text("idempotency_key"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("payment_classifications_payment_idx").on(t.paymentId),
+    uniqueIndex("payment_classifications_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    check("payment_classifications_kind_chk", sql`classification IN ('advance', 'erroneous', 'security_deposit', 'unknown')`),
+    check("payment_classifications_vat_category_chk", sql`vat_category IS NULL OR vat_category IN ('S', 'Z', 'E')`),
+    check("payment_classifications_vat_category_advance_chk", sql`vat_category IS NULL OR classification = 'advance'`),
+  ],
+);
+
+export type PaymentClassification = typeof paymentClassificationsTable.$inferSelect;
