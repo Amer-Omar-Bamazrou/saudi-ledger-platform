@@ -9,18 +9,26 @@
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
-import { INVOICE_IN_BOOKS_STATUSES, isAdvanceInvoiceType } from "@workspace/shared";
+import { INVOICE_IN_BOOKS_STATUSES, ADVANCE_CREDIT_NOTE_TYPE, isAdvanceInvoiceType } from "@workspace/shared";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
-export const NOTE_TYPES = ["credit_note", "debit_note"] as const;
+/**
+ * AP-3: `advance_credit_note` is a note (ZATCA 381 with a billing reference
+ * and a reason — BR-KSA-56, BR-KSA-17) whose ORIGINAL is an advance tax
+ * invoice (386). It is its own type so no reader that sums `credit_note` as a
+ * customer credit balance can mistake it (`@workspace/shared` documentTypes).
+ */
+export const NOTE_TYPES = ["credit_note", "debit_note", ADVANCE_CREDIT_NOTE_TYPE] as const;
 export type NoteType = (typeof NOTE_TYPES)[number];
 
 export function isNoteType(documentType: string | null | undefined): documentType is NoteType {
-  return documentType === "credit_note" || documentType === "debit_note";
+  return documentType === "credit_note" || documentType === "debit_note" || documentType === ADVANCE_CREDIT_NOTE_TYPE;
 }
 
 const LABEL: Record<NoteType, string> = {
   credit_note: "credit note",
   debit_note: "debit note",
+  advance_credit_note: "credit note against an advance tax invoice",
 };
 
 /** States in which the ORIGINAL is a real, issued document a note can correct —
@@ -106,19 +114,50 @@ export async function assertNoteIsValid(input: {
       error: `A ${label} must reference an invoice, not another note.`,
     });
   }
-  // AP-2, FAIL CLOSED: a note against an ADVANCE TAX INVOICE has its own
-  // entry shape (pack §6 E5 — the VAT returns to the deposit; no revenue, no
-  // AR) and is the AP-3 build. The generic note path would post Dr Sales /
-  // Dr VAT / Cr AR against a document that carried neither, so it is refused
-  // here rather than minted wrong.
-  if (isAdvanceInvoiceType(original.documentType)) {
+
+  // ── AP-3: the two doors are kept apart by TYPE ─────────────────────────
+  // An ordinary credit/debit note against an ADVANCE TAX INVOICE is refused:
+  // its entry would post Dr Sales / Dr VAT / Cr AR against a document that
+  // carried neither (and its excess would become a Model C credit balance
+  // over cash that is still the receipt's deposit). The controlled path is
+  // `advance_credit_note` (advanceInvoicesService.creditAdvance), whose entry
+  // is E5 — Dr VAT Payable / Cr Customer deposits — and which unlocks the
+  // Batch 1B deposit refund for exactly the credited part.
+  if (input.documentType !== ADVANCE_CREDIT_NOTE_TYPE && isAdvanceInvoiceType(original.documentType)) {
     throw new BusinessRuleError(409, {
       code: "note_original_is_advance_invoice",
       error:
-        `${original.invoiceNumber} is an advance tax invoice. A ${label} against an advance tax invoice (cancelling an advance before its supply) is not supported yet — ` +
-        `advance-payments decision pack §9 AP-3.`,
+        `${original.invoiceNumber} is an advance tax invoice. It is cancelled with a credit note against the advance (POST /invoices/${original.id}/advance-credit-notes), ` +
+        `which returns the advance's VAT to the deposit and lets the receipt be refunded — not with an ordinary ${label}.`,
       field: "originalInvoiceId",
     });
+  }
+  if (input.documentType === ADVANCE_CREDIT_NOTE_TYPE) {
+    if (!isAdvanceInvoiceType(original.documentType)) {
+      throw new BusinessRuleError(409, {
+        code: "advance_credit_note_original_not_advance",
+        error: `${original.invoiceNumber} is not an advance tax invoice; a ${label} can only reference an advance tax invoice (type 386). Use an ordinary credit note.`,
+        field: "originalInvoiceId",
+      });
+    }
+    // The cap is the 386's OPEN part — issued total − adjusted by issued final
+    // invoices − already credited. An adjusted part was settled by a final
+    // invoice and is corrected by a note on THAT invoice, never here.
+    const bal = (await advanceInvoicesRepository.openBalances([original.id], input.excludeNoteId)).get(original.id) ?? { adjusted: 0, credited: 0, open: money(original.total) };
+    if (input.total > bal.open + 0.005) {
+      throw new BusinessRuleError(409, {
+        code: "advance_credit_note_exceeds_open",
+        error:
+          `This credit note is ${fmt(input.total)} but only ${fmt(bal.open)} of advance tax invoice ${original.invoiceNumber} is still open ` +
+          `(issued ${fmt(money(original.total))}, applied on final invoices ${fmt(bal.adjusted)}, already credited ${fmt(bal.credited)}). ` +
+          `An applied part is corrected by a credit note on the final invoice that applied it.`,
+        openAmount: fmt(bal.open),
+        adjustedAmount: fmt(bal.adjusted),
+        creditedAmount: fmt(bal.credited),
+        field: "total",
+      });
+    }
+    return;
   }
 
   // ── Over-crediting guard ────────────────────────────────────────────────

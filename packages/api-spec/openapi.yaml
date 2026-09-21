@@ -3982,6 +3982,49 @@ paths:
         "422":
           description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
 
+  /invoices/{id}/advance-credit-notes:
+    post:
+      operationId: createAdvanceCreditNote
+      tags: [invoices]
+      summary: "AP-3 — a DRAFT credit note against an ADVANCE tax invoice (type 386): cancel part or all of an advance before its supply"
+      description: >
+        The controlled path for an invoiced advance (ordinary credit notes
+        against a 386 are refused — 409 note_original_is_advance_invoice). A
+        ZATCA 381 whose billing reference is the 386 (BR-KSA-56) with a stated
+        reason (BR-KSA-17), for a VAT-inclusive amount at most the 386's OPEN
+        balance (issued − applied on final invoices − already credited); its
+        line is the 386's category and rate. A DRAFT — approve it
+        (`POST /invoices/{noteId}/approve`) to issue it (ICV, hash, QR,
+        e-invoice) and post `Dr VAT Payable / Cr Customer deposits` for the
+        credited VAT (accountant A2's shape reversed — pack §6 E5). The
+        receipt's un-invoiced remainder then RISES by the credited amount,
+        which is what unlocks the ordinary deposit refund
+        (`POST /payments/refunds`, origin deposit) for exactly that part. The
+        386, the receipt and the note are never edited.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The advance tax invoice (386)." }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAdvanceCreditNoteInput" }
+      responses:
+        "201":
+          description: The draft credit note (document_type advance_credit_note, originalInvoiceId = the 386)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "400":
+          description: "No positive amount; `note_reason_required`"
+        "404":
+          description: Not found
+        "409":
+          description: "`advance_credit_note_original_not_advance`, `note_original_not_issued`, `advance_credit_note_exceeds_open`"
+        "422":
+          description: "`advance_credit_note_before_advance`, `advance_amount_does_not_split`"
+        "423":
+          description: The date falls in a closed month
+
   /invoices/{id}/pay:
     post:
       operationId: payInvoice
@@ -6637,8 +6680,8 @@ components:
           description: ZATCA Phase-1 QR (base64 TLV); null until approved.
         documentType:
           type: string
-          enum: [invoice, credit_note, debit_note, advance_invoice]
-          description: "invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign)."
+          enum: [invoice, credit_note, debit_note, advance_invoice, advance_credit_note]
+          description: "invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign)."
         originalInvoiceId:
           type: ["integer", "null"]
           description: For a credit/debit note, the invoice it adjusts.
@@ -6690,6 +6733,16 @@ components:
         advanceInvoiceId: { type: integer, description: "An ISSUED advance tax invoice of this customer with an open balance." }
         amount: { type: ["number", "null"], minimum: 0, description: "VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g))." }
 
+    CreateAdvanceCreditNoteInput:
+      type: object
+      required: [amount, reason]
+      properties:
+        amount: { type: number, minimum: 0, description: "VAT inclusive; at most the 386's open balance." }
+        reason: { type: string, minLength: 1, maxLength: 500, description: "Why the advance is cancelled (KSA-10, BR-KSA-17)." }
+        date: { type: ["string", "null"], description: "Accounting date (YYYY-MM-DD). Default today; never before the 386." }
+        notes: { type: ["string", "null"] }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
     CreateAdvanceInvoiceInput:
       type: object
       required: [amount]
@@ -6706,7 +6759,7 @@ components:
     OpenAdvanceInvoice:
       type: object
       description: "AP-2 — an issued advance tax invoice with a balance a final invoice may still adjust."
-      required: [id, invoiceNumber, date, issuedAt, paymentId, receiptDate, total, subtotal, vatAmount, adjustedAmount, openAmount]
+      required: [id, invoiceNumber, date, issuedAt, paymentId, receiptDate, total, subtotal, vatAmount, adjustedAmount, creditedAmount, openAmount]
       properties:
         id: { type: integer }
         invoiceNumber: { type: string }
@@ -6718,12 +6771,13 @@ components:
         subtotal: { type: number }
         vatAmount: { type: number }
         adjustedAmount: { type: number, description: "Σ adjusted by issued final invoices." }
-        openAmount: { type: number, description: "total − adjustedAmount." }
+        creditedAmount: { type: number, description: "AP-3 — Σ issued credit notes against it." }
+        openAmount: { type: number, description: "total − adjustedAmount − creditedAmount." }
 
     ReceiptAdvanceInvoice:
       type: object
-      description: "AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it."
-      required: [id, invoiceNumber, status, date, total, subtotal, vatAmount, vatCategory, adjustedAmount, openAmount]
+      description: "AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it, with its credit notes (AP-3) beneath."
+      required: [id, invoiceNumber, status, date, total, subtotal, vatAmount, vatCategory, adjustedAmount, creditedAmount, openAmount, creditNotes]
       properties:
         id: { type: integer }
         invoiceNumber: { type: string }
@@ -6734,7 +6788,24 @@ components:
         vatAmount: { type: number }
         vatCategory: { type: ["string", "null"] }
         adjustedAmount: { type: number }
-        openAmount: { type: number, description: "0 while a draft; total − adjusted once issued." }
+        creditedAmount: { type: number, description: "AP-3 — Σ issued credit notes against this advance." }
+        openAmount: { type: number, description: "0 while a draft; total − adjusted − credited once issued." }
+        creditNotes:
+          type: array
+          items: { $ref: "#/components/schemas/AdvanceCreditNoteSummary" }
+
+    AdvanceCreditNoteSummary:
+      type: object
+      description: "AP-3 — a credit note (any status) against an advance tax invoice: the provenance chain receipt → 386 → note → refund."
+      required: [id, invoiceNumber, status, date, total, vatAmount, noteReason]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: string }
+        status: { type: string }
+        date: { type: string }
+        total: { type: number }
+        vatAmount: { type: number }
+        noteReason: { type: ["string", "null"] }
 
     PayrollRun:
       type: object
@@ -7330,7 +7401,7 @@ components:
       properties:
         seq: { type: integer }
         date: { type: string }
-        kind: { type: string, enum: [invoice, debit_note, credit_note, advance_invoice, receipt, allocation, credit_application, unallocation, refund] }
+        kind: { type: string, enum: [invoice, debit_note, credit_note, advance_invoice, advance_credit_note, receipt, allocation, credit_application, unallocation, refund] }
         documentNumber: { type: string }
         reference: { type: ["string", "null"] }
         description: { type: string }

@@ -115,6 +115,10 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   cancel: { from: ["approved"], to: "approved" },
   close: { from: ["approved"], to: "approved" },
   reopen: { from: ["approved"], to: "approved" },
+  // AP-3: a credit note against an ISSUED advance tax invoice (386). Acts on
+  // an approved record and leaves it approved — the note is a NEW draft
+  // (`invoices` row) whose own approval is the ordinary `approve` above.
+  "advance-credit-notes": { from: ["approved"], to: "approved" },
 };
 
 /**

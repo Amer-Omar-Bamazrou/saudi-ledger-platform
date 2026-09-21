@@ -5,9 +5,10 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdvanceCreditNoteSummary } from './advanceCreditNoteSummary';
 
 /**
- * AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.
+ * AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it, with its credit notes (AP-3) beneath.
  */
 export interface ReceiptAdvanceInvoice {
   id: number;
@@ -20,6 +21,9 @@ export interface ReceiptAdvanceInvoice {
   /** @nullable */
   vatCategory: string | null;
   adjustedAmount: number;
-  /** 0 while a draft; total − adjusted once issued. */
+  /** AP-3 — Σ issued credit notes against this advance. */
+  creditedAmount: number;
+  /** 0 while a draft; total − adjusted − credited once issued. */
   openAmount: number;
+  creditNotes: AdvanceCreditNoteSummary[];
 }

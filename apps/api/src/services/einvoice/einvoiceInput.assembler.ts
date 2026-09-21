@@ -233,7 +233,8 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
   // BR-KSA-17 requires BOTH the original-document reference and the reason on
   // every note. The DB CHECK enforces this at write time; re-checked here
   // because this function is also reachable from directly-constructed rows.
-  const isNote = invoice.documentType === "credit_note" || invoice.documentType === "debit_note";
+  // AP-3: the credit note against an advance is a 381 like any credit note — BR-KSA-56 wants the billing reference (the 386's number), BR-KSA-17 the reason.
+  const isNote = invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_credit_note";
   if (isNote) {
     if (!rows.originalInvoice?.invoiceNumber) {
       throw new BusinessRuleError(400, {
@@ -342,8 +343,8 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     : null;
 
   const documentType =
-    invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_invoice"
-      ? (invoice.documentType as "credit_note" | "debit_note" | "advance_invoice")
+    invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_invoice" || invoice.documentType === "advance_credit_note"
+      ? (invoice.documentType as "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note")
       : "invoice";
 
   /**

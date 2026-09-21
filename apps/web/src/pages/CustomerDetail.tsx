@@ -16,6 +16,7 @@ import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { CreditNoteDetail, useCreditNoteApplications } from "@/components/payments/CreditNoteDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
 import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
+import { isReceivableDocumentType } from "@workspace/shared";
 
 /**
  * One customer, everything about them.
@@ -237,7 +238,10 @@ export default function CustomerDetail() {
 
   // Credit notes are NOT receivables — they are listed as credits, with the
   // balance each still carries, and excluded from aging (which sums what is owed).
-  const invoices = all.filter((d) => d.documentType !== "credit_note");
+  // AP-2/AP-3: the advance documents (a 386 and the credit note against it) are
+  // neither receivables nor Model C credits — they live on the receipt card. The
+  // one definition of "carries a receivable" is @workspace/shared.
+  const invoices = all.filter((d) => isReceivableDocumentType(d.documentType));
   const creditNotes = all.filter((d) => d.documentType === "credit_note");
   const aging = computeAging(invoices);
   const who = { id: customer.id, name: customer.name };

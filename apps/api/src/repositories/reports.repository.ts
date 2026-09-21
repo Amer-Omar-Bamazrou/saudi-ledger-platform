@@ -97,7 +97,8 @@ const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_
  * additional charge, not a reversal.
  */
 export function documentSign(documentType: string | null | undefined): 1 | -1 {
-  return documentType === "credit_note" ? -1 : 1;
+  // AP-3: a credit note against an advance tax invoice reverses the advance's declared base and VAT (the return reads its line negative, in the note's period — IR Art. 40(5)).
+  return documentType === "credit_note" || documentType === "advance_credit_note" ? -1 : 1;
 }
 
 const lineJoin = () =>

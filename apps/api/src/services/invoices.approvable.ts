@@ -37,7 +37,7 @@ import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
-import { ADVANCE_INVOICE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
+import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 import { advanceInvoicesService, prepaymentsOf } from "./advanceInvoices.service";
 import type { GLLine } from "./accounting/glPosting";
@@ -57,6 +57,7 @@ const DOCUMENT_LABEL: Record<string, string> = {
   credit_note: "Credit note",
   debit_note: "Debit note",
   advance_invoice: "Advance tax invoice",
+  advance_credit_note: "Credit note against advance",
 };
 
 /**
@@ -116,7 +117,7 @@ async function assertPrepaymentsIssuable(inv: Invoice, total: number) {
   if (rows.length === 0) return [];
   const locked = await invoiceSettlementRepository.lockInvoices(rows.map((r) => r.row.advanceInvoiceId));
   const byId = new Map(locked.map((a) => [a.id, a]));
-  const adjusted = await advanceInvoicesRepository.adjustedTotals(rows.map((r) => r.row.advanceInvoiceId));
+  const balances = await advanceInvoicesRepository.openBalances(rows.map((r) => r.row.advanceInvoiceId));
   let sum = 0;
   const out: Array<{ row: (typeof rows)[number]["row"]; advance: Invoice; paymentId: number }> = [];
   for (const { row } of rows) {
@@ -128,11 +129,11 @@ async function assertPrepaymentsIssuable(inv: Invoice, total: number) {
     if ((adv.customerId ?? null) !== (inv.customerId ?? null) || adv.companyId !== inv.companyId) {
       throw new BusinessRuleError(422, { code: "prepayment_party_mismatch", error: `Advance tax invoice ${adv.invoiceNumber} belongs to a different customer or company than invoice ${inv.invoiceNumber}.`, field: "prepayments" });
     }
-    const open = Math.round((toNum(adv.total) - (adjusted.get(adv.id) ?? 0)) * 100) / 100;
+    const open = balances.get(adv.id)?.open ?? toNum(adv.total);
     if (amount > open + 0.005) {
       throw new BusinessRuleError(409, {
         code: "prepayment_exceeds_open_advance",
-        error: `Invoice ${inv.invoiceNumber} adjusts ${amount.toFixed(2)} of advance tax invoice ${adv.invoiceNumber}, but only ${open.toFixed(2)} of it is still open (another invoice adjusted the rest).`,
+        error: `Invoice ${inv.invoiceNumber} adjusts ${amount.toFixed(2)} of advance tax invoice ${adv.invoiceNumber}, but only ${open.toFixed(2)} of it is still open (another invoice adjusted, or a credit note cancelled, the rest).`,
         field: "prepayments",
         openAmount: open.toFixed(2),
       });
@@ -170,6 +171,10 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   // remaining credit, or the original may have been corrected. `excludeNoteId`
   // stops this note counting against itself on the second pass.
   if (isNoteType(inv.documentType)) {
+    // AP-3: a credit note against a 386 is capped by the 386's OPEN balance,
+    // which a concurrent final invoice or note can consume — the 386 row is
+    // locked first (the same lock the prepayment adjustment takes).
+    if (inv.documentType === ADVANCE_CREDIT_NOTE_TYPE) await invoiceSettlementRepository.lockInvoices([inv.originalInvoiceId!]);
     await assertNoteIsValid({
       documentType: inv.documentType,
       originalInvoiceId: inv.originalInvoiceId,
@@ -349,6 +354,38 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
         lines: [
           { systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `VAT declared on advance — ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0, party },
           { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on advance tax invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
+        ],
+      });
+    }
+  } else if (inv.documentType === ADVANCE_CREDIT_NOTE_TYPE) {
+    /**
+     * 🔴 AP-3 — E5, the CREDIT NOTE AGAINST AN ADVANCE TAX INVOICE (pack §6 E5;
+     * Guideline §8(g); IR Art. 40(1)(a), 40(5), 54):
+     *
+     *   Dr VAT Payable                                  [the credited VAT]
+     *       Cr Customer deposits and advances (customer) [the credited VAT]
+     *
+     * The advance is cancelled before its supply. E2 had moved the VAT part of
+     * the deposit to VAT Payable; this returns it, so the deposit is the
+     * GROSS cash again and the 386's open balance falls by the credited
+     * amount — which is exactly what raises the receipt's un-invoiced
+     * remainder and unlocks the Batch 1B deposit refund (Dr deposits / Cr
+     * bank) for that part. No AR, no revenue, no allocation, no credit
+     * balance: the money never left the receipt's deposit. The return files
+     * the note's line NEGATIVE in the note's period (documentSign −1). A
+     * zero-rated / exempt advance credits a document with no entry.
+     */
+    const [original] = await invoicesRepository.findById(inv.originalInvoiceId!);
+    if (vatAmount > 0) {
+      const party = { type: "customer" as const, customerId: inv.customerId! };
+      await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `Credit note ${inv.invoiceNumber} against advance tax invoice ${original?.invoiceNumber ?? inv.originalInvoiceId} — VAT returned to the deposit`,
+        reference: inv.invoiceNumber,
+        lines: [
+          { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on cancelled advance — ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+          { systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `Advance ${original?.invoiceNumber ?? ""} credited — VAT back on the deposit`, debitAmount: 0, creditAmount: vatAmount, party },
         ],
       });
     }

@@ -18,7 +18,7 @@
  * debit_note 383 · advance_invoice 386 (AP-2 — the PREPAYMENT tax invoice,
  * XML Implementation Standard v1.2 ¶9.5 / §11.2.1).
  */
-export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note" | "advance_invoice";
+export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note";
 
 /**
  * Standard (B2B/B2G) is CLEARED before issuance; simplified (B2C) is REPORTED

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildInvoiceXml, GENESIS_PIH } from "../services/einvoice/ubl/buildInvoiceXml";
-import { advanceInvoice, finalInvoiceWithPrepayment, simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
+import { advanceCreditNote, advanceInvoice, finalInvoiceWithPrepayment, simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import { assembleEInvoiceInput, subtypeFor, type AssembleRows } from "../services/einvoice/einvoiceInput.assembler";
 import { zatcaDirectProvider } from "../services/einvoice/zatca/zatcaDirectProvider";
 import { NotImplementedError } from "../services/einvoice/provider";
@@ -45,6 +45,15 @@ describe("M12.2 — UBL 2.1 invoice generation", () => {
     // AP-2: the prepayment (advance payment) tax invoice — XML Standard §11.2.1, subtype 01 / 02 as for an invoice.
     expect(buildInvoiceXml(advanceInvoice())).toContain('<cbc:InvoiceTypeCode name="0100000">386</cbc:InvoiceTypeCode>');
     expect(buildInvoiceXml(advanceInvoice({ subtype: "simplified", buyer: null }))).toContain('<cbc:InvoiceTypeCode name="0200000">386</cbc:InvoiceTypeCode>');
+  });
+
+  it("AP-3: the credit note against an advance is a 381 referencing the 386's number, with the reason, and no prepayment fields", () => {
+    const xml = buildInvoiceXml(advanceCreditNote());
+    expect(xml).toContain('<cbc:InvoiceTypeCode name="0100000">381</cbc:InvoiceTypeCode>');
+    expect(xml).toMatch(/<cac:BillingReference>\s*<cac:InvoiceDocumentReference>\s*<cbc:ID>ADV-0001<\/cbc:ID>/);
+    expect(xml).toContain("<cbc:InstructionNote>Order cancelled - advance returned</cbc:InstructionNote>");
+    expect(xml).toContain('<cbc:PrepaidAmount currencyID="SAR">0.00</cbc:PrepaidAmount>');
+    expect(xml).not.toContain("<cac:DocumentReference>");
   });
 
   it("AP-2: an advance invoice carries NO prepayment fields of its own — PrepaidAmount 0.00, PayableAmount = the advance", () => {

@@ -223,10 +223,15 @@ async function view(p: Payment, classification?: PaymentClassification | null): 
   const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: p.id }));
   const current = classification !== undefined ? classification : (await paymentsRepository.latestClassifications([p.id])).get(p.id) ?? null;
   const unapplied = round2(num(p.amount) - allocated - refunded);
-  const adv = (await advanceInvoicesRepository.figuresForPayments([p.id])).get(p.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, open: 0, openVat: 0 };
-  const advanceInvoices: ReceiptAdvanceInvoiceOut[] = (await advanceInvoicesRepository.advanceInvoicesOfPayment(p.id)).map(({ inv, adjusted, vatCategory }) => ({
+  const adv = (await advanceInvoicesRepository.figuresForPayments([p.id])).get(p.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, credited: 0, creditedVat: 0, open: 0, openVat: 0 };
+  const advRows = await advanceInvoicesRepository.advanceInvoicesOfPayment(p.id);
+  const noteRows = await advanceInvoicesRepository.creditNotesOfAdvances(advRows.map((r) => r.inv.id));
+  const advanceInvoices: ReceiptAdvanceInvoiceOut[] = advRows.map(({ inv, adjusted, credited, vatCategory }) => ({
     id: inv.id, invoiceNumber: inv.invoiceNumber, status: inv.status, date: inv.date, total: num(inv.total), subtotal: num(inv.subtotal), vatAmount: num(inv.vatAmount),
-    vatCategory, adjustedAmount: round2(adjusted), openAmount: inv.status === "draft" || inv.status === "submitted" ? 0 : round2(num(inv.total) - adjusted),
+    vatCategory, adjustedAmount: round2(adjusted), creditedAmount: round2(credited),
+    openAmount: inv.status === "draft" || inv.status === "submitted" ? 0 : round2(num(inv.total) - adjusted - credited),
+    // AP-3: the provenance chain reads receipt → 386 → credit note(s) → (the receipt's) refund.
+    creditNotes: noteRows.filter((n) => n.originalInvoiceId === inv.id).map((n) => ({ id: n.id, invoiceNumber: n.invoiceNumber, status: n.status, date: n.date, total: num(n.total), vatAmount: num(n.vatAmount), noteReason: n.noteReason ?? null })),
   }));
   return {
     id: p.id,

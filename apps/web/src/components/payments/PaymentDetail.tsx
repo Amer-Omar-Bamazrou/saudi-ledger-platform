@@ -6,7 +6,7 @@
  * on account. Every figure comes from the API (allocated / refunded /
  * unapplied are server-computed); the card computes nothing.
  */
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "wouter";
 import { fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -18,12 +18,13 @@ import { UnallocateDialog } from "./UnallocateDialog";
 import { RefundDialog } from "./RefundDialog";
 import { ClassifyDialog } from "./ClassifyDialog";
 import { AdvanceInvoiceDialog } from "./AdvanceInvoiceDialog";
+import { AdvanceCreditNoteDialog } from "./AdvanceCreditNoteDialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, invalidatePaymentQueries, receiptNumber, useCanPostPayments, useClassificationLabels } from "./shared";
 
-import type { CustomerPayment, PaymentAllocation } from "@workspace/api-client-react";
+import type { CustomerPayment, PaymentAllocation, ReceiptAdvanceInvoice } from "@workspace/api-client-react";
 
 export function AllocationRows({
   allocations, invoiceNumbers, customerName, sourceLabel, origin, canPost, locked,
@@ -120,10 +121,17 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
   const { toast } = useToast();
   const qc = useQueryClient();
   const [issuing, setIssuing] = useState(false);
+  // AP-3: the 386 being cancelled (a credit note against it), if any.
+  const [crediting, setCrediting] = useState<ReceiptAdvanceInvoice | null>(null);
   const isAdvance = payment.classification?.classification === "advance";
   const approve = useMutation({
     mutationFn: (id: number) => apiFetch(`/invoices/${id}/approve`, { method: "POST" }),
     onSuccess: () => { invalidatePaymentQueries(qc); toast({ title: t("Advance tax invoice issued", "صدرت الفاتورة الضريبية للدفعة المقدمة") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+  const approveNote = useMutation({
+    mutationFn: (id: number) => apiFetch(`/invoices/${id}/approve`, { method: "POST" }),
+    onSuccess: () => { invalidatePaymentQueries(qc); toast({ title: t("Credit note issued — the advance is cancelled", "صدر الإشعار الدائن — أُلغيت الدفعة المقدمة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
   if (!isAdvance && payment.advanceInvoices.length === 0) return null;
@@ -145,9 +153,9 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
         <Fact k={t("Not yet invoiced", "لم تُصدر فاتورته بعد")} v={<span className={`font-mono ${payment.uninvoicedAmount > 0.005 && isAdvance ? "text-attention" : ""}`}>{fmtNum(payment.uninvoicedAmount)}</span>} testId={`advance-uninvoiced-${payment.id}`} />
       </div>
       {payment.advanceOpenAmount > 0.005 && (
-        <p className="text-xs text-muted-foreground max-w-[min(70ch,calc(100vw-5rem))]">
-          {t("The invoiced part is applied by selecting the advance tax invoice on the customer's final invoice (the prepayment adjustment); it cannot be allocated or refunded any other way.",
-             "يُطبَّق الجزء الذي صدرت فاتورته باختيار الفاتورة الضريبية للدفعة المقدمة على الفاتورة النهائية للعميل (تسوية الدفعة المقدمة)؛ ولا يمكن تخصيصه أو ردّه بطريقة أخرى.")}
+        <p className="text-xs text-muted-foreground max-w-[min(70ch,calc(100vw-5rem))]" data-testid={`advance-open-hint-${payment.id}`}>
+          {t("The invoiced part is applied by selecting the advance tax invoice on the customer's final invoice (the prepayment adjustment). To refund it instead, first cancel the advance with a credit note (below); the refund is unlocked once the note is issued.",
+             "يُطبَّق الجزء الذي صدرت فاتورته باختيار الفاتورة الضريبية للدفعة المقدمة على الفاتورة النهائية للعميل (تسوية الدفعة المقدمة). ولردّه بدلًا من ذلك، ألغِ الدفعة المقدمة أولًا بإشعار دائن (أدناه)؛ يُتاح الردّ بعد إصدار الإشعار.")}
         </p>
       )}
       {payment.advanceInvoices.length > 0 && (
@@ -159,36 +167,76 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                 <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("Date", "التاريخ")}</th>
                 <th className="text-start pb-2 pe-3 font-medium">{t("Total", "الإجمالي")}</th>
                 <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("VAT", "الضريبة")}</th>
-                <th className="text-start pb-2 pe-3 font-medium">{t("Applied", "المطبَّق")}</th>
+                {/* Phone: the four figures above already carry applied/credited; the row keeps document, total, status and the act. */}
+                <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("Applied", "المطبَّق")}</th>
+                <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("Credited", "المُلغى")}</th>
                 <th className="text-start pb-2 pe-3 font-medium">{t("Status", "الحالة")}</th>
                 <th className="pb-2" />
               </tr>
             </thead>
             <tbody>
               {payment.advanceInvoices.map((a) => (
-                <tr key={a.id} className="border-b border-border/50" data-testid={`advance-invoice-${a.id}`} data-status={a.status}>
+                <Fragment key={a.id}>
+                <tr className="border-b border-border/50" data-testid={`advance-invoice-${a.id}`} data-status={a.status} data-open={a.openAmount}>
                   <td className="py-2 pe-3 font-mono text-xs"><Link href="/invoices" className="text-primary hover:underline">{a.invoiceNumber}</Link>{a.vatCategory ? <span className="text-muted-foreground"> · {a.vatCategory}</span> : null}</td>
                   <td className="py-2 pe-3 text-muted-foreground hidden sm:table-cell"><DualDate date={a.date} inline /></td>
                   <td className="py-2 pe-3 font-mono">{fmtNum(a.total)}</td>
                   <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell">{fmtNum(a.vatAmount)}</td>
-                  <td className="py-2 pe-3 font-mono">{fmtNum(a.adjustedAmount)}</td>
-                  <td className="py-2 pe-3"><Badge variant={a.status === "draft" || a.status === "submitted" ? "outline" : "default"} className={`text-xs ${a.status === "draft" || a.status === "submitted" ? "" : "bg-positive-surface/20 text-positive"}`}>{statusLabel(a.status)}</Badge></td>
+                  <td className="py-2 pe-3 font-mono hidden sm:table-cell">{fmtNum(a.adjustedAmount)}</td>
+                  <td className="py-2 pe-3 font-mono hidden sm:table-cell" data-testid={`advance-credited-${a.id}`}>{fmtNum(a.creditedAmount)}</td>
+                  <td className="py-2 pe-3">
+                    <Badge variant={a.status === "draft" || a.status === "submitted" ? "outline" : "default"} className={`text-xs ${a.status === "draft" || a.status === "submitted" ? "" : a.openAmount > 0.005 ? "bg-positive-surface/20 text-positive" : "bg-secondary text-muted-foreground"}`}>
+                      {a.status === "draft" || a.status === "submitted" ? statusLabel(a.status) : a.openAmount > 0.005 ? t("Issued · open", "صادرة · متبقٍ") : a.creditedAmount > 0.005 && a.adjustedAmount < 0.005 ? t("Cancelled", "مُلغاة") : t("Applied", "مطبَّقة")}
+                    </Badge>
+                  </td>
                   <td className="py-2 text-end whitespace-nowrap">
                     {(a.status === "draft" || a.status === "submitted") ? (
                       <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approve.isPending} onClick={() => approve.mutate(a.id)} data-testid={`approve-advance-${a.id}`}>
                         {t("Approve & issue", "اعتماد وإصدار")}
                       </Button>
                     ) : (
-                      <a href={`/api/invoices/${a.id}/document?lang=${lang === "ar" ? "ar" : "en"}`} download className="text-xs text-primary hover:underline">PDF</a>
+                      <span className="inline-flex items-center gap-2">
+                        {/* AP-3: cancel the open part with a credit note — the only door to refunding an invoiced advance. */}
+                        {a.openAmount > 0.005 && (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-attention" disabled={!canPost} onClick={() => setCrediting(a)} data-testid={`credit-advance-${a.id}`}>
+                            {t("Credit note", "إشعار دائن")}
+                          </Button>
+                        )}
+                        <a href={`/api/invoices/${a.id}/document?lang=${lang === "ar" ? "ar" : "en"}`} download className="text-xs text-primary hover:underline">PDF</a>
+                      </span>
                     )}
                   </td>
                 </tr>
+                {/* AP-3: the credit notes against this advance — the chain receipt → 386 → note → refund, readable on the card. */}
+                {a.creditNotes.map((n) => (
+                  <tr key={`cn-${n.id}`} className="border-b border-border/50 bg-secondary/10" data-testid={`advance-credit-note-${n.id}`} data-status={n.status}>
+                    <td className="py-2 pe-3 ps-4 font-mono text-xs" colSpan={2}>
+                      <span className="text-muted-foreground">↳ {t("Credit note", "إشعار دائن")}</span> <Link href="/invoices" className="text-primary hover:underline">{n.invoiceNumber}</Link>
+                      {n.noteReason && <span className="text-muted-foreground font-sans"> · {n.noteReason}</span>}
+                    </td>
+                    <td className="py-2 pe-3 font-mono">−{fmtNum(n.total)}</td>
+                    <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell">−{fmtNum(n.vatAmount)}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs hidden sm:table-cell" colSpan={2}><DualDate date={n.date} inline /></td>
+                    <td className="py-2 pe-3"><Badge variant={n.status === "draft" || n.status === "submitted" ? "outline" : "default"} className={`text-xs ${n.status === "draft" || n.status === "submitted" ? "" : "bg-attention-surface/20 text-attention"}`}>{statusLabel(n.status)}</Badge></td>
+                    <td className="py-2 text-end whitespace-nowrap">
+                      {(n.status === "draft" || n.status === "submitted") ? (
+                        <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approveNote.isPending} onClick={() => approveNote.mutate(n.id)} data-testid={`approve-advance-credit-note-${n.id}`}>
+                          {t("Approve & issue", "اعتماد وإصدار")}
+                        </Button>
+                      ) : (
+                        <a href={`/api/invoices/${n.id}/document?lang=${lang === "ar" ? "ar" : "en"}`} download className="text-xs text-primary hover:underline">PDF</a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
       )}
       {issuing && <AdvanceInvoiceDialog open onClose={() => setIssuing(false)} payment={payment} customerName={customerName} />}
+      {crediting && <AdvanceCreditNoteDialog open onClose={() => setCrediting(null)} advance={crediting} customerName={customerName} />}
     </div>
   );
 }
@@ -263,7 +311,7 @@ export function PaymentDetail({ payment, customerName, invoiceNumbers }: { payme
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs uppercase text-muted-foreground">{t("Allocations — where this payment went", "التخصيصات — أين ذهبت هذه الدفعة")}</p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {/* AP-2: only the UN-invoiced part of a deposit can be allocated or refunded here; the invoiced part is applied on the final invoice. */}
             {payment.direction === "in" && payment.customerId != null && payment.uninvoicedAmount > 0.005 && (
               <>

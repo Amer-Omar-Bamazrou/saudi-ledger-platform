@@ -61,6 +61,7 @@ import type {
   CompanyLogoState,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
+  CreateAdvanceCreditNoteInput,
   CreateAdvanceInvoiceInput,
   CreateAssetInput,
   CreateBillInput,
@@ -14522,6 +14523,79 @@ export const useReverseMigrationBatch = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseMigrationBatchMutationOptions(options));
+    }
+
+export const getCreateAdvanceCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/advance-credit-notes`
+}
+
+/**
+ * The controlled path for an invoiced advance (ordinary credit notes against a 386 are refused — 409 note_original_is_advance_invoice). A ZATCA 381 whose billing reference is the 386 (BR-KSA-56) with a stated reason (BR-KSA-17), for a VAT-inclusive amount at most the 386's OPEN balance (issued − applied on final invoices − already credited); its line is the 386's category and rate. A DRAFT — approve it (`POST /invoices/{noteId}/approve`) to issue it (ICV, hash, QR, e-invoice) and post `Dr VAT Payable / Cr Customer deposits` for the credited VAT (accountant A2's shape reversed — pack §6 E5). The receipt's un-invoiced remainder then RISES by the credited amount, which is what unlocks the ordinary deposit refund (`POST /payments/refunds`, origin deposit) for exactly that part. The 386, the receipt and the note are never edited.
+ * @summary AP-3 — a DRAFT credit note against an ADVANCE tax invoice (type 386): cancel part or all of an advance before its supply
+ */
+export const createAdvanceCreditNote = async (id: number,
+    createAdvanceCreditNoteInput: CreateAdvanceCreditNoteInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateAdvanceCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAdvanceCreditNoteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdvanceCreditNoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext> => {
+
+const mutationKey = ['createAdvanceCreditNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdvanceCreditNote>>, {id: number;data: BodyType<CreateAdvanceCreditNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createAdvanceCreditNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdvanceCreditNoteMutationResult = NonNullable<Awaited<ReturnType<typeof createAdvanceCreditNote>>>
+    export type CreateAdvanceCreditNoteMutationBody = BodyType<CreateAdvanceCreditNoteInput>
+    export type CreateAdvanceCreditNoteMutationError = ErrorType<void>
+
+    /**
+ * @summary AP-3 — a DRAFT credit note against an ADVANCE tax invoice (type 386): cancel part or all of an advance before its supply
+ */
+export const useCreateAdvanceCreditNote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdvanceCreditNote>>,
+        TError,
+        {id: number;data: BodyType<CreateAdvanceCreditNoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdvanceCreditNoteMutationOptions(options));
     }
 
 export const getPayInvoiceUrl = (id: number,) => {

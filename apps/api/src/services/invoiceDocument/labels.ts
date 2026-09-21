@@ -23,6 +23,8 @@ export const L = (lang: DocLang) => (en: string, ar: string) => (lang === "ar" ?
 export function documentTitle(lang: DocLang, documentType: string, buyerHasVat: boolean): string {
   const t = L(lang);
   if (documentType === "credit_note") return t("Credit Note", "إشعار دائن");
+  // AP-3: the credit note that cancels an advance tax invoice (ZATCA 381 referencing the 386).
+  if (documentType === "advance_credit_note") return t("Credit Note — Advance Payment", "إشعار دائن — دفعة مقدمة");
   if (documentType === "debit_note") return t("Debit Note", "إشعار مدين");
   // AP-2: the PREPAYMENT tax invoice (ZATCA type 386) — a tax invoice for
   // consideration received before the supply; standard or simplified by the

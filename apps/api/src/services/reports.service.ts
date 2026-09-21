@@ -11,7 +11,7 @@ import { customersRepository } from "../repositories/customers.repository";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { businessToday } from "@workspace/shared";
 import { depositReviewService, endOfMonth } from "./depositReview.service";
-import { isAdvanceInvoiceType } from "@workspace/shared";
+import { isAdvanceDocumentType } from "@workspace/shared";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -475,7 +475,7 @@ export const reportsService = {
       // AP-2: an advance tax invoice is not a receivable document — the
       // customer ledger lists what is owed; the statement carries the 386
       // in the chronology and the receipt card carries it beside its deposit.
-      if (isAdvanceInvoiceType(inv.documentType)) continue;
+      if (isAdvanceDocumentType(inv.documentType)) continue;
       const cid = inv.customerId ?? 0;
       if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
       // M12.1b: a credit note appears on the ledger as a NEGATIVE line (its
@@ -615,7 +615,7 @@ export const reportsService = {
      */
     for (const { inv, cust } of rows) {
       if (inv.documentType === "credit_note") continue; // a note is applied to invoices; it is not itself receivable
-      if (isAdvanceInvoiceType(inv.documentType)) continue; // AP-2: an advance tax invoice declares VAT on cash already received; nothing is owed on it
+      if (isAdvanceDocumentType(inv.documentType)) continue; // AP-2/AP-3: an advance tax invoice (and its credit note) declares VAT on cash already received; nothing is owed on it
       const credited = toNum(inv.creditedAmount);
       const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited) * 100) / 100;
       if (Math.abs(outstanding) < 0.01) continue;

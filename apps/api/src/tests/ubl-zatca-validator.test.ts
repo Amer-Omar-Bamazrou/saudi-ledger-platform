@@ -29,7 +29,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
-import { advanceInvoice, finalInvoiceWithPrepayment, simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
+import { advanceCreditNote, advanceInvoice, finalInvoiceWithPrepayment, simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import type { EInvoiceInput } from "../services/einvoice/types";
 
 const SDK_ROOT = resolve(__dirname, "../../../../docs/zatca/sdk/extracted/zatca-envoice-sdk-203");
@@ -201,6 +201,14 @@ describeMaybe("M12.2 — generated UBL passes ZATCA's own SDK validator", () => 
 
   it("AP-2: a FINAL invoice with a prepayment adjustment line (XML Standard 9.5) passes XSD, EN 16931 and the shipped BR-KSA rules", () => {
     const r = validate("final-with-prepayment", finalInvoiceWithPrepayment());
+    expect(r.errors, `validator reported: ${r.errors.join(" | ")}`).toEqual([]);
+    expect(r.xsd).toBe("PASSED");
+    expect(r.en).toBe("PASSED");
+    expect(r.ksa).toBe("PASSED");
+  }, SDK_TIMEOUT);
+
+  it("AP-3: a CREDIT NOTE against an advance (381 + billing reference) passes XSD, EN 16931 and the shipped BR-KSA rules — the 381 code IS in the 2021 list, only its original's 386 is not", () => {
+    const r = validate("advance-credit-note", advanceCreditNote());
     expect(r.errors, `validator reported: ${r.errors.join(" | ")}`).toEqual([]);
     expect(r.xsd).toBe("PASSED");
     expect(r.en).toBe("PASSED");

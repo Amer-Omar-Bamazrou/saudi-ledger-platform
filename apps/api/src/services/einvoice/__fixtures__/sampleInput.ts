@@ -152,6 +152,23 @@ export function finalInvoiceWithPrepayment(overrides: Partial<EInvoiceInput> = {
   });
 }
 
+/**
+ * AP-3 — the CREDIT NOTE AGAINST the advance above (type 381): the same
+ * shape as any credit note — a billing reference to the 386's number
+ * (BR-KSA-56) and a reason (BR-KSA-17) — carrying the advance's split.
+ */
+export function advanceCreditNote(overrides: Partial<EInvoiceInput> = {}): EInvoiceInput {
+  return advanceInvoice({
+    invoiceNumber: "CN-ADV-0001",
+    uuid: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5e",
+    icv: 3,
+    documentType: "advance_credit_note",
+    billingReference: { invoiceNumber: "ADV-0001" },
+    instructionNote: "Order cancelled - advance returned",
+    ...overrides,
+  });
+}
+
 /** Simplified (B2C) invoice — the reporting path; no buyer required. */
 export function simplifiedInvoice(overrides: Partial<EInvoiceInput> = {}): EInvoiceInput {
   return standardInvoice({

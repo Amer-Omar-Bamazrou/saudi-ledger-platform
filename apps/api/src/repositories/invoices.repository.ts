@@ -50,7 +50,7 @@ export const DEFAULT_PAGE = 50;
 const OVERDUE = sql`(
   COALESCE(NULLIF(${invoicesTable.dueDate}, ''), ${invoicesTable.date})::date < CURRENT_DATE
   AND ${invoicesTable.status} NOT IN ('draft','submitted','rejected','paid')
-  AND ${invoicesTable.documentType} NOT IN ('credit_note','advance_invoice')
+  AND ${invoicesTable.documentType} NOT IN ('credit_note','advance_invoice','advance_credit_note')
   AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) > 0
 )`;
 
@@ -132,7 +132,7 @@ export const invoicesRepository = {
         // and Σ aging by construction (money-kpi-consistency pins it).
         outstanding: sql<number>`COALESCE(SUM(
           CASE WHEN ${invoicesTable.status} IN ('draft','submitted') THEN 0
-               WHEN ${invoicesTable.documentType} IN ('credit_note','advance_invoice') THEN 0
+               WHEN ${invoicesTable.documentType} IN ('credit_note','advance_invoice','advance_credit_note') THEN 0
                ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric END), 0)::float8`,
         // N2: collected is money actually RECEIVED — Σ paid_amount over
         // in-books documents — not "total of fully-paid invoices", which

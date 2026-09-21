@@ -19,9 +19,21 @@
  *   assertWithinUninvoiced()
  *                         the guard D-4 allocate and refund call: a receipt's
  *                         386-invoiced remainder is reserved for the final
- *                         invoice's prepayment adjustment (or, in AP-3, a
- *                         credit note on the 386); touching it any other way
- *                         would leave declared VAT against cash that has gone.
+ *                         invoice's prepayment adjustment or a credit note on
+ *                         the 386; touching it any other way would leave
+ *                         declared VAT against cash that has gone.
+ *   creditAdvance()       AP-3 (2026-09-21): a DRAFT `advance_credit_note`
+ *                         (ZATCA 381, billing reference = the 386 — BR-KSA-56;
+ *                         reason — BR-KSA-17) for part or all of the 386's
+ *                         OPEN balance: the advance is cancelled before its
+ *                         supply (Guideline §8(g); IR Art. 40(1)(a), 54). At
+ *                         approval it posts E5 — Dr VAT Payable / Cr Customer
+ *                         deposits [the credited VAT] — so the deposit is
+ *                         gross again and the receipt's un-invoiced remainder
+ *                         RISES by the credited amount: that is what unlocks
+ *                         the Batch 1B deposit refund (Dr deposits / Cr bank)
+ *                         for exactly that part, and nothing else. The 386,
+ *                         the receipt and the note are never edited.
  *
  * What it REFUSES, by name: a receipt that is not a customer's deposit; a
  * migrated (opening) deposit — its VAT position is the previous system's
@@ -31,7 +43,8 @@
  * un-invoiced remainder; a date before the receipt (a tax point cannot
  * precede its cash) or in a closed month.
  */
-import { DEFAULT_VAT_RATE, businessToday, ADVANCE_INVOICE_TYPE } from "@workspace/shared";
+import { DEFAULT_VAT_RATE, businessToday, ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
+import { invoiceSettlementRepository } from "../repositories/payments.repository";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
@@ -132,7 +145,7 @@ export const advanceInvoicesService = {
     const allocated = round2((await paymentsRepository.allocatedTotals([payment.id])).get(payment.id) ?? 0);
     const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: payment.id }));
     const unapplied = round2(num(payment.amount) - allocated - refunded);
-    const f = (await advanceInvoicesRepository.figuresForPayments([payment.id])).get(payment.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, open: 0, openVat: 0 };
+    const f = (await advanceInvoicesRepository.figuresForPayments([payment.id])).get(payment.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, credited: 0, creditedVat: 0, open: 0, openVat: 0 };
     return { ...f, unapplied, uninvoiced: round2(unapplied - f.open) };
   },
 
@@ -339,13 +352,14 @@ export const advanceInvoicesService = {
         throw new BusinessRuleError(422, { error: `Advance tax invoice ${adv.invoiceNumber} belongs to a different customer than this invoice.`, code: "prepayment_party_mismatch", field: "prepayments" });
       }
       const advTotal = num(adv.total);
-      const adjusted = (await advanceInvoicesRepository.adjustedTotals([adv.id])).get(adv.id) ?? 0;
-      const open = round2(advTotal - adjusted);
+      const bal = (await advanceInvoicesRepository.openBalances([adv.id])).get(adv.id) ?? { adjusted: 0, credited: 0, open: advTotal };
+      const adjusted = bal.adjusted;
+      const open = bal.open;
       const amount = raw?.amount == null || raw.amount === "" ? open : Number(raw.amount);
       if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError(`prepayments[${i}].amount must be a positive number (VAT inclusive).`);
       const gross = round2(amount);
       if (gross > open + TOL) {
-        throw new BusinessRuleError(409, { error: `Only ${fmt(open)} of advance tax invoice ${adv.invoiceNumber} is still open to adjust (${fmt(advTotal)} issued, ${fmt(adjusted)} already adjusted); ${fmt(gross)} was requested.`, code: "prepayment_exceeds_open_advance", field: "prepayments", openAmount: fmt(open) });
+        throw new BusinessRuleError(409, { error: `Only ${fmt(open)} of advance tax invoice ${adv.invoiceNumber} is still open to adjust (${fmt(advTotal)} issued, ${fmt(adjusted)} already adjusted, ${fmt(bal.credited)} credited); ${fmt(gross)} was requested.`, code: "prepayment_exceeds_open_advance", field: "prepayments", openAmount: fmt(open) });
       }
       const [line] = await invoicesRepository.itemsByInvoice(adv.id);
       const category = (line?.taxCategoryCode ?? "S") as AdvanceVatCategory;
@@ -361,6 +375,105 @@ export const advanceInvoicesService = {
         field: "prepayments",
       });
     }
+    return out;
+  },
+
+  /**
+   * AP-3 — a DRAFT credit note against an ISSUED advance tax invoice, for
+   * part or all of its OPEN balance (issued − applied on final invoices −
+   * already credited). One line, the 386's category and rate: a full credit
+   * copies the 386's stored split exactly; a partial one is split the same
+   * way the 386 was. The 386 row is locked so a concurrent final invoice or
+   * note cannot both pass the open check; approval re-checks under the same
+   * lock before the ICV is consumed (`assertNoteIsValid`, the note path).
+   */
+  async creditAdvance(
+    advanceInvoiceId: number,
+    body: { amount: unknown; reason?: string | null; date?: string | null; notes?: string | null; idempotencyKey?: string | null },
+    userId: number | null,
+  ) {
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive credit amount (VAT inclusive) is required.");
+    const gross = round2(amount);
+    const reason = body.reason?.trim();
+    if (!reason) throw new BusinessRuleError(400, { code: "note_reason_required", error: "A credit note must state why it is being issued (ZATCA rule BR-KSA-17). For example: \"Order cancelled\" or \"Advance returned\".", field: "reason" });
+    const idempotencyKey = body.idempotencyKey?.trim() || null;
+    if (idempotencyKey) {
+      const [existing] = await invoicesRepository.findByIdempotencyKey(idempotencyKey);
+      if (existing) return buildInvoiceOut(existing, null, await invoicesRepository.itemsByInvoice(existing.id));
+    }
+
+    const [adv] = await invoiceSettlementRepository.lockInvoices([advanceInvoiceId]);
+    if (!adv) throw new NotFoundError("Advance tax invoice not found");
+    if (adv.documentType !== ADVANCE_INVOICE_TYPE) {
+      throw new BusinessRuleError(409, { code: "advance_credit_note_original_not_advance", error: `${adv.invoiceNumber} is not an advance tax invoice; only an advance tax invoice (type 386) is credited here. Use an ordinary credit note.`, field: "id" });
+    }
+    if (!(INVOICE_IN_BOOKS_STATUSES as readonly string[]).includes(adv.status)) {
+      throw new BusinessRuleError(409, { code: "note_original_not_issued", error: `Advance tax invoice ${adv.invoiceNumber} has not been issued (status: ${adv.status}); a draft is deleted, not credited.`, field: "id" });
+    }
+    const bal = (await advanceInvoicesRepository.openBalances([adv.id])).get(adv.id) ?? { adjusted: 0, credited: 0, open: num(adv.total) };
+    if (gross > bal.open + TOL) {
+      throw new BusinessRuleError(409, {
+        code: "advance_credit_note_exceeds_open",
+        error: `A credit note for ${fmt(gross)} exceeds the ${fmt(bal.open)} of advance tax invoice ${adv.invoiceNumber} still open (issued ${fmt(num(adv.total))}, applied on final invoices ${fmt(bal.adjusted)}, already credited ${fmt(bal.credited)}). An applied part is corrected by a credit note on the final invoice that applied it.`,
+        field: "amount",
+        openAmount: fmt(bal.open),
+      });
+    }
+    const date = body.date ? assertDateString(body.date, "date") : businessToday();
+    // A cancellation is dated when it happens — never before the document it cancels (IR Art. 40(5): the later period).
+    if (date < adv.date) {
+      throw new BusinessRuleError(422, { code: "advance_credit_note_before_advance", error: `The credit note cannot be dated ${date}, before advance tax invoice ${adv.invoiceNumber} of ${adv.date}.`, field: "date" });
+    }
+    await checkPeriodOpen(date);
+
+    const [line] = await invoicesRepository.itemsByInvoice(adv.id);
+    const category = (line?.taxCategoryCode ?? "S") as AdvanceVatCategory;
+    const rate = num(line?.vatRate ?? rateForCategory(category));
+    const split = Math.abs(gross - num(adv.total)) < TOL ? { taxable: num(adv.subtotal), vat: num(adv.vatAmount) } : splitGross(gross, rate);
+    const [cust] = await customersRepository.findById(adv.customerId!);
+    const invoiceNumber = await invoicesRepository.allocateInvoiceNumber(date);
+    const draftSeller = await resolveDraftSeller({});
+    const [note] = await invoicesRepository.insert({
+      invoiceNumber,
+      date,
+      dueDate: null,
+      customerId: adv.customerId,
+      documentType: ADVANCE_CREDIT_NOTE_TYPE,
+      originalInvoiceId: adv.id,
+      noteReason: reason,
+      subtotal: fmt(split.taxable),
+      vatAmount: fmt(split.vat),
+      discount: "0",
+      total: fmt(gross),
+      currency: "SAR",
+      status: "draft",
+      notes: body.notes?.trim() || null,
+      idempotencyKey,
+      createdBy: userId ?? null,
+      sellerName: draftSeller.sellerName,
+      sellerVatNumber: draftSeller.sellerVatNumber,
+    } as Parameters<typeof invoicesRepository.insert>[0]);
+    await invoicesRepository.insertItems([
+      {
+        invoiceId: note!.id,
+        description: line?.description ? `Credit of advance — ${line.description}` : `Credit of advance tax invoice ${adv.invoiceNumber}`,
+        descriptionAr: line?.descriptionAr ?? null,
+        quantity: "1",
+        unitPrice: fmt(split.taxable),
+        vatRate: fmt(rate),
+        vatAmount: fmt(split.vat),
+        discount: "0",
+        total: fmt(gross),
+        taxCategoryCode: category,
+        taxExemptionReasonCode: line?.taxExemptionReasonCode ?? null,
+        taxExemptionReasonText: line?.taxExemptionReasonText ?? null,
+        unitCode: "PCE",
+      },
+    ]);
+    const items = await invoicesRepository.itemsByInvoice(note!.id);
+    const out = buildInvoiceOut(note!, cust ?? null, items);
+    await auditService.record({ action: "create", entityType: "invoice", entityId: note!.id, after: { ...out, creditOf: { advanceInvoiceId: adv.id, advanceInvoiceNumber: adv.invoiceNumber, receiptId: adv.advancePaymentId, openBefore: bal.open } } });
     return out;
   },
 
@@ -380,12 +493,13 @@ export const advanceInvoicesService = {
       subtotal: num(r.inv.subtotal),
       vatAmount: num(r.inv.vatAmount),
       adjustedAmount: round2(r.adjusted),
+      creditedAmount: round2(r.credited),
       openAmount: r.open,
     }));
   },
 };
 
-/** One 386 as a receipt's detail card lists it. */
+/** One 386 as a receipt's detail card lists it, with its credit notes (AP-3) beneath. */
 export type ReceiptAdvanceInvoiceOut = {
   id: number;
   invoiceNumber: string;
@@ -396,5 +510,7 @@ export type ReceiptAdvanceInvoiceOut = {
   vatAmount: number;
   vatCategory: string | null;
   adjustedAmount: number;
+  creditedAmount: number;
   openAmount: number;
+  creditNotes: Array<{ id: number; invoiceNumber: string; status: string; date: string; total: number; vatAmount: number; noteReason: string | null }>;
 };

@@ -23,6 +23,8 @@ export interface OpenAdvanceInvoice {
   vatAmount: number;
   /** Σ adjusted by issued final invoices. */
   adjustedAmount: number;
-  /** total − adjustedAmount. */
+  /** AP-3 — Σ issued credit notes against it. */
+  creditedAmount: number;
+  /** total − adjustedAmount − creditedAmount. */
   openAmount: number;
 }

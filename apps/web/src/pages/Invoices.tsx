@@ -589,6 +589,7 @@ export default function Invoices() {
                     {inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}
                     {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
                     {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
+                    {inv.documentType === "advance_credit_note" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-cn-${inv.id}`}>{t("Credit note — advance", "إشعار دائن — دفعة مقدمة")}</Badge>}
                     {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
                   </td>
                   <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
@@ -599,7 +600,7 @@ export default function Invoices() {
                   <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
                   {/* What is still OWED on the document: nothing on a 386 or a note; total − paid − credited otherwise (the advance, once applied, sits in paid). */}
                   <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`}>
-                    {inv.documentType === "advance_invoice" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount)}
+                    {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount)}
                   </td>
                   <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
@@ -615,7 +616,7 @@ export default function Invoices() {
                       {inv.status === "draft" && (
                         <>
                           {/* A draft 386's amount is the receipt's; only its notes are editable, so Edit is not offered (Delete is). */}
-                          {inv.documentType !== "advance_invoice" && <Button variant="ghost" size="sm" className="text-xs h-7"
+                          {inv.documentType !== "advance_invoice" && inv.documentType !== "advance_credit_note" && <Button variant="ghost" size="sm" className="text-xs h-7"
                             onClick={() => openEdit(inv)}>
                             {t("Edit", "تعديل")}
                           </Button>}

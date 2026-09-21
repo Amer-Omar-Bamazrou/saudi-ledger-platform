@@ -177,6 +177,16 @@ describe("L1 — the template's design rules, as text properties", () => {
     expect(finAr).toContain("ناقصًا: فاتورة الدفعة المقدمة");
   });
 
+  it("AP-3: the credit note against an advance is titled as one and names the 386 it corrects and the reason", () => {
+    const ar = renderInvoiceHtml({ ...base, lang: "ar", documentType: "advance_credit_note", originalInvoiceNumber: "ADV-0001", noteReason: "إلغاء الطلب", total: "11500.00", subtotal: "10000.00", vatAmount: "1500.00", paidAmount: "0", bankDetails: null });
+    expect(ar).toContain("إشعار دائن — دفعة مقدمة");
+    expect(ar).toContain("ADV-0001");
+    expect(ar).toContain("إلغاء الطلب");
+    const en = renderInvoiceHtml({ ...base, lang: "en", documentType: "advance_credit_note", originalInvoiceNumber: "ADV-0001", noteReason: "Order cancelled", paidAmount: "0", bankDetails: null });
+    expect(en).toContain("Credit Note — Advance Payment");
+    expect(en).not.toContain("Balance due");
+  });
+
   it("the QR renders at the bottom when present, and not at all when absent", () => {
     const html = renderInvoiceHtml({ ...base, lang: "ar" });
     expect(html.lastIndexOf('class="qr"')).toBeGreaterThan(html.indexOf("totals"));

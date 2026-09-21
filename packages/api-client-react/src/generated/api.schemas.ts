@@ -1645,7 +1645,7 @@ export const InvoiceStatus = {
 } as const;
 
 /**
- * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).
+ * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign).
  */
 export type InvoiceDocumentType = typeof InvoiceDocumentType[keyof typeof InvoiceDocumentType];
 
@@ -1655,6 +1655,7 @@ export const InvoiceDocumentType = {
   credit_note: 'credit_note',
   debit_note: 'debit_note',
   advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
 } as const;
 
 /**
@@ -1762,7 +1763,7 @@ export interface Invoice {
      * @nullable
      */
   qrCode: string | null;
-  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign). */
+  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign). */
   documentType: InvoiceDocumentType;
   /**
      * For a credit/debit note, the invoice it adjusts.
@@ -2340,6 +2341,32 @@ export interface PrepaymentInput {
   amount?: number | null;
 }
 
+export interface CreateAdvanceCreditNoteInput {
+  /**
+     * VAT inclusive; at most the 386's open balance.
+     * @minimum 0
+     */
+  amount: number;
+  /**
+     * Why the advance is cancelled (KSA-10, BR-KSA-17).
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * Accounting date (YYYY-MM-DD). Default today; never before the 386.
+     * @nullable
+     */
+  date?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
 export interface CreateAdvanceInvoiceInput {
   /**
      * VAT inclusive; at most the receipt's un-invoiced remainder.
@@ -2394,12 +2421,28 @@ export interface OpenAdvanceInvoice {
   vatAmount: number;
   /** Σ adjusted by issued final invoices. */
   adjustedAmount: number;
-  /** total − adjustedAmount. */
+  /** AP-3 — Σ issued credit notes against it. */
+  creditedAmount: number;
+  /** total − adjustedAmount − creditedAmount. */
   openAmount: number;
 }
 
 /**
- * AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.
+ * AP-3 — a credit note (any status) against an advance tax invoice: the provenance chain receipt → 386 → note → refund.
+ */
+export interface AdvanceCreditNoteSummary {
+  id: number;
+  invoiceNumber: string;
+  status: string;
+  date: string;
+  total: number;
+  vatAmount: number;
+  /** @nullable */
+  noteReason: string | null;
+}
+
+/**
+ * AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it, with its credit notes (AP-3) beneath.
  */
 export interface ReceiptAdvanceInvoice {
   id: number;
@@ -2412,8 +2455,11 @@ export interface ReceiptAdvanceInvoice {
   /** @nullable */
   vatCategory: string | null;
   adjustedAmount: number;
-  /** 0 while a draft; total − adjusted once issued. */
+  /** AP-3 — Σ issued credit notes against this advance. */
+  creditedAmount: number;
+  /** 0 while a draft; total − adjusted − credited once issued. */
   openAmount: number;
+  creditNotes: AdvanceCreditNoteSummary[];
 }
 
 export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunStatus];
@@ -2961,6 +3007,7 @@ export const CustomerStatementLineKind = {
   debit_note: 'debit_note',
   credit_note: 'credit_note',
   advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
   receipt: 'receipt',
   allocation: 'allocation',
   credit_application: 'credit_application',

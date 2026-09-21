@@ -589,6 +589,13 @@
       "when": 1790002303724,
       "tag": "0083_ap2_advance_tax_invoice",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1790002363724,
+      "tag": "0084_ap3_advance_credit_note",
+      "breakpoints": true
     }
   ]
 }

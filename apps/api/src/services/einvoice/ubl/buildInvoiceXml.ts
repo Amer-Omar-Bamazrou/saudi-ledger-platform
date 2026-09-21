@@ -49,7 +49,7 @@ export const GENESIS_PIH =
  * PREPAYMENT invoice (AP-2). The subtype flags (`name`) are the same for all
  * four — "For Prepayment Tax Invoice, code is 386 and subtype is 01".
  */
-const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381", advance_invoice: "386" } as const;
+const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381", advance_invoice: "386", advance_credit_note: "381" } as const;
 
 /**
  * KSA-2 "invoice transaction code" — 7 digits, validated by BR-KSA-06.

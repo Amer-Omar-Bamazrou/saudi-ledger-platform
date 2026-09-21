@@ -37,7 +37,7 @@ const IN_BOOKS = sql`i.status NOT IN ('draft','submitted') AND ${invoiceNotRever
  * branch — `@workspace/shared` NON_RECEIVABLE_DOCUMENT_TYPES); shown on the
  * statement as a zero-movement event so the customer's chronology is complete.
  */
-const RECEIVABLE_DOC = sql`i.document_type <> 'advance_invoice'`;
+const RECEIVABLE_DOC = sql`i.document_type NOT IN ('advance_invoice', 'advance_credit_note')`;
 /** A receipt that is not a reversed opening deposit (Policy C). */
 const RECEIPT_LIVE = sql`${paymentNotReversedSql("p")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below (same predicate as `companyScoped`). */
@@ -53,7 +53,7 @@ export type CustomerPositionRow = {
   depositBalance: number;
 };
 
-export type StatementEventKind = "invoice" | "debit_note" | "credit_note" | "advance_invoice" | "receipt" | "allocation" | "credit_application" | "unallocation" | "refund";
+export type StatementEventKind = "invoice" | "debit_note" | "credit_note" | "advance_invoice" | "advance_credit_note" | "receipt" | "allocation" | "credit_application" | "unallocation" | "refund";
 
 export type StatementEventRow = {
   kind: StatementEventKind;
@@ -188,6 +188,16 @@ export const customerStatementRepository = {
                i.id, i.advance_payment_id, NULL, NULL, NULL, NULL
           FROM invoices i
          WHERE i.customer_id = ${customerId} AND i.document_type = 'advance_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
+        UNION ALL
+        -- AP-3: an issued credit note against a 386 returns the advance's VAT to the deposit; nothing moves (the cash stays the receipt's deposit until refunded)
+        SELECT 'advance_credit_note', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
+               i.invoice_number, o.invoice_number,
+               'Advance tax invoice ' || coalesce(o.invoice_number, '') || ' credited (VAT ' || i.vat_amount::text || ' back on the deposit): ' || coalesce(i.note_reason, ''),
+               i.total::numeric, 0, 0, 0,
+               i.id, o.advance_payment_id, NULL, NULL, NULL, NULL
+          FROM invoices i
+          LEFT JOIN invoices o ON o.id = i.original_invoice_id
+         WHERE i.customer_id = ${customerId} AND i.document_type = 'advance_credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- issued credit notes: the credit balance rises by the note; its application is its own line
         SELECT 'credit_note', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
