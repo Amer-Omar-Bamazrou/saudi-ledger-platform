@@ -71,7 +71,7 @@ const describeMaybe = CAN_RUN ? describe : describe.skip;
  */
 function runSdk(args: string[]): string {
   try {
-    return execFileSync("java", ["-jar", JAR, "--globalVersion", "3.0.8", "-certpassword", "123456789", ...args], {
+    return execFileSync("java", ["-Dfile.encoding=UTF-8", "-jar", JAR, "--globalVersion", "3.0.8", "-certpassword", "123456789", ...args], {
       env: { ...process.env, SDK_CONFIG: CONFIG },
       encoding: "utf8",
       stdio: "pipe",

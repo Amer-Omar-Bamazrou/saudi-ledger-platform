@@ -1,6 +1,6 @@
 # Advance payments / customer deposits — gap analysis and decision pack (2026-09-20)
 
-**Status (2026-09-21): §1–§12 are the research and decision record (not re-argued). AP-1 (§13), AP-2 (§14 — the advance tax invoice type 386, its E2 entry, the final invoice's prepayment adjustment with the E3 entry, the ¶9.5 UBL, the return reading both) and AP-3 (§15 — the credit note against a 386 with the E5 entry, and the Batch 1B refund it unlocks) are BUILT: AP-2 on `feat/ap-2-advance-tax-invoice` (`0b00b70c`), AP-3 on `feat/ap-3-advance-credit-note-refund` on top of it; both pushed, neither merged. 🔴 A1, A2 and A3 are RESOLVED by the accountant (2026-09-21; §8 carries the answers verbatim); Z1 stays OPEN with ZATCA. AP-4 (the live sandbox pass for a 386, a 388-with-adjustment and a credit note against a 386) is NOT done and is the gate that stands between this build and a real taxpayer.** The Batch 1B payment core that this pack builds on is IMPLEMENTED and merged (`main` `a290d079`; record: known-issues file, "BATCH 1B — CLOSED 2026-09-17"). The live exposure AP-1 made visible and AP-2 closes at the document is recorded where a future session will look: known-issues file, "ADVANCE VAT UNDER-DECLARATION". Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
+**Status (2026-09-21): §1–§12 are the research and decision record (not re-argued). AP-1 (§13), AP-2 (§14 — the advance tax invoice type 386, its E2 entry, the final invoice's prepayment adjustment with the E3 entry, the ¶9.5 UBL, the return reading both) and AP-3 (§15 — the credit note against a 386 with the E5 entry, and the Batch 1B refund it unlocks) are BUILT: AP-2 on `feat/ap-2-advance-tax-invoice` (`0b00b70c`), AP-3 on `feat/ap-3-advance-credit-note-refund` on top of it; both pushed, neither merged; AP-4 (§16 — the compliance validation) RUN on `feat/ap-4-advance-compliance` on top of AP-3. 🔴 A1, A2 and A3 are RESOLVED by the accountant (2026-09-21; §8 carries the answers verbatim); Z1 stays OPEN with ZATCA. 🔴 **AP-4 SANDBOX VALIDATION: PASSED 2026-09-21** — the 386, the 388 with its prepayment adjustment and the 381 against the 386, built from real ledger rows, all `PASS` / `CLEARED` at `POST /compliance/invoices` with zero warnings, on an instrument shown to flag every prepayment rule it was fed (§16). What that does NOT cover: simulation and production (M12.7/M12.9 — behind the Saudi entity, for every document type), and the VAT-period question that stays with the accountant (§16.5).** The Batch 1B payment core that this pack builds on is IMPLEMENTED and merged (`main` `a290d079`; record: known-issues file, "BATCH 1B — CLOSED 2026-09-17"). The live exposure AP-1 made visible and AP-2 closes at the document is recorded where a future session will look: known-issues file, "ADVANCE VAT UNDER-DECLARATION". Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 
 **Protocol.** Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): Saudi Ledger inspected first (file paths cited), Odoo and ERPNext inspected from SOURCE (sparse clones at today's heads — Odoo `c55c82d`, ERPNext `db6e089`, both 2026-09-19 — every claim cites a path and line), primary Saudi texts read, every conclusion classified with exactly one of `AUTHORITATIVE REQUIREMENT` · `ESTABLISHED ACCOUNTING PRACTICE` · `ODOO IMPLEMENTATION` · `ERPNEXT IMPLEMENTATION` · `SAUDI LEDGER PRODUCT DECISION` · `ACCOUNTANT DECISION REQUIRED`. Where earlier research already settled a point it is REUSED and cited, not reopened.
 
@@ -471,7 +471,7 @@ Defects found by the walk and fixed before commit: (1) on a phone the receipt ca
 
 | Item | Who | Blocks | Question as it stands |
 | --- | --- | --- | --- |
-| **AP-4 — the live sandbox pass** | engineering (the sandbox) | onboarding any taxpayer that receives advances | The shipped SDK cannot validate a 386 (its 2021 rules reject the code — divergences log §15) and has no prepayment rule at all; only `POST /compliance/invoices` can attest a 386 and a 388-with-adjustment. Record the result with the endpoint and what it attests (CLAUDE.md §3 rule 1). |
+| **AP-4 — the live sandbox pass** | ✅ RUN 2026-09-21 (§16) | — | The 386 and the 388-with-adjustment from real rows: `PASS` / `CLEARED`, zero warnings; the endpoint and what it attests are in §16.2. |
 | **AP-3 — the credit note against a 386, and the refund it unlocks** | ✅ BUILT 2026-09-21 (§15) | — | The ordinary-note door stays shut by name; the controlled door is `POST /invoices/{386}/advance-credit-notes`. |
 | **Z1** — a previous system's advance invoice as a PrepaidAmount reference | ZATCA (asked, 1C §16.14.9 item 2) | the migrated `invoiced` arm | Unchanged; a migrated deposit gets no 386 here and cannot be selected on a final invoice. |
 | **Supply date on a 386 (KSA-5)** | engineering — a product question, small | nothing today | The builder emits the issue date as `ActualDeliveryDate` for every document (pre-existing). For a 386 the tax point is the RECEIPT date; whether KSA-5 should carry it is not stated in ¶9.5 or the Guideline §8 and is left as the existing behaviour, recorded so it is not mistaken for a decision. |
@@ -542,6 +542,89 @@ Defects found by hand on the phone screenshots and fixed before commit: (1) the 
 
 | Item | Who | Blocks | Question as it stands |
 | --- | --- | --- | --- |
-| **AP-4 — the live sandbox pass** | engineering (the sandbox) | onboarding a taxpayer that receives advances | 🔴 **AP-3 inherits any defect in the 386's shape.** The credit note's own document validates offline (381 is in the shipped list), but it REFERENCES a 386 no validator has yet accepted (the shipped SDK rejects the code — divergences log §15); whether the live endpoint accepts a 381 whose billing reference names a 386 is proven only there. The note needs nothing of the 386 beyond its number (BR-KSA-56), so no adaptation was made and none is pending. |
+| **AP-4 — the live sandbox pass** | ✅ RUN 2026-09-21 (§16) | — | The 381 whose billing reference names a 386, built from real rows: `PASS` / `CLEARED`, zero warnings — and the 386 it references likewise. The inherited-defect caveat is discharged for the sandbox; simulation/production stay behind the entity for every document type. |
 | **Z1** — a previous system's advance invoice | ZATCA (asked) | the migrated `invoiced` arm | Unchanged; a migrated deposit gets no 386 here, so no note and no unlocked refund. |
 | **KSA-5 on a 386** | engineering | nothing | Unchanged from §14.6; not silently changed. |
+
+---
+
+# 16. AP-4 — the compliance validation: as run (2026-09-21)
+
+**Status (2026-09-21): RUN on `feat/ap-4-advance-compliance` (on top of AP-3 `46e36657`), NOT merged. Nothing was built or redesigned; no accounting decision changed; Z1 untouched. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+## 16.1 What was validated, and how the instrument was validated first
+
+`apps/api/src/tests/ap4-advance-zatca-live.test.ts` (27 tests, all green on 2026-09-21; the record file is written by `AP4_RECORD_OUT`):
+
+- **Part 1 — the three shapes at the live sandbox**, directly-constructed fixtures: the 386 (standard), the 388 with a ¶9.5 prepayment adjustment line, the 381 against the 386, and — informational only, B2C advances being out of scope (§3.3) — a simplified 386. **Beside them, seven PLANTED-WRONG documents**, one per rule the sandbox could plausibly skip: BR-KSA-73 (BT-113 given, no adjustment line), BR-KSA-74 (KSA-30 = 388), BR-KSA-75 (KSA-30 given, KSA-31…34 removed), BR-KSA-79 (KSA-32 ≠ KSA-31 × KSA-34), BR-KSA-80 (BT-113 ≠ Σ KSA-31 + KSA-32), BR-KSA-56 (a 381 with no billing reference) and BR-CO-16 (the payable arithmetic, as a control). The suite asserts the sandbox NAMES each rule — a PASS on the correct documents is evidence only because the wrong ones were flagged (CLAUDE.md §3, the unvalidated-probe rule and "external validators check the weakest property they plausibly could").
+- **Part 2 — the lifecycle from REAL ROWS**: through the product's own services — receipt (classified `advance · S`) → 386 → 388 adjusting the whole 386 (chain 1: 11,500 → 30,000 + 4,500, prepaid 11,500, payable 23,000); receipt → 386 → 388 adjusting 4,600 of it (chain 2: 20,000 + 3,000, prepaid 4,600, payable 18,400) → 381 against that 386 for the open 6,900 → the Batch 1B refund of 6,900. Each of the five documents is read back out of Postgres and built the way issuance builds it (the production chain-head read included), asserted field by field (§16.3), then signed with a compliance CSID bound to our key and submitted. The as-built accounting is asserted from the journal (§16.5). Z1 is asserted shut.
+- **Part 3 — the shipped SDK on the same real-row documents** (§16.4).
+
+## 16.2 The exact sandbox result
+
+Endpoint: `POST https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal/compliance/invoices`, `Accept-Version: V2`, authenticated with a compliance CSID issued the same run by `POST …/compliance` (CSR `invoiceType 1100`; the sandbox accepts any OTP). **What it attests:** that ZATCA's current validation rule set accepts the document's construction — XSD, EN 16931, the BR-KSA rules INCLUDING the prepayment rules (proven present by the planted negatives), the signature and the QR. **What it does not attest:** the production clearance/reporting endpoints (never called, in any environment), PIH continuity (a genesis PIH is accepted on every document), simulation/production behaviour, or anything about the ledger.
+
+| Document | HTTP | `validationResults.status` | `clearanceStatus` | `reportingStatus` | Messages beyond `XSD_ZATCA_VALID` |
+| --- | --- | --- | --- | --- | --- |
+| 386 advance tax invoice (standard, fixture) | 200 | PASS | CLEARED | — | none |
+| 388 with the prepayment adjustment line (fixture) | 200 | PASS | CLEARED | — | none |
+| 381 credit note against the 386 (fixture) | 200 | PASS | CLEARED | — | none |
+| 386 simplified (fixture, informational) | 200 | PASS | — | REPORTED | none |
+| **386-1 (real rows)** | 200 | **PASS** | **CLEARED** | — | none |
+| **388-1, full adjustment (real rows)** | 200 | **PASS** | **CLEARED** | — | none |
+| **386-2 (real rows)** | 200 | **PASS** | **CLEARED** | — | none |
+| **388-2, partial adjustment (real rows)** | 200 | **PASS** | **CLEARED** | — | none |
+| **381-2 against 386-2 (real rows)** | 200 | **PASS** | **CLEARED** | — | none |
+| planted BR-KSA-73 | 202 | WARNING | CLEARED | — | WARNING BR-KSA-73, WARNING BR-KSA-80 |
+| planted BR-KSA-74 | 400 | ERROR | NOT_CLEARED | — | ERROR BR-KSA-74, WARNING BR-KSA-80 |
+| planted BR-KSA-75 | 202 | WARNING | CLEARED | — | WARNING BR-KSA-75, WARNING BR-KSA-80 |
+| planted BR-KSA-79 | 202 | WARNING | CLEARED | — | WARNING BR-KSA-79 |
+| planted BR-KSA-80 | 202 | WARNING | CLEARED | — | WARNING BR-KSA-80 |
+| planted BR-KSA-56 | 202 | WARNING | CLEARED | — | WARNING BR-KSA-56 |
+| planted BR-CO-16 | 202 | WARNING | CLEARED | — | WARNING BR-CO-16 |
+
+Two things the negatives teach, recorded so they are not re-learned: (1) **the sandbox CLEARS a document that breaks a prepayment rule** — every one of BR-KSA-73/75/79/80/56 and BR-CO-16 is a WARNING with `clearanceStatus: CLEARED`; only BR-KSA-74 is an ERROR — so a check that reads `CLEARED` alone would pass a wrong document, and every assertion here reads `status: PASS` with an empty warning list; (2) **the live rule set carries BR-KSA-73…80**, which the shipped SDK's 2021 schematron does not — the direction the divergences log §15 predicted, now observed rather than reasoned.
+
+## 16.3 The field matrix, on the real-row documents
+
+| Field | 386 | 388 (full / partial) | 381 against the 386 |
+| --- | --- | --- | --- |
+| `InvoiceTypeCode` / `@name` | 386 / 0100000 | 388 / 0100000 | 381 / 0100000 |
+| `UUID`, `ID`, `IssueDate`, `IssueTime` | the row's `zatca_uuid`, number, `issued_at` split (UTC) | as the row | as the row |
+| `BillingReference` | none | none | `InvoiceDocumentReference/ID` = the 386's number (BR-KSA-56); `InstructionNote` = the reason (BR-KSA-17) |
+| Tax category / rate | S 15.00 | S 15.00 (supply); KSA-33 S, KSA-34 15.00 (adjustment) | S 15.00 |
+| Taxable / VAT / inclusive | 10,000 / 1,500 / 11,500 | 30,000 / 4,500 / 34,500 · 20,000 / 3,000 / 23,000 — the FULL supply in the tax totals | 6,000 / 900 / 6,900 |
+| `PrepaidAmount` | 0.00 | 11,500 · 4,600 = Σ(KSA-31 + KSA-32) | 0.00 |
+| `PayableAmount` | 11,500 | 23,000 · 18,400 = inclusive − prepaid | 6,900 |
+| The adjustment line | — | line 2: quantity 0, extension 0, tax 0, rounding 0, price 0; `DocumentReference` KSA-26 number · UUID · KSA-28 date · KSA-29 time · KSA-30 386; KSA-31 10,000 · KSA-32 1,500 (partial: 4,000 · 600) | — |
+| Seller / buyer | VAT `310123456789013`, "Al-Rashid Trading Est." / VAT `311987654321003`, "Beta Logistics Co." with the full national address (standard, BR-KSA-10) | same | same |
+| ICV / hash | issued in order, none reused, hash present on every row | | |
+
+The arithmetic the sandbox enforces is also computed from each document itself in the suite: KSA-32 = KSA-31 × KSA-34 / 100, BT-113 = Σ(KSA-31 + KSA-32), BT-115 = BT-112 − BT-113.
+
+## 16.4 The shipped SDK, on the real-row documents
+
+| Document | XSD | EN 16931 | BR-KSA (2021 set) | Errors |
+| --- | --- | --- | --- | --- |
+| 386-1 | PASSED | PASSED | FAILED | `BR-KSA-05` only — the pinned divergence (divergences log §15), now measured on the artefact |
+| 388-1 with the adjustment | PASSED | PASSED | PASSED | none (the set has no prepayment rule; the sandbox, above, has) |
+| 381-2 against 386-2 | PASSED | PASSED | PASSED | none |
+
+🔴 **A harness defect diagnosed and fixed here, not a document defect:** on this Windows machine the SDK's own `-sign` rewrote any document containing non-ASCII text (the product's "Credit of advance — …" line) into an XSD-invalid file — Java 17's default charset is the ANSI code page. The same bytes are accepted by the sandbox. Both SDK harnesses (`ubl-zatca-validator.test.ts`, the AP-4 suite) now run the JVM with `-Dfile.encoding=UTF-8`, under which the same document passes XSD/EN/KSA. The AP-3 note in §15.4 is superseded by this paragraph; the AP-3 fixture's ASCII reason stays as it is (harmless).
+
+## 16.5 The accounting check — against the AS-BUILT shape, unchanged
+
+Asserted from the journal in the same run, against §14/§15 and NOT against a single-entry receipt form: **E1** the receipt `Dr Bank 11,500 / Cr Customer deposits 11,500`, gross, dated the receipt (Batch 1B, unchanged); **E2** the 386's SEPARATE entry `GL-<386>`: `Dr Customer deposits 1,500 / Cr VAT Payable 1,500`; **E3** the 388: `Dr AR 23,000 · Dr deposits 10,000 / Cr Sales 30,000 · Cr VAT 3,000` (partial: `AR 18,400 · deposits 4,000 / Sales 20,000 · VAT 2,400`); **E5** the note: `Dr VAT Payable 900 / Cr Customer deposits 900`, dated the note; the refund `Dr Customer deposits 6,900 / Cr Bank 6,900`; every entry balanced. Nothing in AP-4 changed any of it.
+
+🔴 **The open accountant question — whether the advance's VAT belongs to the receipt's period or to the 386's issuance period — and where the sandbox evidence bears on it: NOWHERE.** The compliance endpoint validates a document's construction; its response carries no reference to the receipt date, the ledger, a VAT period or a return. The only date it reads is the 386's own `IssueDate`/`IssueTime` (and, on the 388, the same two copied into KSA-28/29), which it accepted as built (issuance instant, UTC). Nothing observed constrains the answer in either direction; the question stays with the accountant, and the as-built split (E1 at the receipt, E2 at the 386) stands until they answer.
+
+## 16.6 What remains — exactly
+
+| Item | Who | Status |
+| --- | --- | --- |
+| **Simulation and production** (M12.7 / M12.9) for these three shapes | the owner (the entity) | Blocked as for every document type — a registered Saudi entity with ERAD credentials does not exist. The sandbox exercises the same API surface; no rework is expected, and none is assumed. |
+| **PIH continuity across a 386 → 388 → 381 sequence** | — | Not attested by the compliance endpoint (it accepts a genesis PIH on every document); guarded locally by the hash-chain suite as for every document. |
+| **The VAT-period question** | the accountant | Open (§16.5). No evidence from AP-4 either way. |
+| **Z1** | ZATCA | Unchanged and asserted shut. |
+| **KSA-5 on a 386** | engineering | Unchanged (§14.6); the sandbox accepted the issue date as `ActualDeliveryDate` on every 386 submitted — which says it is VALID, not that it is the intended supply date. |
+| **B2C advances (G-VAT-4)** | — | Out of scope; the simplified 386 was REPORTED by the sandbox (informational only). |

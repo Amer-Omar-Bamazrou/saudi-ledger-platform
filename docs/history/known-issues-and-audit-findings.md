@@ -2295,13 +2295,21 @@ for exactly that part. An ordinary note against a 386 stays refused by
 name; nothing is edited or deleted; the chain receipt → 386 → note → refund
 is readable on the card, the statement and the audit log. Record: pack §15.
 
-**What is still open:** (1) 🔴 **the live sandbox pass** — the SDK on disk
-cannot validate a 386 (its 2021 rules reject the code and carry no
-prepayment rule; divergences log §15), so only `POST /compliance/invoices`
-can attest the 386, the 388-with-adjustment and a 381 that references a
-386 (AP-4) — AP-3 inherits any defect in the 386's shape until then;
-(2) Z1 with ZATCA for migrated advances (a migrated deposit gets no 386
-here, so no note and no unlocked refund).
+**What AP-4 did (2026-09-21, `feat/ap-4-advance-compliance`): the live
+sandbox pass.** `POST /compliance/invoices` CLEARED the 386, the 388 with
+its prepayment adjustment (full and partial) and the 381 against the 386,
+each built from real ledger rows, `status: PASS` with zero warnings — on an
+instrument first shown to flag every prepayment rule (BR-KSA-73/74/75/79/80)
+and BR-KSA-56 by name when fed planted-wrong documents. The shipped SDK's
+rejection of the 386 code stays pinned as the SDK's own staleness
+(divergences log §15). Nothing changed in the accounting; the receipt-period
+vs issuance-period question stays with the accountant (pack §16.5).
+
+**What is still open:** (1) simulation and production for these shapes —
+behind the Saudi entity, as for every document type (M12.7/M12.9); (2) Z1
+with ZATCA for migrated advances (a migrated deposit gets no 386 here, so no
+note and no unlocked refund); (3) the VAT-period question, with the
+accountant.
 
 State: CLOSED at the document; AP-4 is the gate before a taxpayer that
 receives advances. Current state authority: CLAUDE.md §2.

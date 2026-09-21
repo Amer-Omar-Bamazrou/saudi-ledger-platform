@@ -329,6 +329,8 @@ structurally, by schema, and empirically. Full record:
 
 **Trust order applied.** LIVE API > SDK > PDF — but here the PDF is the NEWER primary text and the SDK's own download page still serves this build (checked 2026-09-21; no newer archive is published). The implementation follows the standard; the test `ubl-zatca-validator.test.ts` PINS the divergence (BR-KSA-05 must be the only error on a 386, and a refreshed SDK flips the test loudly). **What is NOT proven offline:** the prepayment-specific rules. Only the live compliance endpoint can validate a 386 and a 388-with-adjustment (AP-4 — the gate; CLAUDE.md §4).
 
+**🔴 RESOLVED AT THE TOP OF THE TRUST ORDER (AP-4, 2026-09-21).** The live sandbox `POST /compliance/invoices` CLEARED a 386, a 388 with the ¶9.5 adjustment line and a 381 whose billing reference names a 386 — built from real ledger rows — with `status: PASS` and zero warnings, and its rule set was shown to CONTAIN BR-KSA-73, 74, 75, 79 and 80 by planted-wrong documents it flagged by name (each a WARNING on a still-CLEARED document; BR-KSA-74 an ERROR / NOT_CLEARED). So: the implementation follows the standard, the live API agrees with the standard, and the shipped SDK is the stale party. The pinned BR-KSA-05 assertion stays until a newer SDK archive is published. Record: advance-payments pack §16. Also fixed there: the SDK's `-sign` on Windows mangled non-ASCII text under Java 17's ANSI default charset; both harnesses run the JVM with `-Dfile.encoding=UTF-8`.
+
 ## Also verified CORRECT in the PDF
 
 So the PDF is not uniformly wrong — these matched the implementation exactly:

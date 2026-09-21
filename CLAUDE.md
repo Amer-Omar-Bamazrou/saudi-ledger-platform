@@ -59,7 +59,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
 **2026-09-17** — 🔴 **BATCH 1B CLOSED** (D-4 payments, UI included; known-issues file, "BATCH 1B — CLOSED 2026-09-17").
-**2026-09-20** — 🔴 **BATCH 1B + BATCH 1C MERGED** (PR #164, merge `a290d079`): the correction policy A4/A5 as invariants (§4), Issue 1 closed; open — Issue 2 (accountant), historical credit notes and the PIH question (ZATCA). Records: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12, §16.15, §16.16. **AP-1 + AP-2 + AP-3 BUILT** (2026-09-21; branches `feat/ap-1…`, `feat/ap-2…`, `feat/ap-3-advance-credit-note-refund` on origin, none merged): deposit classification, the advance tax invoice (ZATCA 386), the final invoice's prepayment adjustment, and the credit note against a 386 that unlocks its refund — accountant A1/A2/A3 RESOLVED (advance-payments pack §8, §14, §15). 🔴 Open: the live sandbox pass (AP-4 — a 386 no validator has yet accepted; AP-3 inherits it), Z1.
+**2026-09-20** — 🔴 **BATCH 1B + BATCH 1C MERGED** (PR #164, merge `a290d079`): the correction policy A4/A5 as invariants (§4), Issue 1 closed; open — Issue 2 (accountant), historical credit notes and the PIH question (ZATCA). Records: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12, §16.15, §16.16. **AP-1…AP-4 BUILT AND SANDBOX-PASSED** (2026-09-21; four stacked `feat/ap-*` branches on origin, none merged): deposit classification, the 386, the 388's prepayment adjustment, the 381 against a 386 and the refund it unlocks — A1/A2/A3 RESOLVED; the sandbox CLEARED all three shapes from real rows, zero warnings, on an instrument proven to flag the prepayment rules (advance-payments pack §8, §14–§16). Open: Z1; the VAT-period question (accountant).
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -94,7 +94,8 @@ Full detail: [`docs/zatca/m12-status.md`](docs/zatca/m12-status.md).
 **Confirmed against the live ZATCA sandbox:** the CSR and `secp256k1` curve, the
 XAdES properties and both digest encodings, all nine QR tags, six compliance
 documents (standard + simplified × invoice / credit note / debit note, plus
-zero-rated), and the ledger→ZATCA path built from real Postgres rows.
+zero-rated), the ledger→ZATCA path built from real Postgres rows, and the
+advance shapes (386 · 388-with-adjustment · 381-against-386; AP-4).
 
 **🔴 NOT verified — we have never submitted an invoice to ZATCA.** The compliance
 pass covers document **CONSTRUCTION** (`POST /compliance/invoices`, an
