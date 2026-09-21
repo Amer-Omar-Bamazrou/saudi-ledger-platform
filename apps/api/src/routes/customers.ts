@@ -9,6 +9,8 @@ router.get("/:id", customersController.get);
 router.get("/:id/credits", customersController.credits);
 // Phase E: the statement — every event in chronology, three running balances, a derived net.
 router.get("/:id/statement", customersController.statement);
+// AP-2: the customer's issued advance tax invoices a final invoice may still adjust — a reader.
+router.get("/:id/advance-invoices", customersController.advanceInvoices);
 router.post("/", customersController.create);
 router.patch("/:id", customersController.update);
 router.delete("/:id", customersController.remove);

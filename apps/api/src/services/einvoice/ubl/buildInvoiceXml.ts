@@ -24,7 +24,7 @@
  * rearrange for readability.
  */
 import { create } from "xmlbuilder2";
-import type { EInvoiceInput, EInvoiceLine, EInvoiceParty, NationalAddress, TaxSubtotal } from "../types";
+import type { EInvoiceInput, EInvoiceLine, EInvoiceParty, NationalAddress, PrepaymentAdjustmentLine, TaxSubtotal } from "../types";
 import { splitIssuedAt } from "../issuedAt";
 
 const NS = {
@@ -43,8 +43,13 @@ const NS = {
 export const GENESIS_PIH =
   "NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==";
 
-/** UN/CEFACT 1001 document type codes. */
-const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381" } as const;
+/**
+ * UN/CEFACT 1001 document type codes (XML Implementation Standard v1.2
+ * §11.2.1): 388 tax invoice · 383 debit note · 381 credit note · 386
+ * PREPAYMENT invoice (AP-2). The subtype flags (`name`) are the same for all
+ * four — "For Prepayment Tax Invoice, code is 386 and subtype is 01".
+ */
+const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381", advance_invoice: "386", advance_credit_note: "381" } as const;
 
 /**
  * KSA-2 "invoice transaction code" — 7 digits, validated by BR-KSA-06.
@@ -161,6 +166,45 @@ function addLine(parent: any, line: EInvoiceLine, currency: string): void {
 }
 
 /**
+ * AP-2 — a PREPAYMENT ADJUSTMENT line (XML Standard ¶9.5, the normative
+ * sample; BR-KSA-73…82). Element order follows the UBL InvoiceLine sequence:
+ * ID → InvoicedQuantity → LineExtensionAmount → DocumentReference* →
+ * TaxTotal → Item → Price. Every principal value is a fixed ZERO — the line
+ * carries only the references and the consolidated KSA-31/32/33/34 subtotal.
+ */
+function addPrepaymentAdjustmentLine(parent: any, id: number, adj: PrepaymentAdjustmentLine, currency: string): void {
+  const l = parent.ele(NS.cac, "cac:InvoiceLine");
+  l.ele(NS.cbc, "cbc:ID").txt(String(id));
+  l.ele(NS.cbc, "cbc:InvoicedQuantity").att("unitCode", "PCE").txt("0.00");
+  l.ele(NS.cbc, "cbc:LineExtensionAmount").att("currencyID", currency).txt("0.00");
+  for (const ref of adj.references) {
+    const dr = l.ele(NS.cac, "cac:DocumentReference");
+    dr.ele(NS.cbc, "cbc:ID").txt(ref.invoiceNumber); // KSA-26
+    if (ref.uuid) dr.ele(NS.cbc, "cbc:UUID").txt(ref.uuid); // KSA-1 of the advance invoice (Guideline §8(b))
+    dr.ele(NS.cbc, "cbc:IssueDate").txt(ref.issueDate); // KSA-28
+    dr.ele(NS.cbc, "cbc:IssueTime").txt(ref.issueTime); // KSA-29
+    dr.ele(NS.cbc, "cbc:DocumentTypeCode").txt("386"); // KSA-30
+  }
+  const tt = l.ele(NS.cac, "cac:TaxTotal");
+  tt.ele(NS.cbc, "cbc:TaxAmount").att("currencyID", currency).txt("0.00");
+  tt.ele(NS.cbc, "cbc:RoundingAmount").att("currencyID", currency).txt("0.00");
+  const st = tt.ele(NS.cac, "cac:TaxSubtotal");
+  st.ele(NS.cbc, "cbc:TaxableAmount").att("currencyID", currency).txt(adj.taxableAmount); // KSA-31
+  st.ele(NS.cbc, "cbc:TaxAmount").att("currencyID", currency).txt(adj.taxAmount); // KSA-32
+  const tc = st.ele(NS.cac, "cac:TaxCategory");
+  tc.ele(NS.cbc, "cbc:ID").txt(adj.taxCategory); // KSA-33
+  tc.ele(NS.cbc, "cbc:Percent").txt(adj.taxPercent); // KSA-34
+  tc.ele(NS.cac, "cac:TaxScheme").ele(NS.cbc, "cbc:ID").txt("VAT");
+  const item = l.ele(NS.cac, "cac:Item");
+  item.ele(NS.cbc, "cbc:Name").txt("Prepayment adjustment");
+  const ctc = item.ele(NS.cac, "cac:ClassifiedTaxCategory");
+  ctc.ele(NS.cbc, "cbc:ID").txt(adj.taxCategory);
+  ctc.ele(NS.cbc, "cbc:Percent").txt(adj.taxPercent);
+  ctc.ele(NS.cac, "cac:TaxScheme").ele(NS.cbc, "cbc:ID").txt("VAT");
+  l.ele(NS.cac, "cac:Price").ele(NS.cbc, "cbc:PriceAmount").att("currencyID", currency).txt("0.00");
+}
+
+/**
  * Build the UBL 2.1 XML for one document.
  *
  * The result is complete and schema-valid EXCEPT for the three
@@ -261,6 +305,9 @@ export function buildInvoiceXml(input: EInvoiceInput): string {
   lmt.ele(NS.cbc, "cbc:PayableAmount").att("currencyID", cur).txt(input.payableAmount);
 
   for (const line of input.lines) addLine(doc, line, cur);
+  // AP-2: the prepayment adjustment lines follow the supply lines, numbered on.
+  let nextId = input.lines.length + 1;
+  for (const adj of input.prepaymentAdjustments) addPrepaymentAdjustmentLine(doc, nextId++, adj, cur);
 
   return doc.end({ prettyPrint: true });
 }

@@ -23,7 +23,7 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 
 const PAGE_SIZE = 50;
 
-import type { CreateInvoiceInput, Customer, Invoice, ListInvoices200, PaymentInput, UpdateInvoiceInput } from "@workspace/api-client-react";
+import type { CreateInvoiceInput, Customer, Invoice, ListInvoices200, OpenAdvanceInvoice, PaymentInput, UpdateInvoiceInput } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -109,6 +109,25 @@ export default function Invoices() {
     return net + (net * (Number(l.vatRate) || 0)) / 100;
   };
   const invoiceTotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
+  /**
+   * AP-2 — the ADVANCE TAX INVOICES (386) this FINAL invoice applies. The
+   * customer's open ones are listed; the user TICKS the ones to apply and may
+   * enter a part (VAT inclusive; blank = the whole open balance). A human
+   * selection on the document — nothing is auto-applied (CLAUDE.md §9). The
+   * server computes the split, the PrepaidAmount and the amount due; the
+   * summary below is the same arithmetic for the reader's benefit only.
+   */
+  const [prepayments, setPrepayments] = useState<Record<number, { on: boolean; amount: string }>>({});
+  const { data: openAdvances = [] } = useQuery<OpenAdvanceInvoice[]>({
+    queryKey: ["open-advance-invoices", form.customerId],
+    queryFn: () => apiFetch(`/customers/${form.customerId}/advance-invoices`),
+    enabled: !!form.customerId && open,
+  });
+  const selectedPrepayments = openAdvances
+    .filter((a) => prepayments[a.id]?.on)
+    .map((a) => ({ advanceInvoiceId: a.id, amount: prepayments[a.id]?.amount.trim() ? Number(prepayments[a.id]!.amount) : a.openAmount }));
+  const prepaidTotal = selectedPrepayments.reduce((s, p) => s + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+  const prepaymentsBody = () => selectedPrepayments.map((p) => ({ advanceInvoiceId: p.advanceInvoiceId, amount: p.amount }));
   const [payAmount, setPayAmount] = useState("");
   /**
    * D-3 (2026-09-16): a payment posts to the bank's OWN GL account, so the
@@ -174,9 +193,10 @@ export default function Invoices() {
               unitPrice: Number(l.unitPrice),
               vatRate: Number(l.vatRate) || 0,
             })),
+          ...(selectedPrepayments.length > 0 ? { prepayments: prepaymentsBody() } : {}),
         }),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); setOpen(false); setForm(emptyForm); setLines([emptyLine()]); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoices"] }); qc.invalidateQueries({ queryKey: ["open-advance-invoices"] }); setOpen(false); setForm(emptyForm); setLines([emptyLine()]); setPrepayments({}); toast({ title: t("Invoice created", "تم إنشاء الفاتورة") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
     onSettled: () => { submittingRef.current = false; },
   });
@@ -259,12 +279,16 @@ export default function Invoices() {
               unitPrice: Number(l.unitPrice),
               vatRate: Number(l.vatRate) || 0,
             })),
+          // The selection is replaced whole, like the lines (an empty list clears it).
+          prepayments: prepaymentsBody(),
         }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["open-advance-invoices"] });
       setOpen(false); setEditing(null); setForm(emptyForm);
       setLines([emptyLine()]);
+      setPrepayments({});
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
@@ -303,6 +327,8 @@ export default function Invoices() {
           vatRate: String(i.vatRate ?? DEFAULT_VAT_RATE),
         })),
       );
+      // AP-2: the draft's current prepayment selection, prefilled so a save keeps it.
+      setPrepayments(Object.fromEntries(((detail.prepayments ?? []) as Array<{ advanceInvoiceId: number; amount: number }>).map((p) => [p.advanceInvoiceId, { on: true, amount: String(p.amount) }])));
       setEditing(row);
       setOpen(true);
     } catch (e) {
@@ -332,6 +358,7 @@ export default function Invoices() {
               setEditing(null);
               setForm(emptyForm);
               setLines([emptyLine()]);
+              setPrepayments({});
             }
           }}
         >
@@ -410,6 +437,45 @@ export default function Invoices() {
                   </span>
                 </div>
               </div>
+
+              {/* ── AP-2: apply the customer's advance tax invoices (386). Shown only when the customer has open ones. ── */}
+              {(!editing || editing.documentType === "invoice") && openAdvances.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-3" data-testid="prepayments-section">
+                  <Label className="text-xs text-muted-foreground">{t("Apply advance tax invoices (prepayment adjustment)", "تطبيق الفواتير الضريبية للدفعات المقدمة (تسوية الدفعة المقدمة)")}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("Tick the advance tax invoices this invoice settles. Their VAT was declared when they were issued; the invoice files the rest and shows the advance as PrepaidAmount.",
+                       "حدّد الفواتير الضريبية للدفعات المقدمة التي تسوّيها هذه الفاتورة. قُرِّرت ضريبتها عند إصدارها؛ تُدرج الفاتورة الباقي وتُظهر الدفعة المقدمة كمبلغ مدفوع مقدمًا.")}
+                  </p>
+                  {openAdvances.map((a) => {
+                    const sel = prepayments[a.id] ?? { on: false, amount: "" };
+                    return (
+                      <div key={a.id} className="grid grid-cols-12 gap-2 items-center" data-testid={`prepayment-${a.id}`}>
+                        <label className="col-span-7 flex items-center gap-2 text-sm">
+                          <input type="checkbox" className="h-4 w-4" checked={sel.on} onChange={(e) => setPrepayments((p) => ({ ...p, [a.id]: { on: e.target.checked, amount: sel.amount } }))} data-testid={`prepayment-check-${a.id}`} />
+                          <span className="font-mono text-xs">{a.invoiceNumber}</span>
+                          <span className="text-xs text-muted-foreground"><span dir="ltr">{a.date}</span> · {t("open", "المتبقي")} <span className="font-mono">{fmtNum(a.openAmount)}</span></span>
+                        </label>
+                        <Input
+                          className="col-span-5 h-8 text-sm"
+                          type="number"
+                          disabled={!sel.on}
+                          placeholder={fmtNum(a.openAmount)}
+                          value={sel.amount}
+                          onChange={(e) => setPrepayments((p) => ({ ...p, [a.id]: { on: true, amount: e.target.value } }))}
+                          data-testid={`prepayment-amount-${a.id}`}
+                        />
+                      </div>
+                    );
+                  })}
+                  {selectedPrepayments.length > 0 && (
+                    <div className="text-sm space-y-0.5" data-testid="prepayment-summary">
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t("Prepaid (advance, incl. VAT)", "مدفوع مقدمًا (الدفعة المقدمة، شامل الضريبة)")}</span><span className="font-mono">{fmtNum(prepaidTotal)}</span></div>
+                      <div className="flex justify-between font-medium"><span>{t("Amount due", "المبلغ المستحق")}</span><span className="font-mono" data-testid="prepayment-amount-due">{fmtNum(invoiceTotal - prepaidTotal)}</span></div>
+                      {prepaidTotal > invoiceTotal + 0.005 && <p className="text-xs text-destructive">{t("The advances applied exceed this invoice's total — apply at most the total; the rest stays on the customer's deposit.", "الدفعات المقدمة المطبّقة تتجاوز إجمالي هذه الفاتورة — طبّق الإجمالي على الأكثر؛ يبقى الباقي في عربون العميل.")}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <Button
               className="w-full mt-4"
@@ -513,18 +579,29 @@ export default function Invoices() {
                 t("Amount", "المبلغ"),
                 t("VAT", "ضريبة القيمة المضافة"),
                 t("Total", "الإجمالي"),
+                t("Due", "المستحق"),
                 t("Status", "الحالة"),
                 "",
               ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4 font-mono text-xs text-primary">{inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-primary">
+                    {inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}
+                    {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
+                    {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
+                    {inv.documentType === "advance_credit_note" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-cn-${inv.id}`}>{t("Credit note — advance", "إشعار دائن — دفعة مقدمة")}</Badge>}
+                    {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
+                  </td>
                   <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
                   <td className="py-3 pe-4 font-mono">{fmtNum(inv.subtotal)}</td>
                   <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
                   <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
+                  {/* What is still OWED on the document: nothing on a 386 or a note; total − paid − credited otherwise (the advance, once applied, sits in paid). */}
+                  <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`}>
+                    {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount)}
+                  </td>
                   <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">
@@ -538,10 +615,11 @@ export default function Invoices() {
                       */}
                       {inv.status === "draft" && (
                         <>
-                          <Button variant="ghost" size="sm" className="text-xs h-7"
+                          {/* A draft 386's amount is the receipt's; only its notes are editable, so Edit is not offered (Delete is). */}
+                          {inv.documentType !== "advance_invoice" && inv.documentType !== "advance_credit_note" && <Button variant="ghost" size="sm" className="text-xs h-7"
                             onClick={() => openEdit(inv)}>
                             {t("Edit", "تعديل")}
-                          </Button>
+                          </Button>}
                           <Button variant="ghost" size="sm" className="text-xs h-7 text-negative"
                             onClick={() => setConfirmDelete(inv)}>
                             {t("Delete", "حذف")}

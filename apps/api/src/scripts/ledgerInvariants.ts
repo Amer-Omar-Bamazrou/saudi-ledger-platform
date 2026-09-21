@@ -79,11 +79,19 @@ async function main() {
       LEFT JOIN (SELECT invoice_id, sum(amount) v FROM invoice_payments GROUP BY 1) l ON l.invoice_id = i.id
       LEFT JOIN (SELECT a.invoice_id, sum(a.amount) v FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id IS NOT NULL AND r.id IS NULL GROUP BY 1) s ON s.invoice_id = i.id
      WHERE coalesce(i.paid_amount,0) <> coalesce(l.v,0) + coalesce(s.v,0)`));
-  fail("deposits_gl_vs_subledger — by customer (RULE-O: reversed opening deposits out)", await q(`
+  // AP-2: the GL deposit is the NET contract liability — the subledger's cash-on-account
+  // MINUS the VAT declared by issued advance tax invoices (386) not yet adjusted by an
+  // issued final invoice (E2 moved it to VAT_OUTPUT; E3 released the net part).
+  fail("deposits_gl_vs_subledger — by customer (RULE-O: reversed opening deposits out; AP-2: net of open advance-invoice VAT)", await q(`
     WITH gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id WHERE c.system_code = 'CUSTOMER_DEPOSITS' AND e.status IN ('posted','reversed') GROUP BY 1,2),
+         adv AS (SELECT i.organization_id AS org, i.customer_id,
+                        sum(i.vat_amount::numeric) - coalesce(sum((SELECT coalesce(sum(x.tax_amount), 0) FROM invoice_prepayments x WHERE x.advance_invoice_id = i.id AND x.allocation_id IS NOT NULL)), 0)
+                                                   - coalesce(sum((SELECT coalesce(sum(n.vat_amount::numeric), 0) FROM invoices n WHERE n.original_invoice_id = i.id AND n.document_type = 'advance_credit_note' AND n.invoice_hash IS NOT NULL)), 0) v
+                   FROM invoices i WHERE i.document_type = 'advance_invoice' AND i.invoice_hash IS NOT NULL AND i.customer_id IS NOT NULL GROUP BY 1,2),
          sub AS (SELECT p.organization_id AS org, p.customer_id,
                         sum(p.amount) - coalesce((SELECT sum(a.amount) FROM payment_allocations a JOIN payments qq ON qq.id = a.payment_id LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE qq.customer_id = p.customer_id AND qq.organization_id = p.organization_id AND r.id IS NULL), 0)
-                                    - coalesce((SELECT sum(f.amount) FROM customer_refunds f WHERE f.customer_id = p.customer_id AND f.organization_id = p.organization_id AND f.origin = 'deposit'), 0) v
+                                    - coalesce((SELECT sum(f.amount) FROM customer_refunds f WHERE f.customer_id = p.customer_id AND f.organization_id = p.organization_id AND f.origin = 'deposit'), 0)
+                                    - coalesce((SELECT v FROM adv WHERE adv.org = p.organization_id AND adv.customer_id = p.customer_id), 0) v
                    FROM payments p WHERE p.direction = 'in' AND ${PAYMENT_NOT_REVERSED_TEXT("p")} GROUP BY 1,2)
     SELECT coalesce(gl.org, sub.org)::text AS org, coalesce(gl.customer_id, sub.customer_id) AS customer_id, coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.customer_id = gl.customer_id WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));

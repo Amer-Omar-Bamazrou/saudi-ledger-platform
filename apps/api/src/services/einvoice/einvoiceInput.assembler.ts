@@ -14,9 +14,11 @@ import type {
   EInvoiceParty,
   EInvoiceSubtype,
   NationalAddress,
+  PrepaymentAdjustmentLine,
   TaxCategoryCode,
   TaxSubtotal,
 } from "./types";
+import { splitIssuedAt } from "./issuedAt";
 
 /**
  * Money → the exact string that goes on the wire (and gets signed).
@@ -76,11 +78,26 @@ export interface AssembleRows {
     vatAmount: unknown;
     discount: unknown;
     total: unknown;
+    /** 🔴 NOT a document field. Kept on the row type for callers; the assembler never reads it (AP-2, G-Z-1). */
     paidAmount: unknown;
     notes: string | null;
     /** M12.1b — set on credit/debit notes only. */
     noteReason: string | null;
   };
+  /**
+   * AP-2 — the PREPAYMENT ADJUSTMENT rows of a final invoice: one per
+   * advance tax invoice it adjusts, with that 386's identity (its number,
+   * UUID and issuance instant — resolved from the ROW, never a stored
+   * string) and the KSA-31…34 split copied from the 386. Empty or absent
+   * for every other document.
+   */
+  prepayments?: Array<{
+    advance: { invoiceNumber: string; zatcaUuid: string | null; issuedAt: Date | null };
+    taxableAmount: unknown;
+    taxAmount: unknown;
+    taxCategoryCode: string;
+    vatRate: unknown;
+  }>;
   /**
    * The document a note corrects (M12.1b). Resolved from
    * `invoices.original_invoice_id`; NULL for ordinary invoices.
@@ -216,7 +233,8 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
   // BR-KSA-17 requires BOTH the original-document reference and the reason on
   // every note. The DB CHECK enforces this at write time; re-checked here
   // because this function is also reachable from directly-constructed rows.
-  const isNote = invoice.documentType === "credit_note" || invoice.documentType === "debit_note";
+  // AP-3: the credit note against an advance is a 381 like any credit note — BR-KSA-56 wants the billing reference (the 386's number), BR-KSA-17 the reason.
+  const isNote = invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_credit_note";
   if (isNote) {
     if (!rows.originalInvoice?.invoiceNumber) {
       throw new BusinessRuleError(400, {
@@ -325,9 +343,45 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     : null;
 
   const documentType =
-    invoice.documentType === "credit_note" || invoice.documentType === "debit_note"
-      ? (invoice.documentType as "credit_note" | "debit_note")
+    invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_invoice" || invoice.documentType === "advance_credit_note"
+      ? (invoice.documentType as "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note")
       : "invoice";
+
+  /**
+   * 🔴 AP-2 — BT-113 `PrepaidAmount` is computed from ADJUSTED ADVANCE TAX
+   * INVOICES ONLY, never from `paid_amount` (G-Z-1: the old wiring read the
+   * cash cache — 0.00 at every issuance so far, and the WRONG FACT had it
+   * ever been non-zero; Guideline §8(c) populates BT-113 only when a
+   * separate advance invoice was issued). One adjustment line per
+   * (category, rate), consolidating the advances of that bucket, each
+   * referenced by number / UUID / issue date / issue time / 386 (¶9.5).
+   * Only a final invoice (388) carries them; the check that a note or a 386
+   * never does lives at the write boundary (invoices.service).
+   */
+  const prepayments = rows.prepayments ?? [];
+  if (prepayments.length > 0 && documentType !== "invoice") {
+    throw new BusinessRuleError(400, { error: "Only a tax invoice (388) can adjust an advance tax invoice.", code: "prepayment_on_non_invoice" });
+  }
+  const adjustmentBuckets = new Map<string, PrepaymentAdjustmentLine>();
+  for (const p of prepayments) {
+    if (!p.advance.issuedAt) throw new BusinessRuleError(400, { error: `Advance tax invoice ${p.advance.invoiceNumber} has no issuance timestamp; it must be issued before it is adjusted.`, code: "prepayment_advance_not_issued" });
+    const cat = p.taxCategoryCode as TaxCategoryCode;
+    if (!VALID_CATEGORIES.includes(cat)) throw new BusinessRuleError(400, { error: `Prepayment adjustment of ${p.advance.invoiceNumber} carries an invalid VAT category "${p.taxCategoryCode}".`, code: "prepayment_tax_category_invalid" });
+    const pct = percent(p.vatRate);
+    const [issueDate, issueTime] = splitIssuedAt(p.advance.issuedAt);
+    const key = `${cat}|${pct}`;
+    const ref = { invoiceNumber: p.advance.invoiceNumber, uuid: p.advance.zatcaUuid, issueDate, issueTime };
+    const existing = adjustmentBuckets.get(key);
+    if (existing) {
+      existing.references.push(ref);
+      existing.taxableAmount = money(Number(existing.taxableAmount) + Number(p.taxableAmount));
+      existing.taxAmount = money(Number(existing.taxAmount) + Number(p.taxAmount));
+    } else {
+      adjustmentBuckets.set(key, { references: [ref], taxableAmount: money(p.taxableAmount), taxAmount: money(p.taxAmount), taxCategory: cat, taxPercent: pct });
+    }
+  }
+  const prepaymentAdjustments = [...adjustmentBuckets.values()];
+  const prepaidAmount = prepaymentAdjustments.reduce((s, a) => s + Number(a.taxableAmount) + Number(a.taxAmount), 0);
 
   return {
     invoiceNumber: invoice.invoiceNumber,
@@ -345,10 +399,11 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     allowanceTotal: money(invoice.discount),
     taxExclusiveTotal: money(invoice.subtotal),
     taxInclusiveTotal: money(invoice.total),
-    prepaidAmount: money(invoice.paidAmount),
-    payableAmount: money(Number(invoice.total ?? 0) - Number(invoice.paidAmount ?? 0)),
+    prepaidAmount: money(prepaidAmount),
+    payableAmount: money(Number(invoice.total ?? 0) - prepaidAmount),
     taxTotal: money(invoice.vatAmount),
     taxSubtotals: buildSubtotals(lines),
+    prepaymentAdjustments,
     paymentMeansCode: "30", // credit transfer — the safe default (BR-KSA-16)
     billingReference: rows.originalInvoice
       ? { invoiceNumber: rows.originalInvoice.invoiceNumber }

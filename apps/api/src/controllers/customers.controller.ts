@@ -7,6 +7,7 @@ import { CreateCustomerBody, UpdateCustomerBody } from "@workspace/api-zod";
 import { customersService } from "../services/customers.service";
 import { paymentsService } from "../services/payments.service";
 import { customerStatementService } from "../services/customerStatement.service";
+import { advanceInvoicesService } from "../services/advanceInvoices.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
 
@@ -34,6 +35,10 @@ export const customersController = {
   async statement(req: Request, res: Response) {
     const { date_from, date_to } = req.query as Record<string, string | undefined>;
     res.json(await customerStatementService.statement(requireIdParam(req), { from: date_from || undefined, to: date_to || undefined }));
+  },
+  /** AP-2: open advance tax invoices (386) of this customer — the final invoice's picker. */
+  async advanceInvoices(req: Request, res: Response) {
+    res.json(await advanceInvoicesService.openForCustomer(requireIdParam(req)));
   },
 
   // 🔴 Contract batch 2: the body is validated against the GENERATED schema, so

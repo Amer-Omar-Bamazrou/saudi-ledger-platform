@@ -5,7 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
+import type { InvoicePrepayment } from './invoicePrepayment';
 import type { InvoiceStatus } from './invoiceStatus';
 
 export interface Invoice {
@@ -60,8 +62,8 @@ export interface Invoice {
      * @nullable
      */
   qrCode: string | null;
-  /** invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign). */
-  documentType: string;
+  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign). */
+  documentType: InvoiceDocumentType;
   /**
      * For a credit/debit note, the invoice it adjusts.
      * @nullable
@@ -76,5 +78,16 @@ export interface Invoice {
   icv: number | null;
   /** @nullable */
   zatcaUuid: string | null;
+  /**
+     * AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.
+     * @nullable
+     */
+  advancePaymentId: number | null;
+  /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
+  prepayments: InvoicePrepayment[];
+  /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */
+  prepaidAmount: number;
+  /** total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued). */
+  amountDue: number;
   items?: InvoiceItem[];
 }

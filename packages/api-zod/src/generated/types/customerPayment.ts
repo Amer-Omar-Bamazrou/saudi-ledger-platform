@@ -8,6 +8,8 @@
 import type { CustomerPaymentDirection } from './customerPaymentDirection';
 import type { CustomerPaymentSource } from './customerPaymentSource';
 import type { PaymentAllocation } from './paymentAllocation';
+import type { PaymentClassification } from './paymentClassification';
+import type { ReceiptAdvanceInvoice } from './receiptAdvanceInvoice';
 
 export interface CustomerPayment {
   id: number;
@@ -21,6 +23,7 @@ export interface CustomerPayment {
   method: string | null;
   /** @nullable */
   reference: string | null;
+  /** `opening` — a migrated deposit (Batch 1C). */
   source: CustomerPaymentSource;
   /** @nullable */
   idempotencyKey: string | null;
@@ -34,5 +37,16 @@ export interface CustomerPayment {
   /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
   unappliedAmount: number;
   allocations: PaymentAllocation[];
+  /** AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is. */
+  classification: PaymentClassification | null;
+  /** AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared. */
+  advanceInvoicedAmount: number;
+  /** AP-2 — Σ adjusted by issued final invoices. */
+  advanceAdjustedAmount: number;
+  /** AP-2 — invoiced − adjusted: reserved for a final invoice's prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment). */
+  advanceOpenAmount: number;
+  /** AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded. */
+  uninvoicedAmount: number;
+  advanceInvoices: ReceiptAdvanceInvoice[];
   createdAt: string;
 }

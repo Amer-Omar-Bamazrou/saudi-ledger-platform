@@ -7,6 +7,7 @@
  */
 import type { InvoiceHeaderInput } from './invoiceHeaderInput';
 import type { InvoiceLineInput } from './invoiceLineInput';
+import type { PrepaymentInput } from './prepaymentInput';
 
 /**
  * A create makes a DRAFT, for every role — nothing is issued, no ICV is
@@ -18,7 +19,11 @@ import type { InvoiceLineInput } from './invoiceLineInput';
 export type CreateInvoiceInput = InvoiceHeaderInput & {
   /** @minItems 1 */
   items: InvoiceLineInput[];
+  /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
+  prepayments?: PrepaymentInput[];
 } & Required<Pick<InvoiceHeaderInput & {
   /** @minItems 1 */
   items: InvoiceLineInput[];
+  /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
+  prepayments?: PrepaymentInput[];
 }, 'date'>>;

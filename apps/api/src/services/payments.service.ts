@@ -20,6 +20,10 @@
  *   refund()           Phase C — a refund SETTLES an existing credit: Dr
  *                      deposits or credit balances / Cr bank leaf, naming the
  *                      receipt or the note whose balance it returns.
+ *   classify()         AP-1 — a dated statement of WHAT a deposit is
+ *                      (advance / erroneous / security_deposit / unknown); a
+ *                      new record per change, nothing posted, no VAT decided
+ *                      (advance-payments decision pack §9 AP-1).
  *
  * What it refuses, by construction and not by convention:
  *   - a cash line without a bank (D-3, `assertBankAccount`);
@@ -49,10 +53,27 @@ import { assertBankAccount } from "./accounting/bankIdentity";
 import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME } from "./accounting/customerCreditPolicy";
 import { auditService } from "./audit.service";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
-import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund } from "@workspace/db";
+import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund, PaymentClassification } from "@workspace/db";
 import { isNoteType } from "./creditNotes";
+import { isAdvanceInvoiceType } from "@workspace/shared";
+import { advanceInvoicesService, type ReceiptAdvanceInvoiceOut } from "./advanceInvoices.service";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
 export type AllocationInput = { invoiceId: number; amount: number };
+
+/** AP-1 — what the business says a deposit is. Informational; the later VAT workflow keys on it. */
+export type DepositClassification = "advance" | "erroneous" | "security_deposit" | "unknown";
+export const DEPOSIT_CLASSIFICATIONS: readonly DepositClassification[] = ["advance", "erroneous", "security_deposit", "unknown"];
+export type DepositVatCategory = "S" | "Z" | "E";
+
+export type ClassificationOut = {
+  id: number;
+  classification: DepositClassification;
+  vatCategory: DepositVatCategory | null;
+  note: string | null;
+  classifiedBy: number | null;
+  classifiedAt: string;
+};
 
 export type ReceiveInput = {
   customerId?: number | null;
@@ -66,6 +87,10 @@ export type ReceiveInput = {
   /** Which path recorded it. Default `manual` (POST /payments). */
   source?: "manual" | "invoice_pay" | "settlement";
   sourceTransactionId?: number | null;
+  /** AP-1: what the unapplied part is, stated at receipt (a classification record in the same transaction). */
+  classification?: DepositClassification | null;
+  vatCategory?: DepositVatCategory | null;
+  classificationNote?: string | null;
 };
 
 export type PaymentOut = {
@@ -87,6 +112,18 @@ export type PaymentOut = {
   /** amount − allocated − refunded: the customer's deposit still held from this receipt. */
   unappliedAmount: number;
   allocations: AllocationOut[];
+  /** AP-1: the CURRENT classification (the newest record), or null when nobody has said what the deposit is. */
+  classification: ClassificationOut | null;
+  /** AP-2: Σ issued advance tax invoices (386) on this receipt — the part of the deposit whose VAT is declared. */
+  advanceInvoicedAmount: number;
+  /** AP-2: Σ adjusted by issued final invoices (the prepayment adjustment). */
+  advanceAdjustedAmount: number;
+  /** AP-2: invoiced − adjusted — reserved for a final invoice's adjustment; a D-4 allocation or a refund cannot touch it. */
+  advanceOpenAmount: number;
+  /** AP-2: unapplied − advanceOpen — what may still be advance-invoiced, allocated or refunded. */
+  uninvoicedAmount: number;
+  /** AP-2: every advance tax invoice (any status) issued from this receipt. */
+  advanceInvoices: ReceiptAdvanceInvoiceOut[];
   createdAt: string;
 };
 
@@ -131,6 +168,28 @@ function toAllocationOut(a: PaymentAllocation, r: PaymentAllocationReversal | nu
   };
 }
 
+function toClassificationOut(c: PaymentClassification): ClassificationOut {
+  return {
+    id: c.id, classification: c.classification as DepositClassification, vatCategory: (c.vatCategory as DepositVatCategory | null) ?? null,
+    note: c.note ?? null, classifiedBy: c.createdBy ?? null, classifiedAt: c.createdAt.toISOString(),
+  };
+}
+
+/** Parse a classification request — the value set is the table's CHECK, restated here so the refusal is a 400 with the field named. */
+function parseClassification(body: { classification?: unknown; vatCategory?: unknown; note?: unknown }): { classification: DepositClassification; vatCategory: DepositVatCategory | null; note: string | null } {
+  const classification = body.classification;
+  if (typeof classification !== "string" || !(DEPOSIT_CLASSIFICATIONS as readonly string[]).includes(classification)) {
+    throw new BadRequestError(`classification must be one of ${DEPOSIT_CLASSIFICATIONS.join(", ")}.`);
+  }
+  const vatCategory = body.vatCategory == null || body.vatCategory === "" ? null : body.vatCategory;
+  if (vatCategory != null && vatCategory !== "S" && vatCategory !== "Z" && vatCategory !== "E") throw new BadRequestError("vatCategory must be S, Z or E.");
+  if (vatCategory != null && classification !== "advance") {
+    throw new BusinessRuleError(422, { error: "A VAT category belongs to an advance for a taxable supply only; an erroneous payment or a security deposit has none.", code: "vat_category_requires_advance", field: "vatCategory" });
+  }
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  return { classification: classification as DepositClassification, vatCategory: vatCategory as DepositVatCategory | null, note };
+}
+
 function toRefundOut(f: CustomerRefund): RefundOut {
   return {
     id: f.id, customerId: f.customerId, bankAccountId: f.bankAccountId, origin: f.origin as "deposit" | "credit_note",
@@ -158,10 +217,22 @@ async function paymentAvailability(p: Payment): Promise<{ allocated: number; ref
   return { allocated, refunded, available: round2(num(p.amount) - allocated - refunded) };
 }
 
-async function view(p: Payment): Promise<PaymentOut> {
+async function view(p: Payment, classification?: PaymentClassification | null): Promise<PaymentOut> {
   const rows = await paymentsRepository.allocationsOfPayment(p.id);
   const allocated = round2(rows.filter((r) => r.reversal == null).reduce((s, r) => s + num(r.alloc.amount), 0));
   const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: p.id }));
+  const current = classification !== undefined ? classification : (await paymentsRepository.latestClassifications([p.id])).get(p.id) ?? null;
+  const unapplied = round2(num(p.amount) - allocated - refunded);
+  const adv = (await advanceInvoicesRepository.figuresForPayments([p.id])).get(p.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, credited: 0, creditedVat: 0, open: 0, openVat: 0 };
+  const advRows = await advanceInvoicesRepository.advanceInvoicesOfPayment(p.id);
+  const noteRows = await advanceInvoicesRepository.creditNotesOfAdvances(advRows.map((r) => r.inv.id));
+  const advanceInvoices: ReceiptAdvanceInvoiceOut[] = advRows.map(({ inv, adjusted, credited, vatCategory }) => ({
+    id: inv.id, invoiceNumber: inv.invoiceNumber, status: inv.status, date: inv.date, total: num(inv.total), subtotal: num(inv.subtotal), vatAmount: num(inv.vatAmount),
+    vatCategory, adjustedAmount: round2(adjusted), creditedAmount: round2(credited),
+    openAmount: inv.status === "draft" || inv.status === "submitted" ? 0 : round2(num(inv.total) - adjusted - credited),
+    // AP-3: the provenance chain reads receipt → 386 → credit note(s) → (the receipt's) refund.
+    creditNotes: noteRows.filter((n) => n.originalInvoiceId === inv.id).map((n) => ({ id: n.id, invoiceNumber: n.invoiceNumber, status: n.status, date: n.date, total: num(n.total), vatAmount: num(n.vatAmount), noteReason: n.noteReason ?? null })),
+  }));
   return {
     id: p.id,
     direction: p.direction,
@@ -177,10 +248,36 @@ async function view(p: Payment): Promise<PaymentOut> {
     sourceTransactionId: p.sourceTransactionId ?? null,
     allocatedAmount: allocated,
     refundedAmount: refunded,
-    unappliedAmount: round2(num(p.amount) - allocated - refunded),
+    unappliedAmount: unapplied,
     allocations: rows.map((r) => toAllocationOut(r.alloc, r.reversal)),
+    classification: current ? toClassificationOut(current) : null,
+    advanceInvoicedAmount: round2(adv.invoiced),
+    advanceAdjustedAmount: round2(adv.adjusted),
+    advanceOpenAmount: round2(adv.open),
+    uninvoicedAmount: round2(unapplied - adv.open),
+    advanceInvoices,
     createdAt: p.createdAt.toISOString(),
   };
+}
+
+/**
+ * AP-1 — what may be classified: a receipt (direction in) with a customer,
+ * that IS or WAS a deposit (some part not allocated at receipt), that is not
+ * a migrated deposit (its VAT position is the MIGRATION's record — one
+ * definition, never two) and not a reversed one. Throws the named refusal.
+ */
+async function assertClassifiable(p: Payment): Promise<void> {
+  if (p.direction !== "in" || p.customerId == null) {
+    throw new BusinessRuleError(422, { error: `Receipt ${p.id} has no identified customer; only a customer's deposit can be classified.`, code: "classification_requires_customer", field: "paymentId" });
+  }
+  if (p.source === "opening") {
+    throw new BusinessRuleError(409, { error: `Receipt ${p.id} is a migrated opening deposit; its VAT position (invoiced or unknown) is the migration's record and is not reclassified here.`, code: "opening_deposit_classified_by_migration", field: "paymentId" });
+  }
+  await assertDepositNotReversed(p);
+  const atReceipt = round2(await paymentsRepository.allocatedAtReceipt(p.id));
+  if (num(p.amount) - atReceipt < 0.005) {
+    throw new BusinessRuleError(409, { error: `Receipt ${p.id} was fully allocated to invoices when it was recorded; it was never a deposit and there is nothing to classify.`, code: "no_deposit_to_classify", field: "paymentId" });
+  }
 }
 
 /** Parse and sanity-check an allocation list: positive amounts, distinct invoices. */
@@ -235,6 +332,10 @@ async function lockAndCheckTargets(
     }
     if (isNoteType(inv.documentType)) {
       throw new ConflictError(`${inv.invoiceNumber} is a credit or debit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
+    }
+    // AP-2: an advance tax invoice declares VAT on cash that already arrived; it is not a receivable and nothing settles it.
+    if (isAdvanceInvoiceType(inv.documentType)) {
+      throw new BusinessRuleError(409, { error: `${inv.invoiceNumber} is an advance tax invoice for money already received; it has no receivable to settle. Apply it on the customer's final invoice.`, code: "advance_invoice_not_payable", field: "allocations" });
     }
     assertNotReversedOpening(inv, `Invoice ${inv.invoiceNumber}`, "settled");
     // Issue 1 (Batch 1C): "issued" is a BUSINESS state, not a tax artefact. An
@@ -347,6 +448,7 @@ export const paymentsService = {
 
     const allocations = parseAllocations(body.allocations);
     const allocated = round2(allocations.reduce((s, a) => s + a.amount, 0));
+    const classification = body.classification != null ? parseClassification({ classification: body.classification, vatCategory: body.vatCategory, note: body.classificationNote }) : null;
     if (allocated > rounded + TOL) {
       throw new BusinessRuleError(422, { error: `Allocations total ${fmt(allocated)} but the payment is ${fmt(rounded)}. Allocate at most the amount received.`, code: "allocation_exceeds_payment", field: "allocations" });
     }
@@ -357,6 +459,9 @@ export const paymentsService = {
       if (!Number.isInteger(customerId) || customerId <= 0) throw new BadRequestError("customerId must be a positive integer.");
       const [cust] = await customersRepository.findById(customerId);
       if (!cust) throw new BusinessRuleError(422, { error: "Unknown customer for this organization", code: "reference_not_found", field: "customerId" });
+    }
+    if (classification && unapplied < 0.005) {
+      throw new BusinessRuleError(422, { error: "This receipt is fully allocated to invoices; there is no deposit to classify.", code: "no_deposit_to_classify", field: "classification" });
     }
     if (customerId == null && unapplied > 0) {
       // A deposit is owed TO someone. With no customer there is nobody to owe it to — refuse rather than park it.
@@ -407,8 +512,12 @@ export const paymentsService = {
     }
 
     const rows = await writeAllocations(allocations, targets, { paymentId, journalEntryId: null, createdBy: userId, paidAt });
+    let classified: PaymentClassification | null = null;
+    if (classification) {
+      classified = await paymentsRepository.insertClassification({ paymentId, ...classification, idempotencyKey: null, createdBy: userId });
+    }
 
-    const out = await view(payment);
+    const out = await view(payment, classified);
     await auditService.record({ action: "create", entityType: "payment", entityId: payment.id, after: { ...out, allocationIds: rows.map((r) => r.id) } });
     if (unapplied > 0) {
       await auditService.record({ action: "unapplied", entityType: "payment", entityId: payment.id, after: { customerId, unappliedAmount: unapplied, journalEntryId: je.id } });
@@ -439,6 +548,11 @@ export const paymentsService = {
     if (requested > unapplied + TOL) {
       throw new BusinessRuleError(422, { error: `Allocations total ${fmt(requested)} but only ${fmt(unapplied)} of payment ${paymentId} is unapplied.`, code: "allocation_exceeds_payment", field: "allocations" });
     }
+    // AP-2 (G-Z-3, fail-closed): what an advance tax invoice has declared VAT
+    // for is applied through the final invoice's prepayment adjustment, never
+    // by a plain allocation — that would settle AR while the 386's VAT stays
+    // declared and the final invoice declares it again.
+    await advanceInvoicesService.assertWithinUninvoiced(payment, requested, "allocated");
 
     const targets = await lockAndCheckTargets(allocations, { customerId: payment.customerId ?? null }, { paymentId });
     const party = partyOf(payment.customerId ?? null);
@@ -544,8 +658,9 @@ export const paymentsService = {
 
   async list(filter: { customerId?: number; limit?: number; offset?: number }): Promise<PaymentOut[]> {
     const rows = await paymentsRepository.listPayments({ customerId: filter.customerId, limit: Math.min(200, Math.max(1, filter.limit ?? 50)), offset: Math.max(0, filter.offset ?? 0) });
+    const classifications = await paymentsRepository.latestClassifications(rows.map((p) => p.id));
     const out: PaymentOut[] = [];
-    for (const p of rows) out.push(await view(p));
+    for (const p of rows) out.push(await view(p, classifications.get(p.id) ?? null));
     return out;
   },
 
@@ -584,6 +699,20 @@ export const paymentsService = {
     if (alloc.paymentId != null) {
       const [payment] = await paymentsRepository.lockPayment(alloc.paymentId);
       if (!payment) throw new NotFoundError("Payment not found");
+      // AP-2: an allocation FOLDED into a final invoice's issue entry (the
+      // prepayment adjustment) is what the signed document states — the
+      // deposit's NET part left the liability and the VAT was netted there,
+      // so mirroring it here would restore the GROSS. Corrected by a credit
+      // note on that invoice, never unapplied (the Phase A rule for a note's
+      // own settlement, applied to the adjustment).
+      const [prepayment] = await advanceInvoicesRepository.findByAllocation(alloc.id);
+      if (prepayment) {
+        throw new BusinessRuleError(409, {
+          error: `Allocation ${allocationId} is the prepayment adjustment stated on the issued invoice (advance tax invoice ${prepayment.advanceInvoiceId} applied); the signed document carries it and it cannot be unapplied. Issue a credit note against the invoice to correct it.`,
+          code: "prepayment_adjustment_immutable",
+          field: "id",
+        });
+      }
       customerId = payment.customerId ?? null;
       origin = "deposit";
     } else {
@@ -721,6 +850,10 @@ export const paymentsService = {
       }
       await assertDepositNotReversed(payment);
       available = (await paymentAvailability(payment)).available;
+      // AP-2 (G-Z-3, fail-closed): a deposit an advance tax invoice covers is
+      // refunded only after a credit note against that 386 (AP-3) — refunding
+      // the cash now would leave its VAT declared against nothing.
+      if (rounded <= available + TOL) await advanceInvoicesService.assertWithinUninvoiced(payment, rounded, "refunded");
       sourceLabel = `receipt ${paymentId}`;
     } else {
       creditNoteId = Number(body.creditNoteId);
@@ -779,6 +912,49 @@ export const paymentsService = {
   async listRefunds(filter: { customerId?: number; limit?: number; offset?: number }): Promise<RefundOut[]> {
     const rows = await paymentsRepository.listRefunds({ customerId: filter.customerId, limit: Math.min(200, Math.max(1, filter.limit ?? 50)), offset: Math.max(0, filter.offset ?? 0) });
     return rows.map(toRefundOut);
+  },
+
+  /**
+   * AP-1 — CLASSIFY a deposit: a new dated record (never an edit) saying what
+   * the money is. Nothing posts; no VAT is decided or altered; the later VAT
+   * workflow (AP-2) reads the CURRENT record. Refuses what is not a deposit
+   * (`assertClassifiable`). Idempotent per key.
+   */
+  async classify(paymentId: number, body: { classification?: unknown; vatCategory?: unknown; note?: unknown; idempotencyKey?: string | null }, userId: number | null): Promise<PaymentOut> {
+    const parsed = parseClassification(body);
+    const idempotencyKey = body.idempotencyKey?.trim() || null;
+    if (idempotencyKey) {
+      const [existing] = await paymentsRepository.findClassificationByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        if (existing.paymentId !== paymentId) throw new ConflictError(`Idempotency key "${idempotencyKey}" was already used for a different classification. Use a new key.`);
+        return this.get(paymentId);
+      }
+    }
+    const [payment] = await paymentsRepository.lockPayment(paymentId);
+    if (!payment) throw new NotFoundError("Payment not found");
+    await assertClassifiable(payment);
+    const before = (await paymentsRepository.latestClassifications([paymentId])).get(paymentId) ?? null;
+    let row: PaymentClassification;
+    try {
+      row = await paymentsRepository.insertClassification({ paymentId, ...parsed, idempotencyKey, createdBy: userId });
+    } catch (err) {
+      if (isIdempotencyRace(err)) throw new ConflictError(`Classification "${idempotencyKey}" was recorded concurrently. Retry the request to read it.`);
+      throw err;
+    }
+    const out = await view(payment, row);
+    await auditService.record({
+      action: "classify", entityType: "payment", entityId: paymentId,
+      before: before ? toClassificationOut(before) : null,
+      after: { ...toClassificationOut(row), unappliedAmount: out.unappliedAmount },
+    });
+    return out;
+  },
+
+  /** AP-1 — every classification a receipt has carried, oldest first. */
+  async classificationHistory(paymentId: number): Promise<ClassificationOut[]> {
+    const [p] = await paymentsRepository.findPaymentById(paymentId);
+    if (!p) throw new NotFoundError("Payment not found");
+    return (await paymentsRepository.classificationHistory(paymentId)).map(toClassificationOut);
   },
 
   /**

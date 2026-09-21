@@ -37,6 +37,10 @@ import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
+import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
+import { advanceInvoicesService, prepaymentsOf } from "./advanceInvoices.service";
+import type { GLLine } from "./accounting/glPosting";
 
 type Invoice = typeof InvoicesTable.$inferSelect;
 type Customer = typeof customersTable.$inferSelect;
@@ -52,7 +56,101 @@ const DOCUMENT_LABEL: Record<string, string> = {
   invoice: "Customer invoice",
   credit_note: "Credit note",
   debit_note: "Debit note",
+  advance_invoice: "Advance tax invoice",
+  advance_credit_note: "Credit note against advance",
 };
+
+/**
+ * AP-2 — re-validate an ADVANCE TAX INVOICE (386) at APPROVAL, under the
+ * receipt's lock, before the ICV is consumed. The draft was checked at
+ * create; the state can change while it sits in the queue: the deposit may
+ * have been reclassified (A1: only a genuine taxable advance triggers 386),
+ * allocated or refunded, or a concurrent 386 may have covered the remainder.
+ * Returns the locked receipt.
+ */
+async function assertAdvanceInvoiceIssuable(inv: Invoice) {
+  const [payment] = await paymentsRepository.lockPayment(inv.advancePaymentId!);
+  if (!payment) throw new BusinessRuleError(409, { code: "advance_receipt_not_found", error: `The receipt advance tax invoice ${inv.invoiceNumber} declares VAT for no longer exists.` });
+  if ((payment.customerId ?? null) !== (inv.customerId ?? null)) {
+    throw new BusinessRuleError(409, { code: "advance_receipt_customer_mismatch", error: `Advance tax invoice ${inv.invoiceNumber} names a different customer than receipt ${payment.id}.` });
+  }
+  const classification = (await paymentsRepository.latestClassifications([payment.id])).get(payment.id) ?? null;
+  const [line] = await invoicesRepository.itemsByInvoice(inv.id);
+  if (!classification || classification.classification !== "advance" || (line && classification.vatCategory !== line.taxCategoryCode)) {
+    throw new BusinessRuleError(409, {
+      code: "advance_invoice_requires_advance_classification",
+      error:
+        `Receipt ${payment.id} is no longer classified as an advance for a taxable supply` +
+        (classification?.classification === "advance" ? ` at VAT category ${line?.taxCategoryCode}` : "") +
+        ` (current: ${classification?.classification ?? "unknown"}${classification?.vatCategory ? ` · ${classification.vatCategory}` : ""}). ` +
+        `Reclassify the deposit, or delete this draft.`,
+      field: "id",
+      classification: classification?.classification ?? "unknown",
+    });
+  }
+  if (inv.date < payment.paidAt) {
+    throw new BusinessRuleError(422, { code: "advance_invoice_before_receipt", error: `Advance tax invoice ${inv.invoiceNumber} is dated ${inv.date}, before the receipt of ${payment.paidAt}: the tax point is the receipt.`, field: "date" });
+  }
+  const figures = await advanceInvoicesService.figuresFor(payment);
+  const total = toNum(inv.total);
+  if (total > figures.uninvoiced + 0.005) {
+    throw new BusinessRuleError(422, {
+      code: "advance_invoice_exceeds_uninvoiced",
+      error: `Advance tax invoice ${inv.invoiceNumber} is ${total.toFixed(2)} but only ${figures.uninvoiced.toFixed(2)} of receipt ${payment.id} is still not covered by an advance tax invoice (on account ${figures.unapplied.toFixed(2)}, already invoiced and open ${figures.open.toFixed(2)}).`,
+      field: "total",
+      uninvoicedAmount: figures.uninvoiced.toFixed(2),
+    });
+  }
+  return payment;
+}
+
+/**
+ * AP-2 — re-validate a FINAL invoice's PREPAYMENT ADJUSTMENT at approval,
+ * under the 386 rows' locks and the receipts' locks: every advance invoice
+ * is issued, belongs to this customer and company, and still has the open
+ * balance this invoice adjusts; Σ adjusted ≤ this invoice's total (the
+ * over-advance default — Guideline §8(g) option 2: limit to the invoice).
+ * Returns the rows with their receipts, ready to fold.
+ */
+async function assertPrepaymentsIssuable(inv: Invoice, total: number) {
+  const rows = await advanceInvoicesRepository.prepaymentsOfInvoice(inv.id);
+  if (rows.length === 0) return [];
+  const locked = await invoiceSettlementRepository.lockInvoices(rows.map((r) => r.row.advanceInvoiceId));
+  const byId = new Map(locked.map((a) => [a.id, a]));
+  const balances = await advanceInvoicesRepository.openBalances(rows.map((r) => r.row.advanceInvoiceId));
+  let sum = 0;
+  const out: Array<{ row: (typeof rows)[number]["row"]; advance: Invoice; paymentId: number }> = [];
+  for (const { row } of rows) {
+    const adv = byId.get(row.advanceInvoiceId);
+    const amount = toNum(row.amount);
+    if (!adv || adv.documentType !== ADVANCE_INVOICE_TYPE || !(INVOICE_IN_BOOKS_STATUSES as readonly string[]).includes(adv.status)) {
+      throw new BusinessRuleError(409, { code: "prepayment_advance_not_issued", error: `Advance tax invoice ${adv?.invoiceNumber ?? row.advanceInvoiceId} is not an issued advance tax invoice; this invoice cannot adjust it.`, field: "prepayments" });
+    }
+    if ((adv.customerId ?? null) !== (inv.customerId ?? null) || adv.companyId !== inv.companyId) {
+      throw new BusinessRuleError(422, { code: "prepayment_party_mismatch", error: `Advance tax invoice ${adv.invoiceNumber} belongs to a different customer or company than invoice ${inv.invoiceNumber}.`, field: "prepayments" });
+    }
+    const open = balances.get(adv.id)?.open ?? toNum(adv.total);
+    if (amount > open + 0.005) {
+      throw new BusinessRuleError(409, {
+        code: "prepayment_exceeds_open_advance",
+        error: `Invoice ${inv.invoiceNumber} adjusts ${amount.toFixed(2)} of advance tax invoice ${adv.invoiceNumber}, but only ${open.toFixed(2)} of it is still open (another invoice adjusted, or a credit note cancelled, the rest).`,
+        field: "prepayments",
+        openAmount: open.toFixed(2),
+      });
+    }
+    sum = Math.round((sum + amount) * 100) / 100;
+    out.push({ row, advance: adv, paymentId: adv.advancePaymentId! });
+  }
+  if (sum > total + 0.005) {
+    throw new BusinessRuleError(422, {
+      code: "prepayment_exceeds_invoice",
+      error: `The advances adjusted on invoice ${inv.invoiceNumber} total ${sum.toFixed(2)}, more than the invoice's ${total.toFixed(2)}. Adjust at most the invoice total; the remainder stays on the customer's deposit (or issue a credit note against the advance tax invoice).`,
+      field: "prepayments",
+    });
+  }
+  for (const paymentId of new Set(out.map((o) => o.paymentId))) await paymentsRepository.lockPayment(paymentId);
+  return out;
+}
 
 /**
  * The invoice's on-approve action — the ledger-affecting + e-invoice-issuing
@@ -73,6 +171,10 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   // remaining credit, or the original may have been corrected. `excludeNoteId`
   // stops this note counting against itself on the second pass.
   if (isNoteType(inv.documentType)) {
+    // AP-3: a credit note against a 386 is capped by the 386's OPEN balance,
+    // which a concurrent final invoice or note can consume — the 386 row is
+    // locked first (the same lock the prepayment adjustment takes).
+    if (inv.documentType === ADVANCE_CREDIT_NOTE_TYPE) await invoiceSettlementRepository.lockInvoices([inv.originalInvoiceId!]);
     await assertNoteIsValid({
       documentType: inv.documentType,
       originalInvoiceId: inv.originalInvoiceId,
@@ -85,6 +187,14 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const subtotal = toNum(inv.subtotal);
   const vatAmount = toNum(inv.vatAmount);
   const total = toNum(inv.total);
+
+  // AP-2: an advance tax invoice is re-checked against its receipt under the
+  // receipt's lock; a final invoice's prepayment adjustment against the
+  // advance invoices it names under their locks — both BEFORE the ICV is
+  // consumed (a refused issuance is recoverable; an ICV gap is not).
+  const isAdvance = inv.documentType === ADVANCE_INVOICE_TYPE;
+  if (isAdvance) await assertAdvanceInvoiceIssuable(inv);
+  const prepayments = !isAdvance && !isNoteType(inv.documentType) ? await assertPrepaymentsIssuable(inv, total) : [];
 
   // The tenant's real ZATCA identity — fails closed if unconfigured, so an
   // invoice can never be issued carrying a placeholder VAT number.
@@ -218,7 +328,68 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   // would understate AR and output VAT.
   //
   // Amounts are stored POSITIVE on both; direction lives in `document_type`.
-  if (total > 0) {
+  if (isAdvance) {
+    /**
+     * 🔴 AP-2 — E2, the ADVANCE TAX INVOICE's entry (accountant A2, pack §6):
+     *
+     *   Dr Customer deposits and advances (customer)   [the VAT part]
+     *       Cr VAT Payable                              [the VAT part]
+     *
+     * The receipt already posted Dr Bank / Cr Customer deposits for the
+     * GROSS (Batch 1B, unchanged). This entry splits the deposit: what
+     * remains on the liability is the NET contract liability (IFRS 15.47 —
+     * consideration excludes amounts collected for the government), and the
+     * VAT is declared. Together the two dated documents equal exactly the
+     * accountant's receipt entry (Dr Bank / Cr Deposit / Cr Output VAT).
+     * No AR, no revenue: the cash already arrived and nothing was supplied.
+     * A zero-rated or exempt advance (VAT 0) is a document with no entry.
+     */
+    if (vatAmount > 0) {
+      const party = { type: "customer" as const, customerId: inv.customerId! };
+      await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `Advance tax invoice ${inv.invoiceNumber} — VAT on advance received (receipt RCPT-${inv.advancePaymentId})`,
+        reference: inv.invoiceNumber,
+        lines: [
+          { systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `VAT declared on advance — ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0, party },
+          { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on advance tax invoice ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
+        ],
+      });
+    }
+  } else if (inv.documentType === ADVANCE_CREDIT_NOTE_TYPE) {
+    /**
+     * 🔴 AP-3 — E5, the CREDIT NOTE AGAINST AN ADVANCE TAX INVOICE (pack §6 E5;
+     * Guideline §8(g); IR Art. 40(1)(a), 40(5), 54):
+     *
+     *   Dr VAT Payable                                  [the credited VAT]
+     *       Cr Customer deposits and advances (customer) [the credited VAT]
+     *
+     * The advance is cancelled before its supply. E2 had moved the VAT part of
+     * the deposit to VAT Payable; this returns it, so the deposit is the
+     * GROSS cash again and the 386's open balance falls by the credited
+     * amount — which is exactly what raises the receipt's un-invoiced
+     * remainder and unlocks the Batch 1B deposit refund (Dr deposits / Cr
+     * bank) for that part. No AR, no revenue, no allocation, no credit
+     * balance: the money never left the receipt's deposit. The return files
+     * the note's line NEGATIVE in the note's period (documentSign −1). A
+     * zero-rated / exempt advance credits a document with no entry.
+     */
+    const [original] = await invoicesRepository.findById(inv.originalInvoiceId!);
+    if (vatAmount > 0) {
+      const party = { type: "customer" as const, customerId: inv.customerId! };
+      await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `Credit note ${inv.invoiceNumber} against advance tax invoice ${original?.invoiceNumber ?? inv.originalInvoiceId} — VAT returned to the deposit`,
+        reference: inv.invoiceNumber,
+        lines: [
+          { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on cancelled advance — ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+          { systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `Advance ${original?.invoiceNumber ?? ""} credited — VAT back on the deposit`, debitAmount: 0, creditAmount: vatAmount, party },
+        ],
+      });
+    }
+  } else if (total > 0) {
     const isCredit = inv.documentType === "credit_note";
     const label = DOCUMENT_LABEL[inv.documentType] ?? "Invoice";
     const party = inv.customerId != null ? { type: "customer" as const, customerId: inv.customerId } : { type: "none" as const, reason: "simplified/B2C invoice — no identified customer" };
@@ -270,7 +441,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
         await paymentsRepository.insertAllocation({ creditNoteId: inv.id, invoiceId: original.id, amount: applied.toFixed(2), journalEntryId: je.id, createdBy: null });
         await invoiceSettlementRepository.bumpSettled(original.id, { credited: applied });
       }
-    } else {
+    } else if (prepayments.length === 0) {
       await postJournalEntry({
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
@@ -282,10 +453,65 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
           { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
         ],
       });
+    } else {
+      /**
+       * 🔴 AP-2 — E3, the FINAL invoice that ADJUSTS advance tax invoice(s)
+       * (accountant A2, pack §6; XML Standard ¶9.5 — `PrepaidAmount`):
+       *
+       *   Dr Accounts Receivable (customer)        total − Σ adjusted (gross)   [the amount due, if any]
+       *   Dr Customer deposits and advances (cust.) Σ adjusted taxable (KSA-31)  [the net advance released on performance]
+       *       Cr Sales Revenue                      subtotal                     [the FULL supply]
+       *       Cr VAT Payable                        vat − Σ adjusted VAT (KSA-32) [the VAT not already declared on the 386]
+       *
+       * ONE entry, dated as the document — the deposit's application is the
+       * invoice's own act (A2), which is why it is folded here and not posted
+       * as a later allocation (A3 governs those: dated the day of the act).
+       * The allocation ROW is still written (receipt → this invoice, for the
+       * gross), naming this entry, so the receipt's unapplied remainder, the
+       * invoice's paid_amount and the prepayment row agree from the first
+       * day; `paymentsService.unallocate` refuses it (the signed document
+       * states the adjustment; a credit note corrects it). VAT already
+       * declared on the 386 is never declared twice: the net line here and
+       * the return's per-category deduction read the same rows.
+       */
+      const grossAdjusted = round2(prepayments.reduce((s, p) => s + toNum(p.row.amount), 0));
+      const taxableAdjusted = round2(prepayments.reduce((s, p) => s + toNum(p.row.taxableAmount), 0));
+      const vatAdjusted = round2(prepayments.reduce((s, p) => s + toNum(p.row.taxAmount), 0));
+      const amountDue = round2(total - grossAdjusted);
+      const vatNet = round2(vatAmount - vatAdjusted);
+      const lines: GLLine[] = [];
+      if (amountDue > 0.005) lines.push({ systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber} — amount due after advance`, debitAmount: amountDue, creditAmount: 0, party });
+      if (taxableAdjusted > 0.005) lines.push({ systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `Advance applied to ${inv.invoiceNumber} (${prepayments.map((p) => p.advance.invoiceNumber).join(", ")})`, debitAmount: taxableAdjusted, creditAmount: 0, party });
+      lines.push({ systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal });
+      // A supply that ends up at a lower category than its advance can carry
+      // LESS VAT than was declared on the 386: the difference reverses here.
+      if (vatNet > 0.005) lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber} net of advance`, debitAmount: 0, creditAmount: vatNet });
+      else if (vatNet < -0.005) lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT declared on advance in excess of ${inv.invoiceNumber}`, debitAmount: -vatNet, creditAmount: 0 });
+      const je = await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `${label} ${inv.invoiceNumber} — adjusting advance tax invoice(s) ${prepayments.map((p) => p.advance.invoiceNumber).join(", ")}`,
+        reference: inv.invoiceNumber,
+        lines,
+      });
+      // One allocation per receipt (one ACTIVE allocation per (source, invoice)); the prepayment rows name it.
+      const perReceipt = new Map<number, number>();
+      for (const p of prepayments) perReceipt.set(p.paymentId, round2((perReceipt.get(p.paymentId) ?? 0) + toNum(p.row.amount)));
+      const allocationByReceipt = new Map<number, number>();
+      for (const [paymentId, amount] of perReceipt) {
+        const [dup] = await paymentsRepository.activeAllocationFor({ paymentId }, inv.id);
+        if (dup) throw new BusinessRuleError(409, { code: "prepayment_receipt_already_allocated", error: `Receipt ${paymentId} is already allocated to invoice ${inv.invoiceNumber} (allocation ${dup.id}); the advance cannot be applied twice.`, field: "prepayments" });
+        const alloc = await paymentsRepository.insertAllocation({ paymentId, invoiceId: inv.id, amount: amount.toFixed(2), journalEntryId: je.id, createdBy: null });
+        allocationByReceipt.set(paymentId, alloc.id);
+      }
+      for (const p of prepayments) await advanceInvoicesRepository.setAllocation(p.row.id, allocationByReceipt.get(p.paymentId)!);
+      // The caches move as for any cash settlement: paid_amount by the gross
+      // applied (the customer's cash), status `paid` when nothing remains.
+      updated = await invoiceSettlementRepository.bumpSettled(inv.id, { paid: grossAdjusted }, inv.date, amountDue < 0.01 ? "paid" : undefined);
     }
   }
 
-  return buildInvoiceOut(updated, row.cust);
+  return buildInvoiceOut(updated, row.cust, undefined, await prepaymentsOf(updated));
 }
 
 /** Build the invoice approval adapter for one request. */

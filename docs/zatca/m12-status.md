@@ -78,9 +78,10 @@ than it does**, which is the only kind that can survive a careful reading.
 
 ## 2. 🔴 Verified against the LIVE ZATCA API vs verified only LOCALLY
 
-This is the distinction that matters most, and it is easy to overstate. **Two**
-test files ever talk to ZATCA: `zatca-compliance-live.test.ts` and
-`credit-notes-zatca-live.test.ts`. Everything else is local.
+This is the distinction that matters most, and it is easy to overstate. **Three**
+test files ever talk to ZATCA: `zatca-compliance-live.test.ts`,
+`credit-notes-zatca-live.test.ts` and `ap4-advance-zatca-live.test.ts`
+(2026-09-21). Everything else is local.
 
 ### ✅ Confirmed against the live sandbox
 
@@ -91,6 +92,7 @@ test files ever talk to ZATCA: `zatca-compliance-live.test.ts` and
 | QR tags 1–9, including tag 3's missing `Z` and tags 8/9 as raw bytes | Corrected **from live responses** after being wrong from both the PDF and the SDK (divergence #13) |
 | Standard + simplified × invoice / credit note / debit note, plus a zero-rated invoice | The six M12.4 compliance documents |
 | **The ledger → ZATCA path** — documents built from real Postgres rows | `credit-notes-zatca-live.test.ts` (M12.1b) |
+| **The advance-payment shapes** — a 386, a 388 with the ¶9.5 prepayment adjustment, a 381 against a 386, from real rows; the sandbox's prepayment rules (BR-KSA-73…80) proven PRESENT by planted negatives | `ap4-advance-zatca-live.test.ts` (AP-4, 2026-09-21; advance-payments pack §16) |
 | PCSID validity is exactly 5 years, no grace period | Observed on the issued certificate, 2026-08-09 |
 
 ### ⚠️ Verified LOCALLY ONLY — never seen by ZATCA

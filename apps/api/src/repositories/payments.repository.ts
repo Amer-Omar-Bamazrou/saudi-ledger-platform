@@ -11,9 +11,9 @@
  * aggregates — DSO, collection-speed, instalment analytics — must filter
  * `backfilled = false`.
  */
-import { db, invoicePaymentsTable, billPaymentsTable, paymentsTable, paymentAllocationsTable, paymentAllocationReversalsTable, customerRefundsTable, invoicesTable, migrationDepositReversalsTable } from "@workspace/db";
+import { db, invoicePaymentsTable, billPaymentsTable, paymentsTable, paymentAllocationsTable, paymentAllocationReversalsTable, customerRefundsTable, invoicesTable, migrationDepositReversalsTable, paymentClassificationsTable } from "@workspace/db";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { paymentNotReversed } from "./openingReversal";
+import { paymentNotReversed, paymentNotReversedSql } from "./openingReversal";
 
 export const paymentsRepository = {
   // N3: both return the inserted row — its id is what suffixes the payment's
@@ -237,6 +237,94 @@ export const paymentsRepository = {
       .from(customerRefundsTable)
       .where(source.paymentId != null ? eq(customerRefundsTable.paymentId, source.paymentId) : eq(customerRefundsTable.creditNoteId, source.creditNoteId!));
     return Number(rows[0]?.total ?? 0);
+  },
+
+  // ── AP-1 (2026-09-20): deposit classification — a dated statement, latest current ──
+  async insertClassification(values: typeof paymentClassificationsTable.$inferInsert) {
+    const [row] = await db.insert(paymentClassificationsTable).values(values).returning();
+    return row!;
+  },
+
+  findClassificationByIdempotencyKey(key: string) {
+    return db.select().from(paymentClassificationsTable).where(eq(paymentClassificationsTable.idempotencyKey, key)).limit(1);
+  },
+
+  /** The CURRENT classification of each payment — the newest row per payment (one grouped query, never N+1). */
+  async latestClassifications(paymentIds: number[]): Promise<Map<number, typeof paymentClassificationsTable.$inferSelect>> {
+    if (paymentIds.length === 0) return new Map();
+    const rows = await db
+      .selectDistinctOn([paymentClassificationsTable.paymentId])
+      .from(paymentClassificationsTable)
+      .where(inArray(paymentClassificationsTable.paymentId, paymentIds))
+      .orderBy(paymentClassificationsTable.paymentId, desc(paymentClassificationsTable.id));
+    return new Map(rows.map((r) => [r.paymentId, r]));
+  },
+
+  /** Every classification row of one payment, oldest first — the history the detail card shows. */
+  classificationHistory(paymentId: number) {
+    return db.select().from(paymentClassificationsTable).where(eq(paymentClassificationsTable.paymentId, paymentId)).orderBy(paymentClassificationsTable.id);
+  },
+
+  /**
+   * Σ allocations FOLDED into the receipt's own entry (journal_entry_id NULL,
+   * made at receipt) — a receipt whose whole amount was allocated on arrival
+   * was never a deposit and has nothing to classify.
+   */
+  async allocatedAtReceipt(paymentId: number): Promise<number> {
+    const rows = await db
+      .select({ total: sql<string>`coalesce(sum(${paymentAllocationsTable.amount}), 0)` })
+      .from(paymentAllocationsTable)
+      .where(and(eq(paymentAllocationsTable.paymentId, paymentId), isNull(paymentAllocationsTable.journalEntryId)));
+    return Number(rows[0]?.total ?? 0);
+  },
+
+  /**
+   * AP-1 — the deposits held: every LIVE receipt (direction in, a customer,
+   * not a reversed opening deposit) received on or before `asOf` whose
+   * unapplied remainder (amount − ACTIVE allocations − deposit refunds) is
+   * still positive NOW, with its current classification and, for a migrated
+   * deposit, the VAT position the migration recorded. One query, company-
+   * scoped in the query layer as well as by RLS (N1). The service turns the
+   * rows into review states; this reads facts only.
+   */
+  async depositsHeld(filter: { asOf: string; customerId?: number }) {
+    const custFilter = filter.customerId != null ? sql`AND p.customer_id = ${filter.customerId}` : sql``;
+    const r = await db.execute<{
+      payment_id: number; customer_id: number; customer_name: string; customer_name_ar: string | null; paid_at: string; amount: string;
+      unapplied: string; reference: string | null; source: string; classification: string | null; vat_category: string | null;
+      classified_at: string | null; migration_vat_position: string | null;
+    }>(sql`
+      WITH allocs AS (
+        SELECT a.payment_id, sum(a.amount::numeric) AS allocated
+          FROM payment_allocations a
+          LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id
+         WHERE a.payment_id IS NOT NULL AND r.id IS NULL
+         GROUP BY a.payment_id),
+      refunds AS (
+        SELECT f.payment_id, sum(f.amount::numeric) AS refunded
+          FROM customer_refunds f WHERE f.origin = 'deposit' GROUP BY f.payment_id),
+      latest AS (
+        SELECT DISTINCT ON (c.payment_id) c.payment_id, c.classification, c.vat_category, c.created_at
+          FROM payment_classifications c ORDER BY c.payment_id, c.id DESC)
+      SELECT p.id AS payment_id, p.customer_id, cu.name AS customer_name, cu.name_ar AS customer_name_ar, p.paid_at::text AS paid_at,
+             p.amount::text AS amount,
+             (p.amount::numeric - coalesce(al.allocated, 0) - coalesce(rf.refunded, 0))::text AS unapplied,
+             p.reference, p.source, l.classification, l.vat_category, l.created_at::text AS classified_at,
+             ma.vat_position AS migration_vat_position
+        FROM payments p
+        JOIN customers cu ON cu.id = p.customer_id
+        LEFT JOIN allocs al ON al.payment_id = p.id
+        LEFT JOIN refunds rf ON rf.payment_id = p.id
+        LEFT JOIN latest l ON l.payment_id = p.id
+        LEFT JOIN migration_advances ma ON ma.id = p.migration_advance_id
+       WHERE p.direction = 'in' AND p.customer_id IS NOT NULL
+         AND p.company_id::text = current_setting('app.current_company_id', true)
+         AND ${paymentNotReversedSql("p")}
+         AND p.paid_at <= ${filter.asOf}::date
+         AND (p.amount::numeric - coalesce(al.allocated, 0) - coalesce(rf.refunded, 0)) > 0.005
+         ${custFilter}
+       ORDER BY p.paid_at, p.id`);
+    return r.rows;
   },
 };
 

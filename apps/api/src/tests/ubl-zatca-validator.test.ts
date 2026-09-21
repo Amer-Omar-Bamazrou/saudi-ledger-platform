@@ -29,7 +29,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
-import { simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
+import { advanceCreditNote, advanceInvoice, finalInvoiceWithPrepayment, simplifiedInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import type { EInvoiceInput } from "../services/einvoice/types";
 
 const SDK_ROOT = resolve(__dirname, "../../../../docs/zatca/sdk/extracted/zatca-envoice-sdk-203");
@@ -71,7 +71,7 @@ const describeMaybe = CAN_RUN ? describe : describe.skip;
  */
 function runSdk(args: string[]): string {
   try {
-    return execFileSync("java", ["-jar", JAR, "--globalVersion", "3.0.8", "-certpassword", "123456789", ...args], {
+    return execFileSync("java", ["-Dfile.encoding=UTF-8", "-jar", JAR, "--globalVersion", "3.0.8", "-certpassword", "123456789", ...args], {
       env: { ...process.env, SDK_CONFIG: CONFIG },
       encoding: "utf8",
       stdio: "pipe",
@@ -169,6 +169,49 @@ describeMaybe("M12.2 — generated UBL passes ZATCA's own SDK validator", () => 
     // it fails XSD before any KSA rule is reached.
     const r = validate("no-buyer", simplifiedInvoice({ buyer: null }));
     expect(r.xsd).toBe("PASSED");
+    expect(r.ksa).toBe("PASSED");
+  }, SDK_TIMEOUT);
+
+  /**
+   * AP-2. WHAT THIS ATTESTS, AND WHAT IT DOES NOT: the SDK on disk carries
+   * the 2021-08-19 rule set, which has NO prepayment rule (BR-KSA-73…82
+   * post-date it — advance-payments decision pack §1.6), so a PASS here
+   * proves the XSD shape, the EN 16931 arithmetic (BR-CO-16: amount due =
+   * tax inclusive − prepaid) and the generic KSA rules — NOT the prepayment-
+   * specific ones. Those are proven only by the live compliance endpoint
+   * (AP-4; CLAUDE.md §4 trust order). A FAIL here would still be a defect.
+   */
+  it("AP-2: an ADVANCE PAYMENT tax invoice (386) passes XSD and EN 16931; the SHIPPED 2021 rule set rejects the code (BR-KSA-05) — a pinned SDK/standard divergence", () => {
+    const r = validate("advance-386", advanceInvoice());
+    expect(r.xsd).toBe("PASSED");
+    expect(r.en).toBe("PASSED");
+    /**
+     * 🔴 THE SDK ON DISK IS OLDER THAN THE STANDARD. Its schematron
+     * (`20210819_ZATCA_E-invoice_Validation_Rules.xsl`, BR-KSA-05) allows
+     * only ' 388 383 381 '; the XML Implementation Standard v1.2
+     * (2023-05-19, §11.2.1 — the primary text, `docs/zatca/specs/`) adds 386
+     * for the prepayment invoice. Trust order: LIVE API > SDK > PDF, but the
+     * PDF is NEWER than the SDK here and the SDK's own download page still
+     * serves this build (checked 2026-09-21). Pinned as the ONLY error so a
+     * refreshed SDK flips this test loudly; the live sandbox is the gate
+     * (AP-4). Record: docs/zatca/spec-vs-implementation-divergences.md.
+     */
+    expect(r.errors.map((e) => e.split(":")[0])).toEqual(["BR-KSA-05"]);
+  }, SDK_TIMEOUT);
+
+  it("AP-2: a FINAL invoice with a prepayment adjustment line (XML Standard 9.5) passes XSD, EN 16931 and the shipped BR-KSA rules", () => {
+    const r = validate("final-with-prepayment", finalInvoiceWithPrepayment());
+    expect(r.errors, `validator reported: ${r.errors.join(" | ")}`).toEqual([]);
+    expect(r.xsd).toBe("PASSED");
+    expect(r.en).toBe("PASSED");
+    expect(r.ksa).toBe("PASSED");
+  }, SDK_TIMEOUT);
+
+  it("AP-3: a CREDIT NOTE against an advance (381 + billing reference) passes XSD, EN 16931 and the shipped BR-KSA rules — the 381 code IS in the 2021 list, only its original's 386 is not", () => {
+    const r = validate("advance-credit-note", advanceCreditNote());
+    expect(r.errors, `validator reported: ${r.errors.join(" | ")}`).toEqual([]);
+    expect(r.xsd).toBe("PASSED");
+    expect(r.en).toBe("PASSED");
     expect(r.ksa).toBe("PASSED");
   }, SDK_TIMEOUT);
 

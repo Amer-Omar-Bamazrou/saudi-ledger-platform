@@ -37,6 +37,8 @@ import { invoicesRepository } from "../../repositories/invoices.repository";
 import { customersRepository } from "../../repositories/customers.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
 import { bankAccountsRepository } from "../../repositories/bankAccounts.repository";
+import { paymentsRepository } from "../../repositories/payments.repository";
+import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
 import { einvoiceDocumentsRepository } from "../../repositories/einvoiceDocuments.repository";
 import { NotFoundError, ConflictError, BusinessRuleError } from "../../lib/errors";
 import { storage, isStorageConfigured } from "../../lib/storage";
@@ -128,7 +130,13 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
   const items = await invoicesRepository.itemsByInvoice(invoiceId);
   const company = await companiesRepository.findCurrent();
   const customer = inv.customerId != null ? (await customersRepository.findById(inv.customerId))[0] : undefined;
+  // Bank details invite payment: on an invoice with an amount due; never on a note or an advance tax invoice (the money already arrived).
   const banks = inv.documentType === "invoice" ? await bankAccountsRepository.list() : [];
+  // AP-2: the receipt an advance tax invoice declares VAT for, and the advance invoice(s) a final invoice adjusts.
+  const advanceReceipt = inv.advancePaymentId != null ? (await paymentsRepository.findPaymentById(inv.advancePaymentId))[0] ?? null : null;
+  const prepayments = inv.documentType === "invoice"
+    ? (await advanceInvoicesRepository.prepaymentsOfInvoice(invoiceId)).map(({ row, advance }) => ({ invoiceNumber: advance.invoiceNumber, date: advance.date, amount: String(row.amount), taxableAmount: String(row.taxableAmount), taxAmount: String(row.taxAmount) }))
+    : [];
   const defaultBank = banks.find((b) => b.isDefault) ?? null;
   const original =
     inv.originalInvoiceId != null ? (await invoicesRepository.findById(inv.originalInvoiceId))[0] : undefined;
@@ -180,6 +188,8 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     total: String(inv.total),
     paidAmount: String(inv.paidAmount ?? "0"),
     creditedAmount: String(inv.creditedAmount ?? "0"),
+    advanceReceipt: advanceReceipt ? { number: `RCPT-${advanceReceipt.id}`, date: advanceReceipt.paidAt } : null,
+    prepayments,
     qrDataUrl,
     logoDataUrl: await loadLogoDataUrl(company?.logoPath),
     termsAndConditions: inv.termsAndConditions ?? null,

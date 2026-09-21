@@ -10,6 +10,7 @@ import {
   TAX_ACCOUNT_SYSTEM_CODES,
   invoicesTable,
   invoiceItemsTable,
+  invoicePrepaymentsTable,
   billsTable,
   billItemsTable,
   journalEntriesTable,
@@ -17,7 +18,7 @@ import {
   customersTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
 
@@ -96,7 +97,8 @@ const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_
  * additional charge, not a reversal.
  */
 export function documentSign(documentType: string | null | undefined): 1 | -1 {
-  return documentType === "credit_note" ? -1 : 1;
+  // AP-3: a credit note against an advance tax invoice reverses the advance's declared base and VAT (the return reads its line negative, in the note's period — IR Art. 40(5)).
+  return documentType === "credit_note" || documentType === "advance_credit_note" ? -1 : 1;
 }
 
 const lineJoin = () =>
@@ -386,6 +388,21 @@ export const reportsRepository = {
       .from(invoiceItemsTable)
       .innerJoin(invoicesTable, eq(invoiceItemsTable.invoiceId, invoicesTable.id))
       .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly()));
+  },
+  /**
+   * AP-2 — the PREPAYMENT ADJUSTMENT rows (KSA-31…34) of the in-books final
+   * invoices dated in the window. The return reads a 388 NET of the advance
+   * it adjusts: the 386 declared that base and VAT in ITS period (GCC
+   * Agreement Art. 23(1) "to the extent of the received amount"), so the
+   * final invoice adds only what was not yet declared — one row per
+   * (invoice, advance), category and rate copied from the 386.
+   */
+  prepaymentsInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ row: invoicePrepaymentsTable, invoiceId: invoicePrepaymentsTable.invoiceId })
+      .from(invoicePrepaymentsTable)
+      .innerJoin(invoicesTable, eq(invoicePrepaymentsTable.invoiceId, invoicesTable.id))
+      .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly(), isNotNull(invoicePrepaymentsTable.allocationId)));
   },
   /** Bill lines carry no ZATCA category (vendor documents) — classification is
    *  per-line VAT presence, which still fixes the mixed-rate hole. */

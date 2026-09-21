@@ -35,7 +35,9 @@ import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
 import { round2 } from "../lib/money";
 import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
-import { businessToday } from "@workspace/shared";
+import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType } from "@workspace/shared";
+import { advanceInvoicesService, prepaymentsOf, shapePrepayment, type PreparedPrepayment } from "./advanceInvoices.service";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
 /**
  * MED (audit 2026-08-20): a nonexistent customerId surfaced as a raw 500
@@ -56,6 +58,18 @@ async function assertCustomerExists(customerId: unknown): Promise<void> {
       field: "customerId",
     });
   }
+}
+
+/** A note (and a 386) never carries a prepayment adjustment — refused by name, not by the DB. */
+function assertNoPrepaymentsOnNote(input: unknown): PreparedPrepayment[] {
+  if (Array.isArray(input) && input.length > 0) {
+    throw new BusinessRuleError(400, { code: "prepayments_on_note", error: "Only a final invoice (a tax invoice) can adjust an advance tax invoice; a credit note, a debit note or an advance tax invoice cannot.", field: "prepayments" });
+  }
+  return [];
+}
+
+function toPrepaymentRow(invoiceId: number, p: PreparedPrepayment) {
+  return { invoiceId, advanceInvoiceId: p.advanceInvoiceId, amount: p.amount.toFixed(2), taxableAmount: p.taxableAmount.toFixed(2), taxAmount: p.taxAmount.toFixed(2), taxCategoryCode: p.taxCategoryCode, vatRate: p.vatRate.toFixed(2), allocationId: null };
 }
 
 // Seller identity comes from the ACTIVE COMPANY (services/sellerIdentity.ts).
@@ -79,8 +93,13 @@ export const invoicesService = {
       invoicesRepository.list(filter),
       invoicesRepository.listMeta(filter),
     ]);
+    // AP-2: the page's prepayment rows in one query, so a listed invoice's
+    // `prepaidAmount` / `amountDue` are never a confident 0.00 for want of a join.
+    const prepaymentRows = await advanceInvoicesRepository.prepaymentsOfInvoices(rows.map((r) => r.inv.id));
+    const byInvoice = new Map<number, ReturnType<typeof shapePrepayment>[]>();
+    for (const pr of prepaymentRows) (byInvoice.get(pr.row.invoiceId) ?? byInvoice.set(pr.row.invoiceId, []).get(pr.row.invoiceId)!).push(shapePrepayment(pr));
     return {
-      items: rows.map((r) => buildInvoiceOut(r.inv, r.cust)),
+      items: rows.map((r) => buildInvoiceOut(r.inv, r.cust, undefined, byInvoice.get(r.inv.id) ?? [])),
       page: {
         limit: filter.limit ?? DEFAULT_PAGE,
         offset: filter.offset ?? 0,
@@ -98,7 +117,7 @@ export const invoicesService = {
     const [row] = await invoicesRepository.findWithCustomer(id);
     if (!row) throw new NotFoundError("Not found");
     const items = await invoicesRepository.itemsByInvoice(id);
-    return buildInvoiceOut(row.inv, row.cust, items);
+    return buildInvoiceOut(row.inv, row.cust, items, await prepaymentsOf(row.inv));
   },
 
   /**
@@ -247,6 +266,34 @@ export const invoicesService = {
     // the adjustment lands in the note's period.
     await checkPeriodOpen(invData.date);
 
+    // AP-2: an ADVANCE TAX INVOICE is created FROM a receipt's classified
+    // deposit (`POST /payments/{id}/advance-invoices`) and never from
+    // nothing — no cash, no 386 (IR Art. 53(1)(a)(2)). This path refuses the
+    // type by name rather than letting the DB CHECK answer with a 500.
+    if (isAdvanceInvoiceType(invData.documentType)) {
+      throw new BusinessRuleError(400, {
+        code: "advance_invoice_via_receipt",
+        error: "An advance tax invoice is issued from the receipt whose deposit it declares VAT for (POST /payments/{id}/advance-invoices), not created here.",
+        field: "documentType",
+      });
+    }
+    // AP-3: likewise the credit note against a 386 is created from the advance
+    // it cancels (POST /invoices/{id}/advance-credit-notes) — its amount is
+    // bounded by the 386's open balance and its line is derived from the 386's.
+    if (isAdvanceCreditNoteType(invData.documentType)) {
+      throw new BusinessRuleError(400, {
+        code: "advance_credit_note_via_advance",
+        error: "A credit note against an advance tax invoice is issued from that advance (POST /invoices/{id}/advance-credit-notes), not created here.",
+        field: "documentType",
+      });
+    }
+    // AP-2: the advance tax invoice(s) this FINAL invoice adjusts (a human
+    // selection on the document; nothing is auto-applied). Validated now so
+    // the enterer is told immediately; approval re-checks under the locks.
+    const prepayments: PreparedPrepayment[] = isNoteType(invData.documentType)
+      ? assertNoPrepaymentsOnNote((body as { prepayments?: unknown }).prepayments)
+      : await advanceInvoicesService.preparePrepayments(invData.customerId != null ? Number(invData.customerId) : null, total, (body as { prepayments?: unknown }).prepayments);
+
     // Credit/debit notes: validate the reference, the reason and the credit
     // ceiling before anything is written.
     if (isNoteType(invData.documentType)) {
@@ -307,11 +354,11 @@ export const invoicesService = {
     if (preparedItems.length > 0) {
       await invoicesRepository.insertItems(preparedItems.map((it: any) => ({ ...it, invoiceId: inv.id })));
     }
+    if (prepayments.length > 0) await advanceInvoicesRepository.insertPrepayments(prepayments.map((p) => toPrepaymentRow(inv.id, p)));
 
-    await auditService.created("invoice", inv.id, inv);
+    await auditService.created("invoice", inv.id, { ...inv, prepayments });
 
-    // Self-approve on create for approvers → issue immediately (hash + QR + GL).
-    return buildInvoiceOut(inv, null);
+    return buildInvoiceOut(inv, null, undefined, await prepaymentsOf(inv));
   },
 
   /** Submit a draft invoice into the approval queue (bookkeeper action). */
@@ -379,6 +426,21 @@ export const invoicesService = {
     const items = (data as { items?: unknown }).items;
     let totals: Partial<typeof import("@workspace/db").invoicesTable.$inferInsert> = {};
     let prepared: Record<string, unknown>[] | null = null;
+    // AP-2: an advance tax invoice's ONE line is derived from the receipt's
+    // amount and the deposit's VAT category — it is not edited; delete the
+    // draft and issue another for a different amount. Its customer is the
+    // receipt's. A note never carries a prepayment adjustment.
+    if (isAdvanceDocumentType(existing.documentType) && (items !== undefined || values.customerId !== undefined)) {
+      throw new BusinessRuleError(409, {
+        code: "advance_invoice_line_derived",
+        error: isAdvanceInvoiceType(existing.documentType)
+          ? "An advance tax invoice's amount and customer come from the receipt it declares VAT for. Delete this draft and issue another for a different amount."
+          : "A credit note against an advance tax invoice takes its amount, line and customer from the advance it cancels. Delete this draft and issue another for a different amount.",
+        field: items !== undefined ? "items" : "customerId",
+      });
+    }
+    const prepaymentsInput = (data as { prepayments?: unknown }).prepayments;
+    if (isNoteType(existing.documentType) || isAdvanceInvoiceType(existing.documentType)) assertNoPrepaymentsOnNote(prepaymentsInput);
     if (items !== undefined) {
       if (!Array.isArray(items) || items.length === 0) {
         throw new BusinessRuleError(400, {
@@ -418,8 +480,22 @@ export const invoicesService = {
       await invoicesRepository.deleteItems(id);
       await invoicesRepository.insertItems(prepared.map((it) => ({ ...it, invoiceId: id })) as Parameters<typeof invoicesRepository.insertItems>[0]);
     }
+    // AP-2: the prepayment selection is replaced whole when sent (like the
+    // lines), and re-validated against the NEW customer and total whenever
+    // either moved — a selection that no longer fits its invoice is refused,
+    // never silently kept.
+    if (!isNoteType(existing.documentType) && !isAdvanceInvoiceType(existing.documentType)) {
+      const customerChanged = values.customerId !== undefined && (values.customerId ?? null) !== (existing.customerId ?? null);
+      const existingRows = await advanceInvoicesRepository.prepaymentsOfInvoice(id);
+      if (prepaymentsInput !== undefined || ((customerChanged || prepared) && existingRows.length > 0)) {
+        const selection = prepaymentsInput !== undefined ? prepaymentsInput : existingRows.map((r) => ({ advanceInvoiceId: r.row.advanceInvoiceId, amount: Number(r.row.amount) }));
+        const next = await advanceInvoicesService.preparePrepayments(inv!.customerId ?? null, Number(inv!.total), selection);
+        await advanceInvoicesRepository.deletePrepayments(id);
+        if (next.length > 0) await advanceInvoicesRepository.insertPrepayments(next.map((p) => toPrepaymentRow(id, p)));
+      }
+    }
     await auditService.updated("invoice", id, existing, inv);
-    return buildInvoiceOut(inv, null, prepared ? await invoicesRepository.itemsByInvoice(id) : undefined);
+    return buildInvoiceOut(inv, null, prepared ? await invoicesRepository.itemsByInvoice(id) : undefined, await prepaymentsOf(inv!));
   },
 
   /**
@@ -454,6 +530,16 @@ export const invoicesService = {
       throw new ConflictError(
         "A credit or debit note cannot be paid. A credit note reduces what its original invoice owes; record the payment against the invoice.",
       );
+    }
+    // AP-2: an ADVANCE TAX INVOICE declares VAT on cash that has ALREADY
+    // arrived (the receipt it names); it has no receivable to settle, and
+    // "paying" it would record the same cash twice.
+    if (isAdvanceInvoiceType(existing.documentType)) {
+      throw new BusinessRuleError(409, {
+        code: "advance_invoice_not_payable",
+        error: `${existing.invoiceNumber} is an advance tax invoice for money already received (receipt RCPT-${existing.advancePaymentId}); there is nothing to pay. It is applied on the customer's final invoice.`,
+        field: "id",
+      });
     }
 
     // Only an issued (approved) invoice has a receivable to settle.

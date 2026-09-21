@@ -1232,6 +1232,16 @@ export type VatReturnPeriod = {
   to: string;
 };
 
+/**
+ * AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box.
+ */
+export type VatReturnDepositReview = {
+  asOf: string;
+  needsReviewCount: number;
+  needsReviewAmount: number;
+  overdueCount: number;
+};
+
 export interface VatReturnSalesSection {
   box1_standardRatedDomesticSales: number;
   box2_zeroRatedDomesticSales: number;
@@ -1255,6 +1265,8 @@ export interface VatReturnPurchasesSection {
 
 export interface VatReturn {
   period: VatReturnPeriod;
+  /** AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box. */
+  depositReview: VatReturnDepositReview;
   salesSection: VatReturnSalesSection;
   purchasesSection: VatReturnPurchasesSection;
   netVatDue: number;
@@ -1632,6 +1644,57 @@ export const InvoiceStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign).
+ */
+export type InvoiceDocumentType = typeof InvoiceDocumentType[keyof typeof InvoiceDocumentType];
+
+
+export const InvoiceDocumentType = {
+  invoice: 'invoice',
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+  advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
+} as const;
+
+/**
+ * KSA-33.
+ */
+export type InvoicePrepaymentTaxCategoryCode = typeof InvoicePrepaymentTaxCategoryCode[keyof typeof InvoicePrepaymentTaxCategoryCode];
+
+
+export const InvoicePrepaymentTaxCategoryCode = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.
+ */
+export interface InvoicePrepayment {
+  id: number;
+  advanceInvoiceId: number;
+  advanceInvoiceNumber: string;
+  advanceInvoiceDate: string;
+  /** VAT inclusive — the part of the 386 this invoice adjusts. */
+  amount: number;
+  /** KSA-31. */
+  taxableAmount: number;
+  /** KSA-32. */
+  taxAmount: number;
+  /** KSA-33. */
+  taxCategoryCode: InvoicePrepaymentTaxCategoryCode;
+  /** KSA-34 — the advance invoice's rate. */
+  vatRate: number;
+  /**
+     * The receipt → invoice allocation folded into the issue entry; null while a draft.
+     * @nullable
+     */
+  allocationId: number | null;
+}
+
 export interface InvoiceItem {
   id: number;
   invoiceId: number;
@@ -1700,8 +1763,8 @@ export interface Invoice {
      * @nullable
      */
   qrCode: string | null;
-  /** invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign). */
-  documentType: string;
+  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign). */
+  documentType: InvoiceDocumentType;
   /**
      * For a credit/debit note, the invoice it adjusts.
      * @nullable
@@ -1716,6 +1779,17 @@ export interface Invoice {
   icv: number | null;
   /** @nullable */
   zatcaUuid: string | null;
+  /**
+     * AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.
+     * @nullable
+     */
+  advancePaymentId: number | null;
+  /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
+  prepayments: InvoicePrepayment[];
+  /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */
+  prepaidAmount: number;
+  /** total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued). */
+  amountDue: number;
   items?: InvoiceItem[];
 }
 
@@ -2254,6 +2328,138 @@ export interface CapturedDocument {
 export interface SendBackInput {
   /** @nullable */
   note?: string | null;
+}
+
+export interface PrepaymentInput {
+  /** An ISSUED advance tax invoice of this customer with an open balance. */
+  advanceInvoiceId: number;
+  /**
+     * VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g)).
+     * @minimum 0
+     * @nullable
+     */
+  amount?: number | null;
+}
+
+export interface CreateAdvanceCreditNoteInput {
+  /**
+     * VAT inclusive; at most the 386's open balance.
+     * @minimum 0
+     */
+  amount: number;
+  /**
+     * Why the advance is cancelled (KSA-10, BR-KSA-17).
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+  /**
+     * Accounting date (YYYY-MM-DD). Default today; never before the 386.
+     * @nullable
+     */
+  date?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface CreateAdvanceInvoiceInput {
+  /**
+     * VAT inclusive; at most the receipt's un-invoiced remainder.
+     * @minimum 0
+     */
+  amount: number;
+  /**
+     * Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt.
+     * @nullable
+     */
+  date?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  descriptionAr?: string | null;
+  /**
+     * Required (code or text) when the deposit's VAT category is Z or E.
+     * @nullable
+     */
+  taxExemptionReasonCode?: string | null;
+  /** @nullable */
+  taxExemptionReasonText?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+/**
+ * AP-2 — an issued advance tax invoice with a balance a final invoice may still adjust.
+ */
+export interface OpenAdvanceInvoice {
+  id: number;
+  invoiceNumber: string;
+  date: string;
+  /** @nullable */
+  issuedAt: string | null;
+  paymentId: number;
+  receiptDate: string;
+  /** VAT inclusive. */
+  total: number;
+  subtotal: number;
+  vatAmount: number;
+  /** Σ adjusted by issued final invoices. */
+  adjustedAmount: number;
+  /** AP-3 — Σ issued credit notes against it. */
+  creditedAmount: number;
+  /** total − adjustedAmount − creditedAmount. */
+  openAmount: number;
+}
+
+/**
+ * AP-3 — a credit note (any status) against an advance tax invoice: the provenance chain receipt → 386 → note → refund.
+ */
+export interface AdvanceCreditNoteSummary {
+  id: number;
+  invoiceNumber: string;
+  status: string;
+  date: string;
+  total: number;
+  vatAmount: number;
+  /** @nullable */
+  noteReason: string | null;
+}
+
+/**
+ * AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it, with its credit notes (AP-3) beneath.
+ */
+export interface ReceiptAdvanceInvoice {
+  id: number;
+  invoiceNumber: string;
+  status: string;
+  date: string;
+  total: number;
+  subtotal: number;
+  vatAmount: number;
+  /** @nullable */
+  vatCategory: string | null;
+  adjustedAmount: number;
+  /** AP-3 — Σ issued credit notes against this advance. */
+  creditedAmount: number;
+  /** 0 while a draft; total − adjusted − credited once issued. */
+  openAmount: number;
+  creditNotes: AdvanceCreditNoteSummary[];
 }
 
 export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunStatus];
@@ -2800,6 +3006,8 @@ export const CustomerStatementLineKind = {
   invoice: 'invoice',
   debit_note: 'debit_note',
   credit_note: 'credit_note',
+  advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
   receipt: 'receipt',
   allocation: 'allocation',
   credit_application: 'credit_application',
@@ -3117,6 +3325,32 @@ export interface PaymentAllocationInput {
   amount: number;
 }
 
+/**
+ * Only with `advance`.
+ * @nullable
+ */
+export type ReceivePaymentInputVatCategory = typeof ReceivePaymentInputVatCategory[keyof typeof ReceivePaymentInputVatCategory] | null;
+
+
+export const ReceivePaymentInputVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.
+ */
+export type DepositClassification = typeof DepositClassification[keyof typeof DepositClassification];
+
+
+export const DepositClassification = {
+  advance: 'advance',
+  erroneous: 'erroneous',
+  security_deposit: 'security_deposit',
+  unknown: 'unknown',
+} as const;
+
 export interface ReceivePaymentInput {
   /**
      * The paying customer. Required when any part of the amount is unallocated (a deposit is owed to someone); may be null only for a receipt fully allocated to simplified (B2C) invoices with no identified customer.
@@ -3147,6 +3381,18 @@ export interface ReceivePaymentInput {
   idempotencyKey?: string | null;
   /** Which invoices this receipt settles and for how much. Σ ≤ amount; each ≤ the invoice's outstanding. Omit for a receipt on account. */
   allocations?: PaymentAllocationInput[];
+  /** AP-1 — what the unapplied part is, stated at receipt (refused when nothing is unapplied). */
+  classification?: DepositClassification | null;
+  /**
+     * Only with `advance`.
+     * @nullable
+     */
+  vatCategory?: ReceivePaymentInputVatCategory;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  classificationNote?: string | null;
 }
 
 export interface AllocatePaymentInput {
@@ -3291,6 +3537,9 @@ export const CustomerPaymentDirection = {
   out: 'out',
 } as const;
 
+/**
+ * `opening` — a migrated deposit (Batch 1C).
+ */
 export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
 
 
@@ -3298,7 +3547,39 @@ export const CustomerPaymentSource = {
   manual: 'manual',
   invoice_pay: 'invoice_pay',
   settlement: 'settlement',
+  opening: 'opening',
 } as const;
+
+/**
+ * The advance's VAT category where known; only with `advance`.
+ * @nullable
+ */
+export type PaymentClassificationVatCategory = typeof PaymentClassificationVatCategory[keyof typeof PaymentClassificationVatCategory] | null;
+
+
+export const PaymentClassificationVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.
+ */
+export interface PaymentClassification {
+  id: number;
+  classification: DepositClassification;
+  /**
+     * The advance's VAT category where known; only with `advance`.
+     * @nullable
+     */
+  vatCategory: PaymentClassificationVatCategory;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  classifiedBy: number | null;
+  classifiedAt: string;
+}
 
 export interface CustomerPayment {
   id: number;
@@ -3312,6 +3593,7 @@ export interface CustomerPayment {
   method: string | null;
   /** @nullable */
   reference: string | null;
+  /** `opening` — a migrated deposit (Batch 1C). */
   source: CustomerPaymentSource;
   /** @nullable */
   idempotencyKey: string | null;
@@ -3325,7 +3607,162 @@ export interface CustomerPayment {
   /** The customer's deposit still held from this receipt (amount − allocated − refunded). */
   unappliedAmount: number;
   allocations: PaymentAllocation[];
+  /** AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is. */
+  classification: PaymentClassification | null;
+  /** AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared. */
+  advanceInvoicedAmount: number;
+  /** AP-2 — Σ adjusted by issued final invoices. */
+  advanceAdjustedAmount: number;
+  /** AP-2 — invoiced − adjusted: reserved for a final invoice's prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment). */
+  advanceOpenAmount: number;
+  /** AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded. */
+  uninvoicedAmount: number;
+  advanceInvoices: ReceiptAdvanceInvoice[];
   createdAt: string;
+}
+
+/**
+ * Only with `advance`.
+ * @nullable
+ */
+export type ClassifyPaymentInputVatCategory = typeof ClassifyPaymentInputVatCategory[keyof typeof ClassifyPaymentInputVatCategory] | null;
+
+
+export const ClassifyPaymentInputVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+export interface ClassifyPaymentInput {
+  classification: DepositClassification;
+  /**
+     * Only with `advance`.
+     * @nullable
+     */
+  vatCategory?: ClassifyPaymentInputVatCategory;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type DepositReviewItemSource = typeof DepositReviewItemSource[keyof typeof DepositReviewItemSource];
+
+
+export const DepositReviewItemSource = {
+  manual: 'manual',
+  invoice_pay: 'invoice_pay',
+  settlement: 'settlement',
+  opening: 'opening',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DepositReviewItemVatCategory = typeof DepositReviewItemVatCategory[keyof typeof DepositReviewItemVatCategory] | null;
+
+
+export const DepositReviewItemVatCategory = {
+  S: 'S',
+  Z: 'Z',
+  E: 'E',
+} as const;
+
+/**
+ * For a migrated deposit: the VAT position the migration recorded.
+ * @nullable
+ */
+export type DepositReviewItemMigrationVatPosition = typeof DepositReviewItemMigrationVatPosition[keyof typeof DepositReviewItemMigrationVatPosition] | null;
+
+
+export const DepositReviewItemMigrationVatPosition = {
+  invoiced: 'invoiced',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * advance_invoiced (AP-2) — the deposit is fully covered by issued advance tax invoices; its VAT is declared and it waits for the final invoice.
+ */
+export type DepositReviewState = typeof DepositReviewState[keyof typeof DepositReviewState];
+
+
+export const DepositReviewState = {
+  unclassified: 'unclassified',
+  advance_not_invoiced: 'advance_not_invoiced',
+  advance_invoiced: 'advance_invoiced',
+  vat_silent: 'vat_silent',
+  migrated_invoiced: 'migrated_invoiced',
+  migrated_unknown: 'migrated_unknown',
+} as const;
+
+export interface DepositReviewItem {
+  paymentId: number;
+  customerId: number;
+  customerName: string;
+  /** @nullable */
+  customerNameAr: string | null;
+  paidAt: string;
+  amount: number;
+  /** The deposit still held from this receipt, as of now. */
+  unappliedAmount: number;
+  /** AP-2 — covered by an issued advance tax invoice and not yet adjusted. */
+  advanceOpenAmount: number;
+  /** AP-2 — unapplied − advanceOpen: for an advance, what still needs an advance tax invoice. */
+  uninvoicedAmount: number;
+  /** @nullable */
+  reference: string | null;
+  source: DepositReviewItemSource;
+  classification: DepositClassification;
+  /** @nullable */
+  vatCategory: DepositReviewItemVatCategory;
+  /** @nullable */
+  classifiedAt: string | null;
+  /**
+     * For a migrated deposit: the VAT position the migration recorded.
+     * @nullable
+     */
+  migrationVatPosition: DepositReviewItemMigrationVatPosition;
+  reviewState: DepositReviewState;
+  /** Server-decided: a human still has something to decide or do for this deposit. */
+  needsReview: boolean;
+  /**
+     * For an advance: the 15th of the month after receipt (IR Art. 53(1)(b)).
+     * @nullable
+     */
+  deadline: string | null;
+  overdue: boolean;
+}
+
+export interface DepositReviewBucket {
+  count: number;
+  amount: number;
+}
+
+export type DepositReviewByState = {
+  unclassified: DepositReviewBucket;
+  advance_not_invoiced: DepositReviewBucket;
+  advance_invoiced: DepositReviewBucket;
+  vat_silent: DepositReviewBucket;
+  migrated_invoiced: DepositReviewBucket;
+  migrated_unknown: DepositReviewBucket;
+};
+
+export interface DepositReview {
+  /** Receipts received on or before this date are in the frame. */
+  asOf: string;
+  today: string;
+  items: DepositReviewItem[];
+  needsReviewCount: number;
+  needsReviewAmount: number;
+  overdueCount: number;
+  byState: DepositReviewByState;
 }
 
 export interface CreditNoteApplications {
@@ -3580,15 +4017,20 @@ export interface InvoiceHeaderInput {
 export type CreateInvoiceInput = InvoiceHeaderInput & {
   /** @minItems 1 */
   items: InvoiceLineInput[];
+  /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
+  prepayments?: PrepaymentInput[];
 } & Required<Pick<InvoiceHeaderInput & {
   /** @minItems 1 */
   items: InvoiceLineInput[];
+  /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
+  prepayments?: PrepaymentInput[];
 }, 'date'>>;
 
 /**
- * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.
+ * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
  */
 export interface UpdateInvoiceInput {
+  prepayments?: PrepaymentInput[];
   invoiceNumber?: string;
   date?: string;
   /** @nullable */
@@ -5670,6 +6112,20 @@ export type ApplyDeterministicMatchesParams = {
 bank_account_id?: number;
 date_from?: string;
 date_to?: string;
+};
+
+export type GetDepositReviewParams = {
+/**
+ * YYYY-MM — receipts up to the end of that month
+ * @pattern ^\d{4}-\d{2}$
+ */
+period_to?: string;
+/**
+ * YYYY-MM-DD — wins over period_to
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+as_of?: string;
+customer_id?: number;
 };
 
 export type GetInvoiceDocumentParams = {

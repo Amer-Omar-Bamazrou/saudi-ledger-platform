@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * `opening` — a migrated deposit (Batch 1C).
+ */
 export type CustomerPaymentSource = typeof CustomerPaymentSource[keyof typeof CustomerPaymentSource];
 
 
@@ -13,4 +16,5 @@ export const CustomerPaymentSource = {
   manual: 'manual',
   invoice_pay: 'invoice_pay',
   settlement: 'settlement',
+  opening: 'opening',
 } as const;

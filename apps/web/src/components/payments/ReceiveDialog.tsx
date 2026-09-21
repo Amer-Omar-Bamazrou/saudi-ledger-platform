@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BankPicker, invalidatePaymentQueries, newIdempotencyKey } from "./shared";
+import { BankPicker, DEPOSIT_CLASSIFICATIONS, invalidatePaymentQueries, newIdempotencyKey, useClassificationLabels, type DepositClassificationValue } from "./shared";
 
 import type { Customer, ReceivePaymentInput } from "@workspace/api-client-react";
 
@@ -32,6 +32,9 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
   const [date, setDate] = useState(businessToday());
   const [method, setMethod] = useState("");
   const [reference, setReference] = useState("");
+  const [classification, setClassification] = useState<DepositClassificationValue | "later">("later");
+  const [vatCategory, setVatCategory] = useState("");
+  const { label, hint } = useClassificationLabels();
   const [key] = useState(() => newIdempotencyKey("rcpt"));
 
   const { data: customers } = useQuery({
@@ -47,7 +50,12 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
     mutationFn: () =>
       apiFetch("/payments", {
         method: "POST",
-        body: json({ customerId: Number(customerId), amount: amt, bankAccountId: Number(bank), paidAt: date, method: method.trim() || null, reference: reference.trim() || null, idempotencyKey: key, allocations: [] }),
+        body: json({
+          customerId: Number(customerId), amount: amt, bankAccountId: Number(bank), paidAt: date, method: method.trim() || null, reference: reference.trim() || null, idempotencyKey: key, allocations: [],
+          // AP-1: what the money is, if the user already knows — a record beside the receipt, nothing posted.
+          classification: classification === "later" ? null : classification,
+          vatCategory: classification === "advance" && vatCategory ? (vatCategory as "S" | "Z" | "E") : null,
+        }),
       }),
     onSuccess: () => {
       invalidatePaymentQueries(qc);
@@ -101,6 +109,34 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
               <p className="text-xs text-muted-foreground mb-1">{t("Reference", "المرجع")}</p>
               <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-9 text-sm font-mono" data-testid="receive-reference" placeholder={t("as on the bank statement", "كما في كشف البنك")} />
             </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">{t("What is this money?", "ما هذا المبلغ؟")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select value={classification} onValueChange={(v) => setClassification(v as DepositClassificationValue | "later")}>
+                <SelectTrigger className="h-9 text-sm" data-testid="receive-classification"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="later">{t("Decide later", "التحديد لاحقًا")}</SelectItem>
+                  {DEPOSIT_CLASSIFICATIONS.filter((c) => c !== "unknown").map((c) => <SelectItem key={c} value={c}>{label[c]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {classification === "advance" && (
+                <Select value={vatCategory || "none"} onValueChange={(v) => setVatCategory(v === "none" ? "" : v)}>
+                  <SelectTrigger className="h-9 text-sm" data-testid="receive-vat-category"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("VAT category not known", "الفئة الضريبية غير معروفة")}</SelectItem>
+                    <SelectItem value="S">{t("S — standard rate 15%", "S — النسبة الأساسية 15%")}</SelectItem>
+                    <SelectItem value="Z">{t("Z — zero-rated", "Z — نسبة الصفر")}</SelectItem>
+                    <SelectItem value="E">{t("E — exempt", "E — معفى")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {classification === "later"
+                ? t("Unclassified deposits stay on the VAT review list until you say what they are.", "تبقى العرابين غير المصنفة في قائمة مراجعة الضريبة حتى تحدد ما هي.")
+                : hint[classification]}
+            </p>
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={onClose}>{t("Cancel", "إلغاء")}</Button>

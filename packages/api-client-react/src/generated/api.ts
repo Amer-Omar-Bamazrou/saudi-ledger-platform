@@ -55,11 +55,14 @@ import type {
   Category,
   CategoryBreakdown,
   CategoryInput,
+  ClassifyPaymentInput,
   ClassifyStatementRowsParams,
   Company,
   CompanyLogoState,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
+  CreateAdvanceCreditNoteInput,
+  CreateAdvanceInvoiceInput,
   CreateAssetInput,
   CreateBillInput,
   CreateCustomerInput,
@@ -83,6 +86,7 @@ import type {
   CustomerStatement,
   Decomposition,
   DeploymentBanner,
+  DepositReview,
   DepreciateInput,
   DepreciationEntry,
   DiscardResult,
@@ -107,6 +111,7 @@ import type {
   GetCustomerLedgerParams,
   GetCustomerStatementParams,
   GetDecompositionParams,
+  GetDepositReviewParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
   GetInvoiceDocumentParams,
@@ -173,9 +178,11 @@ import type {
   MigrationReversalPreview,
   MigrationReversed,
   MigrationValidation,
+  OpenAdvanceInvoice,
   OwnerEquityReport,
   Payment,
   PaymentAllocationDetail,
+  PaymentClassification,
   PaymentInput,
   PayrollRun,
   PayrollRunDetail,
@@ -10265,6 +10272,83 @@ export function useGetCustomerCredits<TData = Awaited<ReturnType<typeof getCusto
 
 
 
+export const getListOpenAdvanceInvoicesUrl = (id: number,) => {
+
+
+
+
+  return `/api/customers/${id}/advance-invoices`
+}
+
+/**
+ * @summary AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust
+ */
+export const listOpenAdvanceInvoices = async (id: number, options?: RequestInit): Promise<OpenAdvanceInvoice[]> => {
+
+  return customFetch<OpenAdvanceInvoice[]>(getListOpenAdvanceInvoicesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOpenAdvanceInvoicesQueryKey = (id: number,) => {
+    return [
+    `/api/customers/${id}/advance-invoices`
+    ] as const;
+    }
+
+
+export const getListOpenAdvanceInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOpenAdvanceInvoicesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>> = ({ signal }) => listOpenAdvanceInvoices(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOpenAdvanceInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>>
+export type ListOpenAdvanceInvoicesQueryError = ErrorType<void>
+
+
+/**
+ * @summary AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust
+ */
+
+export function useListOpenAdvanceInvoices<TData = Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOpenAdvanceInvoicesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetCustomerStatementUrl = (id: number,
     params?: GetCustomerStatementParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12349,6 +12433,314 @@ export const useUnmatch = <TError = ErrorType<void>,
       return useMutation(getUnmatchMutationOptions(options));
     }
 
+export const getGetDepositReviewUrl = (params?: GetDepositReviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/deposit-review?${stringifiedParams}` : `/api/payments/deposit-review`
+}
+
+/**
+ * Every live receipt received on or before the frame date whose unapplied remainder is still positive NOW, with its current classification and a server-decided review state. A taxable advance is a VAT tax point at receipt (GCC VAT Agreement Art. 23(1)) that requires an advance tax invoice by the 15th of the following month (IR Art. 53(1)); the return's boxes read documents only, so this list is where an un-invoiced advance becomes visible. `needsReview` is a who-finds-out figure, never a box. The frame is stated on the response (`asOf`): the remainder is as of now, the receipt date is the filter.
+ * @summary AP-1 — the deposits held, and which of them may owe VAT (a reader; nothing posts)
+ */
+export const getDepositReview = async (params?: GetDepositReviewParams, options?: RequestInit): Promise<DepositReview> => {
+
+  return customFetch<DepositReview>(getGetDepositReviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDepositReviewQueryKey = (params?: GetDepositReviewParams,) => {
+    return [
+    `/api/payments/deposit-review`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDepositReviewQueryOptions = <TData = Awaited<ReturnType<typeof getDepositReview>>, TError = ErrorType<unknown>>(params?: GetDepositReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDepositReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDepositReviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDepositReview>>> = ({ signal }) => getDepositReview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDepositReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDepositReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getDepositReview>>>
+export type GetDepositReviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary AP-1 — the deposits held, and which of them may owe VAT (a reader; nothing posts)
+ */
+
+export function useGetDepositReview<TData = Awaited<ReturnType<typeof getDepositReview>>, TError = ErrorType<unknown>>(
+ params?: GetDepositReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDepositReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDepositReviewQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getClassifyPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}/classify`
+}
+
+/**
+ * A NEW classification record each time (the receipt is append-only and the history stays readable); the newest is current. Informational in AP-1: no VAT is posted, altered or decided from it. Refused for a receipt with no customer, a migrated opening deposit (its VAT position is the migration's record), a reversed opening deposit, or a receipt that was fully allocated when recorded (never a deposit).
+ * @summary AP-1 — say what a deposit is: advance / erroneous / security_deposit / unknown (a dated record; nothing posts)
+ */
+export const classifyPayment = async (id: number,
+    classifyPaymentInput: ClassifyPaymentInput, options?: RequestInit): Promise<CustomerPayment> => {
+
+  return customFetch<CustomerPayment>(getClassifyPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classifyPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getClassifyPaymentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyPayment>>, TError,{id: number;data: BodyType<ClassifyPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifyPayment>>, TError,{id: number;data: BodyType<ClassifyPaymentInput>}, TContext> => {
+
+const mutationKey = ['classifyPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifyPayment>>, {id: number;data: BodyType<ClassifyPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  classifyPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifyPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof classifyPayment>>>
+    export type ClassifyPaymentMutationBody = BodyType<ClassifyPaymentInput>
+    export type ClassifyPaymentMutationError = ErrorType<void>
+
+    /**
+ * @summary AP-1 — say what a deposit is: advance / erroneous / security_deposit / unknown (a dated record; nothing posts)
+ */
+export const useClassifyPayment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyPayment>>, TError,{id: number;data: BodyType<ClassifyPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof classifyPayment>>,
+        TError,
+        {id: number;data: BodyType<ClassifyPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getClassifyPaymentMutationOptions(options));
+    }
+
+export const getCreateAdvanceInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}/advance-invoices`
+}
+
+/**
+ * A tax invoice for consideration RECEIVED before a taxable supply (GCC VAT Agreement Art. 23(1); IR Art. 53(1)(a)(2)). Created FROM the receipt whose deposit it declares VAT for, never from nothing; the amount is VAT-INCLUSIVE and at most the receipt's un-invoiced remainder; the line is the split at the deposit's classified VAT category (S at the standard rate; Z / E at 0 with an exemption reason). A DRAFT — approve it (`POST /invoices/{id}/approve`) to mint the ICV, the hash, the QR, the e-invoice and the entry `Dr Customer deposits [VAT] / Cr VAT Payable` (accountant A2). The accounting date defaults to the receipt date (the tax point) when its month is open, else today; never before the receipt, never into a closed month. Approver-level.
+ * @summary AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance
+ */
+export const createAdvanceInvoice = async (id: number,
+    createAdvanceInvoiceInput: CreateAdvanceInvoiceInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateAdvanceInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAdvanceInvoiceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdvanceInvoiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext> => {
+
+const mutationKey = ['createAdvanceInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdvanceInvoice>>, {id: number;data: BodyType<CreateAdvanceInvoiceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createAdvanceInvoice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdvanceInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof createAdvanceInvoice>>>
+    export type CreateAdvanceInvoiceMutationBody = BodyType<CreateAdvanceInvoiceInput>
+    export type CreateAdvanceInvoiceMutationError = ErrorType<void>
+
+    /**
+ * @summary AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance
+ */
+export const useCreateAdvanceInvoice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdvanceInvoice>>,
+        TError,
+        {id: number;data: BodyType<CreateAdvanceInvoiceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdvanceInvoiceMutationOptions(options));
+    }
+
+export const getListPaymentClassificationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}/classifications`
+}
+
+/**
+ * @summary AP-1 — every classification a receipt has carried, oldest first
+ */
+export const listPaymentClassifications = async (id: number, options?: RequestInit): Promise<PaymentClassification[]> => {
+
+  return customFetch<PaymentClassification[]>(getListPaymentClassificationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPaymentClassificationsQueryKey = (id: number,) => {
+    return [
+    `/api/payments/${id}/classifications`
+    ] as const;
+    }
+
+
+export const getListPaymentClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof listPaymentClassifications>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPaymentClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPaymentClassificationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPaymentClassifications>>> = ({ signal }) => listPaymentClassifications(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPaymentClassifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPaymentClassificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listPaymentClassifications>>>
+export type ListPaymentClassificationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary AP-1 — every classification a receipt has carried, oldest first
+ */
+
+export function useListPaymentClassifications<TData = Awaited<ReturnType<typeof listPaymentClassifications>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPaymentClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPaymentClassificationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetPaymentUrl = (id: number,) => {
 
 
@@ -14131,6 +14523,79 @@ export const useReverseMigrationBatch = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseMigrationBatchMutationOptions(options));
+    }
+
+export const getCreateAdvanceCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/advance-credit-notes`
+}
+
+/**
+ * The controlled path for an invoiced advance (ordinary credit notes against a 386 are refused — 409 note_original_is_advance_invoice). A ZATCA 381 whose billing reference is the 386 (BR-KSA-56) with a stated reason (BR-KSA-17), for a VAT-inclusive amount at most the 386's OPEN balance (issued − applied on final invoices − already credited); its line is the 386's category and rate. A DRAFT — approve it (`POST /invoices/{noteId}/approve`) to issue it (ICV, hash, QR, e-invoice) and post `Dr VAT Payable / Cr Customer deposits` for the credited VAT (accountant A2's shape reversed — pack §6 E5). The receipt's un-invoiced remainder then RISES by the credited amount, which is what unlocks the ordinary deposit refund (`POST /payments/refunds`, origin deposit) for exactly that part. The 386, the receipt and the note are never edited.
+ * @summary AP-3 — a DRAFT credit note against an ADVANCE tax invoice (type 386): cancel part or all of an advance before its supply
+ */
+export const createAdvanceCreditNote = async (id: number,
+    createAdvanceCreditNoteInput: CreateAdvanceCreditNoteInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateAdvanceCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAdvanceCreditNoteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdvanceCreditNoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext> => {
+
+const mutationKey = ['createAdvanceCreditNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdvanceCreditNote>>, {id: number;data: BodyType<CreateAdvanceCreditNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createAdvanceCreditNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdvanceCreditNoteMutationResult = NonNullable<Awaited<ReturnType<typeof createAdvanceCreditNote>>>
+    export type CreateAdvanceCreditNoteMutationBody = BodyType<CreateAdvanceCreditNoteInput>
+    export type CreateAdvanceCreditNoteMutationError = ErrorType<void>
+
+    /**
+ * @summary AP-3 — a DRAFT credit note against an ADVANCE tax invoice (type 386): cancel part or all of an advance before its supply
+ */
+export const useCreateAdvanceCreditNote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceCreditNote>>, TError,{id: number;data: BodyType<CreateAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdvanceCreditNote>>,
+        TError,
+        {id: number;data: BodyType<CreateAdvanceCreditNoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdvanceCreditNoteMutationOptions(options));
     }
 
 export const getPayInvoiceUrl = (id: number,) => {

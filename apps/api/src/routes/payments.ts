@@ -26,11 +26,20 @@ router.post("/matching/apply", matchingController.apply);
 router.post("/matching/override", matchingController.override);
 router.get("/matching/:id", matchingController.get);
 router.post("/matching/:id/unmatch", matchingController.unmatch);
+// AP-1: the deposits held and which of them may owe VAT — a READER (no journal, no VAT); every role.
+router.get("/deposit-review", paymentsController.depositReview);
 
 router.get("/", paymentsController.list);
 router.get("/:id", paymentsController.get);
 router.post("/", paymentsController.receive);
 router.post("/:id/allocate", paymentsController.allocate);
+// AP-1: classify a deposit (advance / erroneous / security_deposit / unknown) — a dated record, nothing posted;
+// approver-level (POST → create = admin, accountant in the matrix).
+router.post("/:id/classify", paymentsController.classify);
+router.get("/:id/classifications", paymentsController.classificationHistory);
+// AP-2: a DRAFT advance tax invoice (ZATCA 386) from a receipt's classified deposit — approver-level
+// (POST → create = admin, accountant); approval is the separate act on /invoices/:id/approve.
+router.post("/:id/advance-invoices", paymentsController.createAdvanceInvoice);
 // A credit note's unconsumed balance applied to other invoices of the same
 // customer — an allocation from a CREDIT source (posts Dr Customer credit
 // balances / Cr AR; approver-level via the activation override). The note

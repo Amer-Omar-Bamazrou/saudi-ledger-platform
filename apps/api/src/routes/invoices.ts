@@ -13,6 +13,9 @@ router.post("/:id/submit", invoicesController.submit);
 router.post("/:id/send-back", invoicesController.sendBack);
 router.post("/:id/reject", invoicesController.reject);
 router.post("/:id/approve", invoicesController.approve);
+// AP-3: a DRAFT credit note against an ADVANCE tax invoice (:id = the 386) — the
+// controlled cancellation path; approval is the separate act on /:id/approve.
+router.post("/:id/advance-credit-notes", invoicesController.creditAdvance);
 router.patch("/:id", invoicesController.update);
 router.post("/:id/pay", invoicesController.pay);
 router.get("/:id/payments", invoicesController.payments);

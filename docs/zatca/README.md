@@ -24,6 +24,7 @@ the date printed inside the PDF, which is often the original release). Verified
 | `QRCodeCreation.pdf` | 2021-11-22 (Phase 1 era) | `a27159ab6f6e7ba024f8bdda41a1e3ddfe232c5738a93076ec7523f719361092` |
 | `KSA_VAT_Implementing_Regulations_EN.pdf` 🔴 **legal text** | **2023-08-30** (Eighth Edition) | `659fb67cc8ed6afcd4bdb5628be81e0b3c70f683b8bd8876c6631770f1215cb3` |
 | `ZATCA_E-Invoicing_Implementation_Resolution_20230519_EN.pdf` 🔴 **legal text** | **2023-05-19** | `06a7ce0a3e113a142554b9293e148fd99eb058e6075f1c4c75c7d99354d16066` |
+| `20230519_ZATCA_Electronic_Invoice_XML_Implementation_Standard_vTrack.pdf` (v1.2 — the UBL tags, calculations and BR-KSA rules; **¶9.5 prepayment**, §11.2.1 type 386; added 2026-09-21 for AP-2, text extract committed beside it) | **2023-05-19** | `f4a14e3e601748435bb425e9caa9f2db305af38d0322d154c59a16aa4b228dc9` |
 
 > 🔴 The two **legal text** rows matter most: C9's VAT-treatment verdicts and
 > C12's invoice-numbering verdicts cite these documents clause by clause

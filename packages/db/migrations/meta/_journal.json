@@ -575,6 +575,27 @@
       "when": 1789866394251,
       "tag": "0081_batch_1c_policy_c",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789926838384,
+      "tag": "0082_ap1_payment_classifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1790002303724,
+      "tag": "0083_ap2_advance_tax_invoice",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1790002363724,
+      "tag": "0084_ap3_advance_credit_note",
+      "breakpoints": true
     }
   ]
 }

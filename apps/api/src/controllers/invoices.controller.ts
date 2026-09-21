@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
-import { CreateInvoiceBody, PayInvoiceBody, UpdateInvoiceBody } from "@workspace/api-zod";
+import { CreateInvoiceBody, CreateAdvanceCreditNoteBody, PayInvoiceBody, UpdateInvoiceBody } from "@workspace/api-zod";
 import { invoicesService } from "../services/invoices.service";
+import { advanceInvoicesService } from "../services/advanceInvoices.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
@@ -123,6 +124,11 @@ export const invoicesController = {
   async update(req: Request, res: Response) {
     const body = parseOr400(UpdateInvoiceBody.safeParse(req.body));
     res.json(await invoicesService.update(requireIdParam(req), body));
+  },
+  /** AP-3 — a DRAFT credit note against the advance tax invoice named by :id. */
+  async creditAdvance(req: Request, res: Response) {
+    const body = parseOr400(CreateAdvanceCreditNoteBody.safeParse(req.body));
+    res.status(201).json(await advanceInvoicesService.creditAdvance(requireIdParam(req), body, req.session?.userId ?? null));
   },
   async pay(req: Request, res: Response) {
     const body = parseOr400(PayInvoiceBody.safeParse(req.body));

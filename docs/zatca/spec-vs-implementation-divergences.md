@@ -33,6 +33,7 @@ So: the SDK is still the best OFFLINE signal and remains a fast local check, but
 | 12 | `CertDigest` over the base64 STRING | ✅ **confirmed live** | as above (was decompilation-only until M12.4) |
 | 13 | QR tags 3, 6-9 | 🔴 **CORRECTED** — see below | three `*_QRCODE_INVALID` errors + one timestamp warning |
 | 14 | C14N 1.1 genuinely used | ✅ unchanged | structural + empirical |
+| 15 | Type code **386** (prepayment invoice) — the SHIPPED SDK rejects it | 🔴 **SDK older than the standard** — see below | `ubl-zatca-validator.test.ts` pins BR-KSA-05 as the ONLY error on a 386; the 388-with-adjustment passes |
 
 **The three that were decompilation-only (#10, #11, #12) are now confirmed
 against reality.** They are the least intuitive findings in this document — a
@@ -321,6 +322,14 @@ structurally, by schema, and empirically. Full record:
 [`c14n-decision.md`](c14n-decision.md).
 
 ---
+
+## 15. 🔴 The SHIPPED SDK's rule set predates the prepayment invoice (AP-2, 2026-09-21)
+
+**The divergence.** The XML Implementation Standard v1.2 (2023-05-19, `docs/zatca/specs/…XML_Implementation_Standard_vTrack.pdf`, §11.2.1) adds `386` to the KSA subset of UN/CEFACT 1001 ("For Prepayment Tax Invoice, code is 386 and subtype is 01") and ¶9.5 / BR-KSA-73…82 define the final invoice's prepayment adjustment. The SDK on disk (`zatca-envoice-sdk-203`, CLI 3.0.8) carries `Data/Rules/schematrons/20210819_ZATCA_E-invoice_Validation_Rules.xsl`, whose BR-KSA-05 admits only `' 388 383 381 '` — so a correct 386 FAILS the offline validator on that one rule, and the 2021 rules contain NO BR-KSA-73…82 at all (a 388 with an adjustment line PASSES them vacuously; only XSD and EN 16931's BR-CO-16 arithmetic are actually exercised).
+
+**Trust order applied.** LIVE API > SDK > PDF — but here the PDF is the NEWER primary text and the SDK's own download page still serves this build (checked 2026-09-21; no newer archive is published). The implementation follows the standard; the test `ubl-zatca-validator.test.ts` PINS the divergence (BR-KSA-05 must be the only error on a 386, and a refreshed SDK flips the test loudly). **What is NOT proven offline:** the prepayment-specific rules. Only the live compliance endpoint can validate a 386 and a 388-with-adjustment (AP-4 — the gate; CLAUDE.md §4).
+
+**🔴 RESOLVED AT THE TOP OF THE TRUST ORDER (AP-4, 2026-09-21).** The live sandbox `POST /compliance/invoices` CLEARED a 386, a 388 with the ¶9.5 adjustment line and a 381 whose billing reference names a 386 — built from real ledger rows — with `status: PASS` and zero warnings, and its rule set was shown to CONTAIN BR-KSA-73, 74, 75, 79 and 80 by planted-wrong documents it flagged by name (each a WARNING on a still-CLEARED document; BR-KSA-74 an ERROR / NOT_CLEARED). So: the implementation follows the standard, the live API agrees with the standard, and the shipped SDK is the stale party. The pinned BR-KSA-05 assertion stays until a newer SDK archive is published. Record: advance-payments pack §16. Also fixed there: the SDK's `-sign` on Windows mangled non-ASCII text under Java 17's ANSI default charset; both harnesses run the JVM with `-Dfile.encoding=UTF-8`.
 
 ## Also verified CORRECT in the PDF
 

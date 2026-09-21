@@ -5,12 +5,15 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { VatReturnDepositReview } from './vatReturnDepositReview';
 import type { VatReturnPeriod } from './vatReturnPeriod';
 import type { VatReturnPurchasesSection } from './vatReturnPurchasesSection';
 import type { VatReturnSalesSection } from './vatReturnSalesSection';
 
 export interface VatReturn {
   period: VatReturnPeriod;
+  /** AP-1 — deposits held at the end of the window that may carry VAT the boxes do not show (the list: GET /payments/deposit-review). A who-finds-out figure beside the return, never a box. */
+  depositReview: VatReturnDepositReview;
   salesSection: VatReturnSalesSection;
   purchasesSection: VatReturnPurchasesSection;
   netVatDue: number;

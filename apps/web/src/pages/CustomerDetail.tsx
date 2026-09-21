@@ -15,7 +15,8 @@ import { OpeningRecordBadge } from "@/components/migration/OpeningRecord";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { CreditNoteDetail, useCreditNoteApplications } from "@/components/payments/CreditNoteDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
-import { BankName, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
+import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
+import { isReceivableDocumentType } from "@workspace/shared";
 
 /**
  * One customer, everything about them.
@@ -118,14 +119,18 @@ function PaymentRow({ p, customerName, invoiceNumbers }: { p: CustomerPayment; c
     <>
       <tr className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`payment-row-${p.id}`}>
         <td className="py-3 pe-4 font-mono text-xs">{receiptNumber(p.id)}</td>
-        <td className="py-3 pe-4 text-muted-foreground"><DualDate date={p.paidAt} inline /></td>
+        {/* Phone: the date and the bank live in the detail card; keeping them out of the row is what lets the table fit 390 px with no sideways scroll (AP-2 walk). */}
+        <td className="py-3 pe-4 text-muted-foreground hidden sm:table-cell"><DualDate date={p.paidAt} inline /></td>
         <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
         <td className="py-3 pe-4 font-mono text-positive">{money(p.amount)}</td>
         <td className="py-3 pe-4 font-mono hidden sm:table-cell">{money(p.allocatedAmount)}</td>
         <td className="py-3 pe-4 font-mono" data-testid={`payment-row-unapplied-${p.id}`}>{money(p.unappliedAmount)}</td>
-        <td className="py-3 pe-4 hidden sm:table-cell"><PaymentStateBadge p={p} /></td>
+        <td className="py-3 pe-4 hidden sm:table-cell"><div className="flex flex-wrap gap-1"><PaymentStateBadge p={p} />{(p.unappliedAmount > 0.005 || p.classification) && <ClassificationBadge p={p} />}</div></td>
         <td className="py-3 text-end">
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen((o) => !o)} data-testid={`payment-toggle-${p.id}`} aria-expanded={open}>
+          {/* Opening the card brings the table back to its inline-start edge: on a phone the
+              toggle sits at the far end of a sideways-scrolling table, and the card (bounded to the
+              viewport) is otherwise revealed off-screen (AP-2 walk). */}
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { setOpen((o) => !o); e.currentTarget.closest(".overflow-x-auto")?.scrollTo({ left: 0 }); }} data-testid={`payment-toggle-${p.id}`} aria-expanded={open}>
             {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             <span className="ms-1">{open ? t("Hide", "إخفاء") : t("Details", "التفاصيل")}</span>
           </Button>
@@ -233,7 +238,10 @@ export default function CustomerDetail() {
 
   // Credit notes are NOT receivables — they are listed as credits, with the
   // balance each still carries, and excluded from aging (which sums what is owed).
-  const invoices = all.filter((d) => d.documentType !== "credit_note");
+  // AP-2/AP-3: the advance documents (a 386 and the credit note against it) are
+  // neither receivables nor Model C credits — they live on the receipt card. The
+  // one definition of "carries a receivable" is @workspace/shared.
+  const invoices = all.filter((d) => isReceivableDocumentType(d.documentType));
   const creditNotes = all.filter((d) => d.documentType === "credit_note");
   const aging = computeAging(invoices);
   const who = { id: customer.id, name: customer.name };
@@ -341,7 +349,7 @@ export default function CustomerDetail() {
                 <thead>
                   <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                     <th className="text-start pb-2 pe-4 font-medium">{t("Receipt", "الإيصال")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Received", "الاستلام")}</th>
+                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Received", "الاستلام")}</th>
                     <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
                     <th className="text-start pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
                     <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Allocated", "المخصص")}</th>

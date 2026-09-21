@@ -2225,3 +2225,91 @@ on purpose: it predates A4/A5 and is a scope of its own.
 
 State: CLOSED 2026-09-20. Current state authority: CLAUDE.md §2.
 
+## ADVANCE VAT UNDER-DECLARATION — CLOSED AT THE DOCUMENT 2026-09-21 (recorded 2026-09-20; AP-1 made it VISIBLE, AP-2 gives the platform the document; the live sandbox pass and the credit-note leg remain)
+
+**The defect, plainly.** A customer's payment received BEFORE the supply it
+pays for is a VAT tax point on the day it arrives, to the extent received —
+GCC Common VAT Agreement Art. 23(1) ("Tax becomes due on the date of the
+supply of Goods or Services, the date of issuance of the tax invoice or upon
+partial or full receipt of the Consideration, whichever comes first, and to
+the extent of the received amount"; ZATCA-hosted text, read 2026-09-20) —
+and requires a tax invoice for the advance (VAT IR Art. 53(1)(a)(2); for a
+B2C customer a simplified one at receipt, Art. 53(7)(a)(2)+(b)), with Invoice
+Type Code 386 under ZATCA's Detailed Guideline v2 §8. Saudi Ledger records
+the cash correctly as a customer-deposit liability (Batch 1B, D-4) and
+**files nothing for it**: the VAT return (`reportsService.vatReturn`) reads
+invoices and bills only, no advance tax invoice document exists, and no VAT
+is posted on a deposit. **Consequence:** a taxable advance received in period
+P is absent from P's return — box 1 and box 6 understated by the advance's
+net and VAT — and the platform has no document with which to declare it. When
+the final invoice is later issued at full value the tax is declared in THAT
+period, so the exposure is a TIMING under-declaration on every taxable
+advance, permanent where the supply never happens. This is the LEGAL
+exposure the ERPNext comparison ranked (findings file, "Advance payments — a
+VAT tax point we cannot represent"), now stated where a future session will
+look for it.
+
+**What AP-1 did (2026-09-20, this branch): made it visible, changed no
+accounting.** Every deposit carries a dated classification record (`advance`
+/ `erroneous` / `security_deposit` / `unknown`; `payment_classifications`,
+append-only, the newest current), and the VAT return page lists every deposit
+held at the period end with a server-decided review state
+(`GET /payments/deposit-review`; the return itself carries the summary in
+`depositReview`): an unclassified deposit and an advance without its tax
+invoice are flagged as needing review, the advance with the Art. 53(1)(b)
+deadline (the 15th of the month after receipt). No VAT is posted, no document
+is created, no box moves — the figure beside the return is a WHO-FINDS-OUT
+figure, never a box. Frame stated on the response: the unapplied remainder is
+as of now, the receipt date is the filter; a deposit allocated to a full-VAT
+invoice in a later period is a timing difference this list does not show.
+
+**What AP-2 did (2026-09-21, `feat/ap-2-advance-tax-invoice`): the
+platform can now declare an advance, and declare it once.** With the
+accountant's A1/A2/A3 answered (pack §8) and the XML Implementation Standard
+v1.2 ¶9.5 read from the primary text: an ADVANCE TAX INVOICE (`invoices`
+row, `document_type = 'advance_invoice'`, ZATCA type 386) is issued from a
+receipt's deposit classified as an advance — through the one issuance path
+(ICV, hash, QR, e-invoice) — and posts `Dr Customer deposits [VAT] /
+Cr VAT Payable` dated at the tax point (the receipt date when open); the
+return files it in that period. The FINAL invoice selects the 386(s) it
+applies; at issue it posts `Dr AR (due) · Dr deposits (net advance) /
+Cr Sales (full) · Cr VAT (full − advance VAT)` with the allocation folded in,
+its UBL carries the ¶9.5 adjustment line (KSA-30…34) and `PrepaidAmount`
+(BT-113, from adjusted 386s only — the `paid_amount` wiring is gone), and
+the return deducts the adjusted base and VAT per category, so nothing is
+declared twice. Erroneous, security and unknown deposits are REFUSED a 386
+by name (A1); a 386-invoiced remainder cannot be allocated or refunded any
+other way (G-Z-3, fail-closed); the folded allocation is immutable. Record:
+pack §14 (the entry-by-entry trace, the reader sweep, the tests, the walk).
+
+**What AP-3 did (2026-09-21, `feat/ap-3-advance-credit-note-refund`):
+the controlled way OUT of an invoiced advance.** A credit note against a
+386 (`document_type = 'advance_credit_note'`, ZATCA 381 whose billing
+reference is the 386's number — BR-KSA-56 — with the reason — BR-KSA-17),
+for part or all of the 386's open balance, posts at issue `Dr VAT Payable /
+Cr Customer deposits` for the credited VAT (pack §6 E5): the advance's
+declared VAT returns to the deposit, the return files it negative in the
+note's period (IR Art. 40(5)), and the receipt's un-invoiced remainder rises
+by the credited part — which is what unlocks the Batch 1B deposit refund
+for exactly that part. An ordinary note against a 386 stays refused by
+name; nothing is edited or deleted; the chain receipt → 386 → note → refund
+is readable on the card, the statement and the audit log. Record: pack §15.
+
+**What AP-4 did (2026-09-21, `feat/ap-4-advance-compliance`): the live
+sandbox pass.** `POST /compliance/invoices` CLEARED the 386, the 388 with
+its prepayment adjustment (full and partial) and the 381 against the 386,
+each built from real ledger rows, `status: PASS` with zero warnings — on an
+instrument first shown to flag every prepayment rule (BR-KSA-73/74/75/79/80)
+and BR-KSA-56 by name when fed planted-wrong documents. The shipped SDK's
+rejection of the 386 code stays pinned as the SDK's own staleness
+(divergences log §15). Nothing changed in the accounting; the receipt-period
+vs issuance-period question stays with the accountant (pack §16.5).
+
+**What is still open:** (1) simulation and production for these shapes —
+behind the Saudi entity, as for every document type (M12.7/M12.9); (2) Z1
+with ZATCA for migrated advances (a migrated deposit gets no 386 here, so no
+note and no unlocked refund); (3) the VAT-period question, with the
+accountant.
+
+State: CLOSED at the document; AP-4 is the gate before a taxpayer that
+receives advances. Current state authority: CLAUDE.md §2.

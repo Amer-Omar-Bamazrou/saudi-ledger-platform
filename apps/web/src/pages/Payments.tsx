@@ -23,7 +23,7 @@ import { Banknote, Plus, Undo2 } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
-import { BankName, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
+import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
 
 import type { Customer, CustomerPayment, CustomerRefund, ListInvoices200 } from "@workspace/api-client-react";
 
@@ -129,6 +129,7 @@ export default function Payments() {
                         <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Allocated", "المخصص")}</th>
                         <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("On account", "على الحساب")}</th>
                         <th className="text-start pb-2 pe-4 font-medium hidden lg:table-cell">{t("State", "الحالة")}</th>
+                        <th className="text-start pb-2 pe-4 font-medium hidden lg:table-cell">{t("Deposit is", "العربون")}</th>
                         <th className="pb-2" />
                       </tr>
                     </thead>
@@ -145,6 +146,7 @@ export default function Payments() {
                           <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.allocatedAmount)}</td>
                           <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.unappliedAmount)}</td>
                           <td className="py-3 pe-4 hidden lg:table-cell"><PaymentStateBadge p={p} /></td>
+                          <td className="py-3 pe-4 hidden lg:table-cell">{p.unappliedAmount > 0.005 || p.classification ? <ClassificationBadge p={p} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
                           <td className="py-3 text-end">
                             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelected(p)} data-testid={`payment-open-${p.id}`}>{t("Details", "التفاصيل")}</Button>
                           </td>

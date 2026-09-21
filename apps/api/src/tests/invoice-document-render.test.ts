@@ -158,6 +158,35 @@ describe("L1 — the template's design rules, as text properties", () => {
     expect(ar).toContain("1,325.00"); // balance due = 1725 − 400
   });
 
+  it("AP-2: an ADVANCE tax invoice is titled as one, names its receipt and shows NO balance due; a final invoice shows each advance deducted and the amount due", () => {
+    const adv = renderInvoiceHtml({ ...base, lang: "ar", documentType: "advance_invoice", advanceReceipt: { number: "RCPT-77", date: "2026-06-15" }, total: "11500.00", subtotal: "10000.00", vatAmount: "1500.00", paidAmount: "0", bankDetails: null });
+    expect(adv).toContain("فاتورة ضريبية عن دفعة مقدمة");
+    expect(adv).toContain("RCPT-77");
+    expect(adv).toContain("المبلغ المستحق");
+    expect(adv).not.toContain("المتبقي"); // no "balance due" block on a document for money already received
+    const advEn = renderInvoiceHtml({ ...base, lang: "en", documentType: "advance_invoice", advanceReceipt: { number: "RCPT-77", date: "2026-06-15" }, buyer: null });
+    expect(advEn).toContain("Advance Payment Simplified Tax Invoice");
+    const fin = renderInvoiceHtml({ ...base, lang: "en", total: "34500.00", subtotal: "30000.00", vatAmount: "4500.00", paidAmount: "11500.00", prepayments: [{ invoiceNumber: "ADV-0001", date: "2026-06-15", amount: "11500.00", taxableAmount: "10000.00", taxAmount: "1500.00" }] });
+    expect(fin).toContain("Less: advance payment invoice");
+    expect(fin).toContain("ADV-0001");
+    expect(fin).toContain("11,500.00");
+    expect(fin).toContain("23,000.00"); // the amount due after the advance
+    // the cash-settlement block reads the advance as the prepayment, not as "Paid"
+    expect(fin).not.toContain(">Paid<");
+    const finAr = renderInvoiceHtml({ ...base, lang: "ar", total: "34500.00", paidAmount: "11500.00", prepayments: [{ invoiceNumber: "ADV-0001", date: "2026-06-15", amount: "11500.00", taxableAmount: "10000.00", taxAmount: "1500.00" }] });
+    expect(finAr).toContain("ناقصًا: فاتورة الدفعة المقدمة");
+  });
+
+  it("AP-3: the credit note against an advance is titled as one and names the 386 it corrects and the reason", () => {
+    const ar = renderInvoiceHtml({ ...base, lang: "ar", documentType: "advance_credit_note", originalInvoiceNumber: "ADV-0001", noteReason: "إلغاء الطلب", total: "11500.00", subtotal: "10000.00", vatAmount: "1500.00", paidAmount: "0", bankDetails: null });
+    expect(ar).toContain("إشعار دائن — دفعة مقدمة");
+    expect(ar).toContain("ADV-0001");
+    expect(ar).toContain("إلغاء الطلب");
+    const en = renderInvoiceHtml({ ...base, lang: "en", documentType: "advance_credit_note", originalInvoiceNumber: "ADV-0001", noteReason: "Order cancelled", paidAmount: "0", bankDetails: null });
+    expect(en).toContain("Credit Note — Advance Payment");
+    expect(en).not.toContain("Balance due");
+  });
+
   it("the QR renders at the bottom when present, and not at all when absent", () => {
     const html = renderInvoiceHtml({ ...base, lang: "ar" });
     expect(html.lastIndexOf('class="qr"')).toBeGreaterThan(html.indexOf("totals"));

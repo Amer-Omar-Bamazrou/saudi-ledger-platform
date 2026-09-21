@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
-import { ReceivePaymentBody, AllocatePaymentBody, ApplyCreditNoteBody, UnallocateBody, RefundCustomerBody } from "@workspace/api-zod";
+import { ReceivePaymentBody, AllocatePaymentBody, ApplyCreditNoteBody, UnallocateBody, RefundCustomerBody, ClassifyPaymentBody, CreateAdvanceInvoiceBody } from "@workspace/api-zod";
 import { paymentsService } from "../services/payments.service";
+import { advanceInvoicesService } from "../services/advanceInvoices.service";
+import { depositReviewService, endOfMonth } from "../services/depositReview.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
 
@@ -62,6 +64,33 @@ export const paymentsController = {
   async refund(req: Request, res: Response) {
     const body = parseOr400(RefundCustomerBody.safeParse(req.body));
     res.status(201).json(await paymentsService.refund(body, req.session?.userId ?? null));
+  },
+
+  // ── AP-1: deposit classification and the VAT-review list ──
+  async classify(req: Request, res: Response) {
+    const body = parseOr400(ClassifyPaymentBody.safeParse(req.body));
+    res.json(await paymentsService.classify(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+
+  async classificationHistory(req: Request, res: Response) {
+    res.json(await paymentsService.classificationHistory(requireIdParam(req)));
+  },
+
+  /** AP-2 — a DRAFT advance tax invoice (386) for part or all of a receipt's advance deposit. */
+  async createAdvanceInvoice(req: Request, res: Response) {
+    const body = parseOr400(CreateAdvanceInvoiceBody.safeParse(req.body));
+    res.status(201).json(await advanceInvoicesService.createFromReceipt(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+
+  /** `period_to` (YYYY-MM) frames receipts up to the end of that month; `as_of` (YYYY-MM-DD) wins when both are given. */
+  async depositReview(req: Request, res: Response) {
+    const { period_to, as_of, customer_id } = req.query as Record<string, string>;
+    const customerId = customer_id ? Number(customer_id) : undefined;
+    if (customer_id && (!Number.isInteger(customerId) || customerId! <= 0)) throw new BadRequestError("customer_id must be a positive integer");
+    if (period_to && !/^d{4}-d{2}$/.test(period_to)) throw new BadRequestError("period_to must be YYYY-MM");
+    if (as_of && !/^d{4}-d{2}-d{2}$/.test(as_of)) throw new BadRequestError("as_of must be YYYY-MM-DD");
+    const asOf = as_of || (period_to ? endOfMonth(period_to) : null);
+    res.json(await depositReviewService.review({ asOf, customerId }));
   },
 
   async getRefund(req: Request, res: Response) {

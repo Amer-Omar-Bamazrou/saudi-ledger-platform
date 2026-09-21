@@ -12,7 +12,26 @@ type Customer = typeof customersTable.$inferSelect;
 
 export const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 
-export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?: InvoiceItem[]) {
+export type PrepaymentOut = {
+  id: number;
+  advanceInvoiceId: number;
+  advanceInvoiceNumber: string;
+  advanceInvoiceDate: string;
+  amount: number;
+  taxableAmount: number;
+  taxAmount: number;
+  taxCategoryCode: string;
+  vatRate: number;
+  allocationId: number | null;
+};
+
+export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?: InvoiceItem[], prepayments?: PrepaymentOut[]) {
+  // AP-2: BT-113 — the VAT-inclusive advance this invoice adjusts (Σ its
+  // prepayment rows; 0.00 unless it names an advance tax invoice), and the
+  // amount due after it. Never `paid_amount` — that is cash, a different
+  // fact (Guideline §8(c): populated only when a separate advance invoice
+  // was issued).
+  const prepaidAmount = Math.round((prepayments ?? []).reduce((s, p) => s + p.amount, 0) * 100) / 100;
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
@@ -52,6 +71,11 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     documentType: inv.documentType,
     originalInvoiceId: inv.originalInvoiceId,
     noteReason: inv.noteReason,
+    // AP-2: the receipt an ADVANCE TAX INVOICE declares VAT for (null otherwise).
+    advancePaymentId: inv.advancePaymentId ?? null,
+    prepayments: prepayments ?? [],
+    prepaidAmount,
+    amountDue: Math.round((toNum(inv.total) - prepaidAmount) * 100) / 100,
     items:
       items?.map((it) => ({
         id: it.id,

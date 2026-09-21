@@ -143,6 +143,8 @@ export const analyticsRepository = {
           notInArray(invoicesTable.status, ["draft", "submitted"]),
           // Batch 1C: an opening item is the previous system's sale, not this ledger's.
           eq(invoicesTable.isOpening, false),
+          // AP-2: an advance tax invoice declares VAT on a deposit; the sale is the final invoice.
+          notInArray(invoicesTable.documentType, ["advance_invoice", "advance_credit_note"]),
           companyScoped(invoicesTable.companyId),
           gte(invoicesTable.date, from),
           lte(invoicesTable.date, to),

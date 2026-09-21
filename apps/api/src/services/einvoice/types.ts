@@ -13,8 +13,12 @@
  * so the string IS the value.
  */
 
-/** ZATCA document types. `invoice` today; the notes arrive with M12.1b. */
-export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note";
+/**
+ * ZATCA document types (UN/CEFACT 1001): invoice 388 · credit_note 381 ·
+ * debit_note 383 · advance_invoice 386 (AP-2 — the PREPAYMENT tax invoice,
+ * XML Implementation Standard v1.2 ¶9.5 / §11.2.1).
+ */
+export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note";
 
 /**
  * Standard (B2B/B2G) is CLEARED before issuance; simplified (B2C) is REPORTED
@@ -92,6 +96,30 @@ export interface EInvoiceLine {
   taxExemptionReasonText: string | null;
 }
 
+/**
+ * AP-2 — ONE PREPAYMENT ADJUSTMENT LINE of a final invoice (XML Standard
+ * ¶9.5; BR-KSA-73…82): an additional `cac:InvoiceLine` whose principal
+ * values are all ZERO (quantity, LineExtensionAmount, line TaxAmount,
+ * RoundingAmount, PriceAmount), carrying one `cac:DocumentReference` per
+ * advance tax invoice it adjusts (KSA-26 number, KSA-28 issue date, KSA-29
+ * issue time, KSA-30 type code 386 — and the 386's UUID, KSA-1, which the
+ * Guideline §8(b) names as "currently optional, to be mandated") and ONE
+ * `cac:TaxSubtotal` (KSA-31 taxable, KSA-32 tax, KSA-33 category, KSA-34
+ * rate) consolidating the adjusted advances of that category and rate.
+ * `PrepaidAmount` (BT-113) = Σ over these lines of (KSA-31 + KSA-32).
+ */
+export interface PrepaymentAdjustmentLine {
+  references: Array<{ invoiceNumber: string; uuid: string | null; issueDate: string; issueTime: string }>;
+  /** KSA-31 — Σ taxable amounts of the adjusted advances at this category and rate. */
+  taxableAmount: string;
+  /** KSA-32 — Σ their VAT. */
+  taxAmount: string;
+  /** KSA-33. */
+  taxCategory: TaxCategoryCode;
+  /** KSA-34 — the ADVANCE invoice's rate (may be a historic rate). */
+  taxPercent: string;
+}
+
 /** One tax-category bucket in the document-level `cac:TaxTotal`. */
 export interface TaxSubtotal {
   taxableAmount: string;
@@ -134,8 +162,17 @@ export interface EInvoiceInput {
   allowanceTotal: string;
   taxExclusiveTotal: string;
   taxInclusiveTotal: string;
+  /**
+   * BT-113 — the VAT-INCLUSIVE advance adjusted by this invoice: Σ of the
+   * prepayment adjustment lines' (KSA-31 + KSA-32). "0.00" when none.
+   * 🔴 Never the cash received (Guideline §8(c): populated only when a
+   * separate advance invoice was issued at the time of the advance).
+   */
   prepaidAmount: string;
+  /** BT-115 — TaxInclusiveAmount − PrepaidAmount. */
   payableAmount: string;
+  /** AP-2 — the prepayment adjustment lines, appended after the supply lines. Empty unless the invoice adjusts an advance. */
+  prepaymentAdjustments: PrepaymentAdjustmentLine[];
   /** Total VAT (`cac:TaxTotal/cbc:TaxAmount`). */
   taxTotal: string;
   taxSubtotals: TaxSubtotal[];
