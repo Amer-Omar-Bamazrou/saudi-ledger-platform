@@ -313,8 +313,9 @@ describeMaybe("AP-3 — credit note against an advance tax invoice, and the refu
     expect(pAfter.amount).toBe(11_500);
     expect(pAfter.journalEntryId).toBe(p.journalEntryId);
     // the provenance chain, readable end to end: receipt → 386 → note → refund; the audit carries each act
-    const audit = (await pool.query(`SELECT entity_type, entity_id, action FROM audit_logs WHERE organization_id = $1 AND ((entity_type = 'invoice' AND entity_id IN ($2, $3)) OR (entity_type = 'customer_refund' AND entity_id = $4)) ORDER BY id`, [orgId, adv.id, note.id, r.id])).rows;
-    expect(audit.filter((a) => Number(a.entity_id) === note.id).map((a) => a.action)).toEqual(["create", "approve"]);
+    const audit = (await pool.query(`SELECT entity_type, entity_id, action FROM audit_logs WHERE organization_id = $1 AND ((entity_type = 'invoice' AND entity_id IN ($2, $3)) OR (entity_type = 'customer_refund' AND entity_id = $4)) ORDER BY created_at`, [orgId, adv.id, note.id, r.id])).rows;
+    // `audit_logs.id` is a random uuid — never an ordering. The two acts are asserted as a SET; their order is the transactions' commit order and is not what this test is about.
+    expect(audit.filter((a) => a.entity_type === "invoice" && Number(a.entity_id) === note.id).map((a) => a.action).sort()).toEqual(["approve", "create"]);
     expect(audit.find((a) => a.entity_type === "customer_refund")?.action).toBe("refund");
     const stmt = await inTenant(() => customerStatementService.statement(custA, {}));
     const kinds = stmt.lines.filter((l) => l.paymentId === p.id || l.documentNumber === note.invoiceNumber || l.documentNumber === adv.invoiceNumber).map((l) => l.kind);
