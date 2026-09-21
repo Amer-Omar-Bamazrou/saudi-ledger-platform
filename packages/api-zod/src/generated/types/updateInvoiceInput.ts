@@ -6,11 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { InvoiceLineInput } from './invoiceLineInput';
+import type { PrepaymentInput } from './prepaymentInput';
 
 /**
- * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.
+ * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
  */
 export interface UpdateInvoiceInput {
+  prepayments?: PrepaymentInput[];
   invoiceNumber?: string;
   date?: string;
   /** @nullable */

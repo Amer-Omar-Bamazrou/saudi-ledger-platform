@@ -24,5 +24,9 @@ export function documentTitle(lang: DocLang, documentType: string, buyerHasVat: 
   const t = L(lang);
   if (documentType === "credit_note") return t("Credit Note", "إشعار دائن");
   if (documentType === "debit_note") return t("Debit Note", "إشعار مدين");
+  // AP-2: the PREPAYMENT tax invoice (ZATCA type 386) — a tax invoice for
+  // consideration received before the supply; standard or simplified by the
+  // same buyer test as an invoice (XML Standard §11.2.1).
+  if (documentType === "advance_invoice") return buyerHasVat ? t("Advance Payment Tax Invoice", "فاتورة ضريبية عن دفعة مقدمة") : t("Advance Payment Simplified Tax Invoice", "فاتورة ضريبية مبسطة عن دفعة مقدمة");
   return buyerHasVat ? t("Tax Invoice", "فاتورة ضريبية") : t("Simplified Tax Invoice", "فاتورة ضريبية مبسطة");
 }

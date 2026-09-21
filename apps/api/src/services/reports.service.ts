@@ -11,6 +11,7 @@ import { customersRepository } from "../repositories/customers.repository";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { businessToday } from "@workspace/shared";
 import { depositReviewService, endOfMonth } from "./depositReview.service";
+import { isAdvanceInvoiceType } from "@workspace/shared";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -471,6 +472,10 @@ export const reportsService = {
     const rows = await reportsRepository.customerInvoices(customer_id, date_from, date_to);
     const custMap = new Map<number, { customer: any; invoices: any[] }>();
     for (const { inv, cust } of rows) {
+      // AP-2: an advance tax invoice is not a receivable document — the
+      // customer ledger lists what is owed; the statement carries the 386
+      // in the chronology and the receipt card carries it beside its deposit.
+      if (isAdvanceInvoiceType(inv.documentType)) continue;
       const cid = inv.customerId ?? 0;
       if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
       // M12.1b: a credit note appears on the ledger as a NEGATIVE line (its
@@ -610,6 +615,7 @@ export const reportsService = {
      */
     for (const { inv, cust } of rows) {
       if (inv.documentType === "credit_note") continue; // a note is applied to invoices; it is not itself receivable
+      if (isAdvanceInvoiceType(inv.documentType)) continue; // AP-2: an advance tax invoice declares VAT on cash already received; nothing is owed on it
       const credited = toNum(inv.creditedAmount);
       const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited) * 100) / 100;
       if (Math.abs(outstanding) < 0.01) continue;
@@ -732,11 +738,12 @@ export const reportsService = {
     // box (advance-payments decision pack §4; the boxes read documents only).
     const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
 
-    const [invoiceRows, invoiceLines, billRows, billLines] = await Promise.all([
+    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
       reportsRepository.invoiceLinesInRange(dateFrom, dateTo),
       reportsRepository.billsInRange(dateFrom, dateTo),
       reportsRepository.billLinesInRange(dateFrom, dateTo),
+      reportsRepository.prepaymentsInRange(dateFrom, dateTo),
     ]);
 
     /**
@@ -786,6 +793,25 @@ export const reportsService = {
         else if (code === "E") exemptSales += sign * net;
         // "O": out of scope — on no box of the return.
       }
+    }
+    /**
+     * 🔴 AP-2 — the ADVANCE and its ADJUSTMENT, declared ONCE. An advance tax
+     * invoice (386) is an invoice row above: its line files the advance's
+     * base and VAT in the period of ITS date (the tax point at receipt —
+     * GCC Agreement Art. 23(1), IR Art. 53(1)(a)(2)). The final invoice's
+     * lines above carry the FULL supply (the XML shows full lines plus the
+     * adjustment lines, XML Standard ¶9.5), so the part the 386 already
+     * declared is taken back here, per category, from the prepayment rows
+     * finalised at that invoice's issue — the same rows its GL entry netted
+     * (invoices.approvable E3). Box 1 + box 6 over both periods then equal
+     * the supply once; nothing is declared twice and nothing is dropped.
+     */
+    for (const { row } of prepaymentRows) {
+      const taxable = toNum(row.taxableAmount);
+      const tax = toNum(row.taxAmount);
+      if (row.taxCategoryCode === "S") { standardRatedSales -= taxable; outputVat -= tax; }
+      else if (row.taxCategoryCode === "Z") zeroRatedSales -= taxable;
+      else if (row.taxCategoryCode === "E") exemptSales -= taxable;
     }
 
     const billLinesByDoc = new Map<number, (typeof billLines)[number][]>();

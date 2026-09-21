@@ -21,6 +21,10 @@ export interface DepositReviewItem {
   amount: number;
   /** The deposit still held from this receipt, as of now. */
   unappliedAmount: number;
+  /** AP-2 — covered by an issued advance tax invoice and not yet adjusted. */
+  advanceOpenAmount: number;
+  /** AP-2 — unapplied − advanceOpen: for an advance, what still needs an advance tax invoice. */
+  uninvoicedAmount: number;
   /** @nullable */
   reference: string | null;
   source: DepositReviewItemSource;

@@ -10,6 +10,7 @@ import type { DepositReviewBucket } from './depositReviewBucket';
 export type DepositReviewByState = {
   unclassified: DepositReviewBucket;
   advance_not_invoiced: DepositReviewBucket;
+  advance_invoiced: DepositReviewBucket;
   vat_silent: DepositReviewBucket;
   migrated_invoiced: DepositReviewBucket;
   migrated_unknown: DepositReviewBucket;

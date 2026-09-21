@@ -75,6 +75,10 @@ export interface InvoiceDocModel {
   total: string;
   paidAmount: string; // payment settlement inside the totals block (§3)
   creditedAmount?: string; // D-4: credit notes applied to this document — part of what is no longer due
+  /** AP-2: on an ADVANCE tax invoice — the receipt it declares VAT for; nothing is due on it. */
+  advanceReceipt?: { number: string; date: string } | null;
+  /** AP-2: on a FINAL invoice — the advance tax invoices it adjusts (BT-113 = Σ amount; amount due = total − Σ). */
+  prepayments?: Array<{ invoiceNumber: string; date: string; amount: string; taxableAmount: string; taxAmount: string }>;
   qrDataUrl: string | null; // rendered TLV QR — bottom of the page
   logoDataUrl: string | null;
   termsAndConditions: string | null;
@@ -226,8 +230,27 @@ ${
   <tr><td>${esc(t("VAT 15%", "ضريبة القيمة المضافة ١٥٪"))}</td><td class="num">${fmt(m.vatAmount)} ${esc(currency)}</td></tr>
   <tr class="grand"><td>${esc(t("Total (incl. VAT)", "الإجمالي شامل الضريبة"))}</td><td class="num">${fmt(m.total)} ${esc(currency)}</td></tr>
   ${
-    Number(m.paidAmount) > 0 || Number(m.creditedAmount ?? "0") > 0
-      ? `${Number(m.paidAmount) > 0 ? `<tr><td>${esc(t("Paid", "المدفوع"))}</td><td class="num">${fmt(m.paidAmount)} ${esc(currency)}</td></tr>` : ""}
+    m.advanceReceipt
+      ? /* AP-2: an advance tax invoice declares VAT on money ALREADY received — no balance is due on it */
+        `<tr><td>${esc(t("Advance received (receipt)", "الدفعة المقدمة المستلمة (الإيصال)"))}</td><td class="num">${esc(m.advanceReceipt.number)} · ${esc(m.advanceReceipt.date)}</td></tr>
+  <tr><td>${esc(t("Amount due", "المبلغ المستحق"))}</td><td class="num">0.00 ${esc(currency)}</td></tr>`
+      : ""
+  }
+  ${
+    (m.prepayments ?? []).length > 0
+      ? /* AP-2: BT-113 — the advance tax invoice(s) adjusted, VAT inclusive; the amount due is net of them (XML Standard ¶9.5) */
+        `${m.prepayments!
+          .map(
+            (p) =>
+              `<tr><td>${esc(t("Less: advance payment invoice", "ناقصًا: فاتورة الدفعة المقدمة"))} ${esc(p.invoiceNumber)} (${esc(p.date)})</td><td class="num">−${fmt(p.amount)} ${esc(currency)}</td></tr>`,
+          )
+          .join("\n")}
+  <tr class="grand"><td>${esc(t("Amount due", "المبلغ المستحق"))}</td><td class="num">${fmt(String(Number(m.total) - m.prepayments!.reduce((s, p) => s + Number(p.amount), 0)))} ${esc(currency)}</td></tr>`
+      : ""
+  }
+  ${
+    !m.advanceReceipt && (Number(m.paidAmount) - (m.prepayments ?? []).reduce((s, p) => s + Number(p.amount), 0) > 0.005 || Number(m.creditedAmount ?? "0") > 0)
+      ? `${Number(m.paidAmount) - (m.prepayments ?? []).reduce((s, p) => s + Number(p.amount), 0) > 0.005 ? `<tr><td>${esc(t("Paid", "المدفوع"))}</td><td class="num">${fmt(String(Number(m.paidAmount) - (m.prepayments ?? []).reduce((s, p) => s + Number(p.amount), 0)))} ${esc(currency)}</td></tr>` : ""}
   ${Number(m.creditedAmount ?? "0") > 0 ? `<tr><td>${esc(t("Credited", "المقيد لصالحكم"))}</td><td class="num">${fmt(m.creditedAmount!)} ${esc(currency)}</td></tr>` : ""}
   <tr><td>${esc(t("Balance due", "المتبقي"))}</td><td class="num">${fmt(String(Number(m.total) - Number(m.paidAmount) - Number(m.creditedAmount ?? "0")))} ${esc(currency)}</td></tr>`
       : ""

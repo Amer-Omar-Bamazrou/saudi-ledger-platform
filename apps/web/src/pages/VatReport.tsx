@@ -220,8 +220,8 @@ export default function VatReport() {
               </CardTitle>
               <CardDescription>
                 {t(
-                  "Money received before a supply is a VAT tax point at receipt, and an advance tax invoice is due by the 15th of the following month. The return above reads documents only, so an advance that has not been invoiced is missing from it. Classify each deposit; the platform cannot issue the advance tax invoice yet.",
-                  "المبلغ المستلم قبل التوريد نقطة استحقاق ضريبية عند الاستلام، وتستحق فاتورة ضريبية عن الدفعة المقدمة بحلول اليوم الخامس عشر من الشهر التالي. يقرأ الإقرار أعلاه المستندات فقط، فالدفعة المقدمة التي لم تصدر فاتورتها غائبة عنه. صنّف كل عربون؛ ولا تستطيع المنصة إصدار الفاتورة الضريبية للدفعة المقدمة بعد.",
+                  "Money received before a supply is a VAT tax point at receipt, and an advance tax invoice (type 386) is due by the 15th of the following month. The return above reads documents only, so an advance that has not been invoiced is missing from it. Classify each deposit, then issue the advance tax invoice from the receipt on the customer's page; once issued it files here, and the final invoice applies it.",
+                  "المبلغ المستلم قبل التوريد نقطة استحقاق ضريبية عند الاستلام، وتستحق فاتورة ضريبية عن الدفعة المقدمة بحلول اليوم الخامس عشر من الشهر التالي. يقرأ الإقرار أعلاه المستندات فقط، فالدفعة المقدمة التي لم تصدر فاتورتها غائبة عنه. صنّف كل عربون، ثم أصدر الفاتورة الضريبية للدفعة المقدمة (نوع 386) من الإيصال في صفحة العميل؛ وبعد إصدارها تُدرج هنا، وتُطبّقها الفاتورة النهائية.",
                 )}
               </CardDescription>
             </div>

@@ -28,7 +28,7 @@ export { outstandingOf, isOpenInvoice } from "@/lib/openInvoice";
  * a stale figure beside a fresh one.
  */
 export function invalidatePaymentQueries(qc: QueryClient) {
-  for (const key of ["payments", "refunds", "customer", "customer-invoices", "customer-credits", "customer-statement", "credit-note-applications", "invoices", "bank-accounts", "ar-aging", "matching", "customers"]) {
+  for (const key of ["payments", "refunds", "customer", "customer-invoices", "customer-credits", "customer-statement", "credit-note-applications", "invoices", "bank-accounts", "ar-aging", "matching", "customers", "open-advance-invoices"]) {
     qc.invalidateQueries({ queryKey: [key] });
   }
   // AP-1: the deposit review list and the return's summary move with every receipt, allocation, refund and classification (generated-client keys).
@@ -140,7 +140,7 @@ export function useClassificationLabels() {
     unknown: t("Not yet classified", "غير مصنف بعد"),
   };
   const hint: Record<DepositClassificationValue, string> = {
-    advance: t("Money received before a taxable supply — a VAT tax point at receipt; an advance tax invoice is due by the 15th of the next month.", "مبلغ مستلم قبل توريد خاضع للضريبة — نقطة استحقاق ضريبية عند الاستلام؛ تستحق فاتورة ضريبية عن الدفعة المقدمة بحلول اليوم الخامس عشر من الشهر التالي."),
+    advance: t("Money received before a taxable supply — a VAT tax point at receipt; an advance tax invoice (type 386) is due by the 15th of the next month, and is applied on the final invoice.", "مبلغ مستلم قبل توريد خاضع للضريبة — نقطة استحقاق ضريبية عند الاستلام؛ تستحق فاتورة ضريبية عن الدفعة المقدمة (نوع 386) بحلول اليوم الخامس عشر من الشهر التالي، وتُطبَّق على الفاتورة النهائية."),
     erroneous: t("Paid by mistake or twice — not consideration for a supply; refund it or allocate it.", "دُفع خطأً أو مرتين — ليس مقابلًا لتوريد؛ يُردّ أو يُخصَّص."),
     security_deposit: t("Held as security and refundable — not consideration for a supply (the accountant's confirmation is pending).", "محتفظ به كتأمين قابل للاسترداد — ليس مقابلًا لتوريد (بانتظار تأكيد المحاسب)."),
     unknown: t("Nobody has said what this money is yet. It stays on the VAT review list until classified.", "لم يُحدَّد بعد ما هذا المبلغ. يبقى في قائمة مراجعة الضريبة حتى يُصنَّف."),
@@ -148,6 +148,8 @@ export function useClassificationLabels() {
   const state: Record<string, string> = {
     unclassified: t("Needs classification", "يحتاج إلى تصنيف"),
     advance_not_invoiced: t("Advance — tax invoice not yet issued", "دفعة مقدمة — لم تصدر فاتورتها الضريبية بعد"),
+    // AP-2: the deposit is covered by issued advance tax invoices; its VAT is declared, it waits for the final invoice.
+    advance_invoiced: t("Advance — tax invoice issued, awaiting the final invoice", "دفعة مقدمة — صدرت فاتورتها الضريبية، بانتظار الفاتورة النهائية"),
     vat_silent: t("No VAT expected", "لا ضريبة متوقعة"),
     migrated_invoiced: t("Migrated — invoiced in the previous system", "مُرحَّل — صدرت فاتورته في النظام السابق"),
     migrated_unknown: t("Migrated — VAT position unknown", "مُرحَّل — الوضع الضريبي غير معروف"),

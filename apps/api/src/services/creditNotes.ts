@@ -9,7 +9,7 @@
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
-import { INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
+import { INVOICE_IN_BOOKS_STATUSES, isAdvanceInvoiceType } from "@workspace/shared";
 
 export const NOTE_TYPES = ["credit_note", "debit_note"] as const;
 export type NoteType = (typeof NOTE_TYPES)[number];
@@ -104,6 +104,20 @@ export async function assertNoteIsValid(input: {
     throw new BusinessRuleError(409, {
       code: "note_original_is_note",
       error: `A ${label} must reference an invoice, not another note.`,
+    });
+  }
+  // AP-2, FAIL CLOSED: a note against an ADVANCE TAX INVOICE has its own
+  // entry shape (pack §6 E5 — the VAT returns to the deposit; no revenue, no
+  // AR) and is the AP-3 build. The generic note path would post Dr Sales /
+  // Dr VAT / Cr AR against a document that carried neither, so it is refused
+  // here rather than minted wrong.
+  if (isAdvanceInvoiceType(original.documentType)) {
+    throw new BusinessRuleError(409, {
+      code: "note_original_is_advance_invoice",
+      error:
+        `${original.invoiceNumber} is an advance tax invoice. A ${label} against an advance tax invoice (cancelling an advance before its supply) is not supported yet — ` +
+        `advance-payments decision pack §9 AP-3.`,
+      field: "originalInvoiceId",
     });
   }
 

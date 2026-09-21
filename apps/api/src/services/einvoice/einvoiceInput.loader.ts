@@ -19,6 +19,7 @@ import { invoicesRepository } from "../../repositories/invoices.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
 import { customersRepository } from "../../repositories/customers.repository";
 import { assembleEInvoiceInput } from "./einvoiceInput.assembler";
+import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
 import type { EInvoiceInput } from "./types";
 
 /**
@@ -60,6 +61,17 @@ export async function loadEInvoiceInput(
     ? (await invoicesRepository.findById(invoice.originalInvoiceId))[0] ?? null
     : null;
 
+  // AP-2: the final invoice's prepayment adjustment rows, each with the
+  // advance tax invoice ROW it adjusts — the XML's DocumentReference names
+  // what the FK points at, never a stored string.
+  const prepayments = (await advanceInvoicesRepository.prepaymentsOfInvoice(invoiceId)).map(({ row, advance }) => ({
+    advance: { invoiceNumber: advance.invoiceNumber, zatcaUuid: advance.zatcaUuid, issuedAt: advance.issuedAt },
+    taxableAmount: row.taxableAmount,
+    taxAmount: row.taxAmount,
+    taxCategoryCode: row.taxCategoryCode,
+    vatRate: row.vatRate,
+  }));
+
   return assembleEInvoiceInput({
     invoice: {
       invoiceNumber: invoice.invoiceNumber,
@@ -77,6 +89,7 @@ export async function loadEInvoiceInput(
       noteReason: invoice.noteReason,
     },
     originalInvoice: original ? { invoiceNumber: original.invoiceNumber } : null,
+    prepayments,
     items: items.map((it) => ({
       description: it.description,
       quantity: it.quantity,

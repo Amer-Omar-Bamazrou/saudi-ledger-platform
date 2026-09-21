@@ -2752,6 +2752,24 @@ paths:
         "404":
           description: Customer not found
 
+  /customers/{id}/advance-invoices:
+    get:
+      operationId: listOpenAdvanceInvoices
+      tags: [customers]
+      summary: "AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Open advance tax invoices, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpenAdvanceInvoice" }
+        "404":
+          description: Customer not found
+
   /customers/{id}/statement:
     get:
       operationId: getCustomerStatement
@@ -3403,6 +3421,48 @@ paths:
           description: "`opening_deposit_classified_by_migration`, `opening_item_reversed`, `no_deposit_to_classify`"
         "422":
           description: "`classification_requires_customer`, `vat_category_requires_advance`"
+
+  /payments/{id}/advance-invoices:
+    post:
+      operationId: createAdvanceInvoice
+      tags: [payments]
+      summary: "AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance"
+      description: >
+        A tax invoice for consideration RECEIVED before a taxable supply (GCC
+        VAT Agreement Art. 23(1); IR Art. 53(1)(a)(2)). Created FROM the
+        receipt whose deposit it declares VAT for, never from nothing; the
+        amount is VAT-INCLUSIVE and at most the receipt's un-invoiced
+        remainder; the line is the split at the deposit's classified VAT
+        category (S at the standard rate; Z / E at 0 with an exemption
+        reason). A DRAFT — approve it (`POST /invoices/{id}/approve`) to mint
+        the ICV, the hash, the QR, the e-invoice and the entry
+        `Dr Customer deposits [VAT] / Cr VAT Payable` (accountant A2). The
+        accounting date defaults to the receipt date (the tax point) when its
+        month is open, else today; never before the receipt, never into a
+        closed month. Approver-level.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAdvanceInvoiceInput" }
+      responses:
+        "201":
+          description: The draft advance tax invoice (document_type advance_invoice)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "400":
+          description: No positive amount
+        "404":
+          description: Not found
+        "409":
+          description: "`advance_invoice_requires_advance_classification` (erroneous / security_deposit / unknown — accountant A1), `opening_deposit_not_advance_invoiced` (Z1), `opening_item_reversed`"
+        "422":
+          description: "`classification_requires_customer`, `advance_vat_category_required`, `advance_exemption_reason_required`, `advance_invoice_exceeds_uninvoiced`, `advance_invoice_before_receipt`, `advance_amount_does_not_split`"
+        "423":
+          description: The date falls in a closed month
 
   /payments/{id}/classifications:
     get:
@@ -6525,7 +6585,7 @@ components:
 
     Invoice:
       type: object
-      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid]
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid, advancePaymentId, prepayments, prepaidAmount, amountDue]
       properties:
         id:
           type: integer
@@ -6577,7 +6637,8 @@ components:
           description: ZATCA Phase-1 QR (base64 TLV); null until approved.
         documentType:
           type: string
-          description: invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).
+          enum: [invoice, credit_note, debit_note, advance_invoice]
+          description: "invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign)."
         originalInvoiceId:
           type: ["integer", "null"]
           description: For a credit/debit note, the invoice it adjusts.
@@ -6588,10 +6649,92 @@ components:
           description: ZATCA invoice counter value; null until approved.
         zatcaUuid:
           type: ["string", "null"]
+        advancePaymentId:
+          type: ["integer", "null"]
+          description: "AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise."
+        prepayments:
+          type: array
+          description: "AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing."
+          items: { $ref: "#/components/schemas/InvoicePrepayment" }
+        prepaidAmount:
+          type: number
+          description: "BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount."
+        amountDue:
+          type: number
+          description: "total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued)."
         items:
           type: array
           items:
             $ref: "#/components/schemas/InvoiceItem"
+
+    InvoicePrepayment:
+      type: object
+      description: "AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386."
+      required: [id, advanceInvoiceId, advanceInvoiceNumber, advanceInvoiceDate, amount, taxableAmount, taxAmount, taxCategoryCode, vatRate, allocationId]
+      properties:
+        id: { type: integer }
+        advanceInvoiceId: { type: integer }
+        advanceInvoiceNumber: { type: string }
+        advanceInvoiceDate: { type: string }
+        amount: { type: number, description: "VAT inclusive — the part of the 386 this invoice adjusts." }
+        taxableAmount: { type: number, description: "KSA-31." }
+        taxAmount: { type: number, description: "KSA-32." }
+        taxCategoryCode: { type: string, enum: [S, Z, E], description: "KSA-33." }
+        vatRate: { type: number, description: "KSA-34 — the advance invoice's rate." }
+        allocationId: { type: ["integer", "null"], description: "The receipt → invoice allocation folded into the issue entry; null while a draft." }
+
+    PrepaymentInput:
+      type: object
+      required: [advanceInvoiceId]
+      properties:
+        advanceInvoiceId: { type: integer, description: "An ISSUED advance tax invoice of this customer with an open balance." }
+        amount: { type: ["number", "null"], minimum: 0, description: "VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g))." }
+
+    CreateAdvanceInvoiceInput:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, minimum: 0, description: "VAT inclusive; at most the receipt's un-invoiced remainder." }
+        date: { type: ["string", "null"], description: "Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt." }
+        description: { type: ["string", "null"], maxLength: 500 }
+        descriptionAr: { type: ["string", "null"], maxLength: 500 }
+        taxExemptionReasonCode: { type: ["string", "null"], description: "Required (code or text) when the deposit's VAT category is Z or E." }
+        taxExemptionReasonText: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    OpenAdvanceInvoice:
+      type: object
+      description: "AP-2 — an issued advance tax invoice with a balance a final invoice may still adjust."
+      required: [id, invoiceNumber, date, issuedAt, paymentId, receiptDate, total, subtotal, vatAmount, adjustedAmount, openAmount]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: string }
+        date: { type: string }
+        issuedAt: { type: ["string", "null"] }
+        paymentId: { type: integer }
+        receiptDate: { type: string }
+        total: { type: number, description: "VAT inclusive." }
+        subtotal: { type: number }
+        vatAmount: { type: number }
+        adjustedAmount: { type: number, description: "Σ adjusted by issued final invoices." }
+        openAmount: { type: number, description: "total − adjustedAmount." }
+
+    ReceiptAdvanceInvoice:
+      type: object
+      description: "AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it."
+      required: [id, invoiceNumber, status, date, total, subtotal, vatAmount, vatCategory, adjustedAmount, openAmount]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: string }
+        status: { type: string }
+        date: { type: string }
+        total: { type: number }
+        subtotal: { type: number }
+        vatAmount: { type: number }
+        vatCategory: { type: ["string", "null"] }
+        adjustedAmount: { type: number }
+        openAmount: { type: number, description: "0 while a draft; total − adjusted once issued." }
 
     PayrollRun:
       type: object
@@ -7187,7 +7330,7 @@ components:
       properties:
         seq: { type: integer }
         date: { type: string }
-        kind: { type: string, enum: [invoice, debit_note, credit_note, receipt, allocation, credit_application, unallocation, refund] }
+        kind: { type: string, enum: [invoice, debit_note, credit_note, advance_invoice, receipt, allocation, credit_application, unallocation, refund] }
         documentNumber: { type: string }
         reference: { type: ["string", "null"] }
         description: { type: string }
@@ -7557,7 +7700,7 @@ components:
 
     CustomerPayment:
       type: object
-      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, classification, createdAt]
+      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, classification, advanceInvoicedAmount, advanceAdjustedAmount, advanceOpenAmount, uninvoicedAmount, advanceInvoices, createdAt]
       properties:
         id: { type: integer }
         direction: { type: string, enum: [in, out] }
@@ -7582,6 +7725,13 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/PaymentClassification" }
             - { type: "null" }
+        advanceInvoicedAmount: { type: number, description: "AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared." }
+        advanceAdjustedAmount: { type: number, description: "AP-2 — Σ adjusted by issued final invoices." }
+        advanceOpenAmount: { type: number, description: "AP-2 — invoiced − adjusted: reserved for a final invoice's prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment)." }
+        uninvoicedAmount: { type: number, description: "AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded." }
+        advanceInvoices:
+          type: array
+          items: { $ref: "#/components/schemas/ReceiptAdvanceInvoice" }
         createdAt: { type: string }
 
     PaymentClassification:
@@ -7616,7 +7766,7 @@ components:
 
     DepositReviewItem:
       type: object
-      required: [paymentId, customerId, customerName, customerNameAr, paidAt, amount, unappliedAmount, reference, source, classification, vatCategory, classifiedAt, migrationVatPosition, reviewState, needsReview, deadline, overdue]
+      required: [paymentId, customerId, customerName, customerNameAr, paidAt, amount, unappliedAmount, advanceOpenAmount, uninvoicedAmount, reference, source, classification, vatCategory, classifiedAt, migrationVatPosition, reviewState, needsReview, deadline, overdue]
       properties:
         paymentId: { type: integer }
         customerId: { type: integer }
@@ -7625,6 +7775,8 @@ components:
         paidAt: { type: string }
         amount: { type: number }
         unappliedAmount: { type: number, description: "The deposit still held from this receipt, as of now." }
+        advanceOpenAmount: { type: number, description: "AP-2 — covered by an issued advance tax invoice and not yet adjusted." }
+        uninvoicedAmount: { type: number, description: "AP-2 — unapplied − advanceOpen: for an advance, what still needs an advance tax invoice." }
         reference: { type: ["string", "null"] }
         source: { type: string, enum: [manual, invoice_pay, settlement, opening] }
         classification: { $ref: "#/components/schemas/DepositClassification" }
@@ -7638,7 +7790,8 @@ components:
 
     DepositReviewState:
       type: string
-      enum: [unclassified, advance_not_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
+      enum: [unclassified, advance_not_invoiced, advance_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
+      description: "advance_invoiced (AP-2) — the deposit is fully covered by issued advance tax invoices; its VAT is declared and it waits for the final invoice."
 
     DepositReviewBucket:
       type: object
@@ -7661,10 +7814,11 @@ components:
         overdueCount: { type: integer }
         byState:
           type: object
-          required: [unclassified, advance_not_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
+          required: [unclassified, advance_not_invoiced, advance_invoiced, vat_silent, migrated_invoiced, migrated_unknown]
           properties:
             unclassified: { $ref: "#/components/schemas/DepositReviewBucket" }
             advance_not_invoiced: { $ref: "#/components/schemas/DepositReviewBucket" }
+            advance_invoiced: { $ref: "#/components/schemas/DepositReviewBucket" }
             vat_silent: { $ref: "#/components/schemas/DepositReviewBucket" }
             migrated_invoiced: { $ref: "#/components/schemas/DepositReviewBucket" }
             migrated_unknown: { $ref: "#/components/schemas/DepositReviewBucket" }
@@ -7875,11 +8029,18 @@ components:
               type: array
               minItems: 1
               items: { $ref: "#/components/schemas/InvoiceLineInput" }
+            prepayments:
+              type: array
+              description: "AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note)."
+              items: { $ref: "#/components/schemas/PrepaymentInput" }
 
     UpdateInvoiceInput:
-      description: Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.
+      description: Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
       type: object
       properties:
+        prepayments:
+          type: array
+          items: { $ref: "#/components/schemas/PrepaymentInput" }
         invoiceNumber: { type: string }
         date: { type: string }
         dueDate: { type: ["string", "null"] }

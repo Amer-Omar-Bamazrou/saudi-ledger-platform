@@ -55,6 +55,9 @@ import { auditService } from "./audit.service";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund, PaymentClassification } from "@workspace/db";
 import { isNoteType } from "./creditNotes";
+import { isAdvanceInvoiceType } from "@workspace/shared";
+import { advanceInvoicesService, type ReceiptAdvanceInvoiceOut } from "./advanceInvoices.service";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
 export type AllocationInput = { invoiceId: number; amount: number };
 
@@ -111,6 +114,16 @@ export type PaymentOut = {
   allocations: AllocationOut[];
   /** AP-1: the CURRENT classification (the newest record), or null when nobody has said what the deposit is. */
   classification: ClassificationOut | null;
+  /** AP-2: Σ issued advance tax invoices (386) on this receipt — the part of the deposit whose VAT is declared. */
+  advanceInvoicedAmount: number;
+  /** AP-2: Σ adjusted by issued final invoices (the prepayment adjustment). */
+  advanceAdjustedAmount: number;
+  /** AP-2: invoiced − adjusted — reserved for a final invoice's adjustment; a D-4 allocation or a refund cannot touch it. */
+  advanceOpenAmount: number;
+  /** AP-2: unapplied − advanceOpen — what may still be advance-invoiced, allocated or refunded. */
+  uninvoicedAmount: number;
+  /** AP-2: every advance tax invoice (any status) issued from this receipt. */
+  advanceInvoices: ReceiptAdvanceInvoiceOut[];
   createdAt: string;
 };
 
@@ -209,6 +222,12 @@ async function view(p: Payment, classification?: PaymentClassification | null): 
   const allocated = round2(rows.filter((r) => r.reversal == null).reduce((s, r) => s + num(r.alloc.amount), 0));
   const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: p.id }));
   const current = classification !== undefined ? classification : (await paymentsRepository.latestClassifications([p.id])).get(p.id) ?? null;
+  const unapplied = round2(num(p.amount) - allocated - refunded);
+  const adv = (await advanceInvoicesRepository.figuresForPayments([p.id])).get(p.id) ?? { invoiced: 0, invoicedVat: 0, adjusted: 0, adjustedVat: 0, open: 0, openVat: 0 };
+  const advanceInvoices: ReceiptAdvanceInvoiceOut[] = (await advanceInvoicesRepository.advanceInvoicesOfPayment(p.id)).map(({ inv, adjusted, vatCategory }) => ({
+    id: inv.id, invoiceNumber: inv.invoiceNumber, status: inv.status, date: inv.date, total: num(inv.total), subtotal: num(inv.subtotal), vatAmount: num(inv.vatAmount),
+    vatCategory, adjustedAmount: round2(adjusted), openAmount: inv.status === "draft" || inv.status === "submitted" ? 0 : round2(num(inv.total) - adjusted),
+  }));
   return {
     id: p.id,
     direction: p.direction,
@@ -224,9 +243,14 @@ async function view(p: Payment, classification?: PaymentClassification | null): 
     sourceTransactionId: p.sourceTransactionId ?? null,
     allocatedAmount: allocated,
     refundedAmount: refunded,
-    unappliedAmount: round2(num(p.amount) - allocated - refunded),
+    unappliedAmount: unapplied,
     allocations: rows.map((r) => toAllocationOut(r.alloc, r.reversal)),
     classification: current ? toClassificationOut(current) : null,
+    advanceInvoicedAmount: round2(adv.invoiced),
+    advanceAdjustedAmount: round2(adv.adjusted),
+    advanceOpenAmount: round2(adv.open),
+    uninvoicedAmount: round2(unapplied - adv.open),
+    advanceInvoices,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -303,6 +327,10 @@ async function lockAndCheckTargets(
     }
     if (isNoteType(inv.documentType)) {
       throw new ConflictError(`${inv.invoiceNumber} is a credit or debit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
+    }
+    // AP-2: an advance tax invoice declares VAT on cash that already arrived; it is not a receivable and nothing settles it.
+    if (isAdvanceInvoiceType(inv.documentType)) {
+      throw new BusinessRuleError(409, { error: `${inv.invoiceNumber} is an advance tax invoice for money already received; it has no receivable to settle. Apply it on the customer's final invoice.`, code: "advance_invoice_not_payable", field: "allocations" });
     }
     assertNotReversedOpening(inv, `Invoice ${inv.invoiceNumber}`, "settled");
     // Issue 1 (Batch 1C): "issued" is a BUSINESS state, not a tax artefact. An
@@ -515,6 +543,11 @@ export const paymentsService = {
     if (requested > unapplied + TOL) {
       throw new BusinessRuleError(422, { error: `Allocations total ${fmt(requested)} but only ${fmt(unapplied)} of payment ${paymentId} is unapplied.`, code: "allocation_exceeds_payment", field: "allocations" });
     }
+    // AP-2 (G-Z-3, fail-closed): what an advance tax invoice has declared VAT
+    // for is applied through the final invoice's prepayment adjustment, never
+    // by a plain allocation — that would settle AR while the 386's VAT stays
+    // declared and the final invoice declares it again.
+    await advanceInvoicesService.assertWithinUninvoiced(payment, requested, "allocated");
 
     const targets = await lockAndCheckTargets(allocations, { customerId: payment.customerId ?? null }, { paymentId });
     const party = partyOf(payment.customerId ?? null);
@@ -661,6 +694,20 @@ export const paymentsService = {
     if (alloc.paymentId != null) {
       const [payment] = await paymentsRepository.lockPayment(alloc.paymentId);
       if (!payment) throw new NotFoundError("Payment not found");
+      // AP-2: an allocation FOLDED into a final invoice's issue entry (the
+      // prepayment adjustment) is what the signed document states — the
+      // deposit's NET part left the liability and the VAT was netted there,
+      // so mirroring it here would restore the GROSS. Corrected by a credit
+      // note on that invoice, never unapplied (the Phase A rule for a note's
+      // own settlement, applied to the adjustment).
+      const [prepayment] = await advanceInvoicesRepository.findByAllocation(alloc.id);
+      if (prepayment) {
+        throw new BusinessRuleError(409, {
+          error: `Allocation ${allocationId} is the prepayment adjustment stated on the issued invoice (advance tax invoice ${prepayment.advanceInvoiceId} applied); the signed document carries it and it cannot be unapplied. Issue a credit note against the invoice to correct it.`,
+          code: "prepayment_adjustment_immutable",
+          field: "id",
+        });
+      }
       customerId = payment.customerId ?? null;
       origin = "deposit";
     } else {
@@ -798,6 +845,10 @@ export const paymentsService = {
       }
       await assertDepositNotReversed(payment);
       available = (await paymentAvailability(payment)).available;
+      // AP-2 (G-Z-3, fail-closed): a deposit an advance tax invoice covers is
+      // refunded only after a credit note against that 386 (AP-3) — refunding
+      // the cash now would leave its VAT declared against nothing.
+      if (rounded <= available + TOL) await advanceInvoicesService.assertWithinUninvoiced(payment, rounded, "refunded");
       sourceLabel = `receipt ${paymentId}`;
     } else {
       creditNoteId = Number(body.creditNoteId);

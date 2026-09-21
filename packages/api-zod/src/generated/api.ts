@@ -931,11 +931,26 @@ export const ConvertQuotationResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -4598,6 +4613,29 @@ export const GetCustomerCreditsResponse = zod.object({
 
 
 /**
+ * @summary AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust
+ */
+export const ListOpenAdvanceInvoicesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOpenAdvanceInvoicesResponseItem = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "date": zod.string(),
+  "issuedAt": zod.string().nullable(),
+  "paymentId": zod.number(),
+  "receiptDate": zod.string(),
+  "total": zod.number().describe('VAT inclusive.'),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "adjustedAmount": zod.number().describe('Σ adjusted by issued final invoices.'),
+  "openAmount": zod.number().describe('total − adjustedAmount.')
+}).describe('AP-2 — an issued advance tax invoice with a balance a final invoice may still adjust.')
+export const ListOpenAdvanceInvoicesResponse = zod.array(ListOpenAdvanceInvoicesResponseItem)
+
+
+/**
  * @summary Phase E — the customer statement: every event that moved the customer's position (invoices, credit notes, receipts, allocations, credit applications, unallocations, refunds) in chronology, with running Accounts Receivable, Customer Credits and Customer Deposits balances and a derived Net Customer Position. Rebuilt from the events, then reconciled against the subledger.
  */
 export const GetCustomerStatementParams = zod.object({
@@ -4652,7 +4690,7 @@ export const GetCustomerStatementResponse = zod.object({
   "lines": zod.array(zod.object({
   "seq": zod.number(),
   "date": zod.string(),
-  "kind": zod.enum(['invoice', 'debit_note', 'credit_note', 'receipt', 'allocation', 'credit_application', 'unallocation', 'refund']),
+  "kind": zod.enum(['invoice', 'debit_note', 'credit_note', 'advance_invoice', 'receipt', 'allocation', 'credit_application', 'unallocation', 'refund']),
   "documentNumber": zod.string(),
   "reference": zod.string().nullable(),
   "description": zod.string(),
@@ -5159,11 +5197,26 @@ export const ListInvoicesResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -5207,6 +5260,8 @@ export const createInvoiceBodyTwoItemsItemVatRateMax = 100;
 export const createInvoiceBodyTwoItemsItemDiscountMin = 0;
 
 
+export const createInvoiceBodyTwoPrepaymentsItemAmountMin = 0;
+
 
 
 export const CreateInvoiceBody = zod.object({
@@ -5235,7 +5290,11 @@ export const CreateInvoiceBody = zod.object({
   "discount": zod.number().min(createInvoiceBodyTwoItemsItemDiscountMin).optional(),
   "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
   "unitCode": zod.string().nullish()
-})).min(1)
+})).min(1),
+  "prepayments": zod.array(zod.object({
+  "advanceInvoiceId": zod.number().describe('An ISSUED advance tax invoice of this customer with an open balance.'),
+  "amount": zod.number().min(createInvoiceBodyTwoPrepaymentsItemAmountMin).nullish().describe('VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g)).')
+})).optional().describe('AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note).')
 })).describe('A create makes a DRAFT, for every role — nothing is issued, no ICV is\nconsumed, until approval. At least one line is REQUIRED: a zero-line\ninvoice would issue at SAR 0.00 and, once issued, cannot be corrected or\ndeleted (AUD-13). The server answers a missing\/empty `items` with 400\n`invoice_has_no_lines`.\n')
 
 export const CreateInvoiceResponse = zod.object({
@@ -5263,11 +5322,26 @@ export const CreateInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -5316,11 +5390,26 @@ export const GetInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -5347,6 +5436,8 @@ export const UpdateInvoiceParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateInvoiceBodyPrepaymentsItemAmountMin = 0;
+
 
 export const updateInvoiceBodyItemsItemQuantityMin = 0;
 
@@ -5361,6 +5452,10 @@ export const updateInvoiceBodyItemsItemDiscountMin = 0;
 
 
 export const UpdateInvoiceBody = zod.object({
+  "prepayments": zod.array(zod.object({
+  "advanceInvoiceId": zod.number().describe('An ISSUED advance tax invoice of this customer with an open balance.'),
+  "amount": zod.number().min(updateInvoiceBodyPrepaymentsItemAmountMin).nullish().describe('VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g)).')
+})).optional(),
   "invoiceNumber": zod.string().optional(),
   "date": zod.string().optional(),
   "dueDate": zod.string().nullish(),
@@ -5382,7 +5477,7 @@ export const UpdateInvoiceBody = zod.object({
   "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
   "unitCode": zod.string().nullish()
 })).min(1).optional()
-}).describe('Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed.')
+}).describe('Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).')
 
 export const UpdateInvoiceResponse = zod.object({
   "id": zod.number(),
@@ -5409,11 +5504,26 @@ export const UpdateInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -5494,6 +5604,22 @@ export const ListPaymentsResponseItem = zod.object({
   "classifiedBy": zod.number().nullable(),
   "classifiedAt": zod.string()
 }).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "advanceInvoicedAmount": zod.number().describe('AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared.'),
+  "advanceAdjustedAmount": zod.number().describe('AP-2 — Σ adjusted by issued final invoices.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — invoiced − adjusted: reserved for a final invoice\'s prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment).'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded.'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "status": zod.string(),
+  "date": zod.string(),
+  "total": zod.number(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatCategory": zod.string().nullable(),
+  "adjustedAmount": zod.number(),
+  "openAmount": zod.number().describe('0 while a draft; total − adjusted once issued.')
+}).describe('AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.')),
   "createdAt": zod.string()
 })
 export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem)
@@ -5571,6 +5697,22 @@ export const ReceivePaymentResponse = zod.object({
   "classifiedBy": zod.number().nullable(),
   "classifiedAt": zod.string()
 }).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "advanceInvoicedAmount": zod.number().describe('AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared.'),
+  "advanceAdjustedAmount": zod.number().describe('AP-2 — Σ adjusted by issued final invoices.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — invoiced − adjusted: reserved for a final invoice\'s prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment).'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded.'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "status": zod.string(),
+  "date": zod.string(),
+  "total": zod.number(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatCategory": zod.string().nullable(),
+  "adjustedAmount": zod.number(),
+  "openAmount": zod.number().describe('0 while a draft; total − adjusted once issued.')
+}).describe('AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.')),
   "createdAt": zod.string()
 })
 
@@ -5958,13 +6100,15 @@ export const GetDepositReviewResponse = zod.object({
   "paidAt": zod.string(),
   "amount": zod.number(),
   "unappliedAmount": zod.number().describe('The deposit still held from this receipt, as of now.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — covered by an issued advance tax invoice and not yet adjusted.'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: for an advance, what still needs an advance tax invoice.'),
   "reference": zod.string().nullable(),
   "source": zod.enum(['manual', 'invoice_pay', 'settlement', 'opening']),
   "classification": zod.enum(['advance', 'erroneous', 'security_deposit', 'unknown']).describe('advance — consideration received before a taxable supply (a VAT tax point at receipt; an advance tax invoice is due); erroneous — a duplicate or mistaken payment; security_deposit — refundable, not consideration; unknown — not yet said.\n'),
   "vatCategory": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal(null)]).nullable(),
   "classifiedAt": zod.string().nullable(),
   "migrationVatPosition": zod.union([zod.literal('invoiced'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('For a migrated deposit: the VAT position the migration recorded.'),
-  "reviewState": zod.enum(['unclassified', 'advance_not_invoiced', 'vat_silent', 'migrated_invoiced', 'migrated_unknown']),
+  "reviewState": zod.enum(['unclassified', 'advance_not_invoiced', 'advance_invoiced', 'vat_silent', 'migrated_invoiced', 'migrated_unknown']).describe('advance_invoiced (AP-2) — the deposit is fully covered by issued advance tax invoices; its VAT is declared and it waits for the final invoice.'),
   "needsReview": zod.boolean().describe('Server-decided: a human still has something to decide or do for this deposit.'),
   "deadline": zod.string().nullable().describe('For an advance: the 15th of the month after receipt (IR Art. 53(1)(b)).'),
   "overdue": zod.boolean()
@@ -5978,6 +6122,10 @@ export const GetDepositReviewResponse = zod.object({
   "amount": zod.number()
 }),
   "advance_not_invoiced": zod.object({
+  "count": zod.number(),
+  "amount": zod.number()
+}),
+  "advance_invoiced": zod.object({
   "count": zod.number(),
   "amount": zod.number()
 }),
@@ -6055,7 +6203,113 @@ export const ClassifyPaymentResponse = zod.object({
   "classifiedBy": zod.number().nullable(),
   "classifiedAt": zod.string()
 }).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "advanceInvoicedAmount": zod.number().describe('AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared.'),
+  "advanceAdjustedAmount": zod.number().describe('AP-2 — Σ adjusted by issued final invoices.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — invoiced − adjusted: reserved for a final invoice\'s prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment).'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded.'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "status": zod.string(),
+  "date": zod.string(),
+  "total": zod.number(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatCategory": zod.string().nullable(),
+  "adjustedAmount": zod.number(),
+  "openAmount": zod.number().describe('0 while a draft; total − adjusted once issued.')
+}).describe('AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.')),
   "createdAt": zod.string()
+})
+
+
+/**
+ * A tax invoice for consideration RECEIVED before a taxable supply (GCC VAT Agreement Art. 23(1); IR Art. 53(1)(a)(2)). Created FROM the receipt whose deposit it declares VAT for, never from nothing; the amount is VAT-INCLUSIVE and at most the receipt's un-invoiced remainder; the line is the split at the deposit's classified VAT category (S at the standard rate; Z / E at 0 with an exemption reason). A DRAFT — approve it (`POST /invoices/{id}/approve`) to mint the ICV, the hash, the QR, the e-invoice and the entry `Dr Customer deposits [VAT] / Cr VAT Payable` (accountant A2). The accounting date defaults to the receipt date (the tax point) when its month is open, else today; never before the receipt, never into a closed month. Approver-level.
+ * @summary AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance
+ */
+export const CreateAdvanceInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createAdvanceInvoiceBodyAmountMin = 0;
+
+export const createAdvanceInvoiceBodyDescriptionMax = 500;
+
+export const createAdvanceInvoiceBodyDescriptionArMax = 500;
+
+export const createAdvanceInvoiceBodyIdempotencyKeyMax = 120;
+
+
+
+export const CreateAdvanceInvoiceBody = zod.object({
+  "amount": zod.number().min(createAdvanceInvoiceBodyAmountMin).describe('VAT inclusive; at most the receipt\'s un-invoiced remainder.'),
+  "date": zod.string().nullish().describe('Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt.'),
+  "description": zod.string().max(createAdvanceInvoiceBodyDescriptionMax).nullish(),
+  "descriptionAr": zod.string().max(createAdvanceInvoiceBodyDescriptionArMax).nullish(),
+  "taxExemptionReasonCode": zod.string().nullish().describe('Required (code or text) when the deposit\'s VAT category is Z or E.'),
+  "taxExemptionReasonText": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "idempotencyKey": zod.string().max(createAdvanceInvoiceBodyIdempotencyKeyMax).nullish()
+})
+
+export const CreateAdvanceInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
 })
 
 
@@ -6121,6 +6375,22 @@ export const GetPaymentResponse = zod.object({
   "classifiedBy": zod.number().nullable(),
   "classifiedAt": zod.string()
 }).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "advanceInvoicedAmount": zod.number().describe('AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared.'),
+  "advanceAdjustedAmount": zod.number().describe('AP-2 — Σ adjusted by issued final invoices.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — invoiced − adjusted: reserved for a final invoice\'s prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment).'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded.'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "status": zod.string(),
+  "date": zod.string(),
+  "total": zod.number(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatCategory": zod.string().nullable(),
+  "adjustedAmount": zod.number(),
+  "openAmount": zod.number().describe('0 while a draft; total − adjusted once issued.')
+}).describe('AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.')),
   "createdAt": zod.string()
 })
 
@@ -6184,6 +6454,22 @@ export const AllocatePaymentResponse = zod.object({
   "classifiedBy": zod.number().nullable(),
   "classifiedAt": zod.string()
 }).describe('AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it.'),zod.null()]).describe('AP-1 — the CURRENT classification (newest record), or null when nobody has said what the deposit is.'),
+  "advanceInvoicedAmount": zod.number().describe('AP-2 — Σ issued advance tax invoices (386) on this receipt: the part of the deposit whose VAT is declared.'),
+  "advanceAdjustedAmount": zod.number().describe('AP-2 — Σ adjusted by issued final invoices.'),
+  "advanceOpenAmount": zod.number().describe('AP-2 — invoiced − adjusted: reserved for a final invoice\'s prepayment adjustment; a plain allocation or a refund cannot touch it (409 advance_invoiced_requires_prepayment_adjustment).'),
+  "uninvoicedAmount": zod.number().describe('AP-2 — unapplied − advanceOpen: what may still be advance-invoiced, allocated or refunded.'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "status": zod.string(),
+  "date": zod.string(),
+  "total": zod.number(),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatCategory": zod.string().nullable(),
+  "adjustedAmount": zod.number(),
+  "openAmount": zod.number().describe('0 while a draft; total − adjusted once issued.')
+}).describe('AP-2 — an advance tax invoice (any status) issued from a receipt, as the receipt card lists it.')),
   "createdAt": zod.string()
 })
 
@@ -7572,11 +7858,26 @@ export const PayInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -7909,11 +8210,26 @@ export const SubmitInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -7967,11 +8283,26 @@ export const SendBackInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),
@@ -8021,11 +8352,26 @@ export const ApproveInvoiceResponse = zod.object({
   "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
   "previousHash": zod.string().nullable(),
   "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
-  "documentType": zod.string().describe('invoice | credit_note | debit_note — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "invoiceId": zod.number(),

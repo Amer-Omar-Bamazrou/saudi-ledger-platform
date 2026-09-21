@@ -30,6 +30,8 @@ const KIND_LABEL: Record<CustomerStatementLine["kind"], { en: string; ar: string
   invoice: { en: "Invoice", ar: "فاتورة", cls: "bg-secondary text-foreground" },
   debit_note: { en: "Debit note", ar: "إشعار مدين", cls: "bg-secondary text-foreground" },
   credit_note: { en: "Credit note", ar: "إشعار دائن", cls: "bg-info-surface/20 text-info" },
+  // AP-2: declares VAT on a deposit; moves none of the three balances.
+  advance_invoice: { en: "Advance tax invoice", ar: "فاتورة ضريبية عن دفعة مقدمة", cls: "bg-secondary text-muted-foreground" },
   receipt: { en: "Receipt", ar: "إيصال", cls: "bg-positive-surface/20 text-positive" },
   allocation: { en: "Allocation", ar: "تخصيص", cls: "bg-positive-surface/20 text-positive" },
   credit_application: { en: "Credit applied", ar: "تطبيق رصيد دائن", cls: "bg-info-surface/20 text-info" },

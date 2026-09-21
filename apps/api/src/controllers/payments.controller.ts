@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
-import { ReceivePaymentBody, AllocatePaymentBody, ApplyCreditNoteBody, UnallocateBody, RefundCustomerBody, ClassifyPaymentBody } from "@workspace/api-zod";
+import { ReceivePaymentBody, AllocatePaymentBody, ApplyCreditNoteBody, UnallocateBody, RefundCustomerBody, ClassifyPaymentBody, CreateAdvanceInvoiceBody } from "@workspace/api-zod";
 import { paymentsService } from "../services/payments.service";
+import { advanceInvoicesService } from "../services/advanceInvoices.service";
 import { depositReviewService, endOfMonth } from "../services/depositReview.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
@@ -73,6 +74,12 @@ export const paymentsController = {
 
   async classificationHistory(req: Request, res: Response) {
     res.json(await paymentsService.classificationHistory(requireIdParam(req)));
+  },
+
+  /** AP-2 — a DRAFT advance tax invoice (386) for part or all of a receipt's advance deposit. */
+  async createAdvanceInvoice(req: Request, res: Response) {
+    const body = parseOr400(CreateAdvanceInvoiceBody.safeParse(req.body));
+    res.status(201).json(await advanceInvoicesService.createFromReceipt(requireIdParam(req), body, req.session?.userId ?? null));
   },
 
   /** `period_to` (YYYY-MM) frames receipts up to the end of that month; `as_of` (YYYY-MM-DD) wins when both are given. */

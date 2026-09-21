@@ -23,10 +23,16 @@ ZATCA_DOCS=(
   "https://zatca.gov.sa/en/E-Invoicing/Introduction/Guidelines/Documents/E-Invoicing_Detailed__Guideline.pdf"
   "https://zatca.gov.sa/en/E-Invoicing/Introduction/Guidelines/Documents/Fatoora_Portal_User_Manual_English.pdf"
   "https://zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/QRCodeCreation.pdf"
+  # AP-2 (2026-09-21): the XML Implementation Standard v1.2 — the authority the
+  # Detailed Guideline §8(h) delegates the prepayment (type 386) UBL to (¶9.5,
+  # BR-KSA-73…82). 🔴 Only the /ar/ path serves the PDF; the /en/ path and the
+  # "_vF" names answer 200 with an HTML page (checked 2026-09-21). The space in
+  # the file name is ZATCA's; the local copy drops it.
+  "https://zatca.gov.sa/ar/E-Invoicing/SystemsDevelopers/Documents/20230519_ZATCA_Electronic_Invoice_XML_Implementation_Standard_%20vTrack.pdf"
 )
 
 for url in "${ZATCA_DOCS[@]}"; do
-  name="$(basename "$url")"
+  name="$(basename "$url" | sed 's/%20//g')"
   printf '%-70s ' "$name"
   curl -sS -L --max-time 180 -o "specs/$name" "$url" && echo "ok"
 done

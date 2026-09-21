@@ -2225,7 +2225,7 @@ on purpose: it predates A4/A5 and is a scope of its own.
 
 State: CLOSED 2026-09-20. Current state authority: CLAUDE.md §2.
 
-## ADVANCE VAT UNDER-DECLARATION — OPEN (recorded 2026-09-20; live exposure in shipped code; AP-1 makes it VISIBLE, AP-2/AP-3 close it)
+## ADVANCE VAT UNDER-DECLARATION — CLOSED AT THE DOCUMENT 2026-09-21 (recorded 2026-09-20; AP-1 made it VISIBLE, AP-2 gives the platform the document; the live sandbox pass and the credit-note leg remain)
 
 **The defect, plainly.** A customer's payment received BEFORE the supply it
 pays for is a VAT tax point on the day it arrives, to the extent received —
@@ -2263,13 +2263,31 @@ figure, never a box. Frame stated on the response: the unapplied remainder is
 as of now, the receipt date is the filter; a deposit allocated to a full-VAT
 invoice in a later period is a timing difference this list does not show.
 
-**What closes it:** AP-2 (the advance tax invoice, type 386, VAT posted at
-issue) and AP-3 (the final invoice's prepayment adjustment — BT-113,
-KSA-30…34 — the return reading 386s in their period and 388s net, the
-credit-note precondition on refunding an invoiced advance). Both wait on the
-accountant's A1/A2 and on reading the XML Implementation Standard ¶9.5;
-record and the exact questions:
-[`docs/product/advance-payments-decision-pack.md`](../product/advance-payments-decision-pack.md)
-§8, §13.
+**What AP-2 did (2026-09-21, `feat/ap-2-advance-tax-invoice`): the
+platform can now declare an advance, and declare it once.** With the
+accountant's A1/A2/A3 answered (pack §8) and the XML Implementation Standard
+v1.2 ¶9.5 read from the primary text: an ADVANCE TAX INVOICE (`invoices`
+row, `document_type = 'advance_invoice'`, ZATCA type 386) is issued from a
+receipt's deposit classified as an advance — through the one issuance path
+(ICV, hash, QR, e-invoice) — and posts `Dr Customer deposits [VAT] /
+Cr VAT Payable` dated at the tax point (the receipt date when open); the
+return files it in that period. The FINAL invoice selects the 386(s) it
+applies; at issue it posts `Dr AR (due) · Dr deposits (net advance) /
+Cr Sales (full) · Cr VAT (full − advance VAT)` with the allocation folded in,
+its UBL carries the ¶9.5 adjustment line (KSA-30…34) and `PrepaidAmount`
+(BT-113, from adjusted 386s only — the `paid_amount` wiring is gone), and
+the return deducts the adjusted base and VAT per category, so nothing is
+declared twice. Erroneous, security and unknown deposits are REFUSED a 386
+by name (A1); a 386-invoiced remainder cannot be allocated or refunded any
+other way (G-Z-3, fail-closed); the folded allocation is immutable. Record:
+pack §14 (the entry-by-entry trace, the reader sweep, the tests, the walk).
 
-State: OPEN. Current state authority: CLAUDE.md §2.
+**What is still open:** (1) 🔴 **the live sandbox pass** — the SDK on disk
+cannot validate a 386 (its 2021 rules reject the code and carry no
+prepayment rule; divergences log §15), so only `POST /compliance/invoices`
+can attest the 386 and the 388-with-adjustment (AP-4); (2) the credit note
+against a 386 and the refund it unlocks (AP-3 — refused by name until built);
+(3) Z1 with ZATCA for migrated advances (a migrated deposit gets no 386 here).
+
+State: CLOSED at the document; AP-4 is the gate before a taxpayer that
+receives advances. Current state authority: CLAUDE.md §2.

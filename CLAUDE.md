@@ -54,12 +54,12 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-09-15.** Full as-built narrative for everything below:
+**Last updated: 2026-09-21.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
 **2026-09-17** — 🔴 **BATCH 1B CLOSED** (D-4 payments, UI included; known-issues file, "BATCH 1B — CLOSED 2026-09-17").
-**2026-09-20** — 🔴 **BATCH 1B + BATCH 1C MERGED** (PR #164, merge `a290d079`): the correction policy A4/A5 as invariants (§4), Issue 1 closed; open — Issue 2 (accountant), historical credit notes and the PIH question (ZATCA). Records: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12, §16.15, §16.16. **AP-1 BUILT** — deposit classification + the VAT-review list (advance-payments pack §13); 🔴 the advance-VAT under-declaration stays OPEN until AP-2/AP-3 (known-issues file, "ADVANCE VAT UNDER-DECLARATION"), and AP-2 is BLOCKED on accountant A1/A2 and the XML Implementation Standard ¶9.5.
+**2026-09-20** — 🔴 **BATCH 1B + BATCH 1C MERGED** (PR #164, merge `a290d079`): the correction policy A4/A5 as invariants (§4), Issue 1 closed; open — Issue 2 (accountant), historical credit notes and the PIH question (ZATCA). Records: [`batch-1c-migration-opening-balances-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12, §16.15, §16.16. **AP-1 + AP-2 BUILT** (2026-09-21, `feat/ap-2-advance-tax-invoice`, not merged): deposit classification, the advance tax invoice (ZATCA 386) and the final invoice's prepayment adjustment — accountant A1/A2/A3 RESOLVED (advance-payments pack §8, §14). 🔴 Open: the live sandbox pass for a 386 (AP-4), the credit note against a 386 (AP-3), Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 

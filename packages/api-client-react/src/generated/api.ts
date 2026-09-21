@@ -61,6 +61,7 @@ import type {
   CompanyLogoState,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
+  CreateAdvanceInvoiceInput,
   CreateAssetInput,
   CreateBillInput,
   CreateCustomerInput,
@@ -176,6 +177,7 @@ import type {
   MigrationReversalPreview,
   MigrationReversed,
   MigrationValidation,
+  OpenAdvanceInvoice,
   OwnerEquityReport,
   Payment,
   PaymentAllocationDetail,
@@ -10269,6 +10271,83 @@ export function useGetCustomerCredits<TData = Awaited<ReturnType<typeof getCusto
 
 
 
+export const getListOpenAdvanceInvoicesUrl = (id: number,) => {
+
+
+
+
+  return `/api/customers/${id}/advance-invoices`
+}
+
+/**
+ * @summary AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust
+ */
+export const listOpenAdvanceInvoices = async (id: number, options?: RequestInit): Promise<OpenAdvanceInvoice[]> => {
+
+  return customFetch<OpenAdvanceInvoice[]>(getListOpenAdvanceInvoicesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOpenAdvanceInvoicesQueryKey = (id: number,) => {
+    return [
+    `/api/customers/${id}/advance-invoices`
+    ] as const;
+    }
+
+
+export const getListOpenAdvanceInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOpenAdvanceInvoicesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>> = ({ signal }) => listOpenAdvanceInvoices(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOpenAdvanceInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>>
+export type ListOpenAdvanceInvoicesQueryError = ErrorType<void>
+
+
+/**
+ * @summary AP-2 — the customer's ISSUED advance tax invoices with an open balance a final invoice may adjust
+ */
+
+export function useListOpenAdvanceInvoices<TData = Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOpenAdvanceInvoicesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetCustomerStatementUrl = (id: number,
     params?: GetCustomerStatementParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12509,6 +12588,79 @@ export const useClassifyPayment = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getClassifyPaymentMutationOptions(options));
+    }
+
+export const getCreateAdvanceInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}/advance-invoices`
+}
+
+/**
+ * A tax invoice for consideration RECEIVED before a taxable supply (GCC VAT Agreement Art. 23(1); IR Art. 53(1)(a)(2)). Created FROM the receipt whose deposit it declares VAT for, never from nothing; the amount is VAT-INCLUSIVE and at most the receipt's un-invoiced remainder; the line is the split at the deposit's classified VAT category (S at the standard rate; Z / E at 0 with an exemption reason). A DRAFT — approve it (`POST /invoices/{id}/approve`) to mint the ICV, the hash, the QR, the e-invoice and the entry `Dr Customer deposits [VAT] / Cr VAT Payable` (accountant A2). The accounting date defaults to the receipt date (the tax point) when its month is open, else today; never before the receipt, never into a closed month. Approver-level.
+ * @summary AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance
+ */
+export const createAdvanceInvoice = async (id: number,
+    createAdvanceInvoiceInput: CreateAdvanceInvoiceInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateAdvanceInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAdvanceInvoiceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdvanceInvoiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext> => {
+
+const mutationKey = ['createAdvanceInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdvanceInvoice>>, {id: number;data: BodyType<CreateAdvanceInvoiceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createAdvanceInvoice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdvanceInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof createAdvanceInvoice>>>
+    export type CreateAdvanceInvoiceMutationBody = BodyType<CreateAdvanceInvoiceInput>
+    export type CreateAdvanceInvoiceMutationError = ErrorType<void>
+
+    /**
+ * @summary AP-2 — issue a DRAFT advance tax invoice (ZATCA type 386) for part or all of a receipt's deposit classified as an advance
+ */
+export const useCreateAdvanceInvoice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdvanceInvoice>>, TError,{id: number;data: BodyType<CreateAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdvanceInvoice>>,
+        TError,
+        {id: number;data: BodyType<CreateAdvanceInvoiceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdvanceInvoiceMutationOptions(options));
     }
 
 export const getListPaymentClassificationsUrl = (id: number,) => {

@@ -13,10 +13,13 @@
  * whether a human still has something to decide or do:
  *
  *   unclassified          nobody has said what the money is
- *   advance_not_invoiced  an advance for a taxable supply with no advance
- *                         tax invoice (the platform cannot issue one yet —
- *                         AP-2); `deadline` = the 15th of the next month,
- *                         `overdue` once today is past it
+ *   advance_not_invoiced  an advance for a taxable supply with an
+ *                         un-invoiced remainder (no advance tax invoice, or
+ *                         a partial one); `deadline` = the 15th of the next
+ *                         month, `overdue` once today is past it
+ *   advance_invoiced      AP-2: the deposit is fully covered by issued
+ *                         advance tax invoices (386) — its VAT is declared;
+ *                         it waits for the final invoice's adjustment
  *   vat_silent            erroneous / duplicate payment or a refundable
  *                         security deposit — no VAT expected (the
  *                         accountant's A1 is still to confirm this; nothing
@@ -38,9 +41,10 @@
 import { businessToday } from "@workspace/shared";
 import { round2 } from "../lib/money";
 import { paymentsRepository } from "../repositories/payments.repository";
+import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 import type { DepositClassification } from "./payments.service";
 
-export type DepositReviewState = "unclassified" | "advance_not_invoiced" | "vat_silent" | "migrated_invoiced" | "migrated_unknown";
+export type DepositReviewState = "unclassified" | "advance_not_invoiced" | "advance_invoiced" | "vat_silent" | "migrated_invoiced" | "migrated_unknown";
 
 export type DepositReviewItem = {
   paymentId: number;
@@ -50,6 +54,10 @@ export type DepositReviewItem = {
   paidAt: string;
   amount: number;
   unappliedAmount: number;
+  /** AP-2: the part of the deposit an ISSUED advance tax invoice covers and no final invoice has adjusted yet. */
+  advanceOpenAmount: number;
+  /** AP-2: unapplied − advanceOpen — what still needs an advance tax invoice (for an advance) or a decision. */
+  uninvoicedAmount: number;
   reference: string | null;
   source: string;
   classification: DepositClassification;
@@ -88,12 +96,15 @@ export function endOfMonth(period: string): string {
   return `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
 }
 
-export function reviewStateOf(row: { source: string; migrationVatPosition: string | null; classification: DepositClassification }): { state: DepositReviewState; needsReview: boolean } {
+export function reviewStateOf(row: { source: string; migrationVatPosition: string | null; classification: DepositClassification; uninvoiced?: number }): { state: DepositReviewState; needsReview: boolean } {
   if (row.source === "opening") {
     return row.migrationVatPosition === "invoiced" ? { state: "migrated_invoiced", needsReview: false } : { state: "migrated_unknown", needsReview: true };
   }
   switch (row.classification) {
-    case "advance": return { state: "advance_not_invoiced", needsReview: true };
+    // AP-2: an advance whose deposit is fully covered by issued advance tax
+    // invoices has declared its VAT — nothing left to do until the supply;
+    // any un-invoiced remainder (a partial 386, or none) still needs one.
+    case "advance": return (row.uninvoiced ?? 1) > 0.005 ? { state: "advance_not_invoiced", needsReview: true } : { state: "advance_invoiced", needsReview: false };
     case "erroneous":
     case "security_deposit": return { state: "vat_silent", needsReview: false };
     default: return { state: "unclassified", needsReview: true };
@@ -103,6 +114,7 @@ export function reviewStateOf(row: { source: string; migrationVatPosition: strin
 const EMPTY = (): Record<DepositReviewState, { count: number; amount: number }> => ({
   unclassified: { count: 0, amount: 0 },
   advance_not_invoiced: { count: 0, amount: 0 },
+  advance_invoiced: { count: 0, amount: 0 },
   vat_silent: { count: 0, amount: 0 },
   migrated_invoiced: { count: 0, amount: 0 },
   migrated_unknown: { count: 0, amount: 0 },
@@ -117,6 +129,7 @@ export const depositReviewService = {
     const today = businessToday();
     const asOf = filter.asOf && filter.asOf > "0001-01-01" ? filter.asOf : today;
     const rows = await paymentsRepository.depositsHeld({ asOf, customerId: filter.customerId });
+    const advances = await advanceInvoicesRepository.figuresForPayments(rows.map((r) => r.payment_id));
     const byState = EMPTY();
     let needsReviewCount = 0;
     let needsReviewAmount = 0;
@@ -124,17 +137,21 @@ export const depositReviewService = {
     const items: DepositReviewItem[] = rows.map((r) => {
       const classification = (r.classification ?? "unknown") as DepositClassification;
       const migrationVatPosition = r.source === "opening" ? ((r.migration_vat_position as "invoiced" | "unknown" | null) ?? "unknown") : null;
-      const { state, needsReview } = reviewStateOf({ source: r.source, migrationVatPosition, classification });
       const unapplied = round2(Number(r.unapplied));
+      const advanceOpen = round2(advances.get(r.payment_id)?.open ?? 0);
+      const uninvoiced = round2(unapplied - advanceOpen);
+      const { state, needsReview } = reviewStateOf({ source: r.source, migrationVatPosition, classification, uninvoiced });
       const deadline = state === "advance_not_invoiced" ? advanceInvoiceDeadline(r.paid_at) : null;
       const overdue = deadline != null && today > deadline;
+      // The reviewed FIGURE is what still needs the act: for an advance, the un-invoiced remainder; otherwise the deposit held.
+      const reviewed = classification === "advance" && r.source !== "opening" ? uninvoiced : unapplied;
       byState[state].count += 1;
-      byState[state].amount = round2(byState[state].amount + unapplied);
-      if (needsReview) { needsReviewCount += 1; needsReviewAmount = round2(needsReviewAmount + unapplied); }
+      byState[state].amount = round2(byState[state].amount + reviewed);
+      if (needsReview) { needsReviewCount += 1; needsReviewAmount = round2(needsReviewAmount + reviewed); }
       if (overdue) overdueCount += 1;
       return {
         paymentId: r.payment_id, customerId: r.customer_id, customerName: r.customer_name, customerNameAr: r.customer_name_ar ?? null,
-        paidAt: r.paid_at, amount: round2(Number(r.amount)), unappliedAmount: unapplied, reference: r.reference ?? null, source: r.source,
+        paidAt: r.paid_at, amount: round2(Number(r.amount)), unappliedAmount: unapplied, advanceOpenAmount: advanceOpen, uninvoicedAmount: uninvoiced, reference: r.reference ?? null, source: r.source,
         classification, vatCategory: r.vat_category ?? null, classifiedAt: r.classified_at ? new Date(r.classified_at).toISOString() : null,
         migrationVatPosition, reviewState: state, needsReview, deadline, overdue,
       };

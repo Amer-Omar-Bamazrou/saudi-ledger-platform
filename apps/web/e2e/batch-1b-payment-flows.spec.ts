@@ -108,6 +108,11 @@ test.describe("Phase F — English desktop", () => {
     expect(p0.unappliedAmount, "the seeded receipt is wholly on account").toBe(800);
     const inv2Before = outstanding(await invoice("E2E-INV-002"));
     const inv3Before = outstanding(await invoice("E2E-INV-003"));
+    // The customer's deposit figure is asserted as a MOVEMENT from what was
+    // found, not as an absolute: earlier specs (AP-1's classified deposits) may
+    // legitimately leave money on this customer's account (found when the whole
+    // browser suite ran in one order, 2026-09-21).
+    const posBefore = await position();
 
     const detail = await openDeposit(page);
     // Payment and allocation are labelled as two different things.
@@ -174,8 +179,8 @@ test.describe("Phase F — English desktop", () => {
     expect(outstanding(await invoice("E2E-INV-003"))).toBe(Math.round((inv3Before - 100) * 100) / 100);
     // The position tiles: deposits fell by what is now allocated.
     const pos = await position();
-    expect(pos.depositBalance).toBe(500);
-    await expect(page.getByTestId("position-deposits")).toContainText(money(500));
+    expect(pos.depositBalance).toBe(Math.round((posBefore.depositBalance - 300) * 100) / 100);
+    await expect(page.getByTestId("position-deposits")).toContainText(money(posBefore.depositBalance - 300));
   });
 
   test("🔴 Credit flow: the note's balance is a credit (not negative AR) → apply → invoice moves → correct → credit restored", async ({ page }) => {

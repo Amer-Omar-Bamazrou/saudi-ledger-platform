@@ -81,6 +81,7 @@ export function standardInvoice(overrides: Partial<EInvoiceInput> = {}): EInvoic
     taxInclusiveTotal: "1150.00",
     prepaidAmount: "0.00",
     payableAmount: "1150.00",
+    prepaymentAdjustments: [],
     taxTotal: "150.00",
     taxSubtotals: [
       {
@@ -98,6 +99,57 @@ export function standardInvoice(overrides: Partial<EInvoiceInput> = {}): EInvoic
     notes: null,
     ...overrides,
   };
+}
+
+/**
+ * AP-2 — an ADVANCE PAYMENT tax invoice (type 386): the same document shape
+ * as a standard invoice with the type code changed (XML Standard §11.2.1);
+ * its one line is the advance's split (11,500 received = 10,000 + 1,500).
+ */
+export function advanceInvoice(overrides: Partial<EInvoiceInput> = {}): EInvoiceInput {
+  return standardInvoice({
+    invoiceNumber: "ADV-0001",
+    uuid: "8a1d2c3e-4f50-4a6b-9c7d-0e1f2a3b4c5d",
+    documentType: "advance_invoice",
+    lines: [{ ...LINE_STANDARD, name: "Advance payment received 2026-03-20 (receipt RCPT-7)", unitPrice: "10000.00", lineExtensionAmount: "10000.00", taxAmount: "1500.00", lineTotalWithTax: "11500.00" }],
+    lineExtensionTotal: "10000.00",
+    taxExclusiveTotal: "10000.00",
+    taxInclusiveTotal: "11500.00",
+    payableAmount: "11500.00",
+    taxTotal: "1500.00",
+    taxSubtotals: [{ taxableAmount: "10000.00", taxAmount: "1500.00", category: "S", percent: "15.00", exemptionReasonCode: null, exemptionReasonText: null }],
+    ...overrides,
+  });
+}
+
+/**
+ * AP-2 — the FINAL invoice (388) adjusting the advance above: full supply
+ * lines (30,000 + 4,500), one prepayment adjustment line (XML Standard
+ * ¶9.5), PrepaidAmount 11,500 = KSA-31 + KSA-32, PayableAmount 23,000.
+ */
+export function finalInvoiceWithPrepayment(overrides: Partial<EInvoiceInput> = {}): EInvoiceInput {
+  return standardInvoice({
+    invoiceNumber: "INV-0002",
+    icv: 2,
+    lines: [{ ...LINE_STANDARD, name: "Consulting project", unitPrice: "30000.00", lineExtensionAmount: "30000.00", taxAmount: "4500.00", lineTotalWithTax: "34500.00" }],
+    lineExtensionTotal: "30000.00",
+    taxExclusiveTotal: "30000.00",
+    taxInclusiveTotal: "34500.00",
+    prepaidAmount: "11500.00",
+    payableAmount: "23000.00",
+    prepaymentAdjustments: [
+      {
+        references: [{ invoiceNumber: "ADV-0001", uuid: "8a1d2c3e-4f50-4a6b-9c7d-0e1f2a3b4c5d", issueDate: "2026-03-21", issueTime: "10:02:11" }],
+        taxableAmount: "10000.00",
+        taxAmount: "1500.00",
+        taxCategory: "S",
+        taxPercent: "15.00",
+      },
+    ],
+    taxTotal: "4500.00",
+    taxSubtotals: [{ taxableAmount: "30000.00", taxAmount: "4500.00", category: "S", percent: "15.00", exemptionReasonCode: null, exemptionReasonText: null }],
+    ...overrides,
+  });
 }
 
 /** Simplified (B2C) invoice — the reporting path; no buyer required. */

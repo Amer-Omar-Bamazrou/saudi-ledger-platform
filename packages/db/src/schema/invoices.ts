@@ -97,8 +97,32 @@ export const invoicesTable = pgTable(
      * simplified-invoice reporting clock runs off this.
      */
     issuedAt: timestamp("issued_at", { withTimezone: true }),
-    /** invoice | credit_note | debit_note (M12.1b). */
+    /**
+     * invoice | credit_note | debit_note (M12.1b) | advance_invoice (AP-2).
+     * The one definition of the set and of which types carry a receivable
+     * is `@workspace/shared` `documentTypes.ts`.
+     */
     documentType: text("document_type").notNull().default("invoice"),
+
+    /**
+     * 🔴 AP-2 (2026-09-21): the RECEIPT an ADVANCE TAX INVOICE (type 386)
+     * declares VAT for — a real FK to `payments` (hand-written in migration
+     * 0083; the schema import would be circular), NOT NULL exactly when
+     * `document_type = 'advance_invoice'` and NULL otherwise (CHECK
+     * `invoices_advance_reference_chk`, the 0020 note-pairing pattern).
+     *
+     * An advance invoice is created FROM a classified deposit and never
+     * from nothing: no cash, no 386 (IR Art. 53(1)(a)(2) is about
+     * consideration RECEIVED). Its `total` is the VAT-INCLUSIVE part of the
+     * receipt it invoices (Agreement Art. 23(1) "to the extent of the
+     * received amount"), its `subtotal`/`vat_amount` the split; it is NOT a
+     * receivable and moves none of the customer's three position
+     * components — its only ledger effect is the deposit's VAT split
+     * (accountant A2: Dr Customer deposits [VAT] / Cr VAT_OUTPUT). Every
+     * reader of "what the customer owes" excludes the type
+     * (`NON_RECEIVABLE_DOCUMENT_TYPES`).
+     */
+    advancePaymentId: integer("advance_payment_id"),
 
     /**
      * The document this note corrects (M12.1b) — a REAL FK, not the invoice
@@ -199,6 +223,8 @@ export const invoicesTable = pgTable(
     // that carry a key are constrained (NULL is unconstrained). Pinned by
     // money-unique-indexes.test.ts.
     uniqueIndex("invoices_company_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    // AP-2: the 386s of a receipt (the receipt card, the advance figures) — declared here, per the rule above.
+    index("invoices_advance_payment_idx").on(t.advancePaymentId),
   ],
 );
 

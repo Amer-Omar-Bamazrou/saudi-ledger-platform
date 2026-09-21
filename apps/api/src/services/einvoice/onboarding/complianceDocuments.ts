@@ -100,6 +100,7 @@ export function complianceDocumentSet(opts: {
     taxInclusiveTotal: "1150.00",
     prepaidAmount: "0.00",
     payableAmount: "1150.00",
+    prepaymentAdjustments: [],
     taxTotal: "150.00",
     taxSubtotals: [
       {
