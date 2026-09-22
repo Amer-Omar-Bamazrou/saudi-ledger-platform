@@ -20,6 +20,7 @@ export * from "./einvoiceDocuments";
 export * from "./einvoiceArchive";
 export * from "./capturedDocuments";
 export * from "./recurring";
+export * from "./recognitionSchedules";
 export * from "./findings";
 export * from "./payments";
 export * from "./invoicePrepayments";

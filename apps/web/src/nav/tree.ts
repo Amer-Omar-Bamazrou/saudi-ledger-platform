@@ -135,6 +135,7 @@ export const NAV_TREE: readonly NavSection[] = [
           soon("recurring-journal-entries", "Recurring Journal Entries", "قيود اليومية المتكررة"),
         ],
       },
+      built("/recognition-schedules", "Accruals & Prepayments", "المستحقات والمدفوعات المقدمة", Repeat),
       built("/reports/general-ledger", "General Ledger", "دفتر الأستاذ العام", ListOrdered),
       built("/trial-balance", "Trial Balance", "ميزان المراجعة", Scale),
       built("/closed-months", "Period Management", "إدارة الفترات", CalendarClock),

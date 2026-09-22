@@ -100,6 +100,8 @@ export const SYSTEM_ACCOUNTS = {
    * account is a category's own choice (the M15 default `FIXED_ASSETS` or any
    * asset-type account), so it is not a system code here.
    */
+  ACCRUED_LIABILITIES: "ACCRUED_LIABILITIES",
+  PREPAID_EXPENSES: "PREPAID_EXPENSES",
   ACCUMULATED_DEPRECIATION: "ACCUMULATED_DEPRECIATION",
   DEPRECIATION_EXPENSE: "DEPRECIATION_EXPENSE",
   ASSET_DISPOSAL_GAIN_LOSS: "ASSET_DISPOSAL_GAIN_LOSS",
@@ -186,6 +188,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "TRANSFER_SUSPENSE", name: "Transfers awaiting declaration", nameAr: "تحويلات بانتظار الإقرار", type: "asset", liquidityClass: "current", legacyNames: [] },
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
   // Fixed assets FA-A (2026-09-22): the contra-asset the depreciation schedule posts into. Non-current, like the cost it offsets.
+  { code: "PREPAID_EXPENSES", name: "Prepaid expenses", nameAr: "مصروفات مدفوعة مقدمًا", type: "asset", liquidityClass: "current", legacyNames: [] },
+  { code: "ACCRUED_LIABILITIES", name: "Accrued liabilities", nameAr: "مصروفات مستحقة", type: "liability", liquidityClass: "current", legacyNames: [] },
   { code: "ACCUMULATED_DEPRECIATION", name: "Accumulated depreciation", nameAr: "مجمع الإهلاك", type: "asset", liquidityClass: "non_current", legacyNames: [] },
 
   { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", liquidityClass: "current", legacyNames: ["Accounts Payable"] },

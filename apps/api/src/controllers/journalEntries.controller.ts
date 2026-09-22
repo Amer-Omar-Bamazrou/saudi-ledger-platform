@@ -40,7 +40,7 @@ export const journalEntriesController = {
     res.status(204).send();
   },
   async reverse(req: Request, res: Response) {
-    res.json(await journalEntriesService.reverse(requireIdParam(req)));
+    res.json(await journalEntriesService.reverse(requireIdParam(req), req.body ?? {}));
   },
   async remove(req: Request, res: Response) {
     await journalEntriesService.deleteDraft(requireIdParam(req));

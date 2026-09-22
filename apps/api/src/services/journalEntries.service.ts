@@ -286,22 +286,51 @@ export const journalEntriesService = {
     return approvalService.reject(journalEntryApprovable, id, { userId: userId ?? null });
   },
 
-  async reverse(id: number) {
+  /**
+   * Reverse a posted entry.
+   *
+   * 🔴 Phase 11 A4 (2026-09-22) — THE PERIOD IS CHECKED HERE, and it was not
+   * before. This method writes its mirror through
+   * `journalEntriesRepository.insertEntry` rather than `postJournalEntry`,
+   * deliberately: the mirror must be the original's lines with debit and credit
+   * swapped, carrying the same party and the same D-3 bank attribution, and the
+   * generic posting path cannot express "exactly these lines, mirrored". But
+   * bypassing that path also bypassed `checkPeriodOpen`, so a reversal could
+   * post into a CLOSED month — the one thing period locks exist to prevent. The
+   * check is now made explicitly, on the date the mirror will carry.
+   *
+   * 🔴 The reversal is dated in an OPEN period, never re-dated into the
+   * original's closed one (CLAUDE.md §4: "a correction to a closed period posts
+   * in the current open period — never re-date into a closed period, and never
+   * silently skip"). A caller may choose the date; it must be open, and a
+   * closed one is refused LOUDLY with the structured 423 the UI already
+   * explains, rather than silently moved.
+   */
+  async reverse(id: number, body: { reason?: unknown; date?: unknown } = {}) {
     const [original] = await journalEntriesRepository.findById(id);
     if (!original) throw new NotFoundError("Not found");
     if (original.status !== "posted") throw new ConflictError("Only posted entries can be reversed.");
 
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    // The date the reversal is POSTED on — today unless the caller names one.
+    const date = typeof body.date === "string" && body.date.trim() !== "" ? body.date.trim() : businessToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestError("The reversal date must be a YYYY-MM-DD date.");
+    }
+    // 🔴 Throws the structured PeriodLockedError (423) that names the month.
+    await checkPeriodOpen(date);
+
     const lines = await journalEntriesRepository.linesByEntry(id);
-    const today = businessToday();
     const now = new Date();
     const [reversal] = await journalEntriesRepository.insertEntry({
       entryNumber: `${original.entryNumber}-REV`,
-      date: today,
+      date,
       description: `Reversal of ${original.description}`,
       reference: original.reference,
       status: "posted",
       postedAt: now,
       reversalOf: id,
+      reversalReason: reason === "" ? null : reason,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({

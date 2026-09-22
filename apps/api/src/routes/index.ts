@@ -28,6 +28,7 @@ import quotations from "./quotations.js";
 import purchaseOrders from "./purchaseOrders.js";
 import bills from "./bills.js";
 import journalEntries from "./journalEntries.js";
+import recognitionSchedules from "./recognitionSchedules.js";
 import employees from "./employees.js";
 import payroll from "./payroll.js";
 import assets from "./assets.js";
@@ -111,6 +112,7 @@ router.use("/quotations", requirePermission("quotations"), quotations);
 router.use("/purchase-orders", requirePermission("purchase_orders"), purchaseOrders);
 router.use("/bills", requirePermission("bills"), bills);
 router.use("/journal-entries", requirePermission("journal_entries"), journalEntries);
+router.use("/recognition-schedules", requirePermission("journal_entries"), recognitionSchedules);
 // Spans four resources: at least one READ grant to reach it, and the service
 // then filters to exactly the entities this role may read.
 router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll"]), approvals);
