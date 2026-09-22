@@ -238,7 +238,18 @@ export const assetsService = {
     if (asset.status === "draft") {
       try { plannedSchedule = plannedScheduleOf(asset); } catch (e) { if (!(e instanceof BusinessRuleError)) throw e; plannedSchedule = null; }
     }
-    return { ...toAssetView(asset, categoryName, figures), schedule: schedule.map(toScheduleView), plannedSchedule, events: events.map(toEventView) };
+    // FA-C: the terminal record, when it exists.
+    const disposalRow = await assetsRepository.disposalOf(id);
+    const disposal = disposalRow
+      ? {
+          id: disposalRow.id, date: disposalRow.date, kind: disposalRow.kind, proceeds: num(disposalRow.proceeds),
+          gainLoss: num(disposalRow.gainLoss), accumulatedAtDisposal: num(disposalRow.accumulatedAtDisposal),
+          carryingAmountAtDisposal: num(disposalRow.carryingAmountAtDisposal), vatTreatment: disposalRow.vatTreatment,
+          nominalSupplyValue: disposalRow.nominalSupplyValue != null ? num(disposalRow.nominalSupplyValue) : null,
+          journalEntryId: disposalRow.journalEntryId!, invoiceId: disposalRow.invoiceId ?? null, reason: disposalRow.reason ?? null,
+        }
+      : null;
+    return { ...toAssetView(asset, categoryName, figures), schedule: schedule.map(toScheduleView), plannedSchedule, events: events.map(toEventView), disposal };
   },
 
   /** A DRAFT: the register row with its facts; nothing posts, nothing moves (the zero-movement standard). */

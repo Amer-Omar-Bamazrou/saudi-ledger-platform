@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { assetsService } from "../services/assets.service";
 import { assetCapitalisationService } from "../services/assets/capitalisation.service";
+import { assetDisposalService } from "../services/assets/disposal.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 
 const userOf = (req: Request) => req.session?.userId ?? null;
@@ -43,5 +44,9 @@ export const assetsController = {
   },
   async changeEstimate(req: Request, res: Response) {
     res.json(await assetCapitalisationService.changeEstimate(requireIdParam(req), req.body ?? {}, userOf(req)));
+  },
+  // ── FA-C ──
+  async dispose(req: Request, res: Response) {
+    res.json(await assetDisposalService.dispose(requireIdParam(req), req.body ?? {}, userOf(req)));
   },
 };

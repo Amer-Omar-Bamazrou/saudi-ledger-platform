@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A (the foundation) is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) is BUILT — §21.** FA-C … FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22.** FA-D … FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -459,3 +459,51 @@ Refused by name, with nothing posted: `asset_not_draft` (an asset in service tak
 ### 21.5 What this did not do
 
 Additions to an asset in service (a further cost with its own Art. 52(3) adjustment clock); capitalisation from a bank transaction or by hand (the pack's A2 — a bill is the one path today, and an asset with no document is possible only through migration); disposal (FA-C); the migration step (FA-D); the reports (FA-E); the Art. 17 pool and the Art. 52 engine (FA-F, both now in scope by the accountant's answers). `declining_balance` and `units_of_production` remain refused by name.
+
+---
+
+## 22. FA-C — disposal, as built (2026-09-22)
+
+**Status (2026-09-22): BUILT on `feat/fixed-assets-disposal` (migration `0090`). Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+### 22.1 Two doors, one derecognition
+
+A **SALE** is an ordinary tax invoice of this product that NAMES the asset (`invoices.disposes_asset_id`). Its revenue line credits `ASSET_DISPOSAL_GAIN_LOSS` instead of `SALES` — IAS 16.68: the result of a disposal is not revenue — and approval derecognises the asset **on that same entry**:
+
+```
+Dr Accounts receivable        gross
+   Cr Disposal gain/loss      net proceeds
+   Cr VAT payable             the VAT (a taxable supply, Art. 3(5))
+Dr Accumulated depreciation   everything posted to date
+Dr Disposal gain/loss         the carrying amount
+   Cr Asset cost              the cost
+```
+
+Net of the two, the account holds `proceeds − carrying amount` (IAS 16.71). **`SALES` does not move** — asserted.
+
+A **SCRAP / DESTRUCTION / THEFT / WITHDRAWAL** is `POST /assets/{id}/dispose`: the derecognition alone, no proceeds, the carrying amount a loss.
+
+**Depreciation runs up to the disposal month FIRST** (IAS 16.55 — it ceases at derecognition, not before): each outstanding period posts its own entry through the ordinary run, under its own period lock, and the act reports them. A closed month therefore stops a disposal, by the same rule and with the same remedy. Afterwards the unposted tail is gone, and the invariant `asset_no_depreciation_after_disposal` holds it.
+
+### 22.2 The Saudi VAT consequence is a fact of the KIND
+
+| kind | `vat_treatment` | text |
+| --- | --- | --- |
+| sold | `taxable_supply` | Art. 3(5) — an ordinary taxable supply on its own tax invoice |
+| sold, a restricted motor vehicle bought without deduction | `out_of_scope_restricted_vehicle` | Art. 50(3) — not in the course of an economic activity. 🔴 A VAT-bearing invoice for such an asset is **REFUSED** (`restricted_vehicle_sale_out_of_scope`) with nothing posted; at zero VAT it sells and `VAT_OUTPUT` does not move. |
+| scrapped · destroyed · stolen | `no_adjustment` | Art. 52(7) — "no adjustment … if the Capital Asset is destroyed, stolen, or ends its life earlier than accounted for" |
+| withdrawn while still usable | `nominal_supply` | Art. 52(8) — a nominal supply valued `purchase value × initial recovery % × remaining useful life ÷ adjustment period`, in WHOLE years (52(2): part years count as one). The value is **computed and stored**; whether v1 declares it is the Art. 52 engine's business (FA-2), and storing a number is not declaring it. |
+
+### 22.3 Terminal by construction
+
+`asset_disposals` holds one row per asset (unique), never updated or deleted by the app (REVOKE) and frozen against the owner's UPDATE by trigger; the asset becomes `disposed` and FA-A's freeze then refuses every change to it. A second disposal is refused by name. A correction is a REVERSAL of the entry and a new act — never an edit. The `invoices_disposes_asset_unq` index binds ISSUED invoices only: a draft that names an asset has disposed of nothing, and a refused approval must leave the corrected invoice enterable.
+
+### 22.4 Verified
+
+`tests/fixed-assets-disposal.test.ts` (5, real rows): the Art. 52(8) arithmetic (including the whole-year rule, a zero past the period, a zero recovery and a non-capital asset); pack §17 row 10 — the sale's SIX lines in one entry, `SALES` unmoved, the disposal account holding the 5,000 gain, the VAT return filing 95,000 in box 1 and 14,250 in box 6, then the terminal refusals and the two frozen rows; row 11 — the scrap, its three lines, the 57,000 loss, `VAT_OUTPUT` unmoved, the three periods depreciated first and the event chain; the withdrawal storing 12,000 of nominal supply with the act-level refusals; and the restricted vehicle refused with VAT (nothing posted) then sold out of scope.
+
+`e2e/fixed-assets.spec.ts` grew a seventh leg: the scrap walked by clicking, the hint that a withdrawal is a nominal supply, the derecognition's lines read back, and the acts disappearing once the asset is terminal. Invariants: `asset_disposal_shape` and `asset_no_depreciation_after_disposal`. `pnpm run verify`: green.
+
+### 22.5 What this did not do
+
+Partial disposal of a component (out of scope, §12); the Art. 52(7) adjustment ARITHMETIC on a sale inside the adjustment period (the FA-2 engine, now in scope by the accountant's answer — the facts it needs are all stored); the nominal supply's own VAT declaration; a disposal of a MIGRATED asset (FA-D brings those into the register first).

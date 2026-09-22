@@ -164,6 +164,9 @@ export const invoicesService = {
       "invoiceNumber", "date", "dueDate", "customerId", "currency", "discount",
       "notes", "termsAndConditions", "sellerName", "sellerVatNumber",
       "documentType", "originalInvoiceId", "noteReason", "idempotencyKey",
+      // FA-C: the fixed asset this invoice SELLS (its revenue line credits the
+      // disposal gain/loss account, and approval derecognises the asset).
+      "disposesAssetId",
     ]) as Record<string, any>;
     // 🔴 H2 — item amounts validated: NaN/negative quantities and unit prices,
     // and out-of-range VAT rates, no longer reach the numeric columns (or the
@@ -406,6 +409,7 @@ export const invoicesService = {
     const values = pick<typeof import("@workspace/db").invoicesTable.$inferInsert>(data, [
       "invoiceNumber", "date", "dueDate", "customerId", "currency",
       "notes", "termsAndConditions", "reviewNote", "sellerName", "sellerVatNumber",
+      "disposesAssetId",
     ]);
     if (values.date !== undefined) {
       assertDateString(values.date, "date");

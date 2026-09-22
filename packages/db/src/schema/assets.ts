@@ -192,6 +192,51 @@ export const assetEventsTable = pgTable(
   (t) => [index("asset_events_asset_idx").on(t.assetId, t.id)],
 );
 
+/**
+ * FA-C: the derecognition (IAS 16.67–71). One row per asset — a disposal is
+ * terminal and is corrected by REVERSAL and a new act, never edited.
+ *
+ * `kind` separates the VAT consequences the Saudi text gives them: a SALE is
+ * a taxable supply (its own tax invoice, Art. 3(5)) unless the asset was a
+ * restricted motor vehicle bought without deduction, whose sale is outside
+ * the economic activity (Art. 50(3)); `scrapped | destroyed | stolen` attract
+ * NO Art. 52(7) adjustment (52(7) says so in terms); `withdrawn` while the
+ * asset is still usable is a NOMINAL SUPPLY valued by the Art. 52(8) formula
+ * — the value is computed and STORED here, and whether v1 declares it is the
+ * FA-2 engine's business (pack §7, §9).
+ */
+export const ASSET_DISPOSAL_KINDS = ["sold", "scrapped", "destroyed", "stolen", "withdrawn"] as const;
+export type AssetDisposalKind = (typeof ASSET_DISPOSAL_KINDS)[number];
+export const ASSET_DISPOSAL_VAT_TREATMENTS = ["taxable_supply", "out_of_scope_restricted_vehicle", "no_adjustment", "nominal_supply"] as const;
+export type AssetDisposalVatTreatment = (typeof ASSET_DISPOSAL_VAT_TREATMENTS)[number];
+
+export const assetDisposalsTable = pgTable(
+  "asset_disposals",
+  {
+    id: serial("id").primaryKey(),
+    ...tenantColumns,
+    assetId: integer("asset_id").notNull().references(() => fixedAssetsTable.id, { onDelete: "restrict" }),
+    date: date("date", { mode: "string" }).notNull(),
+    kind: text("kind").notNull(),
+    proceeds: numeric("proceeds", { precision: 15, scale: 2 }).notNull().default("0"),
+    /** The tax invoice that sold it (a sale is an ordinary invoice of this product). */
+    invoiceId: integer("invoice_id"),
+    accumulatedAtDisposal: numeric("accumulated_at_disposal", { precision: 15, scale: 2 }).notNull(),
+    carryingAmountAtDisposal: numeric("carrying_amount_at_disposal", { precision: 15, scale: 2 }).notNull(),
+    /** proceeds − carrying amount (IAS 16.71): positive is a gain, negative a loss. */
+    gainLoss: numeric("gain_loss", { precision: 15, scale: 2 }).notNull(),
+    vatTreatment: text("vat_treatment").notNull(),
+    /** VAT IR Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. */
+    nominalSupplyValue: numeric("nominal_supply_value", { precision: 15, scale: 2 }),
+    reason: text("reason"),
+    journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    createdBy: integer("created_by").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("asset_disposals_asset_unq").on(t.assetId)],
+);
+
+export type AssetDisposal = typeof assetDisposalsTable.$inferSelect;
 export type AssetCategory = typeof assetCategoriesTable.$inferSelect;
 export type FixedAsset = typeof fixedAssetsTable.$inferSelect;
 export type AssetDepreciationScheduleRow = typeof assetDepreciationScheduleTable.$inferSelect;

@@ -4184,6 +4184,37 @@ paths:
         "404":
           description: Not found
 
+  /assets/{id}/dispose:
+    post:
+      operationId: disposeAsset
+      tags: [assets]
+      summary: "FA-C: derecognise an asset that leaves with NO proceeds — scrapped, destroyed, stolen or withdrawn (a SALE is an invoice that names the asset)"
+      description: >
+        Depreciates every outstanding period up to and including the disposal
+        month first (IAS 16.55 — depreciation ceases at derecognition, not
+        before), then posts `Dr accumulated depreciation · Dr disposal
+        gain/loss (the carrying amount) / Cr asset cost`. The VAT consequence
+        is a fact of the kind: scrapped / destroyed / stolen attract NO
+        Art. 52(7) adjustment; a WITHDRAWAL while the asset is still usable is
+        a nominal supply, valued by the Art. 52(8) formula and stored. A
+        disposal is terminal — corrected by reversing its entry and disposing
+        again, never edited.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisposeAssetInput" }
+      responses:
+        "200":
+          description: The asset, its disposal, and the periods depreciated first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDisposalResult" }
+        "404":
+          description: Not found
+
   /invoices/{id}/bad-debt-relief:
     post:
       operationId: writeOffBadDebt
@@ -6988,6 +7019,13 @@ components:
         advancePaymentId:
           type: ["integer", "null"]
           description: "AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise."
+        disposesAssetId:
+          type: ["integer", "null"]
+          description: >
+            FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits
+            the disposal gain/loss account instead of SALES (IAS 16.68 — a disposal is not revenue)
+            and approval derecognises the asset on the same entry. A restricted motor vehicle bought
+            without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.
         openingEinvoicingStatus: { type: ["string", "null"], enum: [cleared, reported, pre_einvoicing, null], description: "2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded)." }
         openingSourceUuid: { type: ["string", "null"], description: "2026-09-22, opening items only: the previous solution's document UUID." }
         openingCorrectionJournalEntryId: { type: ["integer", "null"], description: "2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings." }
@@ -8904,7 +8942,7 @@ components:
       allOf:
         - { $ref: "#/components/schemas/Asset" }
         - type: object
-          required: [schedule, plannedSchedule, events]
+          required: [schedule, plannedSchedule, events, disposal]
           properties:
             schedule:
               type: array
@@ -8916,6 +8954,11 @@ components:
             events:
               type: array
               items: { $ref: "#/components/schemas/AssetEvent" }
+            disposal:
+              description: "FA-C: the terminal record, once the asset has left the books; null while it is in service."
+              oneOf:
+                - { $ref: "#/components/schemas/AssetDisposalRecordRead" }
+                - { type: "null" }
 
     AssetTotals:
       type: object
@@ -9020,6 +9063,69 @@ components:
         residualValue: { type: ["number", "null"], minimum: 0 }
         usefulLifeMonths: { type: ["integer", "null"], minimum: 1, maximum: 1200 }
         depreciationMethod: { type: ["string", "null"], enum: [straight_line, declining_balance, units_of_production, null] }
+
+    DisposeAssetInput:
+      type: object
+      required: [date, kind, reason]
+      properties:
+        date: { type: string, description: "YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date." }
+        kind: { type: string, enum: [scrapped, destroyed, stolen, withdrawn] }
+        reason: { type: string, minLength: 1, maxLength: 1000, description: "The disposal's evidence (VAT IR Art. 66 records)." }
+
+    AssetDisposalRecord:
+      type: object
+      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, journalEntryId, entryNumber, invoiceId, reason]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        kind: { type: string, enum: [sold, scrapped, destroyed, stolen, withdrawn] }
+        proceeds: { type: number }
+        gainLoss: { type: number, description: "proceeds − carrying amount (IAS 16.71): positive is a gain, negative a loss. Never revenue." }
+        accumulatedAtDisposal: { type: number }
+        carryingAmountAtDisposal: { type: number }
+        vatTreatment:
+          type: string
+          enum: [taxable_supply, out_of_scope_restricted_vehicle, no_adjustment, nominal_supply]
+          description: "Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply."
+        nominalSupplyValue: { type: ["number", "null"], description: "Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. Stored for a withdrawal; declaring it is the Art. 52 engine's business." }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        invoiceId: { type: ["integer", "null"] }
+        reason: { type: ["string", "null"] }
+
+    AssetDisposalRecordRead:
+      type: object
+      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, journalEntryId, invoiceId, reason]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        kind: { type: string, enum: [sold, scrapped, destroyed, stolen, withdrawn] }
+        proceeds: { type: number }
+        gainLoss: { type: number }
+        accumulatedAtDisposal: { type: number }
+        carryingAmountAtDisposal: { type: number }
+        vatTreatment: { type: string, enum: [taxable_supply, out_of_scope_restricted_vehicle, no_adjustment, nominal_supply] }
+        nominalSupplyValue: { type: ["number", "null"] }
+        journalEntryId: { type: integer }
+        invoiceId: { type: ["integer", "null"] }
+        reason: { type: ["string", "null"] }
+
+    AssetDisposalResult:
+      type: object
+      required: [asset, disposal, depreciatedFirst]
+      properties:
+        asset: { $ref: "#/components/schemas/AssetDetail" }
+        disposal: { $ref: "#/components/schemas/AssetDisposalRecord" }
+        depreciatedFirst:
+          type: array
+          description: "The periods this act depreciated before derecognising (IAS 16.55) — each its own entry."
+          items:
+            type: object
+            required: [period, amount, journalEntryId]
+            properties:
+              period: { type: string }
+              amount: { type: number }
+              journalEntryId: { type: integer }
 
     CancelAssetInput:
       type: object

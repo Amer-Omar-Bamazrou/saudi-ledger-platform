@@ -94,6 +94,20 @@ async function main() {
     SELECT a.organization_id::text AS org, a.id, a.asset_number, a.status FROM fixed_assets a
      WHERE (a.status IN ('in_service','disposed') AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.id = a.capitalisation_journal_entry_id AND e.status IN ('posted','reversed')))
         OR NOT EXISTS (SELECT 1 FROM asset_events v WHERE v.asset_id = a.id AND v.kind = 'created')`));
+  // FA-C (2026-09-22): a disposal derecognises the asset WHOLE — its entry credits the cost account by the cost and debits the accumulated account by what was posted; and no depreciation is ever posted after the disposal date (IAS 16.55).
+  fail("asset_disposal_shape — a disposal whose entry does not remove the cost and the accumulated depreciation it states, or an asset disposed without the record", await q(`
+    SELECT d.organization_id::text AS org, d.asset_id, d.date::text AS date
+      FROM asset_disposals d JOIN fixed_assets a ON a.id = d.asset_id JOIN asset_categories k ON k.id = a.category_id
+     WHERE NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.id = d.journal_entry_id AND e.status IN ('posted','reversed')
+                          AND EXISTS (SELECT 1 FROM journal_entry_lines l WHERE l.journal_entry_id = e.id AND l.account_id = k.cost_account_id AND l.credit_amount = a.cost)
+                          AND (d.accumulated_at_disposal = 0 OR EXISTS (SELECT 1 FROM journal_entry_lines l WHERE l.journal_entry_id = e.id AND l.account_id = k.accumulated_depreciation_account_id AND l.debit_amount = d.accumulated_at_disposal)))
+    UNION ALL
+    SELECT a.organization_id::text, a.id, a.disposal_date::text FROM fixed_assets a
+     WHERE a.status = 'disposed' AND NOT EXISTS (SELECT 1 FROM asset_disposals d WHERE d.asset_id = a.id)`));
+  fail("asset_no_depreciation_after_disposal — a posted schedule row later than the disposal month (IAS 16.55)", await q(`
+    SELECT s.organization_id::text AS org, s.asset_id, s.period, d.date::text AS disposed_on
+      FROM asset_depreciation_schedule s JOIN asset_disposals d ON d.asset_id = s.asset_id
+     WHERE s.journal_entry_id IS NOT NULL AND s.period > to_char(d.date, 'YYYY-MM')`));
   fail("payment_not_over_consumed — Σ active allocations + refunds > amount", await q(`
     SELECT p.organization_id::text AS org, p.id FROM payments p
      WHERE p.amount < coalesce((SELECT sum(a.amount) FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id = p.id AND r.id IS NULL), 0)

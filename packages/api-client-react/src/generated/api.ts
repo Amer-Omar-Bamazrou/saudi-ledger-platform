@@ -37,6 +37,7 @@ import type {
   AssetDepreciationPosted,
   AssetDepreciationRun,
   AssetDetail,
+  AssetDisposalResult,
   AuditLogPage,
   BalanceSheetReport,
   Bill,
@@ -96,6 +97,7 @@ import type {
   DepositReview,
   DepreciateAssetInput,
   DiscardResult,
+  DisposeAssetInput,
   Employee,
   EmployeeInputFields,
   ErrorResponse,
@@ -15200,6 +15202,79 @@ export const useChangeAssetEstimate = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getChangeAssetEstimateMutationOptions(options));
+    }
+
+export const getDisposeAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}/dispose`
+}
+
+/**
+ * Depreciates every outstanding period up to and including the disposal month first (IAS 16.55 — depreciation ceases at derecognition, not before), then posts `Dr accumulated depreciation · Dr disposal gain/loss (the carrying amount) / Cr asset cost`. The VAT consequence is a fact of the kind: scrapped / destroyed / stolen attract NO Art. 52(7) adjustment; a WITHDRAWAL while the asset is still usable is a nominal supply, valued by the Art. 52(8) formula and stored. A disposal is terminal — corrected by reversing its entry and disposing again, never edited.
+ * @summary FA-C: derecognise an asset that leaves with NO proceeds — scrapped, destroyed, stolen or withdrawn (a SALE is an invoice that names the asset)
+ */
+export const disposeAsset = async (id: number,
+    disposeAssetInput: DisposeAssetInput, options?: RequestInit): Promise<AssetDisposalResult> => {
+
+  return customFetch<AssetDisposalResult>(getDisposeAssetUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disposeAssetInput)
+  }
+);}
+
+
+
+
+
+export const getDisposeAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disposeAsset>>, TError,{id: number;data: BodyType<DisposeAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disposeAsset>>, TError,{id: number;data: BodyType<DisposeAssetInput>}, TContext> => {
+
+const mutationKey = ['disposeAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disposeAsset>>, {id: number;data: BodyType<DisposeAssetInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  disposeAsset(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisposeAssetMutationResult = NonNullable<Awaited<ReturnType<typeof disposeAsset>>>
+    export type DisposeAssetMutationBody = BodyType<DisposeAssetInput>
+    export type DisposeAssetMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-C: derecognise an asset that leaves with NO proceeds — scrapped, destroyed, stolen or withdrawn (a SALE is an invoice that names the asset)
+ */
+export const useDisposeAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disposeAsset>>, TError,{id: number;data: BodyType<DisposeAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disposeAsset>>,
+        TError,
+        {id: number;data: BodyType<DisposeAssetInput>},
+        TContext
+      > => {
+      return useMutation(getDisposeAssetMutationOptions(options));
     }
 
 export const getWriteOffBadDebtUrl = (id: number,) => {

@@ -6,7 +6,7 @@
  * a migrated asset's opening position — the same rows that posted the GL, so
  * the register and the ledger cannot disagree by construction.
  */
-import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, categoriesTable } from "@workspace/db";
+import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, assetDisposalsTable, categoriesTable } from "@workspace/db";
 import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
@@ -165,6 +165,12 @@ export const assetsRepository = {
          AND EXISTS (SELECT 1 FROM asset_depreciation_schedule s WHERE s.asset_id = a.id AND s.period = ${period} AND s.journal_entry_id IS NULL)
        ORDER BY a.asset_number`);
     return rows.rows.map((r) => ({ id: r.id, assetNumber: r.asset_number }));
+  },
+
+  /** FA-C: the asset's terminal record (one per asset, by the table's unique). */
+  async disposalOf(assetId: number) {
+    const [row] = await db.select().from(assetDisposalsTable).where(eq(assetDisposalsTable.assetId, assetId)).limit(1);
+    return row ?? null;
   },
 
   // ── events ──

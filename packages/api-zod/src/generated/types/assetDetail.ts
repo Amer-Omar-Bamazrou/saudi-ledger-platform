@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Asset } from './asset';
+import type { AssetDisposalRecordRead } from './assetDisposalRecordRead';
 import type { AssetEvent } from './assetEvent';
 import type { AssetPlannedRow } from './assetPlannedRow';
 import type { AssetScheduleRow } from './assetScheduleRow';
@@ -18,4 +19,6 @@ export type AssetDetail = Asset & ({
      */
   plannedSchedule: AssetPlannedRow[] | null;
   events: AssetEvent[];
+  /** FA-C: the terminal record, once the asset has left the books; null while it is in service. */
+  disposal: AssetDisposalRecordRead | null;
 });

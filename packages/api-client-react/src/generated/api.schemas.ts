@@ -1857,6 +1857,11 @@ export interface Invoice {
      */
   advancePaymentId: number | null;
   /**
+     * FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
+  /**
      * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
      * @nullable
      */
@@ -4894,6 +4899,45 @@ export interface AssetEvent {
   createdAt: string;
 }
 
+export type AssetDisposalRecordReadKind = typeof AssetDisposalRecordReadKind[keyof typeof AssetDisposalRecordReadKind];
+
+
+export const AssetDisposalRecordReadKind = {
+  sold: 'sold',
+  scrapped: 'scrapped',
+  destroyed: 'destroyed',
+  stolen: 'stolen',
+  withdrawn: 'withdrawn',
+} as const;
+
+export type AssetDisposalRecordReadVatTreatment = typeof AssetDisposalRecordReadVatTreatment[keyof typeof AssetDisposalRecordReadVatTreatment];
+
+
+export const AssetDisposalRecordReadVatTreatment = {
+  taxable_supply: 'taxable_supply',
+  out_of_scope_restricted_vehicle: 'out_of_scope_restricted_vehicle',
+  no_adjustment: 'no_adjustment',
+  nominal_supply: 'nominal_supply',
+} as const;
+
+export interface AssetDisposalRecordRead {
+  id: number;
+  date: string;
+  kind: AssetDisposalRecordReadKind;
+  proceeds: number;
+  gainLoss: number;
+  accumulatedAtDisposal: number;
+  carryingAmountAtDisposal: number;
+  vatTreatment: AssetDisposalRecordReadVatTreatment;
+  /** @nullable */
+  nominalSupplyValue: number | null;
+  journalEntryId: number;
+  /** @nullable */
+  invoiceId: number | null;
+  /** @nullable */
+  reason: string | null;
+}
+
 export type AssetDetail = Asset & ({
   schedule: AssetScheduleRow[];
   /**
@@ -4902,6 +4946,8 @@ export type AssetDetail = Asset & ({
      */
   plannedSchedule: AssetPlannedRow[] | null;
   events: AssetEvent[];
+  /** FA-C: the terminal record, once the asset has left the books; null while it is in service. */
+  disposal: AssetDisposalRecordRead | null;
 });
 
 export interface AssetTotals {
@@ -5100,6 +5146,89 @@ export interface ChangeAssetEstimateInput {
   usefulLifeMonths?: number | null;
   /** @nullable */
   depreciationMethod?: ChangeAssetEstimateInputDepreciationMethod;
+}
+
+export type DisposeAssetInputKind = typeof DisposeAssetInputKind[keyof typeof DisposeAssetInputKind];
+
+
+export const DisposeAssetInputKind = {
+  scrapped: 'scrapped',
+  destroyed: 'destroyed',
+  stolen: 'stolen',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface DisposeAssetInput {
+  /** YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date. */
+  date: string;
+  kind: DisposeAssetInputKind;
+  /**
+     * The disposal's evidence (VAT IR Art. 66 records).
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type AssetDisposalRecordKind = typeof AssetDisposalRecordKind[keyof typeof AssetDisposalRecordKind];
+
+
+export const AssetDisposalRecordKind = {
+  sold: 'sold',
+  scrapped: 'scrapped',
+  destroyed: 'destroyed',
+  stolen: 'stolen',
+  withdrawn: 'withdrawn',
+} as const;
+
+/**
+ * Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply.
+ */
+export type AssetDisposalRecordVatTreatment = typeof AssetDisposalRecordVatTreatment[keyof typeof AssetDisposalRecordVatTreatment];
+
+
+export const AssetDisposalRecordVatTreatment = {
+  taxable_supply: 'taxable_supply',
+  out_of_scope_restricted_vehicle: 'out_of_scope_restricted_vehicle',
+  no_adjustment: 'no_adjustment',
+  nominal_supply: 'nominal_supply',
+} as const;
+
+export interface AssetDisposalRecord {
+  id: number;
+  date: string;
+  kind: AssetDisposalRecordKind;
+  proceeds: number;
+  /** proceeds − carrying amount (IAS 16.71): positive is a gain, negative a loss. Never revenue. */
+  gainLoss: number;
+  accumulatedAtDisposal: number;
+  carryingAmountAtDisposal: number;
+  /** Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply. */
+  vatTreatment: AssetDisposalRecordVatTreatment;
+  /**
+     * Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. Stored for a withdrawal; declaring it is the Art. 52 engine's business.
+     * @nullable
+     */
+  nominalSupplyValue: number | null;
+  journalEntryId: number;
+  entryNumber: string;
+  /** @nullable */
+  invoiceId: number | null;
+  /** @nullable */
+  reason: string | null;
+}
+
+export type AssetDisposalResultDepreciatedFirstItem = {
+  period: string;
+  amount: number;
+  journalEntryId: number;
+};
+
+export interface AssetDisposalResult {
+  asset: AssetDetail;
+  disposal: AssetDisposalRecord;
+  /** The periods this act depreciated before derecognising (IAS 16.55) — each its own entry. */
+  depreciatedFirst: AssetDisposalResultDepreciatedFirstItem[];
 }
 
 export interface CancelAssetInput {

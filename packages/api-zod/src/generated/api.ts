@@ -937,6 +937,7 @@ export const ConvertQuotationResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -4346,7 +4347,21 @@ export const CreateAssetResponse = zod.object({
   "documentRef": zod.string().nullable(),
   "userId": zod.number().nullable(),
   "createdAt": zod.string()
-}))
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
 }))
 
 
@@ -4432,7 +4447,21 @@ export const GetAssetResponse = zod.object({
   "documentRef": zod.string().nullable(),
   "userId": zod.number().nullable(),
   "createdAt": zod.string()
-}))
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
 }))
 
 
@@ -4574,7 +4603,21 @@ export const UpdateAssetResponse = zod.object({
   "documentRef": zod.string().nullable(),
   "userId": zod.number().nullable(),
   "createdAt": zod.string()
-}))
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
 }))
 
 
@@ -4668,7 +4711,21 @@ export const CancelAssetResponse = zod.object({
   "documentRef": zod.string().nullable(),
   "userId": zod.number().nullable(),
   "createdAt": zod.string()
-}))
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
 }))
 
 
@@ -5761,6 +5818,7 @@ export const ListInvoicesResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -5901,6 +5959,7 @@ export const CreateInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -5984,6 +6043,7 @@ export const GetInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -6113,6 +6173,7 @@ export const UpdateInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -6941,6 +7002,7 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -8764,8 +8826,155 @@ export const ChangeAssetEstimateResponse = zod.object({
   "documentRef": zod.string().nullable(),
   "userId": zod.number().nullable(),
   "createdAt": zod.string()
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
 }))
-}))
+
+
+/**
+ * Depreciates every outstanding period up to and including the disposal month first (IAS 16.55 — depreciation ceases at derecognition, not before), then posts `Dr accumulated depreciation · Dr disposal gain/loss (the carrying amount) / Cr asset cost`. The VAT consequence is a fact of the kind: scrapped / destroyed / stolen attract NO Art. 52(7) adjustment; a WITHDRAWAL while the asset is still usable is a nominal supply, valued by the Art. 52(8) formula and stored. A disposal is terminal — corrected by reversing its entry and disposing again, never edited.
+ * @summary FA-C: derecognise an asset that leaves with NO proceeds — scrapped, destroyed, stolen or withdrawn (a SALE is an invoice that names the asset)
+ */
+export const DisposeAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const disposeAssetBodyReasonMax = 1000;
+
+
+
+export const DisposeAssetBody = zod.object({
+  "date": zod.string().describe('YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date.'),
+  "kind": zod.enum(['scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "reason": zod.string().min(1).max(disposeAssetBodyReasonMax).describe('The disposal\'s evidence (VAT IR Art. 66 records).')
+})
+
+export const DisposeAssetResponse = zod.object({
+  "asset": zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
+  "disposalDate": zod.string().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "disposal": zod.union([zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number(),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
+  "nominalSupplyValue": zod.number().nullable(),
+  "journalEntryId": zod.number(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),zod.null()]).describe('FA-C: the terminal record, once the asset has left the books; null while it is in service.')
+})),
+  "disposal": zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "kind": zod.enum(['sold', 'scrapped', 'destroyed', 'stolen', 'withdrawn']),
+  "proceeds": zod.number(),
+  "gainLoss": zod.number().describe('proceeds − carrying amount (IAS 16.71): positive is a gain, negative a loss. Never revenue.'),
+  "accumulatedAtDisposal": zod.number(),
+  "carryingAmountAtDisposal": zod.number(),
+  "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']).describe('Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply.'),
+  "nominalSupplyValue": zod.number().nullable().describe('Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. Stored for a withdrawal; declaring it is the Art. 52 engine\'s business.'),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "invoiceId": zod.number().nullable(),
+  "reason": zod.string().nullable()
+}),
+  "depreciatedFirst": zod.array(zod.object({
+  "period": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number()
+})).describe('The periods this act depreciated before derecognising (IAS 16.55) — each its own entry.')
+})
 
 
 /**
@@ -8826,6 +9035,7 @@ export const WriteOffBadDebtResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -8927,6 +9137,7 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -9027,6 +9238,7 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -9123,6 +9335,7 @@ export const PayInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -9495,6 +9708,7 @@ export const SubmitInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -9583,6 +9797,7 @@ export const SendBackInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
@@ -9667,6 +9882,7 @@ export const ApproveInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
   "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
   "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
   "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),

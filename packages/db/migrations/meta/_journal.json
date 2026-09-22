@@ -631,6 +631,13 @@
       "when": 1790075870271,
       "tag": "0089_fixed_assets_capitalisation",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1790077300827,
+      "tag": "0090_fixed_assets_disposal",
+      "breakpoints": true
     }
   ]
 }
