@@ -35,6 +35,22 @@ export const journalEntriesTable = pgTable(
     status: text("status").notNull().default("draft"), // draft | posted | reversed
     reversalOf: integer("reversal_of"),    // FK to self if reversal
     /**
+     * Phase 11 A4 (2026-09-22) — WHY the entry was reversed, on the REVERSING
+     * entry (the mirror), not on the original.
+     *
+     * 🔴 It belongs on the mirror because that is the row the reversal IS.
+     * The original is a fact of record whose only change is the `reversed`
+     * marker; writing the reason onto it would be editing a posted entry to
+     * explain a later event. A reader arriving at the original follows
+     * `reversal_of` from the mirror — the same direction every other consumer
+     * already travels.
+     *
+     * NULL on every reversal written before this column existed, and on
+     * migration reversals, whose reason is the batch (`source`,
+     * `migration_batch_id`).
+     */
+    reversalReason: text("reversal_reason"),
+    /**
      * Batch 1C (2026-09-18): what produced the entry. NULL on every entry
      * written before this column existed (their provenance is the number
      * prefix, as `ledgerInvariants.ts` reads it); `opening` for a migration's

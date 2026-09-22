@@ -8,12 +8,13 @@ import { BadRequestError, NotFoundError } from "../../lib/errors";
 import { can } from "../../lib/rbac";
 import { auditService } from "../audit.service";
 import { recurringRepository } from "../../repositories/recurring.repository";
+import { round2 } from "../../lib/money";
 
 export type Frequency = "monthly" | "quarterly" | "yearly";
 const FREQUENCIES: Frequency[] = ["monthly", "quarterly", "yearly"];
 
 export interface CreateRuleInput {
-  entity: "invoice" | "bill";
+  entity: "invoice" | "bill" | "journal_entry";
   template: Record<string, unknown>;
   frequency: Frequency;
   dayOfMonth: number;
@@ -62,15 +63,52 @@ export function nextOccurrence(from: string, frequency: Frequency, dayOfMonth: n
  *      falls back to drafts instead of continuing to act with authority its
  *      owner no longer has.
  */
-export async function mayAutoIssue(role: string | null, entity: "invoice" | "bill"): Promise<boolean> {
+export async function mayAutoIssue(role: string | null, entity: "invoice" | "bill" | "journal_entry"): Promise<boolean> {
   if (!role) return false;
-  return can(role, entity === "invoice" ? "invoices" : "bills", "approve");
+  // A recurring JOURNAL ENTRY would be POSTED, not issued, and posting is the
+  // approver's act on the entry itself — the same authority `approve` names.
+  return can(role, entity === "invoice" ? "invoices" : entity === "bill" ? "bills" : "journal-entries", "approve");
 }
 
 export const recurringService = {
   async create(input: CreateRuleInput, ctx: { userId: number | null; role: string | null }) {
-    if (!["invoice", "bill"].includes(input.entity)) {
-      throw new BadRequestError("entity must be 'invoice' or 'bill'");
+    if (!["invoice", "bill", "journal_entry"].includes(input.entity)) {
+      throw new BadRequestError("entity must be 'invoice', 'bill' or 'journal_entry'");
+    }
+    /**
+     * 🔴 A1 (2026-09-22) — A RECURRING JOURNAL ENTRY'S TEMPLATE IS CHECKED
+     * HERE, not only when it runs.
+     *
+     * A rule is a decision taken once and executed unattended for months. An
+     * invoice template that is wrong produces a draft somebody reads; a
+     * journal-entry template that is wrong produces a FAILED RUN every period
+     * until someone notices, and the thing they have to notice is a row in a
+     * run log. The cheapest moment to refuse is while the author is still
+     * looking at what they wrote.
+     *
+     * Only the shape is checked — that it has at least two lines and that they
+     * balance. Account existence, the party on a control line and the period
+     * are the posting path's business and are re-checked at every generation,
+     * because they can change between now and November.
+     */
+    if (input.entity === "journal_entry") {
+      const lines = (input.template as { lines?: unknown })?.lines;
+      if (!Array.isArray(lines) || lines.length < 2) {
+        throw new BadRequestError("A recurring journal entry needs a template with at least two lines.");
+      }
+      let debits = 0, credits = 0;
+      for (const l of lines as Array<{ debitAmount?: unknown; creditAmount?: unknown }>) {
+        debits += Number(l.debitAmount ?? 0);
+        credits += Number(l.creditAmount ?? 0);
+      }
+      if (Math.abs(round2(debits) - round2(credits)) > 0.005) {
+        throw new BadRequestError(
+          `A recurring journal entry's template must balance: the lines total ${round2(debits).toFixed(2)} in debits and ${round2(credits).toFixed(2)} in credits.`,
+        );
+      }
+      if (round2(debits) === 0) {
+        throw new BadRequestError("A recurring journal entry's template must move a non-zero amount.");
+      }
     }
     if (!FREQUENCIES.includes(input.frequency)) {
       throw new BadRequestError(`frequency must be one of: ${FREQUENCIES.join(", ")}`);
