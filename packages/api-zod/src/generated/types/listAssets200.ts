@@ -5,12 +5,12 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { AssetListItem } from './assetListItem';
+import type { Asset } from './asset';
 import type { AssetTotals } from './assetTotals';
 import type { PageInfo } from './pageInfo';
 
 export type ListAssets200 = {
-  items: AssetListItem[];
+  items: Asset[];
   page: PageInfo;
   totals: AssetTotals;
 };

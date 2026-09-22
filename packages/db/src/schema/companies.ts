@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, integer, text, timestamp, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
@@ -70,6 +70,17 @@ export const companiesTable = pgTable("companies", {
    * tax-status field until something actually establishes it as one.
    */
   ownershipType: varchar("ownership_type", { length: 20 }),
+  /**
+   * Fixed assets FA-A (2026-09-22, accountant FA-1: the Income Tax Law Art. 17
+   * pooled depreciation IS in scope). The share of the company subject to
+   * INCOME TAX — the non-Saudi/non-GCC ownership percentage (Income Tax Law
+   * Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownership_type`, never
+   * instead of it: SAUDI_GCC ⇒ 0 (Zakat only), FOREIGN ⇒ 100, MIXED ⇒ the
+   * declared share strictly between 0 and 100 — the CHECK pins the three.
+   * 🔴 NULL = NOT DECLARED (a first-class state, like ownership_type); the
+   * pool report asks, it never assumes.
+   */
+  foreignOwnershipPct: numeric("foreign_ownership_pct", { precision: 5, scale: 2 }),
 
   // ── Seller national short address (M11.6) ──────────────────────────────────
   // Nullable: NOT required by the ZATCA Phase-1 QR (tags 1-5) or the invoice

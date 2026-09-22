@@ -5,20 +5,19 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateAssetInputDepreciationMethod } from './createAssetInputDepreciationMethod';
+import type { UpdateAssetInputDepreciationMethod } from './updateAssetInputDepreciationMethod';
 
-export interface CreateAssetInput {
+export interface UpdateAssetInput {
   /**
-     * Blank = the next FA-nnnnn.
+     * @minLength 1
      * @maxLength 60
-     * @nullable
      */
-  assetNumber?: string | null;
+  assetNumber?: string;
   /**
      * @minLength 1
      * @maxLength 200
      */
-  name: string;
+  name?: string;
   /**
      * @maxLength 200
      * @nullable
@@ -34,7 +33,7 @@ export interface CreateAssetInput {
      * @nullable
      */
   serialNumber?: string | null;
-  categoryId: number;
+  categoryId?: number;
   /**
      * @maxLength 200
      * @nullable
@@ -47,39 +46,27 @@ export interface CreateAssetInput {
   department?: string | null;
   /** @nullable */
   custodianUserId?: number | null;
-  acquisitionDate: string;
+  acquisitionDate?: string;
   /** @nullable */
   availableForUseDate?: string | null;
   /** @minimum 0 */
-  cost: number;
+  cost?: number;
+  /** @minimum 0 */
+  residualValue?: number;
   /**
-     * Default: the category's residual % of cost.
-     * @minimum 0
-     * @nullable
-     */
-  residualValue?: number | null;
-  /**
-     * Default: the category's.
      * @minimum 1
      * @maximum 1200
-     * @nullable
      */
-  usefulLifeMonths?: number | null;
-  /** @nullable */
-  depreciationMethod?: CreateAssetInputDepreciationMethod;
-  /**
-     * @minimum 0
-     * @nullable
-     */
-  vatInputTaxAmount?: number | null;
+  usefulLifeMonths?: number;
+  depreciationMethod?: UpdateAssetInputDepreciationMethod;
+  /** @minimum 0 */
+  vatInputTaxAmount?: number;
   /**
      * @minimum 0
      * @maximum 100
-     * @nullable
      */
-  vatInitialRecoveryPct?: number | null;
+  vatInitialRecoveryPct?: number;
   /**
-     * Required when a capital asset's recovery is 0 % (VAT IR Art. 50).
      * @maxLength 500
      * @nullable
      */

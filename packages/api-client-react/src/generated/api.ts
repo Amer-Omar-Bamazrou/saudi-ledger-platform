@@ -33,7 +33,7 @@ import type {
   ArAgingReport,
   AskInput,
   AskResult,
-  Asset,
+  AssetCategory,
   AssetDetail,
   AuditLogPage,
   BalanceSheetReport,
@@ -45,6 +45,7 @@ import type {
   Budget,
   BudgetInput,
   BudgetLine,
+  CancelAssetInput,
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
@@ -64,6 +65,7 @@ import type {
   CorrectMigratedOpenItemInput,
   CreateAdvanceCreditNoteInput,
   CreateAdvanceInvoiceInput,
+  CreateAssetCategoryInput,
   CreateAssetInput,
   CreateBadDebtRecoveryInput,
   CreateBillInput,
@@ -89,8 +91,6 @@ import type {
   Decomposition,
   DeploymentBanner,
   DepositReview,
-  DepreciateInput,
-  DepreciationEntry,
   DiscardResult,
   Employee,
   EmployeeInputFields,
@@ -140,6 +140,8 @@ import type {
   JournalEntryReversal,
   JournalReport,
   Liquidity,
+  ListAssetCategories200,
+  ListAssetCategoriesParams,
   ListAssets200,
   ListAssetsParams,
   ListAuditLogsParams,
@@ -223,6 +225,8 @@ import type {
   TrialBalanceReport,
   UnallocateInput,
   UnmatchInput,
+  UpdateAssetCategoryInput,
+  UpdateAssetInput,
   UpdateBudgetInput,
   UpdateCompanyInput,
   UpdateInvoiceInput,
@@ -9094,6 +9098,227 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getDeleteEmployeeMutationOptions(options));
     }
 
+export const getListAssetCategoriesUrl = (params?: ListAssetCategoriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/asset-categories?${stringifiedParams}` : `/api/asset-categories`
+}
+
+/**
+ * @summary FA-A (2026-09-22): the asset categories — each binds an account triple (cost / accumulated depreciation / depreciation expense) and the two Saudi classifications every asset inherits
+ */
+export const listAssetCategories = async (params?: ListAssetCategoriesParams, options?: RequestInit): Promise<ListAssetCategories200> => {
+
+  return customFetch<ListAssetCategories200>(getListAssetCategoriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetCategoriesQueryKey = (params?: ListAssetCategoriesParams,) => {
+    return [
+    `/api/asset-categories`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssetCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAssetCategories>>, TError = ErrorType<unknown>>(params?: ListAssetCategoriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetCategories>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetCategoriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetCategories>>> = ({ signal }) => listAssetCategories(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetCategories>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetCategories>>>
+export type ListAssetCategoriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-A (2026-09-22): the asset categories — each binds an account triple (cost / accumulated depreciation / depreciation expense) and the two Saudi classifications every asset inherits
+ */
+
+export function useListAssetCategories<TData = Awaited<ReturnType<typeof listAssetCategories>>, TError = ErrorType<unknown>>(
+ params?: ListAssetCategoriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetCategories>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetCategoriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAssetCategoryUrl = () => {
+
+
+
+
+  return `/api/asset-categories`
+}
+
+export const createAssetCategory = async (createAssetCategoryInput: CreateAssetCategoryInput, options?: RequestInit): Promise<AssetCategory> => {
+
+  return customFetch<AssetCategory>(getCreateAssetCategoryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAssetCategoryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAssetCategoryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAssetCategory>>, TError,{data: BodyType<CreateAssetCategoryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAssetCategory>>, TError,{data: BodyType<CreateAssetCategoryInput>}, TContext> => {
+
+const mutationKey = ['createAssetCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAssetCategory>>, {data: BodyType<CreateAssetCategoryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAssetCategory(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAssetCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof createAssetCategory>>>
+    export type CreateAssetCategoryMutationBody = BodyType<CreateAssetCategoryInput>
+    export type CreateAssetCategoryMutationError = ErrorType<void>
+
+    export const useCreateAssetCategory = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAssetCategory>>, TError,{data: BodyType<CreateAssetCategoryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAssetCategory>>,
+        TError,
+        {data: BodyType<CreateAssetCategoryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAssetCategoryMutationOptions(options));
+    }
+
+export const getUpdateAssetCategoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/asset-categories/${id}`
+}
+
+/**
+ * @summary Rename, re-default or deactivate a category; its tax group, VAT class and accounts change only while no asset is under it (asset_category_in_use)
+ */
+export const updateAssetCategory = async (id: number,
+    updateAssetCategoryInput: UpdateAssetCategoryInput, options?: RequestInit): Promise<AssetCategory> => {
+
+  return customFetch<AssetCategory>(getUpdateAssetCategoryUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAssetCategoryInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssetCategoryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetCategory>>, TError,{id: number;data: BodyType<UpdateAssetCategoryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAssetCategory>>, TError,{id: number;data: BodyType<UpdateAssetCategoryInput>}, TContext> => {
+
+const mutationKey = ['updateAssetCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAssetCategory>>, {id: number;data: BodyType<UpdateAssetCategoryInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAssetCategory(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssetCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof updateAssetCategory>>>
+    export type UpdateAssetCategoryMutationBody = BodyType<UpdateAssetCategoryInput>
+    export type UpdateAssetCategoryMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename, re-default or deactivate a category; its tax group, VAT class and accounts change only while no asset is under it (asset_category_in_use)
+ */
+export const useUpdateAssetCategory = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetCategory>>, TError,{id: number;data: BodyType<UpdateAssetCategoryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAssetCategory>>,
+        TError,
+        {id: number;data: BodyType<UpdateAssetCategoryInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAssetCategoryMutationOptions(options));
+    }
+
 export const getListAssetsUrl = (params?: ListAssetsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9110,7 +9335,7 @@ export const getListAssetsUrl = (params?: ListAssetsParams,) => {
 }
 
 /**
- * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ * @summary A PAGE of the register with DERIVED figures (accumulated depreciation and carrying amount come from the posted schedule rows, never a stored column), plus set-wide totals
  */
 export const listAssets = async (params?: ListAssetsParams, options?: RequestInit): Promise<ListAssets200> => {
 
@@ -9157,7 +9382,7 @@ export type ListAssetsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ * @summary A PAGE of the register with DERIVED figures (accumulated depreciation and carrying amount come from the posted schedule rows, never a stored column), plus set-wide totals
  */
 
 export function useListAssets<TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(
@@ -9186,9 +9411,12 @@ export const getCreateAssetUrl = () => {
   return `/api/assets`
 }
 
-export const createAsset = async (createAssetInput: CreateAssetInput, options?: RequestInit): Promise<Asset> => {
+/**
+ * @summary A DRAFT register row: its facts, nothing posted (the zero-movement standard). Capitalisation is a separate act.
+ */
+export const createAsset = async (createAssetInput: CreateAssetInput, options?: RequestInit): Promise<AssetDetail> => {
 
-  return customFetch<Asset>(getCreateAssetUrl(),
+  return customFetch<AssetDetail>(getCreateAssetUrl(),
   {
     ...options,
     method: 'POST',
@@ -9232,7 +9460,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateAssetMutationBody = BodyType<CreateAssetInput>
     export type CreateAssetMutationError = ErrorType<void>
 
-    export const useCreateAsset = <TError = ErrorType<void>,
+    /**
+ * @summary A DRAFT register row: its facts, nothing posted (the zero-movement standard). Capitalisation is a separate act.
+ */
+export const useCreateAsset = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<CreateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAsset>>,
@@ -9252,7 +9483,7 @@ export const getGetAssetUrl = (id: number,) => {
 }
 
 /**
- * @summary One asset with its depreciation history
+ * @summary One asset with its schedule (stored once capitalised; PLANNED preview while a draft), its events and its derived figures
  */
 export const getAsset = async (id: number, options?: RequestInit): Promise<AssetDetail> => {
 
@@ -9299,7 +9530,7 @@ export type GetAssetQueryError = ErrorType<void>
 
 
 /**
- * @summary One asset with its depreciation history
+ * @summary One asset with its schedule (stored once capitalised; PLANNED preview while a draft), its events and its derived figures
  */
 
 export function useGetAsset<TData = Awaited<ReturnType<typeof getAsset>>, TError = ErrorType<void>>(
@@ -9320,26 +9551,26 @@ export function useGetAsset<TData = Awaited<ReturnType<typeof getAsset>>, TError
 
 
 
-export const getDepreciateAssetUrl = (id: number,) => {
+export const getUpdateAssetUrl = (id: number,) => {
 
 
 
 
-  return `/api/assets/${id}/depreciate`
+  return `/api/assets/${id}`
 }
 
 /**
- * @summary Record one month of straight-line depreciation
+ * @summary A draft's facts may change; an in-service asset's facts of record may not (asset_capitalised_facts_frozen) — only its descriptive fields
  */
-export const depreciateAsset = async (id: number,
-    depreciateInput: DepreciateInput, options?: RequestInit): Promise<DepreciationEntry> => {
+export const updateAsset = async (id: number,
+    updateAssetInput: UpdateAssetInput, options?: RequestInit): Promise<AssetDetail> => {
 
-  return customFetch<DepreciationEntry>(getDepreciateAssetUrl(id),
+  return customFetch<AssetDetail>(getUpdateAssetUrl(id),
   {
     ...options,
-    method: 'POST',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(depreciateInput)
+    body: JSON.stringify(updateAssetInput)
   }
 );}
 
@@ -9347,11 +9578,11 @@ export const depreciateAsset = async (id: number,
 
 
 
-export const getDepreciateAssetMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext> => {
+export const getUpdateAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<UpdateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<UpdateAssetInput>}, TContext> => {
 
-const mutationKey = ['depreciateAsset'];
+const mutationKey = ['updateAsset'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -9361,10 +9592,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depreciateAsset>>, {id: number;data: BodyType<DepreciateInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAsset>>, {id: number;data: BodyType<UpdateAssetInput>}> = (props) => {
           const {id,data} = props ?? {};
 
-          return  depreciateAsset(id,data,requestOptions)
+          return  updateAsset(id,data,requestOptions)
         }
 
 
@@ -9374,22 +9605,94 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DepreciateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof depreciateAsset>>>
-    export type DepreciateAssetMutationBody = BodyType<DepreciateInput>
-    export type DepreciateAssetMutationError = ErrorType<void>
+    export type UpdateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof updateAsset>>>
+    export type UpdateAssetMutationBody = BodyType<UpdateAssetInput>
+    export type UpdateAssetMutationError = ErrorType<void>
 
     /**
- * @summary Record one month of straight-line depreciation
+ * @summary A draft's facts may change; an in-service asset's facts of record may not (asset_capitalised_facts_frozen) — only its descriptive fields
  */
-export const useDepreciateAsset = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useUpdateAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{id: number;data: BodyType<UpdateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof depreciateAsset>>,
+        Awaited<ReturnType<typeof updateAsset>>,
         TError,
-        {id: number;data: BodyType<DepreciateInput>},
+        {id: number;data: BodyType<UpdateAssetInput>},
         TContext
       > => {
-      return useMutation(getDepreciateAssetMutationOptions(options));
+      return useMutation(getUpdateAssetMutationOptions(options));
+    }
+
+export const getCancelAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}/cancel`
+}
+
+/**
+ * @summary Cancel a DRAFT (never hard-deleted — the number stays taken, the audit trail stays); an asset in service leaves the books only by disposal
+ */
+export const cancelAsset = async (id: number,
+    cancelAssetInput?: CancelAssetInput, options?: RequestInit): Promise<AssetDetail> => {
+
+  return customFetch<AssetDetail>(getCancelAssetUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelAssetInput)
+  }
+);}
+
+
+
+
+
+export const getCancelAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAsset>>, TError,{id: number;data?: BodyType<CancelAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelAsset>>, TError,{id: number;data?: BodyType<CancelAssetInput>}, TContext> => {
+
+const mutationKey = ['cancelAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelAsset>>, {id: number;data?: BodyType<CancelAssetInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  cancelAsset(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelAssetMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAsset>>>
+    export type CancelAssetMutationBody = BodyType<CancelAssetInput> | undefined
+    export type CancelAssetMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel a DRAFT (never hard-deleted — the number stays taken, the audit trail stays); an asset in service leaves the books only by disposal
+ */
+export const useCancelAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAsset>>, TError,{id: number;data?: BodyType<CancelAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelAsset>>,
+        TError,
+        {id: number;data?: BodyType<CancelAssetInput>},
+        TContext
+      > => {
+      return useMutation(getCancelAssetMutationOptions(options));
     }
 
 export const getApproveJournalEntryUrl = (id: number,) => {

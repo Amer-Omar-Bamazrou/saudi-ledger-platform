@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListAssetsStatus } from './listAssetsStatus';
 
 export type ListAssetsParams = {
 /**
@@ -16,4 +17,6 @@ limit?: number;
  * @minimum 0
  */
 offset?: number;
+status?: ListAssetsStatus;
+category_id?: number;
 };

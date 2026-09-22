@@ -37,8 +37,13 @@ import {
   CreateAssetBody,
   CreateAssetResponse,
   GetAssetResponse,
-  DepreciateAssetBody,
-  DepreciateAssetResponse,
+  UpdateAssetBody,
+  UpdateAssetResponse,
+  CancelAssetBody,
+  CancelAssetResponse,
+  CreateAssetCategoryBody,
+  CreateAssetCategoryResponse,
+  ListAssetCategoriesResponse,
 } from "@workspace/api-zod";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
@@ -84,7 +89,7 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
-    for (const t of ["payroll_items", "payroll_runs", "depreciation_entries", "fixed_assets", "employees", "journal_entry_lines", "journal_entries", "document_numbers"]) {
+    for (const t of ["payroll_items", "payroll_runs", "asset_events", "asset_depreciation_schedule", "fixed_assets", "asset_categories", "employees", "journal_entry_lines", "journal_entries", "document_numbers"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;
       });
@@ -231,30 +236,31 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
   // ── assets ──────────────────────────────────────────────────────────────
   let assetId = 0;
 
-  it("POST /assets, GET /assets (with totals), GET /assets/{id}", async () => {
-    expect(CreateAssetBody.safeParse({ assetNumber: "A", name: "x", purchaseDate: DATE, purchaseCost: 1000, usefulLifeYears: 0 }).success).toBe(false);
-    const a = await inTenant(() => assetsService.create(CreateAssetBody.parse({ assetNumber: "FA-1", name: "Laptop", purchaseDate: DATE, purchaseCost: 12000, salvageValue: 0, usefulLifeYears: 5 })));
+  it("POST /asset-categories, POST /assets (a DRAFT), GET /assets (with totals), GET /assets/{id}, PUT /assets/{id}, POST /assets/{id}/cancel — FA-A", async () => {
+    expect(CreateAssetCategoryBody.safeParse({ name: "Computers", defaultUsefulLifeMonths: 0, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }).success).toBe(false);
+    const cat = await inTenant(() => assetsService.createCategory(CreateAssetCategoryBody.parse({ name: "Computers", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }), userId));
+    conforms(CreateAssetCategoryResponse, cat, "createAssetCategory");
+    const cats = await inTenant(() => assetsService.listCategories());
+    conforms(ListAssetCategoriesResponse, cats, "listAssetCategories");
+    expect(CreateAssetBody.safeParse({ name: "x", categoryId: cat.id, acquisitionDate: DATE, cost: -1 }).success).toBe(false);
+    const a = await inTenant(() => assetsService.create(CreateAssetBody.parse({ assetNumber: "FA-1", name: "Laptop", categoryId: cat.id, acquisitionDate: DATE, availableForUseDate: DATE, cost: 12000, residualValue: 0 }), userId));
     assetId = a.id;
-    expect(a.monthlyDepreciation).toBe(200);
+    expect(a.status).toBe("draft");
+    expect(a.carryingAmount).toBe(12000);
+    expect(a.plannedSchedule?.length).toBe(48);
     conforms(CreateAssetResponse, a, "createAsset");
     const list = await inTenant(() => assetsService.list({ limit: 50, offset: 0 }));
     expect(list.items.length).toBe(1);
-    expect(list.totals.activeCount).toBe(1);
+    expect(list.totals.drafts).toBe(1);
     conforms(ListAssetsResponse, list, "listAssets");
     const got = await inTenant(() => assetsService.getById(assetId));
     conforms(GetAssetResponse, got, "getAsset");
-  });
-
-  it("POST /assets/{id}/depreciate — one month, and the history shows it", async () => {
-    expect(DepreciateAssetBody.safeParse({}).success).toBe(false);
-    const entry = await inTenant(() => assetsService.depreciate(assetId, DepreciateAssetBody.parse({ period: "2026-07" }).period));
-    expect(entry.amount).toBe(200);
-    expect(entry.bookValueAfter).toBe(11800);
-    conforms(DepreciateAssetResponse, entry, "depreciateAsset");
-    const got = await inTenant(() => assetsService.getById(assetId));
-    expect(got.depreciationHistory.length).toBe(1);
-    expect(got.accumulatedDepreciation).toBe(200);
-    conforms(GetAssetResponse, got, "getAsset(after depreciation)");
+    const upd = await inTenant(() => assetsService.update(assetId, UpdateAssetBody.parse({ location: "HQ", usefulLifeMonths: 36 }), userId));
+    expect(upd.plannedSchedule?.length).toBe(36);
+    conforms(UpdateAssetResponse, upd, "updateAsset");
+    const cancelled = await inTenant(() => assetsService.cancel(assetId, CancelAssetBody.parse({ reason: "entered twice" }), userId));
+    expect(cancelled.status).toBe("cancelled");
+    conforms(CancelAssetResponse, cancelled, "cancelAsset");
   });
 
   it("🔴 the instrument is not vacuous — a wrong shape FAILS", async () => {

@@ -277,7 +277,10 @@ describeMaybe("a page's declared list type matches the real response", () => {
       "period_locks",
       "budgets",
       "products",
+      "asset_events",
+      "asset_depreciation_schedule",
       "fixed_assets",
+      "asset_categories",
       "bank_accounts",
       "employees",
       "customers",
@@ -321,11 +324,21 @@ describeMaybe("a page's declared list type matches the real response", () => {
     ).rows[0].id;
     await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Shape Customer')`, [o]);
     await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Shape Vendor')`, [o]);
+    // FA-A (2026-09-22): an asset belongs to a category that binds its accounts (the M15 FIXED_ASSETS cost account + the two FA-A system accounts)
+    const shapeCat = (
+      await pool.query(
+        `INSERT INTO asset_categories (organization_id, company_id, name, cost_account_id, accumulated_depreciation_account_id, depreciation_expense_account_id, default_useful_life_months, income_tax_group, vat_capital_asset_class)
+         SELECT $1, $2, 'Shape Category',
+                (SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'FIXED_ASSETS'),
+                (SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'ACCUMULATED_DEPRECIATION'),
+                (SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'DEPRECIATION_EXPENSE'), 60, 3, 'movable' RETURNING id`,
+        [o, c],
+      )
+    ).rows[0].id;
     await pool.query(
-      `INSERT INTO fixed_assets (organization_id, company_id, asset_number, name, purchase_date,
-                                 purchase_cost, useful_life_years, current_book_value)
-       VALUES ($1,$2,'FA-SHAPE','Shape Asset','2026-01-01',1000,5,800)`,
-      [o, c],
+      `INSERT INTO fixed_assets (organization_id, company_id, asset_number, name, category_id, acquisition_date, cost, useful_life_months, vat_capital_asset_class, income_tax_group)
+       VALUES ($1,$2,'FA-SHAPE','Shape Asset',$3,'2026-01-01',1000,60,'movable',3)`,
+      [o, c, shapeCat],
     );
     await pool.query(
       `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name)

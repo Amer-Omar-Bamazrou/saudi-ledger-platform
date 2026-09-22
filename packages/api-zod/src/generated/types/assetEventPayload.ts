@@ -5,9 +5,5 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { Asset } from './asset';
 
-export type AssetListItem = Asset & ({
-  /** @nullable */
-  categoryName: string | null;
-});
+export type AssetEventPayload = { [key: string]: unknown };

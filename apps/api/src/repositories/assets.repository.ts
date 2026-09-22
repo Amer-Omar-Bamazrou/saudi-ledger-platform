@@ -1,67 +1,163 @@
-/** Fixed assets repository — tenant-scoped via RLS. */
-import { db, fixedAssetsTable, depreciationEntriesTable, categoriesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+/**
+ * Fixed assets repository — tenant-scoped via RLS (FA-A, 2026-09-22).
+ *
+ * The register stores FACTS; accumulated depreciation and the carrying amount
+ * are DERIVED here from the POSTED schedule rows (journal_entry_id set) plus
+ * a migrated asset's opening position — the same rows that posted the GL, so
+ * the register and the ledger cannot disagree by construction.
+ */
+import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, categoriesTable } from "@workspace/db";
+import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
+export type DerivedFigures = { accumulatedDepreciation: number; carryingAmount: number; postedPeriods: number; plannedPeriods: number; lastPostedPeriod: string | null; nextPeriod: string | null };
+
+const figuresSql = sql<string>`
+  (SELECT json_build_object(
+      'accumulated', (${fixedAssetsTable}."opening_accumulated_depreciation" + coalesce(sum(s.amount) FILTER (WHERE s.journal_entry_id IS NOT NULL), 0))::text,
+      'posted', count(*) FILTER (WHERE s.journal_entry_id IS NOT NULL),
+      'planned', count(*) FILTER (WHERE s.journal_entry_id IS NULL),
+      'last_posted', max(s.period) FILTER (WHERE s.journal_entry_id IS NOT NULL),
+      'next', min(s.period) FILTER (WHERE s.journal_entry_id IS NULL)
+    )::text
+   FROM asset_depreciation_schedule s WHERE s.asset_id = ${fixedAssetsTable}."id")`;
+
+export function parseFigures(asset: { cost: string; status: string }, raw: string | null): DerivedFigures {
+  const j = raw ? (JSON.parse(raw) as { accumulated: string; posted: number; planned: number; last_posted: string | null; next: string | null }) : null;
+  const accumulated = Number(j?.accumulated ?? 0);
+  const cost = Number(asset.cost);
+  return {
+    accumulatedDepreciation: accumulated,
+    carryingAmount: asset.status === "disposed" ? 0 : Math.round((cost - accumulated) * 100) / 100,
+    postedPeriods: Number(j?.posted ?? 0),
+    plannedPeriods: Number(j?.planned ?? 0),
+    lastPostedPeriod: j?.last_posted ?? null,
+    nextPeriod: j?.next ?? null,
+  };
+}
+
 export const assetsRepository = {
-  /**
-   * 🔴 The category NAME is joined, because the Fixed Asset Schedule has a
-   * Category column and the row carries only `category_id`. The page had been
-   * reading `a.category` — a field no response ever contained — so the column
-   * rendered blank beside four other invented fields that rendered NaN.
-   */
-  list(page: { limit?: number; offset?: number } = {}) {
+  // ── categories ──
+  categories(includeInactive = false) {
     return db
-      .select({ asset: fixedAssetsTable, categoryName: categoriesTable.name })
+      .select({
+        category: assetCategoriesTable,
+        costAccountName: sql<string>`(SELECT c.name FROM categories c WHERE c.id = ${assetCategoriesTable}."cost_account_id")`,
+        accumulatedAccountName: sql<string>`(SELECT c.name FROM categories c WHERE c.id = ${assetCategoriesTable}."accumulated_depreciation_account_id")`,
+        expenseAccountName: sql<string>`(SELECT c.name FROM categories c WHERE c.id = ${assetCategoriesTable}."depreciation_expense_account_id")`,
+        assetCount: sql<number>`(SELECT count(*)::int FROM fixed_assets a WHERE a.category_id = ${assetCategoriesTable}."id" AND a.status <> 'cancelled')`,
+      })
+      .from(assetCategoriesTable)
+      .where(includeInactive ? undefined : eq(assetCategoriesTable.isActive, true))
+      .orderBy(assetCategoriesTable.name);
+  },
+  findCategory(id: number) {
+    return db.select().from(assetCategoriesTable).where(eq(assetCategoriesTable.id, id)).limit(1);
+  },
+  insertCategory(values: typeof assetCategoriesTable.$inferInsert) {
+    return db.insert(assetCategoriesTable).values(values).returning();
+  },
+  updateCategory(id: number, values: Partial<typeof assetCategoriesTable.$inferInsert>) {
+    return db.update(assetCategoriesTable).set(values).where(eq(assetCategoriesTable.id, id)).returning();
+  },
+  /** The account rows a category binds, with their types — the service refuses a mistyped triple. */
+  accountsByIds(ids: number[]): Promise<{ id: number; name: string; type: string; systemCode: string | null; isPosting: boolean | null }[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return db.select({ id: categoriesTable.id, name: categoriesTable.name, type: categoriesTable.type, systemCode: categoriesTable.systemCode, isPosting: categoriesTable.isPosting }).from(categoriesTable).where(inArray(categoriesTable.id, ids));
+  },
+  systemAccount(code: string) {
+    return db.select({ id: categoriesTable.id, name: categoriesTable.name }).from(categoriesTable).where(eq(categoriesTable.systemCode, code)).limit(1);
+  },
+
+  // ── assets ──
+  list(page: { limit?: number; offset?: number } = {}, filter: { status?: string; categoryId?: number } = {}) {
+    const conditions = [sql`${fixedAssetsTable.status} <> 'cancelled'`];
+    if (filter.status) conditions.push(eq(fixedAssetsTable.status, filter.status));
+    if (filter.categoryId) conditions.push(eq(fixedAssetsTable.categoryId, filter.categoryId));
+    return db
+      .select({ asset: fixedAssetsTable, categoryName: assetCategoriesTable.name, figures: figuresSql })
       .from(fixedAssetsTable)
-      .leftJoin(categoriesTable, eq(fixedAssetsTable.categoryId, categoriesTable.id))
-      .orderBy(fixedAssetsTable.purchaseDate)
+      .leftJoin(assetCategoriesTable, eq(fixedAssetsTable.categoryId, assetCategoriesTable.id))
+      .where(and(...conditions))
+      .orderBy(fixedAssetsTable.acquisitionDate, fixedAssetsTable.id)
       .limit(page.limit ?? DEFAULT_PAGE)
       .offset(page.offset ?? 0);
   },
-
   /**
-   * 🔴 The register's figures, over EVERY asset — never over the page.
-   * `activeCount` is here rather than filtered client-side for the same reason:
-   * the Fixed Asset Schedule's "Total Assets" card counts active assets, and a
-   * page-scoped count of them is a number describing a set the reader is not
-   * looking at (B-6).
+   * 🔴 The register's figures over EVERY asset, never over the page (B-6):
+   * cost, accumulated (opening + posted rows) and carrying amount of the
+   * assets in the books (in service), plus the counts per state.
    */
-  async listTotals() {
-    const [row] = await db
-      .select({
-        total: sql<number>`count(*)::int`,
-        activeCount: sql<number>`COUNT(*) FILTER (WHERE ${fixedAssetsTable.status} = 'active')::int`,
-        purchaseCost: sql<number>`COALESCE(SUM(${fixedAssetsTable.purchaseCost}), 0)::float8`,
-        accumulatedDepreciation: sql<number>`COALESCE(SUM(${fixedAssetsTable.accumulatedDepreciation}), 0)::float8`,
-        currentBookValue: sql<number>`COALESCE(SUM(${fixedAssetsTable.currentBookValue}), 0)::float8`,
-      })
-      .from(fixedAssetsTable);
+  async listTotals(filter: { status?: string; categoryId?: number } = {}) {
+    const conditions = [sql`a.status <> 'cancelled'`];
+    if (filter.status) conditions.push(sql`a.status = ${filter.status}`);
+    if (filter.categoryId) conditions.push(sql`a.category_id = ${filter.categoryId}`);
+    const where = sql.join(conditions, sql` AND `);
+    const [row] = (await db.execute<{ total: number; drafts: number; in_service: number; disposed: number; cost: string; accumulated: string }>(sql`
+      SELECT count(*)::int AS total,
+             count(*) FILTER (WHERE a.status = 'draft')::int AS drafts,
+             count(*) FILTER (WHERE a.status = 'in_service')::int AS in_service,
+             count(*) FILTER (WHERE a.status = 'disposed')::int AS disposed,
+             coalesce(sum(a.cost) FILTER (WHERE a.status = 'in_service'), 0)::text AS cost,
+             coalesce(sum(a.opening_accumulated_depreciation + coalesce((SELECT sum(s.amount) FROM asset_depreciation_schedule s WHERE s.asset_id = a.id AND s.journal_entry_id IS NOT NULL), 0)) FILTER (WHERE a.status = 'in_service'), 0)::text AS accumulated
+        FROM fixed_assets a WHERE ${where}`)).rows;
+    const cost = Number(row?.cost ?? 0);
+    const accumulated = Number(row?.accumulated ?? 0);
     return {
       total: Number(row?.total ?? 0),
-      activeCount: Number(row?.activeCount ?? 0),
-      purchaseCost: Number(row?.purchaseCost ?? 0),
-      accumulatedDepreciation: Number(row?.accumulatedDepreciation ?? 0),
-      currentBookValue: Number(row?.currentBookValue ?? 0),
+      drafts: Number(row?.drafts ?? 0),
+      inService: Number(row?.in_service ?? 0),
+      disposed: Number(row?.disposed ?? 0),
+      cost,
+      accumulatedDepreciation: accumulated,
+      carryingAmount: Math.round((cost - accumulated) * 100) / 100,
     };
   },
   findById(id: number) {
-    return db.select().from(fixedAssetsTable).where(eq(fixedAssetsTable.id, id)).limit(1);
-  },
-  depreciationByAsset(id: number) {
     return db
-      .select()
-      .from(depreciationEntriesTable)
-      .where(eq(depreciationEntriesTable.assetId, id))
-      .orderBy(depreciationEntriesTable.period);
+      .select({ asset: fixedAssetsTable, categoryName: assetCategoriesTable.name, figures: figuresSql })
+      .from(fixedAssetsTable)
+      .leftJoin(assetCategoriesTable, eq(fixedAssetsTable.categoryId, assetCategoriesTable.id))
+      .where(eq(fixedAssetsTable.id, id))
+      .limit(1);
+  },
+  findByNumber(assetNumber: string) {
+    return db.select({ id: fixedAssetsTable.id }).from(fixedAssetsTable).where(eq(fixedAssetsTable.assetNumber, assetNumber)).limit(1);
   },
   insert(values: typeof fixedAssetsTable.$inferInsert) {
     return db.insert(fixedAssetsTable).values(values).returning();
   },
   update(id: number, values: Partial<typeof fixedAssetsTable.$inferInsert>) {
-    return db.update(fixedAssetsTable).set(values).where(eq(fixedAssetsTable.id, id)).returning();
+    return db.update(fixedAssetsTable).set({ ...values, updatedAt: new Date() }).where(eq(fixedAssetsTable.id, id)).returning();
   },
-  insertDepreciationEntry(values: typeof depreciationEntriesTable.$inferInsert) {
-    return db.insert(depreciationEntriesTable).values(values).returning();
+
+  // ── schedule ──
+  schedule(assetId: number) {
+    return db.select().from(assetDepreciationScheduleTable).where(eq(assetDepreciationScheduleTable.assetId, assetId)).orderBy(assetDepreciationScheduleTable.sequence);
+  },
+  plannedRows(assetId: number) {
+    return db.select().from(assetDepreciationScheduleTable).where(and(eq(assetDepreciationScheduleTable.assetId, assetId), isNull(assetDepreciationScheduleTable.journalEntryId))).orderBy(assetDepreciationScheduleTable.sequence);
+  },
+  postedRows(assetId: number) {
+    return db.select().from(assetDepreciationScheduleTable).where(and(eq(assetDepreciationScheduleTable.assetId, assetId), isNotNull(assetDepreciationScheduleTable.journalEntryId))).orderBy(assetDepreciationScheduleTable.sequence);
+  },
+  insertScheduleRows(rows: (typeof assetDepreciationScheduleTable.$inferInsert)[]) {
+    if (rows.length === 0) return Promise.resolve([]);
+    return db.insert(assetDepreciationScheduleTable).values(rows).returning();
+  },
+  /** Only PLANNED rows go (the trigger refuses a posted one anyway). */
+  deletePlannedRows(assetId: number) {
+    return db.delete(assetDepreciationScheduleTable).where(and(eq(assetDepreciationScheduleTable.assetId, assetId), isNull(assetDepreciationScheduleTable.journalEntryId))).returning({ id: assetDepreciationScheduleTable.id });
+  },
+  markRowPosted(rowId: number, journalEntryId: number) {
+    return db.update(assetDepreciationScheduleTable).set({ journalEntryId, postedAt: new Date() }).where(and(eq(assetDepreciationScheduleTable.id, rowId), isNull(assetDepreciationScheduleTable.journalEntryId))).returning();
+  },
+
+  // ── events ──
+  events(assetId: number) {
+    return db.select().from(assetEventsTable).where(eq(assetEventsTable.assetId, assetId)).orderBy(assetEventsTable.id);
+  },
+  insertEvent(values: typeof assetEventsTable.$inferInsert) {
+    return db.insert(assetEventsTable).values(values).returning();
   },
 };

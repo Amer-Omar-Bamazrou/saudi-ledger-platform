@@ -37,8 +37,8 @@ import { fileURLToPath } from "node:url";
  * calling the API the pages call: invoices with lines, submitted and approved
  * (hash, QR, ICV, GL — the real chain), paid through the pay path; a credit
  * note against a paid invoice; bills posted and paid; a payroll run approved
- * (GL); an opening entry with real account ids, posted; an asset depreciated
- * by the product; bank transactions imported through the upload path so they
+ * (GL); an opening entry with real account ids, posted; a draft asset under a
+ * category (FA-A); bank transactions imported through the upload path so they
  * land in review. Standing rule 2 applied to the browser suite: only real rows
  * test the code you forgot to write.
  *
@@ -399,19 +399,20 @@ export default async function globalSetup(): Promise<void> {
   await api(ctx, "POST", `/payroll/${run.id}/submit`);
   await api(ctx, "POST", `/payroll/${run.id}/approve`);
 
-  // An asset, depreciated by the product for six months so cost = book +
-  // accumulated holds by construction and the history explains the balance.
-  const asset = await api(ctx, "POST", "/assets", {
+  // FA-A (2026-09-22): a category (the account triple + the Art. 17 group + the
+  // Art. 52 class) and a DRAFT asset — nothing posted; capitalisation and the
+  // monthly run arrive with FA-B and seed their own rows then.
+  const assetCategory = await api(ctx, "POST", "/asset-categories", { name: "Computers and equipment", nameAr: "حواسيب ومعدات", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
+  await api(ctx, "POST", "/assets", {
     assetNumber: "E2E-FA-001",
     name: "Office laptop",
-    purchaseDate: "2026-01-15",
-    purchaseCost: 12000,
-    salvageValue: 0,
-    usefulLifeYears: 4,
+    categoryId: assetCategory.id,
+    acquisitionDate: "2026-01-15",
+    availableForUseDate: "2026-01-15",
+    cost: 12000,
+    residualValue: 0,
+    vatInputTaxAmount: 1800,
   });
-  for (const period of ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"]) {
-    await api(ctx, "POST", `/assets/${asset.id}/depreciate`, { period });
-  }
 
   await api(ctx, "POST", "/budgets", { name: "E2E Marketing Budget", period: "2026", budgetedAmount: 50000 });
 

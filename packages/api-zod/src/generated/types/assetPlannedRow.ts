@@ -6,11 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface DepreciationEntry {
-  id: number;
-  assetId: number;
+export interface AssetPlannedRow {
   period: string;
+  sequence: number;
   amount: number;
-  bookValueAfter: number;
-  createdAt: string;
+  accumulatedAfter: number;
+  carryingAfter: number;
 }

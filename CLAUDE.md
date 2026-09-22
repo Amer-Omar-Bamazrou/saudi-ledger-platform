@@ -58,8 +58,9 @@ When in doubt, favor evolving the existing system over replacing it.
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
-**2026-09-20** — 🔴 **BATCH 1B + 1C MERGED** (PR #164, `a290d079`): D-4 payments with UI; A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (2026-09-22, `feat/migration-followups`, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated bad-debt relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165, `77fcf3f4`): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed under Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) structured and posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), both shapes CLEARED. Open: Z1.
+**2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164, `a290d079`); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (2026-09-22, PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
+**2026-09-22** — 🔴 **FIXED ASSETS FA-A BUILT** (`feat/fixed-assets-foundation`; [`pack`](docs/product/fixed-assets-decision-pack.md) §20): three system accounts, categories (Art. 17 group + Art. 52 class + the account triple), the register with DERIVED figures, the schedule table (one row per period, posted rows frozen), append-only events, the pure straight-line engine; nothing posts yet — FA-B next.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165, `77fcf3f4`): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -81,11 +82,9 @@ When in doubt, favor evolving the existing system over replacing it.
 | **Billing** | 🔴 **Does not exist** (queue R1) | §5 |
 | **Security** | F1 + F2 CLOSED; G-1 checked and absent; privilege surface map live; permission grants, cross-company isolation and git history all audited 2026-08-31 | [`hld`](docs/hld.md) §3; findings file, "THE THREE COVERAGE GAPS, AUDITED" |
 
-**Owner-approved audit order, in flight:** operator surface ✅ → accounting-core
-services ✅ → **the write paths** (next).
+**Owner-approved audit order:** operator surface ✅ → accounting-core services ✅ → **the write paths** (next).
 
-**Live owner actions** (entity → advisor → Groq → receipts):
-[`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the single writer for their state; do not restate it here.
+**Live owner actions** (entity → advisor → Groq → receipts): [`docs/product/owner-actions.md`](docs/product/owner-actions.md) is the single writer; never restated here.
 
 ### 🔴 What is verified LIVE vs only LOCALLY (ZATCA)
 
@@ -123,9 +122,9 @@ it except the owner registering the entity. It gates **two workstreams**:
 
 Schema changes, breaking API changes, renames and reversals are **cheap
 now** — no migration burden, no one to notify. That does **not** excuse
-correctness in what is hard to retrofit (tenant isolation, the ZATCA chain,
-audit trails, append-only guarantees, fail-closed posture): cheap now is the
-argument for getting them right now. **Revisit when the first tenant onboards.**
+what is hard to retrofit (tenant isolation, the ZATCA chain, audit trails,
+append-only guarantees, fail-closed posture): cheap now is the argument for
+getting them right now. **Revisit when the first tenant onboards.**
 
 
 ## 3. Standing rules, the standing check, and the named lessons
@@ -494,28 +493,26 @@ its as-built record goes to
 [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md),
 which holds every closed item with its full reasoning.
 
-🔴 **The owner's external plan labels map onto THIS queue** (recorded
-2026-09-02 so it is not re-asked; **use the queue's own IDs from here**):
-P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1 below).
+🔴 **The owner's plan labels map onto THIS queue** (2026-09-02; use the queue's IDs): P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1).
 
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04; the pool closed 2026-09-14)
 
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
-🔴 **Two ERPNext findings still await the OWNER'S RANKING** — withholding tax
-(LEGAL exposure) and fixed-assets GL (wrong statements today) — costed in
-[`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)'s
-triage addendum.
+🔴 **Withholding tax (LEGAL exposure) still awaits the OWNER'S RANKING** —
+costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
+**Fixed assets: IN BUILD** — [`fixed-assets-decision-pack.md`](docs/product/fixed-assets-decision-pack.md)
+(FA-1/FA-2 answered 2026-09-22; FA-A built, §20; FA-B… follow).
 
 ### Blocking, by their own nature
 
 | # | Item | What would close it |
 | --- | --- | --- |
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, billing or plan gating exists; `ai_usage` meters but nothing makes a tenant a PAYING tenant. The last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, gating. For customer #1 an off-platform invoice suffices; it stops sufficing quickly. |
-| **ZATCA M12.7 + M12.9** | Blocked on a **registered Saudi company entity with an active ZATCA VAT registration and ERAD credentials**, which does not exist. Not a technical step. | The owner registering the entity. No rework expected — sandbox exercises the same API surface. **Do not** mock simulation to "finish" M12, and **do not** onboard a real tenant before both have run. |
-| **A2 bank feeds** | Same blocker: signing with a SAMA-licensed open-banking provider almost certainly requires a Saudi CR. | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1 — THE INVOICE LEAVES THE PRODUCT"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
-| **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; the gate 403s business routes until an operator approves, so "sign up and start" is "sign up and wait for us". Deliberate KYC — but the WAIT is undefined. | Owner decides the target turnaround, who staffs it, and what the pending screen promises. |
+| **ZATCA M12.7 + M12.9** | Blocked on the **registered entity** (§2 "What is blocked"). Not a technical step. | The owner registering the entity; no rework expected. **Do not** mock simulation to "finish" M12; **do not** onboard a real tenant before both have run. |
+| **A2 bank feeds** | Same blocker (a SAMA-licensed provider needs a Saudi CR). | Conversations stay useful without the entity; **signatures do not.** |
+| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
+| **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review` and business routes 403 until an operator approves: deliberate KYC, but the WAIT is undefined. | Owner decides the turnaround, who staffs it, and what the pending screen promises. |
 
 
 ### Deployment-time — cannot be closed from code
@@ -526,7 +523,7 @@ triage addendum.
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter in either direction. |
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
 | **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
-| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is not an exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project exists yet. L1's Chromium renderer adds ~150 MB to the deployment. |
+| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project yet. L1's Chromium renderer adds ~150 MB. |
 
 ### Advisor package — one conversation
 
@@ -551,9 +548,9 @@ the order is not the severity order.**
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
 | **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The genuine long tail. |
+| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
-**Open DECISION:** `platform-alarms` is NOT operator-runnable (a one-line flip).
+**Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
 
 **B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
 routes walked **by clicking** (a `goto` repairs the loss before it is seen);
@@ -587,7 +584,7 @@ fresh hold-out before launch. Record: findings file,
 - The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.
 - The Categories UI cannot mark system accounts (no edit routes exist).
 - **Deferred:** action-level permissions (post-to-GL / pay / approve gateable separately).
-- 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local Supabase CLI stack where the grants were measured.
+- 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 

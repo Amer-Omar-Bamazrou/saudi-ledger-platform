@@ -5,6 +5,10 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { AssetDepreciationMethod } from './assetDepreciationMethod';
+import type { AssetSource } from './assetSource';
+import type { AssetStatus } from './assetStatus';
+import type { AssetVatCapitalAssetClass } from './assetVatCapitalAssetClass';
 
 export interface Asset {
   id: number;
@@ -13,27 +17,75 @@ export interface Asset {
   /** @nullable */
   nameAr: string | null;
   /** @nullable */
-  categoryId: number | null;
-  purchaseDate: string;
-  purchaseCost: number;
-  salvageValue: number;
-  usefulLifeYears: number;
-  depreciationMethod: string;
-  accumulatedDepreciation: number;
-  currentBookValue: number;
+  description: string | null;
+  /** @nullable */
+  serialNumber: string | null;
+  categoryId: number;
+  /** @nullable */
+  categoryName: string | null;
   /** @nullable */
   location: string | null;
   /** @nullable */
-  serialNumber: string | null;
-  status: string;
+  department: string | null;
+  /** @nullable */
+  custodianUserId: number | null;
+  /** The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it. */
+  acquisitionDate: string;
+  /**
+     * IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.
+     * @nullable
+     */
+  availableForUseDate: string | null;
   /** @nullable */
   disposalDate: string | null;
+  cost: number;
+  residualValue: number;
+  usefulLifeMonths: number;
+  depreciationMethod: AssetDepreciationMethod;
+  /** A migrated asset: what the previous system booked before the opening date. */
+  openingAccumulatedDepreciation: number;
+  openingPeriodsBooked: number;
+  /** VAT IR Art. 52(3)/(4): the input tax deducted at acquisition. */
+  vatInputTaxAmount: number;
+  vatInitialRecoveryPct: number;
+  vatCapitalAssetClass: AssetVatCapitalAssetClass;
+  /**
+     * Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.
+     * @nullable
+     */
+  vatAdjustmentPeriodYears: number | null;
   /** @nullable */
-  disposalValue: number | null;
+  vatNonDeductibleReason: string | null;
+  incomeTaxGroup: number;
+  incomeTaxRatePct: number;
+  source: AssetSource;
+  /** @nullable */
+  billId: number | null;
+  /** @nullable */
+  transactionId: number | null;
+  /** @nullable */
+  migrationBatchId: number | null;
+  /** @nullable */
+  sourceReference: string | null;
+  status: AssetStatus;
+  /** DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet. */
+  fullyDepreciated: boolean;
+  /** @nullable */
+  capitalisationJournalEntryId: number | null;
   /** @nullable */
   notes: string | null;
+  /** DERIVED — the opening position + the POSTED schedule rows; never a stored column. */
+  accumulatedDepreciation: number;
+  /** DERIVED — cost − accumulated; 0 once disposed. */
+  carryingAmount: number;
+  /** cost − residual (IAS 16.53). */
+  depreciableAmount: number;
+  postedPeriods: number;
+  plannedPeriods: number;
+  /** @nullable */
+  lastPostedPeriod: string | null;
+  /** @nullable */
+  nextPeriod: string | null;
   createdAt: string;
-  /** DERIVED — (cost − salvage) / useful life. */
-  annualDepreciation: number;
-  monthlyDepreciation: number;
+  updatedAt: string;
 }
