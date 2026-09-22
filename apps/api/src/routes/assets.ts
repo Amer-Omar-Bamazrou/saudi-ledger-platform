@@ -17,6 +17,8 @@ router.get("/vat-adjustments", assetsController.vatAdjustments);
 router.get("/vat-adjustments/use-records", assetsController.listVatUseRecords);
 router.post("/vat-adjustments/use-records", assetsController.declareVatUse);
 router.delete("/vat-adjustments/use-records/:id", assetsController.deleteVatUseRecord);
+// FA-G: the roll-forward and the register-to-GL reconciliation — before "/:id".
+router.get("/report", assetsController.report);
 
 router.get("/", assetsController.list);
 router.get("/:id", assetsController.get);

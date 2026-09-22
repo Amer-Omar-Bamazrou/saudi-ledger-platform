@@ -4,6 +4,7 @@ import { assetCapitalisationService } from "../services/assets/capitalisation.se
 import { assetDisposalService } from "../services/assets/disposal.service";
 import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
 import { vatCapitalAssetService } from "../services/assets/vatCapitalAsset.service";
+import { assetReportsService } from "../services/assets/assetReports.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 
 const userOf = (req: Request) => req.session?.userId ?? null;
@@ -79,5 +80,10 @@ export const assetsController = {
   },
   async deleteVatUseRecord(req: Request, res: Response) {
     res.json(await vatCapitalAssetService.removeUse(requireIdParam(req)));
+  },
+  // ── FA-G: the reports ──
+  async report(req: Request, res: Response) {
+    const q = req.query as Record<string, string | undefined>;
+    res.json(await assetReportsService.report({ from: q.from || undefined, to: q.to || undefined }));
   },
 };

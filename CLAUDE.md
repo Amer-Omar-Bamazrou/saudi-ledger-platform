@@ -57,9 +57,9 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-09-21.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "THE FIVE PILOT BLOCKERS"; findings file, "THE SECOND CORE-PATH WALK"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
+**2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "THE FIVE PILOT BLOCKERS"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** (§4, §5).
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes on identified opening items via Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
-**2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-F BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20–§25). The four invariants the rest of the codebase must not break: the register’s figures are DERIVED from its schedule (posted rows FROZEN, never a stored column); a disposal GAIN is OTHER income and `SALES` never moves (IAS 16.68); a MIGRATED asset posts NO line — it reconciles to the opening trial balance (A5); and the Art. 17 income-tax POOL is a REPORT, whose anchor and Art. 18 repairs are DECLARED and whose 17(h)/17(i) elections are OFFERED, never taken. 🔴 The Art. 17 pool, the VAT Art. 52 adjustment and depreciation run on THREE DIFFERENT CLOCKS (fiscal year · tax period · accounting life); none may stand in for another.
+**2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-G BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20–§26). The four invariants the rest of the codebase must not break: the register’s figures are DERIVED from its schedule (posted rows FROZEN); a disposal GAIN is OTHER income and `SALES` never moves (IAS 16.68); a MIGRATED asset posts NO line — it ties to the opening trial balance (A5); and the Art. 17 income-tax POOL is a REPORT whose anchor and Art. 18 repairs are DECLARED and whose 17(h)/17(i) elections are OFFERED, never taken. 🔴 The Art. 17 pool, the VAT Art. 52 adjustment and depreciation run on THREE DIFFERENT CLOCKS (fiscal year · tax period · accounting life); none may stand in for another. 🔴 The register-to-GL reconciliation (`/assets/report`) reads the WHOLE account, not the register’s own lines — a fixed-asset account posted to from OUTSIDE the register is what it exists to surface.
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
@@ -500,7 +500,7 @@ which holds every closed item with its full reasoning.
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
 🔴 **Withholding tax (LEGAL exposure) awaits the OWNER'S RANKING** — costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
-**Fixed assets: FA-A…FA-F BUILT** — [`pack`](docs/product/fixed-assets-decision-pack.md) (FA-1/FA-2 answered; reporting and the return wiring remain).
+**Fixed assets: FA-A…FA-G BUILT** — [`pack`](docs/product/fixed-assets-decision-pack.md) (FA-1/FA-2 answered; the VAT-return wiring remains, and needs the accountant).
 
 ### Blocking, by their own nature
 
@@ -510,7 +510,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 | **ZATCA M12.7 + M12.9** | Blocked on the **registered entity** (§2 "What is blocked"). Not a technical step. | The owner registering the entity; no rework expected. **Do not** mock simulation to "finish" M12; **do not** onboard a real tenant before both have run. |
 | **A2 bank feeds** | Same blocker (a SAMA-licensed provider needs a Saudi CR). | Conversations stay useful without the entity; **signatures do not.** |
 | **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
-| **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review` and business routes 403 until an operator approves: deliberate KYC, but the WAIT is undefined. | Owner decides the turnaround, who staffs it, and what the pending screen promises. |
+| **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; business routes 403 until an operator approves. Deliberate KYC, but the WAIT is undefined. | Owner decides the turnaround, who staffs it, and what the pending screen promises. |
 
 
 ### Deployment-time — cannot be closed from code
@@ -521,7 +521,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter either way. |
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, a CloudTrail alarm on deletion attempts, a multi-region CMK replica. If the CMK dies, every tenant re-onboards. |
 | **C4 (remaining half)** | Deploy a clamd sidecar, `MALWARE_SCANNER=clamd`. M-5 closes with it. |
-| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project yet. L1's Chromium renderer adds ~150 MB. |
+| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project yet. |
 
 ### Advisor package — one conversation
 

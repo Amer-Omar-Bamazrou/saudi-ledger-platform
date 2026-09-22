@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A…FA-F are BUILT — §20 the foundation, §21 capitalisation and the monthly run, §22 disposal, §23 migrated assets, §24 the Art. 17 income-tax pool, §25 the VAT Art. 52 adjustment.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A…FA-G are BUILT — §20 the foundation, §21 capitalisation and the monthly run, §22 disposal, §23 migrated assets, §24 the Art. 17 income-tax pool, §25 the VAT Art. 52 adjustment, §26 the reports and the register-to-GL reconciliation.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -814,3 +814,90 @@ year is *reasoned-not-verified* and stated on the report. Art. 51(6) (estimated
 values for a taxpayer not registered in the previous year) and 51(7)'s own
 year-end true-up of the fraction are the taxpayer's, and are offered as a
 declared `year_end_true_up` basis rather than computed.
+
+---
+
+## 26. FA-G — the reports, and the reconciliation that is the point of them (2026-09-22)
+
+`STANDARD (IFRS)` for the roll-forward; `PRODUCT DECISION` for the controls.
+Pack §11 listed nine reports; this section says which now exist, where, and
+which deliberately do not.
+
+### 26.1 🔴 The reconciliation is the forcing function the old register lacked
+
+Before FA-A the register stored a cost and a book value **beside** the rows that
+produced them — two value spaces with nothing joining them — and its
+depreciation never reached the GL at all. FA-A removed the stored figures. This
+report removes the remaining way the two could drift unnoticed, by asking the
+question out loud, per category:
+
+| Control | Register side | Ledger side |
+| --- | --- | --- |
+| `FA_COST` | Σ cost of the assets **in service** | the category's cost account |
+| `FA_ACCUMULATED` | Σ accumulated depreciation of those assets | the accumulated account |
+| `FA_EXPENSE` | Σ **posted** schedule rows, all time | the depreciation expense account |
+
+🔴 **The ledger side is the WHOLE account, not only the lines the register
+produced.** The categorizer can map a bank transaction straight onto a
+fixed-asset account, and a difference arriving from outside the register is
+exactly what the control exists to surface — netting it out would make the
+control pass while the books disagreed. A failing control reports **both**
+figures, their difference and the account's own name, because the reader's next
+act is to open that account; a bare "does not reconcile" sends them looking for
+the number itself.
+
+The ledger side reads `JE_IN_BOOKS` (`posted` + `reversed`), so a reversal pair
+nets to zero rather than double-negating — the standing rule, applied here.
+
+### 26.2 The roll-forward is built on EVENTS, not on two snapshots
+
+IAS 16.73(e) per category: opening cost, additions, disposals, closing; opening
+accumulated, the charge, disposals, closing; and the net book value. Every
+figure is an **event inside the window** — opening is what was in service before
+it opened, additions are what was capitalised inside it, disposals what was
+disposed inside it.
+
+🔴 A roll-forward assembled from two balance snapshots **cannot show an asset
+bought and disposed of within the window at all**, and that is the movement a
+reader most needs to see. The test's fixture contains exactly such an asset, and
+asserts it appears in both additions and disposals and in neither opening nor
+closing — plus that both roll-forwards add up.
+
+### 26.3 What else the report carries
+
+- **Additions and disposals listed** — the rows behind the figures, each linking to its asset and carrying its journal entry.
+- **The disposal result** (IAS 16.71), stated with the reminder that it is never revenue.
+- 🔴 **The Zakat feed**: net fixed assets per category. Zakat reads the **book** figures (Zakat Regulations Art. 48(1)(b), 49, 63(2)), so it is the *same* closing net book value the movement table shows, **stated once** rather than recomputed — the Zakat working paper and this report cannot disagree about "net fixed assets". Income tax uses an entirely different basis; the page says so and links to the Art. 17 pool.
+
+### 26.4 Verified
+
+`tests/fixed-assets-report.test.ts` (5, real rows): the event-based roll-forward
+with an asset bought and scrapped inside the window, both roll-forwards adding
+up, and the disposal listed with a loss that is not revenue; a **narrower window
+giving a different answer on the same rows**; every control passing on books the
+product wrote with **non-zero figures on both sides**, so the pass is not
+vacuous; 🔴 the `FA_COST` control **failing** after a journal entry posts to the
+cost account from outside the register — with both figures, the difference and
+the account named, and only that control moving — then **passing again** once
+the entry is reversed; and a disposed asset contributing to neither side while
+still being in the register as a disposed row.
+
+`e2e/fixed-asset-report.spec.ts` (5, clicked): the roll-forward rendering and
+adding up against the API; the verdict at the top; 🔴 the walk **breaking the
+books on purpose** through the product's own journal-entry path to see the
+failure rendered, then reversing it; the window changed by typing dates giving a
+different answer; Arabic `dir=rtl` and 390 px. The teardown always reverses the
+breaking entry, so a failed leg cannot leave the tenant's books broken for every
+later spec.
+
+`pnpm run verify`: green.
+
+### 26.5 What this did not do
+
+The **depreciation expense by period and category** report of §11 is the income
+statement's own job and is not duplicated here. There is no export (CSV/PDF) —
+the page is a working paper, and an export is its own decision about what a
+downloaded figure asserts. The reconciliation does not yet run in
+`scripts/ledgerInvariants.ts` alongside the D-4 invariants; it is the same three
+questions and belongs there, which is the next mechanical step rather than part
+of this one.
