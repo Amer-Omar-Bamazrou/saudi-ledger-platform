@@ -71,6 +71,7 @@ export function standardInvoice(overrides: Partial<EInvoiceInput> = {}): EInvoic
     documentType: "invoice",
     subtype: "standard",
     issuedAt: new Date("2026-04-01T09:13:57Z"),
+    supplyDate: null,
     currency: "SAR",
     seller: SELLER,
     buyer: BUYER_B2B,

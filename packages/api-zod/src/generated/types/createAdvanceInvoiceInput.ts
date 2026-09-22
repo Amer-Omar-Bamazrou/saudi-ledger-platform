@@ -13,7 +13,7 @@ export interface CreateAdvanceInvoiceInput {
      */
   amount: number;
   /**
-     * Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt.
+     * 2026-09-22: IGNORED unless equal to the receipt date. An advance tax invoice is dated at its TAX POINT, the receipt date, always (accountant 1(a)); a locked receipt month is refused (423 advance_tax_point_period_locked, naming the Art. 63 remedy). Its IssueDate is the issuance instant, recorded separately.
      * @nullable
      */
   date?: string | null;

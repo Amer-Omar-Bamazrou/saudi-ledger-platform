@@ -11,7 +11,7 @@ import { customersRepository } from "../repositories/customers.repository";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { businessToday } from "@workspace/shared";
 import { depositReviewService, endOfMonth } from "./depositReview.service";
-import { isAdvanceDocumentType } from "@workspace/shared";
+import { isVatOnlyDocumentType } from "@workspace/shared";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
@@ -475,7 +475,7 @@ export const reportsService = {
       // AP-2: an advance tax invoice is not a receivable document — the
       // customer ledger lists what is owed; the statement carries the 386
       // in the chronology and the receipt card carries it beside its deposit.
-      if (isAdvanceDocumentType(inv.documentType)) continue;
+      if (isVatOnlyDocumentType(inv.documentType)) continue; // AP-2/AP-3/40(9): VAT-only documents own no receivable
       const cid = inv.customerId ?? 0;
       if (!custMap.has(cid)) custMap.set(cid, { customer: cust, invoices: [] });
       // M12.1b: a credit note appears on the ledger as a NEGATIVE line (its
@@ -498,7 +498,7 @@ export const reportsService = {
         status: inv.status,
         total: fmt2(sign * toNum(inv.total)), paidAmount: fmt2(isNote ? 0 : toNum(inv.paidAmount)),
         creditedAmount: fmt2(isNote ? 0 : credited),
-        outstanding: fmt2(isNote ? 0 : toNum(inv.total) - toNum(inv.paidAmount) - credited),
+        outstanding: fmt2(isNote ? 0 : toNum(inv.total) - toNum(inv.paidAmount) - credited - toNum(inv.writtenOffAmount)),
         vatAmount: fmt2(sign * toNum(inv.vatAmount)), subtotal: fmt2(sign * toNum(inv.subtotal)),
       });
     }
@@ -615,9 +615,9 @@ export const reportsService = {
      */
     for (const { inv, cust } of rows) {
       if (inv.documentType === "credit_note") continue; // a note is applied to invoices; it is not itself receivable
-      if (isAdvanceDocumentType(inv.documentType)) continue; // AP-2/AP-3: an advance tax invoice (and its credit note) declares VAT on cash already received; nothing is owed on it
+      if (isVatOnlyDocumentType(inv.documentType)) continue; // AP-2/AP-3/Art. 40(9): a VAT-only document declares VAT on cash already received; nothing is owed on it
       const credited = toNum(inv.creditedAmount);
-      const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited) * 100) / 100;
+      const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited - toNum(inv.writtenOffAmount)) * 100) / 100;
       if (Math.abs(outstanding) < 0.01) continue;
       const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
@@ -738,12 +738,13 @@ export const reportsService = {
     // box (advance-payments decision pack §4; the boxes read documents only).
     const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
 
-    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows] = await Promise.all([
+    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
       reportsRepository.invoiceLinesInRange(dateFrom, dateTo),
       reportsRepository.billsInRange(dateFrom, dateTo),
       reportsRepository.billLinesInRange(dateFrom, dateTo),
       reportsRepository.prepaymentsInRange(dateFrom, dateTo),
+      reportsRepository.badDebtReliefsInRange(dateFrom, dateTo),
     ]);
 
     /**
@@ -835,7 +836,18 @@ export const reportsService = {
       }
     }
 
-    const netVatDue = outputVat - inputVat;
+    /**
+     * 🔴 2026-09-22 — BAD-DEBT RELIEF (IR Art. 40(7)): the Output Tax on
+     * consideration never received is REDUCED in the return for the period in
+     * which the conditions were met (the claim date) — box 7, an adjustment,
+     * never a rewrite of the supply's own period. The Art. 40(9) recovery
+     * invoice is an ordinary row above: it files positive in the payment's
+     * period. Only reliefs claimed HERE appear; a migrated relief was in the
+     * previous system's return.
+     */
+    const badDebtReliefVat = fmt2(reliefRows.reduce((s, r) => s + toNum(r.reliefVat), 0));
+    const vatAdjustments = -badDebtReliefVat;
+    const netVatDue = outputVat + vatAdjustments - inputVat;
     return {
       period: { from: dateFrom, to: dateTo },
       depositReview: { asOf: review.asOf, needsReviewCount: review.needsReviewCount, needsReviewAmount: fmt2(review.needsReviewAmount), overdueCount: review.overdueCount },
@@ -846,8 +858,9 @@ export const reportsService = {
         box4_exportSales: 0,
         box5_totalSales: fmt2(standardRatedSales + zeroRatedSales + exemptSales),
         box6_vatOnStandardRatedSales: fmt2(outputVat),
-        box7_vatAdjustments: 0,
-        box8_totalOutputVat: fmt2(outputVat),
+        box7_vatAdjustments: fmt2(vatAdjustments),
+        box8_totalOutputVat: fmt2(outputVat + vatAdjustments),
+        badDebtReliefs: reliefRows.map((r) => ({ invoiceId: r.id, invoiceNumber: r.invoiceNumber, claimedOn: r.claimedOn!, writtenOffAmount: fmt2(toNum(r.writtenOff)), reliefVat: fmt2(toNum(r.reliefVat)) })),
       },
       purchasesSection: {
         box9_standardRatedPurchases: fmt2(standardRatedPurchases),

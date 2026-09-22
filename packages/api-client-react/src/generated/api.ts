@@ -64,6 +64,7 @@ import type {
   CreateAdvanceCreditNoteInput,
   CreateAdvanceInvoiceInput,
   CreateAssetInput,
+  CreateBadDebtRecoveryInput,
   CreateBillInput,
   CreateCustomerInput,
   CreateEmployeeInput,
@@ -232,6 +233,7 @@ import type {
   VendorInputFields,
   VendorMatchInput,
   VendorMatchResult,
+  WriteOffBadDebtInput,
   ZatcaOnboardInput,
   ZatcaOnboardResult,
   ZatcaOnboardingStatus
@@ -14523,6 +14525,152 @@ export const useReverseMigrationBatch = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseMigrationBatchMutationOptions(options));
+    }
+
+export const getWriteOffBadDebtUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/bad-debt-relief`
+}
+
+/**
+ * ONE act, because the relief presupposes the write-off (Art. 40(7)(d)). Refused by name unless every condition holds: an issued tax invoice or debit note with a customer (bad_debt_not_issued, bad_debt_requires_customer), not a migrated opening item (opening_item_relief_is_migration_fact, the previous system's fact), not already written off, twelve months since the supply (bad_debt_relief_too_early, with the earliest date), a certificate reference, and legal-procedure evidence above SAR 100,000 (bad_debt_legal_procedures_required). Posts, dated claimedOn in an open month: Dr Bad debts (net), Dr VAT Payable (the relief) / Cr AR (the unpaid consideration); the invoice stays issued with writtenOffAmount and badDebtRelief set; the return shows the relief in box 7 for that period.
+ * @summary 2026-09-22: write off an issued invoice's unpaid consideration as a bad debt and claim the Art. 40(7) VAT relief
+ */
+export const writeOffBadDebt = async (id: number,
+    writeOffBadDebtInput: WriteOffBadDebtInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getWriteOffBadDebtUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(writeOffBadDebtInput)
+  }
+);}
+
+
+
+
+
+export const getWriteOffBadDebtMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof writeOffBadDebt>>, TError,{id: number;data: BodyType<WriteOffBadDebtInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof writeOffBadDebt>>, TError,{id: number;data: BodyType<WriteOffBadDebtInput>}, TContext> => {
+
+const mutationKey = ['writeOffBadDebt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof writeOffBadDebt>>, {id: number;data: BodyType<WriteOffBadDebtInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  writeOffBadDebt(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WriteOffBadDebtMutationResult = NonNullable<Awaited<ReturnType<typeof writeOffBadDebt>>>
+    export type WriteOffBadDebtMutationBody = BodyType<WriteOffBadDebtInput>
+    export type WriteOffBadDebtMutationError = ErrorType<void>
+
+    /**
+ * @summary 2026-09-22: write off an issued invoice's unpaid consideration as a bad debt and claim the Art. 40(7) VAT relief
+ */
+export const useWriteOffBadDebt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof writeOffBadDebt>>, TError,{id: number;data: BodyType<WriteOffBadDebtInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof writeOffBadDebt>>,
+        TError,
+        {id: number;data: BodyType<WriteOffBadDebtInput>},
+        TContext
+      > => {
+      return useMutation(getWriteOffBadDebtMutationOptions(options));
+    }
+
+export const getCreateBadDebtRecoveryUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/bad-debt-recoveries`
+}
+
+/**
+ * "A new Tax invoice must be issued to reflect the additional amount received" (IR Art. 40(9)): a NEW ZATCA document, document_type recovery_invoice, dated at the tax point (the receipt's date), its supply date (KSA-5) the same, its IssueDate the real issuance; it names the receivable it recovers (recoversInvoiceId, also the document's billing reference) and the receipt (recoveryPaymentId). A DRAFT: approve it to issue it (ICV, hash, QR, e-invoice) and post Dr Bad debts / Cr VAT Payable for the VAT payable again, plus, for a receivable written off here, the receipt's application (Dr the receipt's liability / Cr Bad debts) with an allocation receipt to document. A receipt dated into a closed month is refused with the Art. 63 explanation (advance_tax_point_period_locked).
+ * @summary 2026-09-22: the Art. 40(9) document, a DRAFT tax invoice (388) for consideration received on a receivable whose VAT was relieved
+ */
+export const createBadDebtRecovery = async (id: number,
+    createBadDebtRecoveryInput: CreateBadDebtRecoveryInput, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateBadDebtRecoveryUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createBadDebtRecoveryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBadDebtRecoveryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBadDebtRecovery>>, TError,{id: number;data: BodyType<CreateBadDebtRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBadDebtRecovery>>, TError,{id: number;data: BodyType<CreateBadDebtRecoveryInput>}, TContext> => {
+
+const mutationKey = ['createBadDebtRecovery'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBadDebtRecovery>>, {id: number;data: BodyType<CreateBadDebtRecoveryInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createBadDebtRecovery(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBadDebtRecoveryMutationResult = NonNullable<Awaited<ReturnType<typeof createBadDebtRecovery>>>
+    export type CreateBadDebtRecoveryMutationBody = BodyType<CreateBadDebtRecoveryInput>
+    export type CreateBadDebtRecoveryMutationError = ErrorType<void>
+
+    /**
+ * @summary 2026-09-22: the Art. 40(9) document, a DRAFT tax invoice (388) for consideration received on a receivable whose VAT was relieved
+ */
+export const useCreateBadDebtRecovery = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBadDebtRecovery>>, TError,{id: number;data: BodyType<CreateBadDebtRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBadDebtRecovery>>,
+        TError,
+        {id: number;data: BodyType<CreateBadDebtRecoveryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBadDebtRecoveryMutationOptions(options));
     }
 
 export const getCreateAdvanceCreditNoteUrl = (id: number,) => {

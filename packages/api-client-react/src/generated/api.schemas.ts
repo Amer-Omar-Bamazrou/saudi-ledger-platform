@@ -1242,6 +1242,14 @@ export type VatReturnDepositReview = {
   overdueCount: number;
 };
 
+export interface VatReturnBadDebtRelief {
+  invoiceId: number;
+  invoiceNumber: string;
+  claimedOn: string;
+  writtenOffAmount: number;
+  reliefVat: number;
+}
+
 export interface VatReturnSalesSection {
   box1_standardRatedDomesticSales: number;
   box2_zeroRatedDomesticSales: number;
@@ -1249,8 +1257,11 @@ export interface VatReturnSalesSection {
   box4_exportSales: number;
   box5_totalSales: number;
   box6_vatOnStandardRatedSales: number;
+  /** 2026-09-22 — the output-VAT adjustments of the period. Today the bad-debt reliefs (IR Art. 40(7)) claimed in the period, as a NEGATIVE figure; box 8 = box 6 + box 7. */
   box7_vatAdjustments: number;
   box8_totalOutputVat: number;
+  /** The Art. 40(7) reliefs claimed in this period (the components of box 7), one per written-off invoice. */
+  badDebtReliefs?: VatReturnBadDebtRelief[];
 }
 
 export interface VatReturnPurchasesSection {
@@ -1645,7 +1656,7 @@ export const InvoiceStatus = {
 } as const;
 
 /**
- * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign).
+ * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).
  */
 export type InvoiceDocumentType = typeof InvoiceDocumentType[keyof typeof InvoiceDocumentType];
 
@@ -1656,7 +1667,44 @@ export const InvoiceDocumentType = {
   debit_note: 'debit_note',
   advance_invoice: 'advance_invoice',
   advance_credit_note: 'advance_credit_note',
+  recovery_invoice: 'recovery_invoice',
 } as const;
+
+export type BadDebtReliefSource = typeof BadDebtReliefSource[keyof typeof BadDebtReliefSource];
+
+
+export const BadDebtReliefSource = {
+  recorded: 'recorded',
+  migrated: 'migrated',
+} as const;
+
+export interface BadDebtRelief {
+  /** YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. */
+  claimedOn: string;
+  /** The Output Tax relieved (the VAT share of the unpaid consideration). */
+  vatAmount: number;
+  /**
+     * YYYY-MM of the return the relief was (or is to be) claimed in.
+     * @nullable
+     */
+  returnPeriod: string | null;
+  /**
+     * The certified accountant's write-off certificate (Art. 40(7)(d)).
+     * @nullable
+     */
+  certificateRef: string | null;
+  /**
+     * Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).
+     * @nullable
+     */
+  legalRef: string | null;
+  source: BadDebtReliefSource;
+  /**
+     * The write-off entry (recorded only).
+     * @nullable
+     */
+  journalEntryId: number | null;
+}
 
 /**
  * KSA-33.
@@ -1763,7 +1811,7 @@ export interface Invoice {
      * @nullable
      */
   qrCode: string | null;
-  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign). */
+  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign). */
   documentType: InvoiceDocumentType;
   /**
      * For a credit/debit note, the invoice it adjusts.
@@ -1784,6 +1832,20 @@ export interface Invoice {
      * @nullable
      */
   advancePaymentId: number | null;
+  /** 2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none. */
+  writtenOffAmount: number;
+  /** 2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform's return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here. */
+  badDebtRelief: BadDebtRelief | null;
+  /**
+     * On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.
+     * @nullable
+     */
+  recoversInvoiceId: number | null;
+  /**
+     * On a recovery_invoice: the receipt whose money it declares; its date is the document's date (the tax point) and supply date.
+     * @nullable
+     */
+  recoveryPaymentId: number | null;
   /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
   prepayments: InvoicePrepayment[];
   /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */
@@ -2341,6 +2403,65 @@ export interface PrepaymentInput {
   amount?: number | null;
 }
 
+export interface WriteOffBadDebtInput {
+  /**
+     * YYYY-MM-DD. Default today. At least twelve months after the supply (Art. 40(7)(c)); an open month.
+     * @nullable
+     */
+  claimedOn?: string | null;
+  /**
+     * The certified accountant's certificate that the unpaid consideration is written off (Art. 40(7)(d)).
+     * @minLength 1
+     * @maxLength 200
+     */
+  certificateRef: string;
+  /**
+     * Required above SAR 100,000 unpaid (Art. 40(7)(e)).
+     * @maxLength 500
+     * @nullable
+     */
+  legalRef?: string | null;
+  /**
+     * YYYY-MM; default claimedOn's month.
+     * @nullable
+     */
+  returnPeriod?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface CreateBadDebtRecoveryInput {
+  /** The receipt whose money recovers the written-off receivable. Its date is the document's date and supply date (the tax point: the period in which the payment occurs, Art. 40(9)). */
+  paymentId: number;
+  /**
+     * VAT inclusive; at most the receipt's unapplied balance and the amount written off and not yet declared (recorded), or the receipt's allocation to the item not yet declared (migrated).
+     * @minimum 0
+     */
+  amount: number;
+  /**
+     * Only for a MIGRATED opening item whose migration recorded no rate: the rate the original tax invoice carried (5 before 1 July 2020, 15 after). Never defaulted; a receivable issued here states its own rate.
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  vatRate?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
 export interface CreateAdvanceCreditNoteInput {
   /**
      * VAT inclusive; at most the 386's open balance.
@@ -2374,7 +2495,7 @@ export interface CreateAdvanceInvoiceInput {
      */
   amount: number;
   /**
-     * Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt.
+     * 2026-09-22: IGNORED unless equal to the receipt date. An advance tax invoice is dated at its TAX POINT, the receipt date, always (accountant 1(a)); a locked receipt month is refused (423 advance_tax_point_period_locked, naming the Art. 63 remedy). Its IssueDate is the issuance instant, recorded separately.
      * @nullable
      */
   date?: string | null;
@@ -3008,6 +3129,8 @@ export const CustomerStatementLineKind = {
   credit_note: 'credit_note',
   advance_invoice: 'advance_invoice',
   advance_credit_note: 'advance_credit_note',
+  bad_debt_write_off: 'bad_debt_write_off',
+  recovery_invoice: 'recovery_invoice',
   receipt: 'receipt',
   allocation: 'allocation',
   credit_application: 'credit_application',
@@ -3529,6 +3652,19 @@ export interface CustomerRefund {
   createdAt: string;
 }
 
+/**
+ * 2026-09-22: the liability the on-account balance sits on, by the current classification (customerCreditPolicy.ts); null once nothing is on account.
+ * @nullable
+ */
+export type CustomerPaymentLiabilityAccountCode = typeof CustomerPaymentLiabilityAccountCode[keyof typeof CustomerPaymentLiabilityAccountCode] | null;
+
+
+export const CustomerPaymentLiabilityAccountCode = {
+  CUSTOMER_DEPOSITS: 'CUSTOMER_DEPOSITS',
+  SECURITY_DEPOSITS_HELD: 'SECURITY_DEPOSITS_HELD',
+  UNIDENTIFIED_RECEIPTS: 'UNIDENTIFIED_RECEIPTS',
+} as const;
+
 export type CustomerPaymentDirection = typeof CustomerPaymentDirection[keyof typeof CustomerPaymentDirection];
 
 
@@ -3579,10 +3715,25 @@ export interface PaymentClassification {
   /** @nullable */
   classifiedBy: number | null;
   classifiedAt: string;
+  /**
+     * 2026-09-22: the date the classification took effect in the books (the reclassification entry's date); null on records made before the liability split.
+     * @nullable
+     */
+  effectiveDate: string | null;
+  /**
+     * 2026-09-22: the RECLASS entry that moved the receipt's on-account balance between liabilities (unidentified/erroneous to UNIDENTIFIED_RECEIPTS, advance to CUSTOMER_DEPOSITS, security deposit to SECURITY_DEPOSITS_HELD); null when the account did not change.
+     * @nullable
+     */
+  reclassificationJournalEntryId: number | null;
 }
 
 export interface CustomerPayment {
   id: number;
+  /**
+     * 2026-09-22: the liability the on-account balance sits on, by the current classification (customerCreditPolicy.ts); null once nothing is on account.
+     * @nullable
+     */
+  liabilityAccountCode: CustomerPaymentLiabilityAccountCode;
   direction: CustomerPaymentDirection;
   /** @nullable */
   customerId: number | null;
@@ -3646,6 +3797,11 @@ export interface ClassifyPaymentInput {
      * @nullable
      */
   note?: string | null;
+  /**
+     * YYYY-MM-DD. 2026-09-22: when the reclassification takes effect in the books (default today; never before the receipt; an open month).
+     * @nullable
+     */
+  effectiveDate?: string | null;
   /**
      * @maxLength 120
      * @nullable

@@ -16,6 +16,9 @@ router.post("/:id/approve", invoicesController.approve);
 // AP-3: a DRAFT credit note against an ADVANCE tax invoice (:id = the 386) — the
 // controlled cancellation path; approval is the separate act on /:id/approve.
 router.post("/:id/advance-credit-notes", invoicesController.creditAdvance);
+// 2026-09-22: bad debts — the Art. 40(7) write-off with relief, and the Art. 40(9) recovery document.
+router.post("/:id/bad-debt-relief", invoicesController.writeOffBadDebt);
+router.post("/:id/bad-debt-recoveries", invoicesController.createBadDebtRecovery);
 router.patch("/:id", invoicesController.update);
 router.post("/:id/pay", invoicesController.pay);
 router.get("/:id/payments", invoicesController.payments);

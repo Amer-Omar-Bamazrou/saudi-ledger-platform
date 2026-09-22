@@ -16,6 +16,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { businessToday } from "@workspace/shared";
 
 test.use({ storageState: E2E.storageState });
 
@@ -53,7 +54,8 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await api.dispose(); });
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// The BUSINESS day (Asia/Riyadh), never the runner's UTC date: between 21:00 and 00:00 UTC they differ, and a document dated the UTC day sorts BEFORE a receipt the product dated the Riyadh day — the night window (findings file), seen as a −5 deposit on main's CI statement.
+const TODAY = businessToday();
 
 /** Door B's front half through the API (AP-2's spec walks it by clicking): a classified advance, and an issued 386 for all of it. */
 async function seedInvoicedAdvance(amount: number): Promise<{ paymentId: number; advanceId: number }> {

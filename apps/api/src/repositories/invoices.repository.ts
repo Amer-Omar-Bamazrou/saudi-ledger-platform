@@ -50,8 +50,8 @@ export const DEFAULT_PAGE = 50;
 const OVERDUE = sql`(
   COALESCE(NULLIF(${invoicesTable.dueDate}, ''), ${invoicesTable.date})::date < CURRENT_DATE
   AND ${invoicesTable.status} NOT IN ('draft','submitted','rejected','paid')
-  AND ${invoicesTable.documentType} NOT IN ('credit_note','advance_invoice','advance_credit_note')
-  AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) > 0
+  AND ${invoicesTable.documentType} NOT IN ('credit_note','advance_invoice','advance_credit_note','recovery_invoice')
+  AND (${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric - ${invoicesTable.writtenOffAmount}::numeric) > 0
 )`;
 
 /** One predicate for the rows AND the totals — so they cannot describe different sets. */
@@ -132,8 +132,8 @@ export const invoicesRepository = {
         // and Σ aging by construction (money-kpi-consistency pins it).
         outstanding: sql<number>`COALESCE(SUM(
           CASE WHEN ${invoicesTable.status} IN ('draft','submitted') THEN 0
-               WHEN ${invoicesTable.documentType} IN ('credit_note','advance_invoice','advance_credit_note') THEN 0
-               ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric END), 0)::float8`,
+               WHEN ${invoicesTable.documentType} IN ('credit_note','advance_invoice','advance_credit_note','recovery_invoice') THEN 0
+               ELSE ${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric - ${invoicesTable.writtenOffAmount}::numeric END), 0)::float8`,
         // N2: collected is money actually RECEIVED — Σ paid_amount over
         // in-books documents — not "total of fully-paid invoices", which
         // ignored every partial payment and counted unpaid halves as
@@ -205,6 +205,11 @@ export const invoicesRepository = {
   },
 
   /** Resolve an idempotency-key collision to the row that already claimed it. */
+  /** 2026-09-22: the Art. 40(9) recovery invoices issued or drafted against one receivable. */
+  recoveriesOf(recoveredInvoiceId: number) {
+    return db.select().from(invoicesTable).where(eq(invoicesTable.recoversInvoiceId, recoveredInvoiceId)).orderBy(invoicesTable.id);
+  },
+
   findByIdempotencyKey(key: string) {
     return db.select().from(invoicesTable).where(eq(invoicesTable.idempotencyKey, key)).limit(1);
   },
@@ -426,7 +431,7 @@ export const invoicesRepository = {
         and(
           // Issue 1: a receivable in the books (issued here OR an opening item; never a reversed one) — not "has a hash".
           receivableInBooks(),
-          sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric) >= 0.01`,
+          sql`(${invoicesTable.total}::numeric - COALESCE(${invoicesTable.paidAmount}::numeric, 0) - ${invoicesTable.creditedAmount}::numeric - ${invoicesTable.writtenOffAmount}::numeric) >= 0.01`,
         ),
       )
       .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));

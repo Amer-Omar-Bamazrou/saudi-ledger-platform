@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BadDebtRelief } from './badDebtRelief';
 import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
 import type { InvoicePrepayment } from './invoicePrepayment';
@@ -62,7 +63,7 @@ export interface Invoice {
      * @nullable
      */
   qrCode: string | null;
-  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign). */
+  /** invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign). */
   documentType: InvoiceDocumentType;
   /**
      * For a credit/debit note, the invoice it adjusts.
@@ -83,6 +84,20 @@ export interface Invoice {
      * @nullable
      */
   advancePaymentId: number | null;
+  /** 2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none. */
+  writtenOffAmount: number;
+  /** 2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform's return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here. */
+  badDebtRelief: BadDebtRelief | null;
+  /**
+     * On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.
+     * @nullable
+     */
+  recoversInvoiceId: number | null;
+  /**
+     * On a recovery_invoice: the receipt whose money it declares; its date is the document's date (the tax point) and supply date.
+     * @nullable
+     */
+  recoveryPaymentId: number | null;
   /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
   prepayments: InvoicePrepayment[];
   /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */

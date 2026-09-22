@@ -34,6 +34,9 @@ const KIND_LABEL: Record<CustomerStatementLine["kind"], { en: string; ar: string
   advance_invoice: { en: "Advance tax invoice", ar: "فاتورة ضريبية عن دفعة مقدمة", cls: "bg-secondary text-muted-foreground" },
   // AP-3: cancels an advance; returns its VAT to the deposit; moves none of the three balances.
   advance_credit_note: { en: "Credit note — advance", ar: "إشعار دائن — دفعة مقدمة", cls: "bg-attention-surface/20 text-attention" },
+  // 2026-09-22: a write-off with Art. 40(7) relief takes the unpaid part off the receivable; the Art. 40(9) recovery invoice declares VAT and moves none of the three balances.
+  bad_debt_write_off: { en: "Written off (bad debt)", ar: "شطب (دين معدوم)", cls: "bg-attention-surface/20 text-attention" },
+  recovery_invoice: { en: "Tax invoice — recovery (Art. 40(9))", ar: "فاتورة ضريبية — استرداد (م. 40(9))", cls: "bg-secondary text-muted-foreground" },
   receipt: { en: "Receipt", ar: "إيصال", cls: "bg-positive-surface/20 text-positive" },
   allocation: { en: "Allocation", ar: "تخصيص", cls: "bg-positive-surface/20 text-positive" },
   credit_application: { en: "Credit applied", ar: "تطبيق رصيد دائن", cls: "bg-info-surface/20 text-info" },

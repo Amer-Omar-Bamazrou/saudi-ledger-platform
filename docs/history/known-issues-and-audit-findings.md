@@ -2305,11 +2305,24 @@ rejection of the 386 code stays pinned as the SDK's own staleness
 (divergences log §15). Nothing changed in the accounting; the receipt-period
 vs issuance-period question stays with the accountant (pack §16.5).
 
+**What the accountant answered, and the correction (2026-09-22,
+`feat/ap-accounting-period-correction`; pack §17):** the tax point IS the
+receipt date — the 386 is dated at it, its KSA-5 supply date is it, its
+IssueDate is the real issuance; a LOCKED receipt month fails closed naming
+the IR Art. 63 remedy (a correction submission within 20 days, or the next
+return below SAR 5,000; reopen → issue → close) — no conflict between the
+answer and the text; customer money is FOUR liabilities on four accounts,
+moved between them by one dated reclassification entry; bad-debt relief
+(Art. 40(7)) is a structured, posted fact with its conditions enforced and
+box 7 in the return; an Art. 40(9) recovery is a NEW ZATCA document
+(`recovery_invoice`, a 388 with a BillingReference to the original, dated
+at the payment) — both shapes CLEARED by the live sandbox from real rows.
+
 **What is still open:** (1) simulation and production for these shapes —
 behind the Saudi entity, as for every document type (M12.7/M12.9); (2) Z1
 with ZATCA for migrated advances (a migrated deposit gets no 386 here, so no
-note and no unlocked refund); (3) the VAT-period question, with the
-accountant.
+note and no unlocked refund); (3) the migration follow-ups the answers 3
+and 5 call for (pack §18).
 
 State: CLOSED at the document; AP-4 is the gate before a taxpayer that
 receives advances. Current state authority: CLAUDE.md §2.

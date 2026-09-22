@@ -15,6 +15,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { businessToday } from "@workspace/shared";
 
 test.use({ storageState: E2E.storageState });
 
@@ -44,12 +45,37 @@ const vatReturn = async (period: string): Promise<VatReturn> => (await api.get(`
 const reviewItem = async (id: number): Promise<ReviewItem | undefined> => (((await (await api.get(`/api/payments/deposit-review`)).json()) as { items: ReviewItem[] }).items).find((i) => i.paymentId === id);
 const box = async (period: string) => { const r = await vatReturn(period); return { box1: Number(r.salesSection.box1_standardRatedDomesticSales), box6: Number(r.salesSection.box6_vatOnStandardRatedSales) }; };
 
+/**
+ * An instrument names its evidence: on failure the verdict carries the box it
+ * measured and the state of the nearest sideways scroller, so a CI-only
+ * failure (fonts, scroll position) can be read from the log instead of
+ * guessed at.
+ */
 async function expectFits(el: ReturnType<Page["getByTestId"]>, width: number, message: string) {
   await expect(el).toBeVisible();
-  await expect.poll(async () => {
-    const b = await el.boundingBox();
-    return !!b && b.x >= 0 && b.x + b.width <= width + 1;
-  }, { message, timeout: 5_000 }).toBe(true);
+  let last = "";
+  try {
+    await expect.poll(async () => {
+      const b = await el.boundingBox();
+      const scroller = await el.evaluate((node) => {
+        const sc = (node as HTMLElement).closest(".overflow-x-auto") as HTMLElement | null;
+        const r = (node as HTMLElement).getBoundingClientRect();
+        return { rect: { x: r.x, w: r.width }, scrollLeft: sc?.scrollLeft ?? null, scrollWidth: sc?.scrollWidth ?? null, clientWidth: sc?.clientWidth ?? null, dir: document.documentElement.dir, docScrollWidth: document.documentElement.scrollWidth };
+      }).catch(() => null);
+      last = JSON.stringify({ box: b, scroller });
+      // 🔴 The tolerance is SYMMETRIC, and 1px is the tolerance the far edge
+      // always had. CI measured this card at x = -1 in RTL (a sticky element
+      // rounding inside a sideways scroller: box 350 wide in a 390 viewport,
+      // document scrollWidth 390 — nothing off-screen, nothing scrollable).
+      // A one-sided bound called that a failure while admitting the same
+      // rounding at the other edge; the claim is "it fits the phone", and
+      // the page-level noSidewaysScroll check is what proves nothing spills.
+      return !!b && b.x >= -1 && b.x + b.width <= width + 1;
+    }, { message, timeout: 5_000 }).toBe(true);
+  } catch (err) {
+    throw new Error(`${message} — measured ${last}
+${(err as Error).message}`);
+  }
 }
 const noSidewaysScroll = async (page: Page, width: number, what: string) => {
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -88,7 +114,8 @@ async function settleReceipt(id: number) {
 }
 
 /** The month the walk's receipts and invoices are dated in — this month, so nothing is closed and the return is read for it. */
-const TODAY = new Date().toISOString().slice(0, 10);
+// The BUSINESS day (Asia/Riyadh), never the runner's UTC date: between 21:00 and 00:00 UTC they differ, and a document dated the UTC day sorts BEFORE a receipt the product dated the Riyadh day — the night window (findings file), seen as a −5 deposit on main's CI statement.
+const TODAY = businessToday();
 const PERIOD = TODAY.slice(0, 7);
 
 /** Record a receipt on account classified as an ADVANCE (S) in the receipt dialog; returns its id. */

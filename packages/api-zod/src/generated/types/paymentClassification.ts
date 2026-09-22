@@ -24,4 +24,14 @@ export interface PaymentClassification {
   /** @nullable */
   classifiedBy: number | null;
   classifiedAt: string;
+  /**
+     * 2026-09-22: the date the classification took effect in the books (the reclassification entry's date); null on records made before the liability split.
+     * @nullable
+     */
+  effectiveDate: string | null;
+  /**
+     * 2026-09-22: the RECLASS entry that moved the receipt's on-account balance between liabilities (unidentified/erroneous to UNIDENTIFIED_RECEIPTS, advance to CUSTOMER_DEPOSITS, security deposit to SECURITY_DEPOSITS_HELD); null when the account did not change.
+     * @nullable
+     */
+  reclassificationJournalEntryId: number | null;
 }

@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
-import { CreateInvoiceBody, CreateAdvanceCreditNoteBody, PayInvoiceBody, UpdateInvoiceBody } from "@workspace/api-zod";
+import { CreateInvoiceBody, CreateAdvanceCreditNoteBody, CreateBadDebtRecoveryBody, PayInvoiceBody, UpdateInvoiceBody, WriteOffBadDebtBody } from "@workspace/api-zod";
 import { invoicesService } from "../services/invoices.service";
 import { advanceInvoicesService } from "../services/advanceInvoices.service";
+import { badDebtService } from "../services/badDebt.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
@@ -129,6 +130,16 @@ export const invoicesController = {
   async creditAdvance(req: Request, res: Response) {
     const body = parseOr400(CreateAdvanceCreditNoteBody.safeParse(req.body));
     res.status(201).json(await advanceInvoicesService.creditAdvance(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** 2026-09-22 — write off + Art. 40(7) relief, one act. */
+  async writeOffBadDebt(req: Request, res: Response) {
+    const body = parseOr400(WriteOffBadDebtBody.safeParse(req.body));
+    res.json(await badDebtService.writeOffWithRelief(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** 2026-09-22 — the Art. 40(9) recovery document (a draft). */
+  async createBadDebtRecovery(req: Request, res: Response) {
+    const body = parseOr400(CreateBadDebtRecoveryBody.safeParse(req.body));
+    res.status(201).json(await badDebtService.createRecovery(requireIdParam(req), body, req.session?.userId ?? null));
   },
   async pay(req: Request, res: Response) {
     const body = parseOr400(PayInvoiceBody.safeParse(req.body));

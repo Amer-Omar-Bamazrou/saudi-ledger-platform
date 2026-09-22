@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { VatReturnBadDebtRelief } from './vatReturnBadDebtRelief';
 
 export interface VatReturnSalesSection {
   box1_standardRatedDomesticSales: number;
@@ -13,6 +14,9 @@ export interface VatReturnSalesSection {
   box4_exportSales: number;
   box5_totalSales: number;
   box6_vatOnStandardRatedSales: number;
+  /** 2026-09-22 — the output-VAT adjustments of the period. Today the bad-debt reliefs (IR Art. 40(7)) claimed in the period, as a NEGATIVE figure; box 8 = box 6 + box 7. */
   box7_vatAdjustments: number;
   box8_totalOutputVat: number;
+  /** The Art. 40(7) reliefs claimed in this period (the components of box 7), one per written-off invoice. */
+  badDebtReliefs?: VatReturnBadDebtRelief[];
 }

@@ -195,7 +195,7 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
   const depositsInvariantViolations = async () =>
     (await pool.query(`
       WITH gl AS (SELECT l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
-                   WHERE e.organization_id = $1 AND c.system_code = 'CUSTOMER_DEPOSITS' AND e.status IN ('posted','reversed') GROUP BY 1),
+                   WHERE e.organization_id = $1 AND c.system_code IN ('CUSTOMER_DEPOSITS','UNIDENTIFIED_RECEIPTS','SECURITY_DEPOSITS_HELD') AND e.status IN ('posted','reversed') GROUP BY 1),
            adv AS (SELECT i.customer_id, sum(i.vat_amount::numeric) - coalesce(sum((SELECT coalesce(sum(x.tax_amount), 0) FROM invoice_prepayments x WHERE x.advance_invoice_id = i.id AND x.allocation_id IS NOT NULL)), 0) v
                      FROM invoices i WHERE i.organization_id = $1 AND i.document_type = 'advance_invoice' AND i.invoice_hash IS NOT NULL GROUP BY 1),
            sub AS (SELECT p.customer_id,
@@ -526,7 +526,9 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
     await inTenant(() => invoicesService.approve(d1.id, userId));
     await expectRefusal(inTenant(() => invoicesService.approve(d2.id, userId)), 422, "advance_invoice_exceeds_uninvoiced");
     expect((await getInvoice(d2.id)).status).toBe("draft");
-    await expectRefusal(draftAdvance((await receiveAdvance(custA, 100)).id, 100, { date: "2026-06-01" }), 422, "advance_invoice_before_receipt");
+    // 2026-09-22 (accountant 1(a)): the 386 is dated at its TAX POINT — the receipt date — and at nothing else
+    await expectRefusal(draftAdvance((await receiveAdvance(custA, 100)).id, 100, { date: "2026-06-01" }), 422, "advance_invoice_date_is_tax_point");
+    await expectRefusal(draftAdvance((await receiveAdvance(custA, 100)).id, 100, { date: businessToday() }), 422, "advance_invoice_date_is_tax_point");
     // a receipt of another organisation is invisible (no existence oracle): 404
     await expectRefusal(inOther(() => advanceInvoicesService.createFromReceipt(p.id, { amount: 100 }, userId)), 404);
     // and another organisation's 386 cannot be adjusted on this org's invoice
@@ -536,15 +538,29 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
   });
 
   // ── 16: closed periods ───────────────────────────────────────────────
-  it("🔴 closed month: a 386 dated into it is refused (423) and re-dated into the open month by default; a 388 with an adjustment dated into it is refused with nothing posted and the 386 still open; a later D-4 allocation is dated today, never re-dated", async () => {
+  it("🔴 closed month: a 386 whose receipt (tax point) is in it FAILS CLOSED with the Art. 63 explanation — never re-dated, never posted; a 388 with an adjustment dated into it is refused with nothing posted and the 386 still open; a later D-4 allocation is dated today, never re-dated", async () => {
     const p = await receiveAdvance(custB, 3_450);
+    const dOpen = await draftAdvance(p.id, 3_450); // drafted while the month is open …
     await inTenant(() => periodLocksService.lock({ period: "2026-06", userId }));
+    let adv: Awaited<ReturnType<typeof issueAdvance>>;
     try {
-      await expectRefusal(draftAdvance(p.id, 3_450, { date: RECEIPT_DATE }), 423);
-      const d = await draftAdvance(p.id, 3_450); // default: the receipt month is closed → today
-      expect(d.date).toBe(businessToday());
-      const adv = await inTenant(() => invoicesService.approve(d.id, userId));
-      expect((await journalOf(`GL-${adv.invoiceNumber}`)).date).toBe(businessToday());
+      // 2026-09-22 (accountant 1(a)/1(b); IR Art. 63): the VAT belongs to the receipt's period, so a locked
+      // receipt month refuses — with the remedy named — and nothing slides to the open month.
+      const locked = await expectRefusal(draftAdvance(p.id, 3_450), 423, "advance_tax_point_period_locked");
+      expect(locked.body.period).toBe("2026-06");
+      expect(locked.body.error).toMatch(/Art\. 63/);
+      expect(locked.body.error).toMatch(/20 days/);
+      expect(locked.body.error).toMatch(/5,000/);
+      // … and the draft made before the lock cannot be approved into it either — same refusal, nothing minted
+      const lockedApproval = await expectRefusal(inTenant(() => invoicesService.approve(dOpen.id, userId)), 423, "advance_tax_point_period_locked");
+      expect(lockedApproval.body.period).toBe("2026-06");
+      expect((await getInvoice(dOpen.id)).icv).toBeNull();
+      // the remedy: reopen, issue at the tax point, close again
+      await inTenant(() => periodLocksService.unlock("2026-06"));
+      adv = await inTenant(() => invoicesService.approve(dOpen.id, userId));
+      expect(adv.date).toBe(RECEIPT_DATE);
+      expect((await journalOf(`GL-${adv.invoiceNumber}`)).date).toBe(RECEIPT_DATE);
+      await inTenant(() => periodLocksService.lock({ period: "2026-06", userId }));
       // a final invoice dated into the closed month
       const vatBefore = await gl("VAT_OUTPUT");
       await expectRefusal(inTenant(() => invoicesService.create({ invoiceNumber: nextNumber("AP2-INV"), date: "2026-06-20", customerId: custB, items: [{ description: "x", quantity: 1, unitPrice: 3_000, vatRate: 15 }], prepayments: [{ advanceInvoiceId: adv.id }] }, userId)), 423);

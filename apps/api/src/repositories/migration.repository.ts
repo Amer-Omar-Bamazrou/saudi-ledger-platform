@@ -300,7 +300,7 @@ export const migrationRepository = {
         SELECT i.invoice_number AS n,
                (SELECT count(*) FROM payment_allocations a WHERE a.invoice_id = i.id) AS allocs,
                (SELECT count(*) FROM invoices c WHERE c.original_invoice_id = i.id) AS notes,
-               coalesce(i.paid_amount::numeric, 0) AS paid, coalesce(i.credited_amount::numeric, 0) AS credited
+               coalesce(i.paid_amount::numeric, 0) AS paid, coalesce(i.credited_amount::numeric, 0) + coalesce(i.written_off_amount::numeric, 0) AS credited
           FROM invoices i WHERE i.id IN (${list(invoiceIds)})`);
       for (const r of inv.rows as { n: string; allocs: string; notes: string; paid: string; credited: string }[]) {
         if (Number(r.allocs) > 0 || Number(r.notes) > 0 || Number(r.paid) > 0 || Number(r.credited) > 0) out.push(`invoice ${r.n} (allocations ${r.allocs}, credit notes ${r.notes}, paid ${r.paid}, credited ${r.credited})`);

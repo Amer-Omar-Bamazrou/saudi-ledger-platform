@@ -57,9 +57,19 @@ async function main() {
       FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id
      GROUP BY e.id HAVING sum(l.debit_amount) <> sum(l.credit_amount)`));
   // Issue 1: the covered set is every invoice ISSUED here or migrated as an OPENING item — not "has a hash" (an opening receivable never does, and it is collected).
-  fail("invoice_outstanding_nonnegative — issued or opening invoices with total − paid − credited < 0", await q(`
-    SELECT i.organization_id::text AS org, i.id, i.invoice_number, (i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount)::text AS outstanding
-      FROM invoices i WHERE ${INVOICE_ISSUED_OR_OPENING_TEXT("i")} AND i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount < -0.001`));
+  fail("invoice_outstanding_nonnegative — issued or opening invoices with total − paid − credited − written off < 0", await q(`
+    SELECT i.organization_id::text AS org, i.id, i.invoice_number, (i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount - i.written_off_amount)::text AS outstanding
+      FROM invoices i WHERE ${INVOICE_ISSUED_OR_OPENING_TEXT("i")} AND i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount - i.written_off_amount < -0.001`));
+  // 2026-09-22: a write-off with relief is a posted fact — its entry exists, its VAT is the entry's VAT_OUTPUT debit, and a recovery never exceeds it.
+  fail("bad_debt_write_off_posted — a recorded relief without its entry, or whose relief VAT ≠ the entry's VAT debit", await q(`
+    SELECT i.organization_id::text AS org, i.id, i.invoice_number
+      FROM invoices i WHERE i.bad_debt_relief_source = 'recorded'
+       AND NOT EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                        WHERE e.id = i.bad_debt_relief_journal_entry_id AND e.status IN ('posted','reversed') AND c.system_code = 'AR' AND l.credit_amount = i.written_off_amount)`));
+  fail("bad_debt_recovery_bounded — Σ issued Art. 40(9) recoveries against a receivable > what was written off (recorded)", await q(`
+    SELECT i.organization_id::text AS org, i.id, i.invoice_number, i.written_off_amount::text AS written_off, s.v::text AS recovered
+      FROM invoices i JOIN (SELECT recovers_invoice_id, sum(total::numeric) v FROM invoices WHERE document_type = 'recovery_invoice' AND invoice_hash IS NOT NULL GROUP BY 1) s ON s.recovers_invoice_id = i.id
+     WHERE i.bad_debt_relief_source = 'recorded' AND s.v > i.written_off_amount + 0.001`));
   fail("payment_not_over_consumed — Σ active allocations + refunds > amount", await q(`
     SELECT p.organization_id::text AS org, p.id FROM payments p
      WHERE p.amount < coalesce((SELECT sum(a.amount) FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id = p.id AND r.id IS NULL), 0)
@@ -82,8 +92,11 @@ async function main() {
   // AP-2: the GL deposit is the NET contract liability — the subledger's cash-on-account
   // MINUS the VAT declared by issued advance tax invoices (386) not yet adjusted by an
   // issued final invoice (E2 moved it to VAT_OUTPUT; E3 released the net part).
-  fail("deposits_gl_vs_subledger — by customer (RULE-O: reversed opening deposits out; AP-2: net of open advance-invoice VAT)", await q(`
-    WITH gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id WHERE c.system_code = 'CUSTOMER_DEPOSITS' AND e.status IN ('posted','reversed') GROUP BY 1,2),
+  // 2026-09-22: the deposit side is THREE liabilities (customerCreditPolicy.ts) — the GL sum over
+  // CUSTOMER_DEPOSITS + UNIDENTIFIED_RECEIPTS + SECURITY_DEPOSITS_HELD reconciles to the subledger;
+  // reclassifications move between them and net to zero here.
+  fail("deposits_gl_vs_subledger — by customer, over the three deposit liabilities (RULE-O: reversed opening deposits out; AP-2: net of open advance-invoice VAT)", await q(`
+    WITH gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id WHERE c.system_code IN ('CUSTOMER_DEPOSITS','UNIDENTIFIED_RECEIPTS','SECURITY_DEPOSITS_HELD') AND e.status IN ('posted','reversed') GROUP BY 1,2),
          adv AS (SELECT i.organization_id AS org, i.customer_id,
                         sum(i.vat_amount::numeric) - coalesce(sum((SELECT coalesce(sum(x.tax_amount), 0) FROM invoice_prepayments x WHERE x.advance_invoice_id = i.id AND x.allocation_id IS NOT NULL)), 0)
                                                    - coalesce(sum((SELECT coalesce(sum(n.vat_amount::numeric), 0) FROM invoices n WHERE n.original_invoice_id = i.id AND n.document_type = 'advance_credit_note' AND n.invoice_hash IS NOT NULL)), 0) v
@@ -112,7 +125,7 @@ async function main() {
 
   // ── AR by customer, under the two stated rules ────────────────────────
   const ruleJ = await q(`
-    SELECT i.organization_id::text AS org, count(*)::int AS invoices, sum(i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount)::text AS outstanding
+    SELECT i.organization_id::text AS org, count(*)::int AS invoices, sum(i.total::numeric - coalesce(i.paid_amount,0) - i.credited_amount - i.written_off_amount)::text AS outstanding
       FROM invoices i WHERE i.document_type = 'invoice' AND i.invoice_hash IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.company_id = i.company_id AND e.entry_number = 'GL-' || i.invoice_number)
      GROUP BY 1`);
@@ -139,7 +152,7 @@ async function main() {
                 AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
                              JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
                              WHERE o.resolved_invoice_id = i.id AND c.system_code = 'AR' AND l.customer_id = i.customer_id)) )),
-    sub AS (SELECT organization_id AS org, customer_id, sum(total::numeric - coalesce(paid_amount,0) - credited_amount) v FROM covered GROUP BY 1,2),
+    sub AS (SELECT organization_id AS org, customer_id, sum(total::numeric - coalesce(paid_amount,0) - credited_amount - written_off_amount) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.debit_amount - l.credit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
             WHERE c.system_code = 'AR' AND e.status IN ('posted','reversed') AND l.customer_id IS NOT NULL

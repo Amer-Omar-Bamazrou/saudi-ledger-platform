@@ -134,11 +134,11 @@ describeMaybe("AP-1 — deposit classification and the VAT-review list (real row
   }
   const receive = (customerId: number, amount: number, extra: Record<string, unknown> = {}) =>
     inTenant(() => paymentsService.receive({ customerId, amount, paidAt: DATE, bankAccountId: bank, ...extra }, userId));
-  const gl = async (code: string, org = orgId) =>
+  const gl = async (code: string, customerId?: number, org = orgId) =>
     Number((await pool.query(
       `SELECT coalesce(sum(l.credit_amount - l.debit_amount), 0)::text AS v
          FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
-        WHERE e.organization_id = $1 AND c.system_code = $2 AND e.status IN ('posted','reversed')`, [org, code])).rows[0].v);
+        WHERE e.organization_id = $1 AND c.system_code = $2 AND e.status IN ('posted','reversed') ${customerId != null ? "AND l.customer_id = $3" : ""}`, customerId != null ? [org, code, customerId] : [org, code])).rows[0].v);
   const journalCount = async () => Number((await pool.query(`SELECT count(*)::text AS n FROM journal_entries WHERE organization_id = $1`, [orgId])).rows[0].n);
   const classRows = async (paymentId: number) => (await pool.query(`SELECT classification, vat_category, note, created_by FROM payment_classifications WHERE payment_id = $1 ORDER BY id`, [paymentId])).rows;
   const review = (asOf?: string, customerId?: number) => inTenant(() => depositReviewService.review({ asOf, customerId }));
@@ -207,25 +207,47 @@ describeMaybe("AP-1 — deposit classification and the VAT-review list (real row
     await expectRefusal(inTenant(() => paymentsService.classify(q.id, { classification: "erroneous", idempotencyKey: "ap1-key-1" }, userId)), 409);
   });
 
-  // ── nothing posts ──────────────────────────────────────────────────────
-  it("🔴 classifying posts NOTHING and moves no VAT — while an invoice approval on the same instrument DOES move VAT_OUTPUT (planted positive)", async () => {
+  // ── a classification moves money ONLY between the deposit liabilities ────
+  // 2026-09-22 (accountant answer 2): unidentified/erroneous receipts, customer
+  // advances and refundable security deposits are DIFFERENT liabilities, so a
+  // classification that changes the liability posts ONE reclassification entry
+  // between them — and NOTHING else: no VAT, no AR, no P&L. AP-1's original
+  // claim ("classifying posts nothing") narrows to "classifying decides no VAT".
+  it("🔴 classifying moves the on-account balance between the three deposit liabilities and NOTHING else — no VAT, no AR; an invoice approval on the same instrument DOES move VAT_OUTPUT (planted positive)", async () => {
     const p = await receive(custB, 11_500);
     const journalsBefore = await journalCount();
     const vatBefore = await gl("VAT_OUTPUT");
-    const depositsBefore = await gl("CUSTOMER_DEPOSITS");
     const arBefore = await gl("AR");
-    for (const classification of ["advance", "erroneous", "security_deposit", "unknown"] as const) {
-      await inTenant(() => paymentsService.classify(p.id, { classification, vatCategory: classification === "advance" ? "S" : null }, userId));
-    }
-    expect(await journalCount(), "no journal entry from a classification").toBe(journalsBefore);
+    const sumDeposits = async () => Math.round(((await gl("CUSTOMER_DEPOSITS")) + (await gl("UNIDENTIFIED_RECEIPTS")) + (await gl("SECURITY_DEPOSITS_HELD"))) * 100) / 100;
+    const depositsBefore = await sumDeposits();
+    // unstated → presumed a deposit (CUSTOMER_DEPOSITS); advance keeps it there: no entry
+    let out = await inTenant(() => paymentsService.classify(p.id, { classification: "advance", vatCategory: "S" }, userId));
+    expect(out.liabilityAccountCode).toBe("CUSTOMER_DEPOSITS");
+    expect(out.classification?.reclassificationJournalEntryId).toBeNull();
+    expect(await journalCount(), "advance on a presumed deposit posts nothing").toBe(journalsBefore);
+    // erroneous → UNIDENTIFIED_RECEIPTS: one reclass entry for the on-account balance
+    out = await inTenant(() => paymentsService.classify(p.id, { classification: "erroneous" }, userId));
+    expect(out.liabilityAccountCode).toBe("UNIDENTIFIED_RECEIPTS");
+    expect(out.classification?.reclassificationJournalEntryId).not.toBeNull();
+    expect(await journalCount()).toBe(journalsBefore + 1);
+    expect(await gl("UNIDENTIFIED_RECEIPTS", custB)).toBe(11_500);
+    // security deposit → SECURITY_DEPOSITS_HELD; unknown → back to UNIDENTIFIED_RECEIPTS
+    out = await inTenant(() => paymentsService.classify(p.id, { classification: "security_deposit" }, userId));
+    expect(out.liabilityAccountCode).toBe("SECURITY_DEPOSITS_HELD");
+    expect(await gl("SECURITY_DEPOSITS_HELD", custB)).toBe(11_500);
+    expect(await gl("UNIDENTIFIED_RECEIPTS", custB)).toBe(0);
+    out = await inTenant(() => paymentsService.classify(p.id, { classification: "unknown" }, userId));
+    expect(out.liabilityAccountCode).toBe("UNIDENTIFIED_RECEIPTS");
+    expect(await journalCount()).toBe(journalsBefore + 3);
+    // the invariants of the act: the deposit side in total, VAT and AR never move
+    expect(await sumDeposits(), "the three liabilities together are unchanged").toBe(depositsBefore);
     expect(await gl("VAT_OUTPUT"), "VAT unchanged").toBe(vatBefore);
-    expect(await gl("CUSTOMER_DEPOSITS"), "deposit unchanged").toBe(depositsBefore);
     expect(await gl("AR"), "AR unchanged").toBe(arBefore);
     expect((await inTenant(() => paymentsService.get(p.id))).unappliedAmount).toBe(11_500);
     // planted positive: the instrument sees VAT move when something that posts VAT happens
     await issue(custB, 1_000);
     expect(await gl("VAT_OUTPUT")).toBe(Math.round((vatBefore + 150) * 100) / 100);
-    expect(await journalCount()).toBe(journalsBefore + 1);
+    expect(await journalCount()).toBe(journalsBefore + 4);
   });
 
   // ── the review list ────────────────────────────────────────────────────

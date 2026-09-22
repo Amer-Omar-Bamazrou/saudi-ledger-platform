@@ -45,7 +45,7 @@
  */
 import { DEFAULT_VAT_RATE, businessToday, ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { invoiceSettlementRepository } from "../repositories/payments.repository";
-import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError, NotFoundError, PeriodLockedError } from "../lib/errors";
 import { round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { paymentsRepository } from "../repositories/payments.repository";
@@ -99,6 +99,35 @@ export function rateForCategory(category: AdvanceVatCategory): number {
 export type ReceiptAdvanceFigures = AdvanceFigures & { unapplied: number; uninvoiced: number };
 
 /** One prepayment row shaped for a response — the 386's identity beside the KSA-31…34 split. */
+/**
+ * The receipt's month must be OPEN to issue the advance tax invoice at its
+ * tax point. Locked ⇒ 423 `advance_tax_point_period_locked`, naming the
+ * Art. 63 remedy — the one refusal that must EXPLAIN, since the user's next
+ * step is outside the platform (a return correction) and inside it (reopen,
+ * issue, close).
+ */
+export async function assertTaxPointPeriodOpen(payment: { id: number; paidAt: string }): Promise<void> {
+  try {
+    await checkPeriodOpen(payment.paidAt);
+  } catch (err) {
+    if (err instanceof PeriodLockedError) {
+      const period = payment.paidAt.slice(0, 7);
+      throw new BusinessRuleError(423, {
+        code: "advance_tax_point_period_locked",
+        error:
+          `The advance received on ${payment.paidAt} (receipt RCPT-${payment.id}) has its VAT tax point in ${period}, and ${period} is closed. ` +
+          `The VAT belongs to ${period}'s return regardless of when the advance tax invoice is issued, so it cannot be dated into an open month and it will not be. ` +
+          `To issue it: an admin reopens ${period} (Closed months), issue the advance tax invoice (dated ${payment.paidAt}; its IssueDate will be today), close ${period} again — ` +
+          `and correct ${period}'s VAT return under Implementing Regulations Art. 63: an understated net tax is corrected by a submission to ZATCA within 20 days of discovering it, or, when the understatement is below SAR 5,000, in the next return (Art. 63(3)).`,
+        field: "paymentId",
+        period,
+        taxPoint: payment.paidAt,
+      });
+    }
+    throw err;
+  }
+}
+
 export function shapePrepayment({ row, advance }: { row: import("@workspace/db").InvoicePrepayment; advance: { id: number; invoiceNumber: string; date: string } }): PrepaymentOut {
   return {
     id: row.id,
@@ -247,24 +276,28 @@ export const advanceInvoicesService = {
       });
     }
 
-    // The accounting date: the TAX POINT is the receipt (Art. 23(1)), so the
-    // default is the receipt date when its month is open, else today; never
-    // before the receipt, never into a closed month. A user-chosen date wins.
-    let date: string;
-    if (body.date) {
-      date = assertDateString(body.date, "date");
-    } else {
-      date = payment.paidAt;
-      try {
-        await checkPeriodOpen(date);
-      } catch {
-        date = businessToday();
-      }
+    /**
+     * 🔴 THE TAX POINT IS THE RECEIPT DATE — ALWAYS (accountant, 2026-09-22,
+     * answer 1(a); GCC Agreement Art. 23(1), IR Art. 53(1)(a)(2)). Three dates,
+     * kept apart: the tax point / accounting date (`date` = the receipt's
+     * date — the VAT period the advance files in and the E2 entry's date),
+     * the supply date the document carries (KSA-5 = the same receipt date),
+     * and the document's IssueDate (`issued_at`, the real issuance instant,
+     * never overwritten). A caller cannot choose another date.
+     *
+     * When the receipt's month is LOCKED the platform FAILS CLOSED with the
+     * reason: it never posts into a closed month, never slides the VAT to the
+     * current month, never plugs. The remedy is the return-correction rule
+     * (IR Art. 63): an understatement of net tax is corrected by a submission
+     * within 20 days of discovery — or, below SAR 5,000, in the next return
+     * (63(3)) — and the books are corrected by reopening the month, issuing
+     * the advance tax invoice at its tax point, and closing it again.
+     */
+    const date = payment.paidAt;
+    if (body.date && assertDateString(body.date, "date") !== date) {
+      throw new BusinessRuleError(422, { error: `An advance tax invoice is dated at its tax point — the receipt date ${payment.paidAt} — and cannot be dated ${body.date}. Its IssueDate is the moment it is issued and is recorded separately.`, code: "advance_invoice_date_is_tax_point", field: "date" });
     }
-    if (date < payment.paidAt) {
-      throw new BusinessRuleError(422, { error: `The advance tax invoice cannot be dated ${date}, before the receipt of ${payment.paidAt}: the tax point is the receipt.`, code: "advance_invoice_before_receipt", field: "date" });
-    }
-    await checkPeriodOpen(date);
+    await assertTaxPointPeriodOpen(payment);
 
     const rate = rateForCategory(category);
     const { taxable, vat } = splitGross(gross, rate);

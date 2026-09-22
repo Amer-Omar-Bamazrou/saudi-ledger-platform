@@ -83,6 +83,8 @@ export interface AssembleRows {
     notes: string | null;
     /** M12.1b — set on credit/debit notes only. */
     noteReason: string | null;
+    /** 2026-09-22: the supply date (KSA-5) when the tax point precedes issuance — the receipt date on a 386, the payment date on an Art. 40(9) recovery invoice; null ⇒ issue date. */
+    supplyDate?: string | null;
   };
   /**
    * AP-2 — the PREPAYMENT ADJUSTMENT rows of a final invoice: one per
@@ -91,6 +93,8 @@ export interface AssembleRows {
    * string) and the KSA-31…34 split copied from the 386. Empty or absent
    * for every other document.
    */
+  /** 2026-09-22: the receivable an Art. 40(9) recovery invoice recovers — resolved from the FK row. */
+  recoveredInvoice?: { invoiceNumber: string; badDebtReliefClaimedOn: string | null } | null;
   prepayments?: Array<{
     advance: { invoiceNumber: string; zatcaUuid: string | null; issuedAt: Date | null };
     taxableAmount: unknown;
@@ -254,6 +258,14 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
       code: "billing_reference_on_invoice",
     });
   }
+  // Art. 40(9): the recovery invoice names the receivable it recovers (BG-3), and says so.
+  const isRecovery = invoice.documentType === "recovery_invoice";
+  if (isRecovery && !rows.recoveredInvoice?.invoiceNumber) {
+    throw new BusinessRuleError(400, { error: "An Art. 40(9) recovery invoice must name the receivable it recovers.", code: "recovery_original_missing" });
+  }
+  if (isRecovery && !invoice.supplyDate) {
+    throw new BusinessRuleError(400, { error: "An Art. 40(9) recovery invoice carries the recovery payment's date as its supply date.", code: "recovery_supply_date_missing" });
+  }
 
   const lines: EInvoiceLine[] = items.map((it, i) => {
     const category = it.taxCategoryCode;
@@ -345,7 +357,9 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
   const documentType =
     invoice.documentType === "credit_note" || invoice.documentType === "debit_note" || invoice.documentType === "advance_invoice" || invoice.documentType === "advance_credit_note"
       ? (invoice.documentType as "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note")
-      : "invoice";
+      : invoice.documentType === "recovery_invoice"
+        ? "recovery_invoice" // 2026-09-22: the Art. 40(9) tax invoice — a 388 that names the receivable it recovers
+        : "invoice";
 
   /**
    * 🔴 AP-2 — BT-113 `PrepaidAmount` is computed from ADJUSTED ADVANCE TAX
@@ -391,6 +405,7 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     documentType,
     subtype: subtypeFor(customer?.taxNumber),
     issuedAt: invoice.issuedAt,
+    supplyDate: invoice.supplyDate ?? null,
     currency: invoice.currency ?? "SAR",
     seller,
     buyer,
@@ -407,10 +422,14 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     paymentMeansCode: "30", // credit transfer — the safe default (BR-KSA-16)
     billingReference: rows.originalInvoice
       ? { invoiceNumber: rows.originalInvoice.invoiceNumber }
-      : null,
+      : isRecovery && rows.recoveredInvoice
+        ? { invoiceNumber: rows.recoveredInvoice.invoiceNumber }
+        : null,
     // BR-KSA-17 — the reason a note was issued. Required for notes; validated
     // above so this can never be silently empty on a note.
     instructionNote: invoice.noteReason,
-    notes: invoice.notes,
+    notes: isRecovery && rows.recoveredInvoice
+      ? `Tax invoice under VAT Implementing Regulations Art. 40(9): consideration received on ${invoice.supplyDate} against tax invoice ${rows.recoveredInvoice.invoiceNumber}, on which bad-debt relief (Art. 40(7)) was claimed${rows.recoveredInvoice.badDebtReliefClaimedOn ? ` on ${rows.recoveredInvoice.badDebtReliefClaimedOn}` : ""}. The amount has been received.${invoice.notes ? ` ${invoice.notes}` : ""}`
+      : invoice.notes,
   };
 }

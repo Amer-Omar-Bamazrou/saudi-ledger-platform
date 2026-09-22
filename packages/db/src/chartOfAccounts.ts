@@ -74,6 +74,23 @@ export const SYSTEM_ACCOUNTS = {
    * for someone to find a use for it.
    */
   RETAINED_EARNINGS: "RETAINED_EARNINGS",
+  /**
+   * 2026-09-22 (accountant, advance-payments answers 2 and 4). Money a
+   * customer sent is one of FOUR liabilities, kept apart because their
+   * natures, VAT positions and exits differ: `UNIDENTIFIED_RECEIPTS` — a
+   * receipt whose purpose is unknown or erroneous (owed back or awaiting
+   * identification; never an advance, never suspense); `CUSTOMER_DEPOSITS` —
+   * an advance for a supply (the contract liability, a VAT tax point);
+   * `SECURITY_DEPOSITS_HELD` — a refundable security deposit, outside VAT
+   * while it is genuinely refundable and unavailable for use;
+   * `CUSTOMER_CREDITS` — a credit-note balance. The classification → account
+   * map is ONE seam (customerCreditPolicy.ts). `BAD_DEBT_EXPENSE` carries a
+   * write-off with Art. 40(7) relief and the Art. 40(9) VAT that becomes
+   * payable again on recovery.
+   */
+  UNIDENTIFIED_RECEIPTS: "UNIDENTIFIED_RECEIPTS",
+  SECURITY_DEPOSITS_HELD: "SECURITY_DEPOSITS_HELD",
+  BAD_DEBT_EXPENSE: "BAD_DEBT_EXPENSE",
 } as const;
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
@@ -164,6 +181,9 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // D-4 (2026-09-17): customer money the books owe back or must earn — see SYSTEM_ACCOUNTS.
   { code: "CUSTOMER_DEPOSITS", name: "Customer deposits and advances", nameAr: "ودائع ودفعات مقدمة من العملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
   { code: "CUSTOMER_CREDITS", name: "Customer credit balances", nameAr: "أرصدة دائنة للعملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
+  // 2026-09-22 (accountant): the other two customer-money liabilities — see SYSTEM_ACCOUNTS.
+  { code: "UNIDENTIFIED_RECEIPTS", name: "Unidentified and erroneous receipts", nameAr: "مقبوضات غير محددة أو خاطئة", type: "liability", liquidityClass: "current", legacyNames: [] },
+  { code: "SECURITY_DEPOSITS_HELD", name: "Refundable security deposits held", nameAr: "تأمينات مستردة محتفظ بها", type: "liability", liquidityClass: "current", legacyNames: [] },
 
   // 🔴 WHY THIS IS EQUITY (owner-approved 2026-08-17, recorded so nobody
   // re-litigates it as "why is this in equity"): the tenant DECLARED the
@@ -184,6 +204,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "PURCHASES", name: "Purchases", nameAr: "المشتريات", type: "expense", vatApplicable: true, legacyNames: ["Purchases", "Office Expense"] },
   { code: "SALARIES", name: "Salaries and Wages Expense", nameAr: "مصروف الرواتب والأجور", type: "expense", legacyNames: ["Salaries and Wages Expense"] },
   { code: "GOSI_EXPENSE", name: "GOSI Expense - Employer", nameAr: "مصروف التأمينات - حصة صاحب العمل", type: "expense", legacyNames: ["GOSI Expense - Employer"] },
+  // 2026-09-22: bad debts written off (Art. 40(7) relief) and the Art. 40(9) VAT payable again on recovery.
+  { code: "BAD_DEBT_EXPENSE", name: "Bad debts", nameAr: "ديون معدومة", type: "expense", legacyNames: [] },
 ];
 
 /**

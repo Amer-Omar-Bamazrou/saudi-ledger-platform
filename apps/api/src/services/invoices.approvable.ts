@@ -28,7 +28,7 @@ import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./acco
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
-import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME } from "./accounting/customerCreditPolicy";
+import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiabilityAccount } from "./accounting/customerCreditPolicy";
 import { round2 } from "../lib/money";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
@@ -37,9 +37,9 @@ import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
-import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
+import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, RECOVERY_INVOICE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
-import { advanceInvoicesService, prepaymentsOf } from "./advanceInvoices.service";
+import { advanceInvoicesService, prepaymentsOf, assertTaxPointPeriodOpen } from "./advanceInvoices.service";
 import type { GLLine } from "./accounting/glPosting";
 
 type Invoice = typeof InvoicesTable.$inferSelect;
@@ -58,6 +58,7 @@ const DOCUMENT_LABEL: Record<string, string> = {
   debit_note: "Debit note",
   advance_invoice: "Advance tax invoice",
   advance_credit_note: "Credit note against advance",
+  recovery_invoice: "Tax invoice (Art. 40(9) recovery)",
 };
 
 /**
@@ -163,7 +164,12 @@ async function assertPrepaymentsIssuable(inv: Invoice, total: number) {
 async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const inv = row.inv;
 
-  // Approval is when it hits the books — enforce the period lock first.
+  // Approval is when it hits the books — enforce the period lock first. An
+  // advance tax invoice is dated at its TAX POINT (the receipt), so a locked
+  // receipt month refuses with the Art. 63 explanation, not the generic one.
+  if (inv.documentType === ADVANCE_INVOICE_TYPE && inv.advancePaymentId != null) {
+    await assertTaxPointPeriodOpen({ id: inv.advancePaymentId, paidAt: inv.date });
+  }
   await checkPeriodOpen(inv.date);
 
   // Re-validate a note at APPROVAL, not only at create (M12.1b). The state can
@@ -389,6 +395,64 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
         ],
       });
     }
+  } else if (inv.documentType === RECOVERY_INVOICE_TYPE) {
+    /**
+     * 🔴 2026-09-22 — THE Art. 40(9) RECOVERY INVOICE (accountant answer 4;
+     * badDebt.service.ts carries the authority and the shape):
+     *
+     *   Dr Bad debts                 the VAT on the amount received
+     *       Cr VAT Payable           the same — payable again, in the PAYMENT's period
+     *
+     * and, when the receivable was written off HERE (its money arrived on
+     * account, on the receipt's liability):
+     *
+     *   Dr <receipt's liability>     the amount received (gross)
+     *       Cr Bad debts             the recovery
+     *
+     * with an allocation receipt → this document for the gross (the receipt's
+     * unapplied balance, this document's paid_amount and the GL agree). A
+     * migrated receivable is settled by the receipt's own allocation; this
+     * document then carries the VAT leg only. No AR, no revenue: the money
+     * has been received. Re-checked here under the locks before the ICV
+     * is consumed.
+     */
+    const [recovered] = await invoiceSettlementRepository.lockInvoices([inv.recoversInvoiceId!]);
+    const [payment] = await paymentsRepository.lockPayment(inv.recoveryPaymentId!);
+    if (!recovered || !payment) throw new BusinessRuleError(409, { code: "recovery_source_missing", error: `The receivable or the receipt this recovery invoice declares no longer exists.` });
+    if (!recovered.badDebtReliefClaimedOn) throw new BusinessRuleError(409, { code: "recovery_requires_relief", error: `${recovered.invoiceNumber} no longer carries bad-debt relief; the recovery invoice cannot be issued.` });
+    await assertTaxPointPeriodOpen({ id: payment.id, paidAt: payment.paidAt });
+    const party = { type: "customer" as const, customerId: inv.customerId! };
+    const writtenOffHere = toNum(recovered.writtenOffAmount) > 0.005 && recovered.badDebtReliefSource === "recorded";
+    const lines: GLLine[] = [];
+    if (vatAmount > 0.005) {
+      lines.push({ systemCode: "BAD_DEBT_EXPENSE", accountName: "Bad debts", description: `VAT payable again on recovery of ${recovered.invoiceNumber} (Art. 40(9))`, debitAmount: vatAmount, creditAmount: 0 });
+      lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${inv.invoiceNumber} — recovery of ${recovered.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount });
+    }
+    if (writtenOffHere) {
+      const allocated = round2((await paymentsRepository.allocatedTotals([payment.id])).get(payment.id) ?? 0);
+      const refunded = round2(await paymentsRepository.refundedFrom({ paymentId: payment.id }));
+      const available = round2(toNum(payment.amount) - allocated - refunded);
+      if (total > available + 0.005) throw new BusinessRuleError(409, { code: "recovery_exceeds_receipt", error: `Receipt ${payment.id} has ${available.toFixed(2)} not yet applied; the recovery of ${total.toFixed(2)} cannot be issued from it.`, field: "amount" });
+      const [dup] = await paymentsRepository.activeAllocationFor({ paymentId: payment.id }, inv.id);
+      if (dup) throw new BusinessRuleError(409, { code: "recovery_receipt_already_allocated", error: `Receipt ${payment.id} is already applied to ${inv.invoiceNumber}.` });
+      const liability = depositLiabilityAccount(((await paymentsRepository.latestClassifications([payment.id])).get(payment.id)?.classification as "advance" | "erroneous" | "security_deposit" | "unknown" | undefined) ?? null);
+      lines.push({ systemCode: liability.systemCode, accountName: liability.accountName, description: `Receipt RCPT-${payment.id} applied to the recovery of ${recovered.invoiceNumber}`, debitAmount: total, creditAmount: 0, party });
+      lines.push({ systemCode: "BAD_DEBT_EXPENSE", accountName: "Bad debts", description: `Bad debt recovered — ${recovered.invoiceNumber}`, debitAmount: 0, creditAmount: total });
+    }
+    let je: { id: number } | null = null;
+    if (lines.length > 0) {
+      je = await postJournalEntry({
+        entryNumber: `GL-${inv.invoiceNumber}`,
+        date: inv.date,
+        description: `Tax invoice ${inv.invoiceNumber} under Art. 40(9): ${total.toFixed(2)} received on ${payment.paidAt} against ${recovered.invoiceNumber} (bad-debt relief ${recovered.badDebtReliefClaimedOn})`,
+        reference: inv.invoiceNumber,
+        lines,
+      });
+    }
+    if (writtenOffHere) {
+      await paymentsRepository.insertAllocation({ paymentId: payment.id, invoiceId: inv.id, amount: total.toFixed(2), journalEntryId: je?.id ?? null, createdBy: null });
+      updated = await invoiceSettlementRepository.bumpSettled(inv.id, { paid: total }, inv.date, "paid");
+    }
   } else if (total > 0) {
     const isCredit = inv.documentType === "credit_note";
     const label = DOCUMENT_LABEL[inv.documentType] ?? "Invoice";
@@ -413,7 +477,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
        */
       const [original] = await invoiceSettlementRepository.lockInvoices([inv.originalInvoiceId!]);
       if (!original) throw new BusinessRuleError(409, { code: "note_original_not_found", error: `The invoice this credit note corrects no longer exists.` });
-      const originalOutstanding = Math.max(0, round2(toNum(original.total) - toNum(original.paidAmount) - toNum(original.creditedAmount)));
+      const originalOutstanding = Math.max(0, round2(toNum(original.total) - toNum(original.paidAmount) - toNum(original.creditedAmount) - toNum(original.writtenOffAmount)));
       const applied = round2(Math.min(total, originalOutstanding));
       const excess = round2(total - applied);
       if (excess > 0 && inv.customerId == null) {

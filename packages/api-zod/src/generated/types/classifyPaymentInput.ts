@@ -21,6 +21,11 @@ export interface ClassifyPaymentInput {
      */
   note?: string | null;
   /**
+     * YYYY-MM-DD. 2026-09-22: when the reclassification takes effect in the books (default today; never before the receipt; an open month).
+     * @nullable
+     */
+  effectiveDate?: string | null;
+  /**
      * @maxLength 120
      * @nullable
      */
