@@ -1,6 +1,6 @@
 # Phase 11 — Deep Accounting & Deep Accounts Payable: audit, research and decisions
 
-**Status (2026-09-22): THE AUDIT IS COMPLETE; implementation in progress.**
+**Status (2026-09-22): A1, A2, A3, A4 and half of B6 are BUILT; A5–A8 and B1–B8 are audited, and §8 states what was not built and why.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md).
@@ -176,4 +176,248 @@ of scope** and are not approximated.
 
 ---
 
-*(As-built records for each batch are appended below as they land.)*
+---
+
+## 3. A2/A3 as built — accruals and prepayments
+
+One engine, two directions (`services/accounting/recognitionSchedules.service.ts`),
+shaped like the fixed-asset register: a document of facts, a **stored** schedule
+frozen as it posts, figures **derived** from the posted rows, every effect
+through `postJournalEntry` after `checkPeriodOpen`.
+
+| | Accrual | Prepayment |
+| --- | --- | --- |
+| What happened | received, **not yet invoiced** (IAS 37.11) | paid **before** the benefit |
+| Balance account | `ACCRUED_LIABILITIES` (liability) | `PREPAID_EXPENSES` (current asset) |
+| Who raises the balance | each recognition does | cash or the bill already did |
+| Recognition | `Dr expense / Cr accrued liabilities` | `Dr expense / Cr prepaid expenses` |
+| Activation posts | nothing | nothing |
+
+🔴 **Recognition is dated the LAST DAY of the period being recognised**, not the
+day the run happened — so a closed month fails closed through
+`checkPeriodOpen`, loudly, instead of silently landing in today.
+
+🔴 **Cancelling stops the future and keeps the past.** Unposted rows go; posted
+ones stay in the books. It reverses nothing: reversing a posted recognition is
+`journalEntries.reverse`, a separate act with its own reason and its own period
+check. Folding the two together would let "stop this schedule" quietly rewrite
+closed months.
+
+🔴 **`spreadOverPeriods` moved to `lib/money.ts`** and the fixed-asset
+depreciation engine now calls it. Equal rounded addends, the last absorbing the
+residue, so Σ rows = the total exactly. Two copies of one formula diverge
+invisibly; the 17 existing depreciation tests prove the move changed nothing.
+
+**Not built:** provisions (IAS 37 proper — an uncertainty judgement, named as
+out of scope rather than approximated); a prepayment raised automatically by a
+bill (`source_bill_id` exists with no writer — the column is there because the
+link is obvious, and it is **stated here as unbuilt** rather than left to look
+finished).
+
+---
+
+## 4. A7 — foreign currency: DOCUMENTED, NOT BUILT
+
+`SAUDI LEDGER PRODUCT DECISION`, and the brief's own instruction: *"Do NOT
+implement a superficial FX field without correct accounting behaviour. If this
+requires a larger architectural change, document it instead of creating fragile
+partial functionality."*
+
+### 4.1 What exists
+
+`invoices.currency` and `bills.currency` exist, default `'SAR'`, and **no code
+anywhere reads them**. There is no rate table, no rate capture, no functional-
+currency restatement, no realized or unrealized FX. A grep for
+`exchangeRate|exchange_rate|fxRate` across `packages/db/src` and `apps/api/src`
+returns nothing.
+
+### 4.2 Why a field would be worse than nothing
+
+FX is not a column; it is a property of **every monetary line in the system**.
+Doing it correctly (IAS 21) requires, at minimum:
+
+1. a **rate source and a rate table** with a date and a provenance for each rate — a rate is a fact about a moment, and one stored without its source ages into a false credential;
+2. **two amounts on every journal line** — transaction currency and functional currency — because a GL that stores only one cannot produce both the statutory statements and the subledger a supplier recognises;
+3. **realized FX at settlement**, which means the payment path must know the rate at invoice date *and* at payment date, and post the difference to its own account;
+4. **unrealized FX at period end**, a revaluation of every open monetary balance, reversed or not depending on policy;
+5. **every report** re-reading balances in the functional currency, and every existing invariant (`ledgerInvariants.ts`, the balance checks in `postJournalEntry`, the D-3 per-bank cash identity) re-stated in two currencies.
+
+🔴 Adding `exchange_rate` to a document without (2) and (3) produces a system
+that **looks** multi-currency and silently reports a wrong functional-currency
+balance the first time a rate moves. That is the "rendering a value the system
+cannot compute with" failure: it converts a visible absence into an endorsed
+inconsistency.
+
+### 4.3 The boundary
+
+FX is **its own phase**. It touches every posting path, and the correct order is
+the rate table and the two-amount journal line *first*, before any document
+gains a currency selector. Nothing in Phase 11 adds a currency field, and the
+two existing `currency` columns are left exactly as they are — inert, and now
+documented as inert.
+
+---
+
+## 5. A8 — accounting dimensions: AUDITED, and the answer is not a new axis
+
+### 5.1 What exists
+
+- `branches` and `departments` tables exist with **no consumer anywhere** in `apps/api/src` — CLAUDE.md §5 already records them as S6/S7, "build one or drop them".
+- Journal-entry **lines carry no dimension column**.
+- Fixed assets carry `location` and `department` as **free text**, used for the register and nothing else.
+- The nav has a `Cost Centres & Projects` entry marked **Coming Soon**.
+
+`ERPNEXT IMPLEMENTATION` (cited): ERPNext has a first-class
+`Accounting Dimension` doctype (`erpnext/accounts/doctype/accounting_dimension/`)
+plus `accounting_dimension_filter` and `allowed_dimension`, which inject a
+column into GL Entry per dimension.
+
+### 5.2 The decision
+
+🔴 **Phase 11 adds no dimensional architecture**, and the reason is the brief's
+own: *"Do not introduce unnecessary dimensional architecture if the current
+design already has a correct equivalent."* The current design does **not** have
+an equivalent — but neither does it have a consumer, and adding a dimension
+column to `journal_entry_lines` without a reporting surface that groups by it
+would create exactly the shape this codebase has named twice: a column that
+looks like progress and is not written, beside two tables (`branches`,
+`departments`) that have been unbuilt for long enough to be on the queue.
+
+The honest sequence is: **decide whether the product wants dimensions at all**
+(the nav says "coming soon", which is a promise nobody has costed), then build
+one dimension end to end — column, write path, validation, and a report that
+groups by it — rather than three half-axes. Until then S6/S7 stands: build one
+or drop them.
+
+---
+
+## 6. B7 — supplier credit notes: RESEARCHED AND DESIGNED, not built
+
+### 6.1 🔴 The purchase side is NOT a mirror of the sales side
+
+This is the finding that matters, and it is the one a mirror-image
+implementation would get wrong.
+
+`AUTHORITATIVE (Saudi)` — VAT IR, **Credit and Debit Notes**, ¶1–2: when the
+circumstances of Art. 40(1) occur, *"the Taxable Person **who has made the
+Supply** shall provide the Customer with a credit note."* The note is the
+**supplier's** document. When our tenant is the customer, our tenant **does not
+issue it, does not sign it, does not report it to ZATCA, consumes no ICV and
+takes no position in the hash chain.** It is a document we *receive*.
+
+`AUTHORITATIVE (Saudi)` — **Art. 40(6)** states our side exactly:
+
+> "the **Customer must correct its Input Tax** to reflect the Tax amount
+> calculated on the change in Consideration **in the Tax Period in which the
+> Credit Note or Debit Note is issued**."
+
+Two consequences the design must carry:
+
+1. we adjust **input** tax, never output tax;
+2. the period is the one in which the **supplier issued** the note — not when we received it, and not the original bill's period. So the received note needs its **own issue date**, and that date drives the VAT return.
+
+### 6.2 The implementations converge on the shape
+
+| | Model | Citation |
+| --- | --- | --- |
+| ERPNext | the SAME doctype, `Purchase Invoice` with `is_return = 1` and `return_against` → the original; the original's status becomes `Debit Note Issued` | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py:131, :161, :932` |
+| Odoo | the same model, `account.move` with `move_type = 'in_refund'`, the declared mirror of `in_invoice` | `addons/account/models/account_move.py:63` |
+
+They converge, and they converge with what **our own sales side already does**
+(`invoices.document_type` = `invoice | credit_note | debit_note`). Per the
+escalation protocol, convergence between two products is evidence about
+software and not an accounting requirement — but here it also matches the
+platform's own established pattern, which is the stronger argument.
+
+### 6.3 The design
+
+`SAUDI LEDGER PRODUCT DECISION`:
+
+- **`bills.document_type`** — `bill | credit_note | debit_note`, mirroring `invoices.document_type`, with `bills.credit_note_against_bill_id` as the back-reference. One table, one lifecycle, one posting path; `documentSign()` extended to the purchase side so every consumer applies the direction explicitly rather than each report inventing it.
+- **Accounting**: a received credit note reverses the original's direction — `Dr AP (vendor) / Cr expense (or the asset it capitalised) / Cr VAT_INPUT` — the exact mirror of the bill's own entry, through the same posting path.
+- **VAT**: the input-tax adjustment is filed in the period of the note's **issue date** (Art. 40(6)), which is why the note carries its own date rather than inheriting the bill's.
+- **Nothing ZATCA**: no ICV, no QR, no hash-chain position, no outbox. 🔴 This must be explicit in the code, because every other document-creating path in this product *does* touch the chain, and a reader who pattern-matches would wire it in.
+- **Ageing and statements**: `apAging` and the (unbuilt) supplier statement net credit notes against the vendor's balance — which is precisely why B6's ageing is still incomplete, and is recorded as such rather than claimed.
+
+### 6.4 Why it is not built in this batch
+
+It is a schema change to `bills` plus the posting path, the VAT return's
+purchase side, AP ageing, and a UI — a vertical slice the size of A2/A3, and the
+batch ran out of room before it could be done to the standard the rest of Phase
+11 was held to. **A half-built credit note is worse than none**: a `document_type`
+column that some readers honour and others do not would make every AP figure in
+the product depend on which query answered it. The research above is the
+deliverable; the build is the next batch's first item.
+
+---
+
+## 7. B8 — withholding tax: the integration points, and the boundary
+
+The brief says explicitly: *"DO NOT build a speculative full WHT engine yet."*
+
+### 7.1 What Saudi WHT is — `AUTHORITATIVE (Saudi)`
+
+Income Tax Law **Art. 68** with Executive Regulations **Art. 63**: tax withheld
+from payments made **from a source in the Kingdom to NON-RESIDENTS without a
+permanent establishment**, by payment type:
+
+| Payment | Rate |
+| --- | --- |
+| Management fees | **20 %** |
+| Royalties | **15 %** |
+| Rent · technical and consulting services · air tickets · air/sea freight · international telecommunications · dividends · loan charges · insurance and reinsurance premiums | **5 %** |
+| Any other payment | **15 %** |
+
+Remittance: within **ten days of the end of the month in which the payment was
+made**, with a monthly return naming the non-resident beneficiary, the payment
+type, the amount and the tax withheld; an annual return within 120 days of the
+fiscal year end (60 for partnerships). Late payment attracts **1 % per 30 days**.
+
+### 7.2 Where it touches this product
+
+1. **The vendor** — WHT applies to a *non-resident without a PE*. `vendors` has no residency or PE field, and that is the first required datum. It is a fact about the supplier, not about the invoice.
+2. **The bill line** — the rate depends on the **payment type**, which is a property of what was supplied, so it belongs on the line or on the bill, not on the vendor.
+3. 🔴 **The PAYMENT, not the invoice, is the trigger.** The Law withholds on payments made; the ten-day clock runs from the month of *payment*. So the accounting event is in the supplier-payment path: the vendor is paid **net**, and the withheld amount moves to a liability owed to ZATCA — `Dr AP (gross) / Cr bank (net) / Cr WHT payable`. An implementation that withheld at invoice approval would be wrong about both the amount and the deadline.
+4. **A liability account** (`WHT_PAYABLE`) and its settlement when the monthly remittance is paid.
+5. **A monthly report** in the shape of the return: beneficiary, payment type, amount, tax withheld.
+
+### 7.3 The boundary
+
+🔴 **WHT is its own phase, and it is blocked on B3 before it is blocked on
+anything else.** Its accounting event lives in the supplier-payment path — and
+that path does not yet exist in the form WHT needs: today `billsService.pay`
+pays one bill at a time with no allocation architecture, no unapplied credit and
+no vendor-side `payments` row (`payments.vendor_id` does not exist). Building
+WHT onto that would mean building it twice.
+
+Sequence: **B3 (supplier payments with allocation) → B4 (supplier advances) →
+WHT**. Nothing speculative is added to the schema in this batch.
+
+---
+
+## 8. What Phase 11 did NOT do, stated as a boundary
+
+Built and shipped: **A1** (recurring journal entries), **A2/A3** (accruals and
+prepayments, with their surface), **A4** (reversal reason, date and the missing
+period check), and half of **B6** (the business-day ageing defect).
+
+Not built, each with its reason:
+
+| # | Why |
+| --- | --- |
+| **A5** period close validation, **A6** year-end retained-earnings transfer | Researched (ERPNext's `Period Closing Voucher` refuses to close a year while an earlier one has entries and no voucher — `period_closing_voucher.py:94–125`; the closing account must be Liability or Equity — `:145–150`; Odoo carries **five** lock dates including an irreversible `hard_lock_date` — `addons/account/models/company.py:76–101`). Not built: the batch ran out of room, and a close that validates nothing is worse than an honest lock. |
+| **A7** FX | §4 — architecture, not a field. |
+| **A8** dimensions | §5 — the product has not decided it wants them. |
+| **B1** | Audited as largely complete; nothing needed. |
+| **B2** approver identity/timestamp on the bill, approval limits | Small, and it belongs with B3's payment authority rather than on its own. |
+| **B3** supplier payments with allocation, **B4** supplier advances, **B5** supplier statement | The single largest remaining gap: `payments` is AR-only (`customer_id`, no `vendor_id`; `direction = 'out'` has no writer). This is a full architecture, not a feature, and it is the correct next batch. |
+| **B6** credit notes/advances in ageing | Blocked on B7 and B4 — the things it would age do not exist yet. |
+| **B7** supplier credit notes | §6 — researched and designed; a half-built `document_type` would make every AP figure depend on which query answered it. |
+| **B8** WHT | §7 — blocked on B3 by its own accounting. |
+
+🔴 **No accountant decision is outstanding from what was built.** Everything
+delivered rests on IAS 37.11, the IFRS accrual basis as SOCPA endorses it, or a
+product decision with no Saudi, VAT or ZATCA consequence. The questions that
+*would* need him — the VAT treatment of a supplier advance (B4), and whether a
+period close should refuse or merely warn on unposted drafts (A5) — attach to
+work that was **not** started, so nothing is blocked waiting on him.
